@@ -17,6 +17,35 @@ This page explains the platform and the vocabulary you will meet in this reposit
 | **scribe** | an agent | keeps the record: the bug backlog, the counts, the history |
 | **advisor** | an agent | works with the owner on plans and documents |
 
+## Every role gets its own craft and its own skills
+
+An agent does not start from a blank prompt. Every run gets the rules of its trade, written down and ratified by the owner, and the skills its task needs. Nothing more.
+
+**The craft** is the standing rulebook of a role. There is one shared by every role, and one each for the master, the executor, the reviewer and the tester. A few of the rules, in their own words:
+
+| role | from its craft |
+|---|---|
+| **master** | *"Every order says what it does not ask for."* · *"Success is a number with its command."* · *"One slice per order."* Split when the acceptance has more than three items, the title needs "and", or two subsystems move. |
+| **executor** | *"Red-first is a proof."* A defect is reproduced by a test that fails before any fix, and after the fix the executor reverts it once and watches the test fail. *"Stop the line"* on an unexpected failure. After three failed fixes, stop and return it as a design question. |
+| **reviewer** | *"Mutate the conditions."* Invert each new guard once; a mutant that survives names a missing test. *"Zero findings is a valid review; do not manufacture any."* *"The author's reasoning never lowers a finding's class."* |
+| **tester** | *"Test against the contract, not the implementation."* The tester walks the whole train once, at its end, as its user would, on its own disposable instance. It never fixes the product. |
+
+A review also carries a **profile** for what the change touches: security, backend, user interface, mobile or docs. The security profile, for example, removes each authorization check once and expects a test to fail. The user-interface profile forces every state: loading, empty, error, no permission, success.
+
+**The skills** are a library of 32, one file each, in the open Agent Skills format. A skill brings the instrument and the number for a craft rule: which tool, which threshold, which command. It can raise the bar and never lower it.
+
+| area | skills |
+|---|---|
+| languages | Go, TypeScript and Node, Python, Rust, .NET, JVM and Spring, Kotlin for Android, Swift for iOS |
+| front end | front-end engineering, React, accessibility (WCAG), web vitals, Playwright in the browser, terminal UIs, native mobile UI |
+| back end and data | HTTP API conventions, contract-first boundaries, Postgres, schema migrations, idempotent writes, MCP servers |
+| security | web security hardening, privacy and personal data, supply chain for Go, npm and Python |
+| delivery | the testing bar, feature flags and rollout, semantic versioning, deprecation, observability, decision records |
+
+Each skill says which roles may use it. A front-end executor gets the front-end skills; a reviewer of the same change gets the same skills plus its review profile; a master gets the skills that help it write the order. Each project switches on its own set, and that is the owner's decision. An agent reads only the skills its order names. If a skill needs a tool the machine does not have, the agent does not pretend: everything that skill would have checked goes into its report as not run.
+
+Several skills build on open-source work and credit it in their own files: Addy Osmani's agent-skills (MIT) and Anthropic's skills (Apache-2.0).
+
 ## What the platform guarantees today
 
 - **Every agent has its own identity**, separate from any person's account.
