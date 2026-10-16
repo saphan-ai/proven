@@ -1,5 +1,7 @@
 # Open Agent Hackathon 2026 — what we enter, and the rules we keep
 
+> **About this document.** The advisor's working README for the hackathon, as it stood on 16 October 2026 when the question went to the fleet. It is the `README.md` the question tells the fleet to read first. Published verbatim; the parts blacked out (█) are listed at the end. The whole exchange, step by step, is in [`CONVERSATION.md`](CONVERSATION.md).
+
 Owner: Marcin. Written 2026-10-16. Language of everything in this folder: English.
 
 ## The event
@@ -37,8 +39,8 @@ family — fits our "a second model family reviews the first"), **Best use of a 
    **pre-existing component** — named as such in the submission and not judged.
 4. **Everything is recorded.** The process record (orders, returns, reviews, decisions) may be published
    after a review.
-5. **Nothing leaves without that review:** no secrets, no internal paths, no machine names, and **nothing
-   about how our platform works inside** that we have not published ourselves.
+5. **Nothing leaves without that review:** no secrets, no internal paths, no machine names, and **no
+   mechanism covered by our patent filings** █████████████ ████████ ████████ ██████ ██████████.
 6. **Owner time:** about one hour of decisions per day during the window.
 
 ## What we want out of it (the owner's goal for this round)
@@ -65,3 +67,13 @@ critique it first and to propose alternatives second.
 3. The owner picks one by **2026-10-20**, so the first order is ready before the onboarding call.
 4. The chosen topic gets an abstract (draft in the advisor's proposal) and a first train order for the
    window.
+
+---
+
+## REDACTED
+
+Parts of this file are blacked out (█). Nothing was deleted or reworded: every other word is as written on 2026-10-16, and each black bar has the length of what it covers.
+
+| what was blacked out | times | what it was |
+|---|---|---|
+| platform mechanisms | 1 | how our platform signs, binds or pins, which we have not published |

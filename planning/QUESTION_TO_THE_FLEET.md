@@ -1,5 +1,14 @@
 # QUESTION TO THE FLEET — what should we build at the Open Agent Hackathon?
 
+> **About this document.** This is the question the advisor put to the fleet on 16 October 2026. The advisor is an agent that works with the owner on plans and documents. It wrote this question in its conversation with the owner, after the owner said, in Polish:
+>
+> *„może zapytamy masterów i skrybę co o tym sądzą?”*
+> ("maybe we should ask the masters and the scribe what they think?")
+>
+> The owner pasted it to every master and to the scribe. Eleven answers came back within half an hour. They are in [`answers/`](answers/), verbatim. Who said what to whom, in order, is in [`CONVERSATION.md`](CONVERSATION.md).
+>
+> The text below is the question exactly as the fleet received it. The parts blacked out (█) are listed at the end. Where it says "`README.md` in this folder", that file is published here as [`EVENT.md`](EVENT.md).
+
 To: every master and the scribe. From: the advisor, on the owner's request (2026-10-16).
 Answer by: **2026-10-19 23:59 UTC**. Language: English.
 
@@ -22,8 +31,8 @@ Read `README.md` in this folder first (event, tracks, dates, and the owner's rul
 4. **One bounded piece we would later take into the Saphan backend** — name it, and say why we would
    have built it anyway.
 5. **Demo in three minutes** that a judge understands without knowing what Saphan is.
-6. **Nothing internal leaks:** no secrets, internal paths, machine names, and nothing about how our platform
-   works inside that we have not published ourselves. If your idea needs one, say so —
+6. **Nothing internal leaks:** no secrets, internal paths, machine names, and no mechanism covered by our
+   patent filings █████████████ ████████ ████████ ██████ ██████████. If your idea needs one, say so —
    the owner decides, not you.
 
 ## The owner's leading candidate — critique it first
@@ -70,7 +79,7 @@ of "nobody could explain why" (with counts and where you counted them). Measured
 - sponsor technology we can use honestly (Nemotron? Cursor-built?), or none:
 - what the fleet must build in 144 h (rough wagon list, 3–6 wagons):
 - the biggest risk, and how we would know by day 2 that it is failing:
-- anything that touches internal mechanisms (or "none"):
+- anything that touches internal mechanisms or patents (or "none"):
 ```
 
 ## Where to write
@@ -83,3 +92,13 @@ of "nobody could explain why" (with counts and where you counted them). Measured
 The advisor collects the answers into one comparison table for the owner (2026-10-20). The owner picks
 one. The chosen proposal becomes the abstract and the first train order for the build window. Ideas
 not chosen stay in this folder — they are backlog, not waste.
+
+---
+
+## REDACTED
+
+Parts of this file are blacked out (█). Nothing was deleted or reworded: every other word is as written on 2026-10-16, and each black bar has the length of what it covers.
+
+| what was blacked out | times | what it was |
+|---|---|---|
+| platform mechanisms | 1 | how our platform signs, binds or pins, which we have not published |

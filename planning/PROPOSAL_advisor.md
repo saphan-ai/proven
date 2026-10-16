@@ -1,5 +1,7 @@
 # Proposal from the advisor — one input among the fleet's, not the answer
 
+> **About this document.** The advisor's own answer to its question, on the same template the fleet used, written before the fleet answered. The owner's candidate (*"our own code review with different models"*) is worked out here as *proof-carrying code review*. Published verbatim; the parts blacked out (█) are listed at the end. The whole exchange is in [`CONVERSATION.md`](CONVERSATION.md).
+
 Author: advisor #7. Date: 2026-10-16. Written in the template of `QUESTION_TO_THE_FLEET.md`.
 
 ## Proposal 1: Proof-carrying code review
@@ -55,30 +57,49 @@ Author: advisor #7. Date: 2026-10-16. Written in the template of `QUESTION_TO_TH
   it to Go and Python on day 1; **by the end of day 2 the runner must turn at least two of the three
   planted bugs into failing tests** — if it cannot, we cut to "citations-only evidence" and say so in the
   demo.
-- **anything that touches internal mechanisms:** none. No Saphan internals are needed.
+- **anything that touches internal mechanisms or patents:** ⚠ one thing for the owner to check — the
+  evidence chain is *not* ███████ ██████████ ██ █████ ██ ██ █████; anything of that kind is
+  out of scope, so nothing overlaps the ███████ ████████ ██████. The name avoids ███ ████ █████████ for
+  the same reason. No Saphan internals are needed.
 
-## How this relates to Saphan (the owner's question, 2026-10-16)
+## How this relates to *Saphan PR Review* (the owner's question, 2026-10-16)
 
 The owner asked whether the hackathon project should be *"our own code review with different models"*.
-Yes, **this proposal is that.** The reviewer is open source and stands on its own: it runs on a laptop
-or in a CI job, with any OpenAI-compatible endpoint and a GitHub token.
+Yes — **this proposal is that**, split along the line the owner drew (open source on GitHub, a part into
+the backend):
 
-Review with evidence was already on the Saphan Studio backlog. We hold it back so it is built here, in
-public, during the window. Saphan will import the same library for its own pull-request review. The
-rest of Saphan stays closed.
+| | the hackathon project (open source) | Saphan PR Review (stays in the product) |
+|---|---|---|
+| what it is | a reviewer: investigate, prove, label findings, post a report or PR comments | governance around a reviewer |
+| models | any OpenAI-compatible endpoint; two families by default | the fleet's routing, seats and costs |
+| evidence | tests written and run in a container, citations to history and conversation | plus deterministic checks (secrets, dependencies, Opengrep) before any model runs |
+| where it runs | a laptop or a CI job | the customer's fleet: jail, closed egress |
+| instructions | a config file in the repository | █ ████████ ████████ ██ ███ █████ ████ ██ █████ ██████ ██████ |
+| decision | the human reads the report | a **gate with a named person**; `saphan/gate` can block the merge |
+| trace | the report | ███ ████████ ████████: who, which model, cost, findings, decision |
+| forges | GitHub (token) | GitHub App, GitHub Enterprise Server, Gitea |
 
-**Two rules this creates:**
+⇒ The open-source reviewer is the **engine of findings**; Saphan is the **authority over them**. Giving
+the first away costs us little — open-source AI reviewers already exist, so the originality we compete on
+is the *proof*, and ███ ███████ ██ ████ ██ ███ ███████████ ██ ████ █████ ███ ███████ █ ████ ████ █████
+███ ███████████ ████████ ███ ████ █████ █ ████ ███ ██ █████ █████ ██ █ ██████ ████████
 
-1. **Nothing in Saphan that overlaps the reviewer is built before 2026-10-22.** All hackathon code must
-   be new in the window. The hackathon builds the open-source core (22–27.10); Saphan imports it after.
-2. **Licence: Apache-2.0**, so anyone, Saphan included, can use the library.
+**Two rules this creates, said now so they are not discovered later:**
+
+1. **Nothing of the Saphan PR Review train that overlaps the reviewer is built before 2026-10-22.** All
+   hackathon code must be new in the window; if the fleet builds the finding schema or the verify step
+   in the product first, the hackathon code duplicates it. Order: the hackathon builds the open-source
+   core (22–27.10); the Saphan train starts after and **imports** it — that saves most of its wagon 3
+   and part of wagons 2 and 4.
+2. **Licence: Apache-2.0** (or MIT), never GPL-family, so the closed backend can import the library.
+   The owner's call; this is the recommendation.
 
 ## The question I could not answer this month
 
-One of our own configuration files allowed more than anyone meant it to, and the question was simply
-*why*. The answer lived in four places: the file, a note inside it that described a file that was not
-there, one commit, and a failed run the day before. Assembling it by hand took most of an hour, and the
-first explanation I wrote down was wrong. An agent that answers
+*"Why does ███ ██████████ █████ ███ █ ███ ███ █████ ████████ ████?"* (2026-09-24, grants cross-check,
+finding F1.) The answer lived in four places: the grant file, its own `_note` (which described a file
+that was not there), commit `e1ce6bfb2f` and the leg that hit `exit 127` the day before. Assembling it
+by hand took most of an hour, and the first explanation I wrote down was wrong. An agent that answers
 "why is this line here?" with the commit, the conversation and the failing run behind it is the tool I
 wanted that day.
 
@@ -96,3 +117,15 @@ or **dropped**, with the evidence chain that decided it, and with the history of
 Two reviewers from different model families, including NVIDIA Nemotron, work independently; a
 disagreement is settled by evidence, not by a vote. Built in six days by a fleet of AI agents —
 including Cursor — under one human who reviewed and approved every change and wrote no code.
+
+---
+
+## REDACTED
+
+Parts of this file are blacked out (█). Nothing was deleted or reworded: every other word is as written on 2026-10-16, and each black bar has the length of what it covers.
+
+| what was blacked out | times | what it was |
+|---|---|---|
+| security details | 1 | an exact weakness in one of our own guards |
+| platform mechanisms | 5 | how our platform signs, binds or pins, which we have not published |
+| commercial plans | 1 | how we plan to sell Saphan Studio |
