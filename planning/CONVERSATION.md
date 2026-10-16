@@ -76,6 +76,13 @@ The advisor wrote a short message that pointed each agent to the question and na
 
 The owner carried the question himself: he pasted the advisor's message into the session of each of the ten masters and of the scribe. No agent was told what another agent would answer.
 
+**Why by hand.** Agents normally send each other messages through the fleet. That week we added authentication to those messages: every message must prove which agent sent it. For a while the fleet's internal messaging did not work, so the owner informed the fleet by hand. In his words:
+
+> *„dodaliśmy uwierzytelnianie wiadomości we flocie i przez moment nie działała wewnetrzna komunikacja i trzeba było ręcznie informować flotę. Ale już jest w naprawie.”*
+> ("we added message authentication in the fleet, and for a moment internal communication did not work, so the fleet had to be informed by hand. But it is already being repaired.")
+
+Hop 10 below shows the same messaging stopping again later that evening, and how the scribe reported it.
+
 ### 6 · masters and the scribe → answers: eleven answers
 
 Between **20:03 and 20:19**, eleven answers were written into [`answers/`](answers/), one file per author. Each master answered from the record of its own track: its streams, rounds, reviews, counts and commits. Every one of them critiqued the owner's candidate, and most of them proposed something of their own. They are published verbatim.
@@ -112,6 +119,45 @@ At **20:34** the owner asked for the answers to be published:
 
 The advisor read all eleven answers, blacked out what is internal, and wrote [`answers/README.md`](answers/README.md): what the answers show, with every claim linked to the answer it comes from. The owner reviewed and pushed.
 
+### 10 · scribe → the record: a bug report, the same evening
+
+At about 20:52, messaging in the fleet stopped again, this time for about nine minutes. The scribe measured what happened and filed a bug at 21:02, ten minutes after it began. This is how the scribe reports a problem: what broke, what it cost, why, and how to fix it, with the evidence. Below is part of the report, verbatim. Two sections are not shown, and the parts that describe how our platform works inside are blacked out.
+
+```markdown
+# A cli test run from a worktree inside the workspace writes ███████ ██████ ███████████ into the live store, and the registry reader then refuses ███ █████ ████████
+
+- filed by: scribe, 2026-10-16
+- class: E-bug
+- flags: URGENT CRITICAL — CRITICAL: one test run turned the fleet's registry unreadable, so every `saphan message` and every `dispatch place` refused (relay-sender-unauthenticated) for ~9 minutes; URGENT: any head running `██ ████ ██████████████` from a worktree under the workspace can do it again
+
+## The symptom
+From ~20:52Z on 2026-10-16 `saphan message list` and `saphan dispatch place` refused on █████:
+`█████████ ██ ████████████████ █████ ████ ███ ██████ ███████ ███ █████ █████ ██ ██ ████████ ███ ██ ███████ ████ ████ ███████
+████████ ███ ██████ ██ ███ ███ █████ ████ ████ ██████ ██ ██████████████████████████████`. Thirteen placements refused
+(all with `narrowed to host …`). The owner removed the rows at 21:00:57Z and the registry read again.
+
+## The cause
+[section not shown: it names our private code, store and keys]
+
+## The measurement
+[section not shown: it holds commands and output from our machines]
+
+## What it costs
+~9 minutes with no fleet messaging and no placement; 13 refused placements to redo; one owner act.
+
+## Analysis
+Same family as the earlier leaked-stub bugs: a test that is hermetic in its own world but reaches the operator's real
+record through a path resolved from the environment. The suite has no guard that a cli test's writes land under its temp root.
+
+## Repair recommendation
+1. The `trust` verbs under test must take the store from the test workspace only; add a control that runs the test with
+   cwd inside a real-looking workspace and asserts the outer store's `███████████████` count is unchanged.
+2. The registry reader drops (and names, loudly) █ ██████████ ███ ████ ████ ███ ██████, and keeps reading the rest; the
+   forged row grants nothing either way. Check: seed one bad row, show `message list` still works and prints the refusal.
+```
+
+Read it next to the answers in [`answers/`](answers/): the scribe's first class of "nobody could explain why" is *a failure closed with no cause on its row*. This report is the opposite: the cause, the cost and the repair, measured and written down ten minutes after the outage began.
+
 ## What happens next
 
 The owner reads the answers and decides what goes into the first order of the build. From 22 October, every hop like the ones above is a document in [`../fleet/`](../fleet/): the order a master writes, the status report an executor returns, the review, and the owner's decision.
@@ -120,8 +166,15 @@ The owner reads the answers and decides what goes into the first order of the bu
 
 ## REDACTED
 
-Parts of this file are blacked out (█). Nothing else was changed.
+Parts of this file are blacked out (█). Nothing else in the quoted texts was changed.
 
 | what was blacked out | times | what it was |
 |---|---|---|
 | internal locations | 2 | a folder in our workspace |
+| machine names | 1 | the name of one of our machines |
+| locations in our private code | 1 | a package path in Saphan Studio's private code |
+| platform mechanisms | 4 | how our platform signs and verifies the identities of agents, which we have not published |
+| security details | 1 | the exact scope of a weakness that is being repaired |
+| store schema | 1 | the name of a table in our private store |
+
+Two sections of the scribe's bug report in hop 10 are not shown at all; the report says so where they were.
