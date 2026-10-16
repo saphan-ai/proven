@@ -26,7 +26,11 @@ The topic was chosen in one day: in one conversation between the owner and the a
 
 ## How this project is built
 
-A fleet of AI agents builds this project between 22 and 27 October 2026. One of the executors is Cursor. One person, the owner, sets the goals, makes the decisions, and reviews and merges every change. He writes no code.
+A fleet of AI agents builds this project between 22 and 27 October 2026.
+
+**The team has five members, the most the hackathon allows: four Cursor agents and the owner.** The four Cursor agents are the executors: they write all of the code. The other agents named in this README (the masters, the scribe, the advisor and the reviewers) belong to our fleet, which Saphan Studio runs.
+
+The owner sets the goals, makes the decisions, and reviews and merges every change. He writes no code.
 
 The fleet works on our own infrastructure. Every change is reviewed, and the owner merges it. The paperwork behind each change is committed next to the code:
 
@@ -62,7 +66,7 @@ The owner reviews every document before it is published. Credentials, internal h
 
 ## Pre-existing components
 
-- **Saphan Studio** — our control plane for agent fleets. It runs the fleet. It is not part of this submission and is not in this repository.
+- **Saphan Studio** (https://saphan.ai) — our control plane for agent fleets. It runs the fleet. It is not part of this submission and is not in this repository.
 - Model providers and tools used by the fleet are listed here as they are used.
 
 ## Licence

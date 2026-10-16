@@ -17,7 +17,7 @@ Up to three submissions, one counts. Plan: a complete safety submission on 26.10
 
 proven: proof-carrying code review. AI code reviewers give opinions, and a developer has to check each one. A false alarm costs as much time as a real bug. We built a pull-request reviewer that has to prove what it says. Two reviewers from different model families read the change. Every finding becomes either a test run in a sandbox on the base and head commits, or a citation to the code history, an issue or the docs. Each finding is marked PROVEN, QUESTION or DROPPED, with the evidence attached. When the reviewers disagree, the evidence decides, not a vote. Each finding also says why the code is the way it is, so the reviewer explains why something is wrong, not only that it is.
 
-How it was built is part of the entry. A fleet of AI agents, with Cursor as one of the executors, wrote all of the code in six days. One person set the goals, made the decisions and reviewed every change. He wrote no code. The repository holds, next to the code, the work orders, status reports and reviews behind each change, so anyone can follow why each change was made and who checked it. NVIDIA Nemotron is one of the reviewer models.
+How it was built is part of the entry. Four Cursor agents, the executors of our agent fleet, wrote all of the code in six days. One person set the goals, made the decisions and reviewed every change. He wrote no code. The repository holds, next to the code, the work orders, status reports and reviews behind each change, so anyone can follow why each change was made and who checked it. NVIDIA Nemotron is one of the reviewer models.
 
 Why here: review with evidence was already on the backlog of Saphan Studio, our control plane for agent fleets. We held it back so it could be built during the hackathon, from zero and in public. Saphan Studio stays closed and is a pre-existing component that only runs the fleet. This part goes to the community: the reviewer is open source under Apache-2.0, and Saphan will use the same library for its own pull-request review.
 
@@ -30,7 +30,7 @@ Why here: review with evidence was already on the backlog of Saphan Studio, our 
 5. How it works: two reviewers, evidence runners, the PROVEN / QUESTION / DROPPED rule.
 6. Results on the demo set: planted bugs found and proven, bait dropped, false alarms.
 7. How it was built: numbers from the repo (pull requests, orders, reviews, changes sent back, owner decisions).
-8. Sponsor technology: Nemotron as a reviewer, Cursor as an executor and what it built.
+8. Sponsor technology: Nemotron as a reviewer; four Cursor agents as the only executors, and what they built.
 9. What it does not do yet.
 10. Links: repo, video.
 
