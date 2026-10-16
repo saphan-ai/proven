@@ -121,18 +121,23 @@ The advisor read all eleven answers, blacked out what is internal, and wrote [`a
 
 ### 10 · scribe → the record: a bug report, the same evening
 
-At about 20:52, messaging in the fleet stopped again, this time for about nine minutes. The scribe measured what happened and filed a bug at 21:02, ten minutes after it began. This is how the scribe reports a problem: what broke, what it cost, why, and how to fix it, with the evidence. Below is part of the report, verbatim. Two sections are not shown, and the parts that describe how our platform works inside are blacked out.
+At about 20:52, messaging in the fleet stopped again, this time for about nine minutes. The scribe measured what happened and filed a bug at 21:02, ten minutes after it began. This is how the scribe reports a problem: what broke, what it cost, why, and how to fix it, with the evidence. Below is part of the report, verbatim; only the long lines are broken so they fit the page. Two sections are not shown, and the parts that describe how our platform works inside are blacked out.
 
 ```markdown
-# A cli test run from a worktree inside the workspace writes ███████ ██████ ███████████ into the live store, and the registry reader then refuses ███ █████ ████████
+# A cli test run from a worktree inside the workspace writes ███████ ██████ ███████████ into the live store, and
+  the registry reader then refuses ███ █████ ████████
 
 - filed by: scribe, 2026-10-16
 - class: E-bug
-- flags: URGENT CRITICAL — CRITICAL: one test run turned the fleet's registry unreadable, so every `saphan message` and every `dispatch place` refused (relay-sender-unauthenticated) for ~9 minutes; URGENT: any head running `██ ████ ██████████████` from a worktree under the workspace can do it again
+- flags: URGENT CRITICAL —
+  CRITICAL: one test run turned the fleet's registry unreadable, so every `saphan message` and every `dispatch
+  place` refused (relay-sender-unauthenticated) for ~9 minutes;
+  URGENT: any head running `██ ████ ██████████████` from a worktree under the workspace can do it again
 
 ## The symptom
 From ~20:52Z on 2026-10-16 `saphan message list` and `saphan dispatch place` refused on █████:
-`█████████ ██ ████████████████ █████ ████ ███ ██████ ███████ ███ █████ █████ ██ ██ ████████ ███ ██ ███████ ████ ████ ███████
+`█████████ ██ ████████████████ █████ ████ ███ ██████ ███████ ███ █████ █████ ██ ██ ████████ ███ ██ ███████
+████ ████ ███████
 ████████ ███ ██████ ██ ███ ███ █████ ████ ████ ██████ ██ ██████████████████████████████`. Thirteen placements refused
 (all with `narrowed to host …`). The owner removed the rows at 21:00:57Z and the registry read again.
 
@@ -147,13 +152,15 @@ From ~20:52Z on 2026-10-16 `saphan message list` and `saphan dispatch place` ref
 
 ## Analysis
 Same family as the earlier leaked-stub bugs: a test that is hermetic in its own world but reaches the operator's real
-record through a path resolved from the environment. The suite has no guard that a cli test's writes land under its temp root.
+record through a path resolved from the environment. The suite has no guard that a cli test's writes land
+under its temp root.
 
 ## Repair recommendation
 1. The `trust` verbs under test must take the store from the test workspace only; add a control that runs the test with
    cwd inside a real-looking workspace and asserts the outer store's `███████████████` count is unchanged.
 2. The registry reader drops (and names, loudly) █ ██████████ ███ ████ ████ ███ ██████, and keeps reading the rest; the
-   forged row grants nothing either way. Check: seed one bad row, show `message list` still works and prints the refusal.
+   forged row grants nothing either way. Check: seed one bad row, show `message list` still works and prints
+   the refusal.
 ```
 
 Read it next to the answers in [`answers/`](answers/): the scribe's first class of "nobody could explain why" is *a failure closed with no cause on its row*. This report is the opposite: the cause, the cost and the repair, measured and written down ten minutes after the outage began.
