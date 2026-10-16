@@ -29,6 +29,27 @@ This page explains the platform and the vocabulary you will meet in this reposit
 - **Every change keeps its record:** the order, who signed it, the agent's report, the review, the decision with its reason, the commits, and the name of the person who said yes.
 - **Every rejection is written down with its reason**, and often it becomes the next rule the agents work by.
 
+## Security, and where it runs
+
+Saphan Studio is built for teams that cannot let agents loose. This is what the fleet behind this repository runs on every day.
+
+| | what it means | docs |
+|---|---|---|
+| **Many vendors, one set of rules** | Claude Code, Codex, Qwen Code and Cursor agents, and local models, run under the same identities, policies and record. A vendor is a backend, not a different set of rules. | [the agents it drives](https://docs.saphan.ai/docs/getting-started/the-agents-it-drives) |
+| **Closed by default** | A run starts with no network and nothing it was not given. Every permission is opened for one task and closes with it. | [egress](https://docs.saphan.ai/docs/security/egress) |
+| **Our own sandbox** | Every run is confined by our sandbox, which wraps the vendor's own. Switch the vendor's sandbox off and the agent is still inside ours. | [sandbox matrix](https://docs.saphan.ai/docs/security/sandbox-matrix) |
+| **macOS, Linux, containers** | Agents run on macOS and Linux machines, locally or on other machines of the fleet, and in Docker or Podman containers. | [runners](https://docs.saphan.ai/docs/security/8-runners-what-happens-during-a-run) |
+| **The policy travels with the task** | Each task carries its own policy: which tools, which files it may read and write, where it may connect. Without its policy, a run does not start. | [agent security](https://docs.saphan.ai/docs/security/agent-security) |
+| **Guardrails** | A checkpoint on the conversation between an agent and its model, with a plugin for NVIDIA NeMo Guardrails. | [guardrails](https://docs.saphan.ai/docs/security/guardrails) |
+| **Every headless session recorded** | Agents run without a person watching, so every session is recorded: what the agent was told, what it did, what it returned. | [session recording](https://docs.saphan.ai/docs/security/session-recording) |
+| **Secrets referenced, never stored** | An agent gets a reference to a credential at the moment of use. The value is never written into an order, a log or the record. | [secrets](https://docs.saphan.ai/docs/security/9-secrets) |
+| **Evidence, not claims** | Every order, report, review and decision is kept with who signed it and when, so any change can be traced back to the person who asked for it and the person who said yes. | [audit and compliance](https://docs.saphan.ai/docs/audit-and-compliance) |
+| **CLI and web console** | Everything the fleet does can be driven and read from the command line or from the web console. The console is the owner's view of the record. | [the console](https://docs.saphan.ai/docs/console) |
+
+The documentation also says, chapter by chapter, what is built, on which platform it has been exercised, and what this release does not cover: [documented limits](https://docs.saphan.ai/docs/security/11-documented-limits).
+
+**Everything about the platform is at [docs.saphan.ai](https://docs.saphan.ai/docs).**
+
 ## The words you will meet
 
 | word | meaning |
