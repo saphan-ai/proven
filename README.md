@@ -39,7 +39,7 @@ The words and laws used there are explained in [`SAPHAN.md`](SAPHAN.md).
 
 A fleet of AI agents builds this project between 22 and 27 October 2026.
 
-**The team has five members, the most the hackathon allows: four Cursor agents and the owner.** The four Cursor agents are the executors: they write all of the code. The other agents named in this README (the masters, the scribe, the advisor and the reviewers) belong to our fleet, which Saphan Studio runs.
+**The team has five members, the most the hackathon allows: four Cursor agents and the owner.** The Cursor agents are the executors: they write the product code. We start with two of them in parallel and set the number, from one to four, once a day. Planning, tests, reviews and landings are done by Claude agents of our fleet, which Saphan Studio runs: a master measures the code first and then gives the executor the exact places to change; a test author writes the tests from the test plan, apart from the code; a reviewer that did not write the change checks it. The other agents named in this README (the masters, the scribe, the advisor and the reviewers) belong to the same fleet.
 
 The owner sets the goals, makes the decisions, and reviews and merges every change. He writes no code.
 
@@ -51,6 +51,21 @@ The fleet works on our own infrastructure. Every change is reviewed, and the own
 - **Decisions** — the owner's decisions, each with a reason he wrote himself.
 
 Read the history change by change. For each one you can see who asked for it, who built it, who checked it, and why it was merged or sent back.
+
+## What every change costs, and how good it was
+
+Every change in this repository has a price, to the cent.
+
+- **Every review that proven writes states what it cost**, to the cent, next to its findings.
+- **Every executor run and every review run of the fleet states its model and its cost.** The cost is the one Saphan Studio recorded for the run.
+- **Every merge is priced:** the model that built it, the number of repair rounds, the BLOCKING and OWED conditions the reviews found, and the total cost of building and reviewing it.
+- **[`fleet/LEDGER.md`](fleet/LEDGER.md)** collects one row per change. At the end of the build it answers, per model: how many changes were accepted in their first round, how many repair rounds a change needed, how many BLOCKING and OWED conditions it drew, and what a merged change cost.
+
+- **Which model really ran.** Cursor can pick the model itself (Auto). Every run records the model it actually ran on, including the one Auto chose.
+- **How much of the month it used.** Every change records the share of the account's monthly model pool before and after it. Spending beyond the included pool happens only within an amount the owner sets.
+- **Steering, in the open.** Once a day the owner decides which models the executors use and how many run in parallel, from the ledger, and writes the reason down. The ledger shows each day's setting next to what it produced: cost, rounds and conditions per change.
+
+The orders are public too, so a reader can judge whether a model wrote bad code or an order asked for the wrong thing.
 
 ## When this repository is updated
 
@@ -73,6 +88,7 @@ Once a day, at **22:00 Bangkok time (15:00 UTC)**, the owner pushes the day's me
 /fleet/status/       what the executor built and ran
 /fleet/reviews/      what an independent reviewer found
 /fleet/decisions/    what the owner decided, and why
+/fleet/LEDGER.md     what every change cost, and how good it was
 ```
 
 Every folder has a README. The four folders under `fleet/` hold their templates already, so you can read how we work before the first line of code exists.
@@ -103,13 +119,13 @@ The acceptance is the test plan, and it is written together with the implementat
 ### 2. The status report — `fleet/status/`
 
 - **What it is:** the executor's account of what it built and what happened when it ran the checks.
-- **Who writes it:** the executor, one of the four Cursor agents.
+- **Who writes it:** the executor, a Cursor agent.
 - **What it looks like:**
 
 ```markdown
 # STATUS — <slug> · round <n>
 - state: in-progress | blocked | ready-for-review
-- executor · last commit · updated
+- executor · model · cost to the cent · last commit · updated
 ## Summary                    at most five lines
 ## Acceptance, item by item   the command run and the result it gave, for each item
 ## Evidence                   test counts, exit codes, output
@@ -127,7 +143,7 @@ The acceptance is the test plan, and it is written together with the implementat
 ```markdown
 # REVIEW — <slug> · round <n>
 - verdict: accept | accept-with-conditions | reject
-- reviewer (agent and model) · reviewed (base → tip) · updated
+- reviewer (agent and model) · cost to the cent · conditions: n BLOCKING · n OWED · n NOTE
 ## Summary
 ## Base against tip               tests on both commits; every failure classified
 ## Broken on purpose              the check removed, the test that turned red
@@ -147,7 +163,9 @@ A review with anything under "Not run" is never a plain `accept`. A review is ad
 ```markdown
 # DECISION — <slug> · round <n>
 - outcome: accept | accept-with-conditions | reject | close-without-shipping
-- decided by: the owner · review · merged as (commit, or "not merged") · decided
+- decided by: the owner · merged as (commit, or "not merged") · decided
+- rounds and repair rounds · model per round · BLOCKING / OWED / NOTE over all rounds
+- cost of the change: building + reviewing, to the cent
 ## Reason        the owner's own words
 ## Conditions    each one and the later change that closes it
 ```

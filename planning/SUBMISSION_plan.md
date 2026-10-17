@@ -13,7 +13,7 @@ Status: draft by advisor #7, 2026-10-16 ("why here" paragraph added on the owner
 
 Up to three submissions, one counts. Plan: a complete safety submission on 26.10 evening, the final one on 27.10 before 20:00 UTC (the form closes 23:45 UTC).
 
-## Description (form field, 150–2000 characters; 1,864 — version of 2026-10-16)
+## Description (form field, 150–2000 characters; 1,984 — version of 2026-10-17)
 
 proven is a pull-request reviewer that has to prove what it says.
 
@@ -23,7 +23,7 @@ How it works. Two reviewers from different model families, one of them NVIDIA Ne
 
 What is different. Other reviewers give opinions; proven gives evidence you can run. It says what it did not check, and it tells "your change broke this" from "already broken" and "flaky".
 
-How it is built. Four Cursor agents write all the code, 22–27 October. One person decides and merges, and writes no code. The fleet runs on Saphan Studio, our control plane for agent fleets, a pre-existing component. The repository already holds the fleet's eleven answers on what to build, verbatim. From 22 October every change arrives with its order, report, review and decision. The architecture will change as we learn, and every change of design is a documented decision. Apache-2.0.
+How it is built. Cursor agents, up to four at a time, write the product code; Claude agents of our fleet plan, test and review. One person decides and merges, and writes no code. Every change is priced to the cent, with the model that built it. The fleet runs on Saphan Studio, our control plane for agent fleets, a pre-existing component. The repository already holds the fleet's eleven answers on what to build, verbatim. From 22 October every change arrives with its order, report, review and decision. The architecture will change as we learn, and every change of design is a documented decision. Apache-2.0.
 
 The last test. On the final day, proven reviews the last change of its own build. Its report is part of the submission.
 
@@ -37,7 +37,7 @@ How it works. Two reviewers from different model families, one of them NVIDIA Ne
 
 How it differs from what is on the market. Other reviewers give opinions; proven gives evidence you can run yourself. It tells you what it did not check. It separates "your change broke this" from "this was already broken" and "this test is flaky". It explains why the code exists, not only what is wrong with it.
 
-How it is built. Four Cursor agents write all the code between 22 and 27 October. One person, the owner, decides and merges, and writes no code. The fleet runs on Saphan Studio, our control plane for agent fleets, a pre-existing component. Review with evidence was already on its backlog; we held it back to build it here, from zero and in public. Saphan Studio stays closed; this part goes to the community under Apache-2.0.
+How it is built. Cursor agents, up to four at a time, write the product code between 22 and 27 October, and Claude agents of our fleet plan, write the tests and review. One person, the owner, decides and merges, and writes no code. The fleet runs on Saphan Studio, our control plane for agent fleets, a pre-existing component. Review with evidence was already on its backlog; we held it back to build it here, from zero and in public. Saphan Studio stays closed; this part goes to the community under Apache-2.0.
 
 Built in the open. Before any code, the repository already holds the question the owner put to the fleet and eleven answers from the fleet's agents, verbatim. They show green tests with a blocking review, agents refuting each other and themselves, and disagreements settled by a run, a rule or the owner. From 22 October every change arrives with its order, status report, review and decision. The architecture will change as we learn, and every change of design will be a documented decision with its reason.
 
@@ -52,7 +52,7 @@ The last test. On the final day, proven runs on its own repository and reviews t
 5. How it works: two reviewers, evidence runners, the PROVEN / QUESTION / DROPPED rule.
 6. Results on the demo set: planted bugs found and proven, bait dropped, false alarms.
 7. How it was built: numbers from the repo (pull requests, orders, reviews, changes sent back, owner decisions).
-8. Sponsor technology: Nemotron as a reviewer; four Cursor agents as the only executors, and what they built.
+8. Sponsor technology: Nemotron as a reviewer; Cursor agents as the only executors, and what they built, priced per change.
 9. What it does not do yet.
 10. Links: repo, video.
 

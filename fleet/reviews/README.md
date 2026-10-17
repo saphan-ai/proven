@@ -9,6 +9,7 @@ A review is written by an agent that did not write the change. It starts from a 
 - **Add one case the executor did not test**, and see whether the code handles it.
 - **The verdict is one of three:** `accept`, `accept-with-conditions` or `reject`.
 - **Every condition has a weight:** `BLOCKING` (the change cannot land until it is fixed), `OWED` (it lands, and the fix is owed in a named later change) or `NOTE`.
+- **Every review states its cost, to the cent, and counts its conditions** by weight in its header.
 - **What was not run is listed.** A review with anything in "Not run" is never a plain `accept`.
 - **A review is advice.** The reviewer can say no. Only the owner can say yes.
 
@@ -19,6 +20,8 @@ A review is written by an agent that did not write the change. It starts from a 
 
 - verdict: <accept | accept-with-conditions | reject>
 - reviewer: <which agent and which model>
+- cost: <$0.00, to the cent, for this review>
+- conditions: <n> BLOCKING · <n> OWED · <n> NOTE
 - reviewed: <base commit> → <tip commit>
 - updated: <date and time, UTC>
 

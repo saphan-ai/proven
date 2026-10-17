@@ -13,6 +13,8 @@ The paperwork behind every change in this repository. From 22 October 2026, each
 
 **How files are named.** Every document carries the change's short name (a slug) and its round: `ORDER_<slug>_r1.md`, `STATUS_<slug>_r1.md`, `REVIEW_<slug>_r1.md`, `DECISION_<slug>_r1.md`. The same slug appears in the commit messages of the change.
 
+**What every change costs.** Every status report and every review states its model and its cost, to the cent. Every decision adds up the change: who built it on which model, how many repair rounds it took, how many BLOCKING and OWED conditions the reviews found, and what it cost. Each decision adds one row to [`LEDGER.md`](LEDGER.md), and at the end of the build the ledger answers how good each model's code was.
+
 **What is left out.** The owner reviews every document before it is published. Credentials, internal host names and details of our private infrastructure are removed. Where something was removed, the document says so.
 
 Each folder has its own README with the template we use. The templates are simplified public versions of the ones our fleet uses every day.

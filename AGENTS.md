@@ -17,7 +17,8 @@ This repository is a sub-repository of our workspace. The fleet keeps working ex
    | decision | `fleet/decisions/DECISION_<slug>_r<n>.md` | [`fleet/decisions/README.md`](fleet/decisions/README.md) |
 
 3. **The public copy says the same thing as the original.** Same findings, same verdict, same numbers. Translate our internal format into the public template; do not soften, shorten or improve it.
-4. **The copy lands in the same change as the work it describes.** A change without its documents is not finished.
+4. **Every document carries its model and its cost**, to the cent, as recorded by Saphan Studio. A decision adds up the whole change and adds its row to [`fleet/LEDGER.md`](fleet/LEDGER.md): models, rounds, repair rounds, BLOCKING / OWED / NOTE, cost of building and of reviewing.
+5. **The copy lands in the same change as the work it describes.** A change without its documents is not finished.
 
 ## 2. What never goes into this repository
 
@@ -37,7 +38,8 @@ You may keep: slugs, commit hashes of this repository, test names, law numbers, 
 
 - **English only.** Short sentences, plain words.
 - **All project code is written between 22 and 27 October 2026.** Nothing written before 22 October may be copied in.
-- **Executors are Cursor agents.** They write the code. Every other role works as described in [`SAPHAN.md`](SAPHAN.md).
+- **Executors are Cursor agents.** They write the product code. Tests are written by a test author from the test plan, apart from the code. Every other role works as described in [`SAPHAN.md`](SAPHAN.md).
+- **Record the model that really ran**, including the model Auto chose, and the share of the monthly pool before and after the run.
 - **The owner writes no code.** He decides and merges.
 - **Never push.** The owner pushes once a day at 22:00 Bangkok time (15:00 UTC), and once more before the submission on 27 October.
 - **Never change `.github/`, `LICENSE` or this file.** Those are the owner's.
