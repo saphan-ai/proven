@@ -69,7 +69,7 @@ The machines answered over Tailscale from the plane. The advisor measured four t
 - The machine runner-cursor will copy has 8 CPUs, 15 GiB of memory, Python 3.12 and Go 1.26.5, and no Docker. Its disk had grown twice since its record was written, so the record is out of date.
 - macmini has no Cursor installed.
 - Our Go image has never been published, so a stranger cannot pull it. Its Linux release ships Python 3.13; the machine's ships Python 3.12.
-- The node that will hold runner-cursor refused the ssh connection with *"Host key verification failed"*. The advisor did not accept the key. Checking a changed host key is the owner's job, at the node's console. The order makes that the first step before any script reaches the node.
+- The node that will hold runner-cursor refused the ssh connection with *"Host key verification failed"*. The advisor did not accept the key, and made checking it the owner's first step. **That was the advisor's mistake** (hop 8).
 
 **The advisor's reasoning on Python.** The owner said Go and Python. With two lanes, native and container, the danger is two different Pythons: a reviewer then cannot tell a fault in the code from a fault in the machine. So the order asks for **one Python minor version in both lanes**, and recommends 3.13, the image's.
 
@@ -100,6 +100,12 @@ The advisor wrote the train order `proven-cursor-infra` into our private record.
 - **Cursor accounts.** One seat is one vendor account. How many Cursor accounts there are is the owner's knowledge, not the record's.
 - **Docker on runner-cursor.** Membership of the `docker` group gives full control of that machine. That makes it a security decision, so it is the owner's.
 
+### 8 · owner → advisor: the advisor was wrong
+
+> *"To █████ you ssh as ████. This is our standard."*
+
+The advisor had dialled the node as its own user. As ████ it answered at once. The advisor then read the node itself and found a second error: it had guessed from an old record that the node's machines already asked for more memory than it has. The node has 123 GiB, with 36 GiB available. So the planned 8 GiB fits, and so do 120 GB of disk (616 GB free). The advisor withdrew both claims at the top of the train order and kept the rest. The size is still re-measured by the master before the machine is created.
+
 ## Not run
 
 - No machine was created, no seat was admitted and no Cursor turn was run. Those are the owner's acts, or acts that need his consent.
@@ -109,12 +115,13 @@ The advisor wrote the train order `proven-cursor-infra` into our private record.
 
 ## REDACTED
 
-Parts of this file are blacked out (█). Nothing else in the quoted text was changed.
+Parts of this file are blacked out (█). Nothing else in the quoted text was changed, except one sentence of the owner's, which he reworded himself.
 
 | what was blacked out | times | what it was |
 |---|---|---|
 | internal paths | 3 | folders in our workspace |
 | location | 1 | the place where our machines are |
 | private repository name | 1 | the owner and name of a private repository |
-| cluster node names | 1 | the node that will hold runner-cursor |
+| cluster node names | 2 | the node that will hold runner-cursor |
+| account names | 2 | the account used to reach the node |
 | machine names | 1 | the machine runner-cursor is modelled on |
