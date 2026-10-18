@@ -106,6 +106,22 @@ The advisor wrote the train order `proven-cursor-infra` into our private record.
 
 The advisor had dialled the node as its own user. As ████ it answered at once. The advisor then read the node itself and found a second error: it had guessed from an old record that the node's machines already asked for more memory than it has. The node has 123 GiB, with 36 GiB available. So the planned 8 GiB fits, and so do 120 GB of disk (616 GB free). The advisor withdrew both claims at the top of the train order and kept the rest. The size is still re-measured by the master before the machine is created.
 
+### 9 · owner → advisor: is everything in this repository?
+
+> *"Great. All written in proven repo?"*
+
+Not all of it. This page was here. The train order was only in our private record. The advisor had held it back because it was unsigned, and a public copy might read like a decision already made.
+
+### 10 · owner → advisor: both places, always
+
+> *"save train order in the proven repo. We save in both places all hackathon documents. Save this to fleet memory for you and the master"*
+
+The advisor did three things:
+
+- **The train order is here now:** [`../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md`](../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md). It is the same text, marked as an unsigned draft, with 79 black-outs listed by kind. The original now carries the owner's rule, so the master reads it in the order itself.
+- **The rule went into a memory entry for the fleet**, shared with every agent of the project. The tool that copies an entry into the fleet's shared memory then **refused**: a name in our workspace's settings means two different things to it. Changing that setting is not the advisor's to do. The advisor did not write the entry into the shared memory by another route. It filed a bug report with the measurement, the cost and a proposed repair, and told the owner. Until the bug is fixed, the rule reaches the master through the train order.
+- **This page gained hops 9 and 10.**
+
 ## Not run
 
 - No machine was created, no seat was admitted and no Cursor turn was run. Those are the owner's acts, or acts that need his consent.
