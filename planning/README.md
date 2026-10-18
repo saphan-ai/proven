@@ -5,6 +5,7 @@ How the topic of this project was chosen, before any code. Everything here was w
 | file | what it is | written by |
 |---|---|---|
 | `CONVERSATION.md` | who said what to whom, hop by hop, with the owner's words in the original Polish | the advisor |
+| `CONVERSATION_2026-10-17.md` | preparing the machines for the Cursor executors: what the advisor measured, reasoned and ordered, and the four decisions left to the owner | the advisor |
 | `EVENT.md` | the hackathon: dates, tracks, judging, and the owner's rules for taking part | the advisor, from the owner's decisions |
 | `QUESTION_TO_THE_FLEET.md` | the question the owner sent to the masters and the scribe: constraints, a request to critique the owner's candidate, and a template for proposals | the advisor |
 | `PROPOSAL_advisor.md` | the advisor's own answer on the same template: *proof-carrying code review* | the advisor |
