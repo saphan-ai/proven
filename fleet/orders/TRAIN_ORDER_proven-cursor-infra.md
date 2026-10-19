@@ -113,7 +113,7 @@ These are the master's readings. They are claims too: a leg that finds one wrong
 | A14 | MEASURED | `dev-go` (ephemeral container, no network): Go **1.26.8**, `CGO_ENABLED=0`, **no gcc, no cc**, Node 22.23.2, npm 10.9.8, **no python3**, Debian 13. |
 | A15 | MEASURED: NOT ADMITTED | `baseline-cursor-v1` allows `api2.cursor.sh:443` only. Workload add-ons exist for Go (proxy/sum.golang.org) and npm (registry.npmjs.org). **None of the OSV, CISA, EPSS, GitHub API or NVIDIA hosts is on any policy.** The one way today is the owner's per-run `--egress-open "<reason>"`. |
 | A16 | MEASURED (code): NO CARRIER | `saphan run --env NAME` carries names only; on ssh the value is resolved by the far session. No secret-env carrier exists. The rule in §3 stands. |
-| new | — | ████████████ and ████████████ are NOT tailnet members: they reach the tailnet through a route (`██████████████████████████████████`). ████████████ was built as a copy of VM ███ and is the nearest template. ████████████ has no creation script; its recipe is in the ████████████ wave reports. Next free workbench IP: `███` (silent from the node, no VM config uses it). |
+| new | — | ████████████ IS a tailnet member today (Tailscale 1.102.4; re-measured 2026-10-19 16:30 UTC — an earlier reading from an older report said it was routed, and it was wrong). ████████████ was built as a copy of VM ███ and is the nearest template. ████████████ has no creation script; its recipe is in the ████████████ wave reports. Next free workbench IP: `███` (silent from the node, no VM config uses it). |
 | new | — | proven `AGENTS.md` §2 does not carry the owner's §0 exception (macm5, macmini and runner-cursor visible). The owner's words govern; D6. |
 
 ## §2 WAGONS
@@ -135,16 +135,14 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
   virtio-scsi-single, qemu-guest-agent, `onboot=1`, serial console, cloud-init user and key, static IP, the same gateway,
   DNS and search domain). **VMID 307, named explicitly** (`nextid` answers 100, §1a A12), and the next free workbench IP
   (`███`, §1a), both checked free by the script before it creates anything. Wiring like ████████████: DNS rewrite, Kuma
-  monitor, the Mac ssh alias, and **the tailnet ROUTE that ████████████ uses** (`█████████████████████`; ████████████ is not
-  a tailnet member, §1a). A brief and a report in ████████████ (`███████████████████████████`,
+  monitor, the Mac ssh alias, and a tailnet member like ████████████ (Tailscale; the owner approves the node's login). A brief and a report in ████████████ (`███████████████████████████`,
   `███████████████████████████████████`), `████████████` updated, and A9's stale disk figure corrected (400 G).
 - **size (law #46), measured 2026-10-19:** candidates: 4 vCPU / 8 GiB / 120 GB (the advisor's) against the node: 39 GiB
   available − 8 = 31 GiB left; guest asks 102,400 + 8,192 = 110,592 MiB of 125,952 MiB; 616 G − 120 G = 496 G free; 4 of
   32 threads. It fits; the master sets 4 / 8 / 120. Re-measure at the act; the script prints the same numbers and refuses
   if available memory is below 16 GiB.
 - **access:** the node is reached as `████@██████` (A8). Never accept a changed host key on anyone's behalf.
-- **dod:** `ssh runner-cursor 'hostname; nproc; free -g; df -h /'` matches the size; DNS and Kuma green; a tailnet address
-  answers from runner-cursor through the route, as from ████████████; the PBS job `████████████` scope includes VMID ███
+- **dod:** `ssh runner-cursor 'hostname; nproc; free -g; df -h /'` matches the size; DNS and Kuma green; `tailscale status` lists runner-cursor; the PBS job `████████████` scope includes VMID ███
   (`all 1`), with its `enabled` value printed beside it (D5).
 - **review:** master-verify-only
 
@@ -335,13 +333,13 @@ macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 
 
 | what was blacked out | times | what it was |
 |---|---|---|
-| machine names | 21 | the machine runner-cursor is modelled on, a copy of it, and one more internal host |
+| machine names | 18 | the machine runner-cursor is modelled on, a copy of it, and one more internal host |
 | cluster node names | 10 | the node that will hold runner-cursor |
 | account names | 9 | the account used to reach the node |
 | infrastructure identifiers | 16 | the numbers of the node's virtual machines, and the name of the node's backup job |
 | address fragments | 2 | the last part of the IP address planned for runner-cursor |
 | private repository names | 8 | our infrastructure repository |
-| internal paths | 18 | files in our infrastructure repository, system files on internal hosts, a local checkout path, a local tool folder, a vendor folder on a machine, the workspace's configuration file |
+| internal paths | 16 | files in our infrastructure repository, system files on internal hosts, a local checkout path, a local tool folder, a vendor folder on a machine, the workspace's configuration file |
 | locations in our private code | 32 | file names, folder names and line numbers in Saphan Studio's code, and two field names |
 | seat identities | 9 | the names of two Cursor seats on macm5, and the master's seat |
 | credentials | 2 | the name of the credentials file and of the setting that names a seat's key |
