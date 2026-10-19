@@ -1,0 +1,374 @@
+{
+  "corpus": "proven review-disagreement corpus",
+  "prepared": "2026-10-19",
+  "source_population": {
+    "pairs_with_two_readable_verdicts": 40,
+    "disagreeing": 28,
+    "candidate_pairs_named_by_owner": 31,
+    "not_disagreements": 3,
+    "incidents": 19,
+    "case_candidates": 21
+  },
+  "answer_key_location": "cases/<id>/expected/ (withhold from a reviewer under evaluation)",
+  "cases": [
+    {
+      "id": "PV-001",
+      "incident": "I02",
+      "title": "A frame guard that reads the last duplicate attribute, where a browser reads the first",
+      "fixture_language": "typescript",
+      "mechanism": "outside-the-order-pointing",
+      "source_pairs": [
+        "P02"
+      ],
+      "batch": 1,
+      "status": {
+        "contract": "written 2026-10-19",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-002",
+      "incident": "I02",
+      "title": "A guard whose test fixtures cannot express the self-closing and foreign-content cases",
+      "fixture_language": "typescript",
+      "mechanism": "test-checks-wrong-mechanism",
+      "source_pairs": [
+        "P07",
+        "P08"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-003",
+      "incident": "I03",
+      "title": "A cooldown keyed on a reusable slot instead of the identity it limits",
+      "fixture_language": "go",
+      "mechanism": "policy-or-threshold",
+      "source_pairs": [
+        "P03"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-004",
+      "incident": "I03",
+      "title": "A \"strict\" fenced-block extractor whose refusal suite only tests closing fences",
+      "fixture_language": "typescript",
+      "mechanism": "contradiction-on-fact",
+      "source_pairs": [
+        "P06"
+      ],
+      "batch": 1,
+      "status": {
+        "contract": "written 2026-10-19",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-005",
+      "incident": "I04",
+      "title": "A reader that fetches the latest document before the one it was asked for",
+      "fixture_language": "typescript",
+      "mechanism": "outside-the-order-pointing",
+      "source_pairs": [
+        "P04"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-006",
+      "incident": "I05",
+      "title": "A placeholder check that enumerates shapes instead of refusing the class",
+      "fixture_language": "go",
+      "mechanism": "policy-or-threshold",
+      "source_pairs": [
+        "P10"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-007",
+      "incident": "I06",
+      "title": "Acknowledge-by-equal-text and a check-then-act close race",
+      "fixture_language": "go",
+      "mechanism": "test-checks-wrong-mechanism",
+      "source_pairs": [
+        "P11"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-008",
+      "incident": "I06",
+      "title": "A close routine that publishes its final frame only after an unbounded kill",
+      "fixture_language": "go",
+      "mechanism": "policy-or-threshold",
+      "source_pairs": [
+        "P14"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-009",
+      "incident": "I07",
+      "title": "A validator that treats an unparsable number as the expected one",
+      "fixture_language": "go",
+      "mechanism": "outside-the-order-pointing",
+      "source_pairs": [
+        "P16"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-010",
+      "incident": "I07",
+      "title": "A stale-value check whose number pattern silently skips signed values",
+      "fixture_language": "go",
+      "mechanism": "test-checks-wrong-mechanism",
+      "source_pairs": [
+        "P18"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-011",
+      "incident": "I07",
+      "title": "A per-value budget that does not bound a whole row",
+      "fixture_language": "go",
+      "mechanism": "policy-or-threshold",
+      "source_pairs": [
+        "P21",
+        "P25"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-012",
+      "incident": "I09",
+      "title": "A filter that production never exercises, tested through a configuration production cannot build",
+      "fixture_language": "go",
+      "mechanism": "test-checks-wrong-mechanism",
+      "source_pairs": [
+        "P24"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-013",
+      "incident": "I10",
+      "title": "A refusal that prints the secret it refuses",
+      "fixture_language": "go",
+      "mechanism": "test-checks-wrong-mechanism",
+      "source_pairs": [
+        "P26"
+      ],
+      "batch": 1,
+      "status": {
+        "contract": "written 2026-10-19",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-014",
+      "incident": "I11",
+      "title": "A client that carries a token-bearing body across a redirect to another host",
+      "fixture_language": "go",
+      "mechanism": "disjoint-assigned-subjects",
+      "source_pairs": [
+        "P27"
+      ],
+      "batch": 1,
+      "status": {
+        "contract": "written 2026-10-19",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-015",
+      "incident": "I12",
+      "title": "An authorization flag read from a file the subject can write",
+      "fixture_language": "go",
+      "mechanism": "test-checks-wrong-mechanism",
+      "source_pairs": [
+        "P28"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-016",
+      "incident": "I13",
+      "title": "Documentation that describes a feature whose code path does nothing",
+      "fixture_language": "go",
+      "mechanism": "disjoint-assigned-subjects",
+      "source_pairs": [
+        "P29"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-017",
+      "incident": "I15",
+      "title": "A guard test filtered by the very token it guards",
+      "fixture_language": "go",
+      "mechanism": "environment-artefact",
+      "source_pairs": [
+        "P35"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-018",
+      "incident": "I16",
+      "title": "A budget derivation whose tests pass with a hard-coded list",
+      "fixture_language": "go",
+      "mechanism": "test-checks-wrong-mechanism",
+      "source_pairs": [
+        "P37"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-019",
+      "incident": "I17",
+      "title": "A validator that zeroes only some fields of a status that must deliver nothing",
+      "fixture_language": "go",
+      "mechanism": "policy-or-threshold",
+      "source_pairs": [
+        "P38"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-020",
+      "incident": "I01",
+      "title": "Two required checks that cannot run where the reviewer runs",
+      "fixture_language": "go",
+      "mechanism": "policy-or-threshold",
+      "source_pairs": [
+        "P01"
+      ],
+      "batch": 1,
+      "status": {
+        "contract": "written 2026-10-19",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    },
+    {
+      "id": "PV-021",
+      "incident": "I08",
+      "title": "A signature verdict that names a tampered signature \"unsigned\"",
+      "fixture_language": "go",
+      "mechanism": "policy-or-threshold",
+      "source_pairs": [
+        "P20"
+      ],
+      "batch": 2,
+      "status": {
+        "contract": "not written",
+        "fixture": "not built",
+        "checks": "not run",
+        "independent_check": "not done"
+      }
+    }
+  ]
+}
