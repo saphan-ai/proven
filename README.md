@@ -27,7 +27,7 @@ The final warm-up before the start.
 | what | status | where |
 |---|---|---|
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
-| The design, as recorded decisions | 13 decisions accepted, 17–19 October | [decisions](fleet/decisions/) |
+| The design, as recorded decisions | 14 decisions accepted, 17–19 October | [decisions](fleet/decisions/) |
 | Machines for the coding agents | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) |
 | A local NVIDIA safety model | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) |
 | Building Proven | starts 22 October, 00:00 UTC | |

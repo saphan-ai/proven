@@ -37,7 +37,7 @@ Every reviewer model is configuration, NVIDIA's included ([ADR-0010](fleet/decis
 
 A change names its model in an `Assisted-by: <agent>:<model>` commit trailer by default, the Linux kernel's convention ([ADR-0011](fleet/decisions/ADR-0011-how-a-change-names-its-model.md)). The trailer keys, the sources (commits, the pull-request description, or a record file for teams that keep AI attribution out of their history) and the table that maps a model to its family are all configurable. Proven only reads; it never writes a trailer.
 
-Review classes are Saphan Studio's: security, backend, user interface, mobile and docs, one per change, chosen by what the change touches ([ADR-0012](fleet/decisions/ADR-0012-review-classes-as-in-saphan-studio.md)). Security is doubled by default; which classes are doubled is configurable.
+Review classes are Saphan Studio's: security, backend, user interface, mobile and docs, one per change, chosen by what the change touches ([ADR-0012](fleet/decisions/ADR-0012-review-classes-as-in-saphan-studio.md)). Security is doubled by default; which classes are doubled is configurable. For the hackathon the class is chosen by configured rules that map file paths to classes, never by a model; a change touching several classes gets the highest-risk one, and one that matches nothing gets a configurable fallback ([ADR-0014](fleet/decisions/ADR-0014-review-class-chosen-by-configured-rules.md)).
 
 ## Configuration
 

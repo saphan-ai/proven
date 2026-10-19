@@ -84,6 +84,14 @@ While the advisor was writing, he added:
 
 [`../DESIGN.md`](../DESIGN.md) has a new "Configuration" section, and the front page counts thirteen decisions.
 
+### 7 · owner → advisor: who decides a change's class
+
+> *"Then you need to look at Saphan again and check what it means, security or backend class or the others. Someone must decide about it. It could be a model or a deterministic configuration. For this hackathon we take the configuration."*
+
+**What the advisor found.** In Saphan Studio each class adds its own checks: security looks at trust boundaries, authorization, secrets, dependencies and destructive operations; backend at data access, caching, scaling and observability; user interface at every screen state and accessibility; mobile at the app's lifecycle, poor networks and device storage; docs at whether the change explains itself and its commands still run. The class is declared by the agent that orders the work. Proven reviews other people's pull requests, where there is no such agent.
+
+**What the advisor did.** It wrote [ADR-0014](../fleet/decisions/ADR-0014-review-class-chosen-by-configured-rules.md). Configured rules map file paths to classes. The highest-risk class among the files touched wins, and a configurable fallback covers files no rule matches. Proven ships a default rule set, and each review names the rule that chose its class. Choosing the class with a model is left for a later decision.
+
 ## Not run
 
 - Links were checked inside this repository. Links to other websites were checked by reading the pages, not by a link checker.

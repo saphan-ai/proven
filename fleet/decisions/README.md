@@ -22,6 +22,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0011](ADR-0011-how-a-change-names-its-model.md) | a change names its model in an `Assisted-by:` trailer by default; sources, keys and the family table are configurable | accepted, 2026-10-19 |
 | [0012](ADR-0012-review-classes-as-in-saphan-studio.md) | Saphan Studio's review classes: security, backend, user interface, mobile, docs; security doubled by default | accepted, 2026-10-19 |
 | [0013](ADR-0013-no-hardcoded-settings.md) | no setting is hardcoded; every value has a documented default; rules are not settings | accepted, 2026-10-19 |
+| [0014](ADR-0014-review-class-chosen-by-configured-rules.md) | a change's review class is chosen by configured path rules, not a model; the highest-risk class wins | accepted, 2026-10-19 |
 
 **Rules for an ADR**
 
