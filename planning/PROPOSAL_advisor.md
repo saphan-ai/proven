@@ -1,6 +1,6 @@
 # Proposal from the advisor — one input among the fleet's, not the answer
 
-> **About this document.** The advisor's own answer to its question, on the same template the fleet used, written before the fleet answered. The owner's candidate (*"our own code review with different models"*) is worked out here as *proof-carrying code review*. Published verbatim; the parts blacked out (█) are listed at the end. The whole exchange is in [`CONVERSATION.md`](CONVERSATION.md).
+> **About this document.** The advisor's own answer to its question, on the same template the fleet used, written before the fleet answered. The owner's candidate (*"our own code review with different models"*) is worked out here as *proof-carrying code review*. Published verbatim; the parts blacked out (█) are listed at the end. The whole exchange is in [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md).
 
 Author: advisor #7. Date: 2026-10-16. Written in the template of `QUESTION_TO_THE_FLEET.md`.
 

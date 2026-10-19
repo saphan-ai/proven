@@ -1,6 +1,6 @@
 # Open Agent Hackathon 2026 — what we enter, and the rules we keep
 
-> **About this document.** The advisor's working README for the hackathon, as it stood on 16 October 2026 when the question went to the fleet. It is the `README.md` the question tells the fleet to read first. Published verbatim; the parts blacked out (█) are listed at the end. The whole exchange, step by step, is in [`CONVERSATION.md`](CONVERSATION.md).
+> **About this document.** The advisor's working README for the hackathon, as it stood on 16 October 2026 when the question went to the fleet. It is the `README.md` the question tells the fleet to read first. Published verbatim; the parts blacked out (█) are listed at the end. The whole exchange, step by step, is in [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md).
 
 Owner: Marcin. Written 2026-10-16. Language of everything in this folder: English.
 

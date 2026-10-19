@@ -5,7 +5,7 @@
 > *„może zapytamy masterów i skrybę co o tym sądzą?”*
 > ("maybe we should ask the masters and the scribe what they think?")
 >
-> The owner pasted it to every master and to the scribe. Eleven answers came back within half an hour. They are in [`answers/`](answers/), verbatim. Who said what to whom, in order, is in [`CONVERSATION.md`](CONVERSATION.md).
+> The owner pasted it to every master and to the scribe. Eleven answers came back within half an hour. They are in [`answers/`](answers/), verbatim. Who said what to whom, in order, is in [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md).
 >
 > The text below is the question exactly as the fleet received it. The parts blacked out (█) are listed at the end. Where it says "`README.md` in this folder", that file is published here as [`EVENT.md`](EVENT.md).
 

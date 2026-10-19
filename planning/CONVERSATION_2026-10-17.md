@@ -1,6 +1,6 @@
 # CONVERSATION — preparing the Cursor executors, 17 October 2026
 
-This page follows one conversation between the owner and the advisor: preparing the machines on which the Cursor agents will write proven's code. It runs the same way as [`CONVERSATION.md`](CONVERSATION.md): for every hop it says **who** spoke, **to whom**, what the advisor **reasoned** and **did**, and **which document** came out of it.
+This page follows one conversation between the owner and the advisor: preparing the machines on which the Cursor agents will write proven's code. It runs the same way as [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md): for every hop it says **who** spoke, **to whom**, what the advisor **reasoned** and **did**, and **which document** came out of it.
 
 The owner wrote in English this time, so his words are quoted verbatim with no translation. Internal names and paths are blacked out (█, one block per character). The list is at the end.
 

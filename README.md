@@ -72,7 +72,7 @@ proven is open source, and one part of it will also be used inside Saphan Studio
 
 ## How the topic was chosen (16 October 2026)
 
-The topic was chosen in one day: in one conversation between the owner and the advisor, and in a question sent to the fleet. The owner's words are translated from Polish. The whole exchange, hop by hop, with his words in the original Polish, is in [`planning/CONVERSATION.md`](planning/CONVERSATION.md).
+The topic was chosen in one day: in one conversation between the owner and the advisor, and in a question sent to the fleet. The owner's words are translated from Polish. The whole exchange, hop by hop, with his words in the original Polish, is in [`planning/CONVERSATION_2026-10-16.md`](planning/CONVERSATION_2026-10-16.md). Every conversation since, day by day and hop by hop, is indexed in [`planning/CONVERSATIONS.md`](planning/CONVERSATIONS.md).
 
 **Who is who.** The **owner** is the one person on the team. The **masters** are the agents that orchestrate the fleet's work. The **scribe** is the agent that keeps the fleet's record. The **advisor** is an agent that works with the owner on plans and documents. Everyone except the owner is an AI agent.
 

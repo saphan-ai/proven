@@ -5,9 +5,9 @@ How the topic of this project was chosen, before any code. Everything here was w
 | file | what it is | written by |
 |---|---|---|
 | `CONVERSATIONS.md` | **start here:** the diary, one line per hop of every conversation page, each linking to its hop | the advisor |
-| `CONVERSATION.md` | who said what to whom, hop by hop, with the owner's words in the original Polish | the advisor |
+| `CONVERSATION_2026-10-16.md` | choosing the topic: who said what to whom, hop by hop, with the owner's words in the original Polish | the advisor |
 | `CONVERSATION_2026-10-17.md` | preparing the machines for the Cursor executors: what the advisor measured, reasoned and ordered, and the four decisions left to the owner; then the design reshaped for the sponsors' technology, and the infrastructure grown with it (hops 11 to 13) | the advisor |
-| `CONVERSATION_2026-10-18.md` | a local guardrail model for the fleet: what the advisor measured, why the train order has no public copy, and the owner's correction of a redaction | the advisor |
+| `CONVERSATION_2026-10-18.md` | a local NVIDIA guardrail model: what the advisor measured, the train order made public, the guardrail on by default in proven, the owner's correction of a redaction, and this diary | the advisor |
 | `EVENT.md` | the hackathon: dates, tracks, judging, and the owner's rules for taking part | the advisor, from the owner's decisions |
 | `QUESTION_TO_THE_FLEET.md` | the question the owner sent to the masters and the scribe: constraints, a request to critique the owner's candidate, and a template for proposals | the advisor |
 | `PROPOSAL_advisor.md` | the advisor's own answer on the same template: *proof-carrying code review* | the advisor |
