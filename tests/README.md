@@ -7,9 +7,9 @@ starts from a real moment: two reviewers from different model families looked at
 and did not agree. We went back to each one, found what each reviewer claimed, what their evidence actually showed, and
 what was established later. From that we write a small, synthetic case that keeps the reason they disagreed.
 
-**State on 2026-10-19: documents only.** The case contracts, the provenance of every source case and the case list
-exist. No case code and no test code exist yet: they are written from 22 October, when the hackathon's build window
-opens, and dated as such.
+**This corpus is prior art.** It is built before the hackathon's build window opens on 22 October, so that proven can
+be shown working on it, and it is declared as pre-existing evaluation material: dated, not judged as hackathon work,
+never re-dated. Proven's own code starts on 22 October and nothing here imports it or prescribes how it works.
 
 ## 1. Why this corpus exists
 
@@ -44,8 +44,8 @@ A disagreement in a log is not a test case. Each one needed:
   model, or the eventual merge as the truth;
 - grouping repeated rounds of the same work, so one problem is counted once;
 - writing a synthetic reconstruction that keeps the reason for the disagreement and drops everything private;
-- and, from 22 October, building it in Go or TypeScript, checking it on the base and on the change, having a reviewer of
-  another model family check it, and removing anything internal before publication.
+- and building it in Go or TypeScript, checking it on the base and on the change, having a reviewer of another model
+  family check it, and removing anything internal before publication.
 
 An expected outcome is a conclusion that needs evidence, not an answer we picked.
 
@@ -57,9 +57,9 @@ An expected outcome is a conclusion that needs evidence, not an answer we picked
 | real disagreements among them | 28 | `corpus/PROVENANCE.md` |
 | distinct incidents (pieces of work) | 19 | `corpus/manifest.json` |
 | case candidates | 21 | `corpus/manifest.json` |
-| case contracts written | 5 (PV-001, PV-004, PV-013, PV-014, PV-020) | `corpus/cases/` |
-| Go cases with code | 0 — code starts 2026-10-22 | |
-| TypeScript cases with code | 0 — code starts 2026-10-22 | |
+| case contracts written | 21 of 21, language-neutral | `corpus/cases/` |
+| Go cases with code | 0 — being built as prior art | `corpus/manifest.json` |
+| TypeScript cases with code | 0 — being built as prior art | `corpus/manifest.json` |
 | cases independently checked | 0 | |
 | pairs documented without a case | 5 (three environment problems, two repeat rounds) | `corpus/PROVENANCE.md` |
 | pairs that are not disagreements | 3 | `corpus/PROVENANCE.md` |
@@ -80,8 +80,8 @@ jq '{cases: (.cases|length),
   both reviewers' claims, the reproduction plan and the limits.
 - `corpus/cases/PV-NNN/expected/` is the answer key. **Withhold it** from a reviewer you are evaluating: give it only the
   case's `base/`, `change/` and the change's description.
-- From 22 October each case gets `base/`, `change/`, a readable diff and a `check.sh` with exact commands. A command
-  that has not been run says so.
+- Each case gets two versions of the code under review, a readable diff and a check with exact commands, written from
+  its contract by a test author who did not write the contract. A command that has not been run says so.
 
 The corpus does not prescribe how proven, or any other reviewer, consumes it.
 
@@ -108,11 +108,13 @@ so we give no money figure.
 |---|---|
 | the original disagreements | 1–28 September 2026 |
 | the fleet's record they come from | 6 July 2026 – today |
-| this corpus's documents (provenance, list, contracts) | written from 19 October 2026, before the build window |
-| case code and checks | from 22 October 2026 00:00 UTC, in the build window |
+| this corpus's documents (provenance, list, contracts) | from 19 October 2026, before the build window |
+| case code and checks | from 19 October 2026, before the build window — declared prior art |
 | proven's implementation and its evaluation on this corpus | in the build window, 22–27 October 2026 |
 
-The documents in this directory written before 22 October are **pre-existing material**: they describe the cases and
-contain no code. They are independent of proven's code and design. Nothing in this directory will be re-dated.
+Everything in this directory written before 22 October 2026, documents and case code alike, is **prior art**:
+pre-existing evaluation material, declared as such in the submission and not judged as hackathon work. It is
+independent of proven's code and design. Each file's date is its commit date; nothing in this directory will be
+re-dated.
 
 Licence: Apache-2.0, as the rest of this repository. All case material is synthetic and written for this corpus.

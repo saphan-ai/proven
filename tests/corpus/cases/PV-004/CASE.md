@@ -1,66 +1,72 @@
 # PV-004 — A "strict" fenced-block extractor whose refusal suite only tests closing fences
 
-- incident: I03 (this case is the second round of the incident; the first round is a different finding, PV-003)
-- language of the fixture: TypeScript
-- contract written: 2026-10-19 · fixture: not built · checks: not run · independent check: not done
-- the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`
+- incident: I03 (a later round of the incident; its first round is a different finding, PV-003)
+- intended fixture language: TypeScript (a hint only; this contract is language-neutral; see `../../manifest.json`)
+- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
 
-A runbook written in Markdown contains one command in a fenced code block. A tool extracts that command and shows it to
-an operator. The first version was lenient. The change under review makes the extractor "strict, by the CommonMark
-rules": a malformed fence is refused with a named refusal class, and a test suite named for that promise ("refuses a
-malformed fence by name") has eight cases.
+A runbook written in Markdown holds one command in a fenced code block. A tool extracts that command and shows it to an
+operator. An earlier round found that the extractor took any line that began with a fence as a closing fence. The change
+under review rewrites the extractor to be "strict, by the CommonMark rules": a malformed fence is refused with a named
+refusal class. It ships a refusal suite named for that promise ("refuses a malformed fence by name"), with eight cases.
 
-Two reviewers from different model families reviewed the same change at the same commit. One accepted it: it ran the
-suite, every case was refused by name, and it reported that the extractor refuses malformed fences by class. The other
-rejected it: it wrote two inputs of its own, and the extractor accepted both.
+Two reviewers from different model families reviewed the same change at the same commit, without seeing each other.
+One accepted it: it ran the suite, every case was refused by name, and it reported that the extractor refuses malformed
+fences by class. The other rejected it: it wrote two malformed openers of its own, and the extractor accepted both.
 
-## 2. Contract (written before any fixture)
+## 2. Contract (written before any code)
 
-The fixture must provide, with no network and no model:
-- `extractCommand(markdown: string): { command: string } | { refusal: string }` in `base/` and `change/`.
-- `base/`: the lenient extractor (first fenced block wins, no refusals).
-- `change/`: the "strict" extractor with named refusal classes for unclosed fences, mismatched closing fence length and
-  character, and trailing text after a closing fence; it trims each line before classifying it, and it never inspects
-  the opening fence's info string.
-- `change/` ships its own suite of eight refusal cases, all of which vary only the closing fence or its absence.
-- `check.sh` runs the shipped suite on `change/` and then the inputs below on both versions, one line per input.
+The case must provide, with no network and no model:
+- two versions of one extractor, **base** and **change**, each offering one operation: given a Markdown document,
+  return either the command inside its fenced code block, or a named refusal.
+- **base** is lenient: the first fenced block wins, and it never refuses.
+- **change** is the "strict" extractor. It refuses, each with its own named class: an unclosed fence, a closing fence
+  of the wrong length or character, and text after a closing fence. It strips leading and trailing white space from
+  each line before it decides what the line is, and it never looks at the opening fence's info string.
+- **change** ships its own refusal suite of eight cases. Every case varies only the closing fence, or leaves it out.
+- a **reference** reading of each input by the CommonMark rules for fenced code blocks; used only by the check.
+- a **check** that first runs the shipped suite on change, then runs every input below on base, change and the
+  reference, and prints one line per input: input name, base result, change result, reference result.
 
 Inputs the check must include:
 - the eight shipped cases;
+- a well-formed document with one fenced command (all three must agree on the command);
 - a backtick fence whose info string contains a backtick (CommonMark: not a fence opener);
-- a fence opener indented four spaces (CommonMark: an indented code block, not a fence).
+- a fence opener indented by four spaces (CommonMark: an indented code block, not a fence).
 
-Scope and assumptions: CommonMark 0.31 §4.5 (fenced code blocks) as the reference; Node LTS, pinned TypeScript toolchain.
+Scope and assumptions: CommonMark 0.31, section 4.5 (fenced code blocks), is the reference. The toolchain and any
+library are chosen when the case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
 - source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P06 in `PROVENANCE.md`).
-- reviewer families, as recorded: `gpt-5.6-sol` (through Codex) and `glm-5.2` (through Qwen Code).
-- the original code was Go; it is not published. Resolution status: settled by a measurement taken by the
-  orchestrating agent, then repaired in a later round.
+- reviewer families, as recorded: `glm-5.2` (through Qwen Code) and `gpt-5.6-sol` (through Codex).
+- the original code was Go; it is not published. Resolution status: settled by a measurement taken by the orchestrating
+  agent, then repaired in a later round.
 
 ## 4. Synthetic transformation
 
-Replaced: the language (Go → TypeScript), the names and the runbook. Kept, as the causal property of the disagreement:
-a suite named for a whole class of inputs that exercises only one part of it, so a reviewer who reads the suite's name and
-sees it green generalises to the class; and an implementation that loses the indentation rule by trimming lines.
-Not kept: the same review's second, separate question about how a rate-limit cooldown is keyed (a scope question in the
-original, see `PROVENANCE.md`, incident I03).
+Replaced: the original code, its names and the runbook. Kept, as the causal property of the disagreement: a suite named
+for a whole class of inputs exercises only one part of that class, so a reviewer who reads the name and sees the suite
+green generalises to the class; and the implementation loses the indentation rule because it strips each line first.
+Not kept: the same review's separate question about what a rate-limit cooldown is keyed on (ruled a scope question in
+the record), and an environment finding about tests that need a real terminal.
 
 ## 5. Review target
 
-`base/`, `change/` (with its suite) and `change.diff`. The reviewer under evaluation receives those and §1 only.
+The two versions of the extractor, the shipped suite, and a readable diff between them. The reviewer under evaluation
+receives only those and the description of the change in §1 — never the check, the reference or `expected/`.
 
 ## 6. The two claims and their evidence (as preserved in the record)
 
-- **Reviewer A (reject):** two malformed openers are accepted without a refusal. Evidence in the record: an executed
-  probe returning a command and no error for both inputs, and the source lines showing the trim and the missing info-string
-  check.
-- **Reviewer B (accept):** the extractor refuses all malformed fence shapes by named class. Evidence in the record: the
-  author's suite, run green. The suite's cases vary only the closing fence.
-- Newly reconstructed evidence: none yet; W2 builds it.
+- **Reviewer A (accept):** the extractor refuses every malformed fence shape by a named class. Evidence in the record:
+  the author's suite, run green. Every case in that suite varies only the closing fence.
+- **Reviewer B (reject):** two malformed openers are accepted with no refusal. Evidence in the record: an executed probe
+  that returned a command and no refusal for both inputs, and the source showing that lines are stripped before they
+  are classified and that the info string is never checked.
+- Newly reconstructed evidence: none yet; it is built with the case code.
 
 ## 7. Expected outcome
 
@@ -68,10 +74,12 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-`cd tests/corpus/cases/PV-004 && ./check.sh` — **not run**.
+Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
+yet. The exact commands, the toolchain and its version are written here when they exist.
 
 ## 9. Limits
 
 - It shows that a green, well-named suite can be narrower than its name; it says nothing about extractors in general.
-- The reference is the CommonMark specification text, applied by hand in the check's expected lines, unless W2 pins a
-  conformant Markdown parser for the reference.
+- The reference is the CommonMark text applied by hand in the check's expected lines, unless a conformant Markdown
+  parser is pinned as the reference when the case code is written.
+- The accepting reviewer's own list of inputs was not preserved, only its summary; the case uses the author's suite.

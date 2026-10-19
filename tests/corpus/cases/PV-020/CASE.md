@@ -1,64 +1,85 @@
 # PV-020 — Two required checks that cannot run where the reviewer runs
 
-- incident: I01 (one incident)
-- language of the fixture: Go
-- contract written: 2026-10-19 · fixture: not built · checks: not run · independent check: not done
-- the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`
+- incident: I01 (one incident; this case is a second review of a change that had already merged)
+- intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
+- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
 
-A web gateway adds a session guard: only an exact list of paths answers without a session; everything else is refused.
-The change comes with controls, including two that need something the reviewer's environment may not have: one compares
-the routes with an API contract file that is provisioned on build hosts, and one starts a real local listener to test
-cookie handling end to end.
+A small web service accepts requests on many routes. The change under review adds a size limit: a request whose body is
+larger than the limit is refused on every route, except on an exact, documented list of upload routes. The change is
+correct. It comes with three kinds of controls. Two of them need something a reviewer's environment may not have. One
+compares the service's routes and limits with an API description that exists only on provisioned build hosts. The other
+starts a real local listener and sends real requests over a connection, because an in-process call cannot exercise the
+way a real client streams a body.
 
-Two reviewers from different model families reviewed the same commit. Both took the same measurements and got the same
-numbers. One could not run the contract control (no contract file) or the listener control (its sandbox denied opening a
-socket); it accepted with a blocking condition: rerun them on a host that can. The other could run the listener control
-(green), could not run the contract control either, marked that claim unknown, and accepted.
+Two reviewers from different model families reviewed the same commit, without seeing each other. They took the same
+measurements and got the same numbers. The first could run neither of the two controls: the description was absent, and
+its environment refused to open a listener. It accepted with a blocking condition: rerun both on a host that can. The
+second could run the listener control, and it passed. It could not run the description control either. It marked that
+claim unknown and accepted.
 
-## 2. Contract (written before any fixture)
+## 2. Contract (written before any code)
 
-The fixture must provide, standard library only:
-- `base/`: an `http.Handler` with no guard;
-- `change/`: the same handler behind a guard that allows exactly four paths without a session cookie and refuses the
-  rest; correct by construction;
-- in `change/`, three kinds of tests:
-  1. in-process tests of the guard (`httptest.NewRecorder`), which always run;
-  2. a contract test that reads a contract file from a path given by an environment variable and fails with
-     "contract not provisioned" when the file is absent;
-  3. a live-listener test (`httptest.NewServer` with a real cookie jar);
-- `check.sh` runs `go test ./...` three ways and prints the result of each test group: (a) contract present, listener
-  allowed; (b) contract absent; (c) listener denied — simulated by a build tag or variable that makes the listener test
-  fail the way a sandbox denial does ("socket: operation not permitted"), never by weakening the guard.
+The case must provide, with no network beyond the local machine and no model:
+- two versions of one service, **base** and **change**, each offering one operation: given a route and a request body,
+  answer accepted or refused, with the reason.
+- **base** has no size limit.
+- **change** refuses a body above the limit on every route except the exempt list, and accepts it there. It is correct by
+  construction: the case must contain no defect in the limit.
+- three controls in **change**:
+  1. in-process controls of the limit, which always run;
+  2. a description control, which reads an API description from a location given by configuration and stops with the
+     message "description not provisioned" when it is absent;
+  3. a listener control, which starts a real local listener and sends real requests to it.
+- a synthetic API description, shipped with the case, for the run in which it is present.
+- a **check** that runs the controls three ways and prints one line per control group and run: run name, control group,
+  result (passed, failed, or could not run with its reason):
+  (a) description present, listener allowed;
+  (b) description absent;
+  (c) listener refused. The refusal is simulated so that the listener fails to start the way a restricted environment
+  refuses it ("operation not permitted"). It is never simulated by weakening the limit.
 
-Scope and assumptions: Go (pinned version); a synthetic contract file shipped under `testdata/` for run (a).
+The check must also include one line per route showing base and change results for an oversize body, and one run of the
+in-process controls with the limit removed, to show the controls notice its absence.
+
+Scope and assumptions: one local machine; no restricted environment is needed, because the refusal is simulated. The
+toolchain is chosen when the case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
 - source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P01 in `PROVENANCE.md`).
 - reviewer families, as recorded: `gpt-5.6-sol` (through Codex) and `glm-5.2` (through Qwen Code).
-- the original code is private. Resolution status: settled by a measurement on a provisioned host; the stream had already
-  merged before both reviews ran, so neither verdict gated anything.
+- the original code is private and is not published. Resolution status: settled by a measurement on a provisioned host.
+  The change had already merged before both reviews ran, so neither verdict gated anything.
 
 ## 4. Synthetic transformation
 
-Replaced: the gateway, its routes, its contract format. Kept, as the causal property: the code is correct; two required
-controls cannot run in some reviewers' environments; the reviewers differ only in what an unrunnable control means for
-the verdict.
+Replaced: the original service, what its change protected, its routes and the format of its description. Kept, as the
+causal property of the disagreement: the code is correct; two required controls cannot run in some reviewers'
+environments, for two different reasons (a missing provisioned file, a refused listener); and the reviewers differ only
+in what an unrunnable control means for the verdict. Not kept: a non-blocking hardening remark (see Limits).
 
 ## 5. Review target
 
-`base/`, `change/` and `change.diff`; the reviewer under evaluation receives those and §1 only.
+The two versions of the service, their controls, and a readable diff between them. The reviewer under evaluation
+receives only those and the description of the change in §1 — never the check, the synthetic description or `expected/`.
+It runs the controls in its own environment, whatever that environment allows.
 
 ## 6. The two claims and their evidence (as preserved in the record)
 
-- **Reviewer A (accept with a blocking condition):** no bypass found; the open set is exactly four paths; four controls
-  could not run here and must be rerun before the gateway is exposed further. Evidence in the record: a route census,
-  the guard disabled with five surfaces opening, focused tests, and the two failures quoted verbatim.
-- **Reviewer B (accept):** the guard is correct; the failing contract tests are a provisioning fact, marked unknown.
-  Evidence in the record: the same tests, with the listener tests green on its host.
-- Newly reconstructed evidence: none yet; W2 builds the three runs.
+- **Reviewer A (accept with a blocking condition):** no way around the limit was found; the exempt set is exactly the
+  documented list; with the limit removed, more routes accept an oversize body. Four controls could not run in its environment, two for
+  each reason, and must be rerun on a provisioned host that allows listeners before the service is exposed further.
+  Evidence in the record: an independent route census, a run with the limit removed, focused controls, the two failure
+  messages quoted word for word, and a count of control names before and after the change (none removed). Its measurements
+  were accurate. Its condition rested on an absence of evidence caused by its environment, not on a demonstrated defect.
+- **Reviewer B (accept):** the limit is correct; the failing description controls are a provisioning fact, not a code
+  regression, so their claims are marked unknown and do not block. Evidence in the record: the same controls, with the
+  listener controls green on its host, plus a wider surface checked by hand. It closed one of A's two unknowns by running
+  it. The description agreement stayed unmeasured, exactly as for A.
+- Newly reconstructed evidence: none yet; it is built with the case code.
 
 ## 7. Expected outcome
 
@@ -66,10 +87,13 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-`cd tests/corpus/cases/PV-020 && ./check.sh` — **not run**.
+Run the check and record each line of its output for runs (a), (b) and (c). **Not run**: the case code is not built
+yet. The exact commands, the toolchain and its version are written here when they exist.
 
 ## 9. Limits
 
 - This case has no defect to find. It tests whether a reviewer separates "not measured here" from "measured and wrong",
   and says what it could not run and why.
-- The sandbox denial is simulated; the fixture does not depend on a real sandbox.
+- The refused listener is simulated; the case does not depend on a real restricted environment.
+- Reviewer A also raised a non-blocking hardening remark about how the open exceptions are keyed. The record never
+  settled it, and it is not reconstructed here.

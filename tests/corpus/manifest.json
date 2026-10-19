@@ -23,7 +23,7 @@
       "batch": 1,
       "status": {
         "contract": "written 2026-10-19",
-        "fixture": "not built",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -40,8 +40,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -57,8 +57,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -75,7 +75,7 @@
       "batch": 1,
       "status": {
         "contract": "written 2026-10-19",
-        "fixture": "not built",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -91,8 +91,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -108,8 +108,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -125,11 +125,15 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
-      }
+      },
+      "related_rounds": [
+        "P12",
+        "P15"
+      ]
     },
     {
       "id": "PV-008",
@@ -142,11 +146,14 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
-      }
+      },
+      "related_rounds": [
+        "P12"
+      ]
     },
     {
       "id": "PV-009",
@@ -159,8 +166,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -176,8 +183,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -194,8 +201,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -211,8 +218,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -229,7 +236,7 @@
       "batch": 1,
       "status": {
         "contract": "written 2026-10-19",
-        "fixture": "not built",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -246,7 +253,7 @@
       "batch": 1,
       "status": {
         "contract": "written 2026-10-19",
-        "fixture": "not built",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -262,8 +269,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -279,8 +286,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -296,8 +303,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -313,8 +320,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -330,8 +337,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -348,7 +355,7 @@
       "batch": 1,
       "status": {
         "contract": "written 2026-10-19",
-        "fixture": "not built",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }
@@ -364,8 +371,8 @@
       ],
       "batch": 2,
       "status": {
-        "contract": "not written",
-        "fixture": "not built",
+        "contract": "written 2026-10-19",
+        "fixture": "not built (prior art, built before the window)",
         "checks": "not run",
         "independent_check": "not done"
       }

@@ -1,8 +1,8 @@
 # PV-001 — A frame guard that reads the last duplicate attribute, where a browser reads the first
 
 - incident: I02 (one incident; this case is its first round)
-- language of the fixture: TypeScript
-- contract written: 2026-10-19 · fixture: not built · checks: not run · independent check: not done
+- intended fixture language: TypeScript (a hint only; this contract is language-neutral; see `../../manifest.json`)
+- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -19,23 +19,25 @@ value, a CDATA section, a split line) is now refused. The other rejected it, wit
 
 ## 2. Contract (written before any fixture)
 
-The fixture must provide, with no network and no model:
-- `screenIds(html: string): string[]` in `base/` and in `change/` — the ids of the frames the guard counts.
-- `checkFrames(html: string, required: string[]): { ok: boolean; missing: string[] }` in both.
-- `base/` is the regular-expression guard; `change/` is the element-parsing guard whose attribute list becomes a map in
-  which a later duplicate attribute overwrites an earlier one.
-- A reference reading of what a browser builds from the same bytes, taken from a pinned, spec-conformant HTML parser
-  (not from the guard), used only by the check script.
-- `check.sh` runs every input below against both guards and the reference, and prints one line per input:
-  input id, base result, change result, reference result.
+The case must provide, with no network and no model:
+- two versions of one guard, **base** and **change**, each offering two operations:
+  1. given an HTML document, list the frame ids the guard counts;
+  2. given an HTML document and a list of required ids, answer pass or fail, and name the missing ids.
+- **base** finds frame ids by a text pattern over the raw document.
+- **change** parses the document into tags, turns each tag's attribute list into a key-to-value map in which a later
+  duplicate attribute overwrites an earlier one, and counts the elements whose frame id is required.
+- a **reference** reading of what a browser builds from the same document, taken from a spec-conformant HTML parser,
+  never from the guard; used only by the check.
+- a **check** that runs every input below against base, change and the reference, and prints one line per input:
+  input name, base result, change result, reference result.
 
 Inputs the check must include:
 - the order's own cases: a required id in a comment, in a script, in a style block, inside another attribute's value, in
   CDATA, split across lines — each with and without a real frame;
 - an element with two `data-screen` attributes whose values differ (a first value that is not required, a second that is).
 
-Scope and assumptions: the HTML parsing rules of the WHATWG HTML standard; no browser is started; Node LTS with a pinned
-TypeScript toolchain.
+Scope and assumptions: the HTML parsing rules of the WHATWG HTML standard; no browser is started. The toolchain and any
+library are chosen when the case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
@@ -53,8 +55,8 @@ Not kept: a second finding of the same review about a mutation runner (see Limit
 
 ## 5. Review target
 
-`base/` and `change/` as above, plus `change.diff` produced by `diff -ru base change`. The reviewer under evaluation
-receives only `base/`, `change/` and `change.diff`, with the one-paragraph description of the change from §1.
+The two versions of the guard and a readable diff between them. The reviewer under evaluation receives only those and
+the description of the change in §1 — never the check, the reference or `expected/`.
 
 ## 6. The two claims and their evidence (as preserved in the record)
 
@@ -64,7 +66,7 @@ receives only `base/`, `change/` and `change.diff`, with the one-paragraph descr
   because the attribute map keeps the last duplicate. Evidence in the record: an in-memory probe of the guard's parsing,
   a full-checker run on a mutated mock-up, and the HTML standard's rule for duplicate attributes. No live browser was
   run by either reviewer.
-- Newly reconstructed evidence: none yet; W2 builds it.
+- Newly reconstructed evidence: none yet; it is built with the case code.
 
 ## 7. Expected outcome
 
@@ -72,7 +74,8 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-`cd tests/corpus/cases/PV-001 && ./check.sh` — **not run** (the fixture does not exist yet).
+Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
+yet. The exact commands, the toolchain and its version are written here when they exist.
 
 ## 9. Limits
 
