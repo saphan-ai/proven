@@ -1,4 +1,4 @@
-<a href="https://vimeo.com/1236933110"><img src="assets/cover.png" alt="proven — a pull-request reviewer that has to prove what it says. Click to watch the video." width="100%"></a>
+<a href="https://vimeo.com/1236933110"><img src="assets/proven-loop.gif" alt="proven — a pull-request reviewer that has to prove what it says. The opening slides of the video, looping; click to watch it." width="100%"></a>
 
 <p align="center"><a href="https://vimeo.com/1236933110"><b>▶ Watch the video</b></a> — the idea, the evidence, the team (6 min, Vimeo)</p>
 
@@ -157,7 +157,7 @@ Once a day, at **22:00 Bangkok time (15:00 UTC)**, the owner pushes the day's me
 /AGENTS.md           the rules every agent follows in this repository
 /planning/           how the topic was chosen (here before 22 October)
 /planning/CONVERSATIONS.md   the diary: every conversation, hop by hop, with links
-/assets/             the cover image
+/assets/             the looping opening of the video, and the cover image
 /planning/answers/   the fleet's eleven answers, verbatim, and what they show
 /fleet/              the paperwork behind every change
 /fleet/orders/       what a master asked for

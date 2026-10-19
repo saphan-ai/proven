@@ -2,7 +2,7 @@
 
 This page continues [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md): the owner and the advisor, preparing the infrastructure. Like the earlier pages, it says for every hop **who** spoke, **to whom**, what the advisor **reasoned** and **did**, and **which document** came out of it.
 
-Where the owner wrote in English, his words are quoted verbatim, typos included. Where he wrote in Polish (hops 10, 11, 13, 14 and 15), they are given in the advisor's English translation, so the page reads in one language. Internal names are blacked out (█, one block per character). The list is at the end.
+Where the owner wrote in English, his words are quoted verbatim, typos included. Where he wrote in Polish (hops 10, 11, 13, 14, 15 and 16), they are given in the advisor's English translation, so the page reads in one language. Internal names are blacked out (█, one block per character). The list is at the end.
 
 ## The people and agents in this conversation
 
@@ -186,7 +186,15 @@ The owner wrote this in Polish; it is given in the advisor's translation.
 
 **What the advisor did.** It added one line to the "Start here" box at the top of [`../README.md`](../README.md): **Watch it being built, slice by slice**, linking to [`../fleet/`](../fleet/), where from 22 October every change arrives with the order that asked for it, the executor's report, the independent review and the owner's decision.
 
-This page covers hops 1 to 15 of 18 October.
+### 16 · owner → advisor: the video, playing
+
+> *"But I gave you the video to embed. Can't that be done on GitHub?"*
+
+**The advisor's answer.** Not as a player: GitHub removes every `<iframe>` and `<script>` from a README, so the Vimeo embed would show nothing. The embed works as it is on the website. On GitHub there were two ways: upload the video to GitHub itself (a player in the README, but a 10 MB limit on a free plan, too small for six minutes), or a short looping animation that plays silently, the way the embed does (`autoplay`, `muted`, `loop`), with a click opening the full video. The owner chose the loop, from the final cut.
+
+**What the advisor did.** It cut 2.5 seconds from each of the video's first five slides, each taken after the slide has fully appeared, and joined them into a 12.5-second loop: 960 pixels wide, 262 KB, in `assets/proven-loop.gif`. It replaced the still cover at the top of [`../README.md`](../README.md); a click still opens the video. The still cover stays in `assets/`.
+
+This page covers hops 1 to 16 of 18 October.
 
 ## Not run
 
