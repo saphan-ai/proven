@@ -28,8 +28,8 @@ The final warm-up before the start.
 |---|---|---|
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
 | The design, as recorded decisions | 14 decisions accepted, 17–19 October | [decisions](fleet/decisions/) |
-| Machines for the coding agents | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) |
-| A local NVIDIA safety model | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) |
+| Machines for the coding agents | in progress: order approved 19 October; the new machine is running | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) · [status](fleet/status/STATUS_proven-cursor-infra.md) |
+| A local NVIDIA safety model | in progress: order approved 19 October; memory fit being measured | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) · [status](fleet/status/STATUS_nemotron-content-safety.md) |
 | A test corpus from 28 real review disagreements | 21 case contracts written, case code not built yet; declared prior art | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
 | Building Proven | starts 22 October, 00:00 UTC | |
 | Public updates | daily, 15:00 UTC | this repository |
