@@ -14,6 +14,8 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0003](ADR-0003-meterless-engines-in-go.md) | the reviewer's memory and state are Meterless's H-MEM and World Model, built in Go | accepted, 2026-10-17 |
 | [0004](ADR-0004-first-evidence-sources.md) | the first evidence sources: OSV, CISA KEV, FIRST EPSS, the repository's own history | accepted, 2026-10-17 |
 | [0005](ADR-0005-guardrail-on-by-default.md) | a guardrail on every prompt and answer by default, local or hosted, with a switch to turn it off | accepted, 2026-10-18 |
+| [0006](ADR-0006-a-skeptic-from-another-model-family.md) | every finding faces a Skeptic from another model family, NVIDIA Nemotron; the evidence settles it, never a vote | accepted, 2026-10-18 |
+| [0007](ADR-0007-no-exploit-code.md) | no exploit code; a vulnerability finding is proved by a query and its rows | accepted, 2026-10-18 |
 
 **Rules for an ADR**
 

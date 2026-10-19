@@ -24,8 +24,8 @@ The hackathon requires every entry to integrate Zetaris and warns that a sponsor
 2. **A finding with neither is dropped**, not softened.
 3. **Every evidence source is a table behind Zetaris.** The Investigator agent asks its questions as queries through Zetaris, across all sources at once.
 4. **The same queries run on a local engine over small samples** when Zetaris is not reachable or `SAMPLE_MODE=true` (see [ADR-0001](ADR-0001-go-behind-adapters.md)).
-5. **An NVIDIA Nemotron model, from a different model family than the finder, tries to refute every finding** (the Skeptic). Disagreements are settled by the evidence, never by a vote.
-6. **proven writes no exploit code.** A finding about a vulnerable dependency is proved by the query and its rows, never by an attack. The hackathon's rules forbid exploit code too.
+
+Who tries to refute each finding is [ADR-0006](ADR-0006-a-skeptic-from-another-model-family.md). What kind of evidence proven never produces is [ADR-0007](ADR-0007-no-exploit-code.md).
 
 ## Consequences
 

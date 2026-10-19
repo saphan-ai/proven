@@ -152,7 +152,15 @@ The owner did not wait for the build to start: the five decisions already taken 
 
 Each ADR says what is not known yet. ADR-0003 says it is revisited if a Go engine cannot pass Meterless's suites. The folder's README now explains the two kinds of decision, lists the ADRs, and gives the template and the rules: one decision per file, never rewritten, superseded by a new ADR instead. Every later design decision goes there the same way. The originals are in our private record too.
 
-This page covers hops 1 to 11 of 18 October.
+### 12 · owner → advisor: two more decisions of their own
+
+The advisor pointed out that ADR-0002 also carried two points never discussed as separate decisions, though both were already in the README the owner had pushed: the NVIDIA Skeptic, and "no exploit code". It asked whether they should be ADRs of their own.
+
+> *"Let's keep them separate for clarity"*
+
+**What the advisor did.** It moved both out of ADR-0002 into [ADR-0006](../fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) (a Skeptic from another model family, NVIDIA Nemotron; the evidence settles it, never a vote) and [ADR-0007](../fleet/decisions/ADR-0007-no-exploit-code.md) (no exploit code; a vulnerability finding is proved by a query and its rows). ADR-0002 now points to both. It edited ADR-0002 in place instead of superseding it, because ADR-0002 had not been pushed yet, and the decision itself did not change, only where it is written.
+
+This page covers hops 1 to 12 of 18 October.
 
 ## Not run
 
