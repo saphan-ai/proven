@@ -154,7 +154,7 @@ Once a day, at **22:00 Bangkok time (15:00 UTC)**, the owner pushes the day's me
 /fleet/orders/       what a master asked for
 /fleet/status/       what the executor built and ran
 /fleet/reviews/      what an independent reviewer found
-/fleet/decisions/    what the owner decided, and why
+/fleet/decisions/    what the owner decided, and why: design decisions (ADRs) and rulings on each change
 /fleet/LEDGER.md     what every change cost, and how good it was
 ```
 

@@ -67,3 +67,4 @@ Page: [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md)
 | [8](CONVERSATION_2026-10-18.md#8--owner--advisor-a-diary-of-the-conversations) | owner → advisor | This diary. |
 | [9](CONVERSATION_2026-10-18.md#9--owner--advisor-rename-the-first-page) | owner → advisor | The first page renamed to `CONVERSATION_2026-10-16.md`. |
 | [10](CONVERSATION_2026-10-18.md#10--owner--advisor-the-hosted-guardrail-and-design-decisions-as-adrs) | owner → advisor | NVIDIA hosts the guardrail model too, so judges can keep it on; design decisions will be ADRs. |
+| [11](CONVERSATION_2026-10-18.md#11--owner--advisor-write-them-as-adrs-now) | owner → advisor | The five decisions taken so far written as ADRs 0001 to 0005. |

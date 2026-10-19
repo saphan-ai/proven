@@ -134,7 +134,25 @@ While the advisor was checking, he added:
 - [`../README.md`](../README.md): the guardrail runs in two places behind one adapter, our machine and NVIDIA's hosted API. A judge with an NVIDIA key keeps it on, and a setting turns it off for anyone without one. Under "Not known yet": the model id and the limits, which the first live call settles.
 - **ADRs.** The rule went into the advisor's memory, as the owner asked. When the design work starts, every design decision goes into `fleet/decisions/` as an ADR: a one-sentence title, a status and date, then *Context*, *Decision* and *Consequences*. The folder already holds the owner's rulings on each change (`DECISION_<slug>_r<n>.md`), so ADRs will be named `ADR-<number>-<slug>.md` to keep the two apart. The first candidates are the decisions already taken: Go behind adapters, Zetaris as the evidence layer, Meterless's engines in Go, the first evidence sources, and the guardrail on by default.
 
-This page covers hops 1 to 10 of 18 October.
+### 11 · owner → advisor: write them as ADRs now
+
+> *"Zapiszmy je jako adry"*
+
+*Translation:* "Let's write them down as ADRs."
+
+The owner did not wait for the build to start: the five decisions already taken became ADRs the same day.
+
+**What the advisor did.** It wrote five ADRs in [`../fleet/decisions/`](../fleet/decisions/), in the shape of our infrastructure ADRs (*Context*, *Decision*, *Consequences*), each quoting the owner's words:
+
+- [ADR-0001](../fleet/decisions/ADR-0001-go-behind-adapters.md): Go, with every outside service behind an adapter.
+- [ADR-0002](../fleet/decisions/ADR-0002-evidence-is-a-test-or-a-query-through-zetaris.md): evidence is a test, or a query through Zetaris with its rows.
+- [ADR-0003](../fleet/decisions/ADR-0003-meterless-engines-in-go.md): Meterless's H-MEM and World Model, built in Go.
+- [ADR-0004](../fleet/decisions/ADR-0004-first-evidence-sources.md): the first evidence sources.
+- [ADR-0005](../fleet/decisions/ADR-0005-guardrail-on-by-default.md): the guardrail on by default.
+
+Each ADR says what is not known yet. ADR-0003 says it is revisited if a Go engine cannot pass Meterless's suites. The folder's README now explains the two kinds of decision, lists the ADRs, and gives the template and the rules: one decision per file, never rewritten, superseded by a new ADR instead. Every later design decision goes there the same way. The originals are in our private record too.
+
+This page covers hops 1 to 11 of 18 October.
 
 ## Not run
 
