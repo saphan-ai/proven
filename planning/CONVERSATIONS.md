@@ -11,6 +11,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 16 October 2026 | [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md) | choosing the topic: the question to the fleet, eleven answers, the name proven |
 | 17 October 2026 | [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md) | preparing the machines for the Cursor executors; then reshaping the design for the sponsors' technology |
 | 18 October 2026 | [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md) | a local NVIDIA guardrail model, made public and on by default in proven |
+| 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
 
 ---
 
@@ -73,3 +74,11 @@ Page: [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md)
 | [14](CONVERSATION_2026-10-18.md#14--owner--advisor-one-language-for-the-readers) | owner → advisor | One language for the readers: only the first day keeps the owner's Polish. |
 | [15](CONVERSATION_2026-10-18.md#15--owner--advisor-watch-it-being-built) | owner → advisor | "Watch it being built, slice by slice": a link to the orders, reports, reviews and decisions. |
 | [16](CONVERSATION_2026-10-18.md#16--owner--advisor-the-video-playing) | owner → advisor | The video's opening slides as a silent loop at the top of the README; a click plays the video. |
+
+## 19 October 2026 — the front page for a wider audience
+
+Page: [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md)
+
+| hop | who → whom | what happened |
+|---|---|---|
+| [1](CONVERSATION_2026-10-19.md#1--owner--advisor-make-the-front-page-understandable) | owner → advisor | The README starts with the person and the story; the design moves to DESIGN.md; SAPHAN.md checked against the documentation. |

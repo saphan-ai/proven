@@ -2,6 +2,13 @@
 
 One row per change, added with its decision. Every number comes from the documents of that change in this folder, and every cost is the one Saphan Studio recorded for each run, to the cent.
 
+What these costs are, and are not:
+
+- **Recorded cost**: what Saphan Studio measured for a run, from the model provider's usage.
+- **Subscription share**: for subscription tools such as Cursor, the share of the monthly pool a change used, where it can be read. Saphan Studio cannot read Cursor's pool yet, so until it can, this figure comes from the account and is marked as such.
+- **Not measured**: a cost nobody recorded, such as interactive planning sessions, is written as "not measured" with the reason, never as $0.00.
+- **Not included**: machines, electricity and human time.
+
 ## The ledger
 
 | change | built by (model, or Auto → model) | rounds | repair rounds | BLOCKING | OWED | NOTE | pool used | building | reviewing | total | outcome |
