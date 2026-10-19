@@ -133,7 +133,7 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
 - **lands:** an owner-act script `create-runner-cursor.sh` that creates one VM on the node that holds ████████████ (VM ███):
   the recipe of VM ███ and its copy VM ███ (Ubuntu 24.04 cloud image, x86-64-v2-AES per ████████, q35,
   virtio-scsi-single, qemu-guest-agent, `onboot=1`, serial console, cloud-init user and key, static IP, the same gateway,
-  DNS and search domain). **VMID 307, named explicitly** (`nextid` answers 100, §1a A12), and the next free workbench IP
+  DNS and search domain). **VMID ███, named explicitly** (`nextid` answers 100, §1a A12), and the next free workbench IP
   (`███`, §1a), both checked free by the script before it creates anything. Wiring like ████████████: DNS rewrite, Kuma
   monitor, the Mac ssh alias, and a tailnet member like ████████████ (Tailscale; the owner approves the node's login). A brief and a report in ████████████ (`███████████████████████████`,
   `███████████████████████████████████`), `████████████` updated, and A9's stale disk figure corrected (400 G).
@@ -336,7 +336,7 @@ macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 
 | machine names | 18 | the machine runner-cursor is modelled on, a copy of it, and one more internal host |
 | cluster node names | 10 | the node that will hold runner-cursor |
 | account names | 9 | the account used to reach the node |
-| infrastructure identifiers | 16 | the numbers of the node's virtual machines, and the name of the node's backup job |
+| infrastructure identifiers | 17 | the numbers of the node's virtual machines, and the name of the node's backup job |
 | address fragments | 2 | the last part of the IP address planned for runner-cursor |
 | private repository names | 8 | our infrastructure repository |
 | internal paths | 16 | files in our infrastructure repository, system files on internal hosts, a local checkout path, a local tool folder, a vendor folder on a machine, the workspace's configuration file |
