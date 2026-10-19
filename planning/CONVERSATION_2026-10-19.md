@@ -28,6 +28,17 @@ Checking the product claims against the documentation changed several sentences.
 
 The original conversations, the fleet's answers and the decisions are unchanged.
 
+### 2 · owner → advisor: which source is right
+
+The advisor had reported two places where public sources disagreed. The owner asked what they were, and gave the hackathon's event page.
+
+- **Network access.** The product site said that limiting a run's network was opt-in per run, with no default yet. The technical documentation said that every run is limited by default. The engine's own documentation settled it: since 8 October 2026, a run that declares no policy gets its backend's baseline (its model and its package registries) and nothing else.
+- **Cursor.** The documented release lists Cursor as not built yet, while the development version the fleet uses has it. [`../SAPHAN.md`](../SAPHAN.md) says exactly that.
+
+> *"The docs are right. The site needs fixing. Fix it right away."* (translated from Polish)
+
+**What the advisor did.** It rewrote the network passages of [saphan.ai](https://saphan.ai/) in its four languages (English, Polish, Thai and Arabic) on the home, controls and security pages, to say what the documentation says, including what is not shipped yet. The owner built, checked and deployed the site. The README's hackathon link now points to the [event page](https://hackathon.genai.works/event/open-agent-hackathon-2026).
+
 ## Not run
 
 - Links were checked inside this repository. Links to other websites were checked by reading the pages, not by a link checker.

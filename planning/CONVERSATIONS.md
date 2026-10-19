@@ -82,3 +82,4 @@ Page: [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md)
 | hop | who → whom | what happened |
 |---|---|---|
 | [1](CONVERSATION_2026-10-19.md#1--owner--advisor-make-the-front-page-understandable) | owner → advisor | The README starts with the person and the story; the design moves to DESIGN.md; SAPHAN.md checked against the documentation. |
+| [2](CONVERSATION_2026-10-19.md#2--owner--advisor-which-source-is-right) | owner → advisor | The documentation was right about network access; the product site was corrected in four languages. |
