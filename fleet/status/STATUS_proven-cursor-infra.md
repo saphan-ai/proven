@@ -7,7 +7,7 @@
 - cost: not measured — an interactive master session; no priced act has run
 - duration: not measured
 - last commit: 5e78a31 "[proven-cursor-infra] [nemotron-content-safety] public copies follow the amended train orders (2026-10-19)"
-- updated: 2026-10-20
+- updated: 2026-10-20 (W3 and W5 done)
 
 ## Summary
 The master re-measured the sixteen claims of the train order and amended the order. The owner signed it. proven is now a
@@ -30,16 +30,22 @@ workspace repository. No machine exists yet and no seat was admitted: runner-cur
    116 GB root disk; the guest agent answers.
 9. 2026-10-20: composed the toolchain script (W3) and rehearsed its checks. A wrong checksum in the Cursor pin makes the
    installer refuse by name, and nothing is installed.
+10. 2026-10-20: W3 done on runner-cursor: Go 1.26.8 with cgo on, Python 3.13.16, Node v22.23.3, gcc 13.3.0, Docker 29.9.1
+    and the pinned Cursor agent. The leg user is not in the docker group (D4 is open).
+11. 2026-10-20: W5: runner-cursor is admitted to the fleet with one Cursor executor seat. Its login under the seat's own
+    home directory works on Linux: this was the first measurement of that question (A6).
+12. 2026-10-20: the W6 smoke-turn order is written; it waits for the owner's signature. It runs on `composer-2.5`: the
+    engine refuses `auto`, because Auto may switch to another vendor's model.
 
 ## Wagon state
 | wagon | state | next |
 |---|---|---|
 | W1 `proven-is-a-workspace-repo` | repository registered; claims re-measured | one zero-cost compose for a Cursor executor on macm5 |
 | W2 `runner-cursor-exists` | the machine runs and is a tailnet member | the wiring: DNS name, monitor, ssh alias |
-| W3 `runner-cursor-toolchain` | script rehearsed | the owner runs it |
+| W3 `runner-cursor-toolchain` | done 2026-10-20 | — |
 | W4 `proven-go-python-image` | layers chosen: Python 3.13, gcc, cgo on; Node already in the base | waits for W3 and D2 |
-| W5 `cursor-seats-admitted` | macm5: reuse the existing seat, key needed (D3); runner-cursor: native, login, no key | waits for W3 |
-| W6 `cursor-seats-smoke-turn` | not started | priced; waits for W5 and the owner's consent |
+| W5 `cursor-seats-admitted` | runner-cursor: one seat admitted and logged in; macm5: key needed (D3) | the macm5 seat after D3 |
+| W6 `cursor-seats-smoke-turn` | order written: quote $0.50, cap $1.00 | the owner's signature and consent |
 | W7 `proven-public-infra-record` | the public train order is current | goes with each wagon |
 | W8 `cursor-legs-reach-data-hosts` | measured from the egress policy: no data host is admitted today | R1, item 3 |
 | W9 `proven-judge-rehearsal` | not started | waits for W4 and D4 |
