@@ -48,7 +48,7 @@ The scribe counted, across the whole record:
 | designed blind pairs (two model families, one order, the same commit) | 14 |
 | … of which the two reviewers disagreed | **11 of 14** |
 | reviews by two model families of the same target within 30 minutes | 41 |
-| … with different verdicts | **31 of 41 (76 %)** |
+| … with different verdicts | **28 of 40 (70 %)**, corrected 2026-10-19 (first published as 31 of 41: a template line was read as one model's verdict; see [`tests/corpus/PROVENANCE.md`](../../tests/corpus/PROVENANCE.md)) |
 | reject rate by model family, over 2,075 readable review runs | codex 80 % · claude 27 % · qwen 10 % |
 
 The disagreements run in every direction, not only between two reviewers:
@@ -104,7 +104,7 @@ Every answer agrees with the core of the candidate: a finding counts only when a
 
 Almost every answer also asks that every failing test is run again **alone, on the same machine, on both sides**, before it is called a finding. Their false alarms came from the environment far more often than from a model.
 
-On two model families, the fleet pushes back. Several masters write that the second opinion that decided things was never a second model, but *"a second instrument"*, *"a second role"* or *"a second environment"*. The scribe's numbers point the other way: two families disagree three times out of four. Both views are here, and both are measured.
+On two model families, the fleet pushes back. Several masters write that the second opinion that decided things was never a second model, but *"a second instrument"*, *"a second role"* or *"a second environment"*. The scribe's numbers point the other way: two families disagree seven times out of ten (corrected 2026-10-19 from three out of four). Both views are here, and both are measured.
 
 The fleet sent fourteen proposals. Six of them are the same tool seen from different tracks: *why is this test red: my change, already broken, flaky, or the machine?* Most of the authors offer it as the evidence runner of the candidate rather than as a rival.
 

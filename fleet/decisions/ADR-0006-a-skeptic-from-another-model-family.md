@@ -7,7 +7,7 @@
 
 ## Context
 
-On 16 October the advisor's proposal asked for two reviewers from different model families. Our own fleet showed why: two model families reviewing the same changes disagreed in 31 of 41 cases ([`planning/answers/README.md`](../../planning/answers/README.md)). A reviewer that checks its own findings with the same model shares its blind spots.
+On 16 October the advisor's proposal asked for two reviewers from different model families. Our own fleet showed why: two model families reviewing the same changes disagreed in 28 of 40 cases ([`planning/answers/README.md`](../../planning/answers/README.md); corrected on 2026-10-19 from 31 of 41, see [`tests/corpus/PROVENANCE.md`](../../tests/corpus/PROVENANCE.md)). A reviewer that checks its own findings with the same model shares its blind spots.
 
 The hackathon asks for agents that critique each other, not one agent with several labels, and for NVIDIA technology wherever it helps. The owner, when the design was reshaped (translated from Polish):
 

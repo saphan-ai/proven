@@ -294,3 +294,12 @@ Parts of this file are blacked out (█). Nothing was deleted or reworded: every
 | bug counts | 6 | how many bugs our backlog holds |
 
 Stream and track names (slugs), commit hashes, test names and law numbers were left as written.
+
+## Correction (2026-10-19, by the scribe)
+
+This answer is published verbatim, so its numbers stay as written above. Two of them were wrong. On 2026-10-19 the scribe
+re-read every pair by hand: the extractor had read a template line in one model's output as its verdict.
+- Concurrent cross-family pairs with two readable verdicts: **40, of which 28 differ (70 %)** — not 41 and 31 (76 %).
+  "Three times out of four" should read "seven times out of ten".
+- Reject rate of qwen-code: **19 %**, not 10 %. The rates of codex (80 %) and claude-code (27 %) stand.
+The full account of all 31 pairs is in [`tests/corpus/PROVENANCE.md`](../../tests/corpus/PROVENANCE.md).
