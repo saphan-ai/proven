@@ -7,7 +7,7 @@
 - cost: not measured — an interactive master session; no priced act has run
 - duration: not measured
 - last commit: 5e78a31 "[proven-cursor-infra] [nemotron-content-safety] public copies follow the amended train orders (2026-10-19)"
-- updated: 2026-10-20 (W3 and W5 done)
+- updated: 2026-10-20 (W6 ran: blocked)
 
 ## Summary
 The master re-measured the sixteen claims of the train order and amended the order. The owner signed it. proven is now a
@@ -36,6 +36,11 @@ workspace repository. No machine exists yet and no seat was admitted: runner-cur
     home directory works on Linux: this was the first measurement of that question (A6).
 12. 2026-10-20: the W6 smoke-turn order is written; it waits for the owner's signature. It runs on `composer-2.5`: the
     engine refuses `auto`, because Auto may switch to another vendor's model.
+13. 2026-10-20: W6 found two engine gaps. First, the engine runs no Cursor agent inside a sandbox on any machine, so every
+    Cursor run needs the owner's recorded act to open its network, and the owner must be present for each run. Second,
+    when the owner ran the smoke turn that way, the agent's shell tool was refused on every call. The turn ran
+    `composer-2.5` (35,892 input and 6,591 output tokens); its cost is not measured yet, because Saphan Studio has no
+    price for that model. Both gaps went to the Cursor backend train's master, with a deadline of 21 October 12:00 UTC.
 
 ## Wagon state
 | wagon | state | next |
@@ -45,7 +50,7 @@ workspace repository. No machine exists yet and no seat was admitted: runner-cur
 | W3 `runner-cursor-toolchain` | done 2026-10-20 | — |
 | W4 `proven-go-python-image` | layers chosen: Python 3.13, gcc, cgo on; Node already in the base | waits for W3 and D2 |
 | W5 `cursor-seats-admitted` | runner-cursor: one seat admitted and logged in; macm5: key needed (D3) | the macm5 seat after D3 |
-| W6 `cursor-seats-smoke-turn` | order written: quote $0.50, cap $1.00 | the owner's signature and consent |
+| W6 `cursor-seats-smoke-turn` | ran once: the agent answers, its shell is refused | the Cursor backend train's fix |
 | W7 `proven-public-infra-record` | the public train order is current | goes with each wagon |
 | W8 `cursor-legs-reach-data-hosts` | measured from the egress policy: no data host is admitted today | R1, item 3 |
 | W9 `proven-judge-rehearsal` | not started | waits for W4 and D4 |
