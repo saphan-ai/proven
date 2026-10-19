@@ -13,6 +13,8 @@
 - repo: proven (NOT in `saphan workspace repo list` on 2026-10-17 — W1 registers it), with ████████████ and the bridge registry
 - base: main at the cut
 - author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
+- amended: by the advisor, 2026-10-17, after proven's design changed (Go product, Zetaris, Meterless, NVIDIA). Added:
+  A13–A16, the additions to W3 and W4, W8, W9, two rules in §3 and their DoD lines. The owner: *"Punkty 1-6 dopisz."* (§0)
 
 ## WITHDRAWN (advisor, 2026-10-17)
 On 2026-10-17 I wrote that ssh to the node "answers `Host key verification failed`" and made a host-key check the owner's
@@ -41,13 +43,34 @@ the node before setting the size.
 > Cursor executors work. Black out every other machine name, cluster node names, internal paths and the machines'
 > location."*
 
+2026-10-17, later, to the advisor (written in Polish; quoted verbatim, the advisor's translation after each):
+
+> *"D5 - nie, napiszemy w go z adapterem. Potem wykorzystamy to w Saphan - taki jest cel tej zabawy."*
+
+"D5: no, we will write it in Go with an adapter. Later we will use it in Saphan; that is the point of this game."
+
+> *"Zobacz czy nie powinniśmy jeszcze czegoś dołożyć do infra, które przygotuwujemy"*
+
+"See whether we should add anything to the infrastructure we are preparing."
+
+> *"Punkty 1-6 dopisz."*
+
+"Add points 1 to 6." The six points are A13–A16 with the W3 and W4 additions, W8, W9, and the two rules in §3.
+
+**Why the train grew.** The hackathon requires every entry to integrate Zetaris and Meterless. proven's product is now Go.
+Its evidence is queried through Zetaris. Two Meterless engines (H-MEM, World Model) are built in Go and checked by
+Meterless's own TypeScript conformance suites. An NVIDIA Nemotron model refutes findings. `SAMPLE_MODE=true` runs the same
+queries on a local engine over small samples. The public description is proven `README.md`, "What proven will do".
+
 ## §1 WHAT THIS TRAIN IS
 
 The proven build window opens on 2026-10-22 00:00 UTC, and its executors are Cursor agents only. Today the fleet has two
 Cursor seats, both on macm5, and no Linux host for Cursor. When this train is done: runner-cursor exists, carries Go and
 Python, and holds the Cursor seats the engine can run today; every Cursor seat the engine can run has taken one turn; the
 seats the engine cannot run yet are named, each with the engine change it waits for; the Go + Python Dockerfile is in
-proven; and proven's public record says where the Cursor executors work, with everything internal blacked out.
+proven; and proven's public record says where the Cursor executors work, with everything internal blacked out. Added 2026-10-17:
+both lanes also carry Node and a C toolchain; the legs reach the build's data sources, or the gap is named; and a daily
+rehearsal runs proven the way a judge will, before every push.
 
 **What the advisor measured on 2026-10-17. These are CLAIMS FOR YOU TO TEST, not ground (law #44). Re-measure each one
 before you build on it. Where you find the advisor wrong, write it in the wagon's `master-was-wrong:` field.**
@@ -66,6 +89,10 @@ before you build on it. Where you find the advisor wrong, write it in the wagon'
 | A9 | ████████████: 8 vCPU, 15 GiB, `/` 387 GB (43 % used), Ubuntu 24.04.4, Python 3.12.3, Go 1.26.5, no docker or podman. `████████████` says the disk is 200G. That row is stale. | `ssh ████████████ 'nproc; free -g; df -h /; python3 --version; go version'` |
 | A10 | Our Go image `dev-go` (engine `████████████████████████`: `███████████` + Go 1.26 copied from the official image by digest) is **not published**. `hub.docker.com/v2/repositories/saphan/dev-go/` → 404. Debian trixie, the image's distro, ships Python 3.13; Ubuntu 24.04 ships 3.12. | `curl -s -o /dev/null -w '%{http_code}' …` → 404; engine `████████████████████████████` |
 | A11 | `proven` and `████████████` are not workspace repos. | `saphan workspace repo list` |
+| A13 | **Meterless's conformance suites need Node.** The H-MEM suite runs as `HMEM_IMPL=<absolute path to index.ts> npx tsx conformance/runner.ts`: it loads the implementation as a TypeScript module, so a Go engine is checked through a thin `index.ts` adapter. **The Node version the suites need is UNMEASURED. Whether a Go engine passes through such an adapter is UNMEASURED.** | github.com/Meterless/Meterless, `engines/hmem` README, read 2026-10-17 |
+| A14 | **The local engine for `SAMPLE_MODE` needs cgo.** The plan is DuckDB through its Go driver, which builds with cgo and a C compiler. **Whether `dev-go` carries a C compiler, and its `CGO_ENABLED` default, are UNMEASURED.** | `docker run --rm <dev-go> sh -c 'gcc --version; go env CGO_ENABLED'` |
+| A15 | **The build reaches these hosts:** `api.osv.dev` and the OSV data dumps, `www.cisa.gov` (KEV), the FIRST EPSS download host, `api.github.com`, `integrate.api.nvidia.com`, the Zetaris instance (host unknown until the instance arrives), `registry.npmjs.org`, `proxy.golang.org`. **Whether the landed `the-cursor-egress-baseline` admits them for a Cursor leg is UNMEASURED.** | the list: proven `README.md` and the hackathon's technical guide; the admission: W8 |
+| A16 | **A live-key test cannot run on a far leg today.** A4 refuses a Cursor key over ssh: "no carrier that puts a key in the leg's environment alone". The same gap is expected for the keys proven's live tests need (NVIDIA, Zetaris, a model provider). **Whether the engine can deliver a non-vendor secret into a far leg's environment is UNMEASURED.** | A4's instrument; W1 answers it with one zero-cost compose |
 
 ## §2 WAGONS
 
@@ -102,6 +129,11 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
   Docker. Do not put the leg user in the `docker` group without the owner's word: that group gives full control of the host, so it is a
   security decision. The Cursor `agent` CLI via `███████████████████████████████` and `████████████████████████`
   (W9 of saphan-agent-cursor), one seat HOME per seat. Any step that needs sudo goes into an owner-act script.
+- **added 2026-10-17 (A13, A14):** Node.js, one LTS major in both lanes (native and the W4 image), with npm and `npx`,
+  for Meterless's conformance suites. A C compiler and libc headers for cgo, in both lanes. Read A13's Node requirement
+  from the suite's own `package.json` before you pin the major.
+  **dod addition:** `node --version`, `npm --version`, `gcc --version` and `go env CGO_ENABLED` on runner-cursor, each
+  pasted; the Node major is equal in both lanes.
 - **dod:** `go version`, `python3 --version`, `docker version` and `agent --version` on runner-cursor, each pasted; the
   `agent` version equals the pin. Mutation: a pin file with a wrong version makes the install script refuse by name.
   Rehearse it with `--dry-run` and paste the output.
@@ -112,6 +144,9 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
   with a README). `ARG BASE` is our `dev-go` image pinned by digest. One `RUN` layer adds Python (the minor of W3, plus venv
   and pip, as the engine's `dev-python` layer does). No vendor CLI, because we do not redistribute one. The file and its README
   say that the base image is not published (A10), so a stranger cannot build it as it stands.
+- **added 2026-10-17 (A13, A14):** the image carries W3's Node major and a C compiler: Node as one more pinned layer after
+  Python. If `dev-go` already has gcc (A14), say so and add nothing.
+  **dod addition:** `docker run --rm <image> sh -c 'node --version; gcc --version; go env CGO_ENABLED'` pasted, equal to W3.
 - **dod:** built on runner-cursor; `docker run --rm <image> sh -c 'go version; python3 --version'` gives W3's versions;
   the digest is recorded. The file passes the redaction rules of W7: no internal registry host, path or machine name.
 - **owner gate:** D2 below. The file waits for it.
@@ -155,12 +190,46 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
   hits. Paste the command and its output. The owner reviews and pushes. **The fleet never pushes** (proven `AGENTS.md` §3).
 - **review:** master-verify-only; the owner reviews before his push
 
+### W8 — the legs reach the build's data sources (added 2026-10-17)
+- **lands:** A15 measured for a Cursor leg on each admitted seat: for every host, admitted / refused / unmeasured, with the
+  reading. Where a host is refused, the change that admits it, written as the property that must hold: "a Cursor executor
+  leg on proven reaches these hosts and no others". Who may change the egress policy is not the advisor's call: if it is
+  an owner act, a rehearsed `.sh`; if it is engine work, a request to the master of `saphan-agent-cursor` (law #59). The
+  Zetaris host is added the day the instance arrives.
+- **dod:** per host, the reading pasted. Negative control (law #27): one host not on the list, refused, pasted. If a
+  reading needs a live turn, it rides W6's smoke turn under the same consent; it never runs as a separate priced act.
+- **routing:** egress policy is network work and security work, so this wagon runs on claude-code (law #9 (a), (b)).
+- **review:** master-verify-only
+
+### W9 — a daily rehearsal, the way a judge will run proven (added 2026-10-17)
+- **lands:** one script in proven, at the path the master proposes (advisor's suggestion: `scripts/judge-rehearsal.sh`).
+  From a fresh clone of proven's trunk, in a scratch directory: `docker build`; `docker run` with an EMPTY environment and
+  `SAMPLE_MODE=true`; `POST /run` with each file in `input_examples/`. It checks that each answer is structured JSON, that
+  the answers differ from each other, and that `logs/trace-<run_id>.jsonl` exists for each run and names at least two
+  agents. It stops at the first failing step and names it. It runs on runner-cursor every day before the owner's 15:00 UTC
+  push, and its result is published in proven (advisor's suggestion: `fleet/rehearsals/REHEARSAL_<date>.md`).
+- **dod:** the script rehearsed against a minimal skeleton in a scratch directory before 2026-10-22, output pasted.
+  Unplug test (law #41): with one input example removed, and again with the Dockerfile broken, the script goes red and
+  names the step. First real run: 2026-10-22, before the push.
+- **owner gate:** D4 (Docker on runner-cursor). Without it this wagon waits.
+- **review:** master-verify-only
+
 ## §3 ORDER OF WORK
 
 1. W1 first: it re-measures the ground every other wagon stands on.
 2. W2 → W3 → (W4 ∥ W5) → W6. W7 goes with each wagon, in the same change as the work it describes.
 3. **Target:** W1–W5 done by **2026-10-21 12:00 UTC**, before the onboarding call. The first Cursor leg of the build is
    2026-10-22.
+4. Added 2026-10-17: the W3 and W4 additions travel with W3 and W4. W8 after W5. W9 after W4 and D4: its script by
+   2026-10-21 12:00 UTC, its first real run on 2026-10-22 before the push.
+
+**Two rules for every order of the build (added 2026-10-17):**
+- **Live keys stay off far legs until A16 is answered.** Cursor legs on runner-cursor build and test in `SAMPLE_MODE=true`.
+  Tests that need a live NVIDIA, Zetaris or model key run on macm5, or the master runs them. Every order says which.
+- **Work on vulnerability data is routed and worded as security work.** It reads advisories and vulnerability catalogues,
+  so a codex lane may refuse it as cybersecurity and return `ok` with nothing. Its reviews go to claude-code (law #9).
+  Every order on it names the defect class, the asset, the proof (a failing test, or a query and its rows) and the
+  boundary, and never asks for an attack (law #56). proven writes no exploit code; the hackathon rules forbid it too.
 
 **R1 — two engine requests the master sends to the master of `saphan-agent-cursor`.** That is another track: you send a
 message, you do no work on it (law #59). They are written as properties that must hold:
@@ -198,6 +267,9 @@ Ask for an estimate against 2026-10-21. Record the answer in this file.
 - **Every hackathon document is saved in BOTH places** (the owner, 2026-10-17: *"We save in both places all hackathon
   documents."*). The original goes in the bridge. A redacted public copy goes in proven, this train order included, and it
   is updated whenever the original changes. The public copy of this file: proven `fleet/orders/TRAIN_ORDER_proven-cursor-infra.md`.
+- Added 2026-10-17: Node and a C toolchain in both lanes, the versions pasted (A13, A14). Every A15 host admitted, or
+  named with the change that admits it (W8). The judge rehearsal exists, has gone red when unplugged, and runs before
+  every push (W9). Every build order states where its live-key tests run (§3).
 - The closing line of law #38 in this file.
 
 ## §5 OUT OF SCOPE

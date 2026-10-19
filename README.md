@@ -1,10 +1,74 @@
 # proven
 
-A pull-request reviewer that has to prove what it says.
+A pull-request reviewer that has to prove what it says, and shows where every proof came from.
 
 An entry for the Open Agent Hackathon 2026, track "The Agent That Can Explain Why".
 
-**There is no code here yet, on purpose.** The build window opens on 22 October 2026, and no project code is written before that date. What is here already is the conversation about what to build: the question the owner put to the fleet, the proposals, and the plan for the submission. See `planning/`.
+**There is no code here yet, on purpose.** The build window opens on 22 October 2026, and no project code is written before that date. What is here already is the conversation about what to build: the question the owner put to the fleet, the proposals, the plan for the submission, and the design below. See `planning/`.
+
+## What proven will do
+
+*The design as of 17 October 2026. It was reshaped that day, because the hackathon requires every entry to integrate Zetaris and Meterless (see step 12 below). Nothing here is built yet. Every claim in this section is a plan, not a result.*
+
+**The problem.** A code review says "this is wrong" and rarely says why anyone should believe it. The evidence a good reviewer would need is spread over many places: the change itself, the project's history, its issues, the advisories published for its dependencies. Nobody reads all of them for every pull request.
+
+**What proven does.** A finding counts only with evidence, and the evidence is something a reader can check again:
+
+- **a test** that fails on the change and passes on the base, or
+- **a query and the rows it returned**: one SQL query over the evidence sources below, written into the review next to the finding, so anyone can run it again and get the same rows.
+
+A finding without either is dropped, not softened.
+
+**The agents.** Each one has its own job, and they hand work to each other more than once:
+
+| agent | what it does |
+|---|---|
+| Planner | reads the change, says what it claims to do and where the risk is, and asks the others for evidence |
+| Investigator | turns each risk into queries over the evidence sources and returns the rows |
+| Prover | writes the test that fails on the change and passes on the base, and runs both |
+| Skeptic | a model from a different family, whose only job is to refute each finding |
+| Judge | settles every disagreement by the evidence, never by a vote, and sends weak findings back for a second pass |
+| Writer | writes the review: each finding with its proof, its sources and what the review cost |
+
+The run is bounded: a fixed number of rounds, a timeout on every outside call, and a partial result instead of a hang.
+
+### Where the sponsors' technology does the work
+
+- **Zetaris: the evidence layer.** Every evidence source is one table behind Zetaris, which runs a query where the data already lives, without copying it first. The Investigator asks one question across all of them in one query. For example: *"Which dependency this change adds or upgrades has a published advisory for that exact version, is on the list of vulnerabilities known to be used in attacks, and has a high chance of being used in one?"* The query and its rows go into the review as the proof.
+- **Meterless: the reviewer's memory and state.** Meterless publishes open specifications of agent engines, each with a conformance suite. We build two of them in Go:
+  - **H-MEM**, the reviewer's memory. A finding that was refuted in one pull request does not come back in the next one. A maintainer's ruling ("we do not validate here, on purpose") is remembered.
+  - **World Model**, the state of one review as a stream of events: every claim, piece of evidence, refutation and verdict. The trace a judge reads in `logs/` is that stream, not text written next to it.
+  - Our Go builds are checked with Meterless's own conformance suites. The suites load a TypeScript module, so a thin TypeScript adapter connects them to the Go code. That this works is not measured yet.
+- **NVIDIA: the second family.** The Skeptic runs on an NVIDIA Nemotron model through NVIDIA's hosted API, so the finder and the refuter never come from the same model family. Hosted NVIDIA embeddings for H-MEM's search are a candidate, not a decision.
+- **NVIDIA: the guardrail, on by default.** Before an agent's prompt or answer is used, proven checks it with a guardrail model, as Saphan Studio does: NVIDIA's Nemotron 3.5 Content Safety, served on our own machine. A setting turns the guardrail off, so a judge, whose machine cannot reach ours, can run proven without it. Whether NVIDIA's hosted API serves the same model, so that a judge with an NVIDIA key could keep the guardrail on, is not checked yet.
+- **Cursor: the executors.** The four Cursor agents of the team write the product code (see "How this project is built").
+
+### The evidence sources
+
+The first set, decided on 17 October 2026:
+
+| source | what it answers | how it gets in |
+|---|---|---|
+| [OSV](https://osv.dev) | which package versions an advisory covers, per ecosystem | public data, downloaded by a script |
+| [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | whether a vulnerability is known to be used in real attacks | public data, downloaded by a script |
+| [FIRST EPSS](https://www.first.org/epss/) | how likely a vulnerability is to be used in an attack | public data, downloaded by a script |
+| the repository's own history | what was changed, reverted or fixed before, and in which commit | read from the repository under review |
+
+Next, if the build leaves time: the NVD CVE records, the CWE list of weakness classes, and OpenSSF Scorecard for the health of each dependency.
+
+All data is downloaded by scripts written in the build window, from 22 October. Small samples are kept in this repository, so `SAMPLE_MODE=true` runs the whole review with no network and no keys. The same queries then run on a local engine over the samples instead of on Zetaris. The licence of every source is listed here once its script exists.
+
+proven writes no exploit code. A finding about a vulnerable dependency is proved by the query and its rows, never by an attack.
+
+### Why Go
+
+proven is open source, and one part of it will also be used inside Saphan Studio (see step 3 below). The owner chose Go for that reason. Every outside service (Zetaris, Meterless's suites, NVIDIA, the model providers) sits behind an adapter: an outage during judging degrades the review instead of stopping it, and a judge without our keys can still run it in sample mode.
+
+### Not known yet
+
+- **Zetaris access.** The instance and its documentation are promised to participants before 22 October. Until they arrive, we do not know which interface we will use (SQL driver, REST or MCP).
+- **Meterless keys.** The organizers' example settings name a Meterless API key. The public Meterless repository describes no hosted service and needs no key. We will ask on the sponsor's help channel.
+- **The conformance adapter.** Whether a Go engine passes Meterless's suites through a TypeScript adapter is the first thing we measure.
 
 ## How the topic was chosen (16 October 2026)
 
@@ -23,6 +87,7 @@ The topic was chosen in one day: in one conversation between the owner and the a
 9. **Publish the conversation now.** The owner: *"There is no code yet, but there is already the conversation about what we will write."* That is why `planning/` is here before 22 October.
 10. **The name, and with it the topic.** The advisor proposed two names and advised against using the name of the Saphan feature, so that it stays clear what is open. The owner: *"proven is a good name. That's what we do."* The original plan was that the owner picks from the fleet's answers by 20 October. He named it at 20:12 UTC, while the last two answers were still being written. The answers are published verbatim in [`planning/answers/`](planning/answers/).
 11. **How we publish.** The owner pushes once a day, at 22:00 Bangkok time (see below).
+12. **The sponsors reshape the design (17 October).** The owner read the hackathon's technical guide and found that our design did not meet it: *"it does not meet the requirements, because we have to use all the sponsors' technologies."* Every entry must integrate Zetaris and Meterless, and NVIDIA wherever it helps. Zetaris became the layer every piece of evidence is queried through, and Meterless the reviewer's memory and state. The owner also widened what the reviewer reads: *"Once we get the platform we can go wild. For example, pulling CVE databases as data, other data sources for the evaluating agent."* He chose Go, behind adapters: *"Later we will use it in Saphan. That is the point of this game."* The track stays the same: *"There will be a better explanation."* The hop-by-hop record is in [`planning/CONVERSATION_2026-10-17.md`](planning/CONVERSATION_2026-10-17.md), hops 11 and 12.
 
 ## What the fleet answered
 
@@ -78,7 +143,7 @@ Once a day, at **22:00 Bangkok time (15:00 UTC)**, the owner pushes the day's me
 ## Layout
 
 ```
-/                    project code (from 22 October)
+/                    project code, in Go (from 22 October)
 /SAPHAN.md           the platform that runs the fleet, its roles, words and laws
 /AGENTS.md           the rules every agent follows in this repository
 /planning/           how the topic was chosen (here before 22 October)
@@ -179,7 +244,8 @@ The owner reviews every document before it is published. Credentials, internal h
 ## Pre-existing components
 
 - **Saphan Studio** (https://saphan.ai) — our control plane for agent fleets. It runs the fleet. It is not part of this submission and is not in this repository.
-- Model providers and tools used by the fleet are listed here as they are used.
+- **The Meterless engine specifications and conformance suites** (https://github.com/Meterless/Meterless, Apache-2.0) — open source, published by the sponsor. We build to them; we do not copy their reference code.
+- Model providers, tools and data sources are listed here as they are used.
 
 ## Licence
 
