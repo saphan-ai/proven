@@ -30,7 +30,7 @@ The final warm-up before the start.
 | The design, as recorded decisions | 14 decisions accepted, 17–19 October | [decisions](fleet/decisions/) |
 | Machines for the coding agents | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) |
 | A local NVIDIA safety model | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) |
-| A test corpus from 28 real review disagreements | 21 case contracts written, case code not built yet; declared prior art | [tests](tests/README.md) |
+| A test corpus from 28 real review disagreements | 21 case contracts written, case code not built yet; declared prior art | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
 | Building Proven | starts 22 October, 00:00 UTC | |
 | Public updates | daily, 15:00 UTC | this repository |
 
