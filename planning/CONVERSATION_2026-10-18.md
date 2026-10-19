@@ -2,7 +2,7 @@
 
 This page continues [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md): the owner and the advisor, preparing the infrastructure. Like the earlier pages, it says for every hop **who** spoke, **to whom**, what the advisor **reasoned** and **did**, and **which document** came out of it.
 
-Where the owner wrote in English, his words are quoted verbatim, typos included. Where he wrote in Polish (hops 10, 11, 13 and 14), they are given in the advisor's English translation, so the page reads in one language. Internal names are blacked out (█, one block per character). The list is at the end.
+Where the owner wrote in English, his words are quoted verbatim, typos included. Where he wrote in Polish (hops 10, 11, 13, 14 and 15), they are given in the advisor's English translation, so the page reads in one language. Internal names are blacked out (█, one block per character). The list is at the end.
 
 ## The people and agents in this conversation
 
@@ -178,7 +178,15 @@ The owner wrote this in Polish; it is given here, like every later quote, in the
 
 **What the advisor did.** Only the first day's page, [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md), keeps the owner's Polish next to its translation. Everywhere else, his Polish words are now given in English only: hops 11 to 13 of [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md), hops 10, 11 and 13 of this page, the design decisions in [`../fleet/decisions/`](../fleet/decisions/) and the train order [`../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md`](../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md). Each page says that these quotes are translations.
 
-This page covers hops 1 to 14 of 18 October.
+### 15 · owner → advisor: watch it being built
+
+> *"In this section on the page, add a link with one sentence about the orders: watch how it will be built, slice by slice, something like that."*
+
+The owner wrote this in Polish; it is given in the advisor's translation.
+
+**What the advisor did.** It added one line to the "Start here" box at the top of [`../README.md`](../README.md): **Watch it being built, slice by slice**, linking to [`../fleet/`](../fleet/), where from 22 October every change arrives with the order that asked for it, the executor's report, the independent review and the owner's decision.
+
+This page covers hops 1 to 15 of 18 October.
 
 ## Not run
 

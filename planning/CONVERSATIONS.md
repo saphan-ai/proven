@@ -71,3 +71,4 @@ Page: [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md)
 | [12](CONVERSATION_2026-10-18.md#12--owner--advisor-two-more-decisions-of-their-own) | owner → advisor | The Skeptic and "no exploit code" split out as ADR-0006 and ADR-0007. |
 | [13](CONVERSATION_2026-10-18.md#13--owner--advisor-a-cover-the-video-and-the-way-in) | owner → advisor | A cover image that plays the video, and a "Start here" link to this diary. |
 | [14](CONVERSATION_2026-10-18.md#14--owner--advisor-one-language-for-the-readers) | owner → advisor | One language for the readers: only the first day keeps the owner's Polish. |
+| [15](CONVERSATION_2026-10-18.md#15--owner--advisor-watch-it-being-built) | owner → advisor | "Watch it being built, slice by slice": a link to the orders, reports, reviews and decisions. |

@@ -9,6 +9,8 @@ A pull-request reviewer that has to prove what it says, and shows where every pr
 An entry for the Open Agent Hackathon 2026, track "The Agent That Can Explain Why".
 
 > **Start here: [the diary of how proven is being built](planning/CONVERSATIONS.md).** Every conversation between the owner and the fleet, day by day and hop by hop, each with a link to the full exchange. Then the [design decisions (ADRs)](fleet/decisions/), the [fleet's eleven answers](planning/answers/), and [everything in `planning/`](planning/).
+>
+> **[Watch it being built, slice by slice](fleet/).** From 22 October, every change arrives with its paper trail: the order that asked for it, the executor's report, the independent review, and the owner's decision.
 
 **There is no code here yet, on purpose.** The build window opens on 22 October 2026, and no project code is written before that date. What is here already is the conversation about what to build: the question the owner put to the fleet, the proposals, the plan for the submission, and the design below.
 
