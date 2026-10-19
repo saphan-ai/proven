@@ -35,7 +35,13 @@ With only two models, model A for writing and NVIDIA, the doubled review's secon
 
 Every reviewer model is configuration, NVIDIA's included ([ADR-0010](fleet/decisions/ADR-0010-every-reviewer-model-is-configurable.md)). NVIDIA is only the default first reviewer. No setup is refused: A writing and A reviewing, or A and B without NVIDIA, both run, and each review says which kind of independence it had. Evidence is the one thing that is not configurable.
 
-Still open: the exact form in which a change names its model, and which kinds of review besides security are doubled.
+A change names its model in an `Assisted-by: <agent>:<model>` commit trailer by default, the Linux kernel's convention ([ADR-0011](fleet/decisions/ADR-0011-how-a-change-names-its-model.md)). The trailer keys, the sources (commits, the pull-request description, or a record file for teams that keep AI attribution out of their history) and the table that maps a model to its family are all configurable. Proven only reads; it never writes a trailer.
+
+Review classes are Saphan Studio's: security, backend, user interface, mobile and docs, one per change, chosen by what the change touches ([ADR-0012](fleet/decisions/ADR-0012-review-classes-as-in-saphan-studio.md)). Security is doubled by default; which classes are doubled is configurable.
+
+## Configuration
+
+Proven hardcodes no settings ([ADR-0013](fleet/decisions/ADR-0013-no-hardcoded-settings.md)). Every value it runs with, from models and endpoints to timeouts and review classes, comes from a configuration file or environment variables, each with a documented default. Rules are not settings: evidence for every finding, no exploit code, and a review that says which model reviewed it.
 
 [ADR-0006](fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) adds a second, narrower independence inside one review: the Skeptic that tries to refute a finding comes from a different model family from the agent that made it.
 
@@ -98,4 +104,4 @@ Proven is open source, and one part of it will also be used inside Saphan Studio
 - **Meterless keys.** The organizers' example settings name a Meterless API key. The public Meterless repository describes no hosted service and needs no key. We will ask on the sponsor's help channel.
 - **The hosted guardrail, in detail.** NVIDIA's model page names the endpoint and the answer format, but its code sample leaves the model id blank, and it states no free tier and no rate limit. The first live call settles both.
 - **The conformance adapter.** Whether a Go engine passes Meterless's suites through a TypeScript adapter is the first thing we measure.
-- **Reviewer independence, in detail.** How a change names its model, the same-family case, and which reviews are doubled. See "Independent reviewers" above.
+- **The checks of each review class.** Saphan Studio's classes are adopted ([ADR-0012](fleet/decisions/ADR-0012-review-classes-as-in-saphan-studio.md)); what each one checks in proven is built from 22 October.

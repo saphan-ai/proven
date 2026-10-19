@@ -19,6 +19,9 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0008](ADR-0008-reviewer-model-chosen-against-the-authors-model.md) | the reviewer's model is chosen against the author's model stated in the change; NVIDIA by default; some reviews doubled | accepted, 2026-10-19 |
 | [0009](ADR-0009-two-reviewer-models-and-the-same-model-fallback.md) | two reviewer models; a doubled review may use the author's own model as a fresh second reviewer; A writes, NVIDIA reviews, B for special cases is best | accepted, 2026-10-19 |
 | [0010](ADR-0010-every-reviewer-model-is-configurable.md) | every reviewer model is configurable, NVIDIA's included; NVIDIA is only the default; no setup is blocked | accepted, 2026-10-19 |
+| [0011](ADR-0011-how-a-change-names-its-model.md) | a change names its model in an `Assisted-by:` trailer by default; sources, keys and the family table are configurable | accepted, 2026-10-19 |
+| [0012](ADR-0012-review-classes-as-in-saphan-studio.md) | Saphan Studio's review classes: security, backend, user interface, mobile, docs; security doubled by default | accepted, 2026-10-19 |
+| [0013](ADR-0013-no-hardcoded-settings.md) | no setting is hardcoded; every value has a documented default; rules are not settings | accepted, 2026-10-19 |
 
 **Rules for an ADR**
 

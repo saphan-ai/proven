@@ -26,4 +26,4 @@
 - Proven fits whatever models a team already has, including a single one.
 - A team that reviews with its writing model gets fresh-agent reviews, not cross-family ones, and every review says so.
 - Proven's own runs at the hackathon use the default, NVIDIA, as the first reviewer.
-- The open point of ADR-0009, a change written by the default reviewer's own family, becomes a configuration choice like any other: the review runs and says the reviewer's model is the author's.
+- The open point of ADR-0009, a change written by the default reviewer's own family, becomes a configuration choice like any other: the review runs and says the reviewer's model is the author's. The owner, on the same day: *"The same as class A-A: it's NVIDIA-NVIDIA. Still valuable, because the review is done by an agent with a fresh context, with no contact with the code before. A limited scenario, yet still useful."*

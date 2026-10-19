@@ -61,6 +61,29 @@ ADR-0008 had left open what happens when a configured reviewer model is the same
 
 **What the advisor did.** It wrote [ADR-0010](../fleet/decisions/ADR-0010-every-reviewer-model-is-configurable.md). Every reviewer model is configuration, NVIDIA's included, and NVIDIA is only the value proven ships with. No setup is refused: A writing and A reviewing, A and B without NVIDIA, or the recommended A, NVIDIA and B. Independence is recommended and reported in every review, never enforced. Evidence is the one thing no setting changes. This also closes the case ADR-0009 had left open, a change written by the default reviewer's own family: the review runs and says so. [`../DESIGN.md`](../DESIGN.md) and the front page follow.
 
+### 6 · owner → advisor: the last open points, and a rule for every setting
+
+The owner answered the three points the earlier decisions had left open:
+
+> *"1. Propose something and make it configurable. Look at industry best practices.*
+> *2. Take the same classes that we have in Saphan Studio today.*
+> *3. The same as class A-A: it's NVIDIA-NVIDIA. Still valuable, because the review is done by an agent with a fresh context, with no contact with the code before. A limited scenario, yet still useful."*
+
+While the advisor was writing, he added:
+
+> *"By the rule: we NEVER hardcode any settings. All is configurable. Write this as an ADR in Proven."*
+
+**What the advisor found.** Industry practice for naming the model behind a change is a Git commit trailer. The Linux kernel's guidance for AI coding assistants asks for `Assisted-by:` and forbids AI agents from adding `Signed-off-by:`, which only a person may give. Saphan Studio's review classes are security, backend, user interface, mobile and docs, one per change, chosen by what the change touches; security reviews are done twice.
+
+**What the advisor did.**
+
+- [ADR-0011](../fleet/decisions/ADR-0011-how-a-change-names-its-model.md): `Assisted-by: <agent>:<model>` by default. The sources, the trailer keys and the model-family table are configurable, including a record file for teams that keep AI attribution out of their history, as our own fleet does. Proven only reads trailers.
+- [ADR-0012](../fleet/decisions/ADR-0012-review-classes-as-in-saphan-studio.md): Saphan Studio's five review classes; security doubled by default; which classes are doubled is configurable.
+- [ADR-0010](../fleet/decisions/ADR-0010-every-reviewer-model-is-configurable.md) now quotes the owner on the NVIDIA-NVIDIA case.
+- [ADR-0013](../fleet/decisions/ADR-0013-no-hardcoded-settings.md): no setting is hardcoded; every value has a documented default; the run records the configuration it used. It separates settings from rules: evidence for every finding, no exploit code, and a review that names its model are what proven is, not values to tune.
+
+[`../DESIGN.md`](../DESIGN.md) has a new "Configuration" section, and the front page counts thirteen decisions.
+
 ## Not run
 
 - Links were checked inside this repository. Links to other websites were checked by reading the pages, not by a link checker.
