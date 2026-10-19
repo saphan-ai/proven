@@ -2,7 +2,7 @@
 
 This page continues [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md): the owner and the advisor, preparing the infrastructure. Like the earlier pages, it says for every hop **who** spoke, **to whom**, what the advisor **reasoned** and **did**, and **which document** came out of it.
 
-The owner wrote in English, so his words are quoted verbatim, typos included, with no translation. Internal names are blacked out (█, one block per character). The list is at the end.
+Where the owner wrote in English, his words are quoted verbatim, typos included. Where he wrote in Polish (hops 10, 11, 13 and 14), they are given in the advisor's English translation, so the page reads in one language. Internal names are blacked out (█, one block per character). The list is at the end.
 
 ## The people and agents in this conversation
 
@@ -113,17 +113,13 @@ The advisor had kept the first page's old name, `CONVERSATION.md`, because other
 
 ### 10 · owner → advisor: the hosted guardrail, and design decisions as ADRs
 
-After his push, the owner asked the advisor to check the open question, and set a rule for later. He wrote in Polish; his words are quoted verbatim, with the advisor's translation.
+After his push, the owner asked the advisor to check the open question, and set a rule for later. He wrote in Polish (the advisor's translation):
 
-> *"Ok, sprawdz, to od razu byśmy to dopisali do pojektu. Musimy też zacząc zapisywać decyzje projektowe we fleet/decisiions w dokumentach o strukturze jak mają nasze ADRy. Na razie tylko wpospimanam, zapisz do pamięci, a jak bedziemy projektować soft to kazdą tam zapiszesz"*
-
-*Translation:* "OK, check it, so we can add it to the project right away. We also have to start recording design decisions in fleet/decisions, in documents shaped like our ADRs. For now I am only mentioning it, save it to memory, and when we design the software you will record every one there."
+> *"OK, check it, so we can add it to the project right away. We also have to start recording design decisions in fleet/decisions, in documents shaped like our ADRs. For now I am only mentioning it, save it to memory, and when we design the software you will record every one there."*
 
 While the advisor was checking, he added:
 
-> *"BTW: my mamy nasz własny klucz deweloperski, więc my jesteśmy good to go"*
-
-*Translation:* "BTW: we have our own developer key, so we are good to go."
+> *"BTW: we have our own developer key, so we are good to go."*
 
 **What the advisor found.** NVIDIA's API catalogue has a page for the model, [build.nvidia.com/nvidia/nemotron-3.5-content-safety](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety). It names the same OpenAI-style endpoint the Skeptic uses, and the same answer format as the model card (`User Safety:`, `Response Safety:`, `Safety Categories:`). Three things the page does not settle: its code sample leaves the model id blank, it states no free tier, and it states no rate limit. Third-party listings give the id `nvidia/nemotron-3.5-content-safety` and a free tier, but they are not NVIDIA's word. The advisor made no live call: the key in its notes had been removed, and a call spends from an account, which needs the owner's consent.
 
@@ -136,9 +132,7 @@ While the advisor was checking, he added:
 
 ### 11 · owner → advisor: write them as ADRs now
 
-> *"Zapiszmy je jako adry"*
-
-*Translation:* "Let's write them down as ADRs."
+> *"Let's write them down as ADRs."*
 
 The owner did not wait for the build to start: the five decisions already taken became ADRs the same day.
 
@@ -160,7 +154,31 @@ The advisor pointed out that ADR-0002 also carried two points never discussed as
 
 **What the advisor did.** It moved both out of ADR-0002 into [ADR-0006](../fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) (a Skeptic from another model family, NVIDIA Nemotron; the evidence settles it, never a vote) and [ADR-0007](../fleet/decisions/ADR-0007-no-exploit-code.md) (no exploit code; a vulnerability finding is proved by a query and its rows). ADR-0002 now points to both. It edited ADR-0002 in place instead of superseding it, because ADR-0002 had not been pushed yet, and the decision itself did not change, only where it is written.
 
-This page covers hops 1 to 12 of 18 October.
+### 13 · owner → advisor: a cover, the video, and the way in
+
+> *"Make a better link to planning in the README; it is an important part now. Take cover.png from ████████████ and maybe make a title image of it, GitHub style. And put our video in too."*
+
+> *"You can also put the video in place of the image. It will have the same effect."*
+
+**The advisor's reasoning.** GitHub does not play a video embedded from another site in a README; it removes the player. The closest thing to "the video instead of the image" is the cover itself, linked to the video: one click on the title image plays it. The cover and the video's first frame are the same design, so the reader sees what they will get.
+
+**What the advisor did.** At the top of [`../README.md`](../README.md):
+
+- the cover, scaled down to keep the repository light (`assets/cover.png`), linked to the video;
+- a "Watch the video" link under it;
+- a "Start here" box pointing to this diary, the design decisions, the fleet's answers and `planning/`.
+
+### 14 · owner → advisor: one language for the readers
+
+> *"From now on write only in English what I write. The first day in Polish is enough."*
+>
+> *"There will be too much confusion for the readers."*
+
+The owner wrote this in Polish; it is given here, like every later quote, in the advisor's translation.
+
+**What the advisor did.** Only the first day's page, [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md), keeps the owner's Polish next to its translation. Everywhere else, his Polish words are now given in English only: hops 11 to 13 of [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md), hops 10, 11 and 13 of this page, the design decisions in [`../fleet/decisions/`](../fleet/decisions/) and the train order [`../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md`](../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md). Each page says that these quotes are translations.
+
+This page covers hops 1 to 14 of 18 October.
 
 ## Not run
 
@@ -178,3 +196,4 @@ Parts of this file are blacked out (█). Nothing else in the quoted text was ch
 |---|---|---|
 | machine names | 3 | the machine that runs our local models (twice in the owner's words, once inside the train order's name) |
 | account names | 1 | the account the owner asked to black out (hop 7) |
+| internal paths | 1 | the folder in our workspace that holds the cover image (hop 13) |

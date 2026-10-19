@@ -11,10 +11,9 @@ proven's idea from the start: a review finding counts only with evidence. On 16 
 
 A citation is weak evidence. The reader has to trust that the reviewer read the source correctly, and cannot run it again.
 
-The hackathon requires every entry to integrate Zetaris and warns that a sponsor *"bolted on"* at the end scores badly. Zetaris runs SQL over many data sources where the data already lives, without copying it first. The owner asked for more data for the evaluating agent:
+The hackathon requires every entry to integrate Zetaris and warns that a sponsor *"bolted on"* at the end scores badly. Zetaris runs SQL over many data sources where the data already lives, without copying it first. The owner asked for more data for the evaluating agent (his words, translated from Polish):
 
-> *"Jak dostaniemy platformę to możemy poszaleć. Np. ściąganie baz CVE jak data, inne zródła danych dla agenta oceniającego."*
-> ("Once we get the platform we can go wild. For example, pulling CVE databases as data, other data sources for the evaluating agent.")
+> *"Once we get the platform we can go wild. For example, pulling CVE databases as data, other data sources for the evaluating agent."*
 
 ## Decision
 

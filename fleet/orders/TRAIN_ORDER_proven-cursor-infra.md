@@ -14,7 +14,7 @@
 - base: main at the cut
 - author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
 - amended: by the advisor, 2026-10-17, after proven's design changed (Go product, Zetaris, Meterless, NVIDIA). Added:
-  A13–A16, the additions to W3 and W4, W8, W9, two rules in §3 and their DoD lines. The owner: *"Punkty 1-6 dopisz."* (§0)
+  A13–A16, the additions to W3 and W4, W8, W9, two rules in §3 and their DoD lines. The owner: *"Add points 1 to 6."* (§0)
 
 ## WITHDRAWN (advisor, 2026-10-17)
 On 2026-10-17 I wrote that ssh to the node "answers `Host key verification failed`" and made a host-key check the owner's
@@ -43,19 +43,15 @@ the node before setting the size.
 > Cursor executors work. Black out every other machine name, cluster node names, internal paths and the machines'
 > location."*
 
-2026-10-17, later, to the advisor (written in Polish; quoted verbatim, the advisor's translation after each):
+2026-10-17, later, to the advisor (written in Polish; given in the advisor's translation):
 
-> *"D5 - nie, napiszemy w go z adapterem. Potem wykorzystamy to w Saphan - taki jest cel tej zabawy."*
+> *"D5: no, we will write it in Go with an adapter. Later we will use it in Saphan; that is the point of this game."*
 
-"D5: no, we will write it in Go with an adapter. Later we will use it in Saphan; that is the point of this game."
+> *"See whether we should add anything to the infrastructure we are preparing."*
 
-> *"Zobacz czy nie powinniśmy jeszcze czegoś dołożyć do infra, które przygotuwujemy"*
+> *"Add points 1 to 6."*
 
-"See whether we should add anything to the infrastructure we are preparing."
-
-> *"Punkty 1-6 dopisz."*
-
-"Add points 1 to 6." The six points are A13–A16 with the W3 and W4 additions, W8, W9, and the two rules in §3.
+The six points are A13–A16 with the W3 and W4 additions, W8, W9, and the two rules in §3.
 
 **Why the train grew.** The hackathon requires every entry to integrate Zetaris and Meterless. proven's product is now Go.
 Its evidence is queried through Zetaris. Two Meterless engines (H-MEM, World Model) are built in Go and checked by

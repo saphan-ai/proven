@@ -9,10 +9,9 @@
 
 On 16 October the advisor's proposal asked for two reviewers from different model families. Our own fleet showed why: two model families reviewing the same changes disagreed in 31 of 41 cases ([`planning/answers/README.md`](../../planning/answers/README.md)). A reviewer that checks its own findings with the same model shares its blind spots.
 
-The hackathon asks for agents that critique each other, not one agent with several labels, and for NVIDIA technology wherever it helps. The owner, when the design was reshaped:
+The hackathon asks for agents that critique each other, not one agent with several labels, and for NVIDIA technology wherever it helps. The owner, when the design was reshaped (translated from Polish):
 
-> *"NVIDIA mamy, musimy do tego doczepić jeszcze Zetaris i Meterless"*
-> ("We have NVIDIA; we still have to attach Zetaris and Meterless to it.")
+> *"We have NVIDIA; we still have to attach Zetaris and Meterless to it."*
 
 The README pushed on 17 October already named an NVIDIA Nemotron model as the Skeptic.
 

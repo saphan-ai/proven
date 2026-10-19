@@ -11,9 +11,9 @@ Many public sources could feed the reviewer: OSV, NVD, the GitHub Advisory Datab
 
 What a reviewer of a pull request most needs to know about a dependency: does this exact version have a published advisory; is that vulnerability used in real attacks; how likely is it to be. About the code: was this changed, reverted or fixed before.
 
-The owner agreed to the advisor's proposal:
+The owner agreed to the advisor's proposal (translated from Polish):
 
-> *"D6 - zgoda"* ("D6: agreed")
+> *"D6: agreed."*
 
 ## Decision
 

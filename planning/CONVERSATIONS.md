@@ -69,3 +69,5 @@ Page: [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md)
 | [10](CONVERSATION_2026-10-18.md#10--owner--advisor-the-hosted-guardrail-and-design-decisions-as-adrs) | owner → advisor | NVIDIA hosts the guardrail model too, so judges can keep it on; design decisions will be ADRs. |
 | [11](CONVERSATION_2026-10-18.md#11--owner--advisor-write-them-as-adrs-now) | owner → advisor | The five decisions taken so far written as ADRs 0001 to 0005. |
 | [12](CONVERSATION_2026-10-18.md#12--owner--advisor-two-more-decisions-of-their-own) | owner → advisor | The Skeptic and "no exploit code" split out as ADR-0006 and ADR-0007. |
+| [13](CONVERSATION_2026-10-18.md#13--owner--advisor-a-cover-the-video-and-the-way-in) | owner → advisor | A cover image that plays the video, and a "Start here" link to this diary. |
+| [14](CONVERSATION_2026-10-18.md#14--owner--advisor-one-language-for-the-readers) | owner → advisor | One language for the readers: only the first day keeps the owner's Polish. |

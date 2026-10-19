@@ -13,10 +13,9 @@ Saphan Studio checks the content of its agents' work with guardrail models. The 
 
 NVIDIA's Nemotron 3.5 Content Safety (4B) judges whether a prompt, or a response, is safe. It answers `User Safety: safe|unsafe`, `Response Safety: safe|unsafe` and `Safety Categories: …`. We are installing it on our own model server (train order `nemotron-content-safety`). A judge's machine cannot reach our server.
 
-NVIDIA also serves the model on its hosted API, on the same endpoint as the Skeptic. The owner:
+NVIDIA also serves the model on its hosted API, on the same endpoint as the Skeptic. The owner (translated from Polish):
 
-> *"my mamy nasz własny klucz deweloperski, więc my jesteśmy good to go"*
-> ("we have our own developer key, so we are good to go")
+> *"We have our own developer key, so we are good to go."*
 
 ## Decision
 

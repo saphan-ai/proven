@@ -2,7 +2,7 @@
 
 This page follows one conversation between the owner and the advisor: preparing the machines on which the Cursor agents will write proven's code. It runs the same way as [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md): for every hop it says **who** spoke, **to whom**, what the advisor **reasoned** and **did**, and **which document** came out of it.
 
-The owner wrote in English this time, so his words are quoted verbatim with no translation. Internal names and paths are blacked out (█, one block per character). The list is at the end.
+The owner's words are quoted verbatim where he wrote in English. Where he wrote in Polish (hops 11 to 13), they are given in the advisor's English translation, so the page reads in one language; only the first day's page keeps his Polish. Internal names and paths are blacked out (█, one block per character). The list is at the end.
 
 ## The people and agents in this conversation
 
@@ -124,19 +124,9 @@ The advisor did three things:
 
 ### 11 · owner → advisor: the design does not meet the rules
 
-Later the same day the owner wrote in Polish. His words are quoted verbatim, typos included, with the advisor's English translation below each quote.
+Later the same day the owner wrote, in Polish (the advisor's translation):
 
-> *"Musimy mozno przeformatować naszą architektutę. w ████████████ i w ██████████████ jest nasz projekt. Ale on nie spełnia wymagań bo trzeba uzyc wszystkie technologie sponsorów*
->
-> *Wymagania są w █████████████████████████████*
->
-> *NVIDIA mamy, musimy do tego doczepić jeszcze Zetaris i Meterless*
->
-> *Jak dostaniemy platformę to możemy poszaleć. Np. ściąganie baz CVE jak data, inne zródła danych dla agenta oceniającego.*
->
-> *Może być sztos. Pomyślmny"*
-
-*Translation:* "We may need to rework our architecture. Our project is in ████████████ and in ██████████████. But it does not meet the requirements, because we have to use all the sponsors' technologies. The requirements are in █████████████████████████████. We have NVIDIA; we still have to attach Zetaris and Meterless to it. Once we get the platform we can go wild. For example, pulling CVE databases as data, other data sources for the evaluating agent. It could be great. Let's think."
+> *"We may need to rework our architecture. Our project is in ████████████ and in ██████████████. But it does not meet the requirements, because we have to use all the sponsors' technologies. The requirements are in █████████████████████████████. We have NVIDIA; we still have to attach Zetaris and Meterless to it. Once we get the platform we can go wild. For example, pulling CVE databases as data, other data sources for the evaluating agent. It could be great. Let's think."*
 
 **What the advisor did.** It read the requirements: the technical guide, the submission requirements, the draft official rules, the self-check and the AI usage policy. Zetaris and Meterless are required in every entry, NVIDIA wherever it helps, and *"Sponsor tech bolted on"* is listed as a common failure. The requirements also ask for a programmatic entry point, Docker, a sample mode that runs with no network and no keys, and a trace of the agents in `logs/`.
 
@@ -151,15 +141,7 @@ It proposed the agents, a first set of data sources, and three decisions: the la
 
 ### 12 · owner → advisor: Go, the first sources, the same track
 
-> *"D5 - nie, napiszemy w go z adapterem. Potem wykorzystamy to w Saphan - taki jest cel tej zabawy. Piszemy coś co oddamy społeczności, ale spalimy poza Cursorem furę naszych tokenów, więc niech coś z tego mamy :)*
->
-> *D6 - zgoda*
->
-> *D7 - tak, nie zmieniamy. Bedzie lepsze wyjaśnienie :)*
->
-> *Zmodyfikuj opis projektu w repo zgodnie z naszymi zasadami. Ja zrobię review. Zobacz czy nie powinniśmy jeszcze czegoś dołożyć do infra, które przygotuwujemy"*
-
-*Translation:* "D5: no, we will write it in Go with an adapter. Later we will use it in Saphan; that is the point of this game. We are writing something we will give to the community, but outside Cursor we will burn a cartload of our own tokens, so let us get something out of it :) D6: agreed. D7: yes, we do not change it. There will be a better explanation :) Change the project description in the repository according to our rules. I will review it. See whether we should add anything to the infrastructure we are preparing."
+> *"D5: no, we will write it in Go with an adapter. Later we will use it in Saphan; that is the point of this game. We are writing something we will give to the community, but outside Cursor we will burn a cartload of our own tokens, so let us get something out of it :) D6: agreed. D7: yes, we do not change it. There will be a better explanation :) Change the project description in the repository according to our rules. I will review it. See whether we should add anything to the infrastructure we are preparing."*
 
 The advisor had recommended TypeScript, because the Meterless references are written in it. The owner chose Go, because a part of proven will be taken into Saphan Studio. The two do not conflict: the engines are built in Go from the Meterless specifications, and a thin TypeScript adapter lets Meterless's own conformance suites check the Go code.
 
@@ -169,16 +151,9 @@ It also proposed seven additions to the infrastructure train for the new design,
 
 ### 13 · owner → advisor: write it in, commit it, and explain me to the readers
 
-> *"Klucz juz usunięty. Był położony w pliku, żeby Ci w prompcie nie przekazywać. Dobrze, już dobrze :)*
-> *Punkty 1-6 dopisz.*
-> *Jak wyląduję w Hong Kong to popracujemy nad deckiem, bo trzeba bedzie go uzupełnić. Filmy będziemy dokręcać w miarę postęou prac. nakrecimy jeszcze jeden - proven. Making of :) Kurde, niezłą frajdę mam. Chyba dołożę jeszcze jedną maszynę do floty, bo trochę się scope nam zwiększył a nie chcę prac nad Studio spowalniać. Chce dać go live równo ze skończeniem hackatonu. Wtedy każdy będzie mógł sobie odtworzyć cały proces tworzenia softu w sarmowym Saphan Studio Solo. To będzie rewelacja. Kilka miesięcy naszej pracy ujrzy światło dzienne. W końcu :) Nie chce mi się pisać po angielsku, bo cały tydzień gadałem na Tech Chrunch i w domu też się nagadam. Więc choć chwila po polsku. Wytłumacz mnie czytelnikom. :)*
-> *Idę po colę i do gate B68.*
->
-> *Zacomituj a ja sobie w samolocie przejrzę."*
+> *"The key is already removed. It was put in a file so that I would not have to pass it to you in the prompt. All right, all right :) Write in points 1 to 6. When I land in Hong Kong we will work on the deck, because it will need filling in. We will shoot more of the videos as the work goes on. We will shoot one more: proven, the making of :) Damn, I am having a lot of fun. I think I will add one more machine to the fleet, because our scope has grown a bit and I do not want to slow down the work on Studio. I want to put it live exactly when the hackathon ends. Then anyone will be able to replay the whole process of building software in the free Saphan Studio Solo. That will be amazing. Several months of our work will see the light of day. Finally :) I do not feel like writing in English, because I talked all week at TechCrunch, and at home I will talk plenty too. So at least a moment in Polish. Explain me to the readers. :) I am going for a cola and to gate B68. Commit it, and I will look it over on the plane."*
 
-*Translation:* "The key is already removed. It was put in a file so that I would not have to pass it to you in the prompt. All right, all right :) Write in points 1 to 6. When I land in Hong Kong we will work on the deck, because it will need filling in. We will shoot more of the videos as the work goes on. We will shoot one more: proven, the making of :) Damn, I am having a lot of fun. I think I will add one more machine to the fleet, because our scope has grown a bit and I do not want to slow down the work on Studio. I want to put it live exactly when the hackathon ends. Then anyone will be able to replay the whole process of building software in the free Saphan Studio Solo. That will be amazing. Several months of our work will see the light of day. Finally :) I do not feel like writing in English, because I talked all week at TechCrunch, and at home I will talk plenty too. So at least a moment in Polish. Explain me to the readers. :) I am going for a cola and to gate B68. Commit it, and I will look it over on the plane."
-
-**The owner, explained to the readers, as he asked.** Most of this record is in English because the owner chose that, not because it comes easily after a week like this one. He spent the week at TechCrunch talking about what we build, and he is flying home through Hong Kong. For a few lines he wrote in his own language, and that is why this hop and the two before it are in Polish.
+**The owner, explained to the readers, as he asked.** Most of this record is in English because the owner chose that, not because it comes easily after a week like this one. He spent the week at TechCrunch talking about what we build, and he is flying home through Hong Kong. For a few lines he wrote in his own language, which is why this hop and the two before it are translations.
 
 What he said, in short:
 
@@ -219,4 +194,5 @@ Parts of this file are blacked out (█). Nothing else in the quoted text was ch
 | private repository name | 1 | the owner and name of a private repository |
 | cluster node names | 2 | the node that will hold runner-cursor |
 | account names | 2 | the account used to reach the node |
-| machine names | 1 | the machine runner-cursor is modelled on || internal paths | 6 | folders and a file in our workspace with the hackathon notes and the local checkout of this repository (hops 11 and 12) |
+| machine names | 1 | the machine runner-cursor is modelled on |
+| internal paths | 3 | folders and a file in our workspace with the hackathon notes and the local checkout of this repository (hop 11) |
