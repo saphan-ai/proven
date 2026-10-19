@@ -25,7 +25,15 @@ The owner's intended design, as of 19 October 2026:
 - **In selected cases, two independent reviews by different models.** Not every review; the cases are to be defined.
 - **When two judgements conflict, the evidence behind both is examined**: what each test or query actually establishes, what it assumes, and whether it reproduces. Never a vote, never confidence. Evidence that does not settle it stays unsettled, and a person decides.
 
-**Not decided yet: how this maps onto the agents below.** [ADR-0006](fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) records one mechanism: a Skeptic from a different model family from the agent that *made the finding* tries to refute it. The owner's design also asks for independence from the model that *wrote the code*. How proven learns which model wrote a change, and how it chooses the reviewer, is an open design question. It will get its own ADR. Until then, nothing here claims that proven detects the author's model.
+**How the reviewer is chosen** ([ADR-0008](fleet/decisions/ADR-0008-reviewer-model-chosen-against-the-authors-model.md), 19 October 2026):
+
+- Proven reads the author's model from what the change states in its commit messages or pull-request description. It does not try to detect it from the code.
+- The reviewer's model comes from configuration. If the change names no author model, the configured default is used. The default is an NVIDIA model.
+- A second reviewer model is configured too. For special kinds of review, security among them, the review is doubled: one review per configured model.
+
+Still open: the exact form in which a change names its model; what happens when the stated author model is from the same family as the default reviewer; and which kinds of review besides security are doubled.
+
+[ADR-0006](fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) adds a second, narrower independence inside one review: the Skeptic that tries to refute a finding comes from a different model family from the agent that made it.
 
 ## The agents inside Proven
 
@@ -86,4 +94,4 @@ Proven is open source, and one part of it will also be used inside Saphan Studio
 - **Meterless keys.** The organizers' example settings name a Meterless API key. The public Meterless repository describes no hosted service and needs no key. We will ask on the sponsor's help channel.
 - **The hosted guardrail, in detail.** NVIDIA's model page names the endpoint and the answer format, but its code sample leaves the model id blank, and it states no free tier and no rate limit. The first live call settles both.
 - **The conformance adapter.** Whether a Go engine passes Meterless's suites through a TypeScript adapter is the first thing we measure.
-- **Reviewer independence from the code's author.** See "Independent reviewers" above.
+- **Reviewer independence, in detail.** How a change names its model, the same-family case, and which reviews are doubled. See "Independent reviewers" above.

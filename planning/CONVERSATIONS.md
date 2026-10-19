@@ -83,3 +83,4 @@ Page: [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md)
 |---|---|---|
 | [1](CONVERSATION_2026-10-19.md#1--owner--advisor-make-the-front-page-understandable) | owner → advisor | The README starts with the person and the story; the design moves to DESIGN.md; SAPHAN.md checked against the documentation. |
 | [2](CONVERSATION_2026-10-19.md#2--owner--advisor-which-source-is-right) | owner → advisor | The documentation was right about network access; the product site was corrected in four languages. |
+| [3](CONVERSATION_2026-10-19.md#3--owner--advisor-how-the-reviewer-is-chosen) | owner → advisor | ADR-0008: the reviewer's model is chosen against the author's model the change states; NVIDIA by default; security reviews doubled. |

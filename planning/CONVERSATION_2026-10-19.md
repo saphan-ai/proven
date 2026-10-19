@@ -39,6 +39,14 @@ The advisor had reported two places where public sources disagreed. The owner as
 
 **What the advisor did.** It rewrote the network passages of [saphan.ai](https://saphan.ai/) in its four languages (English, Polish, Thai and Arabic) on the home, controls and security pages, to say what the documentation says, including what is not shipped yet. The owner built, checked and deployed the site. The README's hackathon link now points to the [event page](https://hackathon.genai.works/event/open-agent-hackathon-2026).
 
+### 3 · owner → advisor: how the reviewer is chosen
+
+The rewrite had left one design question open: proven should review a change with a model from a different family than the one that wrote it, but how does it know which model wrote it?
+
+> *"ADR-0008: the model is stated in the commit and PR notes. If not specified, the default model from config is taken. Default it is NVIDIA. A second model is configured also: for special types of reviews, like security, the review is doubled."*
+
+**What the advisor did.** It wrote [ADR-0008](../fleet/decisions/ADR-0008-reviewer-model-chosen-against-the-authors-model.md). Proven reads the author's model from what the change states and does not guess it. The reviewer's model comes from configuration, NVIDIA by default. A second configured model doubles special reviews such as security. Evidence is still required for every finding. Three details are listed as not decided yet: the exact form in which a change names its model, the case where the author's family equals the default reviewer's, and which reviews besides security are doubled. [`../DESIGN.md`](../DESIGN.md) and the front page now say the same.
+
 ## Not run
 
 - Links were checked inside this repository. Links to other websites were checked by reading the pages, not by a link checker.

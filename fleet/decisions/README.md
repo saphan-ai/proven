@@ -16,6 +16,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0005](ADR-0005-guardrail-on-by-default.md) | a guardrail on every prompt and answer by default, local or hosted, with a switch to turn it off | accepted, 2026-10-18 |
 | [0006](ADR-0006-a-skeptic-from-another-model-family.md) | every finding faces a Skeptic from another model family, NVIDIA Nemotron; the evidence settles it, never a vote | accepted, 2026-10-18 |
 | [0007](ADR-0007-no-exploit-code.md) | no exploit code; a vulnerability finding is proved by a query and its rows | accepted, 2026-10-18 |
+| [0008](ADR-0008-reviewer-model-chosen-against-the-authors-model.md) | the reviewer's model is chosen against the author's model stated in the change; NVIDIA by default; some reviews doubled | accepted, 2026-10-19 |
 
 **Rules for an ADR**
 
