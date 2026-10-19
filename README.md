@@ -40,7 +40,7 @@ The run is bounded: a fixed number of rounds, a timeout on every outside call, a
   - **World Model**, the state of one review as a stream of events: every claim, piece of evidence, refutation and verdict. The trace a judge reads in `logs/` is that stream, not text written next to it.
   - Our Go builds are checked with Meterless's own conformance suites. The suites load a TypeScript module, so a thin TypeScript adapter connects them to the Go code. That this works is not measured yet.
 - **NVIDIA: the second family.** The Skeptic runs on an NVIDIA Nemotron model through NVIDIA's hosted API, so the finder and the refuter never come from the same model family. Hosted NVIDIA embeddings for H-MEM's search are a candidate, not a decision.
-- **NVIDIA: the guardrail, on by default.** Before an agent's prompt or answer is used, proven checks it with a guardrail model, as Saphan Studio does: NVIDIA's Nemotron 3.5 Content Safety, served on our own machine. A setting turns the guardrail off, so a judge, whose machine cannot reach ours, can run proven without it. Whether NVIDIA's hosted API serves the same model, so that a judge with an NVIDIA key could keep the guardrail on, is not checked yet.
+- **NVIDIA: the guardrail, on by default.** Before an agent's prompt or answer is used, proven checks it with a guardrail model, as Saphan Studio does: NVIDIA's Nemotron 3.5 Content Safety. The same model runs in two places, behind one adapter: on our own machine, and on NVIDIA's hosted API ([build.nvidia.com](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety), the same endpoint as the Skeptic). So a judge with an NVIDIA API key keeps the guardrail on, and a setting turns it off for anyone without one. We call the hosted model with our own NVIDIA developer key.
 - **Cursor: the executors.** The four Cursor agents of the team write the product code (see "How this project is built").
 
 ### The evidence sources
@@ -68,6 +68,7 @@ proven is open source, and one part of it will also be used inside Saphan Studio
 
 - **Zetaris access.** The instance and its documentation are promised to participants before 22 October. Until they arrive, we do not know which interface we will use (SQL driver, REST or MCP).
 - **Meterless keys.** The organizers' example settings name a Meterless API key. The public Meterless repository describes no hosted service and needs no key. We will ask on the sponsor's help channel.
+- **The hosted guardrail, in detail.** NVIDIA's model page names the endpoint and the answer format, but its code sample leaves the model id blank, and it states no free tier and no rate limit. The first live call settles the model id and the limits.
 - **The conformance adapter.** Whether a Go engine passes Meterless's suites through a TypeScript adapter is the first thing we measure.
 
 ## How the topic was chosen (16 October 2026)

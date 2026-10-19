@@ -111,11 +111,34 @@ The advisor had kept the first page's old name, `CONVERSATION.md`, because other
 
 **What the advisor did.** It renamed the page to [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md) with `git mv`, so git follows its history, and pointed every link in this repository at the new name. Hop 8 above still names the old file, because that is what happened then.
 
-This page covers hops 1 to 9 of 18 October.
+### 10 · owner → advisor: the hosted guardrail, and design decisions as ADRs
+
+After his push, the owner asked the advisor to check the open question, and set a rule for later. He wrote in Polish; his words are quoted verbatim, with the advisor's translation.
+
+> *"Ok, sprawdz, to od razu byśmy to dopisali do pojektu. Musimy też zacząc zapisywać decyzje projektowe we fleet/decisiions w dokumentach o strukturze jak mają nasze ADRy. Na razie tylko wpospimanam, zapisz do pamięci, a jak bedziemy projektować soft to kazdą tam zapiszesz"*
+
+*Translation:* "OK, check it, so we can add it to the project right away. We also have to start recording design decisions in fleet/decisions, in documents shaped like our ADRs. For now I am only mentioning it, save it to memory, and when we design the software you will record every one there."
+
+While the advisor was checking, he added:
+
+> *"BTW: my mamy nasz własny klucz deweloperski, więc my jesteśmy good to go"*
+
+*Translation:* "BTW: we have our own developer key, so we are good to go."
+
+**What the advisor found.** NVIDIA's API catalogue has a page for the model, [build.nvidia.com/nvidia/nemotron-3.5-content-safety](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety). It names the same OpenAI-style endpoint the Skeptic uses, and the same answer format as the model card (`User Safety:`, `Response Safety:`, `Safety Categories:`). Three things the page does not settle: its code sample leaves the model id blank, it states no free tier, and it states no rate limit. Third-party listings give the id `nvidia/nemotron-3.5-content-safety` and a free tier, but they are not NVIDIA's word. The advisor made no live call: the key in its notes had been removed, and a call spends from an account, which needs the owner's consent.
+
+**The advisor's reasoning.** The open question in hop 7 was whether a judge could keep the guardrail on. The answer is yes, if the judge has an NVIDIA key: the same model is served by NVIDIA, so one adapter can call either our machine or NVIDIA's API. With our own developer key, our own runs can use the hosted model as well.
+
+**What the advisor did.**
+
+- [`../README.md`](../README.md): the guardrail runs in two places behind one adapter, our machine and NVIDIA's hosted API. A judge with an NVIDIA key keeps it on, and a setting turns it off for anyone without one. Under "Not known yet": the model id and the limits, which the first live call settles.
+- **ADRs.** The rule went into the advisor's memory, as the owner asked. When the design work starts, every design decision goes into `fleet/decisions/` as an ADR: a one-sentence title, a status and date, then *Context*, *Decision* and *Consequences*. The folder already holds the owner's rulings on each change (`DECISION_<slug>_r<n>.md`), so ADRs will be named `ADR-<number>-<slug>.md` to keep the two apart. The first candidates are the decisions already taken: Go behind adapters, Zetaris as the evidence layer, Meterless's engines in Go, the first evidence sources, and the guardrail on by default.
+
+This page covers hops 1 to 10 of 18 October.
 
 ## Not run
 
-- proven's guardrail switch is not built. Whether NVIDIA's hosted API serves Nemotron 3.5 Content Safety was not checked.
+- proven's guardrail switch and adapter are not built. No live call was made to NVIDIA's hosted model, so its model id and limits are unconfirmed.
 - No model was downloaded, no configuration changed and no agent run started. Those are the master's acts, after the owner signs the order.
 - The advisor's figures for memory and for the model's size are readings and estimates. The master re-measures them before acting.
 

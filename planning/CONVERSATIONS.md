@@ -66,3 +66,4 @@ Page: [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md)
 | [7](CONVERSATION_2026-10-18.md#7--owner--advisor-english-a-black-out-and-the-guardrail-goes-public) | owner → advisor | A black-out; the guardrail order goes public, on by default in proven. |
 | [8](CONVERSATION_2026-10-18.md#8--owner--advisor-a-diary-of-the-conversations) | owner → advisor | This diary. |
 | [9](CONVERSATION_2026-10-18.md#9--owner--advisor-rename-the-first-page) | owner → advisor | The first page renamed to `CONVERSATION_2026-10-16.md`. |
+| [10](CONVERSATION_2026-10-18.md#10--owner--advisor-the-hosted-guardrail-and-design-decisions-as-adrs) | owner → advisor | NVIDIA hosts the guardrail model too, so judges can keep it on; design decisions will be ADRs. |
