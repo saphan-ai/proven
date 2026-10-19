@@ -147,6 +147,7 @@ Once a day, at **22:00 Bangkok time (15:00 UTC)**, the owner pushes the day's me
 /SAPHAN.md           the platform that runs the fleet, its roles, words and laws
 /AGENTS.md           the rules every agent follows in this repository
 /planning/           how the topic was chosen (here before 22 October)
+/planning/CONVERSATIONS.md   the diary: every conversation, hop by hop, with links
 /planning/answers/   the fleet's eleven answers, verbatim, and what they show
 /fleet/              the paperwork behind every change
 /fleet/orders/       what a master asked for

@@ -97,7 +97,13 @@ The owner answered both of the advisor's questions, and set the language: he may
 - **The order is public now:** [`../fleet/orders/TRAIN_ORDER_nemotron-content-safety.md`](../fleet/orders/TRAIN_ORDER_nemotron-content-safety.md). The file name leaves out the machine's name. The original in our private record carries the owner's words and the name of its public copy. The reason given in hop 3 for keeping it private no longer holds: the guardrail is part of proven now.
 - **The guardrail is part of proven's design.** By default proven checks prompts and answers with the guardrail model, as Saphan Studio does. A setting turns it off, so a judge can run proven without our machine. The top of [`../README.md`](../README.md) says so. Building the switch is proven's work from 22 October, not the infrastructure train's. One question is still open: whether NVIDIA's hosted API serves the same model. If it does, a judge with an NVIDIA key could keep the guardrail on.
 
-This page covers hops 1 to 7 of 18 October.
+### 8 · owner → advisor: a diary of the conversations
+
+> *"maybe we should add some kind of index to conversation files in conversations.md? It will be easier to navigate. Like a diary log?"*
+
+**What the advisor did.** It wrote [`CONVERSATIONS.md`](CONVERSATIONS.md): one section per day, one line per hop, each line linking to its hop. It did not rename the first page, `CONVERSATION.md`, because other pages link to it. It listed the diary in [`README.md`](README.md) and in the main README's layout. From now on every hop gets its line in the diary in the same change.
+
+This page covers hops 1 to 8 of 18 October.
 
 ## Not run
 
