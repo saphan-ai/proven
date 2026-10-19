@@ -7,7 +7,7 @@
 - cost: not measured — an interactive master session; no priced act has run
 - duration: not measured
 - last commit: 5e78a31 "[proven-cursor-infra] [nemotron-content-safety] public copies follow the amended train orders (2026-10-19)"
-- updated: 2026-10-19 16:40 UTC
+- updated: 2026-10-20
 
 ## Summary
 The master re-measured the sixteen claims of the train order and amended the order. The owner signed it. proven is now a
@@ -26,12 +26,17 @@ workspace repository. No machine exists yet and no seat was admitted: runner-cur
 7. Composed the creation script for runner-cursor and rehearsed its checks: the VM number and the address are free, and
    memory and disk fit (30 GiB of memory and 616 GB of disk left after the VM).
 
+8. 2026-10-20: the owner created runner-cursor and joined it to the tailnet. It has 4 vCPU, 7 GiB of usable memory and a
+   116 GB root disk; the guest agent answers.
+9. 2026-10-20: composed the toolchain script (W3) and rehearsed its checks. A wrong checksum in the Cursor pin makes the
+   installer refuse by name, and nothing is installed.
+
 ## Wagon state
 | wagon | state | next |
 |---|---|---|
 | W1 `proven-is-a-workspace-repo` | repository registered; claims re-measured | one zero-cost compose for a Cursor executor on macm5 |
-| W2 `runner-cursor-exists` | creation script composed, checks rehearsed | the owner runs it; then the wiring script |
-| W3 `runner-cursor-toolchain` | versions chosen | waits for W2 |
+| W2 `runner-cursor-exists` | the machine runs and is a tailnet member | the wiring: DNS name, monitor, ssh alias |
+| W3 `runner-cursor-toolchain` | script rehearsed | the owner runs it |
 | W4 `proven-go-python-image` | layers chosen: Python 3.13, gcc, cgo on; Node already in the base | waits for W3 and D2 |
 | W5 `cursor-seats-admitted` | macm5: reuse the existing seat, key needed (D3); runner-cursor: native, login, no key | waits for W3 |
 | W6 `cursor-seats-smoke-turn` | not started | priced; waits for W5 and the owner's consent |
