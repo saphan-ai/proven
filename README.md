@@ -27,7 +27,7 @@ The final warm-up before the start.
 | what | status | where |
 |---|---|---|
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
-| The design, as recorded decisions | 8 decisions accepted, 17–19 October | [decisions](fleet/decisions/) |
+| The design, as recorded decisions | 9 decisions accepted, 17–19 October | [decisions](fleet/decisions/) |
 | Machines for the coding agents | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) |
 | A local NVIDIA safety model | planned: order drafted, not yet approved | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) |
 | Building Proven | starts 22 October, 00:00 UTC | |
@@ -48,8 +48,8 @@ Passing tests do not always prove what they claim to prove. A reviewer that asks
 *Planned, not built. Each part is described as intended.*
 
 - **Every finding carries evidence.** A test that fails on the change and passes without it, or a recorded query and its results, with sources. This applies to every finding, including when two reviewers agree. Agreement is never a substitute for proof.
-- **The reviewer should come from a different AI model family than the one that wrote the code.** A reviewer from the same family tends to share the author's assumptions; another family can challenge them.
-- **For special kinds of review, such as security, two independent reviews by different models.** In the fleet's own record, reviewers from two model families looked at the same change within 30 minutes 41 times, and reached different verdicts 31 times ([source](planning/answers/README.md)). That is an observation from one fleet, not a benchmark, but it shows why a second opinion is worth having.
+- **The reviewer should come from a different AI model family than the one that wrote the code.** A reviewer from the same family tends to share the author's assumptions; another family can challenge them. The change's own commit or pull request says which model wrote it, and by default an NVIDIA model reviews it.
+- **For special kinds of review, such as security, two independent reviews.** Best with two models other than the author's; with fewer, the second review is a fresh agent that sees the code for the first time. In the fleet's own record, reviewers from two model families looked at the same change within 30 minutes 41 times, and reached different verdicts 31 times ([source](planning/answers/README.md)). That is an observation from one fleet, not a benchmark, but it shows why a second opinion is worth having.
 - **When reviews conflict, the evidence decides, not a vote.** Both sides' evidence is examined: what it actually establishes, what it assumes, and whether it reproduces. What stays unresolved is reported as unresolved, and a person decides.
 
 Proven will not prove a whole program correct or find every vulnerability. It makes each claim it does make checkable.

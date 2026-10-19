@@ -47,6 +47,14 @@ The rewrite had left one design question open: proven should review a change wit
 
 **What the advisor did.** It wrote [ADR-0008](../fleet/decisions/ADR-0008-reviewer-model-chosen-against-the-authors-model.md). Proven reads the author's model from what the change states and does not guess it. The reviewer's model comes from configuration, NVIDIA by default. A second configured model doubles special reviews such as security. Evidence is still required for every finding. Three details are listed as not decided yet: the exact form in which a change names its model, the case where the author's family equals the default reviewer's, and which reviews besides security are doubled. [`../DESIGN.md`](../DESIGN.md) and the front page now say the same.
 
+### 4 · owner → advisor: when the reviewer is the author's own model
+
+ADR-0008 had left open what happens when a configured reviewer model is the same as the model that wrote the change.
+
+> *"Two second models can be configured. Then, in the scenario where a customer has model A and NVIDIA, the review is done by NVIDIA; this satisfies the independent-reviewing-model requirement. For special classes like security, the same model A is used. It is still valuable, because the review is done by a fresh agent who sees the code for the first time. The best setup will be: model A writes the code, NVIDIA reviews by default, model B reviews in special cases like security."*
+
+**What the advisor did.** It wrote [ADR-0009](../fleet/decisions/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md): two reviewer models, a default (NVIDIA) and one for special reviews. With only two models, a doubled review's second reviewer may be the author's own model, and it is still a fresh agent. Three models is the recommended setup. Each review says which model it used and whether that is the author's, so nobody mistakes a fresh agent for a different family. ADR-0008 now points to ADR-0009 for the case it settles. The one case still open is a change written by the default reviewer's own family. [`../DESIGN.md`](../DESIGN.md) and the front page follow.
+
 ## Not run
 
 - Links were checked inside this repository. Links to other websites were checked by reading the pages, not by a link checker.

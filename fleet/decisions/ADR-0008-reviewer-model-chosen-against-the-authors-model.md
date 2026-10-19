@@ -28,5 +28,5 @@ The owner's ruling:
 - A doubled review costs two reviews. Which kinds of review are doubled is configuration, starting with security.
 - **Not decided yet:**
   - the exact place and form in which a commit or pull request names its model;
-  - what happens when the stated author model is from the same family as the default reviewer: whether the second configured model reviews instead;
+  - what happens when a configured reviewer model is the same as the author's: **settled by [ADR-0009](ADR-0009-two-reviewer-models-and-the-same-model-fallback.md)** for the second review of a doubled review; the case where the author's model is the default reviewer's family stays open there;
   - which kinds of review, besides security, are doubled.
