@@ -18,6 +18,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0007](ADR-0007-no-exploit-code.md) | no exploit code; a vulnerability finding is proved by a query and its rows | accepted, 2026-10-18 |
 | [0008](ADR-0008-reviewer-model-chosen-against-the-authors-model.md) | the reviewer's model is chosen against the author's model stated in the change; NVIDIA by default; some reviews doubled | accepted, 2026-10-19 |
 | [0009](ADR-0009-two-reviewer-models-and-the-same-model-fallback.md) | two reviewer models; a doubled review may use the author's own model as a fresh second reviewer; A writes, NVIDIA reviews, B for special cases is best | accepted, 2026-10-19 |
+| [0010](ADR-0010-every-reviewer-model-is-configurable.md) | every reviewer model is configurable, NVIDIA's included; NVIDIA is only the default; no setup is blocked | accepted, 2026-10-19 |
 
 **Rules for an ADR**
 

@@ -55,6 +55,12 @@ ADR-0008 had left open what happens when a configured reviewer model is the same
 
 **What the advisor did.** It wrote [ADR-0009](../fleet/decisions/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md): two reviewer models, a default (NVIDIA) and one for special reviews. With only two models, a doubled review's second reviewer may be the author's own model, and it is still a fresh agent. Three models is the recommended setup. Each review says which model it used and whether that is the author's, so nobody mistakes a fresh agent for a different family. ADR-0008 now points to ADR-0009 for the case it settles. The one case still open is a change written by the default reviewer's own family. [`../DESIGN.md`](../DESIGN.md) and the front page follow.
 
+### 5 · owner → advisor: NVIDIA is a default, not a requirement
+
+> *"And we make NVIDIA also configurable. Maybe some customers will want to use coding A, reviewing A, without NVIDIA, or A and B. We don't block this. NVIDIA is just a model like the others, just the default first reviewing model. Got that?"*
+
+**What the advisor did.** It wrote [ADR-0010](../fleet/decisions/ADR-0010-every-reviewer-model-is-configurable.md). Every reviewer model is configuration, NVIDIA's included, and NVIDIA is only the value proven ships with. No setup is refused: A writing and A reviewing, A and B without NVIDIA, or the recommended A, NVIDIA and B. Independence is recommended and reported in every review, never enforced. Evidence is the one thing no setting changes. This also closes the case ADR-0009 had left open, a change written by the default reviewer's own family: the review runs and says so. [`../DESIGN.md`](../DESIGN.md) and the front page follow.
+
 ## Not run
 
 - Links were checked inside this repository. Links to other websites were checked by reading the pages, not by a link checker.

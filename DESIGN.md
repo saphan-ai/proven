@@ -33,7 +33,9 @@ The owner's intended design, as of 19 October 2026:
 
 With only two models, model A for writing and NVIDIA, the doubled review's second reviewer may be model A itself ([ADR-0009](fleet/decisions/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md)). That is still worth having: a fresh agent sees the code for the first time. The recommended setup has three models: A writes, NVIDIA reviews by default, B reviews the special cases. Each review says which model it used and whether that model is the author's.
 
-Still open: the exact form in which a change names its model; which kinds of review besides security are doubled; and what happens when the author's model is itself the default reviewer's family.
+Every reviewer model is configuration, NVIDIA's included ([ADR-0010](fleet/decisions/ADR-0010-every-reviewer-model-is-configurable.md)). NVIDIA is only the default first reviewer. No setup is refused: A writing and A reviewing, or A and B without NVIDIA, both run, and each review says which kind of independence it had. Evidence is the one thing that is not configurable.
+
+Still open: the exact form in which a change names its model, and which kinds of review besides security are doubled.
 
 [ADR-0006](fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) adds a second, narrower independence inside one review: the Skeptic that tries to refute a finding comes from a different model family from the agent that made it.
 
