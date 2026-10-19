@@ -88,3 +88,4 @@ Page: [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md)
 | [5](CONVERSATION_2026-10-19.md#5--owner--advisor-nvidia-is-a-default-not-a-requirement) | owner → advisor | ADR-0010: every reviewer model is configurable, NVIDIA's included; no setup is blocked; evidence is not configurable. |
 | [6](CONVERSATION_2026-10-19.md#6--owner--advisor-the-last-open-points-and-a-rule-for-every-setting) | owner → advisor | ADR-0011 `Assisted-by:` trailer, ADR-0012 Saphan Studio's review classes, ADR-0013 no hardcoded settings. |
 | [7](CONVERSATION_2026-10-19.md#7--owner--advisor-who-decides-a-changes-class) | owner → advisor | ADR-0014: for the hackathon, a change's class comes from configured path rules, not a model. |
+| [8](CONVERSATION_2026-10-19.md#8--owner--advisor-the-same-principles-as-saphan-studio) | owner → advisor | Saphan Studio's principles for settings applied: a closed list, validated on load, no heuristics; a model may only raise a class. |

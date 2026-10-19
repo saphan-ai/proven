@@ -92,6 +92,22 @@ While the advisor was writing, he added:
 
 **What the advisor did.** It wrote [ADR-0014](../fleet/decisions/ADR-0014-review-class-chosen-by-configured-rules.md). Configured rules map file paths to classes. The highest-risk class among the files touched wins, and a configurable fallback covers files no rule matches. Proven ships a default rule set, and each review names the rule that chose its class. Choosing the class with a model is left for a later decision.
 
+### 8 · owner → advisor: the same principles as Saphan Studio
+
+> *"Look how we have this implemented and use the same base principles."*
+
+**What the advisor found.** For Saphan Studio's own settings, the owner has set four principles:
+
+- a setting is deterministic and lives in configuration;
+- it is validated against a closed list of allowed values, and a wrong value is refused when it is set, with the allowed values in the refusal;
+- the software reads only the configured value, never a heuristic of its own;
+- where an agent may adjust a setting at all, it is a separate option, off by default, and it moves the setting only in the safe direction.
+
+**What the advisor did.** It applied them to the two decisions not yet pushed:
+
+- [ADR-0014](../fleet/decisions/ADR-0014-review-class-chosen-by-configured-rules.md): the classes are a closed list, checked when the configuration loads, and proven adds no heuristic of its own. An optional setting, off for the hackathon, lets a model raise a change's class but never lower it. That is the safe direction for a review: stricter, never weaker.
+- [ADR-0013](../fleet/decisions/ADR-0013-no-hardcoded-settings.md): every setting is validated when it loads. A wrong value stops proven with a message that says what is allowed, and never falls back silently to a default.
+
 ## Not run
 
 - Links were checked inside this repository. Links to other websites were checked by reading the pages, not by a link checker.
