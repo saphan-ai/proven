@@ -31,8 +31,8 @@ The owner pasted a request and added a line of his own:
 >
 > *All clear?"*
 
-> *"Hong Kong - they have banned traffic to Anthropic servers :)*
-> *BKK now. let's keep planning and setting up the infra"*
+> *"Hong Kong: they block traffic to Anthropic's servers :)*
+> *Bangkok now. Let's keep planning and setting up the infrastructure."*
 
 A guardrail model judges whether a prompt, or an agent's answer, is safe. Our fleet already runs local guardrail models on one of its machines. The owner wants NVIDIA's model there too.
 
@@ -69,7 +69,7 @@ The advisor's readings go in as claims the master must test, not as facts. The o
 
 While the advisor was working, the owner sent:
 
-> *"Remember thay you write in proven in English"*
+> *"Remember that you write in English in proven."*
 
 Everything the advisor writes here and in our record is in English. The advisor talks with the owner in Polish, because that is the language he set for our conversations.
 
@@ -79,15 +79,15 @@ On the plane the owner reviewed yesterday's changes. He took the advisor's commi
 
 ### 6 · owner → advisor: keep the conversation pages up to date
 
-> *"Remember to update conversations files"*
+> *"Remember to update the conversation files."*
 
 This page is the answer.
 
 ### 7 · owner → advisor: English, a black-out, and the guardrail goes public
 
-> *"remember that I can spek Polish and you always in English.*
+> *"Remember that I may speak Polish, and you always answer in English.*
 > *1 ████ - blackout*
-> *2 make the order for █████ public - for the judges we will make option to run without guardrails. But we give guardrails as default as in saphan"*
+> *2 Make the order for █████ public. For the judges we will add an option to run without guardrails, but guardrails are on by default, as in Saphan."*
 
 The owner answered both of the advisor's questions, and set the language: he may write in Polish, and the advisor always answers in English.
 
@@ -99,7 +99,7 @@ The owner answered both of the advisor's questions, and set the language: he may
 
 ### 8 · owner → advisor: a diary of the conversations
 
-> *"maybe we should add some kind of index to conversation files in conversations.md? It will be easier to navigate. Like a diary log?"*
+> *"Maybe we should add an index of the conversation files to CONVERSATIONS.md? It would be easier to navigate. Like a diary?"*
 
 **What the advisor did.** It wrote [`CONVERSATIONS.md`](CONVERSATIONS.md): one section per day, one line per hop, each line linking to its hop. It did not rename the first page, `CONVERSATION.md`, because other pages link to it. It listed the diary in [`README.md`](README.md) and in the main README's layout. From now on every hop gets its line in the diary in the same change.
 
@@ -107,7 +107,7 @@ The owner answered both of the advisor's questions, and set the language: he may
 
 The advisor had kept the first page's old name, `CONVERSATION.md`, because other pages link to it, and offered to rename it.
 
-> *"do the rename. We dont need to keep history. Git keeps it."*
+> *"Do the rename. We don't need to keep the history: Git keeps it."*
 
 **What the advisor did.** It renamed the page to [`CONVERSATION_2026-10-16.md`](CONVERSATION_2026-10-16.md) with `git mv`, so git follows its history, and pointed every link in this repository at the new name. Hop 8 above still names the old file, because that is what happened then.
 
@@ -150,7 +150,7 @@ Each ADR says what is not known yet. ADR-0003 says it is revisited if a Go engin
 
 The advisor pointed out that ADR-0002 also carried two points never discussed as separate decisions, though both were already in the README the owner had pushed: the NVIDIA Skeptic, and "no exploit code". It asked whether they should be ADRs of their own.
 
-> *"Let's keep them separate for clarity"*
+> *"Let's keep them separate, for clarity."*
 
 **What the advisor did.** It moved both out of ADR-0002 into [ADR-0006](../fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) (a Skeptic from another model family, NVIDIA Nemotron; the evidence settles it, never a vote) and [ADR-0007](../fleet/decisions/ADR-0007-no-exploit-code.md) (no exploit code; a vulnerability finding is proved by a query and its rows). ADR-0002 now points to both. It edited ADR-0002 in place instead of superseding it, because ADR-0002 had not been pushed yet, and the decision itself did not change, only where it is written.
 
@@ -170,7 +170,7 @@ The advisor pointed out that ADR-0002 also carried two points never discussed as
 
 ### 14 · owner → advisor: one language for the readers
 
-> *"From now on write only in English what I write. The first day in Polish is enough."*
+> *"From now on, write what I say in English only. The first day in Polish is enough."*
 >
 > *"There will be too much confusion for the readers."*
 

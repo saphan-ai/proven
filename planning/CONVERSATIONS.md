@@ -1,5 +1,10 @@
 # CONVERSATIONS — the diary
 
+> **A note on the owner's English (2026-10-19).** The owner asked us to correct the grammar of his own English in this
+> repository. Where he wrote in English, his quoted words have been lightly corrected for grammar only; nothing was added
+> to their meaning. Where he wrote in Polish, the quotes are translations, as each one says.
+
+
 This page is an index of every conversation page in `planning/`, one day at a time and one line per hop. Each line links to the hop itself. Read it top to bottom to follow the project from the first idea, or jump to a day.
 
 **Who is who.** The **owner** is the one person on the team. The **advisor** works with him on plans and documents. The **masters** run the fleet's work, and the **scribe** keeps its record. Everyone except the owner is an AI agent.

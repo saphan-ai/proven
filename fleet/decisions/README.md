@@ -1,5 +1,10 @@
 # fleet/decisions/
 
+> **A note on the owner's English (2026-10-19).** The owner asked us to correct the grammar of his own English in this
+> repository. Where he wrote in English, his quoted words have been lightly corrected for grammar only; nothing was added
+> to their meaning. Where he wrote in Polish, the quotes are translations, as each one says.
+
+
 This folder holds two kinds of decision, and both are the owner's:
 
 - **Design decisions**, `ADR-<number>-<slug>.md`: how proven is built and why. One file per decision, written when the decision is taken.

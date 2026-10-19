@@ -11,7 +11,7 @@
 
 Many teams have only two models: the one they write code with, and one more. The owner's ruling:
 
-> *"Two second models can be configured. Then, in the scenario where a customer has model A and NVIDIA, the review is done by NVIDIA; this satisfies the independent-reviewing-model requirement. For special classes like security, the same model A is used. It is still valuable, because the review is done by a fresh agent who sees the code for the first time. The best setup will be: model A writes the code, NVIDIA reviews by default, model B reviews in special cases like security."*
+> *"Two second models can be configured. Then, when a customer has model A and NVIDIA, the review is done by NVIDIA; this meets the requirement of an independent reviewing model. For special classes like security, the same model A is used. That is still valuable, because the review is done by a fresh agent who sees the code for the first time. The best setup is: model A writes the code, NVIDIA reviews by default, and model B reviews special cases like security."*
 
 ## Decision
 

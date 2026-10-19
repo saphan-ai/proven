@@ -108,13 +108,13 @@ The advisor had dialled the node as its own user. As ████ it answered at
 
 ### 9 · owner → advisor: is everything in this repository?
 
-> *"Great. All written in proven repo?"*
+> *"Great. Is it all written down in the proven repo?"*
 
 Not all of it. This page was here. The train order was only in our private record. The advisor had held it back because it was unsigned, and a public copy might read like a decision already made.
 
 ### 10 · owner → advisor: both places, always
 
-> *"save train order in the proven repo. We save in both places all hackathon documents. Save this to fleet memory for you and the master"*
+> *"Save the train order in the proven repo. We save all hackathon documents in both places. Save this to the fleet's memory, for you and the master."*
 
 The advisor did three things:
 
@@ -126,7 +126,7 @@ The advisor did three things:
 
 Later the same day the owner wrote, in Polish (the advisor's translation):
 
-> *"We may need to rework our architecture. Our project is in ████████████ and in ██████████████. But it does not meet the requirements, because we have to use all the sponsors' technologies. The requirements are in █████████████████████████████. We have NVIDIA; we still have to attach Zetaris and Meterless to it. Once we get the platform we can go wild. For example, pulling CVE databases as data, other data sources for the evaluating agent. It could be great. Let's think."*
+> *"We may need to rework our architecture. Our project is in ████████████ and in ██████████████. But it does not meet the requirements, because we have to use all the sponsors' technologies. The requirements are in █████████████████████████████. We have NVIDIA; we still have to attach Zetaris and Meterless to it. Once we get the platform, we can go wild: for example, pulling in CVE databases as data, and other data sources for the evaluating agent. It could be great. Let's think."*
 
 **What the advisor did.** It read the requirements: the technical guide, the submission requirements, the draft official rules, the self-check and the AI usage policy. Zetaris and Meterless are required in every entry, NVIDIA wherever it helps, and *"Sponsor tech bolted on"* is listed as a common failure. The requirements also ask for a programmatic entry point, Docker, a sample mode that runs with no network and no keys, and a trace of the agents in `logs/`.
 

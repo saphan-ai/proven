@@ -9,7 +9,7 @@
 
 [ADR-0008](ADR-0008-reviewer-model-chosen-against-the-authors-model.md) and [ADR-0009](ADR-0009-two-reviewer-models-and-the-same-model-fallback.md) name NVIDIA as the default reviewer and recommend three models: A writes, NVIDIA reviews by default, B reviews special cases. They could be read as requiring NVIDIA, or as refusing a setup without an independent model family. The owner:
 
-> *"And we make NVIDIA also configurable. Maybe some customers will want to use coding A, reviewing A, without NVIDIA, or A and B. We don't block this. NVIDIA is just a model like the others, just the default first reviewing model."*
+> *"And we make NVIDIA configurable too. Some customers may want to code with A and review with A, without NVIDIA, or use A and B. We don't block this. NVIDIA is just a model like the others, only the default first reviewing model."*
 
 ## Decision
 

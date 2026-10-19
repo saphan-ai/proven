@@ -43,7 +43,7 @@ The advisor had reported two places where public sources disagreed. The owner as
 
 The rewrite had left one design question open: proven should review a change with a model from a different family than the one that wrote it, but how does it know which model wrote it?
 
-> *"ADR-0008: the model is stated in the commit and PR notes. If not specified, the default model from config is taken. Default it is NVIDIA. A second model is configured also: for special types of reviews, like security, the review is doubled."*
+> *"ADR-0008: the model is stated in the commit and PR notes. If it is not stated, the default model from the configuration is taken. By default it is NVIDIA. A second model is also configured: for special types of review, like security, the review is doubled."*
 
 **What the advisor did.** It wrote [ADR-0008](../fleet/decisions/ADR-0008-reviewer-model-chosen-against-the-authors-model.md). Proven reads the author's model from what the change states and does not guess it. The reviewer's model comes from configuration, NVIDIA by default. A second configured model doubles special reviews such as security. Evidence is still required for every finding. Three details are listed as not decided yet: the exact form in which a change names its model, the case where the author's family equals the default reviewer's, and which reviews besides security are doubled. [`../DESIGN.md`](../DESIGN.md) and the front page now say the same.
 
@@ -51,13 +51,13 @@ The rewrite had left one design question open: proven should review a change wit
 
 ADR-0008 had left open what happens when a configured reviewer model is the same as the model that wrote the change.
 
-> *"Two second models can be configured. Then, in the scenario where a customer has model A and NVIDIA, the review is done by NVIDIA; this satisfies the independent-reviewing-model requirement. For special classes like security, the same model A is used. It is still valuable, because the review is done by a fresh agent who sees the code for the first time. The best setup will be: model A writes the code, NVIDIA reviews by default, model B reviews in special cases like security."*
+> *"Two second models can be configured. Then, when a customer has model A and NVIDIA, the review is done by NVIDIA; this meets the requirement of an independent reviewing model. For special classes like security, the same model A is used. That is still valuable, because the review is done by a fresh agent who sees the code for the first time. The best setup is: model A writes the code, NVIDIA reviews by default, and model B reviews special cases like security."*
 
 **What the advisor did.** It wrote [ADR-0009](../fleet/decisions/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md): two reviewer models, a default (NVIDIA) and one for special reviews. With only two models, a doubled review's second reviewer may be the author's own model, and it is still a fresh agent. Three models is the recommended setup. Each review says which model it used and whether that is the author's, so nobody mistakes a fresh agent for a different family. ADR-0008 now points to ADR-0009 for the case it settles. The one case still open is a change written by the default reviewer's own family. [`../DESIGN.md`](../DESIGN.md) and the front page follow.
 
 ### 5 · owner → advisor: NVIDIA is a default, not a requirement
 
-> *"And we make NVIDIA also configurable. Maybe some customers will want to use coding A, reviewing A, without NVIDIA, or A and B. We don't block this. NVIDIA is just a model like the others, just the default first reviewing model. Got that?"*
+> *"And we make NVIDIA configurable too. Some customers may want to code with A and review with A, without NVIDIA, or use A and B. We don't block this. NVIDIA is just a model like the others, only the default first reviewing model. Got that?"*
 
 **What the advisor did.** It wrote [ADR-0010](../fleet/decisions/ADR-0010-every-reviewer-model-is-configurable.md). Every reviewer model is configuration, NVIDIA's included, and NVIDIA is only the value proven ships with. No setup is refused: A writing and A reviewing, A and B without NVIDIA, or the recommended A, NVIDIA and B. Independence is recommended and reported in every review, never enforced. Evidence is the one thing no setting changes. This also closes the case ADR-0009 had left open, a change written by the default reviewer's own family: the review runs and says so. [`../DESIGN.md`](../DESIGN.md) and the front page follow.
 
@@ -67,11 +67,11 @@ The owner answered the three points the earlier decisions had left open:
 
 > *"1. Propose something and make it configurable. Look at industry best practices.*
 > *2. Take the same classes that we have in Saphan Studio today.*
-> *3. The same as class A-A: it's NVIDIA-NVIDIA. Still valuable, because the review is done by an agent with a fresh context, with no contact with the code before. A limited scenario, yet still useful."*
+> *3. The same as the A-A case: it is NVIDIA-NVIDIA. Still valuable, because the review is done by an agent with a fresh context, which has not seen the code before. A limited scenario, but still useful."*
 
 While the advisor was writing, he added:
 
-> *"By the rule: we NEVER hardcode any settings. All is configurable. Write this as an ADR in Proven."*
+> *"As a rule, we NEVER hardcode any settings. Everything is configurable. Write this as an ADR in Proven."*
 
 **What the advisor found.** Industry practice for naming the model behind a change is a Git commit trailer. The Linux kernel's guidance for AI coding assistants asks for `Assisted-by:` and forbids AI agents from adding `Signed-off-by:`, which only a person may give. Saphan Studio's review classes are security, backend, user interface, mobile and docs, one per change, chosen by what the change touches; security reviews are done twice.
 
@@ -86,7 +86,7 @@ While the advisor was writing, he added:
 
 ### 7 · owner → advisor: who decides a change's class
 
-> *"Then you need to look at Saphan again and check what it means, security or backend class or the others. Someone must decide about it. It could be a model or a deterministic configuration. For this hackathon we take the configuration."*
+> *"Then you need to look at Saphan again and check what it means: a security class, a backend class or the others. Someone must decide it. It could be a model or a deterministic configuration. For this hackathon we take the configuration."*
 
 **What the advisor found.** In Saphan Studio each class adds its own checks: security looks at trust boundaries, authorization, secrets, dependencies and destructive operations; backend at data access, caching, scaling and observability; user interface at every screen state and accessibility; mobile at the app's lifecycle, poor networks and device storage; docs at whether the change explains itself and its commands still run. The class is declared by the agent that orders the work. Proven reviews other people's pull requests, where there is no such agent.
 
@@ -94,7 +94,7 @@ While the advisor was writing, he added:
 
 ### 8 · owner → advisor: the same principles as Saphan Studio
 
-> *"Look how we have this implemented and use the same base principles."*
+> *"Look at how we have implemented this, and use the same basic principles."*
 
 **What the advisor found.** For Saphan Studio's own settings, the owner has set four principles:
 

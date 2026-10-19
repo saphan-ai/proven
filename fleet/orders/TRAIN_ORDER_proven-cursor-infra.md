@@ -1,6 +1,6 @@
 # TRAIN ORDER — proven-cursor-infra
 
-> **Public copy.** The original is in our private record. This copy says the same thing, with internal names, paths and private-code locations blacked out (█, one block per character). The list is at the end. The rule, in the owner's words (2026-10-17): *"We save in both places all hackathon documents."*
+> **Public copy.** The original is in our private record. This copy says the same thing, with internal names, paths and private-code locations blacked out (█, one block per character). The list is at the end. The rule, in the owner's words (2026-10-17): *"We save all hackathon documents in both places."*
 >
 > **State of this document:** active. The advisor wrote it on 2026-10-17. The master re-measured the advisor's claims and amended the order on 2026-10-19 (§1a). The owner has not signed it yet. When the original changes, this copy changes with it.
 >

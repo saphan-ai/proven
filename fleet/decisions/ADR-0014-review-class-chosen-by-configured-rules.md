@@ -10,7 +10,7 @@
 
 [ADR-0012](ADR-0012-review-classes-as-in-saphan-studio.md) adopts Saphan Studio's five review classes and says a change gets one, chosen by what it touches. It did not say who chooses. The owner:
 
-> *"Then you need to look at Saphan again and check what it means, security or backend class or the others. Someone must decide about it. It could be a model or a deterministic configuration. For this hackathon we take the configuration."*
+> *"Then you need to look at Saphan again and check what it means: a security class, a backend class or the others. Someone must decide it. It could be a model or a deterministic configuration. For this hackathon we take the configuration."*
 
 What the classes mean in Saphan Studio, in short:
 
@@ -26,7 +26,7 @@ In Saphan Studio the class is declared by the agent that orders the work, from w
 
 The owner then asked that proven follow the same base principles as Saphan Studio's own settings:
 
-> *"Look how we have this implemented and use the same base principles."*
+> *"Look at how we have implemented this, and use the same basic principles."*
 
 Those principles, as the owner set them for Saphan Studio's settings: a setting is deterministic and lives in configuration; it is validated against a closed list of allowed values, and a wrong value is refused when it is set, with the allowed values in the refusal; the software reads only the configured value, never a heuristic of its own; and where an agent may adjust a setting at all, that is a separate option, off by default, that lets it move only in the safe direction.
 

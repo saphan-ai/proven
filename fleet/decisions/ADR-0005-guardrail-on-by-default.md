@@ -9,7 +9,7 @@
 
 Saphan Studio checks the content of its agents' work with guardrail models. The owner wants proven to do the same:
 
-> *"for the judges we will make option to run without guardrails. But we give guardrails as default as in saphan"*
+> *"For the judges we will add an option to run without guardrails, but guardrails are on by default, as in Saphan."*
 
 NVIDIA's Nemotron 3.5 Content Safety (4B) judges whether a prompt, or a response, is safe. It answers `User Safety: safe|unsafe`, `Response Safety: safe|unsafe` and `Safety Categories: …`. We are installing it on our own model server (train order `nemotron-content-safety`). A judge's machine cannot reach our server.
 

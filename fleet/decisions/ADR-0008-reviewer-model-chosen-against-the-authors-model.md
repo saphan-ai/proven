@@ -11,7 +11,7 @@ The owner's design asks that the reviewer come, where possible, from a different
 
 The owner's ruling:
 
-> *"The model is stated in the commit and PR notes. If not specified, the default model from config is taken. Default it is NVIDIA. A second model is configured also: for special types of reviews, like security, the review is doubled."*
+> *"The model is stated in the commit and PR notes. If it is not stated, the default model from the configuration is taken. By default it is NVIDIA. A second model is also configured: for special types of review, like security, the review is doubled."*
 
 ## Decision
 

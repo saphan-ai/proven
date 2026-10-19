@@ -2,7 +2,7 @@
 
 > **Public copy.** The original is in our private record. This copy says the same thing, with internal names, paths and
 > references blacked out (█, one block per character). The list is at the end. The file name leaves out the machine
-> name. The rule, in the owner's words (2026-10-17): *"We save in both places all hackathon documents."*
+> name. The rule, in the owner's words (2026-10-17): *"We save all hackathon documents in both places."*
 >
 > **State of this document:** active. The advisor wrote it on 2026-10-18. The master re-measured the advisor's claims
 > and amended the order on 2026-10-19 (§1a). The owner has not signed it yet. When the original changes, this copy
@@ -46,8 +46,8 @@
 
 2026-10-18, later, to the advisor (written in English):
 
-> *"make the order for █████ public - for the judges we will make option to run without guardrails. But we give
-> guardrails as default as in saphan"*
+> *"Make the order for █████ public. For the judges we will add an option to run without guardrails, but guardrails
+> are on by default, as in Saphan."*
 
 ⇒ **This is a hackathon document.** A redacted public copy lives in proven:
 `fleet/orders/TRAIN_ORDER_nemotron-content-safety.md`. The public file name drops the machine name, which is blacked out.

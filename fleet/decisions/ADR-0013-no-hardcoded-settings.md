@@ -9,7 +9,7 @@
 
 Three decisions in a row made one more value configurable: the reviewer models, where a change names its model, which review classes are doubled. The owner made it the rule for everything:
 
-> *"By the rule: we NEVER hardcode any settings. All is configurable. Write this as an ADR in Proven."*
+> *"As a rule, we NEVER hardcode any settings. Everything is configurable. Write this as an ADR in Proven."*
 
 ## Decision
 
