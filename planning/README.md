@@ -19,6 +19,8 @@ The fleet's answers came back on 16 October, the same evening as the question, a
 
 `EVENT.md`, `QUESTION_TO_THE_FLEET.md` and `PROPOSAL_advisor.md` are published verbatim, as the fleet read them on 16 October. Internal details are blacked out (█), not deleted, and each file ends with a `REDACTED` section. `SUBMISSION_plan.md` is a living plan and changes as we go.
 
+The evaluation material came before the product: [`tests/README.md`](../tests/README.md) describes the test corpus built from the fleet's real review disagreements (prior art, written from 19 October).
+
 ## How the topic was chosen (16 October 2026)
 
 *This story stood in the main README until 19 October 2026, when the front page was rewritten for a wider audience. It is moved here unchanged, except for its links.*
