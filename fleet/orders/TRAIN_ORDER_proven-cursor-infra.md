@@ -2,24 +2,25 @@
 
 > **Public copy.** The original is in our private record. This copy says the same thing, with internal names, paths and private-code locations blacked out (█, one block per character). The list is at the end. The rule, in the owner's words (2026-10-17): *"We save in both places all hackathon documents."*
 >
-> **State of this document:** a draft. The advisor wrote it; the master may change it; the owner has not signed it yet. When the original changes, this copy changes with it.
+> **State of this document:** active. The advisor wrote it on 2026-10-17. The master re-measured the advisor's claims and amended the order on 2026-10-19 (§1a). The owner has not signed it yet. When the original changes, this copy changes with it.
 >
 > - written by: the advisor (claude-code, model `claude-opus-5-5`), 2026-10-17
-> - cost: **not measured.** The advisor works in an interactive session, not a dispatched run, and Saphan Studio records a cost only for runs. Not run: no cost figure exists for this document.
+> - amended by: the master (claude-code, model `claude-opus-5-5`), 2026-10-19
+> - cost: **not measured.** The advisor and the master work in interactive sessions, not dispatched runs, and Saphan Studio records a cost only for runs. Not run: no cost figure exists for this document.
 
-- master: a claude-code master, to be appointed by the owner (none appointed when this was written, 2026-10-17)
-- status: PAUSED — drafted by the advisor; the master may change it, then hands it to the owner to sign
+- master: MASTER (claude-code, claude-opus-5-5, seat macm5/██████████████), appointed by the owner on 2026-10-19, mode: economy
+- status: ACTIVE — re-measured and amended by the master on 2026-10-19 (§1a); waits for the owner's signature
 - track: proven-cursor-infra
-- repo: proven (NOT in `saphan workspace repo list` on 2026-10-17 — W1 registers it), with ████████████ and the bridge registry
+- repo: proven (NOT in `saphan workspace repo list` on 2026-10-19 — W1 registers it), with ████████████ and the bridge registry
 - base: main at the cut
 - author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
-- amended: by the advisor, 2026-10-17, after proven's design changed (Go product, Zetaris, Meterless, NVIDIA). Added:
+- amended: by the master, 2026-10-19, after re-measuring A1–A16 (§1a): changed W1–W5, W8, R1; added D5, D6. Earlier, by the advisor, 2026-10-17, after proven's design changed (Go product, Zetaris, Meterless, NVIDIA). Added:
   A13–A16, the additions to W3 and W4, W8, W9, two rules in §3 and their DoD lines. The owner: *"Add points 1 to 6."* (§0)
 
 ## WITHDRAWN (advisor, 2026-10-17)
 On 2026-10-17 I wrote that ssh to the node "answers `Host key verification failed`" and made a host-key check the owner's
-first act. That was my error, not the node's: I dialled as my own user. The owner: *"To ██████ you ssh as ████. This is our
-standard."* As `████@██████` it answers (A8, re-measured). I also wrote, from `████████████`, that the node's guests
+first act. That was my error, not the node's: I dialled as my own user. The owner: *"To ██████ you ssh as ████. This is
+Proxmox standard."* As `████@██████` it answers (A8, re-measured). I also wrote, from `████████████`, that the node's guests
 ask for more memory than it has. That is false too: the node has 123 GiB (A12). What still stands: the master re-measures
 the node before setting the size.
 
@@ -73,14 +74,14 @@ before you build on it. Where you find the advisor wrong, write it in the wagon'
 
 | # | claim (advisor, MEASURED 2026-10-17) | instrument |
 |---|---|---|
-| A1 | Landed on engine `develop` @ █████████: W1, W2, W3, W5, W7, W9, W16. Not landed: W4 (hooks), W4b, W6 (recorded and sealed), W8 (seat health and usage), W10, W11, W12, W14. | `git -C ████████████████████████████ merge-base --is-ancestor fix/<slug> develop` for each branch; `git log develop --grep=<slug>` |
+| A1 | Cursor-train wagons (numbered #n, not wagons of this train). Landed on engine `develop` @ █████████: #1, #2, #3, #5, #7, #9, #16. Not landed: #4 (hooks), #4b, #6 (recorded and sealed), #8 (seat health and usage), #10, #11, #12, #14. | `git -C ████████████████████████████ merge-base --is-ancestor fix/<slug> develop` for each branch; `git log develop --grep=<slug>` |
 | A2 | macm5 already has two Cursor executor seats: `████████████████` (slot 8) and `████████████████` (slot 9), billing `subscription`, account `unknown`. The `agent` CLI is in `████████████` on macm5. | `saphan machine list`; `ls ████████████` |
 | A3 | macmini has no Cursor install and no Cursor seat. | `ssh macmini 'ls -d ██████████'` → no match |
 | A4 | **A Cursor API key is refused over ssh:** `cursor-seat-credential-transport` — "this engine has no carrier that puts a key in the leg's environment alone". On macOS the HOME login fails (`security exit code 154`, no default keychain). ⇒ **a far macOS Cursor seat (macmini) has no working way to authenticate today.** | `git -C ████████████████████████████ grep -n 'no carrier that puts a key' develop -- ███████████████` → `███████████████████`; `████████████████████████████` |
 | A5 | **A Cursor seat in a container on a far host is not built.** The container boundary is composed on the local transport only (`████████████████████████`); seated container runs refuse `container-seated-grant-unbuilt` (`██████████████████████`); Cursor is `██████████: false` (`██████████████████████████`); `██████████████` has no `█████████████████`. | `git grep` on `develop` as named; `git ls-tree --name-only develop ██████████████` |
 | A6 | A far Linux native Cursor seat is buildable: HOME login, no key. **Whether `agent login` works under a seat HOME on Linux is UNMEASURED.** | `████████████████████████` §7.9; `███████████████████████████████` |
 | A7 | Every Cursor leg today runs with no hook verdict (W4), reaches the vendor's endpoint directly with no recording proxy (W6), and reads health and usage as unknown (W8). These are recorded, not refused. A class whose write set narrows below the whole workdir is refused `cursor-class-narrowing-unenforced`. **Whether the executor class narrows, so that every Cursor executor leg is refused today, is UNMEASURED.** | `█████████████████████████████████████`; `████████████████████████`, `████` |
-| A8 | The node is reached as **████** (our standard, the owner 2026-10-17): `████@██████` answers `██████`. As another user the same dial gives `Host key verification failed`. | `ssh -o BatchMode=yes ████@██████ hostname` |
+| A8 | The node is reached as **████** (Proxmox standard, the owner 2026-10-17): `████@██████` answers `██████`. As a non-████ user the same dial gives `Host key verification failed`. | `ssh -o BatchMode=yes ████@██████ hostname` |
 | A12 | ██████: 123 GiB memory, 86 used, 36 available; seven VMs (███████) asking for 102,400 MiB in total; `rpool` 616 G free. The next free VMID is ███. | `ssh ████@██████ 'free -g; zfs list -o name,used,avail rpool; qm list'` |
 | A9 | ████████████: 8 vCPU, 15 GiB, `/` 387 GB (43 % used), Ubuntu 24.04.4, Python 3.12.3, Go 1.26.5, no docker or podman. `████████████` says the disk is 200G. That row is stale. | `ssh ████████████ 'nproc; free -g; df -h /; python3 --version; go version'` |
 | A10 | Our Go image `dev-go` (engine `████████████████████████`: `███████████` + Go 1.26 copied from the official image by digest) is **not published**. `hub.docker.com/v2/repositories/saphan/dev-go/` → 404. Debian trixie, the image's distro, ships Python 3.13; Ubuntu 24.04 ships 3.12. | `curl -s -o /dev/null -w '%{http_code}' …` → 404; engine `████████████████████████████` |
@@ -90,44 +91,76 @@ before you build on it. Where you find the advisor wrong, write it in the wagon'
 | A15 | **The build reaches these hosts:** `api.osv.dev` and the OSV data dumps, `www.cisa.gov` (KEV), the FIRST EPSS download host, `api.github.com`, `integrate.api.nvidia.com`, the Zetaris instance (host unknown until the instance arrives), `registry.npmjs.org`, `proxy.golang.org`. **Whether the landed `the-cursor-egress-baseline` admits them for a Cursor leg is UNMEASURED.** | the list: proven `README.md` and the hackathon's technical guide; the admission: W8 |
 | A16 | **A live-key test cannot run on a far leg today.** A4 refuses a Cursor key over ssh: "no carrier that puts a key in the leg's environment alone". The same gap is expected for the keys proven's live tests need (NVIDIA, Zetaris, a model provider). **Whether the engine can deliver a non-vendor secret into a far leg's environment is UNMEASURED.** | A4's instrument; W1 answers it with one zero-cost compose |
 
+## §1a THE MASTER'S RE-MEASUREMENT (MASTER, 2026-10-19, read-only; engine local `develop` @ █████████, installed binary █████████)
+
+These are the master's readings. They are claims too: a leg that finds one wrong writes it in its `master-was-wrong:` field.
+
+| # | verdict | what the master measured |
+|---|---|---|
+| A1 | CHANGED | Cursor-train wagons landed now: #1, #2, #3, #5, #7, #9, #16, and since the advisor's read #17 (`engine-gate-signed-orders`, █████████) and #18 (`engine-refused-return-retries`, █████████). Not landed: #4, #4b, #6, #8, #10, #11, #12, #14. The Cursor train's master: `MASTER (claude-code, claude-opus-5-5)`, appointed 2026-10-15. `saphan train next --track saphan-agent-cursor` printed nothing in 20 min and held the store open (2.3 GB RSS); it was stopped, UNMEASURED. |
+| A2 | HOLDS | Two Cursor seats, both on macm5: `████████████████` (slot 8), `████████████████` (slot 9), executor, `subscription`, account `unknown-…`. `agent --version` = `2026.10.14-941492e` = the pin. |
+| A3 | HOLDS | macmini: no `██████████`, no `agent`. |
+| A4 | HOLDS | `███████████████████` unchanged; the doc row moved to `█████████████████████████████`. An ssh seat WITH a key is refused; an ssh seat with no key runs on its HOME login; a LOCAL seat with no key is refused (`cursor-seat-credential-unset`). ⇒ macmini has no working way in. |
+| A5 | HOLDS | Sites moved (`████████████████████████`, `█████████████████████`); still no far container lane, no seated container grant, no `█████████████████`. |
+| A6 | HOLDS | Code admits a keyless ssh seat on its HOME login. The Linux login is still UNMEASURED live (W5 measures it). |
+| A7 | ANSWERED (code) | The executor class does NOT narrow: `██████████████████` and `███████████████████████` have `█████████: ["."]`; the spawn gate narrows review, master and scribe only. Recorded-not-refused holds for W4/W6/W8. A compose is still owed (W1). |
+| A8 | HOLDS | `████@██████` answers. |
+| A12 | CHANGED | 123 GiB total, 83 used, **39 available**; seven VMs ask 102,400 MiB; `rpool` 616 G free; 32 threads. Proxmox's next-ID call (`nextid`) answers **100**, not ███: the script names **███** explicitly (the node's ███ series; ███ is free cluster-wide). **Every PBS job in `█████████████████` reads `enabled 0`**, `████████████` included (D5). ████████████ is VM ███ on this node. |
+| A9 | CHANGED | ████████████: 8 vCPU, 15 GiB, disk **400 G** (`qm config ███`; it was grown after the 2026-09-06 row), Ubuntu 24.04.4, Python 3.12.3, Node 22.23.2, gcc 13.3.0, no docker. `go` is on the LOGIN path only (`███████████████████████████`): a non-login `ssh … go version` answers `command not found`. |
+| A10 | HOLDS | `saphan/dev-go` on Docker Hub → 404. `███████████` is `node:22-trixie-slim` by digest. Built copies exist only on two internal hosts (`███████████████████`, `█████████████████`). No docker on macm5, macmini, █████, ████████████. |
+| A11 | HOLDS | proven and ████████████ are not workspace repos. `saphan workspace repo add <name> --technology go\|node` writes `██████████████` (the owner's configuration ⇒ an owner act). No `python` technology. |
+| A13 | PARTLY | The suites' manifests are `engines/<engine>/reference/package.json`: no `engines` field; tsx 4.x and esbuild declare Node ≥18; world-model uses vitest 3. ⇒ **Node 22** satisfies both. The Go-through-adapter question is still UNMEASURED. |
+| A14 | MEASURED | `dev-go` (ephemeral container, no network): Go **1.26.8**, `CGO_ENABLED=0`, **no gcc, no cc**, Node 22.23.2, npm 10.9.8, **no python3**, Debian 13. |
+| A15 | MEASURED: NOT ADMITTED | `baseline-cursor-v1` allows `api2.cursor.sh:443` only. Workload add-ons exist for Go (proxy/sum.golang.org) and npm (registry.npmjs.org). **None of the OSV, CISA, EPSS, GitHub API or NVIDIA hosts is on any policy.** The one way today is the owner's per-run `--egress-open "<reason>"`. |
+| A16 | MEASURED (code): NO CARRIER | `saphan run --env NAME` carries names only; on ssh the value is resolved by the far session. No secret-env carrier exists. The rule in §3 stands. |
+| new | — | ████████████ and ████████████ are NOT tailnet members: they reach the tailnet through a route (`██████████████████████████████████`). ████████████ was built as a copy of VM ███ and is the nearest template. ████████████ has no creation script; its recipe is in the ████████████ wave reports. Next free workbench IP: `███` (silent from the node, no VM config uses it). |
+| new | — | proven `AGENTS.md` §2 does not carry the owner's §0 exception (macm5, macmini and runner-cursor visible). The owner's words govern; D6. |
+
 ## §2 WAGONS
 
 Every wagon's DoD carries (i) the commands and their outputs, (ii) a `master-was-wrong:` field against the §1 rows it
 builds on, (iii) for each owner-act script, the rehearsal output pasted beside the script (law #33).
 
-### W1 — proven is a workspace repo, and the advisor's readings are re-measured
-- **lands:** proven registered as a workspace repo, so a Cursor leg can be placed into it on 2026-10-22. If registering is
-  an owner act, a `.sh` for the owner. A1–A11 re-measured, each marked holds / wrong / changed, with the command.
-- **dod:** `saphan workspace repo list` names proven. One zero-cost compose for a Cursor executor on `████████████████`
-  (`saphan dispatch command`, no run) answers A7. A refusal is a valid answer. Paste it.
+### W1 · `proven-is-a-workspace-repo` — proven is a workspace repo, and the advisor's readings are re-measured
+- **lands:** proven registered as a workspace repo, so a Cursor leg can be placed into it on 2026-10-22. Registering writes
+  `██████████████`, the owner's configuration, so it is an owner `.sh`: `saphan workspace repo add proven --technology go`
+  and `saphan workspace repo add ████████████`. A1–A16 re-measured: done by the master on 2026-10-19 (§1a).
+- **dod:** `saphan workspace repo list` names proven and ████████████. One zero-cost compose for a Cursor executor on
+  `████████████████` (`saphan dispatch command`, no run) confirms §1a's A7 reading. A refusal is a valid answer. Paste it.
 - **review:** master-verify-only
 
-### W2 — runner-cursor exists, modelled on ████████████
-- **lands:** an owner-act script `create-runner-cursor.sh` that creates one VM on the node that holds ████████████: the
-  ████████████ recipe (Ubuntu 24.04 cloud image, x86-64-v2-AES per ████████, q35, virtio-scsi-single, qemu-guest-agent,
-  `onboot=1`, cloud-init user and key), the next free VMID and the next free IP of the workbench block, both derived and
-  printed. Wiring like ████████████: DNS rewrite, Kuma monitor, the node's nightly PBS job confirmed to cover it, the Mac
-  ssh alias, and a tailnet member like ████████████, with the node authentication as an owner step. A brief and a report in
-  ████████████ (`███████████████████████████`, `███████████████████████████████████`), `████████████` updated, and A9's
-  stale disk figure corrected.
-- **size:** the advisor recommends **4 vCPU / 8 GiB / 120 GB**, half of ████████████ in CPU and memory, for two seats and
-  image builds. A12 says 8 GiB fits in the 36 GiB available, and 120 GB fits in the 616 G free. Re-measure at the cut and
-  print the arithmetic (law #46) before you set the size.
+### W2 · `runner-cursor-exists` — runner-cursor exists, modelled on ████████████
+- **lands:** an owner-act script `create-runner-cursor.sh` that creates one VM on the node that holds ████████████ (VM ███):
+  the recipe of VM ███ and its copy VM ███ (Ubuntu 24.04 cloud image, x86-64-v2-AES per ████████, q35,
+  virtio-scsi-single, qemu-guest-agent, `onboot=1`, serial console, cloud-init user and key, static IP, the same gateway,
+  DNS and search domain). **VMID 307, named explicitly** (`nextid` answers 100, §1a A12), and the next free workbench IP
+  (`███`, §1a), both checked free by the script before it creates anything. Wiring like ████████████: DNS rewrite, Kuma
+  monitor, the Mac ssh alias, and **the tailnet ROUTE that ████████████ uses** (`█████████████████████`; ████████████ is not
+  a tailnet member, §1a). A brief and a report in ████████████ (`███████████████████████████`,
+  `███████████████████████████████████`), `████████████` updated, and A9's stale disk figure corrected (400 G).
+- **size (law #46), measured 2026-10-19:** candidates: 4 vCPU / 8 GiB / 120 GB (the advisor's) against the node: 39 GiB
+  available − 8 = 31 GiB left; guest asks 102,400 + 8,192 = 110,592 MiB of 125,952 MiB; 616 G − 120 G = 496 G free; 4 of
+  32 threads. It fits; the master sets 4 / 8 / 120. Re-measure at the act; the script prints the same numbers and refuses
+  if available memory is below 16 GiB.
 - **access:** the node is reached as `████@██████` (A8). Never accept a changed host key on anyone's behalf.
-- **dod:** `ssh runner-cursor 'hostname; nproc; free -g; df -h /'` matches the size; DNS and Kuma green; the PBS job's
-  scope includes the new VMID, read from the node's job config; `tailscale status` lists runner-cursor.
+- **dod:** `ssh runner-cursor 'hostname; nproc; free -g; df -h /'` matches the size; DNS and Kuma green; a tailnet address
+  answers from runner-cursor through the route, as from ████████████; the PBS job `████████████` scope includes VMID ███
+  (`all 1`), with its `enabled` value printed beside it (D5).
 - **review:** master-verify-only
 
-### W3 — runner-cursor carries Go, Python, Docker and the pinned Cursor CLI
-- **lands:** Go 1.26.5, as on ████████████. **Python: ONE minor version in both lanes, native and container.** The advisor
-  recommends 3.13, the image's Debian minor (A10). A reviewer who sees 3.12 in one lane and 3.13 in the other cannot tell
-  a code fault from a lane fault. You choose how to install it, and record why. Docker Engine, because the owner asked for
-  Docker. Do not put the leg user in the `docker` group without the owner's word: that group gives full control of the host, so it is a
+### W3 · `runner-cursor-toolchain` — runner-cursor carries Go, Python, Docker and the pinned Cursor CLI
+- **lands:** **Go 1.26.8**, the Go of the `dev-go` image (§1a A14), not 1.26.5: the rule is one version in both lanes, and
+  the image is the fixed side. Go on the NON-login path too (`/usr/local/bin`), because a seat runs a non-login shell (§1a
+  A9). **Python: ONE minor version in both lanes, native and container: 3.13**, the image's Debian minor (A10). The master
+  chose the deadsnakes PPA (`python3.13`, `python3.13-venv`) for the native lane: Ubuntu 24.04 ships 3.12, and a distro
+  package keeps updates in apt. A reviewer who sees 3.12 in one lane and 3.13 in the other cannot tell a code fault from a
+  lane fault. Docker Engine, because the owner asked for
+  Docker. Do not put the leg user in the `docker` group without the owner's word: that group is root on the host, so it is a
   security decision. The Cursor `agent` CLI via `███████████████████████████████` and `████████████████████████`
   (W9 of saphan-agent-cursor), one seat HOME per seat. Any step that needs sudo goes into an owner-act script.
 - **added 2026-10-17 (A13, A14):** Node.js, one LTS major in both lanes (native and the W4 image), with npm and `npx`,
-  for Meterless's conformance suites. A C compiler and libc headers for cgo, in both lanes. Read A13's Node requirement
-  from the suite's own `package.json` before you pin the major.
+  for Meterless's conformance suites: **Node 22** (§1a A13: the suites need ≥18; the image already carries 22.23.2). A C
+  compiler and libc headers for cgo, in both lanes (`build-essential` native).
   **dod addition:** `node --version`, `npm --version`, `gcc --version` and `go env CGO_ENABLED` on runner-cursor, each
   pasted; the Node major is equal in both lanes.
 - **dod:** `go version`, `python3 --version`, `docker version` and `agent --version` on runner-cursor, each pasted; the
@@ -135,35 +168,39 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
   Rehearse it with `--dry-run` and paste the output.
 - **review:** master-verify-only
 
-### W4 — the Go + Python image, and its Dockerfile in proven
+### W4 · `proven-go-python-image` — the Go + Python image, and its Dockerfile in proven
 - **lands:** one Dockerfile in proven at the path the master proposes (advisor's suggestion: `fleet/infra/go-python/Dockerfile`
   with a README). `ARG BASE` is our `dev-go` image pinned by digest. One `RUN` layer adds Python (the minor of W3, plus venv
   and pip, as the engine's `dev-python` layer does). No vendor CLI, because we do not redistribute one. The file and its README
   say that the base image is not published (A10), so a stranger cannot build it as it stands.
-- **added 2026-10-17 (A13, A14):** the image carries W3's Node major and a C compiler: Node as one more pinned layer after
-  Python. If `dev-go` already has gcc (A14), say so and add nothing.
+- **added 2026-10-17 (A13, A14), settled by §1a:** `dev-go` already carries Node 22, so no Node layer. It has no C compiler
+  and `CGO_ENABLED=0`, so the Python layer also installs `gcc` and `libc6-dev` and sets `ENV CGO_ENABLED=1`.
+- **the base on runner-cursor:** `dev-go` is not published and exists only on internal hosts (§1a A10). runner-cursor builds
+  `███████████` and `dev-go` from the engine's `███████` at a named engine commit, and the W4 image `FROM` its digest.
   **dod addition:** `docker run --rm <image> sh -c 'node --version; gcc --version; go env CGO_ENABLED'` pasted, equal to W3.
 - **dod:** built on runner-cursor; `docker run --rm <image> sh -c 'go version; python3 --version'` gives W3's versions;
   the digest is recorded. The file passes the redaction rules of W7: no internal registry host, path or machine name.
 - **owner gate:** D2 below. The file waits for it.
 - **review:** master-verify-only
 
-### W5 — the Cursor seats the engine can run today are admitted
+### W5 · `cursor-seats-admitted` — the Cursor seats the engine can run today are admitted
 - **lands:** owner-act scripts, each rehearsed (law #33):
-  - **macm5 (local):** reuse `████████████████`. No new seat. Its API key per `████████████████████████` §7.9: a dashboard
+  - **macm5 (local):** reuse `████████████████`. No new seat. A local Cursor seat with no key is refused
+    (`cursor-seat-credential-unset`, §1a A4), so the key is required (D3). Its API key per `████████████████████████` §7.9: a dashboard
     key, `████████████████` (0600), `saphan config set ████████████████████████████████ <NAME>`. The script never prints
     the key.
   - **runner-cursor native:** `saphan machine admit` (ssh transport, slots for the seats), `machine set-binary
     --binary cursor=<absolute path>`, `machine set-artifact-root`, `machine probe-confinement`, `machine seat --backend
     cursor --role executor --billing-class subscription --config-dir <the seat HOME>`. The login is
-    `env HOME=<seat home> NO_OPEN_BROWSER=1 <agent> login`. That is the first measurement of A6.
+    `env HOME=<seat home> NO_OPEN_BROWSER=1 <agent> login`. That is the first measurement of A6. No key on this seat: a key
+    on an ssh seat is refused (A4).
   - **macmini and the runner-cursor container seat: NOT admitted by this train** (A4, A5). You write the two engine
     requests (§3, R1). The seats are admitted when the engine can run them, or replaced by D1's fallback.
 - **dod:** `saphan machine list` shows each admitted seat; a zero-cost compose for each seat does not refuse, or its
   refusal is pasted with the act that clears it.
 - **review:** master-verify-only
 
-### W6 — each admitted seat takes one turn
+### W6 · `cursor-seats-smoke-turn` — each admitted seat takes one turn
 - **lands:** one smoke turn per admitted seat, in a scratch repository. Nothing lands. This is a priced act. It runs only
   behind the owner's explicit consent at the call (law #49), with a quote and a cap of twice the quote (law #16).
 - **dod:** per seat: the turn's return; **the model that really ran** (Auto's choice included); and the share of the
@@ -172,23 +209,26 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
   from 2026-10-22.
 - **review:** master-verify-only
 
-### W7 — the public record in proven
+### W7 · `proven-public-infra-record` — the public record in proven
 - **lands:** a public copy of each wagon's order and status, under proven's `fleet/` templates (proven `AGENTS.md` §1).
   Add one public page that says where the Cursor executors work and why. The advisor suggests `fleet/SEATS.md`; you
   choose the path. The README of W4's Dockerfile. All in English only.
 - **redaction (the owner's rule, §0):** visible: **macm5, macmini, runner-cursor**, Cursor, Go, Python, Docker, slugs, law
   numbers, this repository's commit hashes. Black out with █, one block per character, and list each kind in a `REDACTED`
   section at the end of the document: every other machine name (████████████ and the rest), cluster and node names, IP
-  addresses, internal domain and host names, user names, internal paths, private repository names (the Gitea repo and its
+  addresses, internal domain and host names, user names, internal paths, private repository names (the █████ repo and its
   owner), the machines' location, and everything in proven `AGENTS.md` §2. The advisor kept two product names visible:
   "Proxmox" and "Tailscale". The owner may overrule that, and if he does, black them out too.
 - **dod:** a deny-list grep over the changed proven files for every name, address and path on the black-out list → zero
   hits. Paste the command and its output. The owner reviews and pushes. **The fleet never pushes** (proven `AGENTS.md` §3).
 - **review:** master-verify-only; the owner reviews before his push
 
-### W8 — the legs reach the build's data sources (added 2026-10-17)
+### W8 · `cursor-legs-reach-data-hosts` — the legs reach the build's data sources (added 2026-10-17)
 - **lands:** A15 measured for a Cursor leg on each admitted seat: for every host, admitted / refused / unmeasured, with the
-  reading. Where a host is refused, the change that admits it, written as the property that must hold: "a Cursor executor
+  reading. §1a already reads the policy files: only `api2.cursor.sh`, plus the Go and npm add-ons; no data host. So the
+  change is a workload egress add-on for proven's data hosts, requested from the master of `saphan-agent-cursor` (R1, third
+  item). Until it lands, a leg that needs a data host runs with the owner's per-run `--egress-open "<reason>"`, or in
+  `SAMPLE_MODE=true` with no data host. Where a host is refused, the change that admits it, written as the property that must hold: "a Cursor executor
   leg on proven reaches these hosts and no others". Who may change the egress policy is not the advisor's call: if it is
   an owner act, a rehearsed `.sh`; if it is engine work, a request to the master of `saphan-agent-cursor` (law #59). The
   Zetaris host is added the day the instance arrives.
@@ -197,7 +237,7 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
 - **routing:** egress policy is network work and security work, so this wagon runs on claude-code (law #9 (a), (b)).
 - **review:** master-verify-only
 
-### W9 — a daily rehearsal, the way a judge will run proven (added 2026-10-17)
+### W9 · `proven-judge-rehearsal` — a daily rehearsal, the way a judge will run proven (added 2026-10-17)
 - **lands:** one script in proven, at the path the master proposes (advisor's suggestion: `scripts/judge-rehearsal.sh`).
   From a fresh clone of proven's trunk, in a scratch directory: `docker build`; `docker run` with an EMPTY environment and
   `SAMPLE_MODE=true`; `POST /run` with each file in `input_examples/`. It checks that each answer is structured JSON, that
@@ -233,7 +273,10 @@ message, you do no work on it (law #59). They are written as properties that mus
   argv, a file or a log. Without it, macmini cannot hold a Cursor seat (A4).
 - *A Cursor leg runs inside a container on a far host.* A `█████████████████` vendor layer, the container sentence composed
   for the ssh transport, and a seated container grant (A5).
+- *A Cursor executor leg on proven reaches proven's data hosts and no others* (added 2026-10-19, §1a A15): OSV API and data
+  dumps, CISA KEV, FIRST EPSS, the GitHub API, NVIDIA's inference endpoint, and the Zetaris host when it is known.
 Ask for an estimate against 2026-10-21. Record the answer in this file.
+- **R1 answer:** <none yet — the master records it here, dated>.
 
 **Decisions owed by the owner, in the order they block work:**
 - **D1 — the four seats.** Recommended: admit now what runs today (macm5 `████████████████`, runner-cursor native). If R1's
@@ -249,11 +292,17 @@ Ask for an estimate against 2026-10-21. Record the answer in this file.
 - **D3 — Cursor accounts.** One seat is one vendor account. How many Cursor accounts or API keys does the owner hold for
   this, and which seat gets which? Only the owner knows.
 - **D4 — Docker group on runner-cursor.** W3, above.
+- **D5 — backups (added 2026-10-19).** Every PBS job on the cluster reads `enabled 0` (§1a A12), so "PBS covers it" is not
+  true for ████████████ either today. Recommended: leave the jobs as they are and record the fact; runner-cursor holds no
+  state that a rebuild from this order does not restore. Alternative: the owner enables `████████████`.
+- **D6 — the visibility exception (added 2026-10-19).** The owner's §0 rule keeps macm5, macmini and runner-cursor visible;
+  proven `AGENTS.md` §2 does not say so, and `AGENTS.md` is the owner's file. Recommended: the owner adds one line to
+  `AGENTS.md` §2. Until then the master follows §0 and cites it in each public file's REDACTED list.
 
 ## §4 DEFINITION OF DONE
 
 - runner-cursor exists, sized by printed arithmetic, wired like ████████████, with its brief and report in ████████████.
-- Go 1.26.5 and one Python minor in both lanes, the same versions, pasted.
+- Go 1.26.8 and Python 3.13 in both lanes, the same versions, pasted.
 - The Dockerfile in proven (after D2), built once, with its digest recorded.
 - Every Cursor seat the engine can run is admitted and has taken one turn, with its real model and the pool share
   (`UNMEASURED BY THE ENGINE` where it is).
@@ -280,19 +329,23 @@ Ask for an estimate against 2026-10-21. Record the answer in this file.
 
 ## REDACTED
 
-Parts of this file are blacked out (█). Nothing else was changed, except one sentence of the owner's, which he reworded himself.
+Parts of this file are blacked out (█). Nothing else was changed, except one command name: in §1a A12 the Proxmox command that asks for the next free VM number is written as "Proxmox's next-ID call (`nextid`)", because its name matches a word on our deny-list.
+
+macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 (the Cursor executors work there).
 
 | what was blacked out | times | what it was |
 |---|---|---|
-| machine names | 13 | the machine runner-cursor is modelled on |
-| cluster node names | 9 | the node that will hold runner-cursor |
-| account names | 7 | the account used to reach the node |
-| infrastructure identifiers | 2 | the numbers of the node's virtual machines |
-| private repository names | 4 | our infrastructure repository |
-| internal paths | 11 | files in our infrastructure repository, a local checkout path, a local tool folder, a vendor folder on a machine |
-| locations in our private code | 22 | file names and line numbers in Saphan Studio's code, and one field name |
-| seat identities | 6 | the names of two Cursor seats on macm5 |
+| machine names | 21 | the machine runner-cursor is modelled on, a copy of it, and one more internal host |
+| cluster node names | 10 | the node that will hold runner-cursor |
+| account names | 9 | the account used to reach the node |
+| infrastructure identifiers | 16 | the numbers of the node's virtual machines, and the name of the node's backup job |
+| address fragments | 2 | the last part of the IP address planned for runner-cursor |
+| private repository names | 8 | our infrastructure repository |
+| internal paths | 18 | files in our infrastructure repository, system files on internal hosts, a local checkout path, a local tool folder, a vendor folder on a machine, the workspace's configuration file |
+| locations in our private code | 32 | file names, folder names and line numbers in Saphan Studio's code, and two field names |
+| seat identities | 9 | the names of two Cursor seats on macm5, and the master's seat |
 | credentials | 2 | the name of the credentials file and of the setting that names a seat's key |
-| private commit | 1 | a commit of Saphan Studio's private engine |
+| private commits | 5 | commits of Saphan Studio's private engine |
 | internal design references | 1 | the number of one of our infrastructure decision records |
-| private image names | 1 | the internal name of our base image |
+| private hosting names | 1 | the software of the server that holds our private repository |
+| private image names | 4 | the internal names of our base image and of two locally built copies of our Go image |
