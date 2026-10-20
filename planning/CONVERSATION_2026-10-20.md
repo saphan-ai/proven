@@ -32,10 +32,6 @@ The owner pasted the infrastructure master's own report. It matched the record, 
 - [`../README.md`](../README.md): the status table is dated 20 October, and both infrastructure rows say what is true now.
 - [`../fleet/status/STATUS_proven-cursor-infra.md`](../fleet/status/STATUS_proven-cursor-infra.md): the summary, W1, W8 and "Blocked on / next" follow the master's report. The master keeps this file; the advisor changed it at the owner's word.
 
-## Not run
-
-- The safety-model status page was not changed: nothing in that order has moved since 19 October.
-
 ### 4 · owner → advisor: is anything left to black out?
 
 The owner asked the advisor to check the whole repository for anything that should have been blacked out.
@@ -47,3 +43,7 @@ The owner asked the advisor to check the whole repository for anything that shou
 > *"The VM number can stay, and the seat name too."* (translated from Polish)
 
 Neither is changed, and the history is not rewritten.
+
+## Not run
+
+- The safety-model status page was not changed: nothing in that order has moved since 19 October.
