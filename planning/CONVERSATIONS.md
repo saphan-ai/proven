@@ -17,6 +17,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 17 October 2026 | [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md) | preparing the machines for the Cursor executors; then reshaping the design for the sponsors' technology |
 | 18 October 2026 | [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md) | a local NVIDIA guardrail model, made public and on by default in proven |
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
+| 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the machine for the Cursor agents runs; the agents cannot work unattended yet |
 
 ---
 
@@ -94,3 +95,13 @@ Page: [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md)
 | [6](CONVERSATION_2026-10-19.md#6--owner--advisor-the-last-open-points-and-a-rule-for-every-setting) | owner → advisor | ADR-0011 `Assisted-by:` trailer, ADR-0012 Saphan Studio's review classes, ADR-0013 no hardcoded settings. |
 | [7](CONVERSATION_2026-10-19.md#7--owner--advisor-who-decides-a-changes-class) | owner → advisor | ADR-0014: for the hackathon, a change's class comes from configured path rules, not a model. |
 | [8](CONVERSATION_2026-10-19.md#8--owner--advisor-the-same-principles-as-saphan-studio) | owner → advisor | Saphan Studio's principles for settings applied: a closed list, validated on load, no heuristics; a model may only raise a class. |
+
+## 20 October 2026 — the machines, measured
+
+Page: [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md)
+
+| hop | who → whom | what happened |
+|---|---|---|
+| [1](CONVERSATION_2026-10-20.md#1--owner--advisor-where-the-machines-stand) | owner → advisor | The machine is nearly done; the first Cursor turn shows the agents cannot work unattended yet. |
+| [2](CONVERSATION_2026-10-20.md#2--owner--advisor-the-masters-report) | owner → advisor | The master's report; the deadline's fallback does not avoid the block; a recommendation for each open decision. |
+| [3](CONVERSATION_2026-10-20.md#3--owner--advisor-update-the-repository) | owner → advisor | The front page and the machines' status page brought up to date. |

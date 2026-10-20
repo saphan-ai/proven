@@ -10,8 +10,10 @@
 - updated: 2026-10-20 (W6 ran: blocked)
 
 ## Summary
-The master re-measured the sixteen claims of the train order and amended the order. The owner signed it. proven is now a
-workspace repository. No machine exists yet and no seat was admitted: runner-cursor waits for the owner's creation script.
+runner-cursor exists, carries the toolchain and is admitted to the fleet with one logged-in Cursor seat. One Cursor turn
+ran. **No Cursor agent can work unattended yet:** the engine runs Cursor inside no sandbox on any machine, so every run
+needs the owner's recorded act to open its network, and the agent's shell tool was refused. Both fixes belong to the
+Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they land before 21 October 12:00 UTC.
 
 ## Done, 2026-10-19
 1. Re-measured A1–A16, read-only. Results are in §1a of the train order (`fleet/orders/TRAIN_ORDER_proven-cursor-infra.md`).
@@ -45,20 +47,22 @@ workspace repository. No machine exists yet and no seat was admitted: runner-cur
 ## Wagon state
 | wagon | state | next |
 |---|---|---|
-| W1 `proven-is-a-workspace-repo` | repository registered; claims re-measured | one zero-cost compose for a Cursor executor on macm5 |
+| W1 `proven-is-a-workspace-repo` | done 2026-10-20: repository registered, claims re-measured, zero-cost compose passed | — |
 | W2 `runner-cursor-exists` | the machine runs and is a tailnet member | the wiring: DNS name, monitor, ssh alias |
 | W3 `runner-cursor-toolchain` | done 2026-10-20 | — |
 | W4 `proven-go-python-image` | layers chosen: Python 3.13, gcc, cgo on; Node already in the base | waits for W3 and D2 |
 | W5 `cursor-seats-admitted` | runner-cursor: one seat admitted and logged in; macm5: key needed (D3) | the macm5 seat after D3 |
 | W6 `cursor-seats-smoke-turn` | ran once: the agent answers, its shell is refused | the Cursor backend train's fix |
 | W7 `proven-public-infra-record` | the public train order is current | goes with each wagon |
-| W8 `cursor-legs-reach-data-hosts` | measured from the egress policy: no data host is admitted today | R1, item 3 |
+| W8 `cursor-legs-reach-data-hosts` | measured from the egress policy: no data host is admitted today; the live reading failed, because the shell was refused | the shell fix; R1, item 3 |
 | W9 `proven-judge-rehearsal` | not started | waits for W4 and D4 |
 
 ## Blocked on / next
-- The owner's decisions D1–D6 (train order §3).
-- The R1 answer from the Cursor backend train's master.
-- Next act of the master: the rehearsed creation script for runner-cursor (W2).
+- **Blocked:** the Cursor backend train's two fixes (a sandbox for Cursor runs, and the agent's shell). Its master owes an
+  estimate by 20 October 18:00 UTC against the deadline of 21 October 12:00 UTC.
+- **Owed by the owner:** the wiring choice for runner-cursor (DNS name and monitor); the Cursor usage reading before and
+  after the W6 turn, because the engine has no price for its model; decisions D1–D6 (train order §3).
+- Nothing is running now.
 
 ## REDACTED
 | kind | count |
