@@ -105,3 +105,4 @@ Page: [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md)
 | [1](CONVERSATION_2026-10-20.md#1--owner--advisor-where-the-machines-stand) | owner → advisor | The machine is nearly done; the first Cursor turn shows the agents cannot work unattended yet. |
 | [2](CONVERSATION_2026-10-20.md#2--owner--advisor-the-masters-report) | owner → advisor | The master's report; the deadline's fallback does not avoid the block; a recommendation for each open decision. |
 | [3](CONVERSATION_2026-10-20.md#3--owner--advisor-update-the-repository) | owner → advisor | The front page and the machines' status page brought up to date. |
+| [4](CONVERSATION_2026-10-20.md#4--owner--advisor-is-anything-left-to-black-out) | owner → advisor | A check of the whole repository and its history; two old items stay public at the owner's word. |

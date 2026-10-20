@@ -35,3 +35,15 @@ The owner pasted the infrastructure master's own report. It matched the record, 
 ## Not run
 
 - The safety-model status page was not changed: nothing in that order has moved since 19 October.
+
+### 4 · owner → advisor: is anything left to black out?
+
+The owner asked the advisor to check the whole repository for anything that should have been blacked out.
+
+**What the advisor checked.** Every tracked text file and the full history, for addresses, keys and tokens, home directories, user names, internal domains, machine and node names, backup jobs and seat identities.
+
+**What it found.** Two things, both already public. A virtual machine's number was published in one commit of the infrastructure order and blacked out in the next. And six of the fleet's answers from 16 October name the seat of the master who wrote them, written before seat names were blacked out.
+
+> *"The VM number can stay, and the seat name too."* (translated from Polish)
+
+Neither is changed, and the history is not rewritten.
