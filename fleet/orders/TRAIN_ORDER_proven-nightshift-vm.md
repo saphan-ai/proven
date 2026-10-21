@@ -21,7 +21,7 @@ proposed three options: A, a macOS virtual machine on macm5; B, a separate macOS
 ## §1 WHAT THIS TRAIN IS
 
 Nightshift runs inside a macOS virtual machine on macm5, apart from everything else on that machine: no shared folder, no
-shared clipboard, no key of the fleet's inside it. NVIDIA is configured in Nightshift's Providers tab inside the VM. Its
+key of the fleet's inside it, no reach into the private networks (pf). The clipboard IS shared, by the owner's decision N6. NVIDIA is configured in Nightshift's Providers tab inside the VM. Its
 runtime endpoint is reachable from the machines that run proven over the private network, with its own token, and from
 nowhere else. One request through a pinned Nemotron lane answers, and a wrong token is refused.
 
@@ -65,8 +65,8 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 
 ### W1 · `nightshift-vm-exists` — a macOS VM on macm5, isolated
 - **what:** a macOS VM on macm5, with Tart (N1), cloned from `ghcr.io/cirruslabs/macos-tahoe-base:latest`, sized 4 vCPU, 8 GiB, 80 GB
-  (arithmetic in §1a). Started with `--no-clipboard`, no `--dir`, and the network of N4. **No shared folder, no shared
-  clipboard, no host directory mounted.**
+  (arithmetic in §1a). Started with `--no-clipboard`, no `--dir`, and the network of N4. **No shared folder, no host
+  directory mounted.** The clipboard: shared since N6.
 - **owner act:** the creation script, rehearsed by the master with `DRY=1` and the output pasted (law #33).
 - **dod:** the VM boots; its configuration shows no shared directory; its size matches the arithmetic.
 - **result (measured by the master 2026-10-21 12:36–12:50Z):** the owner's script finished exit 0. `tart get`: darwin,
@@ -142,12 +142,18 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   `depends_on :macos` with `depends_on macos:` is disabled!"*). Tart comes from its GitHub release 2.40.1 instead,
   sha256-pinned, signed by Cirrus Labs (Team 9M2P8L4D89) and notarized, through proven's
   `fleet/infra/nightshift-vm/nightshift_vm.sh`.
+- **N6 — the clipboard. DECIDED by the owner 2026-10-21: shared** (*"zostaw już ten schowek, może się przydać"*), after
+  the NVIDIA key would not arrive without it. The trade, stated to the owner when he decided: while it is shared, the
+  unsigned app in the guest can read everything copied on macm5 and replace it. `nightshift_vm.sh` keeps the default
+  `--no-clipboard`; `CLIPBOARD=1` in `~/.config/proven/nightshift-vm.env` on macm5 records this choice, and `status`
+  reds a shared clipboard without it (measured both ways).
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
 ## §4 DEFINITION OF DONE
 
-- Nightshift runs in a VM on macm5 with no shared folder or clipboard; its installer's sha256 was checked inside the VM.
+- Nightshift runs in a VM on macm5 with no shared folder, off the private networks, with the clipboard shared by N6; its
+  installer's sha256 was checked inside the VM.
 - NVIDIA is configured inside the VM only; two Nemotron lanes are pinned by name.
 - The runtime answers from runner-cursor with the token, refuses a wrong token, and does not answer from outside the
   tailnet.

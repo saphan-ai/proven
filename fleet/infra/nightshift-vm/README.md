@@ -24,6 +24,9 @@ The tool is [`nightshift_vm.sh`](nightshift_vm.sh). Environment, not product cod
    (about 25 GB) and sizes it 4 vCPU, 8 GiB, 80 GB. The image's user is `admin`, password `admin`.
 4. **Start it.** `./nightshift_vm.sh start` runs it with `--no-clipboard` (Tart shares the clipboard by
    default) and no `--dir`, waits for its address, and prints the configuration. `status` shows the same; `stop` stops it.
+   - **The clipboard.** Without it, the NVIDIA key of step 8 must be typed by hand. `CLIPBOARD=1 ./nightshift_vm.sh start`
+     shares it; while it is shared, the app in the guest can read everything copied on the host and replace it. proven's
+     owner chose to keep it shared (2026-10-21); the default stays off.
 5. **Bring the installer in.** `./nightshift_vm.sh copy-installer ~/Downloads/Nightshift-Setup-mac-m5.dmg` checks the
    file against Meterless's published `SHA256SUMS`, copies it into the VM over ssh (it asks for the `admin` password),
    and checks the SHA-256 again inside the VM. Nothing is shared to do it.

@@ -12,6 +12,8 @@
 # Settings (environment variables, or the file $HOME/.config/proven/nightshift-vm.env):
 #   VM         the VM's name (default nightshift)
 #   CPU MEM_MB DISK_GB   its size (default 4, 8192, 80)
+#   CLIPBOARD  1 shares the clipboard with the guest (default 0). While it is shared, the app in the guest can read
+#              everything copied on the host and replace it.
 #
 # Usage: nightshift_vm.sh check | install-tools | create | start | stop | status | copy-installer <dmg>
 #                        | isolate | unisolate | reach [host ...]   (pf: keep the VM off the private networks)
@@ -19,7 +21,7 @@
 set -u
 CONF="${NIGHTSHIFT_VM_CONF:-$HOME/.config/proven/nightshift-vm.env}"
 [ -f "$CONF" ] && . "$CONF"
-VM="${VM:-nightshift}"; CPU="${CPU:-4}"; MEM_MB="${MEM_MB:-8192}"; DISK_GB="${DISK_GB:-80}";
+CLIPBOARD="${CLIPBOARD:-0}"; VM="${VM:-nightshift}"; CPU="${CPU:-4}"; MEM_MB="${MEM_MB:-8192}"; DISK_GB="${DISK_GB:-80}";
 IMG="${IMG:-ghcr.io/cirruslabs/macos-tahoe-base:latest}"
 SUMS_URL="${SUMS_URL:-https://meterless.ai/Nightshift/M5+/SHA256SUMS}"
 BIN=/usr/local/bin
@@ -87,8 +89,9 @@ create() {
 start() {
   vm_exists || no "no VM named $VM — run: $0 create"
   [ -n "$(vm_args)" ] && { ok "already running: $(vm_args)"; return; }
-  # No --dir: nothing of the host is shared. --no-clipboard: Tart shares the clipboard by default.
-  nohup tart run "$VM" --no-clipboard >> "$LOG" 2>&1 &
+  # No --dir: nothing of the host is shared. --no-clipboard unless CLIPBOARD=1: Tart shares the clipboard by default.
+  cf=--no-clipboard; [ "$CLIPBOARD" = 1 ] && cf=
+  nohup tart run "$VM" $cf >> "$LOG" 2>&1 &
   ip=""; for i in $(seq 1 60); do ip=$(tart ip "$VM" 2>/dev/null) && [ -n "$ip" ] && break; sleep 5; done
   [ -n "$ip" ] && ok "$VM running at $ip; its window is open on this Mac" || no "no address after 5 min — see $LOG"
   status
@@ -100,7 +103,10 @@ status() {
   a=$(vm_args)
   if [ -z "$a" ]; then echo "  not running"; return 0; fi
   case "$a" in *--dir*) echo "✖ a host folder is shared: $a"; return 1;; esac
-  case "$a" in *--no-clipboard*) ok "running without a shared clipboard or folder: $a";; *) echo "✖ the clipboard is shared: $a"; return 1;; esac
+  case "$a" in
+    *--no-clipboard*) ok "running without a shared clipboard or folder: $a";;
+    *) if [ "$CLIPBOARD" = 1 ]; then ok "running with the clipboard SHARED (CLIPBOARD=1), no shared folder: $a"; else echo "✖ the clipboard is shared: $a"; return 1; fi;;
+  esac
 }
 
 stop() { tart stop "$VM" && ok "$VM stopped" || no "tart stop failed"; }
@@ -208,5 +214,5 @@ case "${1:-}" in
   stop) stop ;;
   status) status ;;
   copy-installer) copy_installer "${2:-}" ;;
-  *) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
