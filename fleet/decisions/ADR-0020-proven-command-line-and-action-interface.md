@@ -88,8 +88,26 @@ The Opengrep action's `patterns`, `jobs` and `opengrep-version` have no meaning 
 The owner pointed to GitHub's documentation on [GitHub-hosted](https://docs.github.com/en/actions/how-tos/manage-runners/github-hosted-runners/use-github-hosted-runners) and [self-hosted](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners) runners. Three facts from it shape the Action:
 
 - A container action *"can only execute on runners with a Linux operating system"*, and *"self-hosted runners must use a Linux operating system and have Docker installed"* ([about custom actions](https://docs.github.com/en/actions/sharing-automations/creating-actions/about-custom-actions)). So `uses: saphan-ai/proven@…` runs on Linux runners. On macOS and Windows runners, the documentation shows the command line in a `run:` step instead, from a release binary.
-- A GitHub-hosted runner is a fresh virtual machine in GitHub's cloud. It cannot reach a team's private network, so a Zetaris or a Nightshift that is not reachable from the internet is out of its reach. There Proven runs in sample mode, or against endpoints the team makes reachable.
-- GitHub *"recommend[s] that you only use self-hosted runners with private repositories"*, because *"forks of your public repository can potentially run dangerous code on your self-hosted runner machine"*. So, for Proven's own public repository: its workflow runs on GitHub-hosted runners in sample mode, and live reviews with our Zetaris and Nightshift run in the Gitea lab or in private repositories on our own runners. The documentation tells teams the same: a self-hosted runner for live mode, never for pull requests from forks of a public repository.
+- A GitHub-hosted runner is a fresh virtual machine in GitHub's cloud. It cannot reach a team's private network, so a Zetaris or a Nightshift that is not reachable from the internet is out of its reach, and any model key it uses has to be stored as a GitHub secret.
+- GitHub *"recommend[s] that you only use self-hosted runners with private repositories"*, because *"forks of your public repository can potentially run dangerous code on your self-hosted runner machine"*.
+
+The owner (translated from Polish): *"But self-hosted too. Not everyone will want to hand over their model API keys. Locally too, or even above all."*
+
+**So the self-hosted runner is Proven's primary way to run live, and the GitHub-hosted runner the secondary one:**
+
+| | self-hosted runner (primary) | GitHub-hosted runner |
+|---|---|---|
+| models and keys | stay on the team's own network: Nightshift and local models, no key in GitHub | the team's keys as GitHub secrets, or sample mode |
+| Zetaris, Nightshift | reached on the private network | only what is reachable from the internet |
+| the same workflow | yes: only `runs-on:` differs | yes |
+
+**The protections a self-hosted runner needs, because Proven runs the code under review** (its Prover runs tests on the change). The documentation sets them out, and Proven's own public repository uses them:
+
+1. **One job per runner, then gone**: the runner is registered as ephemeral, in its own virtual machine, so nothing a job leaves behind reaches the next.
+2. **Pull requests from forks wait for a maintainer** before any job runs, with GitHub's setting that requires approval to run workflows from outside contributors.
+3. **The runner holds no secret beyond what the review needs**: Proven's own tokens, scoped to Proven, never a deploy key or a cloud credential.
+4. **The runner's network reaches only what the review needs**: the Zetaris and Nightshift endpoints, the package registries; nothing else on the private network.
+5. **A team that cannot meet these keeps live mode for private repositories**, as GitHub recommends.
 
 ### 7. Comments on the pull request, through reviewdog
 
