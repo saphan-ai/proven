@@ -2,7 +2,7 @@
 
 **Status:** accepted · **Date:** 2026-10-20
 **Decided by:** the owner · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-20
-**Amended by:** [ADR-0020](ADR-0020-proven-command-line-and-action-interface.md), point 7 (2026-10-21): the comments of point 4 are posted by reviewdog from Proven's SARIF, not by an adapter of Proven's own
+**Amended by:** [ADR-0020](ADR-0020-proven-command-line-and-action-interface.md), point 7 (2026-10-21): the comments of point 4 are posted by reviewdog from Proven's SARIF, not by an adapter of Proven's own · [ADR-0022](ADR-0022-gitea-on-premises-is-an-equal-scenario.md) (2026-10-21): Gitea on premises is a scenario equal to GitHub; this lab is that scenario, packaged
 **Follows:** [ADR-0001](ADR-0001-go-behind-adapters.md) (adapters and sample mode), [ADR-0016](ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md) (the pipeline shape)
 **Trigger:** the owner, on what the judges receive ([`planning/CONVERSATION_2026-10-20.md`](../../planning/CONVERSATION_2026-10-20.md), hop 7)
 

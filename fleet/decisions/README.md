@@ -35,6 +35,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0019](ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) | Meterless Nightshift is the primary AI provider; NVIDIA's models through it by default; other routes stay settings | accepted, 2026-10-21 |
 | [0020](ADR-0020-proven-command-line-and-action-interface.md) | the exact command line, GitHub Action inputs and outputs, and exit codes, taken from Semgrep and the Opengrep action; self-hosted runners first; comments through reviewdog | accepted, 2026-10-21 |
 | [0021](ADR-0021-a-self-hosted-runner-demo-set-up-by-one-script.md) | a demo with a self-hosted GitHub runner in Docker; one script connects it to a judge's repository from its name and a token | accepted, 2026-10-21 |
+| [0022](ADR-0022-gitea-on-premises-is-an-equal-scenario.md) | Gitea on the team's own premises is a scenario equal to GitHub; the judges' lab is that scenario, packaged | accepted, 2026-10-21 |
 
 **Rules for an ADR**
 

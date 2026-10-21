@@ -27,7 +27,7 @@ The final warm-up before the start.
 | what | status | where |
 |---|---|---|
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
-| The design, as recorded decisions | 19 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
+| The design, as recorded decisions | 22 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
 | Machines for the coding agents | in progress: the new machine runs with one Cursor seat; Cursor agents cannot yet run unattended | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) · [status](fleet/status/STATUS_proven-cursor-infra.md) |
 | A local NVIDIA safety model | in progress: running on our own machine; three of four checks pass, the fourth waits for one server setting | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) · [status](fleet/status/STATUS_nemotron-content-safety.md) |
 | A test corpus from 28 real review disagreements | 21 case contracts written, case code not built yet; declared prior art | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |

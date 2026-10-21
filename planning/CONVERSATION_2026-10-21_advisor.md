@@ -118,6 +118,12 @@ Participants report that the sponsor folders ask for each sponsor's use to be de
 
 **What the advisor did.** [ADR-0020](../fleet/decisions/ADR-0020-proven-command-line-and-action-interface.md) is accepted. Its point 7 amends [ADR-0017](../fleet/decisions/ADR-0017-a-gitea-lab-for-the-judges.md): in the judges' lab, reviewdog posts the review's comments from Proven's SARIF, the same way it does on GitHub, so Proven needs no comment code of its own. ADR-0017 carries a line that points to the change; its text is otherwise unchanged.
 
+### 15 · owner → advisor: Gitea on premises, as an equal
+
+> *"Exactly so. But Gitea as an equal on-premises scenario. That is important. Not everyone has their source code on the internet."* (translated from Polish)
+
+**What the advisor did.** It wrote [ADR-0022](../fleet/decisions/ADR-0022-gitea-on-premises-is-an-equal-scenario.md): GitHub and Gitea on a team's own servers are two equal scenarios, with the same workflow file, comments through reviewdog on both, and everything except an optional hosted model call kept on the team's network. The judges' lab is the Gitea scenario, packaged, and both scenarios are rehearsed before every daily push. ADR-0017 and ADR-0021 carry a line that points to the change.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

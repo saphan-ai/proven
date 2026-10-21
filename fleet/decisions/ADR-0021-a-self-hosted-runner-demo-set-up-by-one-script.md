@@ -3,6 +3,7 @@
 **Status:** accepted · **Date:** 2026-10-21
 **Decided by:** the owner · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-21
 **Follows:** [ADR-0020](ADR-0020-proven-command-line-and-action-interface.md) (the self-hosted runner as the primary live path), [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md) (the Gitea lab)
+**Amended by:** [ADR-0022](ADR-0022-gitea-on-premises-is-an-equal-scenario.md), point 9: Gitea is not only for judges without a GitHub account; it is an equal, on-premises scenario
 **Trigger:** the owner, on showing the self-hosted runner to the judges ([`planning/CONVERSATION_2026-10-21_advisor.md`](../../planning/CONVERSATION_2026-10-21_advisor.md), hop 13)
 
 ## Context
