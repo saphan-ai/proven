@@ -38,6 +38,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0022](ADR-0022-gitea-on-premises-is-an-equal-scenario.md) | Gitea on the team's own premises is a scenario equal to GitHub; the judges' lab is that scenario, packaged | accepted, 2026-10-21 |
 | [0023](ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) | evidence sources are Zetaris REST tables an administrator registers and Proven's own key reads live; OSV by package needs another path | accepted, 2026-10-21 |
 | [0024](ADR-0024-every-cursor-coding-session-is-recorded-and-published.md) | every coding session of a Cursor agent on Proven is recorded, and the recording is published here, blacked out | accepted, 2026-10-21 |
+| [0025](ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md) | the Prover runs the change's code in a container with no network and no secret; with no container runtime it runs no code | accepted, 2026-10-21 |
 
 **Rules for an ADR**
 

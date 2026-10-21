@@ -27,7 +27,7 @@ The final warm-up before the start.
 | what | status | where |
 |---|---|---|
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
-| The design, as recorded decisions | 24 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
+| The design, as recorded decisions | 25 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
 | Machines for the coding agents | ready on Linux: four Cursor seats on one machine, three agents measured running at once, behind the recording proxy with outgoing traffic closed; a seat in a container and seats on macOS are not ready yet |  [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) · [status](fleet/status/STATUS_proven-cursor-infra.md) |
 | Recording every Cursor coding session | decided; the recording is built in Saphan Studio's Cursor backend now, and every recording will be published here | [ADR-0024](fleet/decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md) |
 | Zetaris, the sponsor's data platform, on our own machine | running; the evidence sources explored (CISA KEV, FIRST EPSS, OSV), no data stored yet | [order](fleet/orders/TRAIN_ORDER_proven-zetaris-local.md) · [status](fleet/status/STATUS_proven-zetaris-local.md) · [ADR-0023](fleet/decisions/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) |

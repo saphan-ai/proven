@@ -190,6 +190,18 @@ Two acts stay with the owner after the train closed: the question to Meterless, 
 
 **What the advisor did.** No reminder was set. Stopping the VM after 6 November is the owner's act, and the owner keeps it.
 
+### 26 · owner → advisor: act
+
+> *"Act."* (translated from Polish)
+
+**What the advisor did.** It found that the build had an order for Proven's outer shell but none for the reviewer itself, and wrote the train order [`proven-reviewer-core`](../fleet/orders/TRAIN_ORDER_proven-reviewer-core.md): the whole review end to end in sample mode first, then each part made real. The owner signed it.
+
+### 27 · owner → advisor: a second master, and where the Prover runs code
+
+> *"R1: we can have a new master. Give me a kickoff paste for him. R2: OK."* (translated from Polish)
+
+**What the advisor did.** It wrote [ADR-0025](../fleet/decisions/ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md): the change's code runs only in a container with no network and no secret, and where there is no container runtime the Prover runs no code. It wrote the kickoff for the new master of the reviewer train.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.
