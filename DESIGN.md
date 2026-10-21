@@ -45,6 +45,60 @@ Proven hardcodes no settings ([ADR-0013](fleet/decisions/ADR-0013-no-hardcoded-s
 
 [ADR-0006](fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) adds a second, narrower independence inside one review: the Skeptic that tries to refute a finding comes from a different model family from the agent that made it.
 
+## Sponsor technology, in two pictures
+
+**How Proven is built** (22–27 October 2026):
+
+```
+  owner ──decides──▶ master ──one order per change──┐
+    ▲                                               ▼
+    │                         ┌───────────────────────────────────────┐
+    │                         │ CURSOR                       (Build)  │
+    │                         │ Cursor agents on Cursor's own models  │
+    │                         │ write Proven's Go code and run tests  │
+    │                         └───────────────────┬───────────────────┘
+    │                                             ▼
+    │   ┌──────────────────── Proven's repository ────────────────────┐
+    │   │ METERLESS ENGINES, implemented in Go                        │
+    │   │   H-MEM ............ memory store, retrieval                │
+    │   │   World Model ...... world store, ingest, context builder   │
+    │   │   checked by Meterless's own conformance suites             │
+    │   │ ZETARIS adapter .... tested against our Zetaris platform    │
+    │   │ NIGHTSHIFT adapter . tested against our Nightshift          │
+    │   └─────────────────────────────┬───────────────────────────────┘
+    │                                 ▼
+    │                 the agent's report: model, run id, tests
+    │                                 ▼
+    └──merges── a review by another model, in a fresh context
+```
+
+**How Proven uses it** (one pull-request review):
+
+```
+  pull request ──▶ proven ci   (GitHub Action · Gitea Actions · command line)
+                       │
+  ┌────────────────────▼─────────── Proven's agents ─────────────────────┐
+  │ Planner ─▶ Investigator ─▶ Prover ─▶ Skeptic ─▶ Judge ─▶ Writer      │
+  │    ▲                                               │                 │
+  │    └──────────── weak finding: back for evidence ──┘                 │
+  └──────┬──────────────────────┬──────────────────────────┬─────────────┘
+         │ SQL over REST        │ every model call         │ read · write
+         ▼                      ▼                          ▼
+  ┌──────────────┐  ┌──────────────────────────┐  ┌──────────────────────┐
+  │ ZETARIS      │  │ METERLESS NIGHTSHIFT     │  │ METERLESS ENGINES    │
+  │ (Data)       │  │ primary AI provider      │  │ H-MEM: refuted       │
+  │  OSV         │  │ (Power)                  │  │  findings, rulings   │
+  │  CISA KEV    │  │   └─▶ NVIDIA NEMOTRON    │  │ World Model: claims, │
+  │  FIRST EPSS  │  │       reviewer, Skeptic  │  │  evidence, verdicts  │
+  │  git history │  │                          │  │                      │
+  └──────┬───────┘  └──────────────────────────┘  └──────────┬───────────┘
+         │ the query and its rows                            │ JSONL
+         ▼                                                   ▼
+  every finding with its evidence ─▶ SARIF · JSON · text · PR comment, logs/
+
+  NVIDIA Nemotron 3.5 Content Safety checks every prompt and every answer.
+```
+
 ## In a pipeline, and in the judges' lab
 
 proven drops into a pipeline in place of a scanner such as Semgrep or Opengrep ([ADR-0016](fleet/decisions/ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md)). It has `proven scan` for a local run and `proven ci` for a pipeline, which on a pull request reviews only the change. The flags keep Semgrep's names where they mean the same: `--text` (the default), `--json` and `--sarif`, each with a `--<format>-output=<file>` twin, `--error`, `--baseline-commit`. The exit codes keep Semgrep's numbers: 0 OK, 1 findings, 2 a fatal error. Every finding carries its evidence in every format, SARIF included, so the proof reaches a code-scanning dashboard with the finding. proven ships as a container image and as a GitHub Action.
