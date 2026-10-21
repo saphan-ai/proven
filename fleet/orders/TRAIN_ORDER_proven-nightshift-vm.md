@@ -97,6 +97,13 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   (VM restarted without `--no-clipboard`, the key pasted, the VM restarted with it; measured afterwards: running with
   `--no-clipboard`). The lanes' model names are owed by the owner. Runtime measured listening on `127.0.0.1:8088`
   (NS-A4, NS-A5 hold); a `meterless` process also listens on `*:8089`, which W4 must account for.
+- **NVIDIA provider, as Nightshift shows it (pasted by the owner 2026-10-21):** "verified on the next routed request ·
+  12 hosted models registered · trial credits + a per-minute cap on the account · not unlimited · unknown spend once
+  credits are gone". remark: so every NVIDIA-routed request may cost once the trial credits end — W5 stays one request,
+  run with the owner's consent at the call (law #49).
+- **Measured inside the VM (master, 2026-10-21):** `GET 127.0.0.1:8088/v1/models` with no token → 401 `unauthorized`;
+  with a wrong token → 401. `127.0.0.1:8089/` → 200 with no token, and that port listens on all of the guest's
+  interfaces; what it serves is not yet read (W4 reads it before anything is exposed).
 - **master-was-wrong:** —
 
 ### W4 · `nightshift-reachable-on-the-private-network` — the runtime on the tailnet only
