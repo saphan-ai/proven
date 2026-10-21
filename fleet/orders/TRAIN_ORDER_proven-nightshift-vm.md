@@ -110,6 +110,9 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   modes and the `local-runtime/` catalogue. remark: listing a name proves it is addressable, not that a request to it is
   not re-routed — W5 reads the model the response names. **master-was-wrong (the advisor's word "lanes"):** Nightshift's
   `lanes.toml` holds its LOCAL llama.cpp lanes only (7, declaring ~8 GB active in an 8 GiB VM); NVIDIA is not a lane there.
+- **REOPENED by W5 (2026-10-21):** a named model is not a pin while the app `proven` runs under policy `auto`
+  (`app_policy.lanes null`, `requested_mode auto`). Owed: find Nightshift's per-app setting that honours the requested
+  model (or a mode that does), set it, and show a receipt whose `routed_model` equals `requested_model`.
 - **The runtime token** is the `proxy-token` file in Nightshift's state directory inside the VM (the Nightshift CLI
   reads it from there, `transport.mjs` resolveToken); it is never printed.
 - **master-was-wrong:** —
@@ -138,7 +141,13 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 - **what:** from runner-cursor, one `POST /v1/chat/completions` to a pinned Nemotron lane, with the headers of NS-A4.
 - **dod:** the answer and the model Nightshift reports for it, pasted; it is a Nemotron model.
 - **Unplug test (law #41):** stop the VM; the same request fails with a named connection error, not an empty answer.
-- **master-was-wrong:** —
+- **result (2026-10-21, evidence in `EVIDENCE_W5_2026-10-21.md`):** three refusals first (`nvidia_401`: Providers held the
+  key's UUID, not its `nvapi-` value); then **answered** at 13:35:42Z, Nightshift's signed receipt `rcpt_req_xaswpcmb`:
+  provider `nvidia`, cloud, **routed to `nvidia/nemotron-3-ultra-550b-a55b` although `nemotron-3.5-lightning-30b-a3b` was
+  named** (app policy `auto`), 39 tokens, 0 USD. Unplug: VM stopped → `curl: (28) Connection timed out after 60002 ms`;
+  restarted, the runtime answers again. **W5 DONE** (it is a Nemotron model). **Owed:** the pin — W3 is reopened for it.
+- **master-was-wrong:** the master expected naming the model in the request to pin it; Nightshift's `auto` policy for the
+  app overrode it (measured).
 
 ### W6 · `nightshift-runbook-and-record` — the runbook and the public record
 - **what:** the human ceremony of W1–W4 as a numbered runbook in proven, `fleet/infra/nightshift-vm.md`, including what
