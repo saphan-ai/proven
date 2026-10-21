@@ -202,6 +202,20 @@ Two acts stay with the owner after the train closed: the question to Meterless, 
 
 **What the advisor did.** It wrote [ADR-0025](../fleet/decisions/ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md): the change's code runs only in a container with no network and no secret, and where there is no container runtime the Prover runs no code. It wrote the kickoff for the new master of the reviewer train.
 
+### 28 · owner → advisor: the NVIDIA review through another harness
+
+> *"We have a problem with agent-loop, which does not support egress yet. My idea: in codex or qwen we configure a custom endpoint to Nightshift and go with one of those harnesses. Look in the documentation for how to do it."* (translated from Polish)
+
+**What the advisor did.** It read the documentation. Codex now speaks only OpenAI's Responses API, and Nightshift documents only Chat Completions, so codex was out. qwen-code speaks Chat Completions, takes custom headers officially, and Saphan Studio's engine already routes a qwen custom provider through its recording proxy. The owner chose qwen, on strix, declared as a subscription seat (*"we have free developer access"*). The same night the review ran: four signed Nightshift receipts, provider NVIDIA, model Nemotron 3.5 Super VL.
+
+### 29 · advisor → owner: one upstream for every qwen seat
+
+Before the first review, the advisor found that the engine's guardrail sends every qwen seat to one upstream, not one per seat. With the new seat beside the old qwen seats, one seat's credential would be forwarded to the other seat's provider. The owner chose to hold every other qwen seat while the upstream points at Nightshift, and to fix it properly in the engine:
+
+> *"Tomorrow we fix qwen quickly, and then we migrate step by step to our own agent-loop, which is where we are heading."* (translated from Polish)
+
+> *"We will run the reviews in parallel. A waste of time to do them one after another!"* (translated from Polish)
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.
