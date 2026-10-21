@@ -3,8 +3,8 @@
 - master: MASTER, the master of `proven-cursor-infra`, appointed to this train by the owner on 2026-10-21
 - status: ACTIVE — written by the advisor on 2026-10-21, amended by the master the same day (§1a, W1, N4); the owner signs it
 - track: proven-nightshift-vm
-- original: the fleet's record (this copy is the same text)
-- repo: proven (public record and the runbook), saphan-infra (the VM's brief and report)
+- original: the fleet's record (this copy is the same text, with the blackouts listed at the end)
+- repo: proven (public record and the runbook), ████████████ (the VM's brief and report)
 - base: main at the cut
 - author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
 
@@ -122,6 +122,14 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   proven; it is never written into a repository.
 - **dod:** from runner-cursor, `GET /v1/models` answers with the token. **Negative controls (law #27):** the same call
   with one character of the token changed is refused; from a machine outside the tailnet, the port does not answer.
+- **result (2026-10-21):** the owner saved the fenced tailnet ACL (its `tests` block passed, so the console accepted it);
+  fleet reach re-measured from macm5 afterwards: TCP 22 answers on every online node and on the ███████████████
+  subnet route, runner-cursor → macm5 answers. The owner's script joined the VM as node `nightshift` (█████████████,
+  tag `tag:nightshift`, Tailscale 1.104.1 from Homebrew in the VM) and serves its tcp:8088 to 127.0.0.1:8088.
+  **Measured by the master:** runner-cursor → nightshift:8088 open, no token → 401; → 8089 closed; → 22 closed. macm5 →
+  8088 open, 8089 closed. █████ (outside the grant) → 8088 closed. From the VM: TCP 22 on runner-cursor, macm5, █████,
+  macmini and the Zetaris host over the tailnet: closed; the internet: 200. **Owed:** the token on runner-cursor and
+  macm5 (the owner's script, rehearsed) and the 200 / one-character-changed 401 pair it measures.
 - **master-was-wrong:** —
 
 ### W5 · `a-nemotron-request-answers` — one Nemotron request answers
@@ -188,3 +196,15 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 - The VM and Nightshift: local energy, a named zero.
 - Each Nemotron request through NVIDIA's hosted API is priced by NVIDIA's terms for the key, and runs only with the
   owner's consent at the call (law #49). W5 is one request.
+
+## REDACTED
+
+Parts of this file are blacked out (█). Nothing else was changed, except the `master` line (the seat is left out).
+
+macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17.
+
+| what was blacked out | times | what it was |
+|---|---|---|
+| machine names | 2 | the machine that runs our local models |
+| private repository names | 1 | our infrastructure repository |
+| network addresses | 2 | tailnet addresses and the private subnet |
