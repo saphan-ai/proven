@@ -217,6 +217,17 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   llama-3.2-3b-instruct` — **deep routed proven's request to the LOCAL 3B lane**, which had loaded (`worker`, 1 slot,
   1–2 tok/s, task 576 from request 1 still decoding past 600 tokens). **master-was-wrong:** "N7 (b) holds by accident" —
   it did not; the parked lane loaded. The owner stopped the runtime afterwards. ⇒ (a) is needed whatever (b) does.
+  **N7 decided by the owner 2026-10-21 ("tak, wszystkie 3"):** (a) written into proven's ADR-0019, amendment 1 (proven
+  383898c): a review not answered by `nvidia/*`, or without a receipt, is refused. (b) the owner left ONE NVIDIA model
+  active in Providers, `nvidia/nemotron-3.5-super-vl-120b-a12b` ("tylko 1 3.5 Super VL"); measured in
+  `state/setpoints.json`: 8 NVIDIA models disabled, **0 local models disabled**, `llama-server` still serving
+  `Llama-3.2-3B-Instruct` — the Providers tab governs cloud rows only, so the local lanes are still owed. (c) app mode back
+  to `auto`: owed (`app-policy.json` still `text.deep`).
+  **Then (14:20Z, measured):** mode `auto`; `local-runtime/llama-3.2-3b-instruct` disabled, no `llama-server`; inventory
+  1/160 active. Two non-streamed calls failed (`…_empty_response` at 16 tokens; `provider_deadline` — Nightshift's
+  `CLOUD_FETCH_DEADLINE_MS = 45_000` on time-to-headers, `providers.js:265`). **Streamed at 14:25:35Z: answered `'ready'`
+  by `nvidia/nemotron-3.5-super-vl-120b-a12b`, receipt `rcpt_req_k67ooqsx`, requested = routed. N7 DONE; W3 DONE** (the
+  pin is the inventory, the guarantee is the receipt check). **Owed to proven's build:** every Nightshift call streams.
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
