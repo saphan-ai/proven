@@ -107,7 +107,7 @@ Proven is open source, and one part of it will also be used inside Saphan Studio
 ## Not known yet
 
 - **Zetaris, in practice.** Access arrived on 20 October: a hosted instance, and the whole platform as a Docker Compose stack, which we are setting up on a machine of our own ([order](fleet/orders/TRAIN_ORDER_proven-zetaris-local.md)). proven reaches it through its REST API, so proven carries no Java ([ADR-0015](fleet/decisions/ADR-0015-zetaris-through-its-rest-api.md)). Neither instance has been called from our side yet.
-- **Meterless keys.** The organizers' example settings name a Meterless API key. The public Meterless repository describes no hosted service and needs no key. We will ask on the sponsor's help channel.
+- **Meterless, settled on 21 October.** The sponsor's guide says the engines are reference architectures that each team implements in its own language, with no hosted service and no key, which is what [ADR-0003](fleet/decisions/ADR-0003-meterless-engines-in-go.md) does. Every engine calls models only through one injected generator function, and writes its audit, traces and provenance as JSONL in `logs/`.
 - **The hosted guardrail, in detail.** NVIDIA's model page names the endpoint and the answer format, but its code sample leaves the model id blank, and it states no free tier and no rate limit. The first live call settles both.
 - **The conformance adapter.** Whether a Go engine passes Meterless's suites through a TypeScript adapter is the first thing we measure.
 - **The checks of each review class.** Saphan Studio's classes are adopted ([ADR-0012](fleet/decisions/ADR-0012-review-classes-as-in-saphan-studio.md)); what each one checks in proven is built from 22 October.
