@@ -18,6 +18,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 18 October 2026 | [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md) | a local NVIDIA guardrail model, made public and on by default in proven |
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
 | 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
+| 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model |
 
 ---
 
@@ -109,3 +110,20 @@ Page: [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md)
 | [5](CONVERSATION_2026-10-20.md#5--owner--advisor-we-have-zetaris) | owner → advisor | Zetaris access arrives: a hosted instance and a local Docker stack; REST needs no Java, so it suits proven's Go adapter. |
 | [6](CONVERSATION_2026-10-20.md#6--owner--advisor-our-own-local-cluster) | owner → advisor | A train order for our own Zetaris platform: eight wagons, nine claims to test, four decisions for the owner. |
 | [7](CONVERSATION_2026-10-20.md#7--owner--advisor-three-decisions-and-how-proven-reaches-its-users) | owner → advisor | ADR-0015 Zetaris over REST; ADR-0016 a drop-in for Semgrep and Opengrep with text, JSON and SARIF; ADR-0017 a Gitea lab for the judges. |
+
+## 21 October 2026 — the infrastructure master
+
+Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
+
+| hop | who → whom | what happened |
+|---|---|---|
+| [1](CONVERSATION_2026-10-21.md#1--owner--master-the-appointment) | owner → master | The appointment: infrastructure master of both trains; re-measure, sign both orders together, owner acts as scripts, English with blackouts. |
+| [2](CONVERSATION_2026-10-21.md#2--master--owner-the-claims-re-measured) | master → owner | A1–A16 and N1–N9 re-measured; no data host admitted for Cursor, backups disabled, a gateway lane already exists. Both orders signed. |
+| [3](CONVERSATION_2026-10-21.md#3--owner--master-save-the-progress) | owner → master | Save the progress in the train's documentation: the fleet record, the status pages, this page. |
+| [4](CONVERSATION_2026-10-21.md#4--master--the-machine-runner-cursor-is-created) | master → the machine | runner-cursor created (4 vCPU, 8 GiB, 120 GB); the model machine is a tailnet member after all. |
+| [5](CONVERSATION_2026-10-21.md#5--master--the-machine-the-toolchain-and-the-first-seat) | master → the machine | The toolchain (W3) installed; runner-cursor admitted; one Cursor seat logged in on Linux. |
+| [6](CONVERSATION_2026-10-21.md#6--owner--master-run-w6) | owner → master | The smoke turn: no sandbox for Cursor, and a refused shell. Both fixes landed on 21 October and wait for the reinstall. |
+| [7](CONVERSATION_2026-10-21.md#7--owner--master-what-are-you-waiting-for) | owner → master | Every open item with a recommendation; the owner accepted them and allowed runner-cursor's DNS name. |
+| [8](CONVERSATION_2026-10-21.md#8--owner--master-you-may-do-q2) | owner → master | The memory measurement crashed the guardrail host; the worst case does not fit; Llama-Guard-3-8B leaves the warm set. |
+| [9](CONVERSATION_2026-10-21.md#9--master--owner-the-image-and-the-guardrail-model) | master → owner | The Go + Python image built; Nemotron fetched, verified and warm; three probes judge, the fourth needs one server flag. |
+| [10](CONVERSATION_2026-10-21.md#10--owner--master-update-the-repository) | owner → master | This page and both status pages. |

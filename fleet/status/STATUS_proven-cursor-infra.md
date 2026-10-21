@@ -7,7 +7,7 @@
 - cost: not measured — an interactive master session; no priced act has run
 - duration: not measured
 - last commit: 5e78a31 "[proven-cursor-infra] [nemotron-content-safety] public copies follow the amended train orders (2026-10-19)"
-- updated: 2026-10-21 (W4 built)
+- updated: 2026-10-21 (W4 built; both engine fixes for Cursor landed)
 
 ## Summary
 runner-cursor exists, carries the toolchain and is admitted to the fleet with one logged-in Cursor seat. One Cursor turn
@@ -50,6 +50,8 @@ Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they lan
     Image ID `sha256:d282b9ee1390b029a8567adf49117fa0c7448b09edaab1cbd874b4f0ecf9135b`; base image ID
     `sha256:36ac52c9ec887c2223b1dcda83cc857a7b64aea10e0560cf9fafa56c4ff67ac7`. The native lane has the same Go, the same
     Python minor and the same Node major; only gcc differs (13.3 natively).
+16. 2026-10-21: both engine fixes for Cursor (a sandbox for Cursor runs, and the agent's shell) landed. They wait for the
+    fleet's reinstall. The owner re-signed the W6 order.
 
 ## Wagon state
 | wagon | state | next |
