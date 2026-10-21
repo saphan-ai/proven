@@ -18,6 +18,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 18 October 2026 | [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md) | a local NVIDIA guardrail model, made public and on by default in proven |
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
 | 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
+| 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the test corpus as the Cursor agents' shake-out before the build |
 | 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model |
 
 ---
@@ -128,3 +129,12 @@ Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
 | [9](CONVERSATION_2026-10-21.md#9--master--owner-the-image-and-the-guardrail-model) | master → owner | The Go + Python image built; Nemotron fetched, verified and warm; three probes judge, the fourth needs one server flag. |
 | [10](CONVERSATION_2026-10-21.md#10--owner--master-update-the-repository) | owner → master | This page and both status pages. |
 | [8](CONVERSATION_2026-10-20.md#8--owner--advisor-one-machine-for-the-containers) | owner → advisor | One new machine beside the runner for Zetaris and the lab rehearsal; the owner holds the platform's registration key. |
+
+## 21 October 2026 — the day before the build
+
+Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
+
+| hop | who → whom | what happened |
+|---|---|---|
+| [1](CONVERSATION_2026-10-21.md#1--owner--advisor-the-test-suite-on-cursor) | owner → advisor | The test corpus's code built on Cursor today, as the rehearsal before the build. |
+| [2](CONVERSATION_2026-10-21.md#2--owner--advisor-warm-them-up-and-find-the-bugs-today) | owner → advisor | Every run has a fresh context; find the adapter's bugs today; a shake-out checklist for the master. |
