@@ -81,18 +81,20 @@ Cursor agent's own bundled Node 24, so the owner chose Node 24 everywhere: the b
 | W3 `runner-cursor-toolchain` | done 2026-10-20 | — |
 | W4 `proven-go-python-image` | done 2026-10-21, image built and checked | — |
 | W5 `cursor-seats-admitted` | runner-cursor: one seat admitted and logged in; macm5: key needed (D3) | the macm5 seat after D3 |
-| W6 `cursor-seats-smoke-turn` | ran once on 2026-10-20: the agent answers, its shell is refused. 2026-10-21, on the reinstalled engine: refused before the turn (seat usage unmeasured; class files missing in a reused far work directory) | the fleet's reinstall with the Cursor backend train's W22, then W6 again |
+| W6 `cursor-seats-smoke-turn` | **2026-10-21: the Cursor turn ran behind the guardrail proxy with egress closed and was recorded live.** The agent reached the model only through the proxy, answered, and measured the toolchain (Go 1.26.8 with cgo, Python 3.13, Node 24.5, npm, gcc 13). The owner watched the session being recorded live in the console. `curl` is refused by the build class by design, so egress is W8's | — |
 | W7 `proven-public-infra-record` | the public train order is current | goes with each wagon |
-| W8 `cursor-legs-reach-data-hosts` | measured from the egress policy: no data host is admitted today; the live reading failed, because the shell was refused | the shell fix; R1, item 3 |
+| W8 `cursor-legs-reach-data-hosts` | 2026-10-21: the first run behind the proxy failed before the model turn (the agent spoke HTTP/2 to a proxy that speaks HTTP/1.1; fixed in the seat's settings the same hour). The rerun, egress closed, is running | the rerun's reading of the nine data hosts |
 | W9 `proven-judge-rehearsal` | not started | waits for W4 and D4 |
 
 ## Blocked on / next
-- **Blocked:** the fleet's reinstall with the Cursor backend train's W22 (`cursor-far-reuse-packs`). The earlier two fixes
-  (a sandbox for Cursor runs, and the agent's shell) landed and are installed. The dispatch path that reads seat usage
-  still refuses the Cursor seat, because Cursor usage is not measured.
-- **Owed by the owner:** the wiring choice for runner-cursor (DNS name and monitor); the Cursor usage reading before and
-  after the W6 turn, because the engine has no price for its model; decisions D1–D6 (train order §3).
-- Nothing is running now.
+- **2026-10-21, the milestone:** Cursor legs no longer need the owner's per-run egress approval. The Cursor backend
+  train put every Cursor leg behind the guardrail proxy, so the sandbox keeps egress closed, the model is reached through
+  one recorded path, and every turn is recorded (ADR-0024). Measured on runner-cursor with W6; the first attempt failed on
+  an HTTP/2-versus-HTTP/1.1 mismatch, fixed in the seat's settings.
+- **Running:** W8, the egress reading by the Go program, behind the proxy.
+- **Owed by the owner:** the wiring choice for runner-cursor (DNS name and monitor); decisions D1–D6 (train order §3).
+- **Found on the way:** re-signing an unchanged order with the train's delegate key does not free a new placement; the
+  owner re-signs as a person until it is fixed.
 
 ## REDACTED
 | kind | count |

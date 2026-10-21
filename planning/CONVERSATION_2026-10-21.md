@@ -223,6 +223,16 @@ Option (b) was: the administrator account registers the sources as definitions, 
 - **OSV by package and the repository's history** as evidence: not measured on Zetaris (ADR-0023).
 - **The uptime monitor for runner-cursor:** the owner's consent was not asked yet.
 
+## Evening — the first Cursor turn behind the proxy, recorded live
+
+- The Cursor backend train landed its wagon that puts every Cursor leg behind the guardrail proxy; the scribe installed it
+  on macm5 and runner-cursor. The owner: *"lec"* ("go").
+- The first leg behind the proxy failed before the model turn: Cursor dialled the proxy over HTTP/2, the proxy speaks
+  HTTP/1.1. The Cursor master found it and fixed the seat's setting within the hour.
+- The rerun (W6, egress closed, Grok 4.7) answered through the proxy. The owner, watching the console: *"widzę sesje w
+  konsoli i live recording!!!!!! :)"* ("I can see the sessions in the console and live recording!"), then *"Zapisz to w
+  proven"* ("write it down in proven").
+
 ## REDACTED
 
 Parts of this file are blacked out (█) or rewritten in neutral words. Nothing else in the quoted text was changed.
