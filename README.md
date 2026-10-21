@@ -20,7 +20,7 @@ That work led to patent applications, filed in the U.S. and Europe and still pen
 
 Now that fleet takes on something new. At the hackathon it will build **Proven**, an open-source tool for checking code of the kind it writes itself.
 
-## Where things stand, 20 October 2026
+## Where things stand, 21 October 2026
 
 The final warm-up before the start.
 
@@ -29,7 +29,7 @@ The final warm-up before the start.
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
 | The design, as recorded decisions | 19 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
 | Machines for the coding agents | in progress: the new machine runs with one Cursor seat; Cursor agents cannot yet run unattended | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) · [status](fleet/status/STATUS_proven-cursor-infra.md) |
-| A local NVIDIA safety model | in progress: the memory fit is tight on paper and waits for a measurement under load | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) · [status](fleet/status/STATUS_nemotron-content-safety.md) |
+| A local NVIDIA safety model | in progress: running on our own machine; three of four checks pass, the fourth waits for one server setting | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) · [status](fleet/status/STATUS_nemotron-content-safety.md) |
 | A test corpus from 28 real review disagreements | 21 case contracts written, case code not built yet; declared prior art | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
 | Building Proven | starts 22 October, 00:00 UTC | |
 | Public updates | daily, 15:00 UTC | this repository |
@@ -52,10 +52,37 @@ Passing tests do not always prove what they claim to prove. A reviewer that asks
 
 - **Every finding carries evidence.** A test that fails on the change and passes without it, or a recorded query and its results, with sources. This applies to every finding, including when two reviewers agree. Agreement is never a substitute for proof.
 - **The reviewer should come from a different AI model family than the one that wrote the code.** A reviewer from the same family tends to share the author's assumptions; another family can challenge them. The change's own commit or pull request says which model wrote it, and by default an NVIDIA model reviews it. Every model is configurable, and no setup is blocked; each review says which model reviewed it and whether that is the author's.
-- **For special kinds of review, such as security, two independent reviews.** Best with two models other than the author's; with fewer, the second review is a fresh agent that sees the code for the first time. In the fleet's own record, reviewers from two model families looked at the same change within 30 minutes 41 times, and reached different verdicts 31 times ([source](planning/answers/README.md)). That is an observation from one fleet, not a benchmark, but it shows why a second opinion is worth having.
+- **For special kinds of review, such as security, two independent reviews.** Best with two models other than the author's; with fewer, the second review is a fresh agent that sees the code for the first time. In the fleet's own record, reviewers from two model families looked at the same change within 30 minutes and left a readable verdict 40 times, and reached different verdicts 28 times ([source](planning/answers/README.md); first published as 31 of 41, corrected on 19 October). That is an observation from one fleet, not a benchmark, but it shows why a second opinion is worth having.
 - **When reviews conflict, the evidence decides, not a vote.** Both sides' evidence is examined: what it actually establishes, what it assumes, and whether it reproduces. What stays unresolved is reported as unresolved, and a person decides.
 
 Proven will not prove a whole program correct or find every vulnerability. It makes each claim it does make checkable.
+
+How one review is meant to run, and where each sponsor's technology does the work:
+
+```
+  pull request ──▶ proven ci   (GitHub Action · Gitea Actions · command line)
+                       │
+  ┌────────────────────▼─────────── Proven's agents ─────────────────────┐
+  │ Planner ─▶ Investigator ─▶ Prover ─▶ Skeptic ─▶ Judge ─▶ Writer      │
+  │    ▲                                               │                 │
+  │    └──────────── weak finding: back for evidence ──┘                 │
+  └──────┬──────────────────────┬──────────────────────────┬─────────────┘
+         │ SQL over REST        │ every model call         │ read · write
+         ▼                      ▼                          ▼
+  ┌──────────────┐  ┌──────────────────────────┐  ┌──────────────────────┐
+  │ ZETARIS      │  │ METERLESS NIGHTSHIFT     │  │ METERLESS ENGINES    │
+  │ (Data)       │  │ primary AI provider      │  │ H-MEM: refuted       │
+  │  OSV         │  │ (Power)                  │  │  findings, rulings   │
+  │  CISA KEV    │  │   └─▶ NVIDIA NEMOTRON    │  │ World Model: claims, │
+  │  FIRST EPSS  │  │       reviewer, Skeptic  │  │  evidence, verdicts  │
+  │  git history │  │                          │  │                      │
+  └──────┬───────┘  └──────────────────────────┘  └──────────┬───────────┘
+         │ the query and its rows                            │ JSONL
+         ▼                                                   ▼
+  every finding with its evidence ─▶ SARIF · JSON · text · PR comment, logs/
+
+  NVIDIA Nemotron 3.5 Content Safety checks every prompt and every answer.
+```
 
 The technical design, including the sponsors' technology (Zetaris, Meterless, NVIDIA, Cursor), is in **[DESIGN.md](DESIGN.md)**.
 
