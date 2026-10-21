@@ -1,5 +1,4 @@
 # TRAIN ORDER — proven-zetaris-local
-# TRAIN ORDER — proven-zetaris-local
 
 - master: MASTER (claude-code, claude-opus-5-5, seat macm5/██████████████), the infra master of `proven-cursor-infra`, handed this train by the owner on 2026-10-21 ("we install a local VM"), mode: economy
 - status: ACTIVE — amended by the master on 2026-10-21 (§1a, W1 size, Z5); waits for the owner's signature
