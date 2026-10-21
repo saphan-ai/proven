@@ -110,9 +110,15 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   modes and the `local-runtime/` catalogue. remark: listing a name proves it is addressable, not that a request to it is
   not re-routed — W5 reads the model the response names. **master-was-wrong (the advisor's word "lanes"):** Nightshift's
   `lanes.toml` holds its LOCAL llama.cpp lanes only (7, declaring ~8 GB active in an 8 GiB VM); NVIDIA is not a lane there.
-- **REOPENED by W5 (2026-10-21):** a named model is not a pin while the app `proven` runs under policy `auto`
-  (`app_policy.lanes null`, `requested_mode auto`). Owed: find Nightshift's per-app setting that honours the requested
-  model (or a mode that does), set it, and show a receipt whose `routed_model` equals `requested_model`.
+- **REOPENED by W5, then READ in the code (master, 2026-10-21):** Nightshift's external proxy does not obey a model id
+  for identified traffic. `engine/proxy.js` `bindAppMode` (comment NS-APP-STREAM AS-31/34/35): *"the app_policy `mode`
+  — decides the routing profile. The client's model id / meterless-mode header / sort knob is RECORDED (receipt, turn
+  event) but not obeyed. First contact with no saved bind inherits the cockpit's current mode and persists it"*; the
+  request handler passes `forceModel: bind.bound ? null : …`. An app's `lanes` allowlist names LOCAL lanes only
+  (`select.js`, `resolveAppPolicy`). ⇒ **A cloud model cannot be pinned from proven.** Under `auto` the race may also
+  pick a local lane in the VM (LFM2.5-8B, Llama-3.2-3B). What remains is to READ the answering model from the signed
+  receipt (ADR-0019 point 4) and decide what proven does with an answer from the wrong model — decision **N7**.
+  **master-was-wrong:** the order (and the advisor) assumed lanes could be pinned by name; they cannot.
 - **The runtime token** is the `proxy-token` file in Nightshift's state directory inside the VM (the Nightshift CLI
   reads it from there, `transport.mjs` resolveToken); it is never printed.
 - **master-was-wrong:** —
@@ -189,6 +195,11 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   unsigned app in the guest can read everything copied on macm5 and replace it. `nightshift_vm.sh` keeps the default
   `--no-clipboard`; `CLIPBOARD=1` in `~/.config/proven/nightshift-vm.env` on macm5 records this choice, and `status`
   reds a shared clipboard without it (measured both ways).
+- **N7 — what pins proven's reviews to Nemotron, since Nightshift will not. OPEN, the master recommends (a)+(b).**
+  (a) proven refuses a review whose receipt's `routed_model` is not `nvidia/*` (product code, the build window; it is
+  ADR-0019 point 4 made binding). (b) the Nightshift VM keeps no local chat lanes for `proven`'s modes, so the race has
+  only NVIDIA rows to choose from (an owner act in Nightshift's cockpit; measured afterwards by a receipt). (c) set the
+  app's mode to `deep` in the Apps panel — narrows the race to stronger rows but still not to one model.
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
