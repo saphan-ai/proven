@@ -1,8 +1,8 @@
 # TRAIN ORDER — proven-reviewer-core
 
-- master: (to be appointed by the owner)
-- status: DRAFT — written by the advisor on 2026-10-21, before the build window; the master may change it, then gives it to
-  the owner to sign. **No wagon is dispatched before 2026-10-22 00:00 UTC.**
+- master: MASTER (claude-code), appointed by the owner on 2026-10-21 (R1)
+- status: SIGNED by the owner on 2026-10-21 (draft 5eb97ecb0c6125c955ad414f167f9d2b, valid until withdrawn); §3 then filled
+  in by the master with the owner's answers, no other change. **No wagon is dispatched before 2026-10-22 00:00 UTC.**
 - track: proven-reviewer-core
 - repo: proven (`saphan-ai/proven`), the product code
 - base: main at the cut, 2026-10-22 or later
@@ -100,8 +100,8 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
 ### W5 `evidence-through-zetaris`
 - **what:** the Zetaris adapter over REST (ADR-0015, ADR-0023): the Investigator's queries over KEV, EPSS and OSV by
   advisory id, read with Proven's own key; the same queries on a local engine over small samples in sample mode
-  (ADR-0002 point 4). Settings from the environment. OSV by package only once RC-5 is measured (ADR-0025, to be written
-  from the probe).
+  (ADR-0002 point 4). Settings from the environment. OSV by package only once RC-5 is measured (an ADR written from the
+  probe; ADR-0025 is R2).
 - **dod:** a fixture change that adds a dependency version covered by an advisory on the KEV list gives a finding whose
   evidence is the query and its rows (ADR-0007 point 2), live and in sample mode. **Negative control:** a version the
   advisory does not cover gives no finding. A join drops a CVE absent from one side: the review never reads a missing
@@ -130,14 +130,14 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
 
 ## §3 DECISIONS OWED BY THE OWNER
 
-- **R1 — the master.** The infrastructure master holds four tracks today and said he will say when the window's load
-  stops fitting. Recommended: **a second master for this train**, appointed before 00:00 UTC, so the reviewer and the
-  shell are built in parallel.
-- **R2 — where the Prover runs the change's tests.** The Prover runs code from the change under review. No accepted
-  decision says where. Recommended: in a container with no network and no secret, the same rule ADR-0020 §6 sets for
-  the runner; written as ADR-0025 or ADR-0026 before W1 runs a real test.
-- **R3 — OSV by package.** Waits for the probe (RC-5); the owner chose option 1 on 2026-10-21. ADR-0025 is written from
-  its result.
+- **R1 — the master. DECIDED by the owner 2026-10-21:** *"We can have a new master."* (translated from Polish). A second
+  master holds this train; the shell and the reviewer are built in parallel.
+- **R2 — where the Prover runs the change's tests. DECIDED by the owner 2026-10-21:** *"OK."* The Prover runs the change's
+  code only in a container with no network and no secret; with no container runtime it runs no code. Written as
+  [ADR-0025](../decisions/ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md).
+- **R3 — OSV by package. OPEN.** Waits for the Zetaris storage probe (RC-5), asked of the infrastructure master; the owner
+  chose option 1 on 2026-10-21. Until the probe answers, W5 builds KEV, EPSS and OSV by advisory id only. The ADR for OSV
+  by package is written from the probe's result (ADR-0025 is now taken by R2).
 
 ## §4 DEFINITION OF DONE
 
