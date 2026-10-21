@@ -2,7 +2,7 @@
 
 - incident: I10 (one incident; this case is its first round)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -80,8 +80,27 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+Command, from the repository root:
+
+```
+bash tests/corpus/cases/PV-013/check.sh
+```
+
+Toolchain: `go version` reports `go version go1.26.8 linux/amd64`. The case modules pin `go 1.26`. The check builds with `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`.
+Run at: 2026-10-21T16:48:38Z.
+Exit code: 0.
+
+```
+control | base: none | change: pass | token_in_output: no
+valid-name | base: accepted | change: accepted | token_in_output: no
+token-in-credentials-show | base: (empty) | change: (empty) | token_in_output: no
+bad-token-env | base: accepted | change: refused: token_env must be an environment-variable name matching [A-Z][A-Z0-9_]*; rejected value: chat-token | token_in_output: no
+bad-channel | base: accepted | change: refused: channel must be a channel name matching #[a-z0-9][a-z0-9_-]*; rejected value: not a channel | token_in_output: no
+bad-endpoint | base: accepted | change: refused: endpoint must be an http or https URL with a host; rejected value: not-a-url | token_in_output: no
+token-in-name-then-show | base: accepted / token_env=tok_synthetic_0000_not_a_secret | change: refused: token_env must be an environment-variable name matching [A-Z][A-Z0-9_]*; rejected value: tok_synthetic_0000_not_a_secret / (empty) | token_in_output: yes
+```
 
 ## 9. Limits
 
