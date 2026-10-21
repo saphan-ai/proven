@@ -90,8 +90,10 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 
 ## §3 DECISIONS OWED BY THE OWNER
 
-- **N1 — the tool.** Recommended: Tart, scriptable from the command line. Alternative: UTM, with a window for every step.
-- **N2 — the VM's lifetime.** Recommended: kept running from 22 to 27 October, stopped after the results on 6 November.
+- **N1 — the tool. DECIDED by the owner 2026-10-21: Tart.**
+- **N2 — the VM's lifetime. DECIDED by the owner 2026-10-21:** *"Start today, we need to test it. Stopped after 6 Nov."*
+  W1–W5 run today, before the build window opens on 2026-10-22 00:00 UTC; the VM is stopped after the results on
+  6 November.
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
