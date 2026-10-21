@@ -128,8 +128,10 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   tag `tag:nightshift`, Tailscale 1.104.1 from Homebrew in the VM) and serves its tcp:8088 to 127.0.0.1:8088.
   **Measured by the master:** runner-cursor → nightshift:8088 open, no token → 401; → 8089 closed; → 22 closed. macm5 →
   8088 open, 8089 closed. █████ (outside the grant) → 8088 closed. From the VM: TCP 22 on runner-cursor, macm5, █████,
-  macmini and the Zetaris host over the tailnet: closed; the internet: 200. **Owed:** the token on runner-cursor and
-  macm5 (the owner's script, rehearsed) and the 200 / one-character-changed 401 pair it measures.
+  macmini and the Zetaris host over the tailnet: closed; the internet: 200. **Token (the owner's script, 2026-10-21):**
+  read from the VM's `proxy-token` (32 characters, never printed), written to `~/.config/proven/nightshift.env` (600)
+  on runner-cursor and macm5 with `NIGHTSHIFT_URL`. From runner-cursor: with the token HTTP 200; with one character
+  changed HTTP 401. The script's log holds no token (grep: 0). **W4 DONE.**
 - **master-was-wrong:** —
 
 ### W5 · `a-nemotron-request-answers` — one Nemotron request answers
