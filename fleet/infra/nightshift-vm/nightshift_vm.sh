@@ -14,6 +14,7 @@
 #   CPU MEM_MB DISK_GB   its size (default 4, 8192, 80)
 #
 # Usage: nightshift_vm.sh check | install-tools | create | start | stop | status | copy-installer <dmg>
+#                        | isolate | unisolate | reach [host ...]   (pf: keep the VM off the private networks)
 # Bash 3.2 (macOS /bin/bash). Every step prints one line: ✔ or ✖.
 set -u
 CONF="${NIGHTSHIFT_VM_CONF:-$HOME/.config/proven/nightshift-vm.env}"
@@ -121,13 +122,91 @@ copy_installer() {
   echo "  System Settings → Privacy & Security → Open Anyway (the refusal and this step are in README.md)."
 }
 
+# --- isolate: keep the VM off the host's private networks with macOS's own pf firewall -------------------------------
+# Measured 2026-10-21 before it was written: with Tart's NAT the guest reached TCP 22 on machines of the host's private
+# network, on the host's VM gateway, and on the tailnet through the host's Tailscale. pf is part of macOS (signed by
+# Apple); nothing new runs as root but pfctl. The rules live in an anchor under com.apple/, which /etc/pf.conf already
+# evaluates and macOS loads at boot (com.apple.pfctl); a LaunchDaemon loads the anchor at boot and every 10 minutes.
+VM_NET="${VM_NET:-192.168.64.0/24}"; VM_GW="${VM_GW:-192.168.64.1}"
+ANCHOR=com.apple/proven-nightshift
+PF_RULES=/etc/pf.anchors/proven-nightshift
+PF_LOADER=/usr/local/libexec/proven-nightshift-pf
+PF_PLIST=/Library/LaunchDaemons/com.proven.nightshift-pf.plist
+PF_LABEL=com.proven.nightshift-pf
+
+pf_rules() { cat <<EOF
+# proven-nightshift: the Nightshift VM ($VM_NET) reaches the internet and the host's DNS, nothing private.
+table <proven_private> const { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16 }
+pass in quick on ! lo0 proto { udp tcp } from $VM_NET to $VM_GW port 53 keep state
+pass in quick on ! lo0 proto udp from any port 68 to any port 67 keep state
+pass out quick on ! lo0 from $VM_GW to $VM_NET keep state
+block drop in quick on ! lo0 from $VM_NET to <proven_private>
+block drop in quick on bridge100 inet6 from any to fc00::/7
+EOF
+}
+pf_loader() { cat <<EOF
+#!/bin/sh
+# proven-nightshift: load the anchor, enable pf if it is off. Idempotent.
+/sbin/pfctl -a $ANCHOR -f $PF_RULES 2>/dev/null || exit 1
+/sbin/pfctl -s info 2>/dev/null | grep -q 'Status: Enabled' || /sbin/pfctl -E >/dev/null 2>&1
+exit 0
+EOF
+}
+pf_plist() { cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>$PF_LABEL</string>
+  <key>ProgramArguments</key><array><string>$PF_LOADER</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>600</integer>
+</dict></plist>
+EOF
+}
+
+isolate() {
+  d=$(mktemp -d); pf_rules > "$d/rules"; pf_loader > "$d/loader"; pf_plist > "$d/plist"
+  /sbin/pfctl -n -f "$d/rules" >/dev/null 2>&1 && ok "pf rules parse" || no "pf rules do not parse: /sbin/pfctl -n -f $d/rules"
+  plutil -lint -s "$d/plist" && ok "LaunchDaemon plist is valid" || no "plist invalid: $d/plist"
+  grep -q 'anchor "com.apple/\*"' /etc/pf.conf && ok "/etc/pf.conf evaluates com.apple/*" || no "/etc/pf.conf has no com.apple/* anchor"
+  if [ "${DRY:-0}" = 1 ]; then echo "DRY=1 — would install $PF_RULES, $PF_LOADER, $PF_PLIST and load $ANCHOR:"; cat "$d/rules"; rm -rf "$d"; return 0; fi
+  sudo install -d -o root -g wheel -m 0755 /usr/local/libexec \
+    && sudo install -o root -g wheel -m 0644 "$d/rules" "$PF_RULES" \
+    && sudo install -o root -g wheel -m 0755 "$d/loader" "$PF_LOADER" \
+    && sudo install -o root -g wheel -m 0644 "$d/plist" "$PF_PLIST" || no "install with sudo failed"
+  ok "installed $PF_RULES, $PF_LOADER, $PF_PLIST"
+  sudo launchctl bootout system/$PF_LABEL 2>/dev/null
+  sudo launchctl bootstrap system "$PF_PLIST" || no "launchctl bootstrap failed"
+  sleep 2
+  n=$(sudo /sbin/pfctl -a $ANCHOR -s rules 2>/dev/null | grep -c .)
+  st=$(sudo /sbin/pfctl -s info 2>/dev/null | awk '/^Status:/{print $2}')
+  [ "$n" -ge 5 ] && [ "$st" = Enabled ] && ok "anchor $ANCHOR holds $n rules; pf is $st" || no "anchor holds $n rules, pf is '$st'"
+  rm -rf "$d"
+  echo "  Now measure from the guest: $0 reach"
+}
+
+unisolate() {
+  sudo launchctl bootout system/$PF_LABEL 2>/dev/null
+  sudo /sbin/pfctl -a $ANCHOR -F all 2>/dev/null
+  sudo rm -f "$PF_PLIST" "$PF_LOADER" "$PF_RULES" && ok "pf anchor flushed, LaunchDaemon and files removed (pf itself stays as macOS left it)"
+}
+
+reach() { # from inside the guest: what it can open. Usage: reach [host ...] (default: the host's gateway, the internet)
+  ip=$(tart ip "$VM" 2>/dev/null) || no "$VM is not running"
+  targets="$VM_GW ${*:-}"
+  ssh -o UserKnownHostsFile="$KH" "admin@$ip" "for h in $targets; do nc -z -G 3 \$h 22 >/dev/null 2>&1 && echo \"✖ guest reaches \$h:22\" || echo \"✔ guest does not reach \$h:22\"; done; curl -s -o /dev/null -m 10 -w '  internet: HTTP %{http_code}\n' https://www.apple.com/"
+}
+
 case "${1:-}" in
   check) check ;;
+  isolate) isolate ;;
+  unisolate) unisolate ;;
+  reach) shift; reach "$@" ;;
   install-tools) install_tools ;;
   create) create ;;
   start) start ;;
   stop) stop ;;
   status) status ;;
   copy-installer) copy_installer "${2:-}" ;;
-  *) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

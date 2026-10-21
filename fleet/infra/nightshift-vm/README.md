@@ -32,7 +32,15 @@ The tool is [`nightshift_vm.sh`](nightshift_vm.sh). Environment, not product cod
      **System Settings → Privacy & Security**, scroll to the line about Nightshift, click **Open Anyway**, confirm with
      the VM's password, and start it again. Do this only inside the VM, never on the host. The Tahoe base image ships with Gatekeeper off (`spctl` answers `override=security disabled`), so the refusal may not appear in the VM at all.
    - Pass Nightshift's email access gate in the VM.
-7. **NVIDIA, inside the VM only.** Put the NVIDIA API key into Nightshift's Providers tab. Never type it on the host,
+7. **Keep the VM off the private networks.** Measured on 2026-10-21 with NAT: the guest reached TCP 22 on machines of
+   the host's private network, on the host itself, and on the tailnet through the host's Tailscale.
+   `./nightshift_vm.sh isolate` (password once) installs a `pf` anchor `com.apple/proven-nightshift` that drops
+   everything from the VM's subnet to 10/8, 172.16/12, 192.168/16, 100.64/10, 169.254/16 and IPv6 ULA, except DNS to the
+   host's VM gateway, and lets connections the host opens to the VM come back. A LaunchDaemon
+   (`/Library/LaunchDaemons/com.proven.nightshift-pf.plist`) loads it at boot and every 10 minutes. `pf` is part of
+   macOS; nothing new runs as root. `DRY=1 ./nightshift_vm.sh isolate` shows the rules and installs nothing.
+   `./nightshift_vm.sh reach <host> …` measures from inside the guest; `unisolate` removes it all.
+8. **NVIDIA, inside the VM only.** Put the NVIDIA API key into Nightshift's Providers tab. Never type it on the host,
    never into a file, a repository, a prompt or a report. Pin two lanes to Nemotron models by name.
 
 The network steps (the runtime reachable from proven's machines only) follow in this file when they are measured.
