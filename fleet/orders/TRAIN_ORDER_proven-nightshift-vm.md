@@ -149,6 +149,14 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   `depends_on :macos` with `depends_on macos:` is disabled!"*). Tart comes from its GitHub release 2.40.1 instead,
   sha256-pinned, signed by Cirrus Labs (Team 9M2P8L4D89) and notarized, through proven's
   `fleet/infra/nightshift-vm/nightshift_vm.sh`.
+- **N5 — how the runtime is reached. DECIDED by the owner 2026-10-21: the VM joins the tailnet as its own node**
+  (the master had recommended an ssh tunnel from macm5). **Condition, stated to the owner:** the node's traffic is
+  WireGuard to public addresses, so the host's pf does not filter it — what the VM reaches on the tailnet, and who
+  reaches it (including `*:8089`, which answers without a token), is decided by the tailnet ACL alone. ⇒ W4 tags the
+  node `tag:nightshift`; the ACL lets nothing out of `tag:nightshift` and lets only runner-cursor and macm5 into
+  `tag:nightshift:8088`. The ACL edit is the owner's (admin console); the master drafts it from the current policy.
+  **DoD addition (negative controls):** from the VM, TCP 22 on runner-cursor's tailnet address does not answer; from
+  runner-cursor, `nightshift:8089` does not answer.
 - **N6 — the clipboard. DECIDED by the owner 2026-10-21: shared** (*"zostaw już ten schowek, może się przydać"*), after
   the NVIDIA key would not arrive without it. The trade, stated to the owner when he decided: while it is shared, the
   unsigned app in the guest can read everything copied on macm5 and replace it. `nightshift_vm.sh` keeps the default
