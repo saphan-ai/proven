@@ -1,7 +1,7 @@
 # TRAIN ORDER — proven-nightshift-vm
 
 - master: MASTER, the master of `proven-cursor-infra`, appointed to this train by the owner on 2026-10-21
-- status: ACTIVE — written by the advisor on 2026-10-21, amended by the master the same day (§1a, W1, N4); the owner signs it
+- status: DONE — W1–W6 done 2026-10-21 (written by the advisor, amended by the master; the owner: "chyba wszystko zrobione"); kept in `done/` with two owner acts listed below
 - track: proven-nightshift-vm
 - original: the fleet's record (this copy is the same text, with the blackouts listed at the end)
 - repo: proven (public record and the runbook), ████████████ (the VM's brief and report)
@@ -249,7 +249,9 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 
 ## §4a CLOSING STATE (2026-10-21)
 
-W1–W6 DONE. Owed, and kept open in this lane on purpose:
+W1–W6 DONE. Also done after W6: key-only ssh into the VM (a VM-only key; sshd offers `publickey` only, measured);
+the clipboard shared by N6; one NVIDIA model active in Nightshift and local chat models disabled (N7); a streamed request
+answered by `nvidia/nemotron-3.5-super-vl-120b-a12b` with a signed receipt. Owed, none of them blocking:
 - **the far-side proof** — NVIDIA's console shows no usage for the key (the owner, 2026-10-21), so "NVIDIA saw the call"
   is UNMEASURED; the measurable substitute is a capture on macm5's VM interface during one request (an owner act, sudo).
 - **N3** — the question to Meterless (a notarized build; whether a VM counts as "running on your machine"; a per-app pin).
@@ -261,7 +263,9 @@ W1–W6 DONE. Owed, and kept open in this lane on purpose:
   because `ssh -v` under a pty ends the line with `\r` — the master's comparison bug, fixed; the state is as intended.
   Passwordless `sudo` for `admin` was already in the base image (`/etc/sudoers.d/admin-nopasswd`).
 
-`DONE · proven-nightshift-vm · nothing in flight · owed to the owner: N3 question to Meterless, VM stop after 6 Nov, optional far-side capture · THANK YOU`
+`DONE · proven-nightshift-vm · nothing in flight · owed to the owner: N3 question to Meterless, VM stop after 6 Nov · THANK YOU`
+
+(The far-side capture is optional and unrequested; it stays UNMEASURED in the evidence record.)
 
 ## §5 COST
 
