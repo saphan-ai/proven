@@ -33,7 +33,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0017](ADR-0017-a-gitea-lab-for-the-judges.md) | a Docker Compose lab with Gitea and Gitea Actions, configured, for the judges; Jenkins only if time is left | accepted, 2026-10-20 |
 | [0018](ADR-0018-meterless-engines-minimum-and-their-contract.md) | H-MEM and World Model at their minimum, one injected generator, JSONL in `logs/`; Markovian only if time is left | accepted, 2026-10-21 |
 | [0019](ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) | Meterless Nightshift is the primary AI provider; NVIDIA's models through it by default; other routes stay settings | accepted, 2026-10-21 |
-| [0020](ADR-0020-proven-command-line-and-action-interface.md) | the exact command line, GitHub Action inputs and outputs, and exit codes, taken from Semgrep and the Opengrep action | proposed, 2026-10-21 |
+| [0020](ADR-0020-proven-command-line-and-action-interface.md) | the exact command line, GitHub Action inputs and outputs, and exit codes, taken from Semgrep and the Opengrep action; self-hosted runners first; comments through reviewdog | accepted, 2026-10-21 |
 | [0021](ADR-0021-a-self-hosted-runner-demo-set-up-by-one-script.md) | a demo with a self-hosted GitHub runner in Docker; one script connects it to a judge's repository from its name and a token | accepted, 2026-10-21 |
 
 **Rules for an ADR**

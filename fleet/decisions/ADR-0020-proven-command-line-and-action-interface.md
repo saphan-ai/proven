@@ -1,7 +1,8 @@
 # ADR-0020: Proven's command line and GitHub Action: the exact flags, inputs, outputs and exit codes, taken from Semgrep and the Opengrep action
 
-**Status:** proposed · **Date:** 2026-10-21
-**Proposed by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-21, at the owner's request; accepted when the owner says so
+**Status:** accepted · **Date:** 2026-10-21
+**Decided by:** the owner, 2026-10-21: *"Yes for the ADR, and reviewdog."* · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-21
+**Amends:** [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4: the lab's comments are posted by reviewdog (point 7 below)
 **Extends:** [ADR-0016](ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md) (a drop-in replacement for pipeline scanners)
 **Follows:** [ADR-0013](ADR-0013-no-hardcoded-settings.md) (no hardcoded settings), [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md) (the Gitea lab)
 **Trigger:** the owner, on what is decided before the build window and what is built in it ([`planning/CONVERSATION_2026-10-21_advisor.md`](../../planning/CONVERSATION_2026-10-21_advisor.md), hop 12)
@@ -114,7 +115,7 @@ The owner (translated from Polish): *"But self-hosted too. Not everyone will wan
 [reviewdog](https://github.com/reviewdog/reviewdog) reads SARIF 2.1.0 (`-f=sarif`) and posts it as review comments on a pull request: `-reporter=github-pr-review` on GitHub, `-reporter=gitea-pr-review` on Gitea, plus GitHub's checks and annotations. Many pipelines already use it for their linters.
 
 - Proven writes SARIF; posting comments is reviewdog's job. The Action's `comment` input runs reviewdog on Proven's SARIF, and a team that already runs reviewdog adds one more input to it.
-- This replaces the Gitea comment adapter of [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4, if the owner accepts it: less code of our own, and the same path on GitHub and Gitea.
+- This replaces the Gitea comment adapter of [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4, as the owner accepted: less code of our own, and the same path on GitHub and Gitea.
 
 ### 8. Other pull-request review tools
 

@@ -112,6 +112,12 @@ Participants report that the sponsor folders ask for each sponsor's use to be de
 
 **What the advisor did.** It changed the proposed [ADR-0020](../fleet/decisions/ADR-0020-proven-command-line-and-action-interface.md): a team's own runner is now the primary live path, and because Proven runs the code under review, it lists the protections such a runner needs on a public repository (one job per runner in its own virtual machine, approval for pull requests from forks, no secrets beyond Proven's, a narrow network). It wrote [ADR-0021](../fleet/decisions/ADR-0021-a-self-hosted-runner-demo-set-up-by-one-script.md): one script takes the repository's name and a token, registers a runner in Docker, commits the workflow, opens a pull request and shows the review; the token is never stored, logged or handed to the runner, and asks for the least it needs.
 
+### 14 · owner → advisor: yes
+
+> *"Yes for the ADR, and reviewdog."*
+
+**What the advisor did.** [ADR-0020](../fleet/decisions/ADR-0020-proven-command-line-and-action-interface.md) is accepted. Its point 7 amends [ADR-0017](../fleet/decisions/ADR-0017-a-gitea-lab-for-the-judges.md): in the judges' lab, reviewdog posts the review's comments from Proven's SARIF, the same way it does on GitHub, so Proven needs no comment code of its own. ADR-0017 carries a line that points to the change; its text is otherwise unchanged.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

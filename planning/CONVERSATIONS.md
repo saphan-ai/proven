@@ -154,3 +154,4 @@ Page: [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md)
 | [11](CONVERSATION_2026-10-21_advisor.md#11--owner--advisor-zetaris-runs) | owner → advisor | Zetaris runs; the data sources are product, so they are explored today and built from 22 October. |
 | [12](CONVERSATION_2026-10-21_advisor.md#12--owner--advisor-explore-today-build-tomorrow) | owner → advisor | Data sets and the call interface go in as decisions; ADR-0020 proposed: Proven's exact command line and Action. |
 | [13](CONVERSATION_2026-10-21_advisor.md#13--owner--advisor-self-hosted-first-and-shown-in-the-demo) | owner → advisor | The self-hosted runner first, with its protections; ADR-0021, a runner demo a judge starts with a repository name and a token. |
+| [14](CONVERSATION_2026-10-21_advisor.md#14--owner--advisor-yes) | owner → advisor | ADR-0020 accepted, with reviewdog posting the review's comments on GitHub and Gitea. |
