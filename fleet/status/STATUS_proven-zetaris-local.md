@@ -87,6 +87,6 @@ leg; W9 is deferred by Z5.
 | the new machine's host name (written as "the Zetaris host") | 3 |
 | the VM number, the cluster node and the machine's addresses (left out) | 4 |
 | the zip's sha256 and the env file's path on each machine (left out) | 2 |
+| the name of the variable that holds Proven's key (AGENTS.md §2) | 1 |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17.
-| credential variable name | 1 | the name of the variable that holds proven's Zetaris key (AGENTS.md §2) |

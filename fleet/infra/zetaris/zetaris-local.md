@@ -148,6 +148,6 @@ the values, and never asks for them.
 | the host's tailnet address | 4 | written as `<tailnet address>` |
 | the host's name, user and home directory | — | left out |
 | Proven's user name, the org ID and the key | — | written as placeholders |
+| the name of the variable that holds Proven's key (AGENTS.md §2) | 2 | blacked out |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17.
-| credential variable name | 2 | the name of the variable that holds proven's Zetaris key (AGENTS.md §2) |

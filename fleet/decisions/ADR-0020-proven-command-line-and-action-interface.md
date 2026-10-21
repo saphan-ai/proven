@@ -38,7 +38,7 @@ How the two tools are run in GitHub Actions today, read on 21 October:
 | `--quiet` · `--verbose` | — | neither | as Semgrep |
 | `--version` · `--help` | — | — | as usual |
 
-Unknown flags are refused with the list of known ones. Secrets are environment variables only and never flags: `METERLESS_RUNTIME_TOKEN` ([ADR-0019](ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md)), `███████████████` and `ZETARIS_ORG_ID` ([ADR-0015](ADR-0015-zetaris-through-its-rest-api.md)), and a token for posting on pull requests where that is switched on.
+Unknown flags are refused with the list of known ones. Secrets are environment variables only and never flags: `METERLESS_RUNTIME_TOKEN` ([ADR-0019](ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md)), `ZETARIS_API_KEY` and `ZETARIS_ORG_ID` ([ADR-0015](ADR-0015-zetaris-through-its-rest-api.md)), and a token for posting on pull requests where that is switched on.
 
 ### 2. Exit codes
 
