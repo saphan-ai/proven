@@ -104,6 +104,14 @@ Participants report that the sponsor folders ask for each sponsor's use to be de
 
 **What the advisor did.** It read how Semgrep and Opengrep are run in GitHub Actions today, and GitHub's step that uploads SARIF, and proposed [ADR-0020](../fleet/decisions/ADR-0020-proven-command-line-and-action-interface.md): every flag with its environment variable and default, the exit codes, the Action's inputs and outputs under the Opengrep action's names, the permissions it asks for, and the lines that change when a pipeline moves from either tool. It stays proposed until the owner accepts it. The data sets follow as their own decision once the exploration has measured what Zetaris can load.
 
+### 13 · owner → advisor: self-hosted first, and shown in the demo
+
+> *"But self-hosted too. Not everyone will want to hand over their model API keys. Locally too, or even above all."*
+
+> *"We can show the self-hosted runner in the demo too. It will be in Docker, and a setup script will configure the GitHub repository to send jobs to it. What the judge will need is the repository's name on GitHub and a key for it, so the script configures them automatically if the judge does not want to read the documentation."* (translated from Polish)
+
+**What the advisor did.** It changed the proposed [ADR-0020](../fleet/decisions/ADR-0020-proven-command-line-and-action-interface.md): a team's own runner is now the primary live path, and because Proven runs the code under review, it lists the protections such a runner needs on a public repository (one job per runner in its own virtual machine, approval for pull requests from forks, no secrets beyond Proven's, a narrow network). It wrote [ADR-0021](../fleet/decisions/ADR-0021-a-self-hosted-runner-demo-set-up-by-one-script.md): one script takes the repository's name and a token, registers a runner in Docker, commits the workflow, opens a pull request and shows the review; the token is never stored, logged or handed to the runner, and asks for the least it needs.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.
