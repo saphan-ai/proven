@@ -18,7 +18,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 18 October 2026 | [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md) | a local NVIDIA guardrail model, made public and on by default in proven |
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
 | 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
-| 21 October 2026 | [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md) | the advisor: the test corpus as the Cursor agents' shake-out before the build |
+| 21 October 2026 | [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md) | the advisor: the test corpus as the Cursor agents' shake-out before the build; the interface and on-premises decisions; Nightshift in a VM; the onboarding questions; recording every Cursor session (ADR-0024) |
 | 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model (done), the Zetaris host and its evidence sources |
 
 ---

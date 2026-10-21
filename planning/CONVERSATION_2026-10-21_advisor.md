@@ -124,6 +124,34 @@ Participants report that the sponsor folders ask for each sponsor's use to be de
 
 **What the advisor did.** It wrote [ADR-0022](../fleet/decisions/ADR-0022-gitea-on-premises-is-an-equal-scenario.md): GitHub and Gitea on a team's own servers are two equal scenarios, with the same workflow file, comments through reviewdog on both, and everything except an optional hosted model call kept on the team's network. The judges' lab is the Gitea scenario, packaged, and both scenarios are rehearsed before every daily push. ADR-0017 and ADR-0021 carry a line that points to the change.
 
+### 16 · owner → advisor: Nightshift starts today; OSV through a copy in storage
+
+The owner signed the train order for Nightshift in a virtual machine and said to tell the infrastructure master to start. On the missing OSV path (ADR-0023), the owner chose a copy of the data in storage that Zetaris reads, for now (translated from Polish):
+
+> *"1, to start with. If we have a problem with disk space, we flip to 2. And if there is time left at the end, we make it an option for the user, in the settings, whether they want 1 or 2."*
+
+> *"Working first, pretty later."* (translated from Polish)
+
+**What the advisor did.** It sent the master the start, and asked him to measure whether Zetaris can query a small file in its own storage. The decision on OSV is written as an ADR once that is measured.
+
+### 17 · owner → advisor: questions for the onboarding
+
+> *"What questions do we have? Write them in a file for me, for the chat."* (translated from Polish)
+
+**What the advisor did.** It wrote [twelve questions](ONBOARDING_QUESTIONS_2026-10-21.md) for the onboarding chat, four of them marked must-ask: Meterless local or in the cloud, whether a virtual machine and our own server count as "your machine", a notarized Nightshift build, and when the sponsors' free access arrives.
+
+### 18 · owner → advisor: is the Nightshift VM ready?
+
+> *"We need to have it running."*
+
+**What the advisor did.** It found the order not started and sent the master a reminder. Within two hours the master had the VM running in Tart, Nightshift installed in it, two NVIDIA Nemotron lanes named, and the VM reachable only from the machines that run Proven, each step measured. The access token and the first request are left.
+
+### 19 · owner → advisor: the status, and recordings of every session
+
+> *"Check the status, and save the preparation status in the repository. The infrastructure is probably ready. The Cursor backend is almost there; it will be by tomorrow. I would also like to have session recordings, as in the others. W6 will probably handle that for us. We will put the recordings of all the sessions of the Cursor coding agents into the proven repository."* (translated from Polish)
+
+**What the advisor did.** It updated the status table on the [front page](../README.md), and wrote [ADR-0024](../fleet/decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md): every coding session of a Cursor agent on Proven is recorded by Saphan Studio's recording proxy, the wagon of the Cursor backend that is being built now, and every recording is published here, blacked out. Where recordings are kept, their format, and whether Cursor's terms allow publishing what Cursor itself sends are not known yet.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

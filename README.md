@@ -27,9 +27,12 @@ The final warm-up before the start.
 | what | status | where |
 |---|---|---|
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
-| The design, as recorded decisions | 22 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
-| Machines for the coding agents | in progress: the new machine runs with one Cursor seat; Cursor agents cannot yet run unattended | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) · [status](fleet/status/STATUS_proven-cursor-infra.md) |
-| A local NVIDIA safety model | in progress: running on our own machine; three of four checks pass, the fourth waits for one server setting | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) · [status](fleet/status/STATUS_nemotron-content-safety.md) |
+| The design, as recorded decisions | 24 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
+| Machines for the coding agents | nearly ready: a Cursor agent ran the first unattended turn (on Grok, with the Node the Cursor agent ships); one refusal left, the class of the executor, expected fixed by 22 October | [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) · [status](fleet/status/STATUS_proven-cursor-infra.md) |
+| Recording every Cursor coding session | decided; the recording is built in Saphan Studio's Cursor backend now, and every recording will be published here | [ADR-0024](fleet/decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md) |
+| Zetaris, the sponsor's data platform, on our own machine | running; the evidence sources explored (CISA KEV, FIRST EPSS, OSV), no data stored yet | [order](fleet/orders/TRAIN_ORDER_proven-zetaris-local.md) · [status](fleet/status/STATUS_proven-zetaris-local.md) · [ADR-0023](fleet/decisions/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) |
+| Meterless Nightshift, the sponsor's AI provider, isolated in a virtual machine | nearly ready: the VM runs, Nightshift is installed in it, two NVIDIA Nemotron lanes are named, and only the machines that run Proven can reach it; the access token and the first request are left | [order](fleet/orders/TRAIN_ORDER_proven-nightshift-vm.md) · [ADR-0019](fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) |
+| A local NVIDIA safety model | done: running on our own machine | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) · [status](fleet/status/STATUS_nemotron-content-safety.md) |
 | A test corpus from 28 real review disagreements | 21 case contracts written, case code not built yet; declared prior art | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
 | Building Proven | starts 22 October, 00:00 UTC | |
 | Public updates | daily, 15:00 UTC | this repository |
