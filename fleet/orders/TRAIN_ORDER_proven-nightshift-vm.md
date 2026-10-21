@@ -1,8 +1,9 @@
 # TRAIN ORDER — proven-nightshift-vm
 
-- master: the master of `proven-cursor-infra`, if the owner appoints him; this train runs parallel to that one
-- status: DRAFT — written by the advisor on 2026-10-21; the master may change it, then gives it to the owner to sign
-- track: proven-cursor-infra
+- master: MASTER, the master of `proven-cursor-infra`, appointed to this train by the owner on 2026-10-21
+- status: ACTIVE — written by the advisor on 2026-10-21, amended by the master the same day (§1a, W1, N4); the owner signs it
+- track: proven-nightshift-vm
+- original: the fleet's record (this copy is the same text)
 - repo: proven (public record and the runbook), saphan-infra (the VM's brief and report)
 - base: main at the cut
 - author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
@@ -41,23 +42,42 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 | NS-A5 | If the runtime listens on 127.0.0.1 only, it is not reachable from outside the VM without a proxy inside it. | inference, not read | `lsof -nP -iTCP -sTCP:LISTEN` inside the VM |
 | NS-A6 | Apple Silicon runs macOS guests with Apple's Virtualization framework; Tart and UTM both use it. | general knowledge, not measured here | the VM boots |
 
+## §1a WHAT THE MASTER RE-MEASURED (2026-10-21, the master's readings, dated)
+
+- **NS-A2 confirmed on macm5:** `shasum -a 256 ~/Downloads/Nightshift-Setup-mac-m5.dmg` = `823e0ee0…2e2a4`, the advisor's
+  value. remark: it proves the file is the published one; it says nothing about what the file does (that is why the VM).
+- **macm5:** Apple M5 Max, 18 cores, 128 GiB; macOS 26.5.2 (Tahoe). Free + inactive memory ~65.5 GiB (`vm_stat`); the
+  data volume has 1.3 TiB free (`df -h`). remark: memory is a snapshot taken while other legs ran; a Zetaris VM is not on
+  macm5, so nothing else claims these 8 GiB.
+- **The arithmetic for W1 (law #46):** 4 of 18 cores; 8 of ~65.5 GiB free (≈57 GiB left); disk ≤ 25 GB image download +
+  an 80 GB sparse VM disk ≈ 105 GB of 1.3 TiB. FITS.
+- **NS-A3:** the host is an M5 on Tahoe; the guest image is Tahoe (`ghcr.io/cirruslabs/macos-tahoe-base`), so the M5+
+  edition is the one to try first. Whether it runs on the VIRTUAL hardware is not measured until W2.
+- **Tart on macm5:** not installed (`which tart` prints nothing). Tart's source licence is FSL-1.1-ALv2 (a host tool, not
+  code in proven). `tart run` **shares the clipboard by default**: W1 passes `--no-clipboard`; no `--dir` is passed, so no
+  folder is shared. The base image's user is `admin` / password `admin`, with SSH on.
+- **Network — what the advisor did not cover:** Tart's default network is NAT, and from it the guest reaches macm5's
+  private network and the host's own listening ports. **Softnet** (`--net-softnet`) lets the guest reach only globally
+  routable addresses and the host's VM gateway — the private network and the fleet's machines are blocked. Softnet needs a
+  root (setuid) helper on macm5. Decision **N4** below.
+
 ## §2 WAGONS
 
-### W1 `nightshift-vm-exists`
-- **what:** a macOS VM on macm5, with Tart (or UTM if Tart does not fit), at the macOS version the M5+ edition needs
-  (NS-A3). Proposed size, for the master to test against macm5's free memory and disk, with the arithmetic printed (law
-  #46): 4 vCPU, 8 GiB, 80 GB. **No shared folder, no shared clipboard, no host directory mounted.**
+### W1 · `nightshift-vm-exists` — a macOS VM on macm5, isolated
+- **what:** a macOS VM on macm5, with Tart (N1), cloned from `ghcr.io/cirruslabs/macos-tahoe-base:latest`, sized 4 vCPU, 8 GiB, 80 GB
+  (arithmetic in §1a). Started with `--no-clipboard`, no `--dir`, and the network of N4. **No shared folder, no shared
+  clipboard, no host directory mounted.**
 - **owner act:** the creation script, rehearsed by the master with `DRY=1` and the output pasted (law #33).
 - **dod:** the VM boots; its configuration shows no shared directory; its size matches the arithmetic.
 - **master-was-wrong:** —
 
-### W2 `nightshift-installed-in-the-vm`
+### W2 · `nightshift-installed-in-the-vm` — the M5+ installer, checked and installed in the VM
 - **what:** the M5+ installer copied into the VM, its sha256 checked there against NS-A2, then installed. The email access
   gate and the "Open Anyway" step are the owner's, inside the VM's window.
 - **dod:** the sha256 inside the VM pasted; Nightshift starts in the VM; NS-A1 repeated for the installed app and pasted.
 - **master-was-wrong:** —
 
-### W3 `nvidia-in-nightshift`
+### W3 · `nvidia-in-nightshift` — NVIDIA in Providers, two Nemotron lanes pinned
 - **owner acts, none by an agent:** the NVIDIA API key into Nightshift's Providers tab, inside the VM. It is never typed
   on macm5 outside the VM, never in a file in any repository, a prompt, an order or a report.
 - **what:** two lanes, each pinned to a Nemotron model by name (the setup guide suggests a fast and a deep one), so that
@@ -65,7 +85,7 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 - **dod:** the lanes and their model names, pasted from Nightshift; the key's value nowhere.
 - **master-was-wrong:** —
 
-### W4 `nightshift-reachable-on-the-private-network`
+### W4 · `nightshift-reachable-on-the-private-network` — the runtime on the tailnet only
 - **what:** the runtime reachable from runner-cursor and macm5 over the private network, and from nothing else. If it
   listens on 127.0.0.1 only (NS-A5), a proxy inside the VM forwards one port to it. The simplest shape to measure first:
   the VM joins the tailnet as its own node and serves that one port to the tailnet only.
@@ -75,13 +95,13 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   with one character of the token changed is refused; from a machine outside the tailnet, the port does not answer.
 - **master-was-wrong:** —
 
-### W5 `a-nemotron-request-answers`
+### W5 · `a-nemotron-request-answers` — one Nemotron request answers
 - **what:** from runner-cursor, one `POST /v1/chat/completions` to a pinned Nemotron lane, with the headers of NS-A4.
 - **dod:** the answer and the model Nightshift reports for it, pasted; it is a Nemotron model.
 - **Unplug test (law #41):** stop the VM; the same request fails with a named connection error, not an empty answer.
 - **master-was-wrong:** —
 
-### W6 `nightshift-runbook-and-record`
+### W6 · `nightshift-runbook-and-record` — the runbook and the public record
 - **what:** the human ceremony of W1–W4 as a numbered runbook in proven, `fleet/infra/nightshift-vm.md`, including what
   to do when macOS refuses the installer (law #39). The public copy of this order and its status stay current, with
   nothing internal in them.
@@ -94,6 +114,10 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 - **N2 — the VM's lifetime. DECIDED by the owner 2026-10-21:** *"Start today, we need to test it. Stopped after 6 Nov."*
   W1–W5 run today, before the build window opens on 2026-10-22 00:00 UTC; the VM is stopped after the results on
   6 November.
+- **N4 — the VM's network. OPEN, the master recommends (a).** (a) Softnet: the guest reaches the internet only, not the
+  private network or the fleet's machines; costs one root helper on macm5 (Tart's own, installed with sudo once). (b) the
+  default NAT: nothing installed as root, but the untrusted installer can reach every machine on macm5's network. W4's
+  tailnet node works in both (its traffic goes to public relays and peers).
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
