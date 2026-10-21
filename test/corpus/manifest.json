@@ -73,12 +73,7 @@
         "P06"
       ],
       "batch": 1,
-      "status": {
-        "contract": "written 2026-10-19",
-        "fixture": "not built (prior art, built before the window)",
-        "checks": "not run",
-        "independent_check": "not done"
-      }
+      "status": "built"
     },
     {
       "id": "PV-005",

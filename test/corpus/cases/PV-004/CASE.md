@@ -2,7 +2,7 @@
 
 - incident: I03 (a later round of the incident; its first round is a different finding, PV-003)
 - intended fixture language: TypeScript (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -74,8 +74,53 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+Run at 2026-10-21T17:17:29Z. That clock is the mtime of `tests/corpus/cases/PV-004/dist/check/run.js` from `ls -l --time-style=full-iso` after the command below exited 0. The `date` program is not in this seat's command class.
+
+Toolchain, measured on this run:
+- node v24.5.0 (`node --version`)
+- npm 11.19.1 (`npm --version`)
+- typescript 7.0.2, exact pin in this case's `package.json` and lock file
+- commonmark 0.31.2, exact pin, the reference parser. Locked with it: entities 3.0.1, mdurl 1.0.1, minimist 1.2.8
+
+Command, from the repository root:
+
+```
+bash tests/corpus/cases/PV-004/check.sh
+```
+
+Exit code: 0
+
+The script sends install and compile text to standard error, then the check writes the suite count to standard error and one line per input to standard output. Captured together, standard error came first:
+
+```
+added 6 packages, and audited 7 packages in 507ms
+
+2 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+shipped-suite ok 8
+```
+
+Standard output:
+
+`````
+unclosed base=command:echo hello change=refuse:unclosed-fence reference=command:echo hello
+closer-too-short base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello\n```
+closer-too-long base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello
+closer-longer-still base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello
+closer-tildes base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello\n~~~~
+closer-tildes-short base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello\n~~~
+text-after-closer base=command:echo hello change=refuse:text-after-closing-fence reference=command:echo hello\n```` trailing
+text-after-closer-word base=command:echo hello change=refuse:text-after-closing-fence reference=command:echo hello\n````note
+well-formed base=command:echo hello change=command:echo hello reference=command:echo hello
+info-string-backtick base=command:echo hello change=command:echo hello reference=command:
+indent-four base=command: change=command:echo hello reference=refuse:no-fenced-block
+`````
+
+remark: info-string-backtick reference=command: is the empty fenced block commonmark 0.31.2 opened from the closing line of three backticks. The opening line is not a fence. The same opening line with no closing line has no fenced block.
 
 ## 9. Limits
 
