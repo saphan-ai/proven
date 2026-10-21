@@ -100,7 +100,7 @@ Proven is open source, and one part of it will also be used inside Saphan Studio
 
 ## Not known yet
 
-- **Zetaris access.** The instance and its documentation are promised to participants before 22 October. Until they arrive, we do not know which interface we will use (SQL driver, REST or MCP).
+- **Zetaris, in practice.** Access arrived on 20 October: a hosted instance, and the whole platform as a Docker Compose stack that can run on our own machine. Zetaris offers a JDBC driver, which needs Java, and a REST API, which does not. Which one proven's adapter uses, and whether the build uses the hosted instance or a local one, is not decided yet. Neither has been called from our side.
 - **Meterless keys.** The organizers' example settings name a Meterless API key. The public Meterless repository describes no hosted service and needs no key. We will ask on the sponsor's help channel.
 - **The hosted guardrail, in detail.** NVIDIA's model page names the endpoint and the answer format, but its code sample leaves the model id blank, and it states no free tier and no rate limit. The first live call settles both.
 - **The conformance adapter.** Whether a Go engine passes Meterless's suites through a TypeScript adapter is the first thing we measure.

@@ -44,6 +44,23 @@ The owner asked the advisor to check the whole repository for anything that shou
 
 Neither is changed, and the history is not rewritten.
 
+### 5 · owner → advisor: we have Zetaris
+
+> *"We have Zetaris. We got access."* (translated from Polish)
+
+The owner pasted the sponsor's instructions for running the whole platform locally with Docker Compose, and the address of the hosted instance's dashboard.
+
+**What the advisor read.** The pasted instructions and the sponsor's public [getting-started guide](https://github.com/zetaris/getting-started): its connection overview, its client setup and its helper scripts' notes.
+
+**What the advisor found.**
+
+- There are two ways in. **JDBC** needs Java and the driver file that comes with the platform. **REST** needs an API key, the organisation's numeric ID and a request ID per call, and the guide says of it: *"No Java runtime or JDBC driver is needed."*
+- Proven is written in Go ([ADR-0001](../fleet/decisions/ADR-0001-go-behind-adapters.md)). Go has no JDBC, so the REST API is the natural way for proven's adapter to reach Zetaris. The JDBC route stays useful for exploring the data by hand.
+- The local platform asks for 8 GB of memory and 4 CPUs for Docker and 15 GB of disk. That is more than the machine prepared for the Cursor agents has.
+- An API key is shown once and carries its owner's permissions. The guide says never to paste it into a prompt; proven reads it from an environment variable only ([ADR-0013](../fleet/decisions/ADR-0013-no-hardcoded-settings.md)).
+
+**What the advisor did.** [`../DESIGN.md`](../DESIGN.md) now says that access has arrived and that the interface and the instance are still to be decided. The advisor proposed both as decisions to the owner.
+
 ## Not run
 
 - The safety-model status page was not changed: nothing in that order has moved since 19 October.
