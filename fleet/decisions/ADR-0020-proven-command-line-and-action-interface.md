@@ -83,6 +83,25 @@ The Opengrep action's `patterns`, `jobs` and `opengrep-version` have no meaning 
 
 `contents: read` always. `security-events: write` only for the SARIF upload step. `pull-requests: write` only when `comment` is on. Proven asks for nothing more.
 
+### 6. Runners
+
+The owner pointed to GitHub's documentation on [GitHub-hosted](https://docs.github.com/en/actions/how-tos/manage-runners/github-hosted-runners/use-github-hosted-runners) and [self-hosted](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners) runners. Three facts from it shape the Action:
+
+- A container action *"can only execute on runners with a Linux operating system"*, and *"self-hosted runners must use a Linux operating system and have Docker installed"* ([about custom actions](https://docs.github.com/en/actions/sharing-automations/creating-actions/about-custom-actions)). So `uses: saphan-ai/proven@…` runs on Linux runners. On macOS and Windows runners, the documentation shows the command line in a `run:` step instead, from a release binary.
+- A GitHub-hosted runner is a fresh virtual machine in GitHub's cloud. It cannot reach a team's private network, so a Zetaris or a Nightshift that is not reachable from the internet is out of its reach. There Proven runs in sample mode, or against endpoints the team makes reachable.
+- GitHub *"recommend[s] that you only use self-hosted runners with private repositories"*, because *"forks of your public repository can potentially run dangerous code on your self-hosted runner machine"*. So, for Proven's own public repository: its workflow runs on GitHub-hosted runners in sample mode, and live reviews with our Zetaris and Nightshift run in the Gitea lab or in private repositories on our own runners. The documentation tells teams the same: a self-hosted runner for live mode, never for pull requests from forks of a public repository.
+
+### 7. Comments on the pull request, through reviewdog
+
+[reviewdog](https://github.com/reviewdog/reviewdog) reads SARIF 2.1.0 (`-f=sarif`) and posts it as review comments on a pull request: `-reporter=github-pr-review` on GitHub, `-reporter=gitea-pr-review` on Gitea, plus GitHub's checks and annotations. Many pipelines already use it for their linters.
+
+- Proven writes SARIF; posting comments is reviewdog's job. The Action's `comment` input runs reviewdog on Proven's SARIF, and a team that already runs reviewdog adds one more input to it.
+- This replaces the Gitea comment adapter of [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4, if the owner accepts it: less code of our own, and the same path on GitHub and Gitea.
+
+### 8. Other pull-request review tools
+
+AI reviewers (for example Qodo's PR-Agent, CodeRabbit, GitHub Copilot's code review, Anthropic's Claude Code action) are usually installed as GitHub Apps or actions that post comments, each with its own commands and settings. Proven does not copy their commands. It meets them where their output meets the pipeline: comments on the pull request (point 7), SARIF in code scanning, and a failing check. Matching one of them input for input is not part of this decision; their documentation was not read for it.
+
 ## Consequences
 
 - Moving from either tool changes the image or the `uses:` line and the secrets, and keeps every other line. The lab ([ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md)) runs the same workflow on Gitea, which checks that claim.
