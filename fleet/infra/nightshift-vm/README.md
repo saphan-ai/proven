@@ -30,7 +30,7 @@ The tool is [`nightshift_vm.sh`](nightshift_vm.sh). Environment, not product cod
 6. **Install, inside the VM's window.** Open the image, drag Nightshift to Applications, start it.
    - **When macOS refuses it** (*"Apple could not verify 'Nightshift Setup' is free of malware…"*): click **Done**, open
      **System Settings → Privacy & Security**, scroll to the line about Nightshift, click **Open Anyway**, confirm with
-     the VM's password, and start it again. Do this only inside the VM, never on the host.
+     the VM's password, and start it again. Do this only inside the VM, never on the host. The Tahoe base image ships with Gatekeeper off (`spctl` answers `override=security disabled`), so the refusal may not appear in the VM at all.
    - Pass Nightshift's email access gate in the VM.
 7. **NVIDIA, inside the VM only.** Put the NVIDIA API key into Nightshift's Providers tab. Never type it on the host,
    never into a file, a repository, a prompt or a report. Pin two lanes to Nemotron models by name.

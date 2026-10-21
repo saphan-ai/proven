@@ -69,12 +69,22 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   clipboard, no host directory mounted.**
 - **owner act:** the creation script, rehearsed by the master with `DRY=1` and the output pasted (law #33).
 - **dod:** the VM boots; its configuration shows no shared directory; its size matches the arithmetic.
-- **master-was-wrong:** —
+- **result (measured by the master 2026-10-21 12:36–12:50Z):** the owner's script finished exit 0. `tart get`: darwin,
+  4 CPU, 8192 MB, 80 GB; started as `tart run nightshift --no-clipboard` (no `--dir`). Inside the guest: macOS 26.6.2,
+  4 CPU, 8 GiB, `/` 74 GiB, zero virtiofs mounts. **Network, NAT:** from the guest, TCP 22 answers on runner-cursor, on
+  the Zetaris host and on macm5's VM gateway; the internet answers. remark: an open port proves reach, not access — each
+  of those still asks for its own key.
+- **master-was-wrong:** the master first chose Homebrew; the tap's formula is broken on Homebrew 7 (§3 Tools).
 
 ### W2 · `nightshift-installed-in-the-vm` — the M5+ installer, checked and installed in the VM
 - **what:** the M5+ installer copied into the VM, its sha256 checked there against NS-A2, then installed. The email access
   gate and the "Open Anyway" step are the owner's, inside the VM's window.
 - **dod:** the sha256 inside the VM pasted; Nightshift starts in the VM; NS-A1 repeated for the installed app and pasted.
+- **measured by the master inside the VM (2026-10-21):** host and guest sha256 of `Nightshift-Setup-mac-m5.dmg` both
+  `823e0ee0…2e2a4`, equal to Meterless's published list. NS-A1 holds for the M5+ image: the dmg is not signed and has no
+  stapled ticket; `Nightshift Setup.app` (`ai.meterless.installer.mac-m5`) is ad-hoc signed, no Team ID. **New:**
+  `spctl` in the guest answers `override=security disabled` — the Tahoe base image ships with Gatekeeper off, so the
+  "Open Anyway" step may not appear in the VM.
 - **master-was-wrong:** —
 
 ### W3 · `nvidia-in-nightshift` — NVIDIA in Providers, two Nemotron lanes pinned
