@@ -1,1 +1,7 @@
 .DS_Store
+
+# Secrets stay local: keys come from the environment only (ADR-0001, ADR-0013).
+# .env.example, with placeholder values only, is the one env file that is committed.
+.env
+.env.*
+!.env.example
