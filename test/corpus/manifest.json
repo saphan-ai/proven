@@ -355,7 +355,7 @@
       "batch": 1,
       "status": {
         "contract": "written 2026-10-19",
-        "fixture": "not built (prior art, built before the window)",
+        "fixture": "built",
         "checks": "not run",
         "independent_check": "not done"
       }

@@ -2,7 +2,7 @@
 
 - incident: I01 (one incident; this case is a second review of a change that had already merged)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -87,8 +87,32 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check and record each line of its output for runs (a), (b) and (c). **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check and record each line of its output for runs (a), (b) and (c).
+
+Recorded 2026-10-21T17:33:57Z. Toolchain: `go version go1.26.8 linux/amd64`. `base/go.mod` and `change/go.mod` declare `go 1.26`. Standard library only.
+
+Command, from the repository root:
+
+    bash tests/corpus/cases/PV-020/check.sh
+
+Exit code: 0
+
+    run a description-present-listener-allowed control in-process result passed
+    run a description-present-listener-allowed control description result passed
+    run a description-present-listener-allowed control listener result passed
+    run b description-absent control in-process result passed
+    run b description-absent control description result could not run: description not provisioned
+    run b description-absent control listener result passed
+    run c listener-refused control in-process result passed
+    run c listener-refused control description result passed
+    run c listener-refused control listener result could not run: operation not permitted
+    route GET /v1/health oversize base accepted (accepted) change refused (body exceeds limit)
+    route POST /v1/items oversize base accepted (accepted) change refused (body exceeds limit)
+    route POST /v1/search oversize base accepted (accepted) change refused (body exceeds limit)
+    route PUT /v1/items/current oversize base accepted (accepted) change refused (body exceeds limit)
+    route POST /v1/uploads/media oversize base accepted (accepted) change accepted (exempt upload)
+    route POST /v1/uploads/bundle oversize base accepted (accepted) change accepted (exempt upload)
+    run limit-removed control in-process result failed: inproc.limit-present, inproc.over-limit-refused GET /v1/health, inproc.over-limit-refused POST /v1/items, inproc.over-limit-refused POST /v1/search, inproc.over-limit-refused PUT /v1/items/current, inproc.over-limit-exempt POST /v1/uploads/media, inproc.over-limit-exempt POST /v1/uploads/bundle
 
 ## 9. Limits
 
