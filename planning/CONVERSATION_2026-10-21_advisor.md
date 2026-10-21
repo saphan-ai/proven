@@ -92,6 +92,18 @@ Participants report that the sponsor folders ask for each sponsor's use to be de
 
 **What the advisor did.** It wrote a community draft, [`../metadata.schema.json`](../metadata.schema.json), a JSON Schema anyone may copy, and proven's own [`../metadata.json`](../metadata.json), which follows it. The schema asks what judges need: the track, the team, each sponsor's use with its status (planned, in progress, working), where it is in the code and the evidence that it works, the components that existed before the build, and how to run it without the team's keys. It says plainly that it is not official and that an official format, if one comes, wins. proven's file marks most of its sponsor use as planned, because the build has not started. Validated with `ajv` (JSON Schema 2020-12): proven's file passes; a copy with an unknown track and a copy with an unknown engine are refused.
 
+### 11 · owner → advisor: Zetaris runs
+
+> *"http://localhost:3000. We can start building our data sources already."* (translated in part from Polish)
+
+**What the advisor checked.** The platform answered on the owner's Mac through a tunnel to its machine. It then pointed at its own design: the evidence sources are loaded by code written in the build window, and work committed before the window counts only as declared pre-existing work. Registering the data sources is part of Proven's evidence layer, not of the machines. It proposed exploring today, by hand, and recording what works as measurements, so the decision on how evidence is loaded can be made; and building from 22 October.
+
+### 12 · owner → advisor: explore today, build tomorrow
+
+> *"OK, good catch. Explore today, build tomorrow. The same goes for checking which call parameters Proven should accept, the drop-in replacement in GitHub Actions. We talked about it. All of it, the data sets and the call, goes in as decisions."* (translated in part from Polish)
+
+**What the advisor did.** It read how Semgrep and Opengrep are run in GitHub Actions today, and GitHub's step that uploads SARIF, and proposed [ADR-0020](../fleet/decisions/ADR-0020-proven-command-line-and-action-interface.md): every flag with its environment variable and default, the exit codes, the Action's inputs and outputs under the Opengrep action's names, the permissions it asks for, and the lines that change when a pipeline moves from either tool. It stays proposed until the owner accepts it. The data sets follow as their own decision once the exploration has measured what Zetaris can load.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

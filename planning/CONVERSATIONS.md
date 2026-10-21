@@ -151,3 +151,5 @@ Page: [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md)
 | [8](CONVERSATION_2026-10-21_advisor.md#8--owner--advisor-the-checksums-and-a-virtual-machine) | owner → advisor | The checksum matches; Nightshift goes into a macOS virtual machine on macm5; an order for it. |
 | [9](CONVERSATION_2026-10-21_advisor.md#9--owner--advisor-three-answers-before-onboarding) | owner → advisor | Pre-existing components confirmed by the organisers; our own credits if needed; Nightshift stays in its VM: zero trust. |
 | [10](CONVERSATION_2026-10-21_advisor.md#10--owner--advisor-a-metadatajson-for-everyone) | owner → advisor | A community draft of `metadata.json` and its schema, for every participant; proven's own file follows it. |
+| [11](CONVERSATION_2026-10-21_advisor.md#11--owner--advisor-zetaris-runs) | owner → advisor | Zetaris runs; the data sources are product, so they are explored today and built from 22 October. |
+| [12](CONVERSATION_2026-10-21_advisor.md#12--owner--advisor-explore-today-build-tomorrow) | owner → advisor | Data sets and the call interface go in as decisions; ADR-0020 proposed: Proven's exact command line and Action. |
