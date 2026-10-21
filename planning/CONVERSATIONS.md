@@ -139,3 +139,5 @@ Page: [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md)
 | [1](CONVERSATION_2026-10-21_advisor.md#1--owner--advisor-the-test-suite-on-cursor) | owner → advisor | The test corpus's code built on Cursor today, as the rehearsal before the build. |
 | [2](CONVERSATION_2026-10-21_advisor.md#2--owner--advisor-warm-them-up-and-find-the-bugs-today) | owner → advisor | Every run has a fresh context; find the adapter's bugs today; a shake-out checklist for the master. |
 | [3](CONVERSATION_2026-10-21_advisor.md#3--an-error-of-the-advisors-and-its-repair) | — | The advisor had saved over the infrastructure master's page; the page is restored. |
+| [4](CONVERSATION_2026-10-21_advisor.md#4--owner--advisor-tell-the-scribe-to-reinstall) | owner → advisor | A message to the scribe, its delivery and its answer, published as an example; a handover found unread. |
+| [5](CONVERSATION_2026-10-21_advisor.md#5--owner--advisor-three-answers) | owner → advisor | The five cases stay; the test suite and its code are prior art; orders written in advance and public, run in the window. |
