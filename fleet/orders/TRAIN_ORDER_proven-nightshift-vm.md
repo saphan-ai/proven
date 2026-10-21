@@ -93,6 +93,10 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 - **what:** two lanes, each pinned to a Nemotron model by name (the setup guide suggests a fast and a deep one), so that
   `meterless/auto` cannot route to another family ([ADR-0019](../decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md), point 4).
 - **dod:** the lanes and their model names, pasted from Nightshift; the key's value nowhere.
+- **progress 2026-10-21:** the owner put the NVIDIA key into Providers inside the VM, through a short clipboard window
+  (VM restarted without `--no-clipboard`, the key pasted, the VM restarted with it; measured afterwards: running with
+  `--no-clipboard`). The lanes' model names are owed by the owner. Runtime measured listening on `127.0.0.1:8088`
+  (NS-A4, NS-A5 hold); a `meterless` process also listens on `*:8089`, which W4 must account for.
 - **master-was-wrong:** —
 
 ### W4 · `nightshift-reachable-on-the-private-network` — the runtime on the tailnet only
@@ -128,7 +132,12 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   refused it: Softnet has no code signature and runs setuid root on the host, so it would contain one unsigned program
   by installing another, with more privilege and outside the VM. With NAT the guest can reach machines on macm5's
   network; anything there keeps its own authentication. Hardening, measured first: block that range with macOS's own
-  `pf` firewall.
+  `pf` firewall. **APPLIED 2026-10-21 (the owner: "pf i możesz zrobić skrypt launchpad"):** `nightshift_vm.sh isolate`
+  installed anchor `com.apple/proven-nightshift` (6 rules) and LaunchDaemon `com.proven.nightshift-pf` (boot + every
+  10 min); pf Enabled. **Measured from the guest, before → after:** TCP 22 on runner-cursor (LAN), the Zetaris host,
+  macm5's VM gateway and runner-cursor over the tailnet: OPEN → closed. HTTPS to apple.com, NVIDIA's API and
+  meterless.ai: 200 → 200; DNS answers; macm5 → VM ssh still opens. remark: survival of a macm5 reboot is NOT yet
+  measured — the LaunchDaemon is the mechanism, the first reboot is its test.
 - **Tools (measured 2026-10-21):** the `cirruslabs/cli` Homebrew formula fails on Homebrew 7.0.10 (*"Calling
   `depends_on :macos` with `depends_on macos:` is disabled!"*). Tart comes from its GitHub release 2.40.1 instead,
   sha256-pinned, signed by Cirrus Labs (Team 9M2P8L4D89) and notarized, through proven's
