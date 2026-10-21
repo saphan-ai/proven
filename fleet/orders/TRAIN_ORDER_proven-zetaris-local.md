@@ -1,7 +1,7 @@
 # TRAIN ORDER — proven-zetaris-local
 
 - master: MASTER (claude-code, claude-opus-5-5, seat macm5/██████████████), the infra master of `proven-cursor-infra`, handed this train by the owner on 2026-10-21 ("we install a local VM"), mode: economy
-- status: ACTIVE — amended by the master on 2026-10-21 (§1a, W1 size, Z5); waits for the owner's signature
+- status: ACTIVE — signed by the owner 2026-10-21; Z5 = 12 GiB (the owner's run); W1 done 2026-10-21
 - track: proven-zetaris-local
 - repo: proven (public record and the runbook), ████████████ (the host's brief and report)
 - base: main at the cut

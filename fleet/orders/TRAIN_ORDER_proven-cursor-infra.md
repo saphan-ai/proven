@@ -9,7 +9,7 @@
 > - cost: **not measured.** The advisor and the master work in interactive sessions, not dispatched runs, and Saphan Studio records a cost only for runs. Not run: no cost figure exists for this document.
 
 - master: MASTER (claude-code, claude-opus-5-5, seat macm5/██████████████), appointed by the owner on 2026-10-19, mode: economy
-- status: ACTIVE — re-measured and amended by the master on 2026-10-19 (§1a); waits for the owner's signature
+- status: ACTIVE — signed by the owner 2026-10-19 and again 2026-10-20 after the W2 correction; W1–W5 done, W4 done 2026-10-21; W6 waits for a working far Cursor leg
 - track: proven-cursor-infra
 - repo: proven (NOT in `saphan workspace repo list` on 2026-10-19 — W1 registers it), with ████████████ and the bridge registry
 - base: main at the cut
