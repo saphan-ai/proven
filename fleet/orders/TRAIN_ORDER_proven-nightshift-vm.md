@@ -160,6 +160,12 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   to do when macOS refuses the installer (law #39). The public copy of this order and its status stay current, with
   nothing internal in them.
 - **dod:** the runbook exists; the deny-list grep over every public file prints nothing.
+- **result (2026-10-21):** `fleet/infra/nightshift-vm/README.md` (the numbered ceremony, the macOS refusal as seen, the
+  key's value not its id, no pin from outside) and `nightshift_vm.sh` (check · install-tools · create · start · stop ·
+  status · copy-installer · isolate · unisolate · reach) are in proven; the public order regenerates with blackouts and a
+  REDACTED list. Deny-list grep (machine names, users, internal paths, tailnet and LAN addresses, the private repo name)
+  over the public nightshift files: only Tart's default VM subnet and RFC 1918 ranges in the pf rules — generic, kept.
+  **W6 DONE.**
 - **master-was-wrong:** —
 
 ## §3 DECISIONS OWED BY THE OWNER
@@ -240,6 +246,16 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   tailnet.
 - One Nemotron request answers and names its model; stopping the VM turns it into a named error.
 - The runbook is in proven, and the public record is current.
+
+## §4a CLOSING STATE (2026-10-21)
+
+W1–W6 DONE. Owed, and kept open in this lane on purpose:
+- **the far-side proof** — NVIDIA's console shows no usage for the key (the owner, 2026-10-21), so "NVIDIA saw the call"
+  is UNMEASURED; the measurable substitute is a capture on macm5's VM interface during one request (an owner act, sudo).
+- **N3** — the question to Meterless (a notarized build; whether a VM counts as "running on your machine"; a per-app pin).
+- **N2** — stop the VM after the results on 6 November.
+
+`DONE · proven-nightshift-vm · nothing in flight · owed to the owner: N3 question to Meterless, VM stop after 6 Nov, optional far-side capture · THANK YOU`
 
 ## §5 COST
 
