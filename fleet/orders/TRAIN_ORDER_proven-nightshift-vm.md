@@ -200,6 +200,11 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   ADR-0019 point 4 made binding). (b) the Nightshift VM keeps no local chat lanes for `proven`'s modes, so the race has
   only NVIDIA rows to choose from (an owner act in Nightshift's cockpit; measured afterwards by a receipt). (c) set the
   app's mode to `deep` in the Apps panel — narrows the race to stronger rows but still not to one model.
+  **(c) APPLIED by the owner 2026-10-21 ("zmieniłem na deep")**; measured in the VM: `state/app-policy.json` →
+  `"proven": {"mode": "text.deep"}` (was `auto`). Nightshift counts 3 requests from app `proven`, all naming
+  `nvidia/nemotron-3.5-lightning-30b-a3b`. Setup → Providers' *Default model* (the owner's screenshot) offers modes only:
+  auto, fast, deep, cheap, local, fusion. **(a) and (b) stay open**; whether `deep` races any local lane is unmeasured
+  until the next request's receipt.
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
