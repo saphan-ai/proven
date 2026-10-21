@@ -8,7 +8,7 @@ this file lands before the build window opens on 22 October, dated, and marked a
 | tool | version | where it comes from |
 |---|---|---|
 | Go | 1.26.8 | the base image |
-| Node | 22 | the base image |
+| Node | 24 (24.5.0) | this file's second layer, from the official image by digest (the Cursor agent runs legs on its bundled Node 24.5.0; the owner, 2026-10-21) |
 | Python | 3.13 | Debian 13, this file's one layer |
 | gcc, libc headers | Debian 13 | this file's one layer; `CGO_ENABLED=1` |
 
@@ -16,7 +16,7 @@ The native lane on runner-cursor carries the same Go, Python and Node versions, 
 a lane fault.
 
 **The base image is not published.** `BASE` is our Go image, pinned by digest. A stranger cannot build this file as it
-stands: replace `BASE` with any Debian 13 image that carries Go 1.26.8 and Node 22.
+stands: replace `BASE` with any Debian 13 image that carries Go 1.26.8; the file brings Node 24 itself.
 
 Build (on runner-cursor):
 

@@ -67,6 +67,12 @@ Cursor's agent stream uses a host the Cursor network baseline does not admit yet
 permission class does not allow `python3`, `node`, `npm`, `gcc` or `curl`, so the Python, Node and compiler checks and the
 network reading for W8 did not run. The Cursor backend train has the request.
 
+**2026-10-21, 11:00 UTC — W6 on Grok, under the polyglot class.** The Cursor leg on runner-cursor ran with Grok 4.7 and the new
+`polyglot` executor class: Go 1.26.8 with cgo, Python 3.13.16, Node v24.5.0, npm 10.9.9, gcc 13.3.0, and `go run` printed
+`hello from proven`. `curl` stays refused by the class (egress is measured with a Go program instead). The leg's Node is the
+Cursor agent's own bundled Node 24, so the owner chose Node 24 everywhere: the build image now carries Node 24.5.0
+(image `sha256:fb798be5c7e48bb6a74f85e19aebc999617908794f9206a2073a5ea45cdacb52`), and the host follows.
+
 ## Wagon state
 | wagon | state | next |
 |---|---|---|
