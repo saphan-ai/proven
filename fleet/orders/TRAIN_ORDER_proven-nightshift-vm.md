@@ -255,6 +255,12 @@ W1–W6 DONE. Owed, and kept open in this lane on purpose:
 - **N3** — the question to Meterless (a notarized build; whether a VM counts as "running on your machine"; a per-app pin).
 - **N2** — stop the VM after the results on 6 November.
 
+- **Key-only ssh (the owner, "tak, klucz", 14:35Z):** a VM-only key `~/.config/proven/nightshift-vm_ed25519` is
+  authorized in the VM; `/etc/ssh/sshd_config.d/010-proven-keys-only.conf` switches passwords off. Measured: sshd offered
+  `publickey,password,keyboard-interactive` before, `publickey` after; key login works. The script's own step 6 printed ✖
+  because `ssh -v` under a pty ends the line with `\r` — the master's comparison bug, fixed; the state is as intended.
+  Passwordless `sudo` for `admin` was already in the base image (`/etc/sudoers.d/admin-nopasswd`).
+
 `DONE · proven-nightshift-vm · nothing in flight · owed to the owner: N3 question to Meterless, VM stop after 6 Nov, optional far-side capture · THANK YOU`
 
 ## §5 COST
