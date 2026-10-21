@@ -56,6 +56,9 @@ leg; W9 is deferred by Z5.
     (the order named `fleet/infra/zetaris-local.md`; it lives beside the console tool). This status page, the
     conversation page and ADR-0023 are the public record.
 
+
+**2026-10-21, 04:19 UTC — more memory (decision Z5, the owner: 16 GiB).** The host now has 16 GiB, and the platform's own limits were raised to use it (they capped it below the host): Spark driver 8 GB with 4 cores, API heap 2 GB. After the restart: all checks pass, the data volumes and the registered evidence definitions are intact (KEV still 1754 rows), and the ports still answer on the private network only.
+
 ## Wagon state
 | wagon | state | next |
 |---|---|---|
