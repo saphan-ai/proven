@@ -31,7 +31,11 @@ The tool is [`nightshift_vm.sh`](nightshift_vm.sh). Environment, not product cod
    file against Meterless's published `SHA256SUMS`, copies it into the VM over ssh (it asks for the `admin` password),
    and checks the SHA-256 again inside the VM. Nothing is shared to do it.
 6. **Install, inside the VM's window.** Open the image, drag Nightshift to Applications, start it.
-   - **When macOS refuses it** (*"Apple could not verify 'Nightshift Setup' is free of malware…"*): click **Done**, open
+   - **When macOS refuses it** — on the host on 2026-10-21 it looked like this:
+
+     ![macOS refuses Nightshift Setup: "Apple could not verify it is free of malware"](macos-refuses-the-installer.png)
+
+     (*"Apple could not verify 'Nightshift Setup' is free of malware…"*): click **Done**, open
      **System Settings → Privacy & Security**, scroll to the line about Nightshift, click **Open Anyway**, confirm with
      the VM's password, and start it again. Do this only inside the VM, never on the host. The Tahoe base image ships with Gatekeeper off (`spctl` answers `override=security disabled`), so the refusal may not appear in the VM at all.
    - Pass Nightshift's email access gate in the VM.
@@ -44,7 +48,16 @@ The tool is [`nightshift_vm.sh`](nightshift_vm.sh). Environment, not product cod
    macOS; nothing new runs as root. `DRY=1 ./nightshift_vm.sh isolate` shows the rules and installs nothing.
    `./nightshift_vm.sh reach <host> …` measures from inside the guest; `unisolate` removes it all.
 8. **NVIDIA, inside the VM only.** Put the NVIDIA API key into Nightshift's Providers tab. Never type it on the host,
-   never into a file, a repository, a prompt or a report. Pin two lanes to Nemotron models by name.
+   never into a file, a repository, a prompt or a report.
+   - **Paste the key's VALUE (`nvapi-…`, about 70 characters), not its identifier.** NVIDIA's console lists each key as
+     a UUID beside a masked `nvapi-****…`; the UUID pasted into Providers is refused by NVIDIA on the first request with
+     *"Invalid unsecured/JWS/JWE header: Invalid JSON object"* (measured 2026-10-21).
+   - **Nightshift's "verified" does not prove the key.** It checks the key with `GET /v1/models`, which NVIDIA answers
+     without any key. The first real request is the proof.
+   - **A model cannot be pinned from outside.** Setup → Providers' *Default model* offers modes only (`auto`, `fast`,
+     `deep`, `cheap`, `local`, `fusion`), and for an identified app Nightshift's proxy routes by the app's mode and
+     records, but does not obey, the model named in the request. Read the answering model from the response's signed
+     receipt (`meterless.routed_model`, `winning_route.provider`).
 
 The network steps (the runtime reachable from proven's machines only) follow in this file when they are measured.
 
