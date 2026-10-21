@@ -103,7 +103,15 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   run with the owner's consent at the call (law #49).
 - **Measured inside the VM (master, 2026-10-21):** `GET 127.0.0.1:8088/v1/models` with no token → 401 `unauthorized`;
   with a wrong token → 401. `127.0.0.1:8089/` → 200 with no token, and that port listens on all of the guest's
-  interfaces; what it serves is not yet read (W4 reads it before anything is exposed).
+  interfaces; what it serves is not yet read (W4 reads it before anything is exposed). Read since: its page is titled "Nightshift · Phone".
+- **The two lanes (master, from the owner's `GET /v1/models` paste, 2026-10-21):** the runtime lists NVIDIA's hosted
+  models by full name, so no alias is configured — a request names the model: **fast** `nvidia/nemotron-3.5-lightning-30b-a3b`,
+  **deep** `nvidia/nemotron-3.5-super-vl-120b-a12b`. Eight `nvidia/` models are listed, beside 18 `meterless/` routing
+  modes and the `local-runtime/` catalogue. remark: listing a name proves it is addressable, not that a request to it is
+  not re-routed — W5 reads the model the response names. **master-was-wrong (the advisor's word "lanes"):** Nightshift's
+  `lanes.toml` holds its LOCAL llama.cpp lanes only (7, declaring ~8 GB active in an 8 GiB VM); NVIDIA is not a lane there.
+- **The runtime token** is the `proxy-token` file in Nightshift's state directory inside the VM (the Nightshift CLI
+  reads it from there, `transport.mjs` resolveToken); it is never printed.
 - **master-was-wrong:** —
 
 ### W4 · `nightshift-reachable-on-the-private-network` — the runtime on the tailnet only
