@@ -205,6 +205,14 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   `nvidia/nemotron-3.5-lightning-30b-a3b`. Setup → Providers' *Default model* (the owner's screenshot) offers modes only:
   auto, fast, deep, cheap, local, fusion. **(a) and (b) stay open**; whether `deep` races any local lane is unmeasured
   until the next request's receipt.
+  **Control request 1 under deep (13:50:56Z, the owner's run):** connected, then `curl: (28) Operation timed out after
+  60002 milliseconds with 0 bytes received` — the master's 60 s limit, sized for one fast call, was too short for deep;
+  the limit is now 300 s. **Read in the VM's logs the same minute:** the four LFM2.5 lanes are `gated off:
+  LIQUID_FEATURES — left out of every race`; the two Llama-3.2-3B lanes are `parked for memory: need 4029 MB,
+  MemAvailable ~3570 MB`; `provider keys: nvidia`. ⇒ today no local chat lane can win a race — N7 (b) holds BY
+  ACCIDENT (memory), not by setting. **And Nightshift's receipts do not survive a restart:** `meterless.json`
+  `receipts` was 0 after the VM restarted at 13:37Z (it held `rcpt_req_xaswpcmb` before), so evidence must be copied at
+  the call — the scripts do.
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
