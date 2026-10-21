@@ -64,6 +64,14 @@ The owner shared the event's Welcome Guide, the Meterless engine guide and index
 
 **What the advisor checked**, without running anything: the disk image is not signed; the app inside carries only an ad-hoc signature, with no developer identity, and is not notarized by Apple. A note inside the image from Meterless says it is *"not notarized by Apple yet"* and tells users how to open it anyway. The download was also the edition for M1 to M4 Macs, while the guide sends M5 Macs to another one.
 
+### 8 · owner → advisor: the checksums, and a virtual machine
+
+The M5 edition was refused the same way. Meterless publishes SHA-256 sums, and the owner found the list for the M5+ edition. The advisor compared them: the download matches. It said what that shows (the file is the one Meterless published) and what it does not (what the file does, or who built it), and proposed three places to run it: a macOS virtual machine on macm5, a separate macOS user, or macm5 itself.
+
+> *"A"*
+
+**What the advisor did.** It wrote the order [`../fleet/orders/TRAIN_ORDER_proven-nightshift-vm.md`](../fleet/orders/TRAIN_ORDER_proven-nightshift-vm.md): a VM with no shared folder or clipboard, the installer's checksum checked again inside it, NVIDIA configured only inside it, two lanes pinned to Nemotron models, the endpoint reachable over the private network with its own token, one request that must name a Nemotron model, and a runbook.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

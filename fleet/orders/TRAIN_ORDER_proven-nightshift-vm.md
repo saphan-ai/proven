@@ -1,0 +1,111 @@
+# TRAIN ORDER — proven-nightshift-vm
+
+- master: the master of `proven-cursor-infra`, if the owner appoints him; this train runs parallel to that one
+- status: DRAFT — written by the advisor on 2026-10-21; the master may change it, then gives it to the owner to sign
+- track: proven-cursor-infra
+- repo: proven (public record and the runbook), saphan-infra (the VM's brief and report)
+- base: main at the cut
+- author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
+
+## §0 THE OWNER, VERBATIM
+
+2026-10-21. The organisers' setup guide makes Meterless Nightshift the primary AI provider of every entry
+([ADR-0019](../decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md)). Both macOS installers were refused by
+macOS: *"Apple could not verify 'Nightshift Setup' is free of malware that may harm your Mac or compromise your privacy."*
+The advisor measured them: unsigned, not notarized; the M5+ download matches Meterless's published SHA-256. The advisor
+proposed three options: A, a macOS virtual machine on macm5; B, a separate macOS user; C, install on macm5 directly.
+
+> *"A"*
+
+## §1 WHAT THIS TRAIN IS
+
+Nightshift runs inside a macOS virtual machine on macm5, apart from everything else on that machine: no shared folder, no
+shared clipboard, no key of the fleet's inside it. NVIDIA is configured in Nightshift's Providers tab inside the VM. Its
+runtime endpoint is reachable from the machines that run proven over the private network, with its own token, and from
+nowhere else. One request through a pinned Nemotron lane answers, and a wrong token is refused.
+
+**Why a VM.** macm5 holds the fleet's bridge certificate, the Cursor seats and the Zetaris registry login. The Nightshift
+installer is not signed by a developer identity and not notarized by Apple, and it downloads further software. The SHA-256
+match proves the file is the one Meterless published; it does not prove what the file does. A VM keeps whatever it does
+away from the fleet's secrets.
+
+**What the advisor read on 2026-10-21. CLAIMS FOR YOU TO TEST, not ground (law #44). Re-measure each one before you build
+on it. Where you find the advisor wrong, write it in the wagon's `master-was-wrong:` field.**
+
+| # | claim (advisor, 2026-10-21) | source | instrument |
+|---|---|---|---|
+| NS-A1 | Both macOS installers are unsigned and not notarized; the app inside the M1 image has an ad-hoc signature with no Team ID. | MEASURED by the advisor: `codesign -dv`, `spctl --assess`, `stapler validate` | repeat on the M5+ image |
+| NS-A2 | `Nightshift-Setup-mac-m5.dmg` sha256 `823e0ee09e6e36a55bce84a314e75106382fcba019e67e3092e13f63edf2e2a4` matches `https://meterless.ai/Nightshift/M5+/SHA256SUMS`; the same list names `Nightshift-1.2.1-macos-arm64.dmg` sha256 `9fb3023672f379b38da8aa1405b916bfb9c9359fa5a73f6fe0ec5e7cf63ba087`. | MEASURED by the advisor | `shasum -a 256` inside the VM, after the copy |
+| NS-A3 | The M5+ edition is for macOS Tahoe on M5 to M6; the M1+ edition for older macOS on M1 to M4. A VM's macOS version decides which edition runs in it. | the organisers' setup guide, p. 17 | the edition that installs and starts in the VM |
+| NS-A4 | Nightshift's runtime is OpenAI-compatible, by default at `http://127.0.0.1:8088/v1`; it takes `Authorization: Bearer <token>`, `meterless-app`, `meterless-scope: user`; `GET /v1/models`, `POST /v1/chat/completions`. | the setup guide, pp. 19–20 | W5 |
+| NS-A5 | If the runtime listens on 127.0.0.1 only, it is not reachable from outside the VM without a proxy inside it. | inference, not read | `lsof -nP -iTCP -sTCP:LISTEN` inside the VM |
+| NS-A6 | Apple Silicon runs macOS guests with Apple's Virtualization framework; Tart and UTM both use it. | general knowledge, not measured here | the VM boots |
+
+## §2 WAGONS
+
+### W1 `nightshift-vm-exists`
+- **what:** a macOS VM on macm5, with Tart (or UTM if Tart does not fit), at the macOS version the M5+ edition needs
+  (NS-A3). Proposed size, for the master to test against macm5's free memory and disk, with the arithmetic printed (law
+  #46): 4 vCPU, 8 GiB, 80 GB. **No shared folder, no shared clipboard, no host directory mounted.**
+- **owner act:** the creation script, rehearsed by the master with `DRY=1` and the output pasted (law #33).
+- **dod:** the VM boots; its configuration shows no shared directory; its size matches the arithmetic.
+- **master-was-wrong:** —
+
+### W2 `nightshift-installed-in-the-vm`
+- **what:** the M5+ installer copied into the VM, its sha256 checked there against NS-A2, then installed. The email access
+  gate and the "Open Anyway" step are the owner's, inside the VM's window.
+- **dod:** the sha256 inside the VM pasted; Nightshift starts in the VM; NS-A1 repeated for the installed app and pasted.
+- **master-was-wrong:** —
+
+### W3 `nvidia-in-nightshift`
+- **owner acts, none by an agent:** the NVIDIA API key into Nightshift's Providers tab, inside the VM. It is never typed
+  on macm5 outside the VM, never in a file in any repository, a prompt, an order or a report.
+- **what:** two lanes, each pinned to a Nemotron model by name (the setup guide suggests a fast and a deep one), so that
+  `meterless/auto` cannot route to another family ([ADR-0019](../decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md), point 4).
+- **dod:** the lanes and their model names, pasted from Nightshift; the key's value nowhere.
+- **master-was-wrong:** —
+
+### W4 `nightshift-reachable-on-the-private-network`
+- **what:** the runtime reachable from runner-cursor and macm5 over the private network, and from nothing else. If it
+  listens on 127.0.0.1 only (NS-A5), a proxy inside the VM forwards one port to it. The simplest shape to measure first:
+  the VM joins the tailnet as its own node and serves that one port to the tailnet only.
+- **The runtime token** comes from Nightshift's Console. The owner puts it in the environment of the machines that run
+  proven; it is never written into a repository.
+- **dod:** from runner-cursor, `GET /v1/models` answers with the token. **Negative controls (law #27):** the same call
+  with one character of the token changed is refused; from a machine outside the tailnet, the port does not answer.
+- **master-was-wrong:** —
+
+### W5 `a-nemotron-request-answers`
+- **what:** from runner-cursor, one `POST /v1/chat/completions` to a pinned Nemotron lane, with the headers of NS-A4.
+- **dod:** the answer and the model Nightshift reports for it, pasted; it is a Nemotron model.
+- **Unplug test (law #41):** stop the VM; the same request fails with a named connection error, not an empty answer.
+- **master-was-wrong:** —
+
+### W6 `nightshift-runbook-and-record`
+- **what:** the human ceremony of W1–W4 as a numbered runbook in proven, `fleet/infra/nightshift-vm.md`, including what
+  to do when macOS refuses the installer (law #39). The public copy of this order and its status stay current, with
+  nothing internal in them.
+- **dod:** the runbook exists; the deny-list grep over every public file prints nothing.
+- **master-was-wrong:** —
+
+## §3 DECISIONS OWED BY THE OWNER
+
+- **N1 — the tool.** Recommended: Tart, scriptable from the command line. Alternative: UTM, with a window for every step.
+- **N2 — the VM's lifetime.** Recommended: kept running from 22 to 27 October, stopped after the results on 6 November.
+- **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
+  a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
+
+## §4 DEFINITION OF DONE
+
+- Nightshift runs in a VM on macm5 with no shared folder or clipboard; its installer's sha256 was checked inside the VM.
+- NVIDIA is configured inside the VM only; two Nemotron lanes are pinned by name.
+- The runtime answers from runner-cursor with the token, refuses a wrong token, and does not answer from outside the
+  tailnet.
+- One Nemotron request answers and names its model; stopping the VM turns it into a named error.
+- The runbook is in proven, and the public record is current.
+
+## §5 COST
+
+- The VM and Nightshift: local energy, a named zero.
+- Each Nemotron request through NVIDIA's hosted API is priced by NVIDIA's terms for the key, and runs only with the
+  owner's consent at the call (law #49). W5 is one request.

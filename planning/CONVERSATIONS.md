@@ -143,3 +143,4 @@ Page: [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md)
 | [5](CONVERSATION_2026-10-21_advisor.md#5--owner--advisor-three-answers) | owner → advisor | The five cases stay; the test suite and its code are prior art; orders written in advance and public, run in the window. |
 | [6](CONVERSATION_2026-10-21_advisor.md#6--owner--advisor-the-organisers-guides) | owner → advisor | The organisers' guides: Nightshift must be the primary provider; ADR-0018 and ADR-0019. |
 | [7](CONVERSATION_2026-10-21_advisor.md#7--owner--advisor-macos-refuses-the-installer) | owner → advisor | The Nightshift installer is unsigned and not notarized; the wrong edition was downloaded. |
+| [8](CONVERSATION_2026-10-21_advisor.md#8--owner--advisor-the-checksums-and-a-virtual-machine) | owner → advisor | The checksum matches; Nightshift goes into a macOS virtual machine on macm5; an order for it. |
