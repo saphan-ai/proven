@@ -38,7 +38,7 @@ leg; W9 is deferred by Z5.
    `up | down | status` opens it as `http://localhost:3000` through an ssh tunnel, in the background (13d337a).
 7. **W4 done** (`zetaris-accounts-and-key`). The owner kept the default administrator password: *"It did not ask for a
    new password. We go on with the same."* (translated). He created Proven's non-admin user and its key. At his word,
-   the master wrote `ZETARIS_REST_URL`, `ZETARIS_ORG_ID` and `ZETARIS_API_KEY` to an env file with mode 600 on macm5 and
+   the master wrote `ZETARIS_REST_URL`, `ZETARIS_ORG_ID` and `███████████████` to an env file with mode 600 on macm5 and
    runner-cursor, without printing a value. Z-A7 was partly wrong: `X-Org-ID` takes the numeric org ID, not the hex ID
    in the page's URL.
 8. **W5 done** (`zetaris-answers-over-rest`). From macm5 and from runner-cursor, with Proven's key: `select 1` → 200,
@@ -89,3 +89,4 @@ leg; W9 is deferred by Z5.
 | the zip's sha256 and the env file's path on each machine (left out) | 2 |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17.
+| credential variable name | 1 | the name of the variable that holds proven's Zetaris key (AGENTS.md §2) |

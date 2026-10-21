@@ -73,13 +73,13 @@ the values, and never asks for them.
     ```sh
     export ZETARIS_REST_URL=http://<tailnet address>:8888/api/v1.0
     export ZETARIS_ORG_ID=<the numeric org id>
-    export ZETARIS_API_KEY=<proven's key>
+    export ███████████████=<proven's key>
     ```
 16. Check from each machine. Every call carries the key as a Bearer token, the numeric org ID, and a fresh request ID:
     ```sh
     . ~/.config/proven/zetaris.env
     curl -s -X POST "$ZETARIS_REST_URL/sql-editor/sqls/run" \
-      -H "Authorization: Bearer $ZETARIS_API_KEY" -H "X-Org-ID: $ZETARIS_ORG_ID" \
+      -H "Authorization: Bearer $███████████████" -H "X-Org-ID: $ZETARIS_ORG_ID" \
       -H "X-Request-ID: $(uuidgen)" -H "Content-Type: application/json" \
       -d "{\"queryId\":\"$(uuidgen)\",\"sql\":\"select 1 as one\",\"source\":\"SqlEditor\",\"limit\":100}"
     ```
@@ -150,3 +150,4 @@ the values, and never asks for them.
 | Proven's user name, the org ID and the key | — | written as placeholders |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17.
+| credential variable name | 2 | the name of the variable that holds proven's Zetaris key (AGENTS.md §2) |
