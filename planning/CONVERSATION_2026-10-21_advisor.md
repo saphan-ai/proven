@@ -170,6 +170,26 @@ The owner signed the train order for Nightshift in a virtual machine and said to
 
 **What the advisor did.** It wrote [a signed order, and who may change it](../fleet/messages/BOUNDARY_a-signed-order-is-changed-by-its-master_2026-10-21.md): why the advisor did not write the owner's two answers into the order it had itself written, once the order was signed.
 
+### 23 · owner → advisor: all the seats, today
+
+> *"Let us put up all 4, and how many we use, we will see."* · *"I decide that I want all the seats ready today, now!"* · *"Not new ones. Additional seats on runner-cursor. We were also going to test one in a container."* · *"Did you not save the plan?"* (translated from Polish)
+
+**What the advisor did.** It first read "all 4" as four new machines and told the master so. The plan was already in the record: the owner's own words of 17 October, in the infrastructure train's order, named four seat shapes. The advisor sent the master a correction that pointed to that plan, and now reads a train's order before it passes on an instruction. The master tested the four shapes the same day: native on Linux works; macOS on macm5 is refused, because Cursor has no sandbox there yet; a seat on macmini cannot be seated; a seat in a container is not built in the engine. All four Cursor accounts now sit on runner-cursor, and three agents were measured running at once.
+
+### 24 · owner → advisor: Nightshift is ready
+
+> *"It is ready already. It flies."* (translated from Polish)
+
+**What the advisor did.** It checked the record (the master had closed the train with a request answered by the NVIDIA model and a signed receipt) and corrected the front page, which still said "nearly ready".
+
+### 25 · advisor → owner: a reminder to stop the VM?
+
+Two acts stay with the owner after the train closed: the question to Meterless, and stopping the VM after 6 November. The advisor asked whether it should set a reminder for the second, and said that the reminder would live only in its own session.
+
+> *"Skip it, we will remember."* (translated from Polish)
+
+**What the advisor did.** No reminder was set. Stopping the VM after 6 November is the owner's act, and the owner keeps it.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.
