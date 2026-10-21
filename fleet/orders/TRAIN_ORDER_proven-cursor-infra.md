@@ -157,7 +157,7 @@ builds on, (iii) for each owner-act script, the rehearsal output pasted beside t
   security decision. The Cursor `agent` CLI via `███████████████████████████████` and `████████████████████████`
   (W9 of saphan-agent-cursor), one seat HOME per seat. Any step that needs sudo goes into an owner-act script.
 - **added 2026-10-17 (A13, A14):** Node.js, one LTS major in both lanes (native and the W4 image), with npm and `npx`,
-  for Meterless's conformance suites: **Node 22** (§1a A13: the suites need ≥18; the image already carries 22.23.2). A C
+  for Meterless's conformance suites: **Node 24** (amended 2026-10-21, the owner: the Cursor agent runs legs on its own bundled Node 24.5.0, so the image copies Node 24.5.0 and the host runs NodeSource 24 — v24.22.0; the suites need ≥18). A C
   compiler and libc headers for cgo, in both lanes (`build-essential` native).
   **dod addition:** `node --version`, `npm --version`, `gcc --version` and `go env CGO_ENABLED` on runner-cursor, each
   pasted; the Node major is equal in both lanes.
