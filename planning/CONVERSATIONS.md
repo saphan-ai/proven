@@ -107,3 +107,4 @@ Page: [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md)
 | [3](CONVERSATION_2026-10-20.md#3--owner--advisor-update-the-repository) | owner → advisor | The front page and the machines' status page brought up to date. |
 | [4](CONVERSATION_2026-10-20.md#4--owner--advisor-is-anything-left-to-black-out) | owner → advisor | A check of the whole repository and its history; two old items stay public at the owner's word. |
 | [5](CONVERSATION_2026-10-20.md#5--owner--advisor-we-have-zetaris) | owner → advisor | Zetaris access arrives: a hosted instance and a local Docker stack; REST needs no Java, so it suits proven's Go adapter. |
+| [6](CONVERSATION_2026-10-20.md#6--owner--advisor-our-own-local-cluster) | owner → advisor | A train order for our own Zetaris platform: eight wagons, nine claims to test, four decisions for the owner. |

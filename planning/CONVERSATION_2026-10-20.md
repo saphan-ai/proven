@@ -61,6 +61,14 @@ The owner pasted the sponsor's instructions for running the whole platform local
 
 **What the advisor did.** [`../DESIGN.md`](../DESIGN.md) now says that access has arrived and that the interface and the instance are still to be decided. The advisor proposed both as decisions to the owner.
 
+### 6 · owner → advisor: our own local cluster
+
+> *"Let's prepare our own local cluster for it."*
+
+**The advisor's reasoning.** The build should not stop when a shared instance is slow or down, and the evidence tables will be loaded many times. A platform of our own also needs the things a hosted one does for us: a machine, a closed network, an account that is not the admin, a key no agent ever sees, and data that survives a restart. The platform's own "stop" command can delete its data and its encryption key, so the order forbids it in every script.
+
+**What the advisor did.** It wrote the train order [`../fleet/orders/TRAIN_ORDER_proven-zetaris-local.md`](../fleet/orders/TRAIN_ORDER_proven-zetaris-local.md): eight wagons, from a new machine to a runbook a second person could follow, with nine claims for the master to test before he builds on them, and four decisions for the owner. The order is a draft until the master has read it and the owner has signed it.
+
 ## Not run
 
 - The safety-model status page was not changed: nothing in that order has moved since 19 October.
