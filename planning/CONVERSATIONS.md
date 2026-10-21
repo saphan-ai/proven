@@ -18,7 +18,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 18 October 2026 | [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md) | a local NVIDIA guardrail model, made public and on by default in proven |
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
 | 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
-| 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the test corpus as the Cursor agents' shake-out before the build |
+| 21 October 2026 | [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md) | the advisor: the test corpus as the Cursor agents' shake-out before the build |
 | 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model |
 
 ---
@@ -111,6 +111,7 @@ Page: [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md)
 | [5](CONVERSATION_2026-10-20.md#5--owner--advisor-we-have-zetaris) | owner → advisor | Zetaris access arrives: a hosted instance and a local Docker stack; REST needs no Java, so it suits proven's Go adapter. |
 | [6](CONVERSATION_2026-10-20.md#6--owner--advisor-our-own-local-cluster) | owner → advisor | A train order for our own Zetaris platform: eight wagons, nine claims to test, four decisions for the owner. |
 | [7](CONVERSATION_2026-10-20.md#7--owner--advisor-three-decisions-and-how-proven-reaches-its-users) | owner → advisor | ADR-0015 Zetaris over REST; ADR-0016 a drop-in for Semgrep and Opengrep with text, JSON and SARIF; ADR-0017 a Gitea lab for the judges. |
+| [8](CONVERSATION_2026-10-20.md#8--owner--advisor-one-machine-for-the-containers) | owner → advisor | One new machine beside the runner for Zetaris and the lab rehearsal; the owner holds the platform's registration key. |
 
 ## 21 October 2026 — the infrastructure master
 
@@ -128,13 +129,13 @@ Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
 | [8](CONVERSATION_2026-10-21.md#8--owner--master-you-may-do-q2) | owner → master | The memory measurement crashed the guardrail host; the worst case does not fit; Llama-Guard-3-8B leaves the warm set. |
 | [9](CONVERSATION_2026-10-21.md#9--master--owner-the-image-and-the-guardrail-model) | master → owner | The Go + Python image built; Nemotron fetched, verified and warm; three probes judge, the fourth needs one server flag. |
 | [10](CONVERSATION_2026-10-21.md#10--owner--master-update-the-repository) | owner → master | This page and both status pages. |
-| [8](CONVERSATION_2026-10-20.md#8--owner--advisor-one-machine-for-the-containers) | owner → advisor | One new machine beside the runner for Zetaris and the lab rehearsal; the owner holds the platform's registration key. |
 
-## 21 October 2026 — the day before the build
+## 21 October 2026 — the advisor, the day before the build
 
-Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
+Page: [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md)
 
 | hop | who → whom | what happened |
 |---|---|---|
-| [1](CONVERSATION_2026-10-21.md#1--owner--advisor-the-test-suite-on-cursor) | owner → advisor | The test corpus's code built on Cursor today, as the rehearsal before the build. |
-| [2](CONVERSATION_2026-10-21.md#2--owner--advisor-warm-them-up-and-find-the-bugs-today) | owner → advisor | Every run has a fresh context; find the adapter's bugs today; a shake-out checklist for the master. |
+| [1](CONVERSATION_2026-10-21_advisor.md#1--owner--advisor-the-test-suite-on-cursor) | owner → advisor | The test corpus's code built on Cursor today, as the rehearsal before the build. |
+| [2](CONVERSATION_2026-10-21_advisor.md#2--owner--advisor-warm-them-up-and-find-the-bugs-today) | owner → advisor | Every run has a fresh context; find the adapter's bugs today; a shake-out checklist for the master. |
+| [3](CONVERSATION_2026-10-21_advisor.md#3--an-error-of-the-advisors-and-its-repair) | — | The advisor had saved over the infrastructure master's page; the page is restored. |
