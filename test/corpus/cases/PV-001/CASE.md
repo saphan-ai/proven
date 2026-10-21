@@ -2,7 +2,7 @@
 
 - incident: I02 (one incident; this case is its first round)
 - intended fixture language: TypeScript (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -74,8 +74,44 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+Ran 2026-10-21 17:15:20 UTC. The clock is the modification time of `tests/corpus/cases/PV-001/dist/check.js`: `ls -l --full-time` printed `2026-10-21 17:15:20.960824501 +0000`. `check.sh` writes that file and then runs it.
+
+Toolchain, measured on this run:
+
+- `node --version` printed `v24.5.0`
+- `npm --version` printed `11.19.1`
+- `node tests/corpus/cases/PV-001/node_modules/typescript/bin/tsc --version` printed `Version 7.0.2`
+- `package.json` pins typescript `7.0.2` and parse5 `8.0.1` with no range
+- `package-lock.json` locks those pins, and locks parse5's dependency entities at `8.1.0`
+
+Commands, from the repository root:
+
+```
+npm ci --prefix tests/corpus/cases/PV-001
+bash tests/corpus/cases/PV-001/check.sh
+```
+
+`npm ci --prefix tests/corpus/cases/PV-001` exited 0. `bash tests/corpus/cases/PV-001/check.sh` exited 0 and printed:
+
+```
+comment-without-frame base=pass change=fail missing=home reference=fail missing=home
+comment-with-frame base=pass change=pass reference=pass
+script-without-frame base=pass change=fail missing=home reference=fail missing=home
+script-with-frame base=pass change=pass reference=pass
+style-without-frame base=pass change=fail missing=home reference=fail missing=home
+style-with-frame base=pass change=pass reference=pass
+attribute-value-without-frame base=pass change=fail missing=home reference=fail missing=home
+attribute-value-with-frame base=pass change=pass reference=pass
+cdata-without-frame base=pass change=fail missing=home reference=fail missing=home
+cdata-with-frame base=pass change=pass reference=pass
+split-line-without-frame base=pass change=fail missing=home reference=fail missing=home
+split-line-with-frame base=pass change=pass reference=pass
+duplicate-attribute base=pass change=pass reference=fail missing=home
+```
+
+Each line is one input. A result is `pass`, or `fail missing=` and the missing required ids. Every input requires `home`.
 
 ## 9. Limits
 
