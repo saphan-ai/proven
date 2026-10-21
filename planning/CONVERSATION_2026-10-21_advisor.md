@@ -152,6 +152,24 @@ The owner signed the train order for Nightshift in a virtual machine and said to
 
 **What the advisor did.** It updated the status table on the [front page](../README.md), and wrote [ADR-0024](../fleet/decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md): every coding session of a Cursor agent on Proven is recorded by Saphan Studio's recording proxy, the wagon of the Cursor backend that is being built now, and every recording is published here, blacked out. Where recordings are kept, their format, and whether Cursor's terms allow publishing what Cursor itself sends are not known yet.
 
+### 20 · owner → advisor: four Cursor accounts, and the test corpus starts
+
+> *"We have four Cursor accounts. Let's configure the seats and get going with implementing the tests."* (translated from Polish)
+
+**What the advisor did.** It asked the infrastructure master for a seat plan for the four accounts. The owner appointed that master to the test corpus too, and gave his own Cursor account to the agents (*"I do not need a Cursor account"*, translated).
+
+### 21 · owner → advisor: the drop-in call, written as an order
+
+> *"Do we have the call of Proven as a drop-in replacement planned? We talked about it."* · *"Write it."* (translated from Polish)
+
+**What the advisor did.** The decisions were there (ADR-0016, ADR-0020, ADR-0021, ADR-0022); the build order was not. It wrote the train order [`proven-cli-and-action`](../fleet/orders/TRAIN_ORDER_proven-cli-and-action.md), six wagons, with a swap test of a real Semgrep and a real Opengrep-action pipeline at its centre. The owner signed it and accepted both recommendations: the infrastructure master leads it, and the test repository is private.
+
+### 22 · owner → advisor: describe the boundary
+
+> *"Describe it! It is a really interesting thing, how the fleet communicates and respects boundaries."* (translated from Polish)
+
+**What the advisor did.** It wrote [a signed order, and who may change it](../fleet/messages/BOUNDARY_a-signed-order-is-changed-by-its-master_2026-10-21.md): why the advisor did not write the owner's two answers into the order it had itself written, once the order was signed.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.
