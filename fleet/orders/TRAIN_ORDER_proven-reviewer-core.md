@@ -85,7 +85,10 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
 ### W2 `the-generator-through-nightshift`
 - **what:** the live generator: Nightshift by default (ADR-0019), any OpenAI-compatible endpoint by setting; base URL,
   token and model or routing mode from the environment, validated on load (ADR-0013). Each review names the route and
-  model read from the receipt, never assumed (ADR-0019 point 4). RC-1, RC-2 measured.
+  model read from the receipt, never assumed (ADR-0019 point 4). RC-1, RC-2 measured. **Also (claim of the
+  infrastructure master, 2026-10-21, to test):** ADR-0019 amendment 1 (proven `383898c`): a review whose receipt names no
+  `nvidia/*` model, or has no receipt, is refused; every Nightshift call streams, because Nightshift cuts a request that
+  sends no headers within 45 s.
 - **dod:** one review on runner-cursor through Nightshift names the model from the receipt. **Negative controls:** a
   wrong token → the adapter's named error and the review degrades (ADR-0001 point 3), never a hang; a response without a
   receipt → the review says the model is unknown, it does not guess. **Unplug (law #41):** stop the Nightshift VM; the
@@ -150,7 +153,9 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   code only in a container with no network and no secret; with no container runtime it runs no code. Written as
   [ADR-0025](../decisions/ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md).
 - **R3 — OSV by package. OPEN.** Waits for the Zetaris storage probe (RC-5), asked of the infrastructure master; the owner
-  chose option 1 on 2026-10-21. Until the probe answers, W5 builds KEV, EPSS and OSV by advisory id only. The ADR for OSV
+  chose option 1 on 2026-10-21. The infrastructure master, 2026-10-21: OSV by package through a Zetaris REST source is
+  impossible (the nested POST body is sent as a string and OSV answers 400); OSV by advisory id works; the storage probe
+  is not yet run, its result promised before 2026-10-22 00:00 UTC. Until the probe answers, W5 builds KEV, EPSS and OSV by advisory id only. The ADR for OSV
   by package is written from the probe's result (ADR-0025 is now taken by R2).
 
 ## §4 DEFINITION OF DONE
