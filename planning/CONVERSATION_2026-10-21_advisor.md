@@ -42,6 +42,28 @@ The advisor also found a handover from the scribe, sent to it on 19 October and 
 
 **What the advisor did.** [`../fleet/README.md`](../fleet/README.md) now says that the orders are written before the build and run inside it, what proves the timing, and that orders, reports and reviews are public with private data blacked out. It has a new row for `messages/`. The two answers about the test corpus went to the scribe, who raised them.
 
+### 6 · owner → advisor: the organisers' guides
+
+The owner shared the event's Welcome Guide, the Meterless engine guide and index, and the organisers' 30-page Participant Setup Guide, and asked the advisor to read what it could reach itself.
+
+**What the advisor found.**
+
+- **Meterless engines** are reference architectures each team implements in its own language, with no service and no key: what [ADR-0003](../fleet/decisions/ADR-0003-meterless-engines-in-go.md) already decided.
+- **A Power rule:** *"your app must support Meterless Nightshift as a primary AI provider."* Nightshift is Meterless's application that serves model requests on a machine; NVIDIA's models are reached through it.
+- **Eligibility:** *"Zetaris and Meterless must be running on your machine to be eligible."* Our own Zetaris platform is required, not optional.
+- **Zetaris cannot read a file sitting on a disk**: data comes from storage it reaches, or from a web API registered as a table. That shapes how the evidence sources are loaded; the choice is open.
+- The setup guide's facts about the local Zetaris platform went to the infrastructure master for his order.
+
+> *"ADRs: yes."* (translated from Polish)
+
+**What the advisor did.** It wrote [ADR-0018](../fleet/decisions/ADR-0018-meterless-engines-minimum-and-their-contract.md) (two engines at their minimum, one injected generator, JSONL in `logs/`, Markovian only if time is left) and [ADR-0019](../fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) (Nightshift as the primary provider, NVIDIA through it by default, other routes kept as settings). `.env` files are now in `.gitignore`, as the event's security rule asks.
+
+### 7 · owner → advisor: macOS refuses the installer
+
+> *"Apple could not verify 'Nightshift Setup' is free of malware that may harm your Mac or compromise your privacy. Nightshift's website looks nice, but then it's weak."* (translated in part from Polish)
+
+**What the advisor checked**, without running anything: the disk image is not signed; the app inside carries only an ad-hoc signature, with no developer identity, and is not notarized by Apple. A note inside the image from Meterless says it is *"not notarized by Apple yet"* and tells users how to open it anyway. The download was also the edition for M1 to M4 Macs, while the guide sends M5 Macs to another one.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

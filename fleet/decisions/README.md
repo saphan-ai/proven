@@ -31,6 +31,8 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0015](ADR-0015-zetaris-through-its-rest-api.md) | the Zetaris adapter speaks REST, not JDBC; proven carries no Java | accepted, 2026-10-20 |
 | [0016](ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md) | a drop-in replacement for Semgrep and Opengrep in a pipeline: their flags, exit codes and text, JSON and SARIF outputs | accepted, 2026-10-20 |
 | [0017](ADR-0017-a-gitea-lab-for-the-judges.md) | a Docker Compose lab with Gitea and Gitea Actions, configured, for the judges; Jenkins only if time is left | accepted, 2026-10-20 |
+| [0018](ADR-0018-meterless-engines-minimum-and-their-contract.md) | H-MEM and World Model at their minimum, one injected generator, JSONL in `logs/`; Markovian only if time is left | accepted, 2026-10-21 |
+| [0019](ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) | Meterless Nightshift is the primary AI provider; NVIDIA's models through it by default; other routes stay settings | accepted, 2026-10-21 |
 
 **Rules for an ADR**
 

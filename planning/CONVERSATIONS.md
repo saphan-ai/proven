@@ -141,3 +141,5 @@ Page: [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md)
 | [3](CONVERSATION_2026-10-21_advisor.md#3--an-error-of-the-advisors-and-its-repair) | — | The advisor had saved over the infrastructure master's page; the page is restored. |
 | [4](CONVERSATION_2026-10-21_advisor.md#4--owner--advisor-tell-the-scribe-to-reinstall) | owner → advisor | A message to the scribe, its delivery and its answer, published as an example; a handover found unread. |
 | [5](CONVERSATION_2026-10-21_advisor.md#5--owner--advisor-three-answers) | owner → advisor | The five cases stay; the test suite and its code are prior art; orders written in advance and public, run in the window. |
+| [6](CONVERSATION_2026-10-21_advisor.md#6--owner--advisor-the-organisers-guides) | owner → advisor | The organisers' guides: Nightshift must be the primary provider; ADR-0018 and ADR-0019. |
+| [7](CONVERSATION_2026-10-21_advisor.md#7--owner--advisor-macos-refuses-the-installer) | owner → advisor | The Nightshift installer is unsigned and not notarized; the wrong edition was downloaded. |
