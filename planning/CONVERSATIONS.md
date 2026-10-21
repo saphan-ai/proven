@@ -127,3 +127,4 @@ Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
 | [8](CONVERSATION_2026-10-21.md#8--owner--master-you-may-do-q2) | owner → master | The memory measurement crashed the guardrail host; the worst case does not fit; Llama-Guard-3-8B leaves the warm set. |
 | [9](CONVERSATION_2026-10-21.md#9--master--owner-the-image-and-the-guardrail-model) | master → owner | The Go + Python image built; Nemotron fetched, verified and warm; three probes judge, the fourth needs one server flag. |
 | [10](CONVERSATION_2026-10-21.md#10--owner--master-update-the-repository) | owner → master | This page and both status pages. |
+| [8](CONVERSATION_2026-10-20.md#8--owner--advisor-one-machine-for-the-containers) | owner → advisor | One new machine beside the runner for Zetaris and the lab rehearsal; the owner holds the platform's registration key. |

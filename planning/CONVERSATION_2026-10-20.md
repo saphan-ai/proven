@@ -86,6 +86,14 @@ The owner pasted the sponsor's instructions for running the whole platform local
 - [ADR-0017](../fleet/decisions/ADR-0017-a-gitea-lab-for-the-judges.md): the judges' lab, Gitea and its runner in one Compose file, sample mode by default, nothing to set up; Jenkins only if time is left.
 - [`../DESIGN.md`](../DESIGN.md) has a new section, "In a pipeline, and in the judges' lab", and the front page counts seventeen decisions.
 
+### 8 · owner → advisor: one machine for the containers
+
+> *"We can put the containers on a new machine close to the runner, on the same cluster node."*
+
+> *"We do have a key to register the local setup."*
+
+**What the advisor did.** The order [`proven-zetaris-local`](../fleet/orders/TRAIN_ORDER_proven-zetaris-local.md) now records the owner's choice of machine (decision Z1). The new machine carries two separate Compose stacks, the Zetaris platform and the daily rehearsal of the judges' lab, so its proposed memory grows from 16 to 24 GiB, for the master to check against what the node can spare. On a machine that does nothing else, the lab's runner may use the host's Docker socket; what the judges' copy does is still decided in the build. The key that registers the local platform stays in the owner's hands: he types it on the machine himself, and it is never written into a script, a file or a message.
+
 ## The day in short
 
 The machine for the Cursor agents runs, with its tools and one Cursor seat, but no Cursor agent can work unattended yet: the engine runs Cursor in no sandbox and the agent's shell was refused. Both fixes belong to the Cursor backend train, whose master owes an answer by 18:00 UTC. The safety model waits for one measurement. A check of the whole repository found nothing new to black out. Zetaris access arrived, and an order was written for our own Zetaris platform. Three decisions shaped how proven reaches people: it talks to Zetaris over REST, it drops into a pipeline in place of Semgrep or Opengrep, and the judges get a Gitea lab where they can watch it review a pull request.

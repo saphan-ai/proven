@@ -16,6 +16,9 @@ address of the hosted instance's dashboard (written in Polish; given in the advi
 
 > *"Let's prepare our own local cluster for it."* (written in English)
 
+> *"We can put the containers on a new machine close to the runner, on the same cluster node."* (written in English,
+> after ADR-0017; this answers Z1, and the advisor read it as covering the judges' lab rehearsal too, W9)
+
 ## §1 WHAT THIS TRAIN IS
 
 proven's evidence is queried through Zetaris ([ADR-0002](../decisions/ADR-0002-evidence-is-a-test-or-a-query-through-zetaris.md)).
@@ -49,10 +52,13 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 ## §2 WAGONS
 
 ### W1 `zetaris-host-exists`
-- **what:** a new Linux VM for the platform, on the node that holds runner-cursor unless Z1 says otherwise, modelled on
-  runner-cursor. Proposed size, for the master to test against Z-A1 and Z-A9 and print the arithmetic (law #46): 8 vCPU,
-  16 GiB of memory (twice the sponsor's minimum, because evidence tables are loaded into it), 120 GB of disk. A tailnet
-  member like runner-cursor. No port reachable from the internet.
+- **what:** a new Linux VM on the node that holds runner-cursor (Z1, decided by the owner 2026-10-20), modelled on
+  runner-cursor. It carries two Compose stacks: the Zetaris platform, and the judges' lab rehearsal (W9). Proposed size,
+  for the master to test against Z-A1 and Z-A9 and print the arithmetic (law #46): 8 vCPU, 24 GiB of memory (16 for the
+  platform, twice the sponsor's minimum because evidence tables are loaded into it, and 8 for the lab), 160 GB of disk.
+  **If the node cannot spare 24 GiB beside runner-cursor and leave room for its other guests, say so with the numbers
+  and propose the split; do not shrink the platform below the sponsor's 8 GB.** A tailnet member like runner-cursor. No
+  port reachable from the internet.
 - **owner act:** the creation script, rehearsed by the master with `DRY=1` and the output pasted (law #33).
 - **dod:** the host answers; its size matches the printed arithmetic; it is on the tailnet; nothing listens on a public
   address.
@@ -61,8 +67,10 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 ### W2 `zetaris-platform-installed`
 - **what:** Docker Engine and the Compose plugin on the host; the platform bundle unpacked; the sponsor's `preflight.sh`
   passes.
-- **owner acts:** the registry sign-in (the owner's account) and the download of `zetaris-platform.zip` from the hosted
-  dashboard. The master carries the zip to the host and records its sha256. **The zip and the JDBC driver inside it are
+- **owner acts:** the registry sign-in and the download of `zetaris-platform.zip` from the hosted dashboard. **The owner
+  holds the key that registers a local setup** (2026-10-20). He types it on the host himself; it never appears in a
+  script, a file in any repository, a prompt, an order or a report. The master's script stops at that step and resumes
+  after it, and records only that the sign-in succeeded. The master carries the zip to the host and records its sha256. **The zip and the JDBC driver inside it are
   never committed to any repository** (Z3).
 - **dod:** every line of `preflight.sh` says PASS, pasted; the zip's sha256 recorded; Z-A3 answered.
 - **master-was-wrong:** —
@@ -117,11 +125,20 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
   nothing.
 - **master-was-wrong:** —
 
+### W9 `lab-rehearsal-host`
+- **what:** the judges' lab ([ADR-0017](../decisions/ADR-0017-a-gitea-lab-for-the-judges.md)) is rehearsed on this VM
+  every day, from a clean checkout, with the one command a judge runs. Here, on a machine that does nothing else, the lab's
+  runner may use the host's Docker socket; that says nothing about what the judges' copy does, which ADR-0017 leaves to
+  the build. The lab and the Zetaris platform use separate Compose project names, networks and ports, so stopping one
+  never touches the other.
+- **This wagon prepares the host only.** The lab itself is product work, written from 22 October.
+- **dod:** both Compose projects listed side by side; the lab's ports do not collide with 3000, 8888 and 10000; a stop
+  of the lab leaves `verify.sh` all PASS.
+- **master-was-wrong:** —
+
 ## §3 DECISIONS OWED BY THE OWNER
 
-- **Z1 — the host.** Recommended: a new VM next to runner-cursor (W1). Alternatives: the machine that runs our local
-  models, which is busy and holds its memory for them; or macm5, which runs the images under emulation (Z-A3) and is
-  where the owner works.
+- **Z1 — the host. DECIDED by the owner 2026-10-20:** a new machine next to runner-cursor, on the same cluster node (§0).
 - **Z2 — the build's default instance.** Recommended: ours for the build, the hosted one as the second place a finding's
   query is run before publication. Both are settings (ADR-0013).
 - **Z3 — the bundle's terms.** Recommended: never commit the bundle or the driver, and read the sponsor's terms for
