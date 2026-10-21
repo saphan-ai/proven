@@ -213,6 +213,10 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
   ACCIDENT (memory), not by setting. **And Nightshift's receipts do not survive a restart:** `meterless.json`
   `receipts` was 0 after the VM restarted at 13:37Z (it held `rcpt_req_xaswpcmb` before), so evidence must be copied at
   the call — the scripts do.
+  **Control request 2 under deep (13:55:43Z):** Nightshift answered `provider_error · ttfb_timeout:local-runtime/
+  llama-3.2-3b-instruct` — **deep routed proven's request to the LOCAL 3B lane**, which had loaded (`worker`, 1 slot,
+  1–2 tok/s, task 576 from request 1 still decoding past 600 tokens). **master-was-wrong:** "N7 (b) holds by accident" —
+  it did not; the parked lane loaded. The owner stopped the runtime afterwards. ⇒ (a) is needed whatever (b) does.
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
