@@ -1,8 +1,8 @@
 # CONVERSATION — the infrastructure master and the owner, 19–21 October 2026
 
-This page records a second line of conversation, beside the advisor's pages for the same days. The owner appointed an **infrastructure master** for two trains: [`proven-cursor-infra`](../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md), the machine for the Cursor agents, and the content-safety train, [`█████-nemotron-content-safety`](../fleet/orders/TRAIN_ORDER_nemotron-content-safety.md), the local guardrail model. For every hop it says who spoke, to whom, and what the master did. The owner spoke Polish to the master, so his words are given in translation, and each quote says so. Where he wrote in English, his words are lightly corrected for grammar only.
+This page records a second line of conversation, beside the advisor's pages for the same days. The owner appointed an **infrastructure master** for two trains: [`proven-cursor-infra`](../fleet/orders/TRAIN_ORDER_proven-cursor-infra.md), the machine for the Cursor agents, and the content-safety train, [`█████-nemotron-content-safety`](../fleet/orders/TRAIN_ORDER_nemotron-content-safety.md), the local guardrail model. On 21 October he handed it a third train, [`proven-zetaris-local`](../fleet/orders/TRAIN_ORDER_proven-zetaris-local.md), our own Zetaris platform. For every hop it says who spoke, to whom, and what the master did. The owner spoke Polish to the master, so his words are given in translation, and each quote says so. Where he wrote in English, his words are lightly corrected for grammar only.
 
-The progress of both trains is also in their status pages: [`STATUS_proven-cursor-infra.md`](../fleet/status/STATUS_proven-cursor-infra.md) and [`STATUS_nemotron-content-safety.md`](../fleet/status/STATUS_nemotron-content-safety.md).
+The progress of the trains is also in their status pages: [`STATUS_proven-cursor-infra.md`](../fleet/status/STATUS_proven-cursor-infra.md), [`STATUS_nemotron-content-safety.md`](../fleet/status/STATUS_nemotron-content-safety.md) and [`STATUS_proven-zetaris-local.md`](../fleet/status/STATUS_proven-zetaris-local.md).
 
 ## Hop by hop
 
@@ -110,11 +110,57 @@ For comparison, Qwen3Guard answered in 199 ms and 388 ms.
 
 **What the master did.** This page; its lines in [`CONVERSATIONS.md`](CONVERSATIONS.md); and both status pages brought up to date.
 
+### 11 · owner → master: did you write to him?
+
+21 October. Between hops 10 and 11, the fleet's reinstall brought both engine fixes for Cursor, and the master tried W6 again. It did not run. One dispatch path refused the Cursor seat, because the seat's usage is unmeasured. The other path was refused twice, because the Cursor class files (the agent's hooks and its command rules) did not reach an existing far work directory. The master stopped at the second refusal.
+
+> *"Did you write to him?"* (translated from Polish)
+
+**What the master did.** It answered yes: it had written to the master of the Cursor backend train, with high salience, and had no answer yet. It also passed on the advisor's offer of a third train for it: our own Zetaris platform.
+
+**What happened next.** The Cursor backend train fixed the second gap in its wagon W22 (`cursor-far-reuse-packs`). W6 runs again after the fleet's reinstall.
+
+### 12 · owner → master: we install a local VM
+
+> *"proven-zetaris-local — what question? We install a local VM."* (translated from Polish)
+
+**What the master did.** It took the train [`proven-zetaris-local`](../fleet/orders/TRAIN_ORDER_proven-zetaris-local.md) and re-measured the cluster node first. The node has 25 GiB of memory available, not 30, because runner-cursor now runs; with the file-system cache, about 27 GiB. The advisor's 24 GiB machine did not fit with a safe margin. So the size became decision **Z5**: 12 GiB (recommended) or 16 GiB. The owner chose 12 GiB.
+
+### 13 · the owner's gate: the content-safety train is done
+
+21 October. The owner gated the W5 stream of the content-safety train. It closed without a merge, because the wagon changed no code: it ran the agent loop once through the gateway alias. The finding: the agent loop carries the judge's call, not a classification task, so callers call the judge directly.
+
+Before that, the owner had run the `--no-prefill-assistant` flag and the gateway alias. Probe (d) now judges:
+
+| probe | verdict | latency |
+|---|---|---|
+| (d) a bad response | `Response Safety: unsafe`, `Safety Categories: Malware, PII/Privacy` | 706 ms |
+| (d) a good response | `Response Safety: safe` | 501 ms |
+| (b) through the gateway | `User Safety: unsafe` | 1623 ms |
+
+**What the master did.** It wrote the record (W6) and sent the relay to the guardrail-images train. It closed the train order with the closing line of law #38. The content-safety train is **DONE**: W1–W6, nothing in flight, nothing owed to the owner.
+
+### 14 · owner → master: the order signed, the machine created
+
+The owner signed the Zetaris order. His first signing was refused, because the file did not open with its title line. The master moved the title line to the top, and the second signing worked.
+
+Then the owner ran the master's creation script with 12 GiB. It failed at the step that creates the VM: the script computed a memory size on the wrong side of an ssh call. This was the master's error. Nothing was created.
+
+> *"Fix yourself."* (translated from Polish)
+
+**What the master did.** It corrected the script, and the corrected run was clean. **W1 is done:** the Zetaris host runs with 8 vCPU, 12 GiB of memory, a 160 GB disk and the guest agent, and it is a tailnet member. On its LAN address only ssh listens.
+
+### 15 · owner → master: sync the proven repository
+
+> *"Sync the proven repo with the fleet files and the conversation."* (translated from Polish)
+
+**What the master did.** This change in the repository: the three public train orders follow their originals; the status pages of all three trains, one of them new; this page, hops 11 to 15; and their lines in [`CONVERSATIONS.md`](CONVERSATIONS.md).
+
 ## Not run
 
-- **W6 again** (machine train): it waits for the fleet's reinstall with both engine fixes.
+- **W6 again** (machine train): it waits for the fleet's reinstall with the Cursor backend train's W22.
 - **W7–W9** (machine train): W8 (the data hosts) and W9 (the judge rehearsal) wait for a working Cursor agent. W7, the public record, goes with each wagon and is not closed.
-- **W4–W6** (content-safety train): the gateway alias, one agent-loop run and the record. They wait for the `--no-prefill-assistant` flag and probe (d).
+- **W2–W9** (Zetaris train): not started. W2 is next: Docker, the platform's bundle, the owner's sign-in to the registry, and the preflight. W6 also waits for a working Cursor agent.
 - **The uptime monitor for runner-cursor:** the owner's consent was not asked yet.
 
 ## REDACTED
@@ -125,5 +171,7 @@ Parts of this file are blacked out (█) or rewritten in neutral words. Nothing 
 |---|---|---|
 | machine names | 1 | the machine that runs our local models, inside the content-safety train's name |
 | machine names (rewritten) | 1 | the same machine, written as "the guardrail host" or "the model machine" throughout |
+| machine names (rewritten) | 1 | the new machine of the Zetaris train, written as "the Zetaris host" (hop 14) |
+| engine refusal codes (rewritten) | 2 | the two refusals of W6 in hop 11, written in plain words |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17.

@@ -3,7 +3,7 @@
 - master: MASTER (claude-code, claude-opus-5-5, seat macm5/██████████████), the infra master of `proven-cursor-infra`, handed this train by the owner on 2026-10-21 ("we install a local VM"), mode: economy
 - status: ACTIVE — amended by the master on 2026-10-21 (§1a, W1 size, Z5); waits for the owner's signature
 - track: proven-zetaris-local
-- repo: proven (public record and the runbook), saphan-infra (the host's brief and report)
+- repo: proven (public record and the runbook), ████████████ (the host's brief and report)
 - base: main at the cut
 - author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
 
@@ -187,5 +187,6 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 |---|---|---|
 | seat identity | 1 | the master's seat on macm5 |
 | infrastructure identifiers | 2 | the planned VM number and the last part of its planned address |
+| private repository names | 1 | our infrastructure repository (blacked out on 2026-10-21; an earlier copy showed it) |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 (the Cursor executors work there).

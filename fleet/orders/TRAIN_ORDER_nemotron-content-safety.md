@@ -4,9 +4,10 @@
 > references blacked out (█, one block per character). The list is at the end. The file name leaves out the machine
 > name. The rule, in the owner's words (2026-10-17): *"We save all hackathon documents in both places."*
 >
-> **State of this document:** active. The advisor wrote it on 2026-10-18. The master re-measured the advisor's claims
-> and amended the order on 2026-10-19 (§1a). The owner has not signed it yet. When the original changes, this copy
-> changes with it.
+> **State of this document:** DONE. The advisor wrote it on 2026-10-18. The master re-measured the advisor's claims
+> and amended the order on 2026-10-19 (§1a). The owner signed it on 2026-10-19. The master added the owner's answers and
+> the W1 measurement on 2026-10-20, and closed the train on 2026-10-21 (CLOSING, below). This copy follows the original
+> as of 2026-10-21.
 >
 > - written by: the advisor (claude-code, model `claude-opus-5-5`), 2026-10-18
 > - amended by: the master (claude-code, model `claude-opus-5-5`), 2026-10-19
@@ -14,7 +15,7 @@
 >   Studio records a cost only for runs. Not run: no cost figure exists for this document.
 
 - master: MASTER (claude-code, claude-opus-5-5, seat macm5/██████████████), the infra master of `proven-cursor-infra`, appointed by the owner on 2026-10-19, mode: economy
-- status: ACTIVE — re-measured and amended by the master on 2026-10-19 (§1a); waits for the owner's signature
+- status: DONE — 2026-10-21: W1–W6 done; the W5 stream closed without a merge (its closure closed)
 - note: the wagons W1–W6 are the advisor's G1–G6, renamed by the master on 2026-10-19 because the train-order grammar counts W-numbers only
 - track: █████-nemotron-content-safety
 - runs: IN PARALLEL with `proven-cursor-infra`, as a separate train. The two share no host and no file, except new
@@ -206,6 +207,19 @@ Every question goes to the owner in one message, with the reading that raised it
   one request, the model unloads after its ttl), or does the verdict rest on file sizes?
 - **Q3 — consumer key:** the gateway's existing llama-swap consumer key (recommended), or a new one for this alias?
 
+**The owner's answers (2026-10-20):** Q1 — text only, no `mmproj`. Q2 — yes, load the largest `big` model once.
+Q3 — the existing llama-swap consumer key.
+
+**W1 measured (MASTER, 2026-10-20):** at 15:12:52Z one request loaded `glm-4.5-air` Q4_K_M (67.96 GiB) next to the warm
+set (GTT 32.3 GiB used, 41 GiB available, swap 8/8 G full). The kernel's global OOM fired at 15:13:44Z; █████ stopped
+answering (ssh banner and llama-swap timed out) until a reboot at 16:19Z. **Verdict: the worst case DOES NOT FIT today,
+even WITHOUT this model**; the shortfall is not measurable, because the host stops before it can be read. Adding this
+model as warm adds about 6.5 GiB to the set that is already over budget when a large `big` model loads. Per W1, the
+master stops and asks the owner (§3, Q4).
+- **Q4 — the warm set (asked 2026-10-20):** (a) add this model as warm, and the owner changes the `big` group's budget
+  separately (out of this train); (b) evict one judge (`qwen3guard-8b` or `llama-guard-3-8b`) — per-model usage is
+  unreadable (§1a), so the owner names it; (c) run this model on demand (`ttl`), not warm.
+
 **Owner acts in this train** (root on █████ and on the gateway's container): `█████-read-llama-swap-config.sh` (W1),
 `█████-nemotron-warm.sh` (W3), `gateway-add-nemotron-alias.sh` (W4). Each is rehearsed by the master, and the rehearsal
 output is pasted beside it (law #33). The fetch (W2) runs as the master's own user, into `███████████`, with the
@@ -233,20 +247,33 @@ output is pasted beside it (law #33). The fetch (W2) runs as the master's own us
   references blacked out.
 - Deleting any model file. Changing `qwen3-coder`'s hot-path contract. Any vendor key, any priced act.
 
+## CLOSING (MASTER, 2026-10-21)
+
+- W1 measured (the worst case does not fit; owner Q4 (b): llama-guard-3-8b left the warm set). W2 fetched, sha256 equal.
+  W3 warm, probes a–d in the card's format (d after `--no-prefill-assistant`). W4 gateway alias, 5 aliases, probe b via the
+  gateway. W5 one agent-loop run: the loop carries the judge's call, not a classification task. W6 record: ████████████
+  ███████; relay to `guardrail-server-images` (bridge █████████). No tester: the train changed hosts, not a product.
+- Open, outside this train: the gateway's configuration pin was not re-measured after W4 (████████████ report).
+
+DONE · █████-nemotron-content-safety · nothing in flight · nothing owed to the owner · THANK YOU
+
 ---
 
 ## REDACTED
 
-Parts of this file are blacked out (█). Nothing else was changed.
+Parts of this file are blacked out (█). Nothing else was changed, except in the CLOSING section (2026-10-21): the
+closure's identifier is left out of the status line, and the name of the gateway's configuration pin is written as
+"the gateway's configuration pin".
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 (the Cursor executors work there).
 
 | what was blacked out | times | what it was |
 |---|---|---|
-| machine names | 25 | the machine that runs our local models, including inside this train's name, one wagon's name and two script names |
+| machine names | 27 | the machine that runs our local models, including inside this train's name, one wagon's name and two script names |
 | user names | 7 | the service user and group of the model server, and the owner of its configuration file |
 | internal paths | 16 | the model directory, the server's configuration file, the gateway's configuration file, the fetch script, the log directory, a lane's name and address, a folder and a file in our private record |
-| private repository names | 13 | our infrastructure repository (6), and files in it (7) |
+| private repository names | 15 | our infrastructure repository (8), and files in it (7) |
+| private commits | 2 | a commit of our infrastructure repository, and a commit of our private record |
 | internal design references | 6 | the numbers of our infrastructure decisions and of sections in our routing record |
 | locations in our private code | 1 | a documentation file in Saphan Studio's engine |
 | credentials | 2 | the name of the variable that holds the gateway's key |

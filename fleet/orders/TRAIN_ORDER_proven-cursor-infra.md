@@ -2,7 +2,7 @@
 
 > **Public copy.** The original is in our private record. This copy says the same thing, with internal names, paths and private-code locations blacked out (█, one block per character). The list is at the end. The rule, in the owner's words (2026-10-17): *"We save all hackathon documents in both places."*
 >
-> **State of this document:** active. The advisor wrote it on 2026-10-17. The master re-measured the advisor's claims and amended the order on 2026-10-19 (§1a). The owner has not signed it yet. When the original changes, this copy changes with it.
+> **State of this document:** active. The advisor wrote it on 2026-10-17. The master re-measured the advisor's claims and amended the order on 2026-10-19 (§1a). The owner signed it on 2026-10-19. The master added R1's fourth item and the owner's answers on 2026-10-20; this copy follows them since 2026-10-21. When the original changes, this copy changes with it.
 >
 > - written by: the advisor (claude-code, model `claude-opus-5-5`), 2026-10-17
 > - amended by: the master (claude-code, model `claude-opus-5-5`), 2026-10-19
@@ -273,8 +273,20 @@ message, you do no work on it (law #59). They are written as properties that mus
   for the ssh transport, and a seated container grant (A5).
 - *A Cursor executor leg on proven reaches proven's data hosts and no others* (added 2026-10-19, §1a A15): OSV API and data
   dumps, CISA KEV, FIRST EPSS, the GitHub API, NVIDIA's inference endpoint, and the Zetaris host when it is known.
+- *A Cursor executor leg runs inside a boundary on a Linux ssh seat, placed by the engine's placement, with no per-run owner
+  act* (added 2026-10-20, RED, sent with high salience). Measured on the engine installed then: the placement refuses every
+  Cursor seat, because the engine cannot confine that backend there; the composed run is refused, because the engine
+  confines Cursor on no transport; the only path is the owner's recorded act that opens the run's network, which asks for
+  his presence per run. Without it, every Cursor leg of the build needs the owner at his terminal.
 Ask for an estimate against 2026-10-21. Record the answer in this file.
 - **R1 answer:** <none yet — the master records it here, dated>.
+
+**The owner's answers (2026-10-20, accepting the recommendations):** D1 — admit what runs today; decide the fallback
+at 2026-10-21 12:00 UTC. D2 — the Dockerfile lands now under `fleet/infra/`, dated, marked "environment, not product
+code". D4 — the leg user joins the `docker` group on runner-cursor. D5 — backups stay off; recorded here. D6 — one line
+in proven `AGENTS.md` §2: macm5, macmini and runner-cursor stay visible (the owner's file; the owner edits it). D3 — open.
+DNS for runner-cursor: the owner allowed the rewrite; it resolves (2026-10-20). The uptime monitor and the Mac ssh alias
+are not done (no consent asked for them; the fleet reaches the host by its address).
 
 **Decisions owed by the owner, in the order they block work:**
 - **D1 — the four seats.** Recommended: admit now what runs today (macm5 `████████████████`, runner-cursor native). If R1's
@@ -327,7 +339,7 @@ Ask for an estimate against 2026-10-21. Record the answer in this file.
 
 ## REDACTED
 
-Parts of this file are blacked out (█). Nothing else was changed, except one command name: in §1a A12 the Proxmox command that asks for the next free VM number is written as "Proxmox's next-ID call (`nextid`)", because its name matches a word on our deny-list.
+Parts of this file are blacked out (█). Nothing else was changed, except one command name: in §1a A12 the Proxmox command that asks for the next free VM number is written as "Proxmox's next-ID call (`nextid`)", because its name matches a word on our deny-list. In R1's fourth item (added 2026-10-20), a private engine commit, two engine refusal codes, two engine command names and the owner's per-run flag are rewritten in neutral words.
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 (the Cursor executors work there).
 

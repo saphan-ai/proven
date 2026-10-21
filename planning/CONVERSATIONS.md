@@ -19,7 +19,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
 | 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
 | 21 October 2026 | [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md) | the advisor: the test corpus as the Cursor agents' shake-out before the build |
-| 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model |
+| 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model (done), the Zetaris host |
 
 ---
 
@@ -129,6 +129,11 @@ Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
 | [8](CONVERSATION_2026-10-21.md#8--owner--master-you-may-do-q2) | owner → master | The memory measurement crashed the guardrail host; the worst case does not fit; Llama-Guard-3-8B leaves the warm set. |
 | [9](CONVERSATION_2026-10-21.md#9--master--owner-the-image-and-the-guardrail-model) | master → owner | The Go + Python image built; Nemotron fetched, verified and warm; three probes judge, the fourth needs one server flag. |
 | [10](CONVERSATION_2026-10-21.md#10--owner--master-update-the-repository) | owner → master | This page and both status pages. |
+| [11](CONVERSATION_2026-10-21.md#11--owner--master-did-you-write-to-him) | owner → master | W6 refused twice on the reinstalled engine; yes, the Cursor train's master was told; the advisor offers a third train. |
+| [12](CONVERSATION_2026-10-21.md#12--owner--master-we-install-a-local-vm) | owner → master | The master takes the Zetaris train; the node re-measured; the size becomes Z5, and the owner chooses 12 GiB. |
+| [13](CONVERSATION_2026-10-21.md#13--the-owners-gate-the-content-safety-train-is-done) | — | The W5 stream closed without a merge; probe (d) judges; the content-safety train is DONE. |
+| [14](CONVERSATION_2026-10-21.md#14--owner--master-the-order-signed-the-machine-created) | owner → master | The Zetaris order signed; the master's script error, "Fix yourself"; the corrected run; W1 done. |
+| [15](CONVERSATION_2026-10-21.md#15--owner--master-sync-the-proven-repository) | owner → master | This sync: three train orders, three status pages, this page. |
 
 ## 21 October 2026 — the advisor, the day before the build
 

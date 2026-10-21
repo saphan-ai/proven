@@ -7,13 +7,14 @@
 - cost: not measured — an interactive master session; no priced act has run
 - duration: not measured
 - last commit: 5e78a31 "[proven-cursor-infra] [nemotron-content-safety] public copies follow the amended train orders (2026-10-19)"
-- updated: 2026-10-21 (W4 built; both engine fixes for Cursor landed)
+- updated: 2026-10-21 (W6 on the reinstalled engine refused twice; the Cursor backend train's fix W22 landed)
 
 ## Summary
 runner-cursor exists, carries the toolchain and is admitted to the fleet with one logged-in Cursor seat. One Cursor turn
 ran. **No Cursor agent can work unattended yet:** the engine runs Cursor inside no sandbox on any machine, so every run
 needs the owner's recorded act to open its network, and the agent's shell tool was refused. Both fixes belong to the
-Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they land before 21 October 12:00 UTC.
+Cursor backend train. Both landed on 21 October. On the reinstalled engine W6 was refused again, for two new reasons;
+the Cursor backend train fixed the second one (its wagon W22). W6 runs again after the fleet's reinstall.
 
 ## Done, 2026-10-19
 1. Re-measured A1–A16, read-only. Results are in §1a of the train order (`fleet/orders/TRAIN_ORDER_proven-cursor-infra.md`).
@@ -52,6 +53,12 @@ Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they lan
     Python minor and the same Node major; only gcc differs (13.3 natively).
 16. 2026-10-21: both engine fixes for Cursor (a sandbox for Cursor runs, and the agent's shell) landed. They wait for the
     fleet's reinstall. The owner re-signed the W6 order.
+17. 2026-10-21: W6 on the reinstalled engine, which carries both fixes. It did not run. One dispatch path refused the
+    Cursor seat, because the seat's usage is unmeasured: the engine has no reader for Cursor usage. The other path
+    composed the run, and the run was refused twice, because the Cursor class files (the agent's hooks and its command
+    rules) did not reach an existing far work directory. The master stopped at the second refusal and reported both to
+    the Cursor backend train's master, with high salience. That train fixed the second gap in its wagon W22
+    (`cursor-far-reuse-packs`). W6 runs again after the fleet's reinstall.
 
 ## Wagon state
 | wagon | state | next |
@@ -61,14 +68,15 @@ Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they lan
 | W3 `runner-cursor-toolchain` | done 2026-10-20 | — |
 | W4 `proven-go-python-image` | done 2026-10-21, image built and checked | — |
 | W5 `cursor-seats-admitted` | runner-cursor: one seat admitted and logged in; macm5: key needed (D3) | the macm5 seat after D3 |
-| W6 `cursor-seats-smoke-turn` | ran once: the agent answers, its shell is refused | the Cursor backend train's fix |
+| W6 `cursor-seats-smoke-turn` | ran once on 2026-10-20: the agent answers, its shell is refused. 2026-10-21, on the reinstalled engine: refused before the turn (seat usage unmeasured; class files missing in a reused far work directory) | the fleet's reinstall with the Cursor backend train's W22, then W6 again |
 | W7 `proven-public-infra-record` | the public train order is current | goes with each wagon |
 | W8 `cursor-legs-reach-data-hosts` | measured from the egress policy: no data host is admitted today; the live reading failed, because the shell was refused | the shell fix; R1, item 3 |
 | W9 `proven-judge-rehearsal` | not started | waits for W4 and D4 |
 
 ## Blocked on / next
-- **Blocked:** the Cursor backend train's two fixes (a sandbox for Cursor runs, and the agent's shell). Its master owes an
-  estimate by 20 October 18:00 UTC against the deadline of 21 October 12:00 UTC.
+- **Blocked:** the fleet's reinstall with the Cursor backend train's W22 (`cursor-far-reuse-packs`). The earlier two fixes
+  (a sandbox for Cursor runs, and the agent's shell) landed and are installed. The dispatch path that reads seat usage
+  still refuses the Cursor seat, because Cursor usage is not measured.
 - **Owed by the owner:** the wiring choice for runner-cursor (DNS name and monitor); the Cursor usage reading before and
   after the W6 turn, because the engine has no price for its model; decisions D1–D6 (train order §3).
 - Nothing is running now.
@@ -76,6 +84,6 @@ Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they lan
 ## REDACTED
 | kind | count |
 |---|---|
-| none in this file | 0 |
+| engine refusal codes and run identifiers (rewritten in neutral words, item 17) | 4 |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 (the Cursor executors work there).
