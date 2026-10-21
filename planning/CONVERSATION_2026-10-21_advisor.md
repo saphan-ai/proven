@@ -72,6 +72,18 @@ The M5 edition was refused the same way. Meterless publishes SHA-256 sums, and t
 
 **What the advisor did.** It wrote the order [`../fleet/orders/TRAIN_ORDER_proven-nightshift-vm.md`](../fleet/orders/TRAIN_ORDER_proven-nightshift-vm.md): a VM with no shared folder or clipboard, the installer's checksum checked again inside it, NVIDIA configured only inside it, two lanes pinned to Nemotron models, the endpoint reachable over the private network with its own token, one request that must name a Nemotron model, and a runbook.
 
+### 9 · owner → advisor: three answers before onboarding
+
+The advisor read the event's help-desk channel and the sponsors' guides that differ from each other, and left three questions open for the organisers. The owner settled them (translated from Polish):
+
+> *"Pre-existing components are fine: they have confirmed it."*
+
+> *"If they don't give us their credits, we use our own. We'll manage."*
+
+> *"There is no other way. Security is security and zero trust is zero trust. It's poor that they give an unsigned binary to the public to install."*
+
+**What follows.** The test corpus and Saphan Studio stay declared as pre-existing, in the same track. Cursor and NVIDIA run on our own subscriptions and keys unless the sponsors' credits arrive, and the ledger records which. Nightshift stays inside its virtual machine, whatever the answer about a signed build.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.
