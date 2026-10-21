@@ -61,6 +61,14 @@ The tool is [`nightshift_vm.sh`](nightshift_vm.sh). Environment, not product cod
 
 The network steps (the runtime reachable from proven's machines only) follow in this file when they are measured.
 
+## Key-only ssh into the VM
+
+The base image's ssh user is `admin` / `admin`. A key made for this VM only (never a fleet key), at
+`~/.config/proven/nightshift-vm_ed25519`, is authorized in the VM; then `/etc/ssh/sshd_config.d/010-proven-keys-only.conf`
+(`PasswordAuthentication no`, `KbdInteractiveAuthentication no`) switches passwords off. The proof is what sshd offers:
+`publickey,password,keyboard-interactive` before, `publickey` after (`ssh -v -o PubkeyAuthentication=no …` prints it).
+`nightshift_vm.sh` uses the key when it exists.
+
 ## Settings
 
 Environment variables, or `~/.config/proven/nightshift-vm.env`: `VM` (default

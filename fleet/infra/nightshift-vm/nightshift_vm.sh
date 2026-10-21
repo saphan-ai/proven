@@ -28,6 +28,8 @@ BIN=/usr/local/bin
 export PATH="$BIN:$PATH"
 LOG="${TMPDIR:-/tmp}/nightshift-vm-$VM.log"
 KH="$HOME/.config/proven/nightshift-vm.known_hosts"
+KEY="${KEY:-$HOME/.config/proven/nightshift-vm_ed25519}"   # a key for this VM only; without it ssh asks for the password
+SSHO="-o UserKnownHostsFile=$KH"; [ -f "$KEY" ] && SSHO="$SSHO -o IdentitiesOnly=yes -i $KEY"
 
 # A pinned release, older than two weeks when pinned (2026-10-21). The Homebrew formula in cirruslabs/cli fails on
 # Homebrew 7 ("Calling `depends_on :macos` with `depends_on macos:` is disabled!"), so the release archive is used.
@@ -121,8 +123,8 @@ copy_installer() {
   ip=$(tart ip "$VM" 2>/dev/null) || no "$VM is not running — run: $0 start"
   mkdir -p "$(dirname "$KH")"
   echo "  copying into the VM over ssh (the base image's user is admin; it asks for the password) …"
-  scp -q -o UserKnownHostsFile="$KH" -o StrictHostKeyChecking=accept-new "$f" "admin@$ip:Downloads/$n" || no "scp failed"
-  in=$(ssh -o UserKnownHostsFile="$KH" "admin@$ip" "shasum -a 256 'Downloads/$n'" | awk '{print $1}')
+  scp -q $SSHO -o StrictHostKeyChecking=accept-new "$f" "admin@$ip:Downloads/$n" || no "scp failed"
+  in=$(ssh $SSHO "admin@$ip" "shasum -a 256 'Downloads/$n'" | awk '{print $1}')
   [ "$in" = "$want" ] && ok "inside the VM: Downloads/$n matches ${want:0:12}…" || no "inside the VM: $in is not $want"
   echo "  Next, in the VM's window: open Downloads/$n, drag Nightshift to Applications, start it; when macOS refuses it,"
   echo "  System Settings → Privacy & Security → Open Anyway (the refusal and this step are in README.md)."
@@ -200,7 +202,7 @@ unisolate() {
 reach() { # from inside the guest: what it can open. Usage: reach [host ...] (default: the host's gateway, the internet)
   ip=$(tart ip "$VM" 2>/dev/null) || no "$VM is not running"
   targets="$VM_GW ${*:-}"
-  ssh -o UserKnownHostsFile="$KH" "admin@$ip" "for h in $targets; do nc -z -G 3 \$h 22 >/dev/null 2>&1 && echo \"✖ guest reaches \$h:22\" || echo \"✔ guest does not reach \$h:22\"; done; curl -s -o /dev/null -m 10 -w '  internet: HTTP %{http_code}\n' https://www.apple.com/"
+  ssh $SSHO "admin@$ip" "for h in $targets; do nc -z -G 3 \$h 22 >/dev/null 2>&1 && echo \"✖ guest reaches \$h:22\" || echo \"✔ guest does not reach \$h:22\"; done; curl -s -o /dev/null -m 10 -w '  internet: HTTP %{http_code}\n' https://www.apple.com/"
 }
 
 case "${1:-}" in
