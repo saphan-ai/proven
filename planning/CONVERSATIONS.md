@@ -17,7 +17,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 17 October 2026 | [`CONVERSATION_2026-10-17.md`](CONVERSATION_2026-10-17.md) | preparing the machines for the Cursor executors; then reshaping the design for the sponsors' technology |
 | 18 October 2026 | [`CONVERSATION_2026-10-18.md`](CONVERSATION_2026-10-18.md) | a local NVIDIA guardrail model, made public and on by default in proven |
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
-| 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the machine for the Cursor agents runs; the agents cannot work unattended yet |
+| 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
 
 ---
 
@@ -108,3 +108,4 @@ Page: [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md)
 | [4](CONVERSATION_2026-10-20.md#4--owner--advisor-is-anything-left-to-black-out) | owner → advisor | A check of the whole repository and its history; two old items stay public at the owner's word. |
 | [5](CONVERSATION_2026-10-20.md#5--owner--advisor-we-have-zetaris) | owner → advisor | Zetaris access arrives: a hosted instance and a local Docker stack; REST needs no Java, so it suits proven's Go adapter. |
 | [6](CONVERSATION_2026-10-20.md#6--owner--advisor-our-own-local-cluster) | owner → advisor | A train order for our own Zetaris platform: eight wagons, nine claims to test, four decisions for the owner. |
+| [7](CONVERSATION_2026-10-20.md#7--owner--advisor-three-decisions-and-how-proven-reaches-its-users) | owner → advisor | ADR-0015 Zetaris over REST; ADR-0016 a drop-in for Semgrep and Opengrep with text, JSON and SARIF; ADR-0017 a Gitea lab for the judges. |

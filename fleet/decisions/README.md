@@ -28,6 +28,9 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0012](ADR-0012-review-classes-as-in-saphan-studio.md) | Saphan Studio's review classes: security, backend, user interface, mobile, docs; security doubled by default | accepted, 2026-10-19 |
 | [0013](ADR-0013-no-hardcoded-settings.md) | no setting is hardcoded; every value has a documented default; rules are not settings | accepted, 2026-10-19 |
 | [0014](ADR-0014-review-class-chosen-by-configured-rules.md) | a change's review class is chosen by configured path rules, not a model; the highest-risk class wins | accepted, 2026-10-19 |
+| [0015](ADR-0015-zetaris-through-its-rest-api.md) | the Zetaris adapter speaks REST, not JDBC; proven carries no Java | accepted, 2026-10-20 |
+| [0016](ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md) | a drop-in replacement for Semgrep and Opengrep in a pipeline: their flags, exit codes and text, JSON and SARIF outputs | accepted, 2026-10-20 |
+| [0017](ADR-0017-a-gitea-lab-for-the-judges.md) | a Docker Compose lab with Gitea and Gitea Actions, configured, for the judges; Jenkins only if time is left | accepted, 2026-10-20 |
 
 **Rules for an ADR**
 

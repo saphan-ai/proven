@@ -1,6 +1,6 @@
 # Proven — the design
 
-*The design as of 19 October 2026. Nothing here is built yet: the build window is 22–27 October 2026. Every statement on this page is a plan, not a result. Each decision is recorded, with its reasons, as an ADR in [`fleet/decisions/`](fleet/decisions/).*
+*The design as of 20 October 2026. Nothing here is built yet: the build window is 22–27 October 2026. Every statement on this page is a plan, not a result. Each decision is recorded, with its reasons, as an ADR in [`fleet/decisions/`](fleet/decisions/).*
 
 This page is for technical readers and the hackathon's judges. The short version is in the [README](README.md).
 
@@ -44,6 +44,12 @@ Review classes are Saphan Studio's: security, backend, user interface, mobile an
 Proven hardcodes no settings ([ADR-0013](fleet/decisions/ADR-0013-no-hardcoded-settings.md)). Every value it runs with, from models and endpoints to timeouts and review classes, comes from a configuration file or environment variables, each with a documented default. Every setting is validated when it loads; a wrong value stops proven with a message that says what is allowed, and never falls back silently. Rules are not settings: evidence for every finding, no exploit code, and a review that says which model reviewed it.
 
 [ADR-0006](fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md) adds a second, narrower independence inside one review: the Skeptic that tries to refute a finding comes from a different model family from the agent that made it.
+
+## In a pipeline, and in the judges' lab
+
+proven drops into a pipeline in place of a scanner such as Semgrep or Opengrep ([ADR-0016](fleet/decisions/ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md)). It has `proven scan` for a local run and `proven ci` for a pipeline, which on a pull request reviews only the change. The flags keep Semgrep's names where they mean the same: `--text` (the default), `--json` and `--sarif`, each with a `--<format>-output=<file>` twin, `--error`, `--baseline-commit`. The exit codes keep Semgrep's numbers: 0 OK, 1 findings, 2 a fatal error. Every finding carries its evidence in every format, SARIF included, so the proof reaches a code-scanning dashboard with the finding. proven ships as a container image and as a GitHub Action.
+
+The judges get a lab ([ADR-0017](fleet/decisions/ADR-0017-a-gitea-lab-for-the-judges.md)): one Docker Compose file that starts Gitea, a Gitea Actions runner and a demo repository with an open pull request. One command, no keys, and proven's review appears on the pull request in Gitea's web page. The workflow there is the same file a GitHub user would use. A Jenkins example comes only if time is left.
 
 ## The agents inside Proven
 
@@ -100,7 +106,7 @@ Proven is open source, and one part of it will also be used inside Saphan Studio
 
 ## Not known yet
 
-- **Zetaris, in practice.** Access arrived on 20 October: a hosted instance, and the whole platform as a Docker Compose stack that can run on our own machine. Zetaris offers a JDBC driver, which needs Java, and a REST API, which does not. Which one proven's adapter uses, and whether the build uses the hosted instance or a local one, is not decided yet. Neither has been called from our side.
+- **Zetaris, in practice.** Access arrived on 20 October: a hosted instance, and the whole platform as a Docker Compose stack, which we are setting up on a machine of our own ([order](fleet/orders/TRAIN_ORDER_proven-zetaris-local.md)). proven reaches it through its REST API, so proven carries no Java ([ADR-0015](fleet/decisions/ADR-0015-zetaris-through-its-rest-api.md)). Neither instance has been called from our side yet.
 - **Meterless keys.** The organizers' example settings name a Meterless API key. The public Meterless repository describes no hosted service and needs no key. We will ask on the sponsor's help channel.
 - **The hosted guardrail, in detail.** NVIDIA's model page names the endpoint and the answer format, but its code sample leaves the model id blank, and it states no free tier and no rate limit. The first live call settles both.
 - **The conformance adapter.** Whether a Go engine passes Meterless's suites through a TypeScript adapter is the first thing we measure.

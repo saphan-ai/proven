@@ -69,6 +69,27 @@ The owner pasted the sponsor's instructions for running the whole platform local
 
 **What the advisor did.** It wrote the train order [`../fleet/orders/TRAIN_ORDER_proven-zetaris-local.md`](../fleet/orders/TRAIN_ORDER_proven-zetaris-local.md): eight wagons, from a new machine to a runbook a second person could follow, with nine claims for the master to test before he builds on them, and four decisions for the owner. The order is a draft until the master has read it and the owner has signed it.
 
+### 7 · owner → advisor: three decisions, and how proven reaches its users
+
+> *"Go with ADR-0015. And write another one. Proven should be a drop-in replacement for popular PR GitHub Actions ([create-pull-request](https://github.com/marketplace/actions/create-pull-request)), Semgrep, Opengrep and others. If possible, the same command-line parameters, inputs and outputs, with as few changes to the customer's pipeline as possible. It should be easy to do; we do not need too much. At least we should support these three output formats at the start: text, JSON and SARIF."*
+
+> *"The next one. I want to ship a docker-compose with a local Gitea install with proven configured in it, so the judges will get a full working lab with the Gitea UI and can see it actually working. Nothing needed. Gitea Actions configured. If we have time we can also make a Jenkins example. But Gitea is a MUST."*
+
+**What the advisor read.** Semgrep's [CLI reference](https://docs.semgrep.dev/cli-reference) (its output flags, exit codes, and the difference between `scan` and `ci`) and [Opengrep's](https://github.com/opengrep/opengrep) repository (a fork of Semgrep 1.100.0, with JSON and SARIF output).
+
+**What the advisor found.** Semgrep and Opengrep share one shape: a `scan` command, `--text`, `--json` and `--sarif` with file twins, exit code 1 for findings when asked and 2 for a fatal error. Copying that shape is what makes proven easy to swap in. The linked create-pull-request action is of another kind: it opens pull requests and reviews nothing, so proven does not replace it; it reviews the pull requests that action opens. Gitea Actions runs workflows written in GitHub Actions' syntax, so one workflow file can serve GitHub users and the judges' lab. Gitea has no page for SARIF, so in the lab proven posts its review on the pull request instead.
+
+**What the advisor did.**
+
+- [ADR-0015](../fleet/decisions/ADR-0015-zetaris-through-its-rest-api.md): proven reaches Zetaris through its REST API; no Java.
+- [ADR-0016](../fleet/decisions/ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md): `proven scan` and `proven ci`, Semgrep's flag names and exit codes where they mean the same, text, JSON and SARIF from the start, evidence inside every finding, a container image and a GitHub Action.
+- [ADR-0017](../fleet/decisions/ADR-0017-a-gitea-lab-for-the-judges.md): the judges' lab, Gitea and its runner in one Compose file, sample mode by default, nothing to set up; Jenkins only if time is left.
+- [`../DESIGN.md`](../DESIGN.md) has a new section, "In a pipeline, and in the judges' lab", and the front page counts seventeen decisions.
+
+## The day in short
+
+The machine for the Cursor agents runs, with its tools and one Cursor seat, but no Cursor agent can work unattended yet: the engine runs Cursor in no sandbox and the agent's shell was refused. Both fixes belong to the Cursor backend train, whose master owes an answer by 18:00 UTC. The safety model waits for one measurement. A check of the whole repository found nothing new to black out. Zetaris access arrived, and an order was written for our own Zetaris platform. Three decisions shaped how proven reaches people: it talks to Zetaris over REST, it drops into a pipeline in place of Semgrep or Opengrep, and the judges get a Gitea lab where they can watch it review a pull request.
+
 ## Not run
 
 - The safety-model status page was not changed: nothing in that order has moved since 19 October.
