@@ -83,7 +83,7 @@ Cursor agent's own bundled Node 24, so the owner chose Node 24 everywhere: the b
 | W5 `cursor-seats-admitted` | runner-cursor: one seat admitted and logged in; macm5: key needed (D3) | the macm5 seat after D3 |
 | W6 `cursor-seats-smoke-turn` | **2026-10-21: the Cursor turn ran behind the guardrail proxy with egress closed and was recorded live.** The agent reached the model only through the proxy, answered, and measured the toolchain (Go 1.26.8 with cgo, Python 3.13, Node 24.5, npm, gcc 13). The owner watched the session being recorded live in the console. `curl` is refused by the build class by design, so egress is W8's | — |
 | W7 `proven-public-infra-record` | the public train order is current | goes with each wagon |
-| W8 `cursor-legs-reach-data-hosts` | 2026-10-21: the first run behind the proxy failed before the model turn (the agent spoke HTTP/2 to a proxy that speaks HTTP/1.1; fixed in the seat's settings the same hour). The rerun, egress closed, is running | the rerun's reading of the nine data hosts |
+| W8 `cursor-legs-reach-data-hosts` | **measured 2026-10-21 behind the proxy, egress closed:** a Go program made one request per host. `registry.npmjs.org`, `proxy.golang.org` and `api2.cursor.sh` answer 200; OSV, CISA KEV, EPSS, GitHub's API, NVIDIA's API and the control `example.com` are refused at name lookup. So a Cursor leg reaches none of proven's data sources today | the owner's egress decision for the data hosts (R1, item 3) |
 | W9 `proven-judge-rehearsal` | not started | waits for W4 and D4 |
 
 ## Blocked on / next
@@ -91,7 +91,7 @@ Cursor agent's own bundled Node 24, so the owner chose Node 24 everywhere: the b
   train put every Cursor leg behind the guardrail proxy, so the sandbox keeps egress closed, the model is reached through
   one recorded path, and every turn is recorded (ADR-0024). Measured on runner-cursor with W6; the first attempt failed on
   an HTTP/2-versus-HTTP/1.1 mismatch, fixed in the seat's settings.
-- **Running:** W8, the egress reading by the Go program, behind the proxy.
+- **Decision owed:** which of proven's data hosts a build leg may reach (OSV, CISA KEV, EPSS, GitHub, NVIDIA), measured by W8.
 - **Owed by the owner:** the wiring choice for runner-cursor (DNS name and monitor); decisions D1–D6 (train order §3).
 - **Found on the way:** re-signing an unchanged order with the train's delegate key does not free a new placement; the
   owner re-signs as a person until it is fixed.
