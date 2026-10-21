@@ -1,0 +1,92 @@
+{
+  "$schema": "./metadata.schema.json",
+  "schema_version": "0.1-community",
+  "project": {
+    "name": "Proven",
+    "summary": "A pull-request reviewer whose every finding carries evidence a reader can check again: a test that fails on the change, or a query through Zetaris and the rows it returned.",
+    "licence": "Apache-2.0"
+  },
+  "track": "The Agent That Can Explain Why",
+  "team": {
+    "name": "Proven",
+    "solo": true,
+    "builders": [
+      { "name": "Marcin \"Wato\" Marzec", "role": "owner: decides and merges; writes no code" }
+    ]
+  },
+  "repository": "https://github.com/saphan-ai/proven",
+  "submission": {
+    "demo_video": null,
+    "slide_deck": null
+  },
+  "sponsors": {
+    "zetaris": {
+      "status": "planned",
+      "how": "The evidence layer: every evidence source (OSV, CISA KEV, FIRST EPSS, the repository's history) is a table behind Zetaris, and a finding about a dependency is proved by one SQL query and the rows it returned.",
+      "interface": "rest",
+      "deployment": "local-docker",
+      "data_sources": ["OSV", "CISA KEV", "FIRST EPSS", "git history"],
+      "where": [],
+      "evidence": [],
+      "decisions": [
+        "fleet/decisions/ADR-0002-evidence-is-a-test-or-a-query-through-zetaris.md",
+        "fleet/decisions/ADR-0004-first-evidence-sources.md",
+        "fleet/decisions/ADR-0015-zetaris-through-its-rest-api.md"
+      ]
+    },
+    "meterless": {
+      "status": "planned",
+      "how": "H-MEM remembers findings refuted in earlier reviews and maintainers' rulings; the World Model holds each review's claims, evidence, refutations and verdicts. Built in Go and checked with Meterless's conformance suites. Every model call goes through Meterless Nightshift.",
+      "engines": ["H-MEM", "World Model"],
+      "provider": "nightshift",
+      "where": [],
+      "evidence": [],
+      "decisions": [
+        "fleet/decisions/ADR-0003-meterless-engines-in-go.md",
+        "fleet/decisions/ADR-0018-meterless-engines-minimum-and-their-contract.md",
+        "fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md"
+      ]
+    },
+    "cursor": {
+      "status": "in-progress",
+      "how": "Cursor agents write the product code, each from a written order, in its own copy of the repository; their reports and the reviews of their work are in fleet/.",
+      "models": ["composer-2.5"],
+      "surfaces": ["agent-cli"],
+      "where": ["fleet/orders/", "fleet/status/"],
+      "evidence": ["fleet/LEDGER.md"],
+      "decisions": []
+    },
+    "nvidia": {
+      "status": "planned",
+      "how": "Nemotron is the default first reviewer and the Skeptic that tries to refute each finding; Nemotron 3.5 Content Safety guards every prompt and answer.",
+      "models": ["Nemotron (reviewer and Skeptic)", "Nemotron 3.5 Content Safety"],
+      "route": "via-meterless",
+      "where": [],
+      "evidence": [],
+      "decisions": [
+        "fleet/decisions/ADR-0005-guardrail-on-by-default.md",
+        "fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md",
+        "fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md"
+      ]
+    }
+  },
+  "pre_existing": [
+    {
+      "name": "Saphan Studio",
+      "what": "The platform that runs the agent fleet building Proven: orders, runs, reviews and their record. A tool used to build, not part of the product.",
+      "where": ["not in this repository"]
+    },
+    {
+      "name": "Test corpus",
+      "what": "21 test cases from 28 real review disagreements, with their code, declared as prior art.",
+      "where": ["tests/"],
+      "since": "2026-10-19"
+    }
+  ],
+  "run": {
+    "setup": "README.md",
+    "sample_mode": true,
+    "secrets": ["ZETARIS_API_KEY", "ZETARIS_ORG_ID", "METERLESS_RUNTIME_TOKEN"]
+  },
+  "evidence_logs": "logs/"
+}

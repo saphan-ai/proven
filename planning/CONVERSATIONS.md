@@ -145,3 +145,4 @@ Page: [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md)
 | [7](CONVERSATION_2026-10-21_advisor.md#7--owner--advisor-macos-refuses-the-installer) | owner → advisor | The Nightshift installer is unsigned and not notarized; the wrong edition was downloaded. |
 | [8](CONVERSATION_2026-10-21_advisor.md#8--owner--advisor-the-checksums-and-a-virtual-machine) | owner → advisor | The checksum matches; Nightshift goes into a macOS virtual machine on macm5; an order for it. |
 | [9](CONVERSATION_2026-10-21_advisor.md#9--owner--advisor-three-answers-before-onboarding) | owner → advisor | Pre-existing components confirmed by the organisers; our own credits if needed; Nightshift stays in its VM: zero trust. |
+| [10](CONVERSATION_2026-10-21_advisor.md#10--owner--advisor-a-metadatajson-for-everyone) | owner → advisor | A community draft of `metadata.json` and its schema, for every participant; proven's own file follows it. |

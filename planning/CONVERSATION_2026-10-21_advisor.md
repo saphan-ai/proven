@@ -84,6 +84,14 @@ The advisor read the event's help-desk channel and the sponsors' guides that dif
 
 **What follows.** The test corpus and Saphan Studio stay declared as pre-existing, in the same track. Cursor and NVIDIA run on our own subscriptions and keys unless the sponsors' credits arrive, and the ledger records which. Nightshift stays inside its virtual machine, whatever the answer about a signed build.
 
+### 10 · owner → advisor: a `metadata.json` for everyone
+
+Participants report that the sponsor folders ask for each sponsor's use to be described "in your README and metadata.json", while no submission document defines that file. Nobody had answered them. The owner (translated from Polish):
+
+> *"Let's draft the format and share it with the other participants. Placement in the root folder. Let's help ourselves."*
+
+**What the advisor did.** It wrote a community draft, [`../metadata.schema.json`](../metadata.schema.json), a JSON Schema anyone may copy, and proven's own [`../metadata.json`](../metadata.json), which follows it. The schema asks what judges need: the track, the team, each sponsor's use with its status (planned, in progress, working), where it is in the code and the evidence that it works, the components that existed before the build, and how to run it without the team's keys. It says plainly that it is not official and that an official format, if one comes, wins. proven's file marks most of its sponsor use as planned, because the build has not started. Validated with `ajv` (JSON Schema 2020-12): proven's file passes; a copy with an unknown track and a copy with an unknown engine are refused.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

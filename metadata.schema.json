@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/saphan-ai/proven/blob/main/metadata.schema.json",
+  "title": "Open Agent Hackathon 2026 — submission metadata (community draft)",
+  "description": "A community draft, not an official format. The sponsor folders ask participants to describe each sponsor's use 'in your README and metadata.json' without defining the file. This schema proposes one, so that teams describe the same things in the same places. Put metadata.json at the repository root. Free to copy, change and share (Apache-2.0). If the organisers publish an official format, theirs wins.",
+  "type": "object",
+  "required": ["schema_version", "project", "track", "team", "repository", "sponsors", "pre_existing", "run"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": {
+      "description": "The version of this community draft the file follows.",
+      "const": "0.1-community"
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "summary": { "description": "One or two sentences: the problem and who it is for.", "type": "string", "minLength": 1 },
+        "licence": { "description": "SPDX identifier, e.g. Apache-2.0.", "type": "string" }
+      }
+    },
+    "track": {
+      "description": "Exactly one primary track.",
+      "enum": [
+        "Solving Fragmented Intelligence",
+        "The Agent That Can Explain Why",
+        "Reasoning Architecture",
+        "Wildcard [Tinkerer]"
+      ]
+    },
+    "team": {
+      "type": "object",
+      "required": ["name", "builders"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "solo": { "type": "boolean" },
+        "builders": {
+          "description": "1 to 5 people, as registered on HackOS.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "type": "string" },
+              "github": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "repository": { "type": "string", "format": "uri" },
+    "submission": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "demo_video": { "description": "Link to the 1-4 minute video.", "type": ["string", "null"], "format": "uri" },
+        "slide_deck": { "description": "Link or repository path.", "type": ["string", "null"] }
+      }
+    },
+    "sponsors": {
+      "description": "One entry per sponsor. Each says what the sponsor's technology does in the product, where in the code, and how a judge can see it working.",
+      "type": "object",
+      "required": ["zetaris", "meterless", "cursor"],
+      "additionalProperties": false,
+      "properties": {
+        "zetaris": { "$ref": "#/$defs/zetaris" },
+        "meterless": { "$ref": "#/$defs/meterless" },
+        "cursor": { "$ref": "#/$defs/cursor" },
+        "nvidia": { "$ref": "#/$defs/nvidia" }
+      }
+    },
+    "pre_existing": {
+      "description": "Everything that existed before the build window opened, declared as the rules ask. Empty list if nothing.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "what", "where"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "what": { "type": "string" },
+          "where": { "description": "Paths in the repository, or 'not in this repository'.", "type": "array", "items": { "type": "string" } },
+          "since": { "description": "Date (YYYY-MM-DD) the component first existed.", "type": "string" }
+        }
+      }
+    },
+    "run": {
+      "description": "How a judge runs it.",
+      "type": "object",
+      "required": ["setup", "sample_mode"],
+      "additionalProperties": false,
+      "properties": {
+        "setup": { "description": "README section or command.", "type": "string" },
+        "sample_mode": { "description": "Does it run without the team's credentials?", "type": "boolean" },
+        "secrets": { "description": "Environment variable NAMES the live mode needs. Never values.", "type": "array", "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } }
+      }
+    },
+    "evidence_logs": { "description": "Where the run writes its traces (the engines' JSONL, for example).", "type": "string" }
+  },
+  "$defs": {
+    "status": {
+      "description": "Be honest: 'working' only if a judge can see it run.",
+      "enum": ["planned", "in-progress", "working"]
+    },
+    "usage": {
+      "type": "object",
+      "required": ["status", "how"],
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "how": { "description": "What it does in the product, in one or two sentences.", "type": "string" },
+        "where": { "description": "Repository paths that implement it.", "type": "array", "items": { "type": "string" } },
+        "evidence": { "description": "The test, log or demo moment that shows it working.", "type": "array", "items": { "type": "string" } },
+        "decisions": { "description": "Links to design notes or ADRs.", "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "zetaris": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/usage" }],
+      "properties": {
+        "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
+        "interface": { "enum": ["rest", "jdbc", "sql-editor"] },
+        "deployment": { "enum": ["local-docker", "hosted"] },
+        "data_sources": { "type": "array", "items": { "type": "string" } }
+      },
+      "unevaluatedProperties": false
+    },
+    "meterless": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/usage" }],
+      "properties": {
+        "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
+        "engines": {
+          "type": "array",
+          "items": { "enum": ["H-MEM", "Markovian", "World Model", "Scout Intent", "Swarm"] }
+        },
+        "provider": { "description": "How the product reaches models through Meterless.", "enum": ["nightshift", "meterless-cloud", "none"] }
+      },
+      "unevaluatedProperties": false
+    },
+    "cursor": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/usage" }],
+      "properties": {
+        "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
+        "models": { "type": "array", "items": { "type": "string" } },
+        "surfaces": { "type": "array", "items": { "enum": ["ide", "agent-cli", "background-agents"] } }
+      },
+      "unevaluatedProperties": false
+    },
+    "nvidia": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/usage" }],
+      "properties": {
+        "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
+        "models": { "type": "array", "items": { "type": "string" } },
+        "route": { "enum": ["via-meterless", "build.nvidia.com", "local"] }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}
