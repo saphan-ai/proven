@@ -1,8 +1,9 @@
 # TRAIN ORDER — proven-zetaris-local
+# TRAIN ORDER — proven-zetaris-local
 
-- master: the master of `proven-cursor-infra`, if the owner appoints him; this train runs parallel to that one
-- status: DRAFT — written by the advisor on 2026-10-20; the master may change it, then gives it to the owner to sign
-- track: proven-cursor-infra
+- master: MASTER (claude-code, claude-opus-5-5, seat macm5/██████████████), the infra master of `proven-cursor-infra`, handed this train by the owner on 2026-10-21 ("we install a local VM"), mode: economy
+- status: ACTIVE — amended by the master on 2026-10-21 (§1a, W1 size, Z5); waits for the owner's signature
+- track: proven-zetaris-local
 - repo: proven (public record and the runbook), saphan-infra (the host's brief and report)
 - base: main at the cut
 - author: ADVISOR of the hackathon track "The Agent That Can Explain Why"
@@ -49,13 +50,25 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 | Z-A8 | The OpenAPI specification is served at `:8888/redoc/docs.yaml` behind HTTP Basic with the user's name and password; it does not accept the API key. | `client-setup.md` | `curl -u` from the host |
 | Z-A9 | The Proxmox node that holds runner-cursor had about 30 GiB of memory and 616 GB of disk free after runner-cursor was sized. | the master's §1a A12 of `proven-cursor-infra`, 2026-10-19, minus runner-cursor's 8 GiB | re-measure the node; it may have changed since |
 
+## §1a THE MASTER'S RE-MEASUREMENT (MASTER, 2026-10-21 ~01:40 UTC, read-only)
+
+| # | verdict | what the master measured |
+|---|---|---|
+| Z-A9 | **WRONG (changed)** | The node now has **25 GiB available** (`free -g`: 123 total, 97 used), not 30: runner-cursor runs. The ZFS cache is capped at 6.0 GiB and may shrink to 3.9 GiB, so about **27 GiB** is the real headroom. Guests declare 110,592 MiB (108 GiB) of 123 GiB. 32 threads; `rpool` 621 G free. VMID ███ is free cluster-wide; workbench IP `███` is silent. |
+| Z-A1–A8 | UNMEASURED | They need the bundle and the registry sign-in (W2–W3). |
+
 ## §2 WAGONS
 
-### W1 `zetaris-host-exists`
+### W1 · `zetaris-host-exists` — the Zetaris host exists
 - **what:** a new Linux VM on the node that holds runner-cursor (Z1, decided by the owner 2026-10-20), modelled on
   runner-cursor. It carries two Compose stacks: the Zetaris platform, and the judges' lab rehearsal (W9). Proposed size,
   for the master to test against Z-A1 and Z-A9 and print the arithmetic (law #46): 8 vCPU, 24 GiB of memory (16 for the
   platform, twice the sponsor's minimum because evidence tables are loaded into it, and 8 for the lab), 160 GB of disk.
+  **The master's arithmetic (2026-10-21):** 24 GiB does NOT fit: 27 GiB of real headroom − 24 = 3 GiB left for the node,
+  and the guests would declare 132 GiB of 123. Candidates: **16 GiB** (platform 12 + lab 4) leaves about 11 GiB, guests
+  declare 124 of 123 GiB (1 GiB over, today's guests use about 90 of their 108); **12 GiB** (platform 12, the lab
+  rehearsal placed elsewhere) leaves about 15 GiB, guests declare 120 of 123. vCPU 8 of 32 and disk 160 of 621 G fit
+  either way. The size is decision Z5.
   **If the node cannot spare 24 GiB beside runner-cursor and leave room for its other guests, say so with the numbers
   and propose the split; do not shrink the platform below the sponsor's 8 GB.** A tailnet member like runner-cursor. No
   port reachable from the internet.
@@ -64,7 +77,7 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
   address.
 - **master-was-wrong:** —
 
-### W2 `zetaris-platform-installed`
+### W2 · `zetaris-platform-installed` — the platform is installed
 - **what:** Docker Engine and the Compose plugin on the host; the platform bundle unpacked; the sponsor's `preflight.sh`
   passes.
 - **owner acts:** the registry sign-in and the download of `zetaris-platform.zip` from the hosted dashboard. **The owner
@@ -75,7 +88,7 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 - **dod:** every line of `preflight.sh` says PASS, pasted; the zip's sha256 recorded; Z-A3 answered.
 - **master-was-wrong:** —
 
-### W3 `zetaris-platform-runs`
+### W3 · `zetaris-platform-runs` — the platform runs, private only
 - **what:** `docker compose pull`, `docker compose up -d`, then the sponsor's `verify.sh`.
 - **The ports are bound to the private network only.** Read what the compose file binds (Z-A5). If it binds all
   addresses, restrict it with a compose override file of ours (never an edit of the sponsor's file) or a host firewall,
@@ -85,7 +98,7 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
   then answers, and put it back.
 - **master-was-wrong:** —
 
-### W4 `zetaris-accounts-and-key`
+### W4 · `zetaris-accounts-and-key` — proven's account and key
 - **what, all owner acts, none by an agent:** sign in as the default admin and change its password; create a non-admin
   user for proven with query rights only; create that user's API key; note the organisation's numeric ID.
 - **Where the key goes:** an environment variable on the machines that run proven, by the owner's hand. Never in a file
@@ -94,7 +107,7 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 - **dod:** the owner says it is done; the master records the variable names, never their values.
 - **master-was-wrong:** —
 
-### W5 `zetaris-answers-over-rest`
+### W5 · `zetaris-answers-over-rest` — Zetaris answers over REST
 - **what:** from runner-cursor and from macm5, over REST with proven's key: `SELECT 1`, then `SHOW LIGHTNING DATABASES`.
   The same two calls against the hosted instance, so the build has both measured.
 - **Negative control (law #27):** the same call with one character of the key changed is refused; paste the refusal.
@@ -102,14 +115,14 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
   (ADR-0013).
 - **master-was-wrong:** —
 
-### W6 `cursor-legs-reach-zetaris`
+### W6 · `cursor-legs-reach-zetaris` — a Cursor leg reaches Zetaris
 - **what:** a Cursor leg can reach the platform. This is the same question as W8 of `proven-cursor-infra`: the platform
   host becomes an admitted data host. Until the engine can do that, the gap is named, and the fallback is the owner's
   recorded `--egress-open`.
 - **dod:** one leg's `SELECT 1` over REST, or the named gap with the engine change it waits for.
 - **master-was-wrong:** —
 
-### W7 `zetaris-data-survives`
+### W7 · `zetaris-data-survives` — the data survives a restart
 - **what:** `docker compose down`, then `up -d`, and a table created before the restart is still there.
 - **Forbidden in every script of this train:** `docker compose down -v` and `--rmi all` (Z-A6: they destroy the data and
   the encryption keypair).
@@ -117,7 +130,7 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 - **dod:** the table before and after, pasted; a grep of every script of this train for `down -v` prints nothing.
 - **master-was-wrong:** —
 
-### W8 `zetaris-runbook-and-record`
+### W8 · `zetaris-runbook-and-record` — the runbook and the public record
 - **what:** the human ceremony of W2 and W4 written as a numbered runbook in proven, `fleet/infra/zetaris-local.md`: what
   the owner does, in which order, and what to do when a step refuses (law #39). The public copy of this order and its
   status stay current, in English, with nothing internal in them.
@@ -125,7 +138,7 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
   nothing.
 - **master-was-wrong:** —
 
-### W9 `lab-rehearsal-host`
+### W9 · `lab-rehearsal-host` — the host is ready for the lab rehearsal
 - **what:** the judges' lab ([ADR-0017](../decisions/ADR-0017-a-gitea-lab-for-the-judges.md)) is rehearsed on this VM
   every day, from a clean checkout, with the one command a judge runs. Here, on a machine that does nothing else, the lab's
   runner may use the host's Docker socket; that says nothing about what the judges' copy does, which ADR-0017 leaves to
@@ -146,6 +159,11 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 - **Z4 — backups.** Recommended: none during the hackathon, recorded as such, because every table is reloaded from the
   public sources by scripts. Alternative: a nightly copy of the volumes.
 
+- **Z5 — the size (added by the master 2026-10-21).** Recommended: **12 GiB**, VMID ███, IP `███`: the platform gets 12
+  (one and a half times the sponsor's minimum) and the node keeps a margin; the lab rehearsal (W9) moves to a later
+  decision, because the lab is product work from 22 October. Alternative: 16 GiB with the lab on this VM and the node's
+  guests 1 GiB over its memory.
+
 ## §4 DEFINITION OF DONE
 
 - The platform runs on our host, passes `verify.sh`, and is reachable from the tailnet only, with the negative control
@@ -163,3 +181,12 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 - Every act of this train is local energy: a named zero, except Cursor legs in W6, which are priced and run only with the
   owner's consent at the call (law #49).
 - Estimate: the master's own session, and one Cursor turn for W6.
+
+## REDACTED
+
+| what was blacked out | times | what it was |
+|---|---|---|
+| seat identity | 1 | the master's seat on macm5 |
+| infrastructure identifiers | 2 | the planned VM number and the last part of its planned address |
+
+macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 (the Cursor executors work there).
