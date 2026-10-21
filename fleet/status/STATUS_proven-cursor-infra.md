@@ -7,7 +7,7 @@
 - cost: not measured — an interactive master session; no priced act has run
 - duration: not measured
 - last commit: 5e78a31 "[proven-cursor-infra] [nemotron-content-safety] public copies follow the amended train orders (2026-10-19)"
-- updated: 2026-10-20 (W6 ran: blocked)
+- updated: 2026-10-21 (W4 built)
 
 ## Summary
 runner-cursor exists, carries the toolchain and is admitted to the fleet with one logged-in Cursor seat. One Cursor turn
@@ -43,6 +43,13 @@ Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they lan
     when the owner ran the smoke turn that way, the agent's shell tool was refused on every call. The turn ran
     `composer-2.5` (35,892 input and 6,591 output tokens); its cost is not measured yet, because Saphan Studio has no
     price for that model. Both gaps went to the Cursor backend train's master, with a deadline of 21 October 12:00 UTC.
+14. 2026-10-20/21: the owner accepted the recommendations for D1, D2, D4, D5 and D6; the DNS name for runner-cursor
+    resolves; the leg user is in the docker group on runner-cursor.
+15. 2026-10-21: W4 built on runner-cursor: `fleet/infra/go-python/Dockerfile` on our Go image. Inside the image:
+    `go1.26.8`, Python 3.13.5 (venv works), Node v22.23.2, npm 10.9.8, gcc 14.2.0, `CGO_ENABLED=1`, user 65534.
+    Image ID `sha256:d282b9ee1390b029a8567adf49117fa0c7448b09edaab1cbd874b4f0ecf9135b`; base image ID
+    `sha256:36ac52c9ec887c2223b1dcda83cc857a7b64aea10e0560cf9fafa56c4ff67ac7`. The native lane has the same Go, the same
+    Python minor and the same Node major; only gcc differs (13.3 natively).
 
 ## Wagon state
 | wagon | state | next |
@@ -50,7 +57,7 @@ Cursor backend train. Its master owes, by 20 October 18:00 UTC, whether they lan
 | W1 `proven-is-a-workspace-repo` | done 2026-10-20: repository registered, claims re-measured, zero-cost compose passed | — |
 | W2 `runner-cursor-exists` | the machine runs and is a tailnet member | the wiring: DNS name, monitor, ssh alias |
 | W3 `runner-cursor-toolchain` | done 2026-10-20 | — |
-| W4 `proven-go-python-image` | layers chosen: Python 3.13, gcc, cgo on; Node already in the base | waits for W3 and D2 |
+| W4 `proven-go-python-image` | done 2026-10-21, image built and checked | — |
 | W5 `cursor-seats-admitted` | runner-cursor: one seat admitted and logged in; macm5: key needed (D3) | the macm5 seat after D3 |
 | W6 `cursor-seats-smoke-turn` | ran once: the agent answers, its shell is refused | the Cursor backend train's fix |
 | W7 `proven-public-infra-record` | the public train order is current | goes with each wagon |
