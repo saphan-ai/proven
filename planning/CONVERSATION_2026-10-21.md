@@ -156,11 +156,71 @@ Then the owner ran the master's creation script with 12 GiB. It failed at the st
 
 **What the master did.** This change in the repository: the three public train orders follow their originals; the status pages of all three trains, one of them new; this page, hops 11 to 15; and their lines in [`CONVERSATIONS.md`](CONVERSATIONS.md).
 
+### 16 · master → owner: the platform is installed and private
+
+21 October. **W2.** The owner ran the master's script: Docker and Compose on the Zetaris host, the platform's bundle copied and unpacked, and his own sign-in to the sponsor's registry in a shell that is not logged. It worked on the second try. Every line of `preflight.sh` said PASS. The images take 10.15 GB.
+
+**W3.** `docker compose pull` and `up -d`; `verify.sh` passed 9 of 9. The master measured the ports: the sponsor binds REST and JDBC to loopback, and the console to every address. Our override file puts the console and REST on the tailnet address only, and keeps JDBC on loopback. Docker now waits for the tailnet address after a reboot. Before the change, the console answered on the LAN; after it, nothing answers there.
+
+### 17 · owner → master: give it as a tool
+
+The console failed at sign-in when opened by its address: it calls `crypto.randomUUID`, which a browser offers only in a secure context. An ssh tunnel to `localhost` works.
+
+> *"Give it as a tool… up & down & status… and put it in the proven repo for others too."* (translated from Polish)
+
+> *"And let it be with nohup."* (translated from Polish)
+
+**What the master did.** The fleet tool [`zetaris_console.sh`](../fleet/infra/zetaris/zetaris_console.sh) `up | down | status`, with the tunnel in the background (13d337a). Its first commit, eb6dce4, was broken by the master's own edit; 13d337a restored it.
+
+### 18 · owner → master: we go on with the same password
+
+> *"It did not ask for a new password. We go on with the same."* (translated from Polish)
+
+The default administrator password stays (W4). What limits the risk was already measured in W3: the console and REST answer on the tailnet only.
+
+### 19 · owner → master: set the environment variable yourself
+
+The owner created Proven's non-admin user and its key, and kept them in his own file.
+
+> *"Everything is in ███████████; set the environment variable yourself."* (translated from Polish)
+
+**What the master did.** It wrote the REST base URL, the numeric org ID and the key to an env file with mode 600 on macm5 and runner-cursor, and printed no value. **W5:** from both machines, `select 1` answered 200; a key with one character changed was refused with `{"msg":"Not Allowed"}`. One claim of the order was partly wrong: the org ID the API takes is the numeric one, not the hex ID in the page's URL.
+
+### 20 · owner → master: yes, it is my task
+
+The advisor's note asked the master to explore how Proven's evidence sources load into our Zetaris. The master asked whether the task was the owner's.
+
+> *"Yes, it is my task."* (translated from Polish)
+
+**What the master did.** It tried each source with Proven's own key. Every statement that registers a source was refused: `User is not permitted to run this command`. The sponsor's command reference marks them "Administrators only". So Proven's key may not register sources; it can only read what an administrator registers and grants.
+
+### 21 · owner → master: exploration only, and you may do b
+
+> *"Now only exploration, no data in the database. Preparation only."* (translated from Polish)
+
+> *"And you may do b."* (translated from Polish)
+
+Option (b) was: the administrator account registers the sources as definitions, every object named `px_`, and Proven's key measures them.
+
+**What the master did.** The administrator registered a Lightning database, four REST tables and three views, then assigned them to Proven's user and granted SELECT. No cache, no stored rows. Measured with Proven's key: KEV 1754 rows, the same as the feed, in about 0.6 s; EPSS for one fixed CVE, 1 row; one fixed EPSS page, 100 rows; OSV by advisory id, 1 row; a KEV × EPSS join, 1 row in about 1.1–1.3 s. The second run was as slow as the first: every SELECT fetches the source live. **OSV by package does not work**: a REST table's body is a flat map of strings, OSV needs a nested object, and OSV answered 400.
+
+### 22 · master → the platform: a restart keeps everything
+
+**W7**, as far as the owner's rule allows today: no data is stored, so the restart keeps the definitions. `docker compose down`, then `up -d`, never `-v`. All four volumes were kept, the platform was healthy after 44 s, `verify.sh` passed 9 of 9, the ports did not change, and the `px_` KEV view still answered 1754.
+
+### 23 · owner → master: save it in decisions
+
+> *"OK. Save it in decisions."* (translated from Polish)
+
+**What the master did.** [ADR-0023](../fleet/decisions/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md): Proven's evidence sources are REST tables that an administrator registers and Proven's key reads live; OSV by package needs another path, and the options are listed for the owner. Also the runbook, [`fleet/infra/zetaris/zetaris-local.md`](../fleet/infra/zetaris/zetaris-local.md) (W8); the status page; this page, hops 16 to 23; and their lines in [`CONVERSATIONS.md`](CONVERSATIONS.md).
+
 ## Not run
 
 - **W6 again** (machine train): it waits for the fleet's reinstall with the Cursor backend train's W22.
 - **W7–W9** (machine train): W8 (the data hosts) and W9 (the judge rehearsal) wait for a working Cursor agent. W7, the public record, goes with each wagon and is not closed.
-- **W2–W9** (Zetaris train): not started. W2 is next: Docker, the platform's bundle, the owner's sign-in to the registry, and the preflight. W6 also waits for a working Cursor agent.
+- **W6** (Zetaris train): it waits for a working far Cursor leg. **W9** is deferred by Z5: the lab rehearsal is product work, and the 12 GiB host has no room for it.
+- **The hosted Zetaris instance:** not measured; no address or key for it was handed over.
+- **OSV by package and the repository's history** as evidence: not measured on Zetaris (ADR-0023).
 - **The uptime monitor for runner-cursor:** the owner's consent was not asked yet.
 
 ## REDACTED
@@ -173,5 +233,7 @@ Parts of this file are blacked out (█) or rewritten in neutral words. Nothing 
 | machine names (rewritten) | 1 | the same machine, written as "the guardrail host" or "the model machine" throughout |
 | machine names (rewritten) | 1 | the new machine of the Zetaris train, written as "the Zetaris host" (hop 14) |
 | engine refusal codes (rewritten) | 2 | the two refusals of W6 in hop 11, written in plain words |
+| file names | 1 | the owner's private file that holds the platform's credentials (hop 19) |
+| machine addresses and user names (left out) | — | the Zetaris host's address, and Proven's user name on the platform (hops 16 to 21) |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17.

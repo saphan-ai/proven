@@ -19,7 +19,7 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 19 October 2026 | [`CONVERSATION_2026-10-19.md`](CONVERSATION_2026-10-19.md) | the front page rewritten for readers new to agent fleets |
 | 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
 | 21 October 2026 | [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md) | the advisor: the test corpus as the Cursor agents' shake-out before the build |
-| 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model (done), the Zetaris host |
+| 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model (done), the Zetaris host and its evidence sources |
 
 ---
 
@@ -134,6 +134,14 @@ Page: [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md)
 | [13](CONVERSATION_2026-10-21.md#13--the-owners-gate-the-content-safety-train-is-done) | — | The W5 stream closed without a merge; probe (d) judges; the content-safety train is DONE. |
 | [14](CONVERSATION_2026-10-21.md#14--owner--master-the-order-signed-the-machine-created) | owner → master | The Zetaris order signed; the master's script error, "Fix yourself"; the corrected run; W1 done. |
 | [15](CONVERSATION_2026-10-21.md#15--owner--master-sync-the-proven-repository) | owner → master | This sync: three train orders, three status pages, this page. |
+| [16](CONVERSATION_2026-10-21.md#16--master--owner-the-platform-is-installed-and-private) | master → owner | W2 and W3: the platform installed, `verify.sh` 9/9; the console and REST on the tailnet only, JDBC on loopback. |
+| [17](CONVERSATION_2026-10-21.md#17--owner--master-give-it-as-a-tool) | owner → master | The console needs a secure context; `zetaris_console.sh` up, down and status, in proven for others, with nohup. |
+| [18](CONVERSATION_2026-10-21.md#18--owner--master-we-go-on-with-the-same-password) | owner → master | The default administrator password stays (W4). |
+| [19](CONVERSATION_2026-10-21.md#19--owner--master-set-the-environment-variable-yourself) | owner → master | Proven's user and key by the owner; the env file written without printing a value; W5 REST from macm5 and runner-cursor. |
+| [20](CONVERSATION_2026-10-21.md#20--owner--master-yes-it-is-my-task) | owner → master | The evidence exploration is the owner's task; Proven's key may not register sources. |
+| [21](CONVERSATION_2026-10-21.md#21--owner--master-exploration-only-and-you-may-do-b) | owner → master | No data in the database; the administrator registers `px_` definitions, Proven's key measures them; OSV by package fails. |
+| [22](CONVERSATION_2026-10-21.md#22--master--the-platform-a-restart-keeps-everything) | master → the platform | W7: a restart without `-v` keeps the four volumes; 9/9; the `px_` definitions still answer. |
+| [23](CONVERSATION_2026-10-21.md#23--owner--master-save-it-in-decisions) | owner → master | ADR-0023: how Proven's evidence is loaded through Zetaris; the runbook (W8); the status page. |
 
 ## 21 October 2026 — the advisor, the day before the build
 

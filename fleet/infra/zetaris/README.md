@@ -2,6 +2,8 @@
 
 Fleet tooling for proven's self-hosted Zetaris platform. Environment, not product code (2026-10-21).
 
+The whole setup, step by step, is the runbook [`zetaris-local.md`](zetaris-local.md).
+
 ## zetaris_console.sh — the console on your machine
 
 The Zetaris web console calls `crypto.randomUUID()`. Browsers offer it only in a "secure context": https, or
