@@ -114,10 +114,15 @@ on it. Where you find the advisor wrong, write it in the wagon's `master-was-wro
 - **N2 — the VM's lifetime. DECIDED by the owner 2026-10-21:** *"Start today, we need to test it. Stopped after 6 Nov."*
   W1–W5 run today, before the build window opens on 2026-10-22 00:00 UTC; the VM is stopped after the results on
   6 November.
-- **N4 — the VM's network. OPEN, the master recommends (a).** (a) Softnet: the guest reaches the internet only, not the
-  private network or the fleet's machines; costs one root helper on macm5 (Tart's own, installed with sudo once). (b) the
-  default NAT: nothing installed as root, but the untrusted installer can reach every machine on macm5's network. W4's
-  tailnet node works in both (its traffic goes to public relays and peers).
+- **N4 — the VM's network. DECIDED by the owner 2026-10-21: NAT.** The master had recommended Softnet; the owner
+  refused it: Softnet has no code signature and runs setuid root on the host, so it would contain one unsigned program
+  by installing another, with more privilege and outside the VM. With NAT the guest can reach machines on macm5's
+  network; anything there keeps its own authentication. Hardening, measured first: block that range with macOS's own
+  `pf` firewall.
+- **Tools (measured 2026-10-21):** the `cirruslabs/cli` Homebrew formula fails on Homebrew 7.0.10 (*"Calling
+  `depends_on :macos` with `depends_on macos:` is disabled!"*). Tart comes from its GitHub release 2.40.1 instead,
+  sha256-pinned, signed by Cirrus Labs (Team 9M2P8L4D89) and notarized, through proven's
+  `fleet/infra/nightshift-vm/nightshift_vm.sh`.
 - **N3 — the question to Meterless.** Recommended: ask in the Help Meterless channel for a notarized build, and whether
   a VM on our own machine counts for the eligibility rule *"Zetaris and Meterless must be running on your machine"*.
 
