@@ -60,6 +60,13 @@ the Cursor backend train fixed the second one (its wagon W22). W6 runs again aft
     the Cursor backend train's master, with high salience. That train fixed the second gap in its wagon W22
     (`cursor-far-reuse-packs`). W6 runs again after the fleet's reinstall.
 
+**2026-10-21, 07:02 UTC — W6: the first Cursor agent turn on runner-cursor works.** It ran inside the engine's sandbox
+(Landlock), its tool hook answered, and its shell, read and write tools ran: Go 1.26.8 with cgo on, and `go run` printed
+`hello from proven`. The model was Composer. The network was opened by the owner's recorded act for this one run, because
+Cursor's agent stream uses a host the Cursor network baseline does not admit yet. One refusal is left: the executor's
+permission class does not allow `python3`, `node`, `npm`, `gcc` or `curl`, so the Python, Node and compiler checks and the
+network reading for W8 did not run. The Cursor backend train has the request.
+
 ## Wagon state
 | wagon | state | next |
 |---|---|---|
