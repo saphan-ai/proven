@@ -68,6 +68,20 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   third finding evidence in the fixture and it appears; remove the test of the first and it disappears.
 - **master-was-wrong:** —
 
+### W1b `the-prover-in-a-container`
+- **added:** by the owner 2026-10-21, on the master's proposal (no wagon built ADR-0025's runner): *"tak, dodać W1b."*
+  (translated: "yes, add W1b").
+- **what:** ADR-0025: the test-run adapter's live implementation. The change's code and tests run only in a container
+  Proven starts for that one run: no network, no secret, only the checkout it needs; image, time and resource limits are
+  settings validated on load (ADR-0013), with no setting that gives a network or a secret. No container runtime → the
+  Prover runs no code, and the review says so (point 6). Never a fallback to the host.
+- **dod:** on runner-cursor, the W1 fixture's F1 is proved by a test run in the container: fails on the change, passes on
+  the base. **Negative controls:** a test that opens a network connection fails inside the container and the review says
+  it could not run and why; a test that reads Proven's token finds none. **Unplug (law #41):** no container runtime on
+  the path → the Prover is named off, F1 is not reported as proved, and no process of the change runs on the host
+  (measured by a test).
+- **master-was-wrong:** —
+
 ### W2 `the-generator-through-nightshift`
 - **what:** the live generator: Nightshift by default (ADR-0019), any OpenAI-compatible endpoint by setting; base URL,
   token and model or routing mode from the environment, validated on load (ADR-0013). Each review names the route and
