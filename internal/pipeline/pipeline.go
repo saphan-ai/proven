@@ -35,10 +35,11 @@ type Options struct {
 
 // Pipeline is one reviewer.
 type Pipeline struct {
-	sample  bool
-	testRun testrun.Adapter
-	trace   *trace.Writer
-	guard   *netguard.Guard
+	sample     bool
+	testRun    testrun.Adapter
+	trace      *trace.Writer
+	guard      *netguard.Guard
+	atBoundary func(stage string)
 }
 
 // Build opens the trace and, in sample mode, a client that refuses every dial.
@@ -62,6 +63,13 @@ func Build(opts Options) (*Pipeline, error) {
 
 // Guard is the sample-mode dial counter. It is nil when sample mode is off.
 func (p *Pipeline) Guard() *netguard.Guard { return p.guard }
+
+// boundary lets a test cancel the context at one named stage. Production leaves it unset.
+func (p *Pipeline) boundary(stage string) {
+	if p.atBoundary != nil {
+		p.atBoundary(stage)
+	}
+}
 
 // Request is the part of a review request this wagon reads.
 type Request struct {
@@ -118,7 +126,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		if d, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
-				return keep(st.partial(nil)), nil
+				return p.cut(st, nil, allow)
 			}
 			return candidate.Draft{}, fatal
 		} else if !d {
@@ -134,8 +142,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 		cands = append(cands, c)
 	}
+	p.boundary("planned")
 	if ctx.Err() != nil {
-		return keep(st.partial(cands)), nil
+		return p.cut(st, cands, allow)
 	}
 
 	for i := range cands {
@@ -143,7 +152,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
-					return keep(st.partial(cands)), nil
+					return p.cut(st, cands, allow)
 				}
 				return candidate.Draft{}, fatal
 			}
@@ -151,15 +160,16 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 		cands[i] = next
 	}
+	p.boundary("investigated")
 	if ctx.Err() != nil {
-		return keep(st.partial(cands)), nil
+		return p.cut(st, cands, allow)
 	}
 	for i := range cands {
 		next, err := prover.Prove(ctx, cands[i], gen, run)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
-					return keep(st.partial(cands)), nil
+					return p.cut(st, cands, allow)
 				}
 				return candidate.Draft{}, fatal
 			}
@@ -168,12 +178,13 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		cands[i] = next
 	}
 	for _, c := range cands {
-		if err := st.event(c.ID, "evidence", evidenceAgent(c), evidenceText(c)); err != nil {
+		if err := st.evidence(c); err != nil {
 			return candidate.Draft{}, err
 		}
 	}
+	p.boundary("proved")
 	if ctx.Err() != nil {
-		return keep(st.partial(cands)), nil
+		return p.cut(st, cands, allow)
 	}
 
 	for i := range cands {
@@ -181,7 +192,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
-					return keep(st.partial(cands)), nil
+					return p.cut(st, cands, allow)
 				}
 				return candidate.Draft{}, fatal
 			}
@@ -191,16 +202,13 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		cands[i] = next
 	}
 	for _, c := range cands {
-		text := c.Refutation.Reason
-		if text == "" {
-			text = "no refutation"
-		}
-		if err := st.event(c.ID, "refutation", "skeptic", text); err != nil {
+		if err := st.refutation(c); err != nil {
 			return candidate.Draft{}, err
 		}
 	}
+	p.boundary("refuted")
 	if ctx.Err() != nil {
-		return keep(st.partial(cands)), nil
+		return p.cut(st, cands, allow)
 	}
 
 	for i := range cands {
@@ -250,6 +258,35 @@ func (s *state) event(id, kind, agent, text string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: kind, Agent: agent, Text: text})
 }
 
+func (s *state) evidence(c candidate.Candidate) error {
+	return s.trace.Append(trace.Event{
+		FindingID: c.ID,
+		Kind:      "evidence",
+		Agent:     evidenceAgent(c),
+		Text:      evidenceText(c),
+		Evidence:  traceEvidence(c.Evidence),
+	})
+}
+
+func (s *state) refutation(c candidate.Candidate) error {
+	text := c.Refutation.Reason
+	if text == "" {
+		text = "no refutation"
+	}
+	r := c.Refutation
+	return s.trace.Append(trace.Event{
+		FindingID: c.ID,
+		Kind:      "refutation",
+		Agent:     "skeptic",
+		Text:      text,
+		Refutation: &trace.Refutation{
+			Attempted: r.Attempted,
+			Refuted:   r.Refuted,
+			Reason:    r.Reason,
+		},
+	})
+}
+
 func (s *state) soften(ctx context.Context, err error) (degraded bool, fatal error) {
 	if err == nil {
 		return false, nil
@@ -275,11 +312,38 @@ func (s *state) note(d *service.Down) {
 	s.failed = append(s.failed, candidate.Failure{Service: d.Service, Reason: d.Reason})
 }
 
-func (s *state) partial(cands []candidate.Candidate) candidate.Draft {
-	d := writer.Write(writer.Input{
-		Candidates: cands, Failed: s.failed, Models: s.models, Partial: true, TracePath: s.trace.Path(),
-	})
-	return d
+func (p *Pipeline) cut(st *state, cands []candidate.Candidate, allow map[string]struct{}) (candidate.Draft, error) {
+	d, err := st.partial(cands)
+	if err != nil {
+		return candidate.Draft{}, err
+	}
+	d.Findings = keepFindings(d.Findings, allow)
+	return d, nil
+}
+
+func (s *state) partial(cands []candidate.Candidate) (candidate.Draft, error) {
+	// partial-path filter: a candidate the judge has not judged is not a finding.
+	judged, err := s.omitUnjudged(cands)
+	if err != nil {
+		return candidate.Draft{}, err
+	}
+	return writer.Write(writer.Input{
+		Candidates: judged, Failed: s.failed, Models: s.models, Partial: true, TracePath: s.trace.Path(),
+	}), nil
+}
+
+func (s *state) omitUnjudged(cands []candidate.Candidate) ([]candidate.Candidate, error) {
+	var out []candidate.Candidate
+	for _, c := range cands {
+		if c.DropReason == "" {
+			if err := s.event(c.ID, "verdict", "pipeline", "not judged: deadline"); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		out = append(out, c)
+	}
+	return out, nil
 }
 
 type recording struct {
@@ -350,6 +414,44 @@ func evidenceText(c candidate.Candidate) string {
 		return "none"
 	}
 	return text
+}
+
+func traceEvidence(in []candidate.Evidence) []trace.Evidence {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]trace.Evidence, 0, len(in))
+	for _, e := range in {
+		ev := trace.Evidence{Kind: e.Kind}
+		if e.Test != nil {
+			t := e.Test
+			ev.Test = &trace.TestEvidence{
+				Path: t.Path, Name: t.Name, Command: t.Command, Output: t.Output,
+				FailsOnChange: t.FailsOnChange, PassesOnBase: t.PassesOnBase,
+			}
+		}
+		if e.Query != nil {
+			q := e.Query
+			ev.Query = &trace.QueryEvidence{
+				SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
+				Columns: append([]string(nil), q.Columns...),
+				Rows:    copyRows(q.Rows),
+			}
+		}
+		out = append(out, ev)
+	}
+	return out
+}
+
+func copyRows(rows [][]string) [][]string {
+	if rows == nil {
+		return nil
+	}
+	out := make([][]string, len(rows))
+	for i, row := range rows {
+		out[i] = append([]string(nil), row...)
+	}
+	return out
 }
 
 func evidenceAgent(c candidate.Candidate) string {
