@@ -131,6 +131,7 @@ Every agent run records its model and the cost Saphan Studio measured for it. Wh
 
 | | |
 |---|---|
+| [docs/SAMPLE_MODE.md](docs/SAMPLE_MODE.md) | try Proven with no network and no keys: the sample review, its findings and its trace |
 | [DESIGN.md](DESIGN.md) | Proven's design, the sponsors' technology, evidence sources, open questions |
 | [SAPHAN.md](SAPHAN.md) | the platform that runs the fleet, its roles and vocabulary |
 | [AGENTS.md](AGENTS.md) | the rules every agent follows in this repository |
