@@ -49,10 +49,27 @@ The first day of the train [`proven-cli-and-action`](../fleet/orders/TRAIN_ORDER
 - **Answer received:** `reject`, four blocking findings and one owed. Three belong to the shell: `proven ci` copies the base instead of computing the merge base; an invalid environment variable is refused even when a valid flag overrides it; a panic while opening the reviewer is not exit 2. Two belong to the review seam the reviewer train owns: `review.Open` ignores the baseline, head, include and exclude fields and the configuration file, so `--exclude='*'` still prints every finding.
 - **What the master did:** held the NVIDIA review (it would review code about to change), wrote W1b round 2 for the shell's three findings with the review pasted into the order, and asked the reviewer train's master to take the two seam findings.
 
+### 9 · W1b round 2 → codex review round 2: one new blocker
+
+- **What happened:** round 2 repaired the three shell findings. The codex review accepted those and found one new blocker: `proven ci` read the default `proven.yaml` before it moved to `GITHUB_WORKSPACE`.
+- **What the master did:** wrote round 3 with the finding pasted in, the owner signed it, and the master placed it.
+
+### 10 · round 3 never reached the model
+
+- **What happened:** the run stopped at the recording proxy before Cursor was called. The proxy refused the previous round's recording because its own digest check failed.
+- **Cause, measured by the master:** 964 of 2260 recorded events were Cursor's binary frames, stored as text with the invalid bytes replaced; the digest was taken over the original bytes. Every Cursor round damages its own recording, and the next round in the same working copy is refused.
+- **What the master did:** moved the damaged recording aside (kept, not deleted), reported the cause to the engine's scribe with the file and line, and asked the owner to sign round 3 again.
+
+### 11 · advisor → master: NVIDIA reviews move to agent-loop, but not yet
+
+- **What happened:** the owner ruled that NVIDIA reviews move from qwen-code to the agent-loop harness. Two minutes later they added that the harness must be extended first.
+- **What the master did:** answered "understood". NVIDIA reviews stay on the qwen-code NVIDIA seats until the agent-loop wagon lands, one at a time, and never on the seat where two reviews ended after one sentence.
+
 ## Waiting for answers
 
-- the owner's signature of W1b round 2; then the round, the master's verify, and the two parallel reviews again (NVIDIA and codex).
+- the owner's new signature of W1b round 3; then the round, the master's verify, and the two parallel reviews (NVIDIA and codex).
 - the reviewer train's master: which wagon takes the seam findings, and when.
+- the engine's scribe: who fixes the recording of binary bodies.
 
 ## REDACTED
 

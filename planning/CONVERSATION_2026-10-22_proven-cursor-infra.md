@@ -53,12 +53,31 @@ This page continues [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) f
 
 - **Answer sent:** yes. Both Cursor sessions of the night (run-20261022-010335-245ecfd0 and run-20261022-012522-6abd6b62) went through the recording proxy; their recordings are complete. What is missing is ADR-0024's publishing step: a blackout tool and a place in this repository. The master offered to build it.
 
+### 9 · owner → master: what happened with W12; the owner lands it
+
+- **What happened:** the master explained W12 in plain words: a far seat whose run is dead is released, and the release names the machine and stream it held. The owner chose to land it now and to check it live by re-running an NVIDIA review.
+
+### 10 · master → NVIDIA: a bug report
+
+- **What happened:** the master read the Nightshift receipts of the failed NVIDIA reviews: 94 calls, 63 answered, 19 empty answers, 8 aborted, 3 HTTP 500, 1 timeout. The cause was the hosted model, not the client's deadline or the context size.
+- **What the master did:** wrote it up as a bug report for NVIDIA in [`fleet/messages/`](../fleet/messages/BUG_nvidia-nemotron-empty-responses_2026-10-22.md).
+
+### 11 · master → the record: why Cursor's recordings break the next round
+
+- **What happened:** a Cursor round died before calling the model because the previous round's recording failed its own check.
+- **Cause, measured by the master:** the recorder stores Cursor's binary frames as text, replacing the invalid bytes, but seals each line with the digest of the original bytes. 964 of 2260 events failed; all of them, and none of the passing ones, held the replacement character. The published recordings also lose those bytes.
+- **What the master did:** reported it to the scribe with the file and line and asked who fixes it; until then each previous recording is moved aside before a new round, and kept.
+
+### 12 · advisor → master: NVIDIA on agent-loop, but not yet
+
+- **What happened:** the owner moved NVIDIA reviews to the agent-loop harness, then said the harness must be extended first. The probe the advisor first asked of this master is skipped until the agent-loop master answers.
+- **What the master did:** answered "understood".
+
 ## Waiting for answers
 
-- e53afbd53a52dbc0 — the agent-loop master: which items, which train, when.
-- the scribe: the Cursor model-name and seat-choice defects.
-- the advisor: whether publishing the Cursor recordings is this train's work.
-- the owner: W12's landing result; the W11 address decision.
+- the engine's scribe: who fixes the recording of Cursor's binary frames.
+- the agent-loop master: which of the NVIDIA items it takes, and when; the probe run is then this master's.
+- W11's third codex review.
 
 ## REDACTED
 
