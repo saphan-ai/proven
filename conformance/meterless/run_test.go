@@ -15,6 +15,13 @@ func TestMeterlessRunnersLoadTheShim(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not on PATH")
 	}
+	ref := os.Getenv("METERLESS_ENGINES")
+	if ref == "" {
+		ref = filepath.Join("..", "..", ".provision", "reference", "meterless")
+	}
+	if _, err := os.Stat(filepath.Join(ref, "hmem", "conformance", "runner.ts")); err != nil {
+		t.Skip("no Meterless runners: set METERLESS_ENGINES to a Meterless engines/ directory")
+	}
 	script, err := filepath.Abs("run.sh")
 	if err != nil {
 		t.Fatal(err)
