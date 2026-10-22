@@ -216,6 +216,12 @@ Before the first review, the advisor found that the engine's guardrail sends eve
 
 > *"We will run the reviews in parallel. A waste of time to do them one after another!"* (translated from Polish)
 
+### 30 · owner → advisor: the start, 22 October, 07:01 Bangkok (00:01 UTC)
+
+> *"Write what you still think is needed to commit, and we go. You can mark that coding has started."* (translated from Polish)
+
+**What the advisor did.** It found the working tree clean and the first code already in: the reviewer train's master wrote the agreed seam between the shell and the reviewer, types only, at the opening of the window ([`58f653f`](../internal/review/review.go)). It marked the [README](../README.md) status: coding started on 22 October, 00:00 UTC.
+
 ## Not run
 
 - Whether the fixes are installed, and whether the test corpus's master has been appointed, were not yet in the fleet's record when this page was written. The owner says the master is appointed.

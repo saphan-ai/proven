@@ -6,7 +6,7 @@ Proven will review pull requests: proposed changes to a codebase. Every problem 
 
 [Marcin "Wato" Marzec](https://wato.org/) used fleets of AI coding agents on commercial telco software, and built [Saphan Studio](https://saphan.ai/) to direct and check their work. Now he is taking that fleet to the [Open Agent Hackathon 2026](https://hackathon.genai.works/event/open-agent-hackathon-2026), organized by GenAI Works, from **22 to 27 October 2026**, in the track *The Agent That Can Explain Why*, to build Proven. The agents write the code. Marcin sets the direction, makes the decisions, reviews the outcomes and approves every merge.
 
-**Proven does not exist yet.** Its code is written only inside the build window. Everything before 22 October is preparation, and all of it is public.
+**Coding started on 22 October 2026, at 00:00 UTC.** Proven's code is written only inside the build window. Everything before 22 October was preparation, and all of it is public.
 
 <a href="https://vimeo.com/1236933110"><img src="assets/proven-loop.gif" alt="Proven: a pull-request reviewer that has to prove what it says. The opening slides of the introduction video, looping; click to watch it." width="100%"></a>
 
@@ -20,9 +20,9 @@ That work led to patent applications, filed in the U.S. and Europe and still pen
 
 Now that fleet takes on something new. At the hackathon it will build **Proven**, an open-source tool for checking code of the kind it writes itself.
 
-## Where things stand, 21 October 2026
+## Where things stand, 22 October 2026
 
-The final warm-up before the start.
+The build window is open. Coding has started.
 
 | what | status | where |
 |---|---|---|
@@ -34,7 +34,7 @@ The final warm-up before the start.
 | Meterless Nightshift, the sponsor's AI provider, isolated in a virtual machine | ready: the VM runs Nightshift, only the machines that run Proven can reach it, a wrong token is refused, and a request was answered by the NVIDIA Nemotron model, with Nightshift's signed receipt | [order](fleet/orders/TRAIN_ORDER_proven-nightshift-vm.md) · [runbook](fleet/infra/nightshift-vm/README.md) · [ADR-0019](fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) |
 | A local NVIDIA safety model | done: running on our own machine | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) · [status](fleet/status/STATUS_nemotron-content-safety.md) |
 | A test corpus from 28 real review disagreements | 21 case contracts written; the first cases are being coded by Cursor agents and reviewed by two model families, NVIDIA and Claude; declared prior art | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
-| Building Proven | starts 22 October, 00:00 UTC | |
+| Building Proven | started 22 October, 00:00 UTC: the first commit is the agreed seam between the command-line shell and the reviewer, types only; two trains build on it, the shell and the reviewer | [seam](internal/review/review.go) · [shell order](fleet/orders/TRAIN_ORDER_proven-cli-and-action.md) · [reviewer order](fleet/orders/TRAIN_ORDER_proven-reviewer-core.md) |
 | Public updates | daily, 15:00 UTC | this repository |
 
 Before Proven exists, we also wrote down what it will be tested on: [`tests/`](tests/README.md) turns real review disagreements from our fleet into checkable cases, and is declared as prior art.
