@@ -90,7 +90,7 @@ func TestBaselineKeepsOnlyTheChangedPath(t *testing.T) {
 	dir := copyFixtureTree(t)
 	gitRun(t, dir, "init")
 	gitRun(t, dir, "add", "-A")
-	gitRun(t, dir, "commit", "-m", "base")
+	gitRun(t, dir, "commit", "-m", "[fixture] change: base")
 	base := strings.TrimSpace(string(gitRun(t, dir, "rev-parse", "HEAD")))
 	if err := os.MkdirAll(filepath.Join(dir, "billing"), 0o755); err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestBaselineKeepsOnlyTheChangedPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	gitRun(t, dir, "add", "billing/discount.go")
-	gitRun(t, dir, "commit", "-m", "head")
+	gitRun(t, dir, "commit", "-m", "[fixture] change: head")
 	head := strings.TrimSpace(string(gitRun(t, dir, "rev-parse", "HEAD")))
 
 	rev := openSample(t, t.TempDir())

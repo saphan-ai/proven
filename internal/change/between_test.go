@@ -13,11 +13,11 @@ func TestBetweenTwoCommits(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[fixture] change: first")
 	first := rev(t, dir)
 	write(t, filepath.Join(dir, "b.txt"), "b")
 	git(t, dir, "add", "b.txt")
-	git(t, dir, "commit", "-m", "second")
+	git(t, dir, "commit", "-m", "[fixture] change: second")
 	second := rev(t, dir)
 
 	got, err := Between(dir, first, second)
@@ -34,7 +34,7 @@ func TestBetweenWorkingTreeIncludesEditsAndUntracked(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[fixture] change: first")
 	base := rev(t, dir)
 	write(t, filepath.Join(dir, "a.txt"), "changed")
 	write(t, filepath.Join(dir, "c.txt"), "new")
@@ -53,7 +53,7 @@ func TestBetweenMissingBaselineNamesTheCommit(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[fixture] change: first")
 
 	_, err := Between(dir, "does-not-exist", "")
 	if err == nil || !strings.Contains(err.Error(), "does-not-exist") {
@@ -66,7 +66,7 @@ func TestBetweenMissingHeadNamesTheCommit(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[fixture] change: first")
 	base := rev(t, dir)
 
 	_, err := Between(dir, base, "missing-head")
@@ -143,6 +143,30 @@ func write(t *testing.T, path, body string) {
 	}
 }
 
+func TestMessagesExcludesTheBaselineCommit(t *testing.T) {
+	dir := t.TempDir()
+	git(t, dir, "init")
+	write(t, filepath.Join(dir, "a.txt"), "a")
+	git(t, dir, "add", "a.txt")
+	git(t, dir, "commit", "-m", "[fixture] change: first\n\nalpha-marker")
+	first := rev(t, dir)
+	write(t, filepath.Join(dir, "b.txt"), "b")
+	git(t, dir, "add", "b.txt")
+	git(t, dir, "commit", "-m", "[fixture] change: second\n\nModel-of-record: Claude:claude-3-opus")
+	second := rev(t, dir)
+
+	got, err := Messages(dir, first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || !strings.Contains(got[0], "Model-of-record: Claude:claude-3-opus") {
+		t.Fatalf("%#v", got)
+	}
+	if strings.Contains(got[0], "alpha-marker") {
+		t.Fatal("baseline message was included")
+	}
+}
+
 func TestBetweenWorkingTreeInSubdirectoryKeepsUntracked(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")
@@ -151,7 +175,7 @@ func TestBetweenWorkingTreeInSubdirectoryKeepsUntracked(t *testing.T) {
 	}
 	write(t, filepath.Join(dir, "sub", "a.txt"), "a")
 	git(t, dir, "add", "sub/a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[fixture] change: first")
 	base := rev(t, dir)
 	write(t, filepath.Join(dir, "sub", "c.txt"), "new")
 	write(t, filepath.Join(dir, "top.txt"), "outside the target")

@@ -43,6 +43,53 @@ func Between(target, baseline, head string) ([]string, error) {
 	return uniqueSorted(names), nil
 }
 
+// Messages returns the commit messages between baseline and head, oldest first.
+// The baseline commit itself is not included. An empty head means HEAD.
+// Proven reads these messages. It does not write a trailer.
+func Messages(target, baseline, head string) ([]string, error) {
+	if err := ensureCommit(target, baseline, "baseline"); err != nil {
+		return nil, err
+	}
+	end := head
+	if head == "" {
+		end = "HEAD"
+	} else if err := ensureCommit(target, head, "head"); err != nil {
+		return nil, err
+	}
+	cmd := exec.Command("git", "-C", target, "log", "--reverse", "--format=%B%x1e", "--end-of-options", baseline+".."+end)
+	out, err := cmd.Output()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if ee, ok := err.(*exec.ExitError); ok && msg == "" {
+			msg = strings.TrimSpace(string(ee.Stderr))
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("git: %s", msg)
+	}
+	return splitMessages(out), nil
+}
+
+func splitMessages(b []byte) []string {
+	if len(b) == 0 {
+		return nil
+	}
+	parts := bytes.Split(b, []byte{0x1e})
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		s := strings.TrimSpace(string(p))
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func ensureCommit(target, rev, which string) error {
 	if rev == "" {
 		return fmt.Errorf("%s commit %q does not exist", which, rev)

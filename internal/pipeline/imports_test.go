@@ -66,9 +66,9 @@ func TestSamplePackagesDoNotImportNetOrExec(t *testing.T) {
 			if rel == "internal/testrun/container.go" && p == "os/exec" {
 				continue
 			}
-			// between.go runs git read commands (rev-parse, diff, ls-files) to
-			// name changed files. It does not run the change. Any other file
-			// that imports os/exec or net still fails this test.
+			// between.go runs git read commands (rev-parse, diff, ls-files, log) to
+			// name changed files and read commit messages. It does not run the change.
+			// Any other file that imports os/exec or net still fails this test.
 			if rel == "internal/change/between.go" && p == "os/exec" {
 				continue
 			}
