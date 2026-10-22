@@ -9,6 +9,8 @@ type Request struct {
 	Path      string
 	Name      string
 	Command   string
+	BaseDir   string // checkout of the base; the container mounts it alone for the base run
+	ChangeDir string // checkout of the change; the container mounts it alone for the change run
 }
 
 // Outcome is the result. Found is false when the fixture recorded no such test.
