@@ -258,8 +258,11 @@ func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) 
 		t.Fatal(err)
 	}
 	f5, ok := kept(before, "F5")
-	if !ok || len(f5.Evidence) != 1 || f5.Evidence[0].Query == nil || len(f5.Evidence[0].Query.Rows) != 1 {
+	if !ok || len(f5.Evidence) != 2 || f5.Evidence[0].Query == nil || len(f5.Evidence[0].Query.Rows) != 1 {
 		t.Fatal("the join must keep F5 while the CVE is on both sides")
+	}
+	if f5.Evidence[1].Query == nil || len(f5.Evidence[1].Query.Rows) != 1 || f5.Evidence[1].Query.Rows[0][1] != "0.50000" {
+		t.Fatalf("EPSS row %#v", f5.Evidence[1])
 	}
 	if f5.Evidence[0].Query.Rows[0][0] != "CVE-2026-0001" {
 		t.Fatalf("row %#v", f5.Evidence[0].Query.Rows)
@@ -480,6 +483,113 @@ func TestWrittenLimitFromOptionsRefusesBeforeTheRun(t *testing.T) {
 		}
 		t.Fatalf("trace:\n%s", b)
 	}
+}
+
+func TestKEVFindingGetsItsEPSSRow(t *testing.T) {
+	p := buildSample(t, t.TempDir(), nil)
+	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f4, ok := kept(d, "F4")
+	if !ok {
+		t.Fatal("F4 missing")
+	}
+	q := epssQuery(f4)
+	if q == nil || q.SQL != "SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'" {
+		t.Fatalf("F4 EPSS %#v", q)
+	}
+	if len(q.Rows) != 1 || q.Rows[0][0] != "CVE-2026-0001" || q.Rows[0][1] != "0.50000" || q.Rows[0][2] != "0.90000" || q.Rows[0][3] != "2026-10-20" {
+		t.Fatalf("row %#v", q.Rows)
+	}
+	f2, ok := kept(d, "F2")
+	if !ok || epssQuery(f2) == nil || epssQuery(f2).Rows[0][1] != "0.50000" {
+		t.Fatal("F2 has no EPSS row")
+	}
+	f1, ok := kept(d, "F1")
+	if !ok || epssQuery(f1) != nil {
+		t.Fatal("F1 must stay unscored")
+	}
+	var got []string
+	for _, c := range d.Findings {
+		got = append(got, c.ID)
+	}
+	want := []string{"F2", "F4", "osv:evil.example/leftpad", "F1"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("order %s", strings.Join(got, ","))
+	}
+}
+
+// Mutated field: the advisories row F3's query selects. Its CVE is not in
+// the EPSS view, so the finding stays and no score is attached.
+func TestCVEWithNoEPSSRowAttachesNothing(t *testing.T) {
+	dir := copyFixture(t)
+	sql := filepath.Join(dir, "tables.sql")
+	f, err := os.OpenFile(sql, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("INSERT INTO advisories VALUES ('billing/note', 'change', 'CVE-2026-0099', 'false');\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	p := buildSample(t, t.TempDir(), nil)
+	d, err := p.Review(context.Background(), Request{Target: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f3, ok := kept(d, "F3")
+	if !ok {
+		t.Fatal("F3 should appear once its query returns a row")
+	}
+	if len(f3.Evidence) != 1 || epssQuery(f3) != nil {
+		t.Fatalf("F3 evidence %#v", f3.Evidence)
+	}
+	if !traceContains(t, d.TracePath, "F3", "no EPSS row") {
+		t.Fatal("trace did not say no EPSS row")
+	}
+}
+
+func epssQuery(c candidate.Candidate) *candidate.QueryEvidence {
+	for _, e := range c.Evidence {
+		if e.Query == nil {
+			continue
+		}
+		cols := map[string]bool{}
+		for _, name := range e.Query.Columns {
+			cols[strings.ToLower(name)] = true
+		}
+		if cols["cve_id"] && cols["epss"] && cols["percentile"] && cols["score_date"] {
+			return e.Query
+		}
+	}
+	return nil
+}
+
+func traceContains(t *testing.T, path, id, substr string) bool {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range bytes.Split(b, []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		var e struct {
+			FindingID string `json:"finding_id"`
+			Text      string `json:"text"`
+		}
+		if err := json.Unmarshal(line, &e); err != nil {
+			t.Fatal(err)
+		}
+		if e.FindingID == id && strings.Contains(e.Text, substr) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildSample(t *testing.T, logDir string, run testrun.Adapter) *Pipeline {
