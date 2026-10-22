@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
 // Environment variables of the live container. The set is closed: Load reads
@@ -132,4 +134,17 @@ func clip(value string) string {
 		return value[:128]
 	}
 	return value
+}
+
+// Environment lists the live container settings in the order the page shows.
+// Each Name is the Env constant above; each Default is DefaultContainerConfig's.
+func Environment() []envdoc.Setting {
+	return []envdoc.Setting{
+		{Name: EnvRuntime, Default: envdoc.Tick(defaultRuntime), Description: "the container command line, by name or absolute path"},
+		{Name: EnvImage, Default: envdoc.Tick(defaultImage), Description: "the image each test runs in"},
+		{Name: EnvCPUs, Default: envdoc.Tick(defaultCPUs), Description: "the CPU limit of one test run"},
+		{Name: EnvMemory, Default: envdoc.Tick(defaultMemory), Description: "the memory limit of one test run; a positive size with suffix b, k, m or g"},
+		{Name: EnvTimeout, Default: envdoc.Tick(envdoc.SecondSpec(defaultTimeout)), Description: "the limit for one test run, base or change"},
+		{Name: EnvMaxWrittenBytes, Default: envdoc.Tick(strconv.Itoa(DefaultMaxWrittenBytes)), Description: "the largest test file the Prover may write"},
+	}
 }

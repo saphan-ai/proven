@@ -44,12 +44,20 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `ZETARIS_ROW_LIMIT` | `100` | the most rows one query returns |
 | `ZETARIS_TIMEOUT` | `60s` | the limit for one query |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
-<!-- end generated -->
 
 ## The Prover's container
 
-The container runtime and image are built-in defaults today, not settings: runtime `docker`, image `golang:1.26`. Each
-test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so.
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_TEST_RUNTIME` | `docker` | the container command line, by name or absolute path |
+| `PROVEN_TEST_IMAGE` | `golang:1.26` | the image each test runs in |
+| `PROVEN_TEST_CPUS` | `1` | the CPU limit of one test run |
+| `PROVEN_TEST_MEMORY` | `512m` | the memory limit of one test run; a positive size with suffix b, k, m or g |
+| `PROVEN_TEST_TIMEOUT` | `120s` | the limit for one test run, base or change |
+| `PROVEN_TEST_MAX_WRITTEN_BYTES` | `65536` | the largest test file the Prover may write |
+
+Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these.
+<!-- end generated -->
 
 ## `proven.yaml`
 
@@ -57,7 +65,7 @@ A flat mapping in the reviewed repository. On `main` it has one key:
 
 | Key | Default | What it changes |
 |---|---|---|
-| `timeout` | none | the review's deadline when the shell set none; at the deadline the review returns what the Judge has kept. A configuration file the shell names explicitly is read instead of this one |
+| `timeout` | `0s` (no deadline) | the review's deadline when the shell set none; at the deadline the review returns what the Judge has kept. A configuration file the shell names explicitly is read instead of this one |
 
 The reviewer model, the model-family table and the review classes (ADR-0008 to ADR-0014) add keys here when that work
 lands; this page is updated with them.
