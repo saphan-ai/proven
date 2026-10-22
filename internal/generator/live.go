@@ -36,6 +36,17 @@ type Live struct {
 	has    bool
 }
 
+// WithModel returns a generator that sends model on the request.
+// The two generators do not share the model of the call that just finished.
+func (l *Live) WithModel(model string) *Live {
+	if l == nil {
+		return nil
+	}
+	cfg := l.cfg
+	cfg.Model = model
+	return &Live{cfg: cfg, client: l.client}
+}
+
 // NewLive builds a live generator. A nil client uses one that does not follow
 // redirects, so the runtime token is not sent to another host.
 func NewLive(cfg Settings, client *http.Client) *Live {
