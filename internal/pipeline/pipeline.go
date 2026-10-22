@@ -36,6 +36,9 @@ type Options struct {
 	Env       func(string) string
 	TestRun   testrun.Adapter
 	Generator generator.Generator
+	// Special, when set, is the generator pointed at the special-review model.
+	// A doubled review uses it for the second planner and the second skeptic.
+	Special generator.Generator
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
@@ -63,6 +66,7 @@ type Pipeline struct {
 	testRun      testrun.Adapter
 	proverIdle   string
 	gen          generator.Generator
+	special      generator.Generator
 	liveQuery    query.Adapter
 	trace        *trace.Writer
 	rail         guardrail.Adapter
@@ -114,7 +118,7 @@ func Build(opts Options) (*Pipeline, error) {
 	}
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
-		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
+		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
 	}
 	if !opts.GuardOff && p.rail == nil {
@@ -150,6 +154,11 @@ type Request struct {
 	HeadCommit     string
 	Include        []string
 	Exclude        []string
+	// DoubleRun is set when the class is doubled and a special-review model is configured.
+	DoubleRun bool
+	// DefaultModel and SpecialModel are the configured reviewer names.
+	DefaultModel string
+	SpecialModel string
 }
 
 // Review runs planner, investigator, prover, skeptic, judge and writer.
@@ -213,10 +222,23 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
-	gen = recording{inner: gen, models: &st.models, trace: p.trace}
-	gen, err = p.applyGuard(gen)
+	raw := gen
+	if err := p.noteGuardOff(); err != nil {
+		return candidate.Draft{}, err
+	}
+	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace})
 	if err != nil {
 		return candidate.Draft{}, err
+	}
+	var special generator.Generator
+	if req.DoubleRun {
+		second := p.secondGenerator(req.SpecialModel, raw)
+		if second != nil {
+			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace})
+			if err != nil {
+				return candidate.Draft{}, err
+			}
+		}
 	}
 
 	risks, err := planner.Plan(ctx, req.Target, gen)
@@ -233,11 +255,47 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	cands := make([]candidate.Candidate, 0, len(risks))
 	for _, r := range risks {
-		c := candidate.Candidate{Risk: r}
-		if err := st.event(r.ID, "claim", "planner", r.Title); err != nil {
+		c := candidate.Candidate{
+			Risk: r, Runs: []string{runDefault}, Models: []string{reviewerModel(req, runDefault)},
+		}
+		if err := st.claim(r.ID, r.Title, runDefault); err != nil {
 			return candidate.Draft{}, err
 		}
 		cands = append(cands, c)
+	}
+	if special != nil {
+		if ctx.Err() != nil {
+			return p.cut(st, cands, allow)
+		}
+		more, err := planner.Plan(ctx, req.Target, special)
+		if err != nil {
+			if d, fatal := st.soften(ctx, err); fatal != nil {
+				if errors.Is(fatal, errPartial) {
+					return p.cut(st, cands, allow)
+				}
+				return candidate.Draft{}, fatal
+			} else if !d {
+				return candidate.Draft{}, err
+			}
+			more = nil
+		}
+		extra := make([]candidate.Candidate, 0, len(more))
+		for _, r := range more {
+			extra = append(extra, candidate.Candidate{
+				Risk: r, Runs: []string{runSpecial}, Models: []string{reviewerModel(req, runSpecial)},
+			})
+		}
+		var ids []string
+		cands, ids = mergeCandidates(cands, extra)
+		for i, r := range more {
+			title := r.Title
+			if ids[i] != r.ID {
+				title = r.Title + " (special run named it " + r.ID + "; renamed " + ids[i] + ")"
+			}
+			if err := st.claim(ids[i], title, runSpecial); err != nil {
+				return candidate.Draft{}, err
+			}
+		}
 	}
 	p.boundary("planned")
 	if ctx.Err() != nil {
@@ -289,30 +347,63 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 
 	for i := range cands {
-		next, err := skeptic.Attempt(ctx, cands[i], gen)
-		if err != nil {
-			if _, fatal := st.soften(ctx, err); fatal != nil {
-				if errors.Is(fatal, errPartial) {
-					return p.cut(st, cands, allow)
+		if hasRun(cands[i], runDefault) {
+			next, err := skeptic.Attempt(ctx, cleared(cands[i]), gen)
+			if err != nil {
+				if _, fatal := st.soften(ctx, err); fatal != nil {
+					if errors.Is(fatal, errPartial) {
+						return p.cut(st, cands, allow)
+					}
+					return candidate.Draft{}, fatal
 				}
-				return candidate.Draft{}, fatal
-			}
-			cands[i].Refutation = candidate.Refutation{Attempted: false, Reason: "not attempted"}
-			continue
-		}
-		cands[i] = next
-		if err := p.runRefutation(ctx, &cands[i], q, run); err != nil {
-			if _, fatal := st.soften(ctx, err); fatal != nil {
-				if errors.Is(fatal, errPartial) {
-					return p.cut(st, cands, allow)
+				cands[i].Refutation = candidate.Refutation{Attempted: false, Reason: "not attempted"}
+			} else {
+				cands[i] = next
+				if err := p.runRefutation(ctx, &cands[i], q, run); err != nil {
+					if _, fatal := st.soften(ctx, err); fatal != nil {
+						if errors.Is(fatal, errPartial) {
+							return p.cut(st, cands, allow)
+						}
+						return candidate.Draft{}, fatal
+					}
 				}
-				return candidate.Draft{}, fatal
+			}
+			if err := st.refutation(cands[i], runDefault); err != nil {
+				return candidate.Draft{}, err
 			}
 		}
-	}
-	for _, c := range cands {
-		if err := st.refutation(c); err != nil {
-			return candidate.Draft{}, err
+		if special != nil && hasRun(cands[i], runSpecial) {
+			next, err := skeptic.Attempt(ctx, cleared(cands[i]), special)
+			ref := candidate.Refutation{Attempted: false, Reason: "not attempted"}
+			if err != nil {
+				if _, fatal := st.soften(ctx, err); fatal != nil {
+					if errors.Is(fatal, errPartial) {
+						return p.cut(st, cands, allow)
+					}
+					return candidate.Draft{}, fatal
+				}
+			} else {
+				if err := p.runRefutation(ctx, &next, q, run); err != nil {
+					if _, fatal := st.soften(ctx, err); fatal != nil {
+						if errors.Is(fatal, errPartial) {
+							return p.cut(st, cands, allow)
+						}
+						return candidate.Draft{}, fatal
+					}
+				}
+				ref = next.Refutation
+				if !hasRun(cands[i], runDefault) {
+					cands[i] = next
+				}
+			}
+			if !hasRun(cands[i], runDefault) {
+				cands[i].Refutation = ref
+			}
+			traced := cands[i]
+			traced.Refutation = ref
+			if err := st.refutation(traced, runSpecial); err != nil {
+				return candidate.Draft{}, err
+			}
 		}
 	}
 	if err := p.noteFamily(st); err != nil {
@@ -515,6 +606,10 @@ func (s *state) event(id, kind, agent, text string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: kind, Agent: agent, Text: text})
 }
 
+func (s *state) claim(id, text, run string) error {
+	return s.trace.Append(trace.Event{FindingID: id, Kind: "claim", Agent: "planner", Text: text, Run: run})
+}
+
 func (s *state) evidence(c candidate.Candidate) error {
 	return s.trace.Append(trace.Event{
 		FindingID: c.ID,
@@ -525,7 +620,7 @@ func (s *state) evidence(c candidate.Candidate) error {
 	})
 }
 
-func (s *state) refutation(c candidate.Candidate) error {
+func (s *state) refutation(c candidate.Candidate, run string) error {
 	text := c.Refutation.Reason
 	if text == "" {
 		text = "no refutation"
@@ -546,6 +641,7 @@ func (s *state) refutation(c candidate.Candidate) error {
 		Path:        c.Path,
 		Title:       c.Title,
 		HasEvidence: judge.Evidenced(c),
+		Run:         run,
 	})
 }
 
@@ -608,17 +704,24 @@ func (s *state) omitUnjudged(cands []candidate.Candidate) ([]candidate.Candidate
 	return out, nil
 }
 
-// applyGuard writes "no guardrail" once when the switch is off.
-// Otherwise it checks the prompt before the model runs and the answer before it is used.
-func (p *Pipeline) applyGuard(gen generator.Generator) (generator.Generator, error) {
+// noteGuardOff writes "no guardrail" once when the switch is off.
+func (p *Pipeline) noteGuardOff() error {
+	if !p.guardOff {
+		return nil
+	}
+	return p.trace.Append(trace.Event{
+		FindingID: "guardrail",
+		Kind:      "guardrail",
+		Agent:     "pipeline",
+		Text:      "no guardrail",
+	})
+}
+
+// guard checks the prompt before the model runs and the answer before it is used.
+// When the switch is off it returns the generator unchanged.
+func (p *Pipeline) guard(gen generator.Generator) (generator.Generator, error) {
 	if p.guardOff {
-		err := p.trace.Append(trace.Event{
-			FindingID: "guardrail",
-			Kind:      "guardrail",
-			Agent:     "pipeline",
-			Text:      "no guardrail",
-		})
-		return gen, err
+		return gen, nil
 	}
 	return guardrail.Wrap(gen, p.rail, func(agent, side string, v guardrail.Verdict, refused string) error {
 		return p.trace.Append(guardEvent(agent, side, v, refused))
@@ -797,6 +900,110 @@ func copyRows(rows [][]string) [][]string {
 		out[i] = append([]string(nil), row...)
 	}
 	return out
+}
+
+const (
+	runDefault = "default"
+	runSpecial = "special"
+)
+
+// secondGenerator is the generator the special-review run calls.
+// An injected Special wins. A live generator is pointed at the special model.
+// Sample mode, with none injected, reuses the sample generator for a fresh call.
+func (p *Pipeline) secondGenerator(model string, sample generator.Generator) generator.Generator {
+	if p.special != nil {
+		return p.special
+	}
+	if model == "" {
+		return nil
+	}
+	if live, ok := p.gen.(*generator.Live); ok {
+		return live.WithModel(model)
+	}
+	return sample
+}
+
+func reviewerModel(req Request, run string) string {
+	if run == runSpecial {
+		if req.SpecialModel != "" {
+			return req.SpecialModel
+		}
+		return runSpecial
+	}
+	if req.DefaultModel != "" {
+		return req.DefaultModel
+	}
+	return runDefault
+}
+
+func hasRun(c candidate.Candidate, run string) bool {
+	for _, r := range c.Runs {
+		if r == run {
+			return true
+		}
+	}
+	return false
+}
+
+// cleared is a copy whose refutation is empty, so the second skeptic does not
+// see the first run's attempt. The prompt is still only this finding's id and title.
+func cleared(c candidate.Candidate) candidate.Candidate {
+	c.Refutation = candidate.Refutation{}
+	return c
+}
+
+// mergeCandidates adds the special run's risks to the default run's. The same risk is the same rule at the same
+// place (rule id, path and lines; the title when there is no rule id), never the same model-chosen id: each run numbers
+// its own risks. A different risk whose id is already taken gets a new id. ids holds each extra risk's final id.
+func mergeCandidates(base, extra []candidate.Candidate) (merged []candidate.Candidate, ids []string) {
+	at := make(map[string]int, len(base))
+	taken := make(map[string]bool, len(base)+len(extra))
+	for i, c := range base {
+		at[riskKey(c.Risk)] = i
+		taken[c.ID] = true
+	}
+	ids = make([]string, len(extra))
+	for j, c := range extra {
+		if i, ok := at[riskKey(c.Risk)]; ok {
+			base[i].Runs = appendNew(base[i].Runs, c.Runs)
+			base[i].Models = appendNew(base[i].Models, c.Models)
+			ids[j] = base[i].ID
+			continue
+		}
+		id := c.ID
+		for n := 1; taken[id]; n++ {
+			id = fmt.Sprintf("%s-s%d", c.ID, n)
+		}
+		c.ID = id
+		taken[id] = true
+		base = append(base, c)
+		at[riskKey(c.Risk)] = len(base) - 1
+		ids[j] = id
+	}
+	return base, ids
+}
+
+func riskKey(r candidate.Risk) string {
+	if strings.TrimSpace(r.RuleID) == "" {
+		return "title\x00" + strings.ToLower(strings.Join(strings.Fields(r.Title), " ")) + "\x00" + r.Path
+	}
+	return fmt.Sprintf("rule\x00%s\x00%s\x00%d\x00%d", r.RuleID, r.Path, r.StartLine, r.EndLine)
+}
+
+func appendNew(dst, src []string) []string {
+	for _, s := range src {
+		seen := false
+		for _, d := range dst {
+			if d == s {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			dst = append(dst, s)
+		}
+	}
+	return dst
 }
 
 func evidenceAgent(c candidate.Candidate) string {

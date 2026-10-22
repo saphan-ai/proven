@@ -120,12 +120,24 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 			defer cancel()
 		}
 	}
+	double := false
+	if cfg.SpecialReviewer != "" {
+		files, ferr := changedPaths(req)
+		if ferr != nil {
+			return Result{}, ferr
+		}
+		class, _ := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
+		double = cfg.Doubled[class]
+	}
 	d, err := r.p.Review(ctx, pipeline.Request{
 		Target:         req.Target,
 		BaselineCommit: req.BaselineCommit,
 		HeadCommit:     req.HeadCommit,
 		Include:        req.Include,
 		Exclude:        req.Exclude,
+		DoubleRun:      double,
+		DefaultModel:   cfg.DefaultReviewer,
+		SpecialModel:   cfg.SpecialReviewer,
 	})
 	if err != nil {
 		return Result{}, err
@@ -145,6 +157,7 @@ func fill(d candidate.Draft) Result {
 			Severity:   Severity(c.Severity),
 			Location:   Location{Path: c.Path, StartLine: c.StartLine, EndLine: c.EndLine},
 			Unresolved: c.Unresolved,
+			Models:     append([]string(nil), c.Models...),
 		}
 		for _, e := range c.Evidence {
 			f.Evidence = append(f.Evidence, toEvidence(e))
