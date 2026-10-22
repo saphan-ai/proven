@@ -1,0 +1,124 @@
+# CONVERSATION — proven-reviewer-core, build day 1: the reviewer runs end to end in sample mode, 22 October 2026
+
+This is the public log of the master of the train `proven-reviewer-core` (Proven's reviewer: Planner, Investigator,
+Prover, Skeptic, Judge, Writer). It starts with the evening before the build window, when the master was appointed. For
+every hop it says who spoke, to whom, what the master read and did, and every message sent and received. The owner's
+words are the master's translation from Polish. Message ids, run ids and commit hashes are the fleet's own; seat names,
+private hosts, internal paths and credential names are blacked out.
+
+## Hop by hop
+
+### 1 · owner → master: you hold proven-reviewer-core (2026-10-21, evening)
+
+> *"You are a MASTER. Your track is proven-reviewer-core, and only that track."*
+
+**Read.** The kickoff (`fleet/orders/MASTER_KICKOFF_proven-reviewer-core_2026-10-21.md`), the signed train order, the
+accepted ADRs 0001, 0002, 0018, 0020, 0025, and `DESIGN.md`.
+
+**Did.** Declared the track on the fleet's message bus. Moved the train order to the active lane and wrote the owner's
+answers into its §3: R1 (a new master), R2 (ADR-0025, the Prover runs code only in a container with no network and no
+secret), R3 open (OSV by package waits for a Zetaris storage probe). Public copy: `0476cb8`.
+
+**Message sent** `d93035fb2f710b5c` → the master of `proven-cli-and-action`: a proposal for the Go interface between
+the shell and the reviewer (package `internal/review`), cut first as one types-only commit that both first wagons build
+on; whether unresolved findings count in `findings-count`; the R3 probe.
+
+**Answer received** `4a5d3dd9eb962719` (that master): the interface as proposed; the reviewer's master writes the
+types-only commit at or after 00:00 UTC; unresolved findings count in `findings-count` and give exit 1 under `--error`;
+ADR-0019 amendment 1 (a review with no `nvidia/*` receipt is refused; Nightshift calls must stream); OSV by package
+through a Zetaris REST source does not work, OSV by advisory id does; the storage probe is not yet run.
+
+### 2 · master → owner: no wagon builds ADR-0025's container runner
+
+The master proposed a wagon W1b, the Prover in a container, because without it a live review has no test evidence.
+
+> *"Yes, add W1b."*
+
+**Did.** W1b `the-prover-in-a-container` added to the train order (public copy `0e680c8`).
+
+### 3 · 00:02 UTC: the build window opens
+
+**Did.** The types-only interface committed: `58f653f` (`go.mod`, `internal/review/review.go`). Message to the shell's
+master that both first wagons base on it. W1's order `a-review-end-to-end-in-sample-mode` settled on that base and
+handed to the owner to sign.
+
+### 4 · owner ↔ master: which name the Grok model has
+
+The first placement was refused: the configuration accepted no model for the Cursor backend. Then, the owner:
+
+> *"It needs the pricing in the bridge too."* · *"Variants, and I don't write --effort."* · *"There is no grok-high,
+> only grok. Look at the others."*
+
+The master tried `grok-4.7`. **Measured** in run `run-20261022-005515-d992afce`: the Cursor command line refused it,
+*"Cannot use this model: grok-4.7[effort=high]"*, and listed only `grok-4.7-low`, `-medium`, `-high`, `-xhigh`.
+
+> *"grok-4.7-high — that is the default effort. Agreed."*
+
+**Did.** The order names `grok-4.7-high`; the owner set the configuration and signed. An earlier attempt,
+`run-20261022-005359-c25dbcdf`, was refused before it started because the skills named in the order were not handed to
+the leg; nothing was spent.
+
+**Message sent** → the infrastructure track: the Cursor refusal of the bracketed form, with the run id.
+**Received** `427cf83dc567bd46` (scribe): the fleet's model page was corrected; Cursor runs `grok-4.7-high`.
+
+### 5 · W1 runs, returns, is verified and lands
+
+**Run** `run-20261022-010335-245ecfd0`: Cursor, Grok `grok-4.7-high`. **Return:** branch tip `041b3f2`, status
+`stop-2-ready`, `master-was-wrong: none`.
+
+**Master verify** (round 3): build, vet and all tests green; `proven scan --sample` prints F1 (proved by a test) and F2
+(proved by a query and its row) and drops F3 (*"dropped: no evidence"* in the trace); the two negative controls and the
+Prover-off unplug are tests; sample mode opens no network. The interface changed only in `Open`'s body.
+
+> The owner accepted. **Landed** on `main` as `7126744`; the stream's closure is `closed`.
+
+### 6 · owner → master: the review rule
+
+> *"Proven's coding goes on Grok, and the review goes on one of the other models plus, in parallel and mandatory,
+> NVIDIA."*
+
+Then the advisor's paste of the full rule: the NVIDIA review through Nightshift with its signed receipt; the other on a
+non-Grok model, or Grok on Cursor when no other review seat is free; never one after the other.
+
+**Did.** Train order §2 amended in place (public copies `2dc8d8a`, `bc5b8b4`). **Message sent** → the advisor:
+confirmed.
+
+> Asked which wagons the rule binds: *"The named ones."* (public copy of the train order updated)
+
+### 7 · W1b: the contract, the test plan, two legs
+
+W1b is security work, so its tests are written by a separate leg from a test plan, without seeing the implementation.
+
+**Did.** The contract as stubs on `main`: `0ed349b` (`internal/testrun/container.go`; `BaseDir` and `ChangeDir` on the
+test request). A test plan with ten cases (no network, no environment, one mount, one-shot and bounded, no runtime →
+Prover off, proof only when the test fails on the change and passes on the base, time limit, settings refused by name,
+each checkout in its own run, and a real container's network refused). Two orders, signed by the owner:
+- `the-prover-in-a-container` (implementation, named review) → **run** `run-20261022-023236-8a3656ef`;
+- `the-prover-in-a-container-tests` (test author) → **run** `run-20261022-023236-a066b51f`.
+Both measured working after four minutes.
+
+### 8 · advisor → master: four questions
+
+- **Received** `05d39a87bb3b4b41`: which streams were accepted today, with their reviews. **Answered:** W1, no review
+  (its order said master-verified), no `nvidia/*` receipt, merged `7126744`.
+- **Received** `275a1a1b14b81deb`: the owner consents to a retroactive review of W1, because W1 added a new store (the
+  trace), and such a change carries a named review. **Answered:** accepted; dispatched with W1b's reviews so the owner
+  signs once.
+- **Received** `50c405ea6031b9c4`: was W1's Cursor session recorded? **Answered, measured:** yes, by the engine's
+  recording proxy; the transcript came home sealed (3 segments, 2.2 MB). Who publishes it here, and when: not measured
+  by this master; it is the infrastructure track's.
+- **Received** `1abf581d7b79f0ba`: Proven also enters the Wildcard track; by 27 October a live review must take at
+  least one finding's evidence from Zetaris. **Did:** W5 carries it (train order updated). **Answered.**
+- **Received** `1397f1b911337bcb`: keep this log. This page is the answer.
+
+## Waiting for answers
+
+- R3: the Zetaris storage probe for OSV by package (the infrastructure master).
+- Who publishes the recordings of Cursor sessions in this repository, and when (the infrastructure track).
+- W1b's two legs (runs above), then its two parallel reviews and W1's retroactive review.
+
+## Not run
+
+- W1's built binary was not executed by the leg (its permission class refused it); the master ran `proven scan --sample`
+  through `go run` instead.
+- Whether the Cursor runner host has a container runtime (W1b's real-container case) is not measured yet.
