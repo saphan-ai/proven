@@ -47,11 +47,11 @@ func TestProbeStopsWhenTheRuntimeDoesNotAnswer(t *testing.T) {
 	var got []string
 	c.run = func(context.Context, []string) (string, error) {
 		got = append(got, "called")
-		return "", errors.New("exit status 1")
+		return "Client: Docker Engine\nCannot connect to the Docker daemon\n", errors.New("exit status 1")
 	}
 	err := c.Probe(context.Background())
 	d, ok := service.As(err)
-	if !ok || d.Service != "prover" || !strings.Contains(d.Reason, "runtime did not answer") {
+	if !ok || d.Service != "prover" || !strings.Contains(d.Reason, "runtime did not answer") || !strings.Contains(d.Reason, "Cannot connect to the Docker daemon") || strings.Contains(d.Reason, "Client:") {
 		t.Fatalf("%v", err)
 	}
 	if len(got) != 1 {

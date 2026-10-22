@@ -23,16 +23,16 @@ func (c *Container) Probe(ctx context.Context) error {
 	parent := ctx
 	ctx, cancel := context.WithTimeout(parent, c.cfg.Timeout)
 	defer cancel()
-	if _, err := c.invoke(ctx, []string{c.runtime, "version"}); err != nil {
-		return probeDown(parent, ctx, "runtime did not answer", err)
+	if out, err := c.invoke(ctx, []string{c.runtime, "version"}); err != nil {
+		return probeDown(parent, ctx, "runtime did not answer", out, err)
 	}
-	if _, err := c.invoke(ctx, []string{c.runtime, "image", "inspect", c.cfg.Image}); err != nil {
-		return probeDown(parent, ctx, "image "+c.cfg.Image+" is not present", err)
+	if out, err := c.invoke(ctx, []string{c.runtime, "image", "inspect", c.cfg.Image}); err != nil {
+		return probeDown(parent, ctx, "image "+c.cfg.Image+" is not present", out, err)
 	}
 	return nil
 }
 
-func probeDown(parent, ctx context.Context, reason string, err error) error {
+func probeDown(parent, ctx context.Context, reason, output string, err error) error {
 	if parent.Err() != nil {
 		return parent.Err()
 	}
@@ -40,18 +40,27 @@ func probeDown(parent, ctx context.Context, reason string, err error) error {
 		return &service.Down{Service: "prover", Reason: "timeout"}
 	}
 	msg := reason
-	if err != nil {
-		if detail := oneLine(err.Error()); detail != "" {
-			msg += ": " + detail
-		}
+	detail := oneLine(output)
+	if detail == "" && err != nil {
+		detail = oneLine(err.Error())
+	}
+	if detail != "" {
+		msg += ": " + detail
 	}
 	return &service.Down{Service: "prover", Reason: msg}
 }
 
 func oneLine(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if len(s) > 160 {
-		return s[:160]
+	var last string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			last = line
+		}
 	}
-	return s
+	last = strings.Join(strings.Fields(last), " ")
+	if len(last) > 160 {
+		return last[:160]
+	}
+	return last
 }
