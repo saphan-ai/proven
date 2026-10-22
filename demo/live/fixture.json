@@ -1,0 +1,18 @@
+{
+  "snapshot": "live-demo",
+  "planner_prompt_sha256": "741fe07b905cbd2430939c618f102e7dc9925c8c945ca7d99ec4259bfd0caad1",
+  "planner_response": [
+    {
+      "id": "unused",
+      "rule_id": "unused",
+      "title": "unused",
+      "message": "Live mode does not read this response.",
+      "severity": "INFO",
+      "path": "go.mod",
+      "start_line": 1,
+      "end_line": 1
+    }
+  ],
+  "responses": [],
+  "recorded_tests": []
+}
