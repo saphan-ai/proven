@@ -64,7 +64,7 @@ Passing tests do not always prove what they claim to prove. A reviewer that asks
 
 ## What Proven is meant to do
 
-*Planned, not built. Each part is described as intended.*
+*The intent, as planned before the build window. What already works is listed under [Where things stand](#where-things-stand-end-of-day-1-22-october-2026).*
 
 - **Every finding carries evidence.** A test that fails on the change and passes without it, or a recorded query and its results, with sources. This applies to every finding, including when two reviewers agree. Agreement is never a substitute for proof.
 - **The reviewer should come from a different AI model family than the one that wrote the code.** A reviewer from the same family tends to share the author's assumptions; another family can challenge them. The change's own commit or pull request says which model wrote it, and by default an NVIDIA model reviews it. Every model is configurable, and no setup is blocked; each review says which model reviewed it and whether that is the author's.
