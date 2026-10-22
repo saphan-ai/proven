@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -133,6 +134,16 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	}
 	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", name, finding.Severity, finding.Title); err != nil {
 		return err
+	}
+	for _, e := range finding.Evidence {
+		if e.Kind != review.EvidenceQuery || e.Query == nil {
+			continue
+		}
+		for _, line := range epss.Phrases(e.Query.Columns, e.Query.Rows) {
+			if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
+				return err
+			}
+		}
 	}
 	if finding.Unresolved {
 		if _, err := fmt.Fprintln(w, "  unresolved"); err != nil {

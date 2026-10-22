@@ -22,7 +22,37 @@ func TestScanSamplePrintsF1AndF2NotF3(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\n%s\n%s", code, stdout.String(), stderr.String())
 	}
-	assertDiscountText(t, stdout.String())
+	body := stdout.String()
+	assertDiscountText(t, body)
+	const phrase = "EPSS 0.50000 (90th percentile, 2026-10-20)"
+	for _, header := range []string{
+		"finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list",
+		"finding F4 ERROR CVE-2026-0001 for leftpad v1.2.3 is on the KEV list",
+	} {
+		block := findingSection(body, header)
+		if !strings.Contains(block, phrase) {
+			t.Fatalf("%s has no EPSS score\n%s", header, block)
+		}
+	}
+	if strings.Contains(findingSection(body, "finding F1 ERROR Discount is applied twice"), "EPSS ") {
+		t.Fatal("F1 named an EPSS score")
+	}
+}
+
+func findingSection(body, header string) string {
+	i := strings.Index(body, header)
+	if i < 0 {
+		return ""
+	}
+	rest := body[i+len(header):]
+	cut := len(rest)
+	if n := strings.Index(rest, "\nfinding "); n >= 0 && n < cut {
+		cut = n
+	}
+	if n := strings.Index(rest, "\nfailed services:"); n >= 0 && n < cut {
+		cut = n
+	}
+	return header + rest[:cut]
 }
 
 func TestScanOpenFamilyNameIsAccepted(t *testing.T) {
