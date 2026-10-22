@@ -1,6 +1,10 @@
 package osv
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/saphan-ai/proven/internal/envdoc"
+)
 
 // EnvTable is the environment variable that names the OSV package table.
 // Sample mode does not read it.
@@ -82,4 +86,11 @@ func ident(s string) bool {
 		}
 	}
 	return true
+}
+
+// Environment lists the OSV setting for the configuration page.
+func Environment() []envdoc.Setting {
+	return []envdoc.Setting{
+		{Name: EnvTable, Default: envdoc.Tick(DefaultTable), Description: "the OSV package table the dependency check queries; see [OSV_TABLE.md](OSV_TABLE.md). Sample mode uses the default and does not read this variable"},
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/livecheck"
+	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
@@ -25,7 +26,7 @@ const containerAfter = "Each test runs with no network and no secret (ADR-0025).
 // PROVEN_EVIDENCE_VIEW is declared in livecheck and listed on the evidence
 // table, which is where the page already shows it.
 func Catalog() []envdoc.Section {
-	evidence := append(query.Environment(), livecheck.Environment()...)
+	evidence := append(append(query.Environment(), osv.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
 		{
 			Heading: "The model generator: Meterless Nightshift",
