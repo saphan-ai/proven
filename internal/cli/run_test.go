@@ -144,6 +144,7 @@ func TestCIFlagAndSHAOverrideTheEvent(t *testing.T) {
 }
 
 func TestCIBaseRefWhenTheEventHasNoSHA(t *testing.T) {
+	withRefusingGlobalHook(t)
 	dir, fork, baseTip, head := advancedBaseRepo(t, "release")
 	event := filepath.Join(dir, "event.json")
 	body := fmt.Sprintf(`{"pull_request":{"base":{"ref":"main","sha":""},"head":{"ref":"feature","sha":"%s"}}}`, head)
@@ -178,6 +179,7 @@ func TestCIBaseRefWhenTheEventHasNoSHA(t *testing.T) {
 }
 
 func TestCIWorkspaceIsTheTarget(t *testing.T) {
+	withRefusingGlobalHook(t)
 	dir, sha := singleCommitRepo(t)
 	event := writePullRequestEvent(t, dir, sha, sha)
 	cap := &captureReviewer{}
@@ -691,6 +693,7 @@ func TestConfigFlagIgnoresInvalidVariable(t *testing.T) {
 }
 
 func TestCIMergeBaseIsTheForkPoint(t *testing.T) {
+	withRefusingGlobalHook(t)
 	dir, fork, baseTip, head := advancedBaseRepo(t, "main")
 	event := writePullRequestEvent(t, dir, baseTip, head)
 	t.Chdir(dir)
@@ -717,6 +720,7 @@ func TestCIMergeBaseIsTheForkPoint(t *testing.T) {
 }
 
 func TestCIUnresolvableBaseExits2(t *testing.T) {
+	withRefusingGlobalHook(t)
 	dir, head := singleCommitRepo(t)
 	event := writePullRequestEvent(t, dir, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", head)
 	t.Chdir(dir)
@@ -735,15 +739,33 @@ func TestCIUnresolvableBaseExits2(t *testing.T) {
 	}
 }
 
+// withRefusingGlobalHook points GIT_CONFIG_GLOBAL at a config whose
+// core.hooksPath is a commit-msg hook that exits 1. The four CI fixture
+// tests call it. runGit replaces that file, so the hook does not run.
+func withRefusingGlobalHook(t *testing.T) {
+	t.Helper()
+	hooks := t.TempDir()
+	script := filepath.Join(hooks, "commit-msg")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(t.TempDir(), "gitconfig")
+	body := "[core]\n\thooksPath = " + hooks + "\n"
+	if err := os.WriteFile(cfg, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", cfg)
+}
+
 func advancedBaseRepo(t *testing.T, baseBranch string) (dir, fork, baseTip, head string) {
 	t.Helper()
 	dir = t.TempDir()
 	runGit(t, dir, "init", "-b", baseBranch, "--template=")
-	fork = commitFile(t, dir, "f.txt", "root\n", "root")
+	fork = commitFile(t, dir, "f.txt", "root\n", "test: root")
 	runGit(t, dir, "branch", "feature")
-	baseTip = commitFile(t, dir, "f.txt", "base advanced\n", "advance base")
+	baseTip = commitFile(t, dir, "f.txt", "base advanced\n", "test: advance base")
 	runGit(t, dir, "checkout", "feature")
-	head = commitFile(t, dir, "f.txt", "feature work\n", "feature work")
+	head = commitFile(t, dir, "f.txt", "feature work\n", "test: feature work")
 	runGit(t, dir, "checkout", baseBranch)
 	return dir, fork, baseTip, head
 }
@@ -752,7 +774,7 @@ func singleCommitRepo(t *testing.T) (dir, sha string) {
 	t.Helper()
 	dir = t.TempDir()
 	runGit(t, dir, "init", "-b", "main", "--template=")
-	sha = commitFile(t, dir, "f.txt", "only\n", "only")
+	sha = commitFile(t, dir, "f.txt", "only\n", "test: only")
 	return dir, sha
 }
 
@@ -780,15 +802,54 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=Proven Test",
-		"GIT_AUTHOR_EMAIL=proven-test@example.com",
-		"GIT_COMMITTER_NAME=Proven Test",
-		"GIT_COMMITTER_EMAIL=proven-test@example.com",
-	)
+	cmd.Env = fixtureGitEnv(t)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// fixtureGitEnv keeps the process environment and replaces host git
+// configuration. An empty GIT_CONFIG_GLOBAL, GIT_CONFIG_NOSYSTEM and
+// GIT_TERMINAL_PROMPT are set on every fixture command. Injected
+// GIT_CONFIG_COUNT pairs are dropped: on this seat they set core.hooksPath
+// and override the global file.
+func fixtureGitEnv(t *testing.T) []string {
+	t.Helper()
+	cfg := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(cfg, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := make([]string, 0, len(os.Environ())+8)
+	for _, entry := range os.Environ() {
+		if dropFixtureGitEnv(entry) {
+			continue
+		}
+		env = append(env, entry)
+	}
+	return append(env,
+		"GIT_CONFIG_GLOBAL="+cfg,
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_AUTHOR_NAME=Proven Test",
+		"GIT_AUTHOR_EMAIL=proven-test@example.com",
+		"GIT_COMMITTER_NAME=Proven Test",
+		"GIT_COMMITTER_EMAIL=proven-test@example.com",
+	)
+}
+
+func dropFixtureGitEnv(entry string) bool {
+	key, _, ok := strings.Cut(entry, "=")
+	if !ok {
+		return false
+	}
+	switch key {
+	case "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
+		"GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS",
+		"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
+		"GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL":
+		return true
+	}
+	return strings.HasPrefix(key, "GIT_CONFIG_KEY_") || strings.HasPrefix(key, "GIT_CONFIG_VALUE_")
 }
