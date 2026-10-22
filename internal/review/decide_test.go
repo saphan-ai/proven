@@ -29,6 +29,19 @@ func TestFamilyTableDefaults(t *testing.T) {
 	}
 }
 
+func TestOpenFamilyNameIsAccepted(t *testing.T) {
+	cfg, err := parseConfig([]byte("families: gemini-*=Google\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := familyOf("gemini-2", cfg.Families); got != "Google" {
+		t.Fatalf("gemini-2: %s", got)
+	}
+	if got := familyOf("claude-3-opus", cfg.Families); got != "family unknown" {
+		t.Fatalf("replaced table still maps claude-3-opus to %s", got)
+	}
+}
+
 func TestConfiguredFamilyTableReplacesTheDefault(t *testing.T) {
 	cfg, err := parseConfig([]byte("families: gemini-*=OpenAI\n"))
 	if err != nil {
@@ -210,7 +223,8 @@ func TestConfigRefusals(t *testing.T) {
 		value  string
 		reason string
 	}{
-		{"families: gemini-*=Google\n", "families", "Google", "unknown family"},
+		{"families: not-a-pair\n", "families", "not-a-pair", "want pattern=value"},
+		{"families: gemini-*=\n", "families", "gemini-*=", "want pattern=value"},
 		{"path_rules: **/*.go=frontend\n", "path_rules", "frontend", "unknown class"},
 		{"class_order: security, backend\n", "class_order", "security, backend", "leaves out"},
 		{"colour: red\n", "colour", "red", "unknown key"},

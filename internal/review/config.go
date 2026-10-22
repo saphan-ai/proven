@@ -65,10 +65,6 @@ func classNames() []string {
 	return []string{"security", "backend", "mobile", "user interface", "docs"}
 }
 
-func familyNames() []string {
-	return []string{"Anthropic", "OpenAI", "NVIDIA", "Alibaba"}
-}
-
 func defaultSettings() fileSettings {
 	return fileSettings{
 		DefaultReviewer: "NVIDIA",
@@ -268,7 +264,7 @@ func allowedText(key string) string {
 	case "fallback_class", "doubled_classes", "class_order", "path_rules":
 		return strings.Join(classNames(), ", ")
 	case "families":
-		return strings.Join(familyNames(), ", ")
+		return "pattern=name, for example claude-*=Anthropic"
 	case "author_record":
 		return "off, or a relative path or pattern inside the review target"
 	case "default_reviewer", "special_reviewer":
@@ -404,9 +400,6 @@ func parseFamilies(value string) ([]familyRule, error) {
 	for _, p := range pairs {
 		if err := validPattern(p[0]); err != nil {
 			return nil, &ConfigError{Field: "families", Value: p[0], Reason: "bad pattern", Allowed: []string{"a model-name pattern, for example claude-*"}}
-		}
-		if !knownFamily(p[1]) {
-			return nil, &ConfigError{Field: "families", Value: p[1], Reason: "unknown family", Allowed: familyNames()}
 		}
 		out = append(out, familyRule{Pattern: p[0], Family: p[1]})
 	}
@@ -560,15 +553,6 @@ func splitCSV(field, value string) ([]string, error) {
 func knownClass(name string) bool {
 	for _, c := range classNames() {
 		if c == name {
-			return true
-		}
-	}
-	return false
-}
-
-func knownFamily(name string) bool {
-	for _, f := range familyNames() {
-		if f == name {
 			return true
 		}
 	}

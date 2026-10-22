@@ -311,13 +311,34 @@ func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
 	}
 }
 
-func TestUnknownFamilyAndUnknownClassAreRefusedOnLoad(t *testing.T) {
-	path := writeConfig(t, "families: gemini-*=Google\n")
-	_, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
-	var cfg *review.ConfigError
-	if !errors.As(err, &cfg) || cfg.Field != "families" || cfg.Value != "Google" || !strings.Contains(cfg.Reason, "unknown family") {
+func TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused(t *testing.T) {
+	path := writeConfig(t, "families: gemini-*=Google, NVIDIA=NVIDIA\n")
+	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
+	if err != nil {
 		t.Fatal(err)
 	}
+	res, err := rev.Review(context.Background(), review.Request{
+		Target:      fixturePath(t),
+		Description: "Assisted-by: Gemini:gemini-3-pro\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.AuthorModelStatement, "author Gemini:gemini-3-pro family Google from description") {
+		t.Fatal(res.AuthorModelStatement)
+	}
+	joined := strings.Join(res.ReviewerStatements, "\n")
+	if !strings.Contains(joined, "gemini-3-pro (Google): no") {
+		t.Fatal(joined)
+	}
+
+	path = writeConfig(t, "families: gemini-*\n")
+	_, err = review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
+	var cfg *review.ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != "families" || !strings.Contains(cfg.Reason, "want pattern=value") {
+		t.Fatal(err)
+	}
+
 	path = writeConfig(t, "path_rules: **/*.go=frontend\n")
 	_, err = review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
 	cfg = nil

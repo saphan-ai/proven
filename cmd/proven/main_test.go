@@ -49,7 +49,7 @@ func TestScanSamplePrintsF1AndF2NotF3(t *testing.T) {
 	}
 }
 
-func TestScanUnknownFamilyExits7(t *testing.T) {
+func TestScanOpenFamilyNameIsAccepted(t *testing.T) {
 	root := repoRoot(t)
 	cfg := filepath.Join(t.TempDir(), "proven.yaml")
 	if err := os.WriteFile(cfg, []byte("families: gemini-*=Google\n"), 0o644); err != nil {
@@ -61,10 +61,30 @@ func TestScanUnknownFamilyExits7(t *testing.T) {
 		[]string{"scan", "--sample", "--config=" + cfg, filepath.Join(root, "testdata", "fixture", "discount")},
 		&stdout, &stderr, os.Getwd, os.Getenv,
 	)
+	if code != 0 {
+		t.Fatalf("exit %d\n%s\n%s", code, stdout.String(), stderr.String())
+	}
+	if strings.Contains(stderr.String(), "unknown family") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestScanMalformedFamilyExits7(t *testing.T) {
+	root := repoRoot(t)
+	cfg := filepath.Join(t.TempDir(), "proven.yaml")
+	if err := os.WriteFile(cfg, []byte("families: gemini-*\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	code := run(
+		[]string{"scan", "--sample", "--config=" + cfg, filepath.Join(root, "testdata", "fixture", "discount")},
+		&stdout, &stderr, os.Getwd, os.Getenv,
+	)
 	if code != 7 {
 		t.Fatalf("exit %d\n%s\n%s", code, stdout.String(), stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "families") || !strings.Contains(stderr.String(), "Google") || !strings.Contains(stderr.String(), "unknown family") {
+	if !strings.Contains(stderr.String(), "families") || !strings.Contains(stderr.String(), "pattern=value") {
 		t.Fatalf("stderr %q", stderr.String())
 	}
 }
