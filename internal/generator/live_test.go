@@ -83,6 +83,37 @@ func TestLiveSendsTheConfiguredModelAndDoesNotTrustIt(t *testing.T) {
 	}
 }
 
+func TestLiveSendsNemotronForTheSkeptic(t *testing.T) {
+	sse := streamFixture(t)
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model string `json:"model"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		got = body.Model
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, sse)
+	}))
+	defer srv.Close()
+	live := liveAt(t, srv.URL, nil)
+	if _, err := live.Complete(context.Background(), "skeptic", "prompt"); err != nil {
+		t.Fatal(err)
+	}
+	if got != generator.DefaultSkepticModel {
+		t.Fatalf("sent %s", got)
+	}
+	live = liveAt(t, srv.URL, map[string]string{generator.EnvSkepticModel: "anthropic/claude-opus"})
+	if _, err := live.Complete(context.Background(), "skeptic", "prompt"); err != nil {
+		t.Fatal(err)
+	}
+	if got != "anthropic/claude-opus" {
+		t.Fatalf("sent %s", got)
+	}
+}
+
 // Mutated field: meterless.routed_model. The chunk model field stays nvidia/*.
 func TestLiveRefusesANonNVIDIARoutedModel(t *testing.T) {
 	body := strings.Replace(streamFixture(t), `"routed_model":"`+routedNVIDIA+`"`, `"routed_model":"`+otherModel+`"`, 1)
