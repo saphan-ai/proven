@@ -115,6 +115,7 @@ In the fleet, four Cursor agents write the product code. Other agents plan the w
 
 ## Follow the work
 
+- **[Documentation](docs/README.md)**: how to run Proven, starting with a review on samples (no network, no keys), its architecture and every setting.
 - **[The diary](planning/CONVERSATIONS.md)**: every conversation between Marcin and the fleet, day by day.
 - **[Watch it being built, slice by slice](fleet/)**: from 22 October, each change arrives with the request that asked for it, the builder's report, the independent review and Marcin's decision.
 - **[Design decisions](fleet/decisions/)**: what was decided, and why.
