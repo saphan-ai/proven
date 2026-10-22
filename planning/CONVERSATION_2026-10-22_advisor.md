@@ -74,7 +74,17 @@ The advisor read the public event page: the build window is open, registration c
 
 That is this page.
 
+### 8 · owner → advisor: every master keeps the log
+
+> *"Send the masters how they are to keep the conversation log."*
+
+**What the advisor did.** It wrote the convention, [`fleet/messages/CONVENTION_every-master-keeps-a-conversation-log_2026-10-22.md`](../fleet/messages/CONVENTION_every-master-keeps-a-conversation-log_2026-10-22.md), with this page as the model.
+
+**Messages sent:** `1397f1b911337bcb` → proven-reviewer-core, `a8ed9a3782886023` → proven-cli-and-action, `8b7cf94ae423cf8f` → proven-cursor-infra: keep one public page per day, record every exchange with its message ids and answers, black out, commit as you go, never push. The first try to the shell train was again refused with no reason; a shorter subject passed. The advisor reported the defect to the scribe.
+
 ## Waiting for answers
+
+- `1397f1b911337bcb`, `a8ed9a3782886023`, `8b7cf94ae423cf8f`: the masters confirm the conversation log.
 
 - `50c405ea6031b9c4`: the recording of the first Cursor session (reviewer train).
 - `48022bb5316c1839`: why it was not recorded (infrastructure).
