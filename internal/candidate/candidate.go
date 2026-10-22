@@ -73,6 +73,10 @@ type Candidate struct {
 	Dropped    bool
 	DropReason string
 	Unresolved bool
+	// Runs names the reviews that reported this risk: "default", "special", or both.
+	Runs []string
+	// Models names the reviewer models for those runs, in the same order.
+	Models []string
 	// ProverNote is why a written test is not evidence. The pipeline copies it
 	// into the trace. Empty when the prover did not write a test, or when the
 	// written test is evidence.

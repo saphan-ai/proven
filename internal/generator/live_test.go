@@ -354,6 +354,39 @@ func TestClosedPortIsUnreachable(t *testing.T) {
 	}
 }
 
+func TestLiveWithModelSendsThatModelAndKeepsTheOriginal(t *testing.T) {
+	sse := streamFixture(t)
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model string `json:"model"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		got = append(got, body.Model)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, sse)
+	}))
+	defer srv.Close()
+	live := liveAt(t, srv.URL, nil)
+	pointed := live.WithModel("qwen-special")
+	if _, err := pointed.Complete(context.Background(), "planner", "prompt"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := live.Complete(context.Background(), "planner", "prompt"); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != "qwen-special" || got[1] != "meterless/auto" {
+		t.Fatalf("sent %#v", got)
+	}
+	su, ok := pointed.LastUse()
+	du, dok := live.LastUse()
+	if !ok || !dok || su.Model != routedNVIDIA || du.Model != routedNVIDIA {
+		t.Fatalf("special %#v %v default %#v %v", su, ok, du, dok)
+	}
+}
+
 func liveAt(t *testing.T, base string, extra map[string]string) *generator.Live {
 	t.Helper()
 	env := map[string]string{

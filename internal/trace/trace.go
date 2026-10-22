@@ -35,6 +35,8 @@ type Event struct {
 	Path        string      `json:"path,omitempty"`
 	Title       string      `json:"title,omitempty"`
 	HasEvidence bool        `json:"has_evidence,omitempty"`
+	// Run is "default" or "special": which review a claim, or a refutation, came from.
+	Run string `json:"run,omitempty"`
 }
 
 // Model is one generator call as the stream named it: the route, the routed

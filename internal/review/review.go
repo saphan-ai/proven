@@ -111,6 +111,9 @@ type Finding struct {
 	Location   Location
 	Evidence   []Evidence // at least one
 	Unresolved bool       // the evidence did not settle it; counts in findings-count and in unresolved-count
+	// Models names the reviewer models that reported this finding.
+	// One name when one run found it. Both names, the default reviewer first, when both did.
+	Models []string
 }
 
 // Location is where a finding is.
