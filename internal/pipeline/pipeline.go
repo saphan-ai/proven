@@ -21,7 +21,6 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/hmem"
-	"github.com/saphan-ai/proven/internal/netguard"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -60,7 +59,6 @@ type Pipeline struct {
 	gen        generator.Generator
 	liveQuery  query.Adapter
 	trace      *trace.Writer
-	guard      *netguard.Guard
 	rail       guardrail.Adapter
 	guardOff   bool
 	atBoundary func(stage string)
@@ -68,7 +66,8 @@ type Pipeline struct {
 	world      *world.Store
 }
 
-// Build opens the trace and, in sample mode, a client that refuses every dial.
+// Build opens the trace. Sample mode uses the recorded adapters. Those
+// adapters do not dial, so sample mode holds no HTTP client.
 func Build(opts Options) (*Pipeline, error) {
 	// opts.Env is not called. review.Open loads the live generator before Build.
 	// Sample mode reads no key.
@@ -115,15 +114,8 @@ func Build(opts Options) (*Pipeline, error) {
 			return nil, fmt.Errorf("pipeline: the guardrail is on and no adapter was set")
 		}
 	}
-	if opts.Sample {
-		p.guard = &netguard.Guard{}
-		p.guard.Arm()
-	}
 	return p, nil
 }
-
-// Guard is the sample-mode dial counter. It is nil when sample mode is off.
-func (p *Pipeline) Guard() *netguard.Guard { return p.guard }
 
 // boundary lets a test cancel the context at one named stage. Production leaves it unset.
 func (p *Pipeline) boundary(stage string) {

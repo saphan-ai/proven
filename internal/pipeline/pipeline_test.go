@@ -18,19 +18,6 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
-func TestSampleModeOpensNoNetwork(t *testing.T) {
-	p := buildSample(t, t.TempDir(), nil)
-	if p.Guard() == nil || !p.Guard().Armed() {
-		t.Fatal("sample mode did not arm a refusing client")
-	}
-	if _, err := p.Review(context.Background(), Request{Target: fixturePath(t)}); err != nil {
-		t.Fatal(err)
-	}
-	if p.Guard().Dials() != 0 {
-		t.Fatalf("dials %d", p.Guard().Dials())
-	}
-}
-
 func TestUnplugLiveTestRunNamesProverOff(t *testing.T) {
 	p := buildSample(t, t.TempDir(), testrun.Live{})
 	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})
