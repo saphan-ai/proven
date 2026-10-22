@@ -108,8 +108,22 @@ Proven's trains are some of the 13. The others belong to Saphan Studio's own wor
 
 The owner pasted another team's checkpoint as an example: concrete numbers, and an honest line on what the results do not cover. The advisor's draft took both: the first slice and its tests, three Cursor agents on Grok, two reviews per change with one on NVIDIA, and the limits (sample mode only, no live Zetaris evidence yet, the first slice's NVIDIA review still running). It said that today's code becomes public with the daily push at 15:00 UTC. The owner posted it.
 
+### 13 · owner → advisor: how we use Cursor, and a ready setup for every technology
+
+> *"The Proven README must describe very carefully how we use Cursor. Not everyone will understand it."* · *"We can even give examples of saphan run and saphan dispatch."* · *"And the price list, and saphan config."* · *"Maybe we do it for every technology? With examples of configuration and environment setup. Orders are one thing, a ready setup is another."*
+
+**What the advisor did.** The examples must be real, not remembered, and the advisor's own permissions do not let it run `saphan dispatch` (not even its help). So it asked the masters who ran the commands. It started the Cursor page as [`fleet/infra/cursor/README.md`](../fleet/infra/cursor/README.md), next to the existing setup pages for Nightshift, Zetaris and the build image. Each page is to give the prerequisites, the real configuration and commands with the values we use, a check with its expected output, and what it does not cover.
+
+**Messages sent:**
+- `818c8bdf84310f1b` → proven-reviewer-core: the exact command lines of one Cursor run end to end, the engine's placement printout, and the run's recorded cost and where the price table comes from.
+- `f94d40167efa0d2d` → proven-cursor-infra: how a Cursor seat is configured, a Cursor agent's way out to the network, and the four machine shapes today.
+- `5cf1d9b7be4378ef` → proven-cursor-infra: one ready-setup page per technology (Cursor, Nightshift, Zetaris, a new NVIDIA page, the build image), and the setup overview brought up to date.
+
+**A boundary, shown.** The advisor first wrote the Cursor draft at the top of the repository, then moved it into `fleet/infra/cursor/`. Deleting the leftover file was refused: the advisor's permission class does not grant `rm`, and the advisor may not grant itself a permission or get the same effect another way (law #57 of the fleet: *a denied act stays denied in every spelling*). It asked the owner to delete the file, with the exact command. The owner asked for this to be written down here.
+
 ## Waiting for answers
 
+- `818c8bdf84310f1b`, `f94d40167efa0d2d`, `5cf1d9b7be4378ef`: the real Cursor examples and the ready-setup pages.
 - `08ccdb2d0f9a874f`: who publishes the first Cursor session, and when (infrastructure).
 - `1397f1b911337bcb`, `a8ed9a3782886023`, `8b7cf94ae423cf8f`: the masters confirm the conversation log.
 
