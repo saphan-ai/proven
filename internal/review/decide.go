@@ -21,7 +21,7 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 		return err
 	}
 	class, rule := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
-	authors, err := readAuthors(cfg, req)
+	authors, unreadable, err := readAuthors(cfg, req)
 	if err != nil {
 		return err
 	}
@@ -30,11 +30,11 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 	}
 	doubled := cfg.Doubled[class]
 	models := []string{cfg.DefaultReviewer}
-	lines := []string{reviewerLine("default", cfg.DefaultReviewer, familyOf(cfg.DefaultReviewer, cfg.Families), authors)}
+	lines := []string{reviewerLine("default", cfg.DefaultReviewer, familyOf(cfg.DefaultReviewer, cfg.Families), authors, unreadable)}
 	if doubled {
 		if cfg.SpecialReviewer != "" {
 			models = append(models, cfg.SpecialReviewer)
-			lines = append(lines, reviewerLine("special", cfg.SpecialReviewer, familyOf(cfg.SpecialReviewer, cfg.Families), authors))
+			lines = append(lines, reviewerLine("special", cfg.SpecialReviewer, familyOf(cfg.SpecialReviewer, cfg.Families), authors, unreadable))
 		} else {
 			lines = append(lines, "special-review model: not configured")
 		}
@@ -50,7 +50,7 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 	out.ReviewerModels = models
 	out.ReviewerStatements = lines
 	out.AuthorModels = authors
-	out.AuthorModelStatement = authorStatement(authors, cfg.DefaultReviewer)
+	out.AuthorModelStatement = authorStatement(authors, unreadable, cfg.DefaultReviewer)
 	for _, f := range files {
 		if f == "proven.yaml" {
 			out.SettingsStatement = "the change edits proven.yaml"
@@ -190,31 +190,37 @@ func validPattern(pattern string) error {
 	return nil
 }
 
-func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, error) {
+func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error) {
 	var found []AuthorModel
+	var unreadable []string
+	take := func(text, source string) {
+		authors, bad := scanTrailers(text, cfg.TrailerKeys, source)
+		found = append(found, authors...)
+		unreadable = append(unreadable, bad...)
+	}
 	if cfg.ReadCommits && req.BaselineCommit != "" {
 		msgs, err := change.Messages(req.Target, req.BaselineCommit, req.HeadCommit)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, m := range msgs {
-			found = append(found, scanTrailers(m, cfg.TrailerKeys, "commit")...)
+			take(m, "commit")
 		}
 	}
 	if cfg.ReadDescription && req.Description != "" {
-		found = append(found, scanTrailers(req.Description, cfg.TrailerKeys, "description")...)
+		take(req.Description, "description")
 	}
 	if cfg.Record != "" {
 		text, err := readRecord(req.Target, cfg.Record)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		found = append(found, scanTrailers(text, cfg.TrailerKeys, "record")...)
+		take(text, "record")
 	}
-	return dedupeAuthors(found), nil
+	return dedupeAuthors(found), dedupeLines(unreadable), nil
 }
 
-func scanTrailers(text string, keys []string, source string) []AuthorModel {
+func scanTrailers(text string, keys []string, source string) ([]AuthorModel, []string) {
 	want := map[string]struct{}{}
 	for _, k := range keys {
 		k = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(k), ":"))
@@ -223,6 +229,7 @@ func scanTrailers(text string, keys []string, source string) []AuthorModel {
 		}
 	}
 	var out []AuthorModel
+	var unreadable []string
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimRight(line, "\r")
 		if line == "" || line[0] == ' ' || line[0] == '\t' {
@@ -238,11 +245,12 @@ func scanTrailers(text string, keys []string, source string) []AuthorModel {
 		}
 		agent, model, ok := splitAgentModel(strings.TrimSpace(line[i+1:]))
 		if !ok {
+			unreadable = append(unreadable, line)
 			continue
 		}
 		out = append(out, AuthorModel{Agent: agent, Model: model, Source: source})
 	}
-	return out
+	return out, unreadable
 }
 
 func splitAgentModel(val string) (string, string, bool) {
@@ -256,6 +264,22 @@ func splitAgentModel(val string) (string, string, bool) {
 		return "", "", false
 	}
 	return agent, model, true
+}
+
+func dedupeLines(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
 }
 
 func dedupeAuthors(in []AuthorModel) []AuthorModel {
@@ -400,25 +424,31 @@ func pathInside(root, resolved string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
-func authorStatement(models []AuthorModel, defaultReviewer string) string {
-	if len(models) == 0 {
-		return "author model not stated; default reviewer " + defaultReviewer
+func authorStatement(models []AuthorModel, unreadable []string, defaultReviewer string) string {
+	parts := make([]string, 0, len(models)+len(unreadable))
+	for _, m := range models {
+		parts = append(parts, fmt.Sprintf("author %s:%s family %s from %s", m.Agent, m.Model, m.Family, m.Source))
 	}
-	parts := make([]string, len(models))
-	for i, m := range models {
-		parts[i] = fmt.Sprintf("author %s:%s family %s from %s", m.Agent, m.Model, m.Family, m.Source)
+	for _, line := range unreadable {
+		parts = append(parts, "author statement unreadable: "+line)
+	}
+	if len(parts) == 0 {
+		return "author model not stated; default reviewer " + defaultReviewer
 	}
 	return strings.Join(parts, "; ")
 }
 
-func reviewerLine(role, model, family string, authors []AuthorModel) string {
+func reviewerLine(role, model, family string, authors []AuthorModel, unreadable []string) string {
 	head := fmt.Sprintf("reviewer %s; role %s; family %s", model, role, family)
-	if len(authors) == 0 {
+	if len(authors) == 0 && len(unreadable) == 0 {
 		return head + "; author model not stated"
 	}
 	parts := []string{head}
 	for _, a := range authors {
 		parts = append(parts, fmt.Sprintf("%s (%s): %s", a.Model, a.Family, familyRelation(family, a.Family)))
+	}
+	for _, line := range unreadable {
+		parts = append(parts, "author statement unreadable: "+line)
 	}
 	return strings.Join(parts, "; ")
 }

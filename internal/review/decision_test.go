@@ -62,6 +62,27 @@ func TestDescriptionNamesTheAuthorModel(t *testing.T) {
 	}
 }
 
+func TestUnreadableDescriptionIsNotCalledUnstated(t *testing.T) {
+	rev := openSample(t, t.TempDir())
+	res, err := rev.Review(context.Background(), review.Request{
+		Target:      fixturePath(t),
+		Description: "Assisted-by: claude-opus-5-5\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(res.AuthorModelStatement, "not stated") {
+		t.Fatal(res.AuthorModelStatement)
+	}
+	if !strings.Contains(res.AuthorModelStatement, "author statement unreadable: Assisted-by: claude-opus-5-5") {
+		t.Fatal(res.AuthorModelStatement)
+	}
+	joined := strings.Join(res.ReviewerStatements, "\n")
+	if strings.Contains(joined, "not stated") {
+		t.Fatal(joined)
+	}
+}
+
 func TestDescriptionOffIgnoresThePullRequest(t *testing.T) {
 	path := writeConfig(t, "author_description: off\n")
 	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})

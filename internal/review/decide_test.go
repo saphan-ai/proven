@@ -108,7 +108,7 @@ func TestMobileOutranksUserInterface(t *testing.T) {
 
 func TestSecurityIsDoubledAndBackendIsNot(t *testing.T) {
 	cfg := defaultSettings()
-	sec := reviewerLine("default", cfg.DefaultReviewer, "NVIDIA", nil)
+	sec := reviewerLine("default", cfg.DefaultReviewer, "NVIDIA", nil, nil)
 	lines := []string{sec, "special-review model: not configured"}
 	if !cfg.Doubled["security"] {
 		t.Fatal("security is not doubled")
@@ -127,29 +127,29 @@ func TestDoubledClassAddsTheSpecialReviewer(t *testing.T) {
 		t.Fatal(err)
 	}
 	authors := []AuthorModel{{Agent: "Claude", Model: "claude-3-opus", Family: "Anthropic", Source: "commit"}}
-	line := reviewerLine("special", cfg.SpecialReviewer, familyOf(cfg.SpecialReviewer, cfg.Families), authors)
+	line := reviewerLine("special", cfg.SpecialReviewer, familyOf(cfg.SpecialReviewer, cfg.Families), authors, nil)
 	if !strings.Contains(line, "reviewer qwen-special; role special") {
 		t.Fatal(line)
 	}
 	if !strings.Contains(line, "claude-3-opus (Anthropic): no") {
 		t.Fatal(line)
 	}
-	same := reviewerLine("default", "NVIDIA", "NVIDIA", []AuthorModel{{Model: "nemotron-super", Family: "NVIDIA"}})
+	same := reviewerLine("default", "NVIDIA", "NVIDIA", []AuthorModel{{Model: "nemotron-super", Family: "NVIDIA"}}, nil)
 	if !strings.Contains(same, "nemotron-super (NVIDIA): yes") {
 		t.Fatal(same)
 	}
-	unknown := reviewerLine("default", "NVIDIA", "NVIDIA", []AuthorModel{{Model: "gemini-2", Family: "family unknown"}})
+	unknown := reviewerLine("default", "NVIDIA", "NVIDIA", []AuthorModel{{Model: "gemini-2", Family: "family unknown"}}, nil)
 	if !strings.Contains(unknown, "gemini-2 (family unknown): family unknown") {
 		t.Fatal(unknown)
 	}
 }
 
 func TestAuthorStatementWhenNothingIsNamed(t *testing.T) {
-	got := authorStatement(nil, "NVIDIA")
+	got := authorStatement(nil, nil, "NVIDIA")
 	if got != "author model not stated; default reviewer NVIDIA" {
 		t.Fatal(got)
 	}
-	line := reviewerLine("default", "NVIDIA", "NVIDIA", nil)
+	line := reviewerLine("default", "NVIDIA", "NVIDIA", nil, nil)
 	if !strings.Contains(line, "author model not stated") {
 		t.Fatal(line)
 	}
@@ -157,19 +157,49 @@ func TestAuthorStatementWhenNothingIsNamed(t *testing.T) {
 
 func TestScanTrailersReadsTheAgentAndModel(t *testing.T) {
 	text := "[fixture] change: second\n\nAssisted-by: Claude:claude-3-opus\nAssisted-by: not-a-pair\n  Assisted-by: Indented:nope\n"
-	got := scanTrailers(text, []string{"Assisted-by"}, "commit")
+	got, bad := scanTrailers(text, []string{"Assisted-by"}, "commit")
 	if len(got) != 1 || got[0].Agent != "Claude" || got[0].Model != "claude-3-opus" || got[0].Source != "commit" {
 		t.Fatalf("%#v", got)
 	}
+	if len(bad) != 1 || bad[0] != "Assisted-by: not-a-pair" {
+		t.Fatalf("unreadable %#v", bad)
+	}
 	two := "Assisted-by: Claude:claude-3-opus\nAssisted-by: Nemotron:nemotron-super\n"
-	got = dedupeAuthors(scanTrailers(two, []string{"Assisted-by"}, "description"))
+	parsed, _ := scanTrailers(two, []string{"Assisted-by"}, "description")
+	got = dedupeAuthors(parsed)
 	if len(got) != 2 || got[1].Model != "nemotron-super" {
 		t.Fatalf("%#v", got)
 	}
 	again := two + "Assisted-by: Claude:claude-3-opus\n"
-	got = dedupeAuthors(scanTrailers(again, []string{"Assisted-by"}, "description"))
+	parsed, _ = scanTrailers(again, []string{"Assisted-by"}, "description")
+	got = dedupeAuthors(parsed)
 	if len(got) != 2 {
 		t.Fatalf("duplicate model kept: %#v", got)
+	}
+}
+
+func TestUnreadableTrailerIsNamed(t *testing.T) {
+	text := "Assisted-by: claude-opus-5-5\nCo-authored-by: Claude <noreply@example.com>\n"
+	got, bad := scanTrailers(text, []string{"Assisted-by", "Co-authored-by"}, "description")
+	if len(got) != 0 {
+		t.Fatalf("parsed %#v", got)
+	}
+	if len(bad) != 2 || bad[0] != "Assisted-by: claude-opus-5-5" || bad[1] != "Co-authored-by: Claude <noreply@example.com>" {
+		t.Fatalf("%#v", bad)
+	}
+	stmt := authorStatement(nil, bad, "NVIDIA")
+	if strings.Contains(stmt, "not stated") {
+		t.Fatal(stmt)
+	}
+	if !strings.Contains(stmt, "author statement unreadable: Assisted-by: claude-opus-5-5") {
+		t.Fatal(stmt)
+	}
+	if !strings.Contains(stmt, "author statement unreadable: Co-authored-by: Claude <noreply@example.com>") {
+		t.Fatal(stmt)
+	}
+	line := reviewerLine("default", "NVIDIA", "NVIDIA", nil, bad)
+	if strings.Contains(line, "not stated") || !strings.Contains(line, "author statement unreadable: Assisted-by: claude-opus-5-5") {
+		t.Fatal(line)
 	}
 }
 
