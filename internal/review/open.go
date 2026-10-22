@@ -2,11 +2,13 @@ package review
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -37,6 +39,15 @@ func open(opts Options) (Reviewer, error) {
 		Env:    opts.Env,
 	}
 	if !opts.Sample {
+		env := opts.Env
+		if env == nil {
+			env = func(string) string { return "" }
+		}
+		settings, lerr := generator.Load(env)
+		if lerr != nil {
+			return nil, generatorConfig(lerr)
+		}
+		popts.Generator = generator.NewLive(settings, nil)
 		box, err := testrun.NewContainer(testrun.DefaultContainerConfig(), nil)
 		if err != nil {
 			d, ok := service.As(err)
@@ -135,7 +146,7 @@ func fill(d candidate.Draft) Result {
 	}
 	for _, m := range d.Models {
 		out.Models = append(out.Models, ModelUse{
-			Agent: m.Agent, Route: m.Route, Model: m.Model, FromReceipt: m.FromReceipt,
+			Agent: m.Agent, Route: m.Route, Model: m.Model, ReceiptID: m.ReceiptID, FromReceipt: m.FromReceipt,
 		})
 	}
 	if out.Findings == nil {
@@ -165,6 +176,19 @@ func toEvidence(e candidate.Evidence) Evidence {
 		}
 	}
 	return out
+}
+
+// generatorConfig is the seam's *ConfigError for a refused generator setting.
+// The shell exits 7 on that type.
+func generatorConfig(err error) error {
+	var cfg *generator.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
 }
 
 func copyRows(rows [][]string) [][]string {

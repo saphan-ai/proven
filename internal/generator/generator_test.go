@@ -30,10 +30,11 @@ func TestSampleMatchesAgentAndPrompt(t *testing.T) {
 	}
 }
 
-func TestLiveGeneratorIsDown(t *testing.T) {
-	_, err := generator.Live{}.Complete(context.Background(), "planner", "name the risks\n")
+func TestUnconfiguredLiveGeneratorIsDown(t *testing.T) {
+	live := &generator.Live{}
+	_, err := live.Complete(context.Background(), "planner", "name the risks\n")
 	d, ok := service.As(err)
-	if !ok || d.Service != "generator" {
+	if !ok || d.Service != "nightshift" || d.Reason != "not configured" {
 		t.Fatalf("got %v", err)
 	}
 }

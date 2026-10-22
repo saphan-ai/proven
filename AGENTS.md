@@ -78,6 +78,21 @@ The reviewer's file is `proven.yaml`. `review.Open` reads `Options.ConfigPath` w
 
 An unknown key, or a `timeout` that is not a Go duration of zero or greater, is refused with `*ConfigError`. The error names the field and the allowed values.
 
+## Generator
+
+A live review calls an OpenAI-compatible endpoint. Sample mode does not, and it does not read these variables. `review.Open` with sample mode off loads them and refuses a bad value with `*ConfigError` before the review starts. The token is a secret: it is read from the environment only, and a refusal does not print it.
+
+| variable | default | meaning |
+|---|---|---|
+| `METERLESS_RUNTIME_TOKEN` | none; required when sample mode is off | Bearer token |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Origin. A path is empty or `/v1`. The call is `POST {base}/v1/chat/completions` with `stream: true` |
+| `PROVEN_GENERATOR_APP` | `proven` | `meterless-app` header. `meterless-scope` is `user` |
+| `PROVEN_GENERATOR_MODEL` | `meterless/auto` | Model field on the request. The endpoint may route elsewhere. The review records the model the stream names |
+| `PROVEN_GENERATOR_TIMEOUT` | `60s` | Bound on one attempt. An empty answer is tried once more, then named as a failure |
+| `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | `all`, `none`, or a comma-separated list of `planner`, `investigator`, `prover`, `skeptic`, `judge`, `writer` |
+
+The same headers are sent on `GET {base}/v1/models`. A review does not call that path. Each completion reads `meterless.routed_model` and `meterless.receipt_id` from the stream. The chunk's own `model` field is not the receipt. A routed model that is not `nvidia/*` is refused for an agent in the list above: the review names that model and does not use the answer as a verdict. A stream with no routed model is recorded as model unknown. A 401, a timeout, an unreachable endpoint, or an empty answer after one retry is a failed service named `nightshift`, and the review finishes degraded.
+
 ## Prover container defaults
 
 The live Prover runs each test in a container. `DefaultContainerConfig` in `internal/testrun` returns these defaults, and `Validate` refuses a bad value on load. No setting turns the network on or passes a secret in.
