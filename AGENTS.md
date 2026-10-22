@@ -45,3 +45,25 @@ You may keep: slugs, commit hashes of this repository, test names, law numbers, 
 - **Never change `.github/`, `LICENSE` or this file.** Those are the owner's.
 - **No document claims more than was run.** If you did not run it, it goes under "Not run" with the reason.
 - **Do not write about Saphan Studio's internals.** Saphan is a pre-existing component. What may be said about it is in [`SAPHAN.md`](SAPHAN.md).
+
+## Package layout
+
+The reviewer sits behind `internal/review`. `review.Open` wires the packages below. Sample mode swaps in the sample adapters. The agents stay the same.
+
+| package | role |
+|---|---|
+| `internal/generator` | one generator interface; the sample answers are recorded by agent and prompt |
+| `internal/query` | query adapter; sample mode runs SQL on a local engine over `tables.sql` |
+| `internal/testrun` | test-run adapter; sample mode returns recorded outcomes and executes no code; the live adapter says the Prover is off |
+| `internal/trace` | append-only JSONL trace at `logs/trace.jsonl` |
+| `internal/candidate` | the finding record the agents pass along |
+| `internal/agent/planner` | reads the change and names the risks |
+| `internal/agent/investigator` | turns a risk into a query and runs it |
+| `internal/agent/prover` | asks the test-run adapter for a test that fails on the change and passes on the base |
+| `internal/agent/skeptic` | one refutation attempt per finding |
+| `internal/agent/judge` | keeps a finding only when it has evidence |
+| `internal/agent/writer` | fills the review result |
+| `internal/pipeline` | runs the six agents in that order |
+| `cmd/proven` | `proven scan --sample <fixture>` |
+
+The sample change is `testdata/fixture/discount`.

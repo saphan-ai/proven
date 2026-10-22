@@ -1,0 +1,94 @@
+{
+  "snapshot": "sample-2026-10-22",
+  "planner_prompt_sha256": "5691698554484d2d9cdbcbae1372d9823b5997cb00139fd977f2b1f09f65cf89",
+  "planner_response": [
+    {
+      "id": "F1",
+      "rule_id": "discount-applied-twice",
+      "title": "Discount is applied twice",
+      "message": "Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.",
+      "severity": "ERROR",
+      "path": "billing/discount.go",
+      "start_line": 5,
+      "end_line": 5
+    },
+    {
+      "id": "F2",
+      "rule_id": "known-exploited-dependency",
+      "title": "Dependency leftpad v1.2.3 is on the known-exploited list",
+      "message": "The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.",
+      "severity": "ERROR",
+      "path": "go.mod",
+      "start_line": 5,
+      "end_line": 5
+    },
+    {
+      "id": "F3",
+      "rule_id": "payment-token-in-note",
+      "title": "note may include a payment token",
+      "message": "note returns a payment string and nothing shows it is free of a token.",
+      "severity": "WARNING",
+      "path": "billing/discount.go",
+      "start_line": 8,
+      "end_line": 8
+    }
+  ],
+  "responses": [
+    {
+      "agent": "investigator",
+      "prompt": "query F1\nDiscount is applied twice\nbilling/discount.go",
+      "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'billing/discount' AND version = 'change'\"}"
+    },
+    {
+      "agent": "investigator",
+      "prompt": "query F2\nDependency leftpad v1.2.3 is on the known-exploited list\ngo.mod",
+      "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'\"}"
+    },
+    {
+      "agent": "investigator",
+      "prompt": "query F3\nnote may include a payment token\nbilling/discount.go",
+      "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'billing/note' AND version = 'change'\"}"
+    },
+    {
+      "agent": "prover",
+      "prompt": "prove F1\nDiscount is applied twice",
+      "response": "{\"path\":\"billing/discount_test.go\",\"name\":\"TestDiscounted\",\"command\":\"go test ./billing -run TestDiscounted\"}"
+    },
+    {
+      "agent": "prover",
+      "prompt": "prove F2\nDependency leftpad v1.2.3 is on the known-exploited list",
+      "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
+    },
+    {
+      "agent": "prover",
+      "prompt": "prove F3\nnote may include a payment token",
+      "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
+    },
+    {
+      "agent": "skeptic",
+      "prompt": "refute F1\nDiscount is applied twice",
+      "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
+    },
+    {
+      "agent": "skeptic",
+      "prompt": "refute F2\nDependency leftpad v1.2.3 is on the known-exploited list",
+      "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
+    },
+    {
+      "agent": "skeptic",
+      "prompt": "refute F3\nnote may include a payment token",
+      "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
+    }
+  ],
+  "recorded_tests": [
+    {
+      "finding_id": "F1",
+      "path": "billing/discount_test.go",
+      "name": "TestDiscounted",
+      "command": "go test ./billing -run TestDiscounted",
+      "fails_on_change": true,
+      "passes_on_base": true,
+      "output": "base: PASS\nchange: FAIL got 60 want 80"
+    }
+  ]
+}

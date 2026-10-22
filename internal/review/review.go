@@ -19,12 +19,13 @@ type Reviewer interface {
 	Review(ctx context.Context, req Request) (Result, error)
 }
 
-// ErrNotImplemented is returned by Open until the reviewer is built.
+// ErrNotImplemented is the error Open returned before the reviewer existed.
+// Open no longer returns it. The name stays so a caller can still name it.
 var ErrNotImplemented = errors.New("review: not implemented")
 
 // Open loads the reviewer's own settings and returns a Reviewer.
 // A *ConfigError means the configuration was refused on load: the shell exits 7 and prints its Error().
-func Open(opts Options) (Reviewer, error) { return nil, ErrNotImplemented }
+func Open(opts Options) (Reviewer, error) { return open(opts) }
 
 // ConfigError names a refused setting and the values that are allowed (ADR-0013).
 type ConfigError struct {

@@ -1,0 +1,86 @@
+// Package candidate is the finding record passed between the six agents.
+package candidate
+
+// Evidence kind strings. They match the seam's EvidenceTest and EvidenceQuery.
+const (
+	KindTest  = "test"
+	KindQuery = "query"
+)
+
+// Risk is one candidate the planner named.
+type Risk struct {
+	ID        string
+	RuleID    string
+	Title     string
+	Message   string
+	Severity  string
+	Path      string
+	StartLine int
+	EndLine   int
+}
+
+// TestEvidence is a recorded or measured test outcome.
+type TestEvidence struct {
+	Path          string
+	Name          string
+	Command       string
+	Output        string
+	FailsOnChange bool
+	PassesOnBase  bool
+}
+
+// QueryEvidence is a query and the rows the engine returned.
+type QueryEvidence struct {
+	SQL      string
+	Engine   string
+	Snapshot string
+	Columns  []string
+	Rows     [][]string
+}
+
+// Evidence is one piece of proof.
+type Evidence struct {
+	Kind  string
+	Test  *TestEvidence
+	Query *QueryEvidence
+}
+
+// Refutation is one skeptic attempt.
+type Refutation struct {
+	Attempted bool
+	Refuted   bool
+	Reason    string
+}
+
+// Candidate is a risk plus what the later agents added.
+type Candidate struct {
+	Risk
+	Evidence   []Evidence
+	Refutation Refutation
+	Dropped    bool
+	DropReason string
+	Unresolved bool
+}
+
+// Failure names a service the review degraded around.
+type Failure struct {
+	Service string
+	Reason  string
+}
+
+// ModelUse is one generator call, as the receipt named it.
+type ModelUse struct {
+	Agent       string
+	Route       string
+	Model       string
+	FromReceipt bool
+}
+
+// Draft is what the writer hands to the seam.
+type Draft struct {
+	Findings  []Candidate
+	Failed    []Failure
+	Models    []ModelUse
+	Partial   bool
+	TracePath string
+}
