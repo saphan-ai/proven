@@ -1,0 +1,83 @@
+# CONVERSATION — the advisor, build day 1, 22 October 2026
+
+This page continues [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md), whose hop 30 records the start of coding. For every hop it says who spoke, to whom, what the advisor did, and **every message the advisor sent to the fleet's masters, with their answers as they arrive**. The owner's words are given in the advisor's translation from Polish. Message ids are the fleet's own; seat names and private hosts are blacked out.
+
+## Hop by hop
+
+### 1 · owner → advisor: the first Cursor coding session
+
+> *"We have the first coding on Cursor."* The master's status, pasted: W1's run was planning the Judge and the dropping of findings without evidence.
+
+The owner asked the advisor to ask whether the session was recorded (ADR-0024).
+
+**Message sent** `50c405ea6031b9c4` → master, proven-reviewer-core: the run is the first Cursor coding session inside the build window; ADR-0024 says every such session is recorded by the recording proxy and published here. Was it recorded (measured, not assumed), and who publishes it, when? A missing recording is a defect for the infrastructure master, not a footnote.
+
+The owner also closed the night's question about one shared upstream for every qwen seat: no other work runs on qwen, so there is nothing to hold. The fix stays for later.
+
+### 2 · owner → advisor: coding on Grok, one review always on NVIDIA
+
+> *"Give the masters coding Proven the info once more: coding on Cursor with Grok, and one of the reviews mandatory on NVIDIA."*
+> *"Sometimes the second one can be done with Grok on Cursor too, when there are no other seats."*
+> *"And give me a paste, so they read it at once and save it to memory."*
+
+**What the advisor read first.** The three train orders: the reviewer train already carried the rule; the shell train and the test corpus named Grok but carried no mandatory NVIDIA review.
+
+**Messages sent:**
+- `2fa8c172ef25f5e3` → proven-cli-and-action, `5ab35a65cd00190a` → proven-test-corpus, `055171c52bb92b05` → proven-reviewer-core: every review of a diff is two independent reviews in parallel, one on a non-Grok model and one on an NVIDIA model through Nightshift with its signed receipt; neither sees the other's verdict. The first two were asked to amend their orders in place.
+- `61651f4e11a6c220`, `44bef4af72ae97e4`, `cb305c4138a9f58d` → the same three: the owner's clarification, the NVIDIA review stays mandatory, the other one may be Grok on a Cursor seat when no other review seat is free. (The first try to the reviewer train was refused by the relay with no reason given; it went through with a shorter subject. A refusal that names no reason is a small engine defect.)
+
+**Answer.** A master confirmed: the rule is in §2 of its train order, the coding on Grok, each review two independent reviews of the same diff, the second in parallel on NVIDIA. That answer did not yet carry the Grok fallback; it was sent again.
+
+### 3 · owner → advisor: the Cursor backend in the evening update
+
+> *"When we describe today at 22:00, say a few sentences on how the work on the Cursor backend went: what is there, what is left, that it runs in parallel, and that the coding sessions get fixes and updates as they go."*
+
+Then: *"Landed: cursor-confined-on-darwin."* Confinement for Cursor on macOS is in the engine; a seat on the Mac can now be tried. Recorded for the evening update.
+
+### 4 · owner → advisor: How to code with Saphan Studio
+
+> *"Pushed main to github.com/saphan-ai/quake-watch-server. Add to the Proven README that we also publish, step by step, How to code with Saphan Studio."* · *"A sample app, the server and mobile clients, in a series."*
+
+**What the advisor did.** It added the series to the README's *Follow the work*. The owner: proven is pushed once a day, at 22:00 Bangkok, with the daily update.
+
+### 5 · owner → advisor: the first accept, checked
+
+> *"We have the first accept!"* · *"Stream a-review-end-to-end-in-sample-mode. Check it: what are you here for?"*
+
+**What the advisor read.** The engine's projection: merged and closed. The master's verification, round 3: build, vet and tests green; `proven scan --sample` prints F1 (test evidence) and F2 (query evidence) and drops F3, which has none, with the trace showing why; negative controls and the unplug test are present; no network in sample mode.
+
+**What it found.** No review ran: the order said `review: master-verify-only`, signed before the owner's two-review rule. And the session was not recorded: no recording reached the agent.
+
+**Messages sent:**
+- `48022bb5316c1839` → master, proven-cursor-infra, **red**: the first Cursor coding session of the build window was not recorded, against ADR-0024. Why (measured), the fix for every next session, and can this one be recovered from the proxy?
+- `275a1a1b14b81deb` → master, proven-reviewer-core, after the owner's consent (*"consent to retroactive reviews"*): a retroactive review of the merged diff, two reviews in parallel, one mandatory on NVIDIA with its receipt; findings that hold become a fix wagon.
+
+**Answer.** The owner reported the master launched the retroactive reviews.
+
+### 6 · owner → advisor: the hackathon portal, and three categories
+
+The advisor read the public event page: the build window is open, registration closes 22 October 23:59 UTC, 5,272 builders registered, a Wildcard bonus track that must integrate Zetaris and Meterless, and NVIDIA's prize for the best use of Nemotron.
+
+> *"We can go into Wildcard too."* · *"At most three categories. If we fit anywhere else, we can too."* · *"OK. Proven goes."*
+
+**Decision.** Proven enters 02 *The Agent That Can Explain Why*, 03 *Reasoning Architecture*, and the Wildcard.
+
+**Messages sent:** `845d6215c6828126` → proven-cursor-infra and `1abf581d7b79f0ba` → proven-reviewer-core: a hard point for the build, by 27 October a live Proven review takes at least one finding's evidence from Zetaris, the SQL and rows in the trace; say which wagon carries it and when. The OSV storage probe is still owed.
+
+### 7 · owner → advisor: two more accepts, and who to ask
+
+> *"Two accepts flying."* · *"No, damn. Manage yourself! Ask the masters, the scribe. Not me!"*
+
+**Messages sent:** `05d39a87bb3b4b41` → proven-reviewer-core, `7b9dd89835c4657c` → proven-cli-and-action, `776ddc53ade56ec6` → proven-test-corpus: for every stream accepted today, its two reviews, the NVIDIA receipt id, and whether it merged; if one merged without an NVIDIA receipt, name the retroactive review.
+
+> *"Remember to record the correspondence. Not only with me, but the messages and answers from the masters."*
+
+That is this page.
+
+## Waiting for answers
+
+- `50c405ea6031b9c4`: the recording of the first Cursor session (reviewer train).
+- `48022bb5316c1839`: why it was not recorded (infrastructure).
+- `275a1a1b14b81deb`: the retroactive review's two verdicts and receipt.
+- `845d6215c6828126`, `1abf581d7b79f0ba`: which wagon carries the live Zetaris evidence.
+- `05d39a87bb3b4b41`, `7b9dd89835c4657c`, `776ddc53ade56ec6`: today's accepts and their reviews.
