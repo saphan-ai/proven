@@ -24,10 +24,21 @@ func run(args []string, stdout, stderr io.Writer, getwd func() (string, error), 
 	}
 	sample := false
 	target := ""
+	var include, exclude []string
+	baseline := ""
+	configPath := ""
 	for _, arg := range args[1:] {
 		switch {
 		case arg == "--sample":
 			sample = true
+		case strings.HasPrefix(arg, "--exclude="):
+			exclude = append(exclude, strings.TrimPrefix(arg, "--exclude="))
+		case strings.HasPrefix(arg, "--include="):
+			include = append(include, strings.TrimPrefix(arg, "--include="))
+		case strings.HasPrefix(arg, "--baseline-commit="):
+			baseline = strings.TrimPrefix(arg, "--baseline-commit=")
+		case strings.HasPrefix(arg, "--config="):
+			configPath = strings.TrimPrefix(arg, "--config=")
 		case strings.HasPrefix(arg, "-"):
 			fmt.Fprintf(stderr, "unknown flag %s\nusage: proven scan --sample <fixture>\n", arg)
 			return 2
@@ -48,9 +59,10 @@ func run(args []string, stdout, stderr io.Writer, getwd func() (string, error), 
 		return 2
 	}
 	rev, err := review.Open(review.Options{
-		Sample: true,
-		LogDir: filepath.Join(wd, "logs"),
-		Env:    env,
+		ConfigPath: configPath,
+		Sample:     true,
+		LogDir:     filepath.Join(wd, "logs"),
+		Env:        env,
 	})
 	if err != nil {
 		var cfg *review.ConfigError
@@ -61,8 +73,18 @@ func run(args []string, stdout, stderr io.Writer, getwd func() (string, error), 
 		fmt.Fprintln(stderr, err.Error())
 		return 2
 	}
-	res, err := rev.Review(context.Background(), review.Request{Target: target})
+	res, err := rev.Review(context.Background(), review.Request{
+		Target:         target,
+		BaselineCommit: baseline,
+		Include:        include,
+		Exclude:        exclude,
+	})
 	if err != nil {
+		var cfg *review.ConfigError
+		if errors.As(err, &cfg) {
+			fmt.Fprintln(stderr, cfg.Error())
+			return 7
+		}
 		fmt.Fprintln(stderr, err.Error())
 		return 2
 	}

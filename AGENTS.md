@@ -67,3 +67,13 @@ The reviewer sits behind `internal/review`. `review.Open` wires the packages bel
 | `cmd/proven` | `proven scan --sample <fixture>` |
 
 The sample change is `testdata/fixture/discount`.
+
+## Configuration
+
+The reviewer's file is `proven.yaml`. `review.Open` reads `Options.ConfigPath` when that path is set. An empty path reads `proven.yaml` in the review target when the file is present, and otherwise uses the defaults. An explicit path that does not exist is refused. The file is one flat YAML mapping of scalar values (comments and quotes are fine; a nested value is refused). The key set is closed.
+
+| key | default | meaning |
+|---|---|---|
+| `timeout` | `0s` | A Go duration. When it is greater than zero, it bounds a review whose context has no deadline. Zero adds no deadline. The context's own deadline wins when it has one. |
+
+An unknown key, or a `timeout` that is not a Go duration of zero or greater, is refused with `*ConfigError`. The error names the field and the allowed values.
