@@ -72,6 +72,11 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		MinSeverity:    cfg.severity,
 	})
 	if err != nil {
+		var conf *review.ConfigError
+		if errors.As(err, &conf) {
+			fmt.Fprintln(stderr, conf.Error())
+			return exitConfig
+		}
 		fmt.Fprintln(stderr, err.Error())
 		return exitFatal
 	}

@@ -41,11 +41,16 @@ func TestScanSampleErrorExits1(t *testing.T) {
 func TestScanWithoutSampleIsRefused(t *testing.T) {
 	t.Chdir(t.TempDir())
 	var stdout, stderr bytes.Buffer
-	code := cli.Run([]string{"scan", "somewhere"}, shellEnv(t), &stdout, &stderr, nil)
+	code := cli.Run([]string{"scan", "somewhere"}, func(k string) string {
+		if k == "METERLESS_RUNTIME_TOKEN" {
+			return "test-token"
+		}
+		return ""
+	}, &stdout, &stderr, nil)
 	if code != 2 {
 		t.Fatalf("exit %d\n%s", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "fixture.json") {
+	if !strings.Contains(stderr.String(), "somewhere/base") {
 		t.Fatalf("stderr %q", stderr.String())
 	}
 }

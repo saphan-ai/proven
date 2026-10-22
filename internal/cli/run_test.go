@@ -286,6 +286,38 @@ func TestReviewerPanicExits2(t *testing.T) {
 	}
 }
 
+func TestReviewConfigErrorExits7(t *testing.T) {
+	t.Run("config", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"scan"}, emptyEnv, &stdout, &stderr, func(review.Options) (review.Reviewer, error) {
+			return &captureReviewer{err: &review.ConfigError{
+				Field:   "timeout",
+				Value:   "nope",
+				Reason:  "not a duration",
+				Allowed: []string{"a Go duration"},
+			}}, nil
+		})
+		if code != exitConfig {
+			t.Fatalf("exit %d stderr %s", code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "timeout") || !strings.Contains(stderr.String(), "nope") {
+			t.Fatalf("stderr %q", stderr.String())
+		}
+	})
+	t.Run("other", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"scan"}, emptyEnv, &stdout, &stderr, func(review.Options) (review.Reviewer, error) {
+			return &captureReviewer{err: fmt.Errorf("review broke")}, nil
+		})
+		if code != exitFatal {
+			t.Fatalf("exit %d stderr %s", code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "review broke") {
+			t.Fatalf("stderr %q", stderr.String())
+		}
+	})
+}
+
 func TestFailedServiceIsNamedAndDoesNotExit2(t *testing.T) {
 	rev := &captureReviewer{res: review.Result{FailedServices: []review.ServiceFailure{{
 		Service: "nightshift",
@@ -446,14 +478,19 @@ func TestHelpAndVersion(t *testing.T) {
 func TestScanWithoutSampleOnBareTargetExits2(t *testing.T) {
 	t.Chdir(t.TempDir())
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"scan", "somewhere"}, emptyEnv, &stdout, &stderr, nil)
+	code := Run([]string{"scan", "somewhere"}, func(k string) string {
+		if k == "METERLESS_RUNTIME_TOKEN" {
+			return "test-token"
+		}
+		return ""
+	}, &stdout, &stderr, nil)
 	if code != exitFatal {
 		t.Fatalf("exit %d stderr %s", code, stderr.String())
 	}
 	if strings.Contains(stderr.String(), review.ErrNotImplemented.Error()) {
 		t.Fatalf("stderr still says the reviewer is missing\n%s", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "fixture.json") {
+	if !strings.Contains(stderr.String(), "somewhere/base") {
 		t.Fatalf("stderr %q", stderr.String())
 	}
 }
