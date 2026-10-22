@@ -27,6 +27,75 @@ This page explains how that works, step by step, with the actual commands and co
 7. **Review.** Two independent reviews of the same diff run in parallel, and neither sees the other's verdict. One is always an NVIDIA Nemotron model through Meterless Nightshift, with a signed receipt per request. The other is a different model family.
 8. **Decision.** The owner reads the reviews and decides. Only the owner merges.
 
+## What happens when a Cursor run starts
+
+In the editor, Cursor runs on your machine with your files and your network. Here, Saphan Studio first builds a closed
+room on runner-cursor, and only inside that room is Cursor's command-line agent started. The steps, in the order they
+happen:
+
+```mermaid
+flowchart TD
+  A[signed order] --> B[fresh worktree at the order's base commit + .provision/]
+  B --> C[the seat's own home: HOME and Cursor's data folder]
+  C --> D[tool grants: what may be written, what may be reached]
+  D --> E[per-run egress door: a SOCKS5 socket with the run's policy]
+  E --> F[network wall: the run's own network namespace; DNS and 443 bent into the door]
+  F --> G[Landlock jail: write only the worktree and the run's own folders]
+  G --> H[recording proxy in front of api2.cursor.sh, codec cursor-connect]
+  H --> I[no new Unix sockets: a seccomp filter]
+  I --> J[Cursor CLI, headless, --model grok-4.7-high]
+  J --> K[status report, recording sealed, everything returned]
+```
+
+1. **A fresh worktree.** The engine checks the repository out on runner-cursor at the exact commit the order names as
+   its base, on the order's own branch. What the agent must read (the order, its role's craft notes, the skills the
+   order names) is copied into `.provision/` inside it. Nothing else of the fleet's records is on that machine.
+2. **The seat's own home.** The run's `HOME` is the seat's directory, so it uses that seat's Cursor login and nothing
+   else. Only `HOME` and `PATH` are passed in; Cursor's endpoint variables are never forwarded, so the agent cannot be
+   pointed past the proxy.
+3. **Tool grants.** Every leg runs under a permission class chosen from its role and its work. For a Go change on a
+   Cursor seat today that is the executor class with two workloads added: Go (`proxy.golang.org`,
+   `sum.golang.org`) and npm (`registry.npmjs.org`). For Cursor the grant is enforced by the machine, not by Cursor's
+   own settings: what may be written is the jail's write list (step 6), and what may be reached is the door's policy
+   (step 4). Cursor itself runs with `--trust --sandbox disabled`, because the boundary sits outside it. A grant is
+   always the owner's act, and it reaches only the run it is provisioned to.
+4. **The egress door.** A per-run door starts first: a SOCKS5 socket in the run's own private folder, which the agent
+   cannot write. It judges every connection against the run's policy and books each decision. The policy a proven
+   Cursor run used today (`baseline-cursor-v1+egress-workload-go-v1+egress-workload-npm-v1`):
+   ```json
+   {"id": "vendor-cursor-model-endpoint-proxy-upstream", "hosts": ["api2.cursor.sh"], "ports": [443], "verdict": "allow"},
+   {"id": "workload-go-go-module-proxy", "hosts": ["proxy.golang.org"], "ports": [443], "verdict": "allow"},
+   {"id": "workload-go-go-checksum-database", "hosts": ["sum.golang.org"], "ports": [443], "verdict": "allow"},
+   {"id": "workload-npm-npm-registry", "hosts": ["registry.npmjs.org"], "ports": [443], "verdict": "allow"}
+   ```
+   Anything not on the list is refused.
+5. **The network wall.** The agent gets its own network namespace. Inside it, DNS and port 443 lead only to the door,
+   so a program that ignores proxy settings still cannot get out another way. Host sockets outside the kept paths are
+   masked.
+6. **The Landlock jail.** The whole file system stays readable for the toolchain, but writes are allowed only to the
+   worktree, the run's own artifact folder, the seat's session folder and `/dev/null`. Go's caches are placed inside
+   the worktree for the same reason.
+7. **The recording proxy.** A proxy listens on a loopback port and is the only path to Cursor's model API. It decodes
+   Cursor's protocol (`cursor-connect`) and records every request and answer. The seat's Cursor settings force
+   HTTP/1.1 (`network.useHttp1ForAgent: true`) so the proxy can read the traffic.
+8. **No new Unix sockets.** A seccomp filter forbids the agent from creating a Unix socket, so it cannot open a side
+   channel to another process on the machine.
+9. **Cursor starts.** Only now does the engine run Cursor's CLI, headless, with the standing laws and the order as
+   its prompt:
+   ```
+   agent -p --output-format stream-json --trust --sandbox disabled --disable-auto-update \
+     --model grok-4.7-high -e http://127.0.0.1:<proxy port> --agent-endpoint http://127.0.0.1:<proxy port>
+   ```
+   The order's wall time is the only bound on the run: Cursor is a subscription, so no dollar cap applies.
+10. **The end.** The agent writes its status report (`_EXEC_STATUS.md`) and commits to its branch. The engine closes
+    the door, seals the recording, and brings the branch, the report, the recording and the door's decisions back to
+    the orchestrating machine, where the master verifies them.
+
+**One real run.** `run-20261022-073935-b03091ec`, 22 October 2026, seat `cursor-fleet-3-1` on runner-cursor, model
+`grok-4.7-high`, change *cli-over-the-sample-reviewer*, round 3. It ended `ok` and returned branch commit `2d600b4`.
+The door booked two decisions, both permitted: `api2.cursor.sh:443` (the model, through the proxy) and
+`registry.npmjs.org:443` (the npm workload). The recording came back as 5 files, 920 308 bytes.
+
 ## A Cursor seat: the setup
 
 A **seat** is one Cursor account on one machine, in its own home directory, so its login and session files never mix with
