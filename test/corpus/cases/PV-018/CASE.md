@@ -2,7 +2,7 @@
 
 - incident: I16 (one incident; this case is its first round)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -77,8 +77,24 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base, on change and on the mutant, and record each line of its output. **Not run**: the case code is
-not built yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base, on change and on the mutant, and record each line of its output.
+
+- run: 2026-10-22T16:04Z (UTC), from the repository root
+- toolchain: `go version go1.26.8 darwin/arm64`, standard library only, no network (module `pv018` in this directory, `go 1.26`)
+- command: `bash tests/corpus/cases/PV-018/check.sh` (runs `go run ./check`, then `go test -count=1 ./change/` in the case module,
+  then the same test file unchanged against a scratch copy of the module whose `change/validator.go` is the mutant's)
+- exit code: 0
+- output, in full:
+
+```
+input=shipped base=pass change=pass mutant=pass reference=pass
+input=planted-citing-row-outside-the-three-pages base=pass change=fail(changelog#0:160>120) mutant=pass reference=fail(changelog#0:160>120)
+input=plain-row-between-budgets-on-a-listed-page base=pass change=pass mutant=fail(install#2:160>120) reference=pass
+suite change=pass
+suite mutant=pass
+```
+
+- budgets: wide 200 bytes, narrow 120 bytes, marker `{{measure:`; a violation prints as `page#row:size>budget`.
 
 ## 9. Limits
 
