@@ -502,3 +502,26 @@ func repoRoot(t *testing.T) string {
 		dir = parent
 	}
 }
+
+func TestRemovalFailureSurvivesLongOutput(t *testing.T) {
+	cfg := DefaultContainerConfig()
+	cfg.Timeout = 20 * time.Millisecond
+	c := mustContainer(t, cfg)
+	long := strings.Repeat("x", 20000)
+	c.run = func(ctx context.Context, argv []string) (string, error) {
+		if len(argv) > 1 && argv[1] == "rm" {
+			return "", errors.New("device or resource busy")
+		}
+		<-ctx.Done()
+		return long, ctx.Err()
+	}
+	out, err := c.Run(context.Background(), Request{
+		Command: "go test", BaseDir: t.TempDir(), ChangeDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.Output, "may remain") < 2 {
+		t.Fatalf("a removal failure was cut off by the output limit: %d bytes, %d notes", len(out.Output), strings.Count(out.Output, "may remain"))
+	}
+}

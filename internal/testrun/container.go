@@ -329,10 +329,11 @@ func joinRemoval(text, removal string) string {
 	if removal == "" {
 		return text
 	}
-	if text != "" && !strings.HasSuffix(text, "\n") {
-		text += "\n"
+	// The removal note goes first: the outcome keeps only the first 8192 bytes of output.
+	if text == "" {
+		return removal
 	}
-	return text + removal
+	return removal + "\n" + text
 }
 
 func withRemoval(err error, text string) error {
