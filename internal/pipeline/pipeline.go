@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/saphan-ai/proven/internal/agent/investigator"
 	"github.com/saphan-ai/proven/internal/agent/judge"
@@ -13,6 +15,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/skeptic"
 	"github.com/saphan-ai/proven/internal/agent/writer"
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/netguard"
@@ -62,11 +65,41 @@ func (p *Pipeline) Guard() *netguard.Guard { return p.guard }
 
 // Request is the part of a review request this wagon reads.
 type Request struct {
-	Target string
+	Target         string
+	BaselineCommit string
+	HeadCommit     string
+	Include        []string
+	Exclude        []string
 }
 
 // Review runs planner, investigator, prover, skeptic, judge and writer.
+// Findings whose path is outside the selected files are dropped after the agents run.
 func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, error) {
+	files, err := changedFiles(req)
+	if err != nil {
+		return candidate.Draft{}, err
+	}
+	selected, dropped, err := change.Select(files, req.Include, req.Exclude)
+	if err != nil {
+		return candidate.Draft{}, err
+	}
+	if err := p.trace.Append(trace.Event{
+		FindingID: "selection",
+		Kind:      "selection",
+		Agent:     "pipeline",
+		Text:      selectionText(dropped),
+	}); err != nil {
+		return candidate.Draft{}, err
+	}
+	allow := make(map[string]struct{}, len(selected))
+	for _, f := range selected {
+		allow[f] = struct{}{}
+	}
+	keep := func(d candidate.Draft) candidate.Draft {
+		d.Findings = keepFindings(d.Findings, allow)
+		return d
+	}
+
 	if ctx.Err() != nil {
 		return candidate.Draft{Partial: true, TracePath: p.trace.Path()}, nil
 	}
@@ -85,7 +118,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		if d, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
-				return st.partial(nil), nil
+				return keep(st.partial(nil)), nil
 			}
 			return candidate.Draft{}, fatal
 		} else if !d {
@@ -102,7 +135,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		cands = append(cands, c)
 	}
 	if ctx.Err() != nil {
-		return st.partial(cands), nil
+		return keep(st.partial(cands)), nil
 	}
 
 	for i := range cands {
@@ -110,7 +143,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
-					return st.partial(cands), nil
+					return keep(st.partial(cands)), nil
 				}
 				return candidate.Draft{}, fatal
 			}
@@ -119,14 +152,14 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		cands[i] = next
 	}
 	if ctx.Err() != nil {
-		return st.partial(cands), nil
+		return keep(st.partial(cands)), nil
 	}
 	for i := range cands {
 		next, err := prover.Prove(ctx, cands[i], gen, run)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
-					return st.partial(cands), nil
+					return keep(st.partial(cands)), nil
 				}
 				return candidate.Draft{}, fatal
 			}
@@ -140,7 +173,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 	}
 	if ctx.Err() != nil {
-		return st.partial(cands), nil
+		return keep(st.partial(cands)), nil
 	}
 
 	for i := range cands {
@@ -148,7 +181,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
-					return st.partial(cands), nil
+					return keep(st.partial(cands)), nil
 				}
 				return candidate.Draft{}, fatal
 			}
@@ -167,7 +200,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 	}
 	if ctx.Err() != nil {
-		return st.partial(cands), nil
+		return keep(st.partial(cands)), nil
 	}
 
 	for i := range cands {
@@ -176,9 +209,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
-	return writer.Write(writer.Input{
+	return keep(writer.Write(writer.Input{
 		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
-	}), nil
+	})), nil
 }
 
 func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Adapter, testrun.Adapter, error) {
@@ -261,6 +294,40 @@ func (g recording) Complete(ctx context.Context, agent, prompt string) (string, 
 	}
 	*g.models = append(*g.models, candidate.ModelUse{Agent: agent, Model: "unknown", FromReceipt: false})
 	return text, nil
+}
+
+func changedFiles(req Request) ([]string, error) {
+	if req.BaselineCommit != "" {
+		return change.Between(req.Target, req.BaselineCommit, req.HeadCommit)
+	}
+	files, err := change.Read(req.Target)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(files))
+	for i, f := range files {
+		out[i] = f.Path
+	}
+	return out, nil
+}
+
+func selectionText(dropped []string) string {
+	if len(dropped) == 0 {
+		return "selected out: none"
+	}
+	cp := append([]string(nil), dropped...)
+	sort.Strings(cp)
+	return "selected out: " + strings.Join(cp, ", ")
+}
+
+func keepFindings(in []candidate.Candidate, allow map[string]struct{}) []candidate.Candidate {
+	var out []candidate.Candidate
+	for _, c := range in {
+		if _, ok := allow[c.Path]; ok {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func evidenceText(c candidate.Candidate) string {
