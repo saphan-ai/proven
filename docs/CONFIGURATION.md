@@ -9,6 +9,7 @@ setting, the value and what is allowed.
 The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads none of the
 settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
+<!-- generated: settings -->
 ## The model generator: Meterless Nightshift
 
 | Environment variable | Default | What it changes |
@@ -43,6 +44,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `ZETARIS_ROW_LIMIT` | `100` | the most rows one query returns |
 | `ZETARIS_TIMEOUT` | `60s` | the limit for one query |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
+<!-- end generated -->
 
 ## The Prover's container
 
