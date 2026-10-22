@@ -99,7 +99,7 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   prints no finding; `--baseline-commit=does-not-exist` fails naming it.
 - **master-was-wrong:** —
 
-### W1d `a-partial-review-reports-only-judged-findings`
+### W1d `partial-reviews-report-judged-findings`
 - **added:** by the master, 2026-10-22, from the retroactive codex review of W1 (verdict reject, run
   run-20261022-032603-536d8bb3): two BLOCKING findings on `main`.
 - **what:** (1) a review cut by its deadline reports only findings the Judge kept; an unjudged candidate is never in the
