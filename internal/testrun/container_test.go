@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,7 +29,7 @@ func TestDefaultContainerConfigValidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{cfg.Runtime, cfg.Image, cfg.CPUs, cfg.Memory, "2 minutes"} {
+	for _, want := range []string{cfg.Runtime, cfg.Image, cfg.CPUs, cfg.Memory, "2 minutes", "2 seconds", "3 seconds", "may remain"} {
 		if !bytes.Contains(doc, []byte(want)) {
 			t.Fatalf("AGENTS.md does not document %s", want)
 		}
@@ -212,6 +213,94 @@ func TestRunReadsBothCheckoutsAndDoesNotProveATimeout(t *testing.T) {
 	}
 	if runCount != 2 || rmCount != 2 {
 		t.Fatalf("runs %d rm %d", runCount, rmCount)
+	}
+}
+
+// T7: Timeout is 1s and every runtime call would sleep 30s. The fake returns
+// when its context ends, which is what exec.CommandContext does to a hang.
+func TestRunReturnsWithinTenSecondsWhenTheRuntimeHangs(t *testing.T) {
+	if cleanupMargin > 3*time.Second || cleanupBound <= 0 || cleanupBound > cleanupMargin {
+		t.Fatalf("cleanup margin %s bound %s", cleanupMargin, cleanupBound)
+	}
+	base := t.TempDir()
+	change := t.TempDir()
+	cfg := DefaultContainerConfig()
+	cfg.Timeout = time.Second
+	c := mustContainer(t, cfg)
+	var calls []string
+	c.run = func(ctx context.Context, argv []string) (string, error) {
+		kind := "run"
+		if len(argv) > 1 {
+			kind = argv[1]
+		}
+		start := time.Now()
+		timer := time.NewTimer(30 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			calls = append(calls, fmt.Sprintf("%s %s", kind, time.Since(start).Round(time.Millisecond)))
+			return "hung", ctx.Err()
+		case <-timer.C:
+			calls = append(calls, kind+" slept 30s")
+			return "slept", nil
+		}
+	}
+	start := time.Now()
+	out, err := c.Run(context.Background(), Request{
+		Command: "go test ./billing", BaseDir: base, ChangeDir: change,
+	})
+	elapsed := time.Since(start)
+	t.Logf("elapsed %s calls %v", elapsed.Round(time.Millisecond), calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := 2 * (cfg.Timeout + cleanupMargin)
+	if elapsed > limit || elapsed > 10*time.Second {
+		t.Fatalf("Run held for %s; limit %s; calls %v; output %s", elapsed.Round(time.Millisecond), limit, calls, out.Output)
+	}
+	if !out.Found || out.FailsOnChange || out.PassesOnBase {
+		t.Fatalf("%#v", out)
+	}
+	if !strings.Contains(out.Output, "not proof") {
+		t.Fatal(out.Output)
+	}
+	if strings.Count(out.Output, "may remain") < 2 {
+		t.Fatalf("a hung removal was silent: %s", out.Output)
+	}
+}
+
+func TestRunNamesTheContainerWhenRemovalFails(t *testing.T) {
+	cfg := DefaultContainerConfig()
+	cfg.Timeout = 20 * time.Millisecond
+	c := mustContainer(t, cfg)
+	var names []string
+	c.run = func(ctx context.Context, argv []string) (string, error) {
+		if len(argv) > 1 && argv[1] == "rm" {
+			if len(argv) < 4 || argv[2] != "-f" {
+				t.Fatalf("rm argv %v", argv)
+			}
+			names = append(names, argv[3])
+			return "Error response from daemon: removal failed", errors.New("device or resource busy")
+		}
+		<-ctx.Done()
+		return "still running", ctx.Err()
+	}
+	out, err := c.Run(context.Background(), Request{
+		Command: "go test", BaseDir: t.TempDir(), ChangeDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.Found || out.FailsOnChange || out.PassesOnBase || !strings.Contains(out.Output, "not proof") {
+		t.Fatalf("%#v", out)
+	}
+	if len(names) != 2 {
+		t.Fatalf("removals %v", names)
+	}
+	for _, name := range names {
+		if !strings.Contains(out.Output, name) || !strings.Contains(out.Output, "may remain") || !strings.Contains(out.Output, "device or resource busy") {
+			t.Fatalf("output does not name %s: %s", name, out.Output)
+		}
 	}
 }
 

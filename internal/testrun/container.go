@@ -35,6 +35,15 @@ const (
 
 const defaultTimeout = 2 * time.Minute
 
+// cleanupMargin is the longest one side (base or change) may run past
+// Timeout, including removal. cleanupBound is the removal's own limit and
+// sits inside that margin. A side therefore returns within Timeout plus
+// 3 seconds even when every runtime call hangs.
+const (
+	cleanupMargin = 3 * time.Second
+	cleanupBound  = 2 * time.Second
+)
+
 // ContainerConfig holds the container's settings (ADR-0025 point 5). There is no
 // field that gives the container a network, an environment variable or a mount
 // beyond the one checkout.
@@ -252,11 +261,11 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	out.Found = true
 	changeText, changeKind := c.side(ctx, req.ChangeDir, req.Command)
 	if changeKind == kindCancelled {
-		return Outcome{}, ctx.Err()
+		return Outcome{}, withRemoval(ctx.Err(), changeText)
 	}
 	baseText, baseKind := c.side(ctx, req.BaseDir, req.Command)
 	if baseKind == kindCancelled {
-		return Outcome{}, ctx.Err()
+		return Outcome{}, withRemoval(ctx.Err(), changeText+"\n"+baseText)
 	}
 	out.FailsOnChange = changeKind == kindFail
 	out.PassesOnBase = baseKind == kindPass
@@ -278,12 +287,10 @@ func (c *Container) side(ctx context.Context, dir, command string) (string, runK
 	defer cancel()
 	text, err := c.invoke(runCtx, argv)
 	if ctx.Err() != nil {
-		c.remove(name)
-		return text, kindCancelled
+		return joinRemoval(text, c.remove(name)), kindCancelled
 	}
 	if runCtx.Err() != nil {
-		c.remove(name)
-		return text, kindTimeout
+		return joinRemoval(text, c.remove(name)), kindTimeout
 	}
 	if err == nil {
 		return text, kindPass
@@ -303,10 +310,39 @@ func (c *Container) side(ctx context.Context, dir, command string) (string, runK
 	return text + err.Error(), kindNotRun
 }
 
-func (c *Container) remove(name string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// remove asks the runtime to delete name. Its own context is cleanupBound
+// long and is not the run's context: a timed-out run must still be removed,
+// and that removal must not add the old separate 10 second wait. A non-nil
+// error means the container may still be there; the caller puts that into
+// the outcome.
+func (c *Container) remove(name string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupBound)
 	defer cancel()
-	_, _ = c.invoke(ctx, []string{c.runtime, "rm", "-f", name})
+	_, err := c.invoke(ctx, []string{c.runtime, "rm", "-f", name})
+	if err == nil {
+		return ""
+	}
+	return fmt.Sprintf("container %s may remain: removal failed: %s", name, err.Error())
+}
+
+func joinRemoval(text, removal string) string {
+	if removal == "" {
+		return text
+	}
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	return text + removal
+}
+
+func withRemoval(err error, text string) error {
+	if err == nil {
+		err = context.Canceled
+	}
+	if !strings.Contains(text, "may remain") {
+		return err
+	}
+	return fmt.Errorf("%w\n%s", err, strings.TrimSpace(text))
 }
 
 func (c *Container) invoke(ctx context.Context, argv []string) (string, error) {
