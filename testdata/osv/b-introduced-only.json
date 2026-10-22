@@ -1,0 +1,12 @@
+{
+  "id": "GO-2026-1002",
+  "published": "2026-02-01T00:00:00Z",
+  "affected": [
+    {
+      "package": {"ecosystem": "Go", "name": "example.com/only"},
+      "ranges": [
+        {"type": "SEMVER", "events": [{"introduced": "0.1.0"}]}
+      ]
+    }
+  ]
+}

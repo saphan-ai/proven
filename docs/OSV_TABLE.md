@@ -1,0 +1,65 @@
+# OSV package table
+
+Proven defines this table. One row is one affected range of one advisory. The file is CSV with a header. A real OSV dump is not loaded here; an administrator puts the file in Zetaris's storage.
+
+## Columns
+
+| column | meaning |
+|---|---|
+| `id` | the advisory id |
+| `aliases` | other ids for the same advisory, separated by spaces, sorted |
+| `ecosystem` | the package ecosystem, `Go` for a Go module |
+| `package` | the module path, or the package name in another ecosystem |
+| `introduced` | the first affected version; empty or `0` means there is no lower bound |
+| `fixed` | the first version that is not affected; the bound is exclusive |
+| `last_affected` | the last affected version; the bound is inclusive; used only when `fixed` is empty |
+| `severity` | a short severity when the advisory has one, otherwise the first score string |
+| `published` | the advisory's published time, as the source wrote it |
+
+`cmd/osv-to-csv` writes this header. It reads a directory of OSV JSON files, one advisory per file, and does not walk subdirectories. A file that does not end in `.json` is skipped. A `versions` list with no ranges becomes one row per version, with `introduced` and `last_affected` set to that version.
+
+```bash
+go run ./cmd/osv-to-csv <advisory-dir> <out.csv>
+```
+
+`<out.csv>` may be `-` to write to stdout.
+
+## The name Proven queries
+
+The setting is the environment variable `PROVEN_OSV_TABLE`. The default is `px_osvfile.px_osv_pkg`. An empty value means the default. Any other value must be a table name or `schema.table`, made of letters, digits and underscores. Sample mode uses the default and does not read the variable.
+
+For each Go module the change adds, or whose required version goes up, Proven runs one query:
+
+```sql
+SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+FROM px_osvfile.px_osv_pkg
+WHERE ecosystem = 'Go' AND package = '<module>'
+```
+
+The version comparison is done in Go, not in SQL. A version is inside a range when `introduced` ≤ version < `fixed`. When `fixed` is empty, the test is `introduced` ≤ version ≤ `last_affected`. When both ends are empty, every semantic version at or after `introduced` matches. A pre-release is lower than the release it precedes. A matching row becomes a finding. The evidence is that query, the rows it returned, and the comparison. No matching row is not a finding; the trace says which comparison excluded the version, or that the query returned no rows. An alias that is a CVE is also looked up in `px_evidence.px_kev_vulns`, the same query the review already uses for a CVE. A missing KEV row does not drop the finding.
+
+A `replace` or an `exclude` in `go.mod` is not read. Only `require` lines are.
+
+## What the administrator runs
+
+Measured on 22 October 2026: a Lightning filestore table over a CSV with a header answers `SELECT` for every row, with Proven's own key, in about 0.10–0.15 seconds. The statements below are those measurements, with this table's name and file. The storage path is filled in by the administrator.
+
+```sql
+CREATE LIGHTNING DATABASE PX_OSVFILE DESCRIBE BY "exploration";
+CREATE LIGHTNING FILESTORE TABLE px_osv_pkg FROM PX_OSVFILE FORMAT CSV
+  OPTIONS (PATH "<customer-data>/shared/px_osv_pkg/px_osv_pkg.csv", header "true", inferSchema "true");
+ASSIGN LIGHTNING DATABASE PX_OSVFILE TO USER '<proven>';
+GRANT SELECT ON LIGHTNING DATABASE NAMESPACE PX_OSVFILE TO USER '<proven>';
+```
+
+Before the grant, the same query was refused.
+
+JSON Lines is not this file's format. A JSON Lines probe returned only the first record. Use CSV, or a JSON array.
+
+## How to refresh it
+
+1. Build a new CSV with `osv-to-csv`.
+2. Put that file at the path registered in the `CREATE` statement, replacing the previous file or appending rows.
+3. Run the `SELECT` again.
+
+Reads are live. On 22 October, a row appended after the table was registered appeared in the next query. No separate refresh statement was measured. A full file replace uses the same path; that shape was not measured on its own.

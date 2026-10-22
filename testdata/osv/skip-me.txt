@@ -1,0 +1,1 @@
+This file is not an advisory. The converter skips it.

@@ -40,6 +40,11 @@ func TestScanSamplePrintsF1AndF2NotF3(t *testing.T) {
 		"finding F4 ERROR CVE-2026-0001 for leftpad v1.2.3 is on the KEV list",
 		"SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'",
 		"row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known",
+		"finding osv:evil.example/leftpad ERROR Dependency evil.example/leftpad v1.2.3 is in an OSV affected range",
+		"introduced 1.0.0 <= v1.2.3 < fixed 1.2.4",
+		"SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'",
+		"row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15",
+		"alias CVE-2026-0001 is on the KEV list",
 		"failed services: none",
 	} {
 		if !strings.Contains(body, want) {
@@ -48,6 +53,9 @@ func TestScanSamplePrintsF1AndF2NotF3(t *testing.T) {
 	}
 	if strings.Contains(body, "finding F3") {
 		t.Fatalf("F3 was printed\n%s", body)
+	}
+	if strings.Contains(body, "example.com/unused") {
+		t.Fatalf("an unrelated package was queried\n%s", body)
 	}
 }
 

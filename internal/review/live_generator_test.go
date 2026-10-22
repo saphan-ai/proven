@@ -51,6 +51,21 @@ func TestLiveSettingsAreRefusedOnOpen(t *testing.T) {
 	}
 }
 
+func TestOSVTableNameIsRefusedOnOpen(t *testing.T) {
+	// Mutated field: PROVEN_OSV_TABLE.
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_OSV_TABLE": "px_osv.pkg;drop",
+		}),
+	})
+	var cfg *review.ConfigError
+	if err == nil || !errorAs(err, &cfg) || cfg.Field != "PROVEN_OSV_TABLE" || cfg.Value != "px_osv.pkg;drop" {
+		t.Fatal(err)
+	}
+}
+
 func TestLiveReviewCarriesTheRoutedModel(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	const model = "nvidia/nemotron-3.5-super-vl-120b-a12b"

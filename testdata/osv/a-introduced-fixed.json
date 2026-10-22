@@ -1,0 +1,20 @@
+{
+  "id": "GO-2026-1001",
+  "aliases": ["GHSA-zz", "CVE-2024-1111"],
+  "published": "2026-01-02T03:04:05Z",
+  "affected": [
+    {
+      "package": {"ecosystem": "Go", "name": "example.com/widget"},
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {"introduced": "1.0.0"},
+            {"fixed": "1.2.3"}
+          ]
+        }
+      ],
+      "database_specific": {"severity": "HIGH"}
+    }
+  ]
+}

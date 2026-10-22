@@ -45,6 +45,11 @@ func TestExcludeWinsOverInclude(t *testing.T) {
 	if _, ok := find(res, "F2"); ok {
 		t.Fatal("F2 is on go.mod and exclude wins")
 	}
+	for _, f := range res.Findings {
+		if f.Location.Path == "go.mod" {
+			t.Fatalf("go.mod finding %s survived the exclude", f.ID)
+		}
+	}
 }
 
 func TestIncludeKeepsOnlyMatchingFiles(t *testing.T) {

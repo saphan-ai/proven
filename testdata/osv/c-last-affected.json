@@ -1,0 +1,19 @@
+{
+  "id": "GO-2026-1003",
+  "published": "2026-03-01T00:00:00Z",
+  "affected": [
+    {
+      "package": {"ecosystem": "Go", "name": "example.com/last"},
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {"introduced": "1.0.0"},
+            {"last_affected": "1.4.2"}
+          ]
+        }
+      ],
+      "ecosystem_specific": {"severity": "MODERATE"}
+    }
+  ]
+}

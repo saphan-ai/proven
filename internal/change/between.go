@@ -53,7 +53,8 @@ func Blob(target, rev, rel string) ([]byte, bool, error) {
 	if rel == "" || strings.HasPrefix(rel, "/") || strings.Contains(rel, "..") {
 		return nil, false, fmt.Errorf("git: path %q leaves the tree", rel)
 	}
-	cmd := exec.Command("git", "-C", target, "show", "--end-of-options", rev+":"+rel)
+	// "./" makes the path relative to target, not to the repository root (git rev:path rule).
+	cmd := exec.Command("git", "-C", target, "show", "--end-of-options", rev+":./"+rel)
 	out, err := cmd.Output()
 	if err == nil {
 		return out, true, nil
