@@ -19,11 +19,13 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/netguard"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/trace"
+	"github.com/saphan-ai/proven/internal/world"
 )
 
 // Options select the adapters. TestRun, when set, replaces the sample or live test-run adapter.
@@ -37,6 +39,9 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
+	// StateDir is the durable directory for H-MEM and the world model.
+	// Empty uses a state directory beside the logs, never a path inside the module.
+	StateDir string
 }
 
 // Pipeline is one reviewer.
@@ -48,6 +53,8 @@ type Pipeline struct {
 	trace      *trace.Writer
 	guard      *netguard.Guard
 	atBoundary func(stage string)
+	mem        *hmem.Store
+	world      *world.Store
 }
 
 // Build opens the trace and, in sample mode, a client that refuses every dial.
@@ -61,7 +68,31 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Pipeline{sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, gen: opts.Generator, trace: tw}
+	stateDir := opts.StateDir
+	if stateDir == "" {
+		var derr error
+		stateDir, derr = defaultStateDir(opts.LogDir)
+		if derr != nil {
+			return nil, derr
+		}
+	}
+	root := moduleRoot()
+	mem, err := hmem.Open(hmem.Options{
+		Dir: filepath.Join(stateDir, "hmem"), LogDir: opts.LogDir, RepoRoot: root,
+	})
+	if err != nil {
+		return nil, err
+	}
+	wm, err := world.Open(world.Options{
+		Dir: filepath.Join(stateDir, "world"), LogDir: opts.LogDir, RepoRoot: root, Memory: mem,
+	})
+	if err != nil {
+		return nil, err
+	}
+	p := &Pipeline{
+		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
+		gen: opts.Generator, trace: tw, mem: mem, world: wm,
+	}
 	if opts.Sample {
 		p.guard = &netguard.Guard{}
 		p.guard.Arm()
@@ -90,7 +121,20 @@ type Request struct {
 
 // Review runs planner, investigator, prover, skeptic, judge and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
-func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, error) {
+func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
+	defer func() {
+		if err != nil {
+			return
+		}
+		if ferr := p.fold(); ferr != nil {
+			d = candidate.Draft{}
+			err = ferr
+		}
+	}()
+	return p.review(ctx, req)
+}
+
+func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
 	files, err := changedFiles(req)
 	if err != nil {
 		return candidate.Draft{}, err
@@ -127,7 +171,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
-	st := &state{trace: p.trace}
+	p.mem.SetGenerator(gen)
+	p.world.SetGenerator(gen)
+	st := &state{trace: p.trace, changeKey: changeKey(req)}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
@@ -223,6 +269,14 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 
 	for i := range cands {
+		if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
+			cands[i].Dropped = true
+			cands[i].DropReason = "suppressed: hmem " + rec.ID
+			if err := st.event(cands[i].ID, "memory", "hmem", "matched "+rec.ID); err != nil {
+				return candidate.Draft{}, err
+			}
+			continue
+		}
 		cands[i] = judge.Decide(cands[i])
 		if err := st.event(cands[i].ID, "verdict", "judge", cands[i].DropReason); err != nil {
 			return candidate.Draft{}, err
@@ -307,9 +361,10 @@ func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outc
 }
 
 type state struct {
-	trace  *trace.Writer
-	failed []candidate.Failure
-	models []candidate.ModelUse
+	trace     *trace.Writer
+	failed    []candidate.Failure
+	models    []candidate.ModelUse
+	changeKey string
 }
 
 func (s *state) event(id, kind, agent, text string) error {
@@ -342,6 +397,11 @@ func (s *state) refutation(c candidate.Candidate) error {
 			Refuted:   r.Refuted,
 			Reason:    r.Reason,
 		},
+		ChangeKey:   s.changeKey,
+		RuleID:      c.RuleID,
+		Path:        c.Path,
+		Title:       c.Title,
+		HasEvidence: judge.Evidenced(c.Evidence),
 	})
 }
 

@@ -16,6 +16,11 @@ func Decide(c candidate.Candidate) candidate.Candidate {
 	return c
 }
 
+// Evidenced reports whether Decide would keep a candidate with this evidence.
+func Evidenced(ev []candidate.Evidence) bool {
+	return counts(ev)
+}
+
 func counts(ev []candidate.Evidence) bool {
 	for _, e := range ev {
 		if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
