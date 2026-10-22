@@ -2,7 +2,7 @@
 
 - incident: I06 (a later round of the same incident as PV-007; a different finding)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -86,8 +86,25 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+- run: 2026-10-22, about 15:41 UTC.
+- toolchain: `go version go1.26.5 linux/amd64`, standard library only; Go module `pv008` in `tests/corpus/cases/PV-008/`
+  with packages `base`, `change`, `reference` and `check`. Node is not on this host's path and was not needed.
+- command, from the repository root: `bash tests/corpus/cases/PV-008/check.sh` (runs `go run ./check`).
+- wait limit per observation: 1 s. The reference bounds the stop at 100 ms.
+- output (columns: input | base | change | reference):
+
+```
+normal-close-then-late-subscriber | no-frame | frame:ended | frame:ended
+wedged-stop-then-late-subscriber | no-frame | no-frame | frame:ended+alarm:worker-not-released
+wedged-stop-then-read-state | state:closed | state:closed | state:closed
+wedged-stop-then-second-close | returned | blocked | returned
+```
+
+- exit code: 0.
+- author's choice where §2 is silent: a second close call on base returns at once when the state is already closed; on
+  change and on the reference it waits until the first close has stored and published the final frame.
 
 ## 9. Limits
 
