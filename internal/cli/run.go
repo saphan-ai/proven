@@ -253,7 +253,14 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	} else if have {
 		cfg.head = ev.PullRequest.Head.SHA
 	}
-	if explicitBaseline || cfg.baseline == "" {
+	if cfg.baseline == "" {
+		// An empty baseline reviews the whole target. ci requires a pull-request baseline.
+		if have {
+			return &cliError{code: exitFatal, msg: "ci: the event has no base SHA, and --baseline-commit and GITHUB_BASE_REF are unset"}
+		}
+		return &cliError{code: exitFatal, msg: "ci: no pull-request baseline: set --baseline-commit, or GITHUB_EVENT_PATH with a base SHA, or GITHUB_BASE_REF"}
+	}
+	if explicitBaseline {
 		return nil
 	}
 	if cfg.head == "" {
@@ -300,8 +307,9 @@ usage:
 
 TARGET defaults to ".". proven ci reads GITHUB_EVENT_PATH, GITHUB_SHA and
 GITHUB_BASE_REF. When no baseline flag or variable is set, the baseline is
-the merge base of the pull request base and the head. A base that cannot
-be resolved is exit 2: Proven could not review.
+the merge base of the pull request base and the head. With no baseline
+commit, no event base SHA and no GITHUB_BASE_REF, ci exits 2. A base that
+cannot be resolved is exit 2: Proven could not review.
 
 flags:
   --text, --json, --sarif

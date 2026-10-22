@@ -219,20 +219,22 @@ func TestCIDefaultConfigIsTheWorkspaceFile(t *testing.T) {
 	}
 	t.Chdir(outside)
 
+	// ci with no baseline exits 2 before open. This test checks the config
+	// path, so each call passes an explicit baseline.
 	t.Run("default", func(t *testing.T) {
-		got := runCIOpen(t, []string{"ci"}, workspace, "")
+		got := runCIOpen(t, []string{"ci", "--baseline-commit=from-flag"}, workspace, "")
 		if got != want {
 			t.Fatalf("ConfigPath %q, workspace file %q", got, want)
 		}
 	})
 	t.Run("flag", func(t *testing.T) {
-		got := runCIOpen(t, []string{"ci", "--config=" + flagPath}, workspace, "")
+		got := runCIOpen(t, []string{"ci", "--baseline-commit=from-flag", "--config=" + flagPath}, workspace, "")
 		if got != flagPath {
 			t.Fatalf("ConfigPath %q, flag %q", got, flagPath)
 		}
 	})
 	t.Run("variable", func(t *testing.T) {
-		got := runCIOpen(t, []string{"ci"}, workspace, envPath)
+		got := runCIOpen(t, []string{"ci", "--baseline-commit=from-flag"}, workspace, envPath)
 		if got != envPath {
 			t.Fatalf("ConfigPath %q, variable %q", got, envPath)
 		}
@@ -717,6 +719,75 @@ func TestCIMergeBaseIsTheForkPoint(t *testing.T) {
 	if cap.req.HeadCommit != head {
 		t.Fatalf("head %q", cap.req.HeadCommit)
 	}
+}
+
+func TestCIMissingContextExits2(t *testing.T) {
+	t.Run("no event no base ref no baseline", func(t *testing.T) {
+		code, opened, stdout, stderr := runCIOpened(t, []string{"ci"}, emptyEnv)
+		if code != exitFatal || opened {
+			t.Fatalf("exit %d opened %v stderr %q stdout %q", code, opened, stderr, stdout)
+		}
+		for _, want := range []string{"--baseline-commit", "GITHUB_EVENT_PATH", "GITHUB_BASE_REF"} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("stderr %q missing %s", stderr, want)
+			}
+		}
+	})
+	t.Run("event has no base", func(t *testing.T) {
+		dir := t.TempDir()
+		event := filepath.Join(dir, "event.json")
+		body := `{"pull_request":{"base":{"ref":"main","sha":""},"head":{"ref":"feature","sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}}`
+		if err := os.WriteFile(event, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, opened, stdout, stderr := runCIOpened(t, []string{"ci"}, envOf(map[string]string{
+			"GITHUB_EVENT_PATH": event,
+		}))
+		if code != exitFatal || opened {
+			t.Fatalf("exit %d opened %v stderr %q stdout %q", code, opened, stderr, stdout)
+		}
+		if !strings.Contains(stderr, "base SHA") {
+			t.Fatalf("stderr %q", stderr)
+		}
+	})
+	t.Run("malformed event", func(t *testing.T) {
+		dir := t.TempDir()
+		event := filepath.Join(dir, "event.json")
+		if err := os.WriteFile(event, []byte("{"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, opened, stdout, stderr := runCIOpened(t, []string{"ci"}, envOf(map[string]string{
+			"GITHUB_EVENT_PATH": event,
+		}))
+		if code != exitFatal || opened {
+			t.Fatalf("exit %d opened %v stderr %q stdout %q", code, opened, stderr, stdout)
+		}
+		if !strings.Contains(stderr, "GITHUB_EVENT_PATH") {
+			t.Fatalf("stderr %q", stderr)
+		}
+	})
+	t.Run("explicit baseline still reviews", func(t *testing.T) {
+		code, opened, stdout, stderr := runCIOpened(t, []string{"ci", "--baseline-commit=from-flag"}, emptyEnv)
+		if code != exitOK || !opened {
+			t.Fatalf("exit %d opened %v stderr %q stdout %q", code, opened, stderr, stdout)
+		}
+	})
+	t.Run("scan without baseline still reviews", func(t *testing.T) {
+		code, opened, stdout, stderr := runCIOpened(t, []string{"scan"}, emptyEnv)
+		if code != exitOK || !opened {
+			t.Fatalf("exit %d opened %v stderr %q stdout %q", code, opened, stderr, stdout)
+		}
+	})
+}
+
+func runCIOpened(t *testing.T, args []string, getenv func(string) string) (code int, opened bool, stdout, stderr string) {
+	t.Helper()
+	var out, errb bytes.Buffer
+	code = Run(args, getenv, &out, &errb, func(review.Options) (review.Reviewer, error) {
+		opened = true
+		return &captureReviewer{}, nil
+	})
+	return code, opened, out.String(), errb.String()
 }
 
 func TestCIUnresolvableBaseExits2(t *testing.T) {
