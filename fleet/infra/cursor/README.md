@@ -122,14 +122,6 @@ saphan config set probe.model.cursor grok-4.7-low,grok-4.7-medium,grok-4.7-high,
 - **confinement**: Landlock on Linux; the agent can write only its copy of the repository and its own seat files, and
   cannot read the seat's key or the machine's key.
 
-## Running one change: the commands
-
-<!-- DRAFT: filled from the reviewer train master's answer 818c8bdf84310f1b -->
-
-## What it costs
-
-<!-- DRAFT: filled from the reviewer train master's answer 818c8bdf84310f1b -->
-
 ## Where it runs today
 
 | shape | state, 22 October 2026 |
