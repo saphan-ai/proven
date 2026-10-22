@@ -21,6 +21,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/hmem"
+	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -52,6 +53,9 @@ type Options struct {
 	// SkepticModel is the skeptic's configured model. Empty means the Nemotron default.
 	// Sample mode does not read the environment to fill it.
 	SkepticModel string
+	// OSVTable is the package table the dependency check queries.
+	// Empty means osv.DefaultTable. Sample mode leaves this empty and does not read the environment.
+	OSVTable string
 }
 
 // Pipeline is one reviewer.
@@ -65,6 +69,7 @@ type Pipeline struct {
 	rail         guardrail.Adapter
 	guardOff     bool
 	skepticModel string
+	osvTable     string
 	atBoundary   func(stage string)
 	mem          *hmem.Store
 	world        *world.Store
@@ -109,7 +114,7 @@ func Build(opts Options) (*Pipeline, error) {
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
-		skepticModel: opts.SkepticModel, mem: mem, world: wm,
+		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, mem: mem, world: wm,
 	}
 	if !opts.GuardOff && p.rail == nil {
 		if opts.Sample {
@@ -322,9 +327,66 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
+	cands, err = p.addOSV(ctx, st, q, req.Target, fx.Snapshot, cands)
+	if err != nil {
+		if _, fatal := st.soften(ctx, err); fatal != nil {
+			if errors.Is(fatal, errPartial) {
+				return p.cut(st, cands, allow)
+			}
+			return candidate.Draft{}, fatal
+		}
+	}
 	return keep(writer.Write(writer.Input{
 		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
 	})), nil
+}
+
+// addOSV names added and raised modules without a model, queries the OSV
+// table, and compares versions in Go. A module with no affected row is a
+// trace line, not a finding.
+func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
+	if ctx.Err() != nil {
+		return cands, ctx.Err()
+	}
+	checked, err := osv.Check(ctx, q, root, p.osvTable, snapshot)
+	for _, note := range checked.Notes {
+		if e := st.event("osv", "osv", "osv", note); e != nil {
+			return nil, e
+		}
+	}
+	if checked.Down != nil {
+		st.note(checked.Down)
+	}
+	if err != nil {
+		return cands, err
+	}
+	for _, c := range checked.Candidates {
+		c = judge.Decide(c)
+		if e := st.trace.Append(trace.Event{
+			FindingID: c.ID, Kind: "claim", Agent: "osv", Text: c.Title,
+			RuleID: c.RuleID, Path: c.Path, Title: c.Title,
+		}); e != nil {
+			return nil, e
+		}
+		text := evidenceText(c)
+		if c.Message != "" && text != "none" {
+			text += "; " + c.Message
+		}
+		if e := st.trace.Append(trace.Event{
+			FindingID: c.ID,
+			Kind:      "evidence",
+			Agent:     "osv",
+			Text:      text,
+			Evidence:  traceEvidence(c.Evidence),
+		}); e != nil {
+			return nil, e
+		}
+		if e := st.event(c.ID, "verdict", "judge", c.DropReason); e != nil {
+			return nil, e
+		}
+		cands = append(cands, c)
+	}
+	return cands, nil
 }
 
 // runRefutation asks the prover or the investigator to run what the skeptic proposed.

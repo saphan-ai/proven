@@ -34,6 +34,10 @@ flowchart LR
 The model-calling agents (Planner, Investigator, Prover, Skeptic) speak to Meterless Nightshift. Every prompt and every
 answer passes the NVIDIA content-safety guardrail first.
 
+A dependency the change adds or raises is not named by those agents. Proven reads `go.mod`, queries the OSV package
+table once per module, and compares the version in Go. The Judge still decides: a matching range is evidence, and a
+version outside every range is a trace line, not a finding. See [OSV_TABLE.md](OSV_TABLE.md).
+
 ## What is kept, and where
 
 - **The trace** (`logs/trace.jsonl`): one JSON line per claim, evidence, refutation, verdict, guardrail check and model

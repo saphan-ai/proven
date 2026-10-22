@@ -52,9 +52,23 @@ finding F4 ERROR CVE-2026-0001 for leftpad v1.2.3 is on the KEV list
   (shortened)
   SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
   row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known
+finding osv:evil.example/leftpad ERROR Dependency evil.example/leftpad v1.2.3 is in an OSV affected range
+  go.mod:5-5
+  evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 <= v1.2.3 < fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 < introduced 2.0.0. alias CVE-2026-0001 is on the KEV list
+  evidence query local-sample snapshot=sample-2026-10-22
+  SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'
+  columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15
+  row: GHSA-px-sample-0002 |  | Go | evil.example/leftpad | 2.0.0 | 2.1.0 |  | LOW | 2026-03-01
+  evidence query local-sample snapshot=sample-2026-10-22
+  SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
+  columns: cve_id, vendor_project, product, date_added, known_ransomware
+  row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known
 failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
+
+The OSV finding was printed on 22 October 2026. The trace path above is the illustration path from the earlier run; a scan writes `logs/trace.jsonl` in the directory it starts from.
 
 Run from inside the repository, it refuses (exit code 2):
 
@@ -68,7 +82,7 @@ hmem: state directory <repository>/state/hmem is inside the repository
 |---|---|
 | `base/`, `change/` | Two copies of a tiny Go module: before and after the change |
 | `fixture.json` | The recorded model answers (`planner_response`, `responses`) and test outcomes (`recorded_tests`) |
-| `tables.sql` | The sample tables the queries run over: `advisories`, and the Zetaris-shaped views `px_evidence.px_kev_vulns`, `px_epss_cve_rows`, `px_epss_page_rows` and `px_osv_id` |
+| `tables.sql` | The sample tables the queries run over: `advisories`, the Zetaris-shaped views `px_evidence.px_kev_vulns`, `px_epss_cve_rows`, `px_epss_page_rows` and `px_osv_id`, and the OSV package table `px_osvfile.px_osv_pkg` |
 
 **The change** (`base/` → `change/`):
 
@@ -91,14 +105,16 @@ and in `go.mod`:
 | F2 leftpad v1.2.3 is known-exploited | reported | a query and its row in `advisories` |
 | F3 `note` may include a payment token | **dropped** | none: the Planner named it, nothing proved it; the trace says `dropped: no evidence` |
 | F4 CVE-2026-0001 is on the KEV list | reported | a query and its row in `px_evidence.px_kev_vulns` |
+| osv:evil.example/leftpad | reported | the OSV package query, both range rows, the comparison `introduced 1.0.0 <= v1.2.3 < fixed 1.2.4`, and the KEV row for the alias `CVE-2026-0001`. The row for `example.com/unused` is not returned |
 
 F3 is the point of the scenario: a plausible risk with no evidence never reaches the review.
 
 ## Read the trace
 
-`logs/trace.jsonl` holds one JSON line per event. The run above wrote 56 lines: 4 `claim`, 4 `evidence`,
+`logs/trace.jsonl` holds one JSON line per event. A sample run before this check wrote 56 lines: 4 `claim`, 4 `evidence`,
 4 `refutation`, 4 `verdict`, 13 `model` (one per model call, with its route, model and Nightshift receipt id when live),
-26 `guardrail` (each prompt and each answer checked) and 1 `selection`. F3's last line:
+26 `guardrail` (each prompt and each answer checked) and 1 `selection`. The dependency check adds one claim, one evidence
+line and one verdict. It does not call a model, so the model and guardrail counts stay. F3's last line:
 
 ```json
 {"finding_id":"F3","kind":"verdict","agent":"judge","text":"dropped: no evidence", …}

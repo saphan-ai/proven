@@ -10,6 +10,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
@@ -69,6 +70,11 @@ func open(opts Options) (Reviewer, error) {
 			return nil, queryConfig(zerr)
 		}
 		popts.LiveQuery = query.NewLive(zset, nil)
+		table, terr := osv.LoadTable(env)
+		if terr != nil {
+			return nil, osvConfig(terr)
+		}
+		popts.OSVTable = table
 		box, err := testrun.NewContainer(testrun.DefaultContainerConfig(), nil)
 		if err != nil {
 			d, ok := service.As(err)
@@ -214,6 +220,17 @@ func queryConfig(err error) error {
 
 func guardrailConfig(err error) error {
 	var cfg *guardrail.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+func osvConfig(err error) error {
+	var cfg *osv.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

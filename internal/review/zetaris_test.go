@@ -57,7 +57,9 @@ func TestZetarisUnauthorizedReviewCompletes(t *testing.T) {
 		"ZETARIS_API_KEY":  secret,
 		"ZETARIS_TIMEOUT":  "1s",
 	})
-	if calls != 1 {
+	// The investigator's KEV query, then the dependency check's OSV query.
+	// Both are refused. The review names the service once.
+	if calls != 2 {
 		t.Fatalf("zetaris calls %d", calls)
 	}
 	found := false

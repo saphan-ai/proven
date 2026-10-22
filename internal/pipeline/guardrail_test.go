@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/candidate"
@@ -61,8 +62,8 @@ func TestUnsafePromptStopsTheStepAndNamesCategories(t *testing.T) {
 	if posts != 1 {
 		t.Fatalf("guardrail posts %d", posts)
 	}
-	if len(d.Findings) != 0 {
-		t.Fatalf("findings %#v", d.Findings)
+	if id := modelFinding(d); id != "" {
+		t.Fatalf("the model produced %s", id)
 	}
 	assertGuardrail(t, d, "unsafe: Criminal Planning/Confessions, Other", "Criminal Planning/Confessions", "Other")
 }
@@ -86,8 +87,8 @@ func TestUnsafeAnswerIsNotUsed(t *testing.T) {
 	if posts != 2 {
 		t.Fatalf("guardrail posts %d", posts)
 	}
-	if len(d.Findings) != 0 {
-		t.Fatalf("the answer was used: %#v", d.Findings)
+	if id := modelFinding(d); id != "" {
+		t.Fatalf("the answer was used: %s", id)
 	}
 	raw := traceRaw(t, d.TracePath)
 	if bytes.Contains(raw, []byte(gen.last)) {
@@ -153,8 +154,8 @@ func TestClosedGuardrailRefusesTheStepByName(t *testing.T) {
 	if gen.calls != 0 {
 		t.Fatalf("the model ran %d times", gen.calls)
 	}
-	if len(d.Findings) != 0 {
-		t.Fatalf("findings %#v", d.Findings)
+	if id := modelFinding(d); id != "" {
+		t.Fatalf("the model produced %s", id)
 	}
 	assertGuardrail(t, d, "unreachable")
 	raw := traceRaw(t, d.TracePath)
@@ -204,6 +205,15 @@ func TestSafeGuardrailKeepsTheSampleFindings(t *testing.T) {
 	if len(d.Failed) != 0 {
 		t.Fatalf("failed %#v", d.Failed)
 	}
+}
+
+func modelFinding(d candidate.Draft) string {
+	for _, f := range d.Findings {
+		if !strings.HasPrefix(f.ID, "osv:") {
+			return f.ID
+		}
+	}
+	return ""
 }
 
 func reviewWithRail(t *testing.T, fx *fixture.Fixture, rail guardrail.Adapter, off bool) (candidate.Draft, *callCount) {

@@ -9,6 +9,7 @@ Read in this order.
 | [../demo/live/README.md](../demo/live/README.md) | a live review a judge can rerun: one finding proved by a test, one by Zetaris KEV | first version; the live run needs keys |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | the six agents and the pipeline, on one page | first version |
 | [CONFIGURATION.md](CONFIGURATION.md) | every setting the reviewer reads, its default and what it changes | first version; the shell's flags are added by the shell's track |
+| [OSV_TABLE.md](OSV_TABLE.md) | the OSV package table, the CSV converter, and how an administrator loads and refreshes it | first version |
 | [SETUP.md](SETUP.md) | running Proven live: Zetaris, Meterless Nightshift, the NVIDIA guardrail | written by the infrastructure track; not here yet |
 
 The design and its reasons are in [DESIGN.md](../DESIGN.md); every decision is in [fleet/decisions/](../fleet/decisions/).
