@@ -89,6 +89,16 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   (measured by a test).
 - **master-was-wrong:** —
 
+### W1c `the-reviewer-honours-the-request`
+- **added:** by the master, 2026-10-22, from two BLOCKING findings of the review of `proven-cli-and-action` W1b (message
+  `f8ca217af5e64c1b`): the reviewer ignored the request's baseline, head, include and exclude, and never read its
+  configuration file.
+- **what:** the request reaches the pipeline (changed files from the baseline, selection by include/exclude, a missing
+  baseline is fatal); the configuration file is read with a closed key set, refused by name on load (exit 7 in the shell).
+- **dod:** the test plan's nine cases, written by a separate test author, green on the implementation; `--exclude='*'`
+  prints no finding; `--baseline-commit=does-not-exist` fails naming it.
+- **master-was-wrong:** —
+
 ### W2 `the-generator-through-nightshift`
 - **what:** the live generator: Nightshift by default (ADR-0019), any OpenAI-compatible endpoint by setting; base URL,
   token and model or routing mode from the environment, validated on load (ADR-0013). Each review names the route and
