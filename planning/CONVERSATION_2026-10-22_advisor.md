@@ -100,7 +100,7 @@ Three Cursor agents on Grok, at once, on runner-cursor: the Prover in a containe
 
 > *"macm5 is barely alive :)"* · *"We'll survive somehow. The other masters are delivering their trains. In all, 13 trains are running at once right now, plus you and the scribe."*
 
-Proven's trains are some of the 13. The others belong to Saphan Studio's own work. They all run at once, under one owner, with one advisor and one scribe.
+Proven's trains are some of the 13. The others belong to Saphan Studio's own work. They all run at once, under one owner, with one advisor and one scribe. The owner corrected the picture: *"On macm5 it is only the orchestration; the rest runs on remote runners. And we also have Nightshift here :)"* Only the masters, the advisor, the scribe and the Nightshift virtual machine run on macm5. The coding agents run on remote runners, such as runner-cursor.
 
 ## Waiting for answers
 
