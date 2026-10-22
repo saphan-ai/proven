@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-// Event is one claim, piece of evidence, refutation or verdict.
+// Event is one claim, piece of evidence, refutation, verdict or guardrail check.
 type Event struct {
 	FindingID  string      `json:"finding_id"`
 	Kind       string      `json:"kind"`
@@ -17,6 +17,15 @@ type Event struct {
 	Text       string      `json:"text"`
 	Evidence   []Evidence  `json:"evidence,omitempty"`
 	Refutation *Refutation `json:"refutation,omitempty"`
+	Guardrail  *Check      `json:"guardrail,omitempty"`
+}
+
+// Check is one guardrail verdict: the side, the verdict, the categories and the latency.
+type Check struct {
+	Side       string   `json:"side,omitempty"`
+	Verdict    string   `json:"verdict,omitempty"`
+	Categories []string `json:"categories,omitempty"`
+	LatencyMS  int64    `json:"latency_ms"`
 }
 
 // Evidence is one piece of proof stored with its finding.
