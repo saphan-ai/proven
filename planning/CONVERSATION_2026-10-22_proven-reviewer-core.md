@@ -175,7 +175,7 @@ it completed, and every model-calling agent named `nvidia/nemotron-3.5-super-vl-
 The NVIDIA half of W1's retroactive review failed three more times: twice the model ended the session after one sentence, once
 the engine refused an agent-loop spawn with no declared endpoint. **Decisions (the owner):** route agent-loop through Nightshift
 (a lane `nightshift` on the Cursor runner, seat re-seated); then, via the advisor, NVIDIA reviews wait until the agent-loop
-harness is extended (track saphan-agent-onion). *"There are no qwen-nvidia seats any more, run it on Grok on Cursor."* The
+harness is extended (track saphan-agent-onion). *"There are no ███████████ seats any more, run it on Grok on Cursor."* The
 engine refuses review legs on Cursor (no permission surface for the role), so the second review is ordered on claude-code.
 
 ### 17 · the owner away: quiet mode, gates collected
