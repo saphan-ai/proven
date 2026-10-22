@@ -301,26 +301,24 @@ func readRecord(target, pattern string) (string, error) {
 	return b.String(), nil
 }
 
+// recordPaths returns regular files inside the review target. A symlink is
+// refused by name before it is read, and so is any path that resolves outside
+// the target. os.Stat and os.ReadFile follow links, so the check uses Lstat.
 func recordPaths(target, pattern string) ([]string, error) {
+	root, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return nil, err
+	}
 	if !strings.ContainsAny(pattern, "*?[") {
 		p := filepath.Join(target, filepath.FromSlash(pattern))
-		st, err := os.Stat(p)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return nil, nil
-			}
+		resolved, err := oneRecordPath(root, p, pattern)
+		if err != nil || resolved == "" {
 			return nil, err
 		}
-		if st.IsDir() {
-			return nil, &ConfigError{
-				Field: "author_record", Value: pattern, Reason: "path is a directory",
-				Allowed: []string{"off, or a relative path or pattern inside the review target"},
-			}
-		}
-		return []string{p}, nil
+		return []string{resolved}, nil
 	}
 	var matches []string
-	err := filepath.Walk(target, func(p string, info os.FileInfo, err error) error {
+	err = filepath.Walk(target, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -334,15 +332,66 @@ func recordPaths(target, pattern string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if pathMatches(pattern, filepath.ToSlash(rel)) {
-			matches = append(matches, p)
+		rel = filepath.ToSlash(rel)
+		if !pathMatches(pattern, rel) {
+			return nil
 		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return recordRefused(rel, "symlink")
+		}
+		resolved, err := filepath.EvalSymlinks(p)
+		if err != nil {
+			return err
+		}
+		if !pathInside(root, resolved) {
+			return recordRefused(rel, "path resolves outside the review target")
+		}
+		matches = append(matches, resolved)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return matches, nil
+}
+
+func oneRecordPath(root, p, pattern string) (string, error) {
+	st, err := os.Lstat(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		return "", recordRefused(pattern, "symlink")
+	}
+	if st.IsDir() {
+		return "", recordRefused(pattern, "path is a directory")
+	}
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return "", err
+	}
+	if !pathInside(root, resolved) {
+		return "", recordRefused(pattern, "path resolves outside the review target")
+	}
+	return resolved, nil
+}
+
+func recordRefused(value, reason string) *ConfigError {
+	return &ConfigError{
+		Field: "author_record", Value: value, Reason: reason,
+		Allowed: []string{"off, or a relative path or pattern inside the review target"},
+	}
+}
+
+func pathInside(root, resolved string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(resolved))
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 func authorStatement(models []AuthorModel, defaultReviewer string) string {

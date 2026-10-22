@@ -191,6 +191,64 @@ func TestSpecialReviewerIsAddedForSecurityOnly(t *testing.T) {
 	}
 }
 
+func TestSymlinkedRecordOutsideTheTargetIsRefused(t *testing.T) {
+	dir := copyFixtureTree(t)
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outside, []byte("Assisted-by: Outside:outside-model\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "MODEL.txt")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	path := writeConfig(t, "author_record: MODEL.txt\n")
+	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := rev.Review(context.Background(), review.Request{Target: dir})
+	if err == nil {
+		if strings.Contains(res.AuthorModelStatement, "outside-model") || strings.Contains(res.AuthorModelStatement, "from record") {
+			t.Fatalf("symlink was read: %s", res.AuthorModelStatement)
+		}
+		return
+	}
+	var cfg *review.ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != "author_record" || !strings.Contains(cfg.Reason, "symlink") {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cfg.Error(), "MODEL.txt") {
+		t.Fatalf("refusal does not name the link: %s", cfg.Error())
+	}
+}
+
+func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
+	dir := copyFixtureTree(t)
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outside, []byte("Assisted-by: Outside:outside-model\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "MODEL.txt")); err != nil {
+		t.Fatal(err)
+	}
+	path := writeConfig(t, "author_record: MODEL*.txt\n")
+	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := rev.Review(context.Background(), review.Request{Target: dir})
+	if err == nil {
+		if strings.Contains(res.AuthorModelStatement, "outside-model") || strings.Contains(res.AuthorModelStatement, "from record") {
+			t.Fatalf("symlink was read: %s", res.AuthorModelStatement)
+		}
+		return
+	}
+	var cfg *review.ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != "author_record" || !strings.Contains(cfg.Reason, "symlink") {
+		t.Fatal(err)
+	}
+}
+
 func TestUnknownFamilyAndUnknownClassAreRefusedOnLoad(t *testing.T) {
 	path := writeConfig(t, "families: gemini-*=Google\n")
 	_, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
