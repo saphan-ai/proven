@@ -191,6 +191,47 @@ func TestSpecialReviewerIsAddedForSecurityOnly(t *testing.T) {
 	}
 }
 
+func TestChangeCannotChooseItsOwnStrictness(t *testing.T) {
+	dir := copyFixtureTree(t)
+	gitRun(t, dir, "init")
+	if err := os.WriteFile(filepath.Join(dir, "proven.yaml"), []byte("default_reviewer: from-base\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "add", "-A")
+	gitRun(t, dir, "commit", "-m", "[fixture] change: base")
+	base := strings.TrimSpace(string(gitRun(t, dir, "rev-parse", "HEAD")))
+
+	// A root go.mod is outside base/ and change/, so the sample fixture hash stays
+	// put. Under the base rules it is security; the change's proven.yaml would make it docs.
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lower := "default_reviewer: from-change\npath_rules: **=docs\nclass_order: docs, user interface, mobile, backend, security\ndoubled_classes: off\n"
+	if err := os.WriteFile(filepath.Join(dir, "proven.yaml"), []byte(lower), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rev := openSample(t, t.TempDir())
+	res, err := rev.Review(context.Background(), review.Request{
+		Target: dir, BaselineCommit: base,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Class != "security" || res.ClassRule != "go.mod" {
+		t.Fatalf("class %s rule %s; the change's proven.yaml was applied", res.Class, res.ClassRule)
+	}
+	if !res.Doubled {
+		t.Fatal("security was not doubled; the change turned doubling off")
+	}
+	if res.SettingsStatement != "the change edits proven.yaml" {
+		t.Fatalf("settings statement %q", res.SettingsStatement)
+	}
+	if res.DefaultReviewer != "from-base" {
+		t.Fatalf("reviewer %q; settings were not read from the baseline", res.DefaultReviewer)
+	}
+}
+
 func TestSymlinkedRecordOutsideTheTargetIsRefused(t *testing.T) {
 	dir := copyFixtureTree(t)
 	outside := filepath.Join(t.TempDir(), "outside.txt")

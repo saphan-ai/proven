@@ -51,6 +51,12 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 	out.ReviewerStatements = lines
 	out.AuthorModels = authors
 	out.AuthorModelStatement = authorStatement(authors, cfg.DefaultReviewer)
+	for _, f := range files {
+		if f == "proven.yaml" {
+			out.SettingsStatement = "the change edits proven.yaml"
+			break
+		}
+	}
 	return nil
 }
 

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/saphan-ai/proven/internal/change"
 )
 
 const configKeyTimeout = "timeout"
@@ -156,8 +158,22 @@ func loadConfigFile(path string) (fileSettings, error) {
 	return parseConfig(b)
 }
 
+// loadSettingsAtBaseline reads proven.yaml as it is in the baseline commit.
+// The change's copy is not consulted. A change must not choose how strictly
+// it is reviewed. A baseline with no proven.yaml is the defaults.
+func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
+	b, ok, err := change.Blob(target, baseline, "proven.yaml")
+	if err != nil {
+		return fileSettings{}, err
+	}
+	if !ok {
+		return defaultSettings(), nil
+	}
+	return parseConfig(b)
+}
+
 // loadSettingsInTarget reads proven.yaml in the review target when Open was
-// given no path. A missing file is the defaults.
+// given no path and the request has no baseline commit. A missing file is the defaults.
 func loadSettingsInTarget(target string) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
 	st, err := os.Stat(path)

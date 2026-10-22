@@ -94,7 +94,13 @@ type runner struct {
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	cfg := r.cfg
 	if !r.explicit {
-		loaded, err := loadSettingsInTarget(req.Target)
+		var loaded fileSettings
+		var err error
+		if req.BaselineCommit != "" {
+			loaded, err = loadSettingsAtBaseline(req.Target, req.BaselineCommit)
+		} else {
+			loaded, err = loadSettingsInTarget(req.Target)
+		}
 		if err != nil {
 			return Result{}, err
 		}

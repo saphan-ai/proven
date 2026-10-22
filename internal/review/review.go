@@ -90,6 +90,7 @@ type Result struct {
 	ReviewerStatements   []string         // one line per reviewer, plus a line when the special model is not configured
 	AuthorModels         []AuthorModel    // models the change named; empty means none were stated
 	AuthorModelStatement string           // "author model not stated" when the change names no model
+	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
 }
 
 // AuthorModel is one model the change named (ADR-0011).

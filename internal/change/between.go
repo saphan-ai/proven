@@ -43,6 +43,35 @@ func Between(target, baseline, head string) ([]string, error) {
 	return uniqueSorted(names), nil
 }
 
+// Blob reads one file from rev. ok is false when that path is not in the commit.
+// A missing path is not an error. The caller decides what the absence means.
+func Blob(target, rev, rel string) ([]byte, bool, error) {
+	if err := ensureCommit(target, rev, "baseline"); err != nil {
+		return nil, false, err
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "" || strings.HasPrefix(rel, "/") || strings.Contains(rel, "..") {
+		return nil, false, fmt.Errorf("git: path %q leaves the tree", rel)
+	}
+	cmd := exec.Command("git", "-C", target, "show", "--end-of-options", rev+":"+rel)
+	out, err := cmd.Output()
+	if err == nil {
+		return out, true, nil
+	}
+	ee, ok := err.(*exec.ExitError)
+	if !ok {
+		return nil, false, fmt.Errorf("git: %w", err)
+	}
+	msg := strings.TrimSpace(string(ee.Stderr))
+	if strings.Contains(msg, "does not exist") || strings.Contains(msg, "exists on disk, but not in") {
+		return nil, false, nil
+	}
+	if msg == "" {
+		msg = err.Error()
+	}
+	return nil, false, fmt.Errorf("git: %s", msg)
+}
+
 // Messages returns the commit messages between baseline and head, oldest first.
 // The baseline commit itself is not included. An empty head means HEAD.
 // Proven reads these messages. It does not write a trailer.
