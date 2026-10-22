@@ -52,6 +52,9 @@ type Options struct {
 	// SkepticModel is the skeptic's configured model. Empty means the Nemotron default.
 	// Sample mode does not read the environment to fill it.
 	SkepticModel string
+	// MaxWrittenBytes is the loaded container limit for a test the prover writes.
+	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
+	MaxWrittenBytes int
 }
 
 // Pipeline is one reviewer.
@@ -65,6 +68,8 @@ type Pipeline struct {
 	rail         guardrail.Adapter
 	guardOff     bool
 	skepticModel string
+	env          func(string) string
+	maxWritten   int
 	atBoundary   func(stage string)
 	mem          *hmem.Store
 	world        *world.Store
@@ -73,7 +78,8 @@ type Pipeline struct {
 // Build opens the trace. Sample mode uses the recorded adapters. Those
 // adapters do not dial, so sample mode holds no HTTP client.
 func Build(opts Options) (*Pipeline, error) {
-	// opts.Env is not called. review.Open loads the live generator before Build.
+	// opts.Env is not read here. review.Open loads live settings before Build.
+	// adapters reads Env when a live review left TestRun unset.
 	// Sample mode reads no key.
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("pipeline: logs directory is empty")
@@ -109,7 +115,7 @@ func Build(opts Options) (*Pipeline, error) {
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
-		skepticModel: opts.SkepticModel, mem: mem, world: wm,
+		skepticModel: opts.SkepticModel, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
 	}
 	if !opts.GuardOff && p.rail == nil {
 		if opts.Sample {
@@ -119,6 +125,15 @@ func Build(opts Options) (*Pipeline, error) {
 		}
 	}
 	return p, nil
+}
+
+// writtenLimit is the size cap for a test the prover writes.
+// Zero means the container default, which sample mode keeps.
+func (p *Pipeline) writtenLimit() int {
+	if p == nil || p.maxWritten <= 0 {
+		return testrun.DefaultMaxWrittenBytes
+	}
+	return p.maxWritten
 }
 
 // boundary lets a test cancel the context at one named stage. Production leaves it unset.
@@ -250,7 +265,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		next, err := prover.Prove(ctx, cands[i], gen, run, prover.Options{
 			BaseDir:         filepath.Join(fx.Root, "base"),
 			ChangeDir:       filepath.Join(fx.Root, "change"),
-			MaxWrittenBytes: testrun.DefaultMaxWrittenBytes,
+			MaxWrittenBytes: p.writtenLimit(),
 		})
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -440,7 +455,14 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 		if p.sample {
 			run = testrun.NewSample(fx.Tests)
 		} else {
-			c, nerr := testrun.NewContainer(testrun.DefaultContainerConfig(), nil)
+			cfg, lerr := testrun.Load(p.env)
+			if lerr != nil {
+				return nil, nil, nil, lerr
+			}
+			if p.maxWritten <= 0 {
+				p.maxWritten = cfg.MaxWrittenBytes
+			}
+			c, nerr := testrun.NewContainer(cfg, nil)
 			if nerr != nil {
 				d, ok := service.As(nerr)
 				if !ok {
