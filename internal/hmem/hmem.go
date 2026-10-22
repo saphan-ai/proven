@@ -380,6 +380,26 @@ func (s *Store) Clear() error {
 	return s.persist()
 }
 
+// MarkSuperseded records that id was replaced by by.
+// Both records stay. Query ranks the superseded one lower.
+func (s *Store) MarkSuperseded(id, by string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.records[id]
+	if !ok {
+		return fmt.Errorf("hmem: unknown memory %s", id)
+	}
+	if _, ok := s.records[by]; !ok {
+		return fmt.Errorf("hmem: unknown memory %s", by)
+	}
+	rec.SupersededBy = by
+	s.records[id] = rec
+	if err := s.audit("update", id, "retrieval"); err != nil {
+		return err
+	}
+	return s.persist()
+}
+
 // Get returns one record.
 func (s *Store) Get(id string) (Record, bool) {
 	s.mu.Lock()
