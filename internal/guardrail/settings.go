@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
 // Environment variables of the guardrail. The set is closed: Load reads these
@@ -39,6 +41,40 @@ const (
 	// defaultTimeout sits above the measured warm range of 156–706 ms.
 	defaultTimeout = 5 * time.Second
 )
+
+// Environment lists the guardrail settings in the order the page shows.
+// Each Name is the Env constant beside this function. Base URL and model
+// have one default per mode, so those cells name both.
+func Environment() []envdoc.Setting {
+	return []envdoc.Setting{
+		{
+			Name:        EnvMode,
+			Default:     envdoc.Tick(defaultMode),
+			Description: "`server` (your own model server), `nvidia` (NVIDIA's hosted API) or `off` (the trace says \"no guardrail\")",
+		},
+		{
+			Name:        EnvBaseURL,
+			Default:     envdoc.Tick(defaultServerBase) + " for `server`; " + envdoc.Tick(defaultNVIDIABase) + " for `nvidia`",
+			Description: "the guardrail's address",
+		},
+		{
+			Name:        EnvModel,
+			Default:     envdoc.Tick(defaultServerModel) + " for `server`; " + envdoc.Tick(defaultNVIDIAModel) + " for `nvidia`",
+			Description: "the safety model. The hosted id is not yet confirmed by a live call",
+		},
+		{
+			Name:        EnvKey,
+			Default:     "none",
+			Secret:      true,
+			Description: "the guardrail's key. Secret: never printed",
+		},
+		{
+			Name:        EnvTimeout,
+			Default:     envdoc.Tick(envdoc.SecondSpec(defaultTimeout)),
+			Description: "the limit for one check",
+		},
+	}
+}
 
 // ConfigError names a refused guardrail setting and the values that are allowed.
 // Value is empty when the field is the key: the secret is never printed.

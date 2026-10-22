@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
 // Environment variables of the live Zetaris adapter. The set is closed.
@@ -24,6 +26,40 @@ const (
 	defaultRowLimit = 100
 	defaultTimeout  = 60 * time.Second
 )
+
+// Environment lists the live Zetaris settings in the order the page shows.
+// Each Name is the Env constant beside this function. The evidence view is
+// not here: livecheck owns it.
+func Environment() []envdoc.Setting {
+	return []envdoc.Setting{
+		{
+			Name:        EnvRESTURL,
+			Default:     "none (required live)",
+			Description: "Zetaris's REST address; an absolute `http` or `https` URL with no user info, query or fragment",
+		},
+		{
+			Name:        EnvAPIKey,
+			Default:     "none (required live)",
+			Secret:      true,
+			Description: "Proven's Zetaris key. Secret: never printed",
+		},
+		{
+			Name:        EnvOrgID,
+			Default:     "none (required live)",
+			Description: "the organisation id sent with each query",
+		},
+		{
+			Name:        EnvRowLimit,
+			Default:     envdoc.Tick(strconv.Itoa(defaultRowLimit)),
+			Description: "the most rows one query returns",
+		},
+		{
+			Name:        EnvTimeout,
+			Default:     envdoc.Tick(envdoc.SecondSpec(defaultTimeout)),
+			Description: "the limit for one query",
+		},
+	}
+}
 
 // ConfigError names a refused Zetaris setting and the values that are allowed.
 // The API key's Value is always empty: a refusal does not print the secret.

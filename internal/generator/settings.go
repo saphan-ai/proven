@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
 // Environment variables of the live generator. The set is closed: Load reads
@@ -32,6 +34,49 @@ const (
 	defaultTimeout = 60 * time.Second
 	defaultRequire = "all"
 )
+
+// Environment lists the live-generator settings in the order the page shows.
+// Each Name is the Env constant beside this function.
+func Environment() []envdoc.Setting {
+	return []envdoc.Setting{
+		{
+			Name:        EnvToken,
+			Default:     "none (required live)",
+			Secret:      true,
+			Description: "the runtime token sent to Nightshift. Secret: never printed",
+		},
+		{
+			Name:        EnvBaseURL,
+			Default:     envdoc.Tick(defaultBaseURL),
+			Description: "Nightshift's address",
+		},
+		{
+			Name:        EnvApp,
+			Default:     envdoc.Tick(defaultApp),
+			Description: "the application name sent with each call",
+		},
+		{
+			Name:        EnvModel,
+			Default:     envdoc.Tick(defaultModel),
+			Description: "the model asked for; Nightshift's router chooses when `auto`",
+		},
+		{
+			Name:        EnvTimeout,
+			Default:     envdoc.Tick(envdoc.SecondSpec(defaultTimeout)),
+			Description: "the limit for one model call",
+		},
+		{
+			Name:        EnvRequireNVIDIA,
+			Default:     envdoc.Tick(defaultRequire),
+			Description: "which agents must be answered by an `nvidia/*` model (by the stream's receipt); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name",
+		},
+		{
+			Name:        EnvSkepticModel,
+			Default:     envdoc.Tick(DefaultSkepticModel),
+			Description: "the Skeptic's model (ADR-0006: another family than the finder's)",
+		},
+	}
+}
 
 // agents is the closed set a require-NVIDIA list may name.
 var agents = []string{"planner", "investigator", "prover", "skeptic", "judge", "writer"}

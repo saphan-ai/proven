@@ -13,6 +13,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/query"
 )
 
@@ -167,7 +168,7 @@ func TestGuardrailOffBySettingDoesNotCall(t *testing.T) {
 func TestBadEvidenceViewIsNotSent(t *testing.T) {
 	w := newWorld(t, "ready")
 	var stdout, stderr bytes.Buffer
-	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{envEvidenceView: "px_evidence.bad;drop"}))
+	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{livecheck.EnvEvidenceView: "px_evidence.bad;drop"}))
 	body := stdout.String() + stderr.String()
 	if code == 0 {
 		t.Fatalf("exit 0\n%s", body)
@@ -183,7 +184,7 @@ func TestBadEvidenceViewIsNotSent(t *testing.T) {
 func TestQueryUsesTheConfiguredView(t *testing.T) {
 	w := newWorld(t, "ready")
 	var stdout, stderr bytes.Buffer
-	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{envEvidenceView: "px_evidence.px_epss_cve_rows"}))
+	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{livecheck.EnvEvidenceView: "px_evidence.px_epss_cve_rows"}))
 	body := stdout.String() + stderr.String()
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, body)
