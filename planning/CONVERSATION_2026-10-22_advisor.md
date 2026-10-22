@@ -98,7 +98,9 @@ Three Cursor agents on Grok, at once, on runner-cursor: the Prover in a containe
 
 ![Three Proven runs on Cursor, model Grok 4.7 high, running at once on runner-cursor](../assets/build/2026-10-22_three-cursor-runs-on-grok.png)
 
-> *"macm5 is barely alive :)"*
+> *"macm5 is barely alive :)"* · *"We'll survive somehow. The other masters are delivering their trains. In all, 13 trains are running at once right now, plus you and the scribe."*
+
+Proven's trains are some of the 13. The others belong to Saphan Studio's own work. They all run at once, under one owner, with one advisor and one scribe.
 
 ## Waiting for answers
 
