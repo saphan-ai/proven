@@ -23,6 +23,9 @@ var exemptBanned = map[string]map[string]string{
 	"internal/change/between.go": {
 		"os/exec": "git read commands (rev-parse, diff, ls-files, log) name changed files and read commit messages; they do not run the change",
 	},
+	"internal/cli/run.go": {
+		"os/exec": "git merge-base names the fork point and does not run the change",
+	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",
 	},

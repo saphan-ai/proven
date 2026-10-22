@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/review"
@@ -63,12 +65,44 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			return err
 		}
 	}
+	if sentence := familySentence(result.TracePath); sentence != "" {
+		if _, err := fmt.Fprintln(w, sentence); err != nil {
+			return err
+		}
+	}
 	if result.TracePath != "" {
 		if _, err := fmt.Fprintf(w, "trace: %s\n", result.TracePath); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// familySentence is the review's same-family line, when the trace has one.
+func familySentence(path string) string {
+	if path == "" {
+		return ""
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range bytes.Split(b, []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var e struct {
+			Kind string `json:"kind"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(line, &e); err != nil {
+			continue
+		}
+		if e.Kind == "family" && e.Text != "" {
+			return e.Text
+		}
+	}
+	return ""
 }
 
 func writeFinding(w io.Writer, finding review.Finding) error {
@@ -78,6 +112,11 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	}
 	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", name, finding.Severity, finding.Title); err != nil {
 		return err
+	}
+	if finding.Unresolved {
+		if _, err := fmt.Fprintln(w, "  unresolved"); err != nil {
+			return err
+		}
 	}
 	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", finding.Location.Path, finding.Location.StartLine, finding.Location.EndLine); err != nil {
 		return err

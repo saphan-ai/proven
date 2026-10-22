@@ -539,10 +539,20 @@ func TestScanWithoutSampleOnBareTargetExits2(t *testing.T) {
 	t.Chdir(t.TempDir())
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan", "somewhere"}, func(k string) string {
-		if k == "METERLESS_RUNTIME_TOKEN" {
+		switch k {
+		case "METERLESS_RUNTIME_TOKEN":
 			return "test-token"
+		case "PROVEN_GUARDRAIL_MODE":
+			return "off"
+		case "ZETARIS_REST_URL":
+			return "http://127.0.0.1:9"
+		case "ZETARIS_API_KEY":
+			return "test-key"
+		case "ZETARIS_ORG_ID":
+			return "1"
+		default:
+			return ""
 		}
-		return ""
 	}, &stdout, &stderr, nil)
 	if code != exitFatal {
 		t.Fatalf("exit %d stderr %s", code, stderr.String())
