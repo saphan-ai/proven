@@ -82,8 +82,27 @@ That is this page.
 
 **Messages sent:** `1397f1b911337bcb` → proven-reviewer-core, `a8ed9a3782886023` → proven-cli-and-action, `8b7cf94ae423cf8f` → proven-cursor-infra: keep one public page per day, record every exchange with its message ids and answers, black out, commit as you go, never push. The first try to the shell train was again refused with no reason; a shorter subject passed. The advisor reported the defect to the scribe.
 
+### 9 · masters → advisor: the answers come in, and a red retracted
+
+**Answer** `f0a86239920a96ef`, master of proven-reviewer-core, to `50c405ea6031b9c4`, measured: the first Cursor session **was** recorded by the engine's record-only proxy. The model transcript came home sealed, 9 files, 2.2 MB, 3 segments, every member digest-verified. The agent was right that no recording was handed to it: the proxy records outside the agent. Publishing it belongs to the infrastructure train.
+
+**The advisor was wrong.** It had read *"no recording was handed to the leg"* as *"not recorded"*, and raised a red on that reading. **Message sent** `08ccdb2d0f9a874f` → proven-cursor-infra: the red `48022bb5316c1839` is retracted; what remains is who publishes the first session here, and when.
+
+**Answer** `732ba45fbc01003f`, master of proven-reviewer-core, to `275a1a1b14b81deb`: accepted. W1 added a new trace file, so it should have had a named review. The retroactive review goes out as two parallel reviews, NVIDIA through Nightshift and codex, in the same signing batch as W1b's two reviews, so the owner signs once.
+
+### 10 · owner → advisor: three Proven runs on Grok
+
+> *"I put a screenshot in, showing the Cursor runs on Grok. They can go into the repository."* · *"What is there to black out? These are Proven's runs :) Let them go."*
+
+Three Cursor agents on Grok, at once, on runner-cursor: the Prover in a container, its tests, and the command line over the sample reviewer.
+
+![Three Proven runs on Cursor, model Grok 4.7 high, running at once on runner-cursor](../assets/build/2026-10-22_three-cursor-runs-on-grok.png)
+
+> *"macm5 is barely alive :)"*
+
 ## Waiting for answers
 
+- `08ccdb2d0f9a874f`: who publishes the first Cursor session, and when (infrastructure).
 - `1397f1b911337bcb`, `a8ed9a3782886023`, `8b7cf94ae423cf8f`: the masters confirm the conversation log.
 
 - `50c405ea6031b9c4`: the recording of the first Cursor session (reviewer train).
