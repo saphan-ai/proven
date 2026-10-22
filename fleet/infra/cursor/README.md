@@ -60,15 +60,9 @@ flowchart TD
    (step 4). Cursor itself runs with `--trust --sandbox disabled`, because the boundary sits outside it. A grant is
    always the owner's act, and it reaches only the run it is provisioned to.
 4. **The egress door.** A per-run door starts first: a SOCKS5 socket in the run's own private folder, which the agent
-   cannot write. It judges every connection against the run's policy and books each decision. The policy a proven
-   Cursor run used today (`baseline-cursor-v1+egress-workload-go-v1+egress-workload-npm-v1`):
-   ```json
-   {"id": "vendor-cursor-model-endpoint-proxy-upstream", "hosts": ["api2.cursor.sh"], "ports": [443], "verdict": "allow"},
-   {"id": "workload-go-go-module-proxy", "hosts": ["proxy.golang.org"], "ports": [443], "verdict": "allow"},
-   {"id": "workload-go-go-checksum-database", "hosts": ["sum.golang.org"], "ports": [443], "verdict": "allow"},
-   {"id": "workload-npm-npm-registry", "hosts": ["registry.npmjs.org"], "ports": [443], "verdict": "allow"}
-   ```
-   Anything not on the list is refused.
+   cannot write. It judges every connection against the run's policy and books each decision. For a proven Go change
+   today, the policy allows exactly four places, all on port 443: Cursor's model API (through the recording proxy),
+   the Go module proxy, the Go checksum database, and the npm registry. Anything else is refused.
 5. **The network wall.** The agent gets its own network namespace. Inside it, DNS and port 443 lead only to the door,
    so a program that ignores proxy settings still cannot get out another way. Host sockets outside the kept paths are
    masked.
@@ -99,20 +93,13 @@ The door booked two decisions, both permitted: `api2.cursor.sh:443` (the model, 
 ## A Cursor seat: the setup
 
 A **seat** is one Cursor account on one machine, in its own home directory, so its login and session files never mix with
-another account's. Four accounts are seated on runner-cursor, one on macm5. Seating is the owner's act:
-
-```bash
-saphan machine seat --identity cursor-fleet-3-1 --machine runner-cursor --slot 1 \
-  --role executor --backend cursor --billing-class subscription \
-  --config-dir '$HOME/.cursor-fleet-3-1'
-saphan machine set-account --identity cursor-fleet-3-1 --account cursor-2df82fef6b0f1509
-saphan config set probe.model.cursor grok-4.7-low,grok-4.7-medium,grok-4.7-high,grok-4.7-xhigh
-```
+another account's. Four accounts are seated on runner-cursor. Seating a Cursor account is the owner's act, and each
+seat records:
 
 - **role** `executor`: these seats write proven's code; reviews run on other model families.
 - **billing class** `subscription`: Cursor's plan pays, so the scarce thing is the account's allowance; no dollar cap
   stops a run — the order's wall time does.
-- **account**: an opaque digest that tells the scheduler which seats share one Cursor account. Four seats, four accounts.
+- **account**: which seats share one Cursor account, so the scheduler never overdraws one. Four seats, four accounts.
 - **model**: Grok takes its effort in its name: `grok-4.7-high` by default, `-medium` or `-xhigh` when an order says so.
   The bracket form `grok-4.7[effort=high]` is refused by Cursor's CLI for Grok (measured 22 October).
 - **the seat's Cursor settings** (`.cursor/cli-config.json` in its home): `network.useHttp1ForAgent: true`, so the
