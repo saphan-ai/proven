@@ -12,7 +12,7 @@ import (
 
 // querySpec is the JSON the investigator asks a model to return.
 var querySpec = answer.Spec{
-	Task:    "Write one SQL query that would confirm this risk.",
+	Task:    "Write one SQL query that would confirm this risk. For a CVE query px_evidence.px_kev_vulns. For an EPSS score query px_evidence.px_epss_cve_rows. For an advisory id query px_evidence.px_osv_id. Do not treat a missing row as not exploited.",
 	Shape:   "one JSON object. It has sql (string).",
 	Example: `{"sql":"SELECT 1"}`,
 }
@@ -42,10 +42,14 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	if len(res.Rows) == 0 {
 		return c, nil
 	}
+	snap := snapshot
+	if res.Snapshot != "" {
+		snap = res.Snapshot
+	}
 	c.Evidence = append(c.Evidence, candidate.Evidence{
 		Kind: candidate.KindQuery,
 		Query: &candidate.QueryEvidence{
-			SQL: res.SQL, Engine: res.Engine, Snapshot: snapshot,
+			SQL: res.SQL, Engine: res.Engine, Snapshot: snap,
 			Columns: res.Columns, Rows: res.Rows,
 		},
 	})

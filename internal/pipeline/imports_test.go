@@ -77,6 +77,11 @@ func TestSamplePackagesDoNotImportNetOrExec(t *testing.T) {
 			if rel == "internal/generator/live.go" && p == "net/http" {
 				continue
 			}
+			// query/live.go is the Zetaris REST client. sample.go and the
+			// local engine still must not import net or net/http.
+			if rel == "internal/query/live.go" && p == "net/http" {
+				continue
+			}
 			t.Errorf("%s imports %s", rel, p)
 		}
 		return nil

@@ -37,6 +37,8 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
+	// LiveQuery, when set, is the Zetaris adapter. Sample mode does not use it.
+	LiveQuery query.Adapter
 }
 
 // Pipeline is one reviewer.
@@ -45,6 +47,7 @@ type Pipeline struct {
 	testRun    testrun.Adapter
 	proverIdle string
 	gen        generator.Generator
+	liveQuery  query.Adapter
 	trace      *trace.Writer
 	guard      *netguard.Guard
 	atBoundary func(stage string)
@@ -61,7 +64,10 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Pipeline{sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, gen: opts.Generator, trace: tw}
+	p := &Pipeline{
+		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
+		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw,
+	}
 	if opts.Sample {
 		p.guard = &netguard.Guard{}
 		p.guard.Arm()
@@ -254,10 +260,13 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 		}
 	} else if p.gen != nil {
 		gen = p.gen
-		q = query.Live{}
+		q = p.liveQuery
 	} else {
 		gen = &generator.Live{}
-		q = query.Live{}
+		q = p.liveQuery
+	}
+	if !p.sample && q == nil {
+		q = &query.Live{}
 	}
 	run := p.testRun
 	if run == nil {

@@ -31,23 +31,38 @@
       "path": "billing/discount.go",
       "start_line": 8,
       "end_line": 8
+    },
+    {
+      "id": "F4",
+      "rule_id": "known-exploited-cve",
+      "title": "CVE-2026-0001 for leftpad v1.2.3 is on the KEV list",
+      "message": "The change requires evil.example/leftpad v1.2.3. The sample KEV view has CVE-2026-0001 for that advisory.",
+      "severity": "ERROR",
+      "path": "go.mod",
+      "start_line": 5,
+      "end_line": 5
     }
   ],
   "responses": [
     {
       "agent": "investigator",
-      "prompt": "Task: Write one SQL query that would confirm this risk.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F1\ntitle: Discount is applied twice\npath: billing/discount.go\n",
+      "prompt": "Task: Write one SQL query that would confirm this risk. For a CVE query px_evidence.px_kev_vulns. For an EPSS score query px_evidence.px_epss_cve_rows. For an advisory id query px_evidence.px_osv_id. Do not treat a missing row as not exploited.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F1\ntitle: Discount is applied twice\npath: billing/discount.go\n",
       "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'billing/discount' AND version = 'change'\"}"
     },
     {
       "agent": "investigator",
-      "prompt": "Task: Write one SQL query that would confirm this risk.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\npath: go.mod\n",
+      "prompt": "Task: Write one SQL query that would confirm this risk. For a CVE query px_evidence.px_kev_vulns. For an EPSS score query px_evidence.px_epss_cve_rows. For an advisory id query px_evidence.px_osv_id. Do not treat a missing row as not exploited.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\npath: go.mod\n",
       "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'\"}"
     },
     {
       "agent": "investigator",
-      "prompt": "Task: Write one SQL query that would confirm this risk.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F3\ntitle: note may include a payment token\npath: billing/discount.go\n",
+      "prompt": "Task: Write one SQL query that would confirm this risk. For a CVE query px_evidence.px_kev_vulns. For an EPSS score query px_evidence.px_epss_cve_rows. For an advisory id query px_evidence.px_osv_id. Do not treat a missing row as not exploited.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F3\ntitle: note may include a payment token\npath: billing/discount.go\n",
       "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'billing/note' AND version = 'change'\"}"
+    },
+    {
+      "agent": "investigator",
+      "prompt": "Task: Write one SQL query that would confirm this risk. For a CVE query px_evidence.px_kev_vulns. For an EPSS score query px_evidence.px_epss_cve_rows. For an advisory id query px_evidence.px_osv_id. Do not treat a missing row as not exploited.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\npath: go.mod\n",
+      "response": "{\"sql\":\"SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'\"}"
     },
     {
       "agent": "prover",
@@ -65,6 +80,11 @@
       "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
     },
     {
+      "agent": "prover",
+      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
+      "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
+    },
+    {
       "agent": "skeptic",
       "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean) and reason (string).\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\"}\n\nid: F1\ntitle: Discount is applied twice\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
@@ -77,6 +97,11 @@
     {
       "agent": "skeptic",
       "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean) and reason (string).\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\"}\n\nid: F3\ntitle: note may include a payment token\n",
+      "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
+    },
+    {
+      "agent": "skeptic",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean) and reason (string).\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     }
   ],

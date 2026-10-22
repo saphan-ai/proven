@@ -6,8 +6,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/saphan-ai/proven/internal/agent/investigator"
+	"github.com/saphan-ai/proven/internal/agent/prover"
+	"github.com/saphan-ai/proven/internal/agent/skeptic"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
@@ -126,8 +130,8 @@ func TestProseTwiceDegradesByNameAndDropsUnevidenced(t *testing.T) {
 	if d.Partial {
 		t.Fatal("partial")
 	}
-	if wrap.calls != 6 {
-		t.Fatalf("skeptic calls %d, want 6 (one repair each for F1, F2 and F3)", wrap.calls)
+	if wrap.calls != 8 {
+		t.Fatalf("skeptic calls %d, want 8 (one repair each for F1, F2, F3 and F4)", wrap.calls)
 	}
 	named := false
 	for _, f := range d.Failed {
@@ -191,6 +195,159 @@ func traceSays(t *testing.T, path, id, kind, text string) bool {
 		}
 	}
 	return false
+}
+
+// Mutated field: the version column of the advisories sample row.
+// It changes from 1.2.3, the version the advisory covers, to 9.9.9.
+func TestNegativeControl_VersionTheAdvisoryDoesNotCover(t *testing.T) {
+	dir := copyFixture(t)
+	path := filepath.Join(dir, "tables.sql")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const covered = "'1.2.3'"
+	if bytes.Count(b, []byte(covered)) != 1 {
+		t.Fatalf("version occurrences %d", bytes.Count(b, []byte(covered)))
+	}
+	next := bytes.Replace(b, []byte(covered), []byte("'9.9.9'"), 1)
+	if err := os.WriteFile(path, next, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := buildSample(t, t.TempDir(), nil)
+	d, err := p.Review(context.Background(), Request{Target: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := kept(d, "F2"); ok {
+		t.Fatal("F2 must be absent when the advisory does not cover version 1.2.3")
+	}
+	if _, ok := kept(d, "F1"); !ok {
+		t.Fatal("F1 must stay")
+	}
+	if _, ok := kept(d, "F4"); !ok {
+		t.Fatal("F4 is keyed by cve_id, which this mutation does not change")
+	}
+}
+
+// Mutated field: cve_id on the EPSS sample row that was CVE-2026-0001.
+// After the change the CVE is absent from the EPSS side of the inner join.
+func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) {
+	dir := copyFixture(t)
+	const title = "Join of KEV and EPSS for CVE-2026-0001"
+	const sqlText = "SELECT k.cve_id, k.vendor_project, k.product, k.date_added, e.epss, e.percentile FROM px_evidence.px_kev_vulns k JOIN px_evidence.px_epss_cve_rows e ON k.cve_id = e.cve_id WHERE k.cve_id = 'CVE-2026-0001'"
+	if err := addJoinFinding(dir, title, sqlText); err != nil {
+		t.Fatal(err)
+	}
+	p := buildSample(t, t.TempDir(), nil)
+	before, err := p.Review(context.Background(), Request{Target: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f5, ok := kept(before, "F5")
+	if !ok || len(f5.Evidence) != 1 || f5.Evidence[0].Query == nil || len(f5.Evidence[0].Query.Rows) != 1 {
+		t.Fatal("the join must keep F5 while the CVE is on both sides")
+	}
+	if f5.Evidence[0].Query.Rows[0][0] != "CVE-2026-0001" {
+		t.Fatalf("row %#v", f5.Evidence[0].Query.Rows)
+	}
+	tables := filepath.Join(dir, "tables.sql")
+	b, err := os.ReadFile(tables)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := []byte("INSERT INTO px_evidence.px_epss_cve_rows VALUES ('CVE-2026-0001'")
+	to := []byte("INSERT INTO px_evidence.px_epss_cve_rows VALUES ('CVE-0000-0000'")
+	if bytes.Count(b, from) != 1 {
+		t.Fatal("the EPSS row for CVE-2026-0001 was not found once")
+	}
+	if err := os.WriteFile(tables, bytes.Replace(b, from, to, 1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p = buildSample(t, t.TempDir(), nil)
+	after, err := p.Review(context.Background(), Request{Target: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := kept(after, "F5"); ok {
+		t.Fatal("F5 must be absent when the CVE is missing from EPSS")
+	}
+	if !traceSays(t, after.TracePath, "F5", "verdict", "dropped: no evidence") {
+		t.Fatal("F5 was not dropped for lack of evidence")
+	}
+	raw, err := os.ReadFile(after.TracePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(bytes.ToLower(raw), []byte("not exploited")) {
+		t.Fatal("the review read a missing join row as not exploited")
+	}
+	for _, c := range after.Findings {
+		if strings.Contains(strings.ToLower(c.Message), "not exploited") || strings.Contains(strings.ToLower(c.Title), "not exploited") {
+			t.Fatalf("finding %s says not exploited", c.ID)
+		}
+	}
+}
+
+func addJoinFinding(dir, title, sqlText string) error {
+	path := filepath.Join(dir, "fixture.json")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var doc struct {
+		Snapshot        string          `json:"snapshot"`
+		Hash            string          `json:"planner_prompt_sha256"`
+		PlannerResponse json.RawMessage `json:"planner_response"`
+		Responses       []struct {
+			Agent    string `json:"agent"`
+			Prompt   string `json:"prompt"`
+			Response string `json:"response"`
+		} `json:"responses"`
+		RecordedTests json.RawMessage `json:"recorded_tests"`
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return err
+	}
+	var risks []map[string]any
+	if err := json.Unmarshal(doc.PlannerResponse, &risks); err != nil {
+		return err
+	}
+	risks = append(risks, map[string]any{
+		"id": "F5", "rule_id": "kev-epss-join", "title": title,
+		"message":    "The inner join returned a row for the CVE.",
+		"severity":   "ERROR",
+		"path":       "go.mod",
+		"start_line": 5,
+		"end_line":   5,
+	})
+	rawRisks, err := json.Marshal(risks)
+	if err != nil {
+		return err
+	}
+	doc.PlannerResponse = rawRisks
+	doc.Responses = append(doc.Responses,
+		struct {
+			Agent    string `json:"agent"`
+			Prompt   string `json:"prompt"`
+			Response string `json:"response"`
+		}{Agent: "investigator", Prompt: investigator.Prompt("F5", title, "go.mod"), Response: `{"sql":"` + sqlText + `"}`},
+		struct {
+			Agent    string `json:"agent"`
+			Prompt   string `json:"prompt"`
+			Response string `json:"response"`
+		}{Agent: "prover", Prompt: prover.Prompt("F5", title), Response: `{"path":"","name":"","command":""}`},
+		struct {
+			Agent    string `json:"agent"`
+			Prompt   string `json:"prompt"`
+			Response string `json:"response"`
+		}{Agent: "skeptic", Prompt: skeptic.Prompt("F5", title), Response: `{"refuted":false,"reason":"no refutation"}`},
+	)
+	out, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(out, '\n'), 0o644)
 }
 
 // Mutated fixture field: recorded_tests. The entry whose finding_id is F1 is removed.

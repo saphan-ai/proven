@@ -50,6 +50,18 @@ func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 	if q.Engine != "local-sample" || len(q.Rows) != 1 || q.Rows[0][0] != "evil.example/leftpad" {
 		t.Fatalf("F2 query %#v", q)
 	}
+	f4, ok := find(res, "F4")
+	if !ok {
+		t.Fatal("F4 missing")
+	}
+	if len(f4.Evidence) != 1 || f4.Evidence[0].Query == nil {
+		t.Fatalf("F4 evidence %#v", f4.Evidence)
+	}
+	kq := f4.Evidence[0].Query
+	if kq.Engine != "local-sample" || kq.SQL != "SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'" ||
+		len(kq.Rows) != 1 || kq.Rows[0][0] != "CVE-2026-0001" {
+		t.Fatalf("F4 query %#v", kq)
+	}
 	if _, ok := find(res, "F3"); ok {
 		t.Fatal("F3 must be dropped")
 	}

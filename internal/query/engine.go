@@ -75,18 +75,19 @@ func (db *DB) Query(sql string) ([]string, [][]string, error) {
 
 func (db *DB) execCreate(toks []token) error {
 	// CREATE TABLE name ( col type , ... )
+	// name may be schema.table, the form the evidence views use.
 	if len(toks) < 4 || !strings.EqualFold(toks[1].val, "TABLE") {
 		return fmt.Errorf("query: bad CREATE TABLE")
 	}
-	name := toks[2].val
-	if toks[2].kind != kindIdent || toks[3].val != "(" {
+	name, i, err := takeQualified(toks, 2)
+	if err != nil || i >= len(toks) || toks[i].val != "(" {
 		return fmt.Errorf("query: bad CREATE TABLE")
 	}
 	if _, ok := db.tables[name]; ok {
 		return fmt.Errorf("query: table %s already exists", name)
 	}
 	var cols []string
-	i := 4
+	i++
 	for i < len(toks) && toks[i].val != ")" {
 		if toks[i].kind != kindIdent {
 			return fmt.Errorf("query: bad column in CREATE TABLE")
@@ -109,19 +110,23 @@ func (db *DB) execCreate(toks []token) error {
 
 func (db *DB) execInsert(toks []token) error {
 	// INSERT INTO name VALUES ( 'a' , 'b' )
-	if len(toks) < 5 || !strings.EqualFold(toks[1].val, "INTO") || !strings.EqualFold(toks[3].val, "VALUES") {
+	if len(toks) < 4 || !strings.EqualFold(toks[1].val, "INTO") {
 		return fmt.Errorf("query: bad INSERT")
 	}
-	name := toks[2].val
+	name, i, err := takeQualified(toks, 2)
+	if err != nil || i >= len(toks) || !strings.EqualFold(toks[i].val, "VALUES") {
+		return fmt.Errorf("query: bad INSERT")
+	}
 	tb, ok := db.tables[name]
 	if !ok {
 		return fmt.Errorf("query: no table %s", name)
 	}
-	if toks[4].val != "(" {
+	i++
+	if i >= len(toks) || toks[i].val != "(" {
 		return fmt.Errorf("query: bad INSERT")
 	}
 	var vals []string
-	for i := 5; i < len(toks) && toks[i].val != ")"; i++ {
+	for i = i + 1; i < len(toks) && toks[i].val != ")"; i++ {
 		if toks[i].val == "," {
 			continue
 		}
@@ -138,43 +143,58 @@ func (db *DB) execInsert(toks []token) error {
 }
 
 func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
-	var cols []string
-	i := 1
-	for i < len(toks) && !strings.EqualFold(toks[i].val, "FROM") {
-		if toks[i].val == "," {
-			i++
-			continue
-		}
-		if toks[i].kind != kindIdent {
-			return nil, nil, fmt.Errorf("query: bad select list")
-		}
-		cols = append(cols, toks[i].val)
-		i++
-	}
-	if len(cols) == 0 || i >= len(toks) {
-		return nil, nil, fmt.Errorf("query: SELECT needs FROM")
+	cols, i, err := parseSelectList(toks, 1)
+	if err != nil {
+		return nil, nil, err
 	}
 	i++ // skip FROM
-	if i >= len(toks) || toks[i].kind != kindIdent {
-		return nil, nil, fmt.Errorf("query: SELECT needs a table")
+	leftRef, i, err := parseTableRef(toks, i)
+	if err != nil {
+		return nil, nil, err
 	}
-	tb, ok := db.tables[toks[i].val]
-	if !ok {
-		return nil, nil, fmt.Errorf("query: no table %s", toks[i].val)
+	var rightRef *tableRef
+	var onL, onR colRef
+	if i < len(toks) && strings.EqualFold(toks[i].val, "INNER") {
+		i++
+		if i >= len(toks) || !strings.EqualFold(toks[i].val, "JOIN") {
+			return nil, nil, fmt.Errorf("query: expected JOIN")
+		}
 	}
-	i++
-	var where []pred
+	if i < len(toks) && strings.EqualFold(toks[i].val, "JOIN") {
+		i++
+		r, next, err := parseTableRef(toks, i)
+		if err != nil {
+			return nil, nil, err
+		}
+		rightRef = &r
+		i = next
+		if i >= len(toks) || !strings.EqualFold(toks[i].val, "ON") {
+			return nil, nil, fmt.Errorf("query: JOIN needs ON")
+		}
+		i++
+		onL, i, err = takeColRef(toks, i)
+		if err != nil || i >= len(toks) || toks[i].val != "=" {
+			return nil, nil, fmt.Errorf("query: bad ON")
+		}
+		i++
+		onR, i, err = takeColRef(toks, i)
+		if err != nil {
+			return nil, nil, fmt.Errorf("query: bad ON")
+		}
+	}
+	var where []wherePred
 	if i < len(toks) {
 		if !strings.EqualFold(toks[i].val, "WHERE") {
 			return nil, nil, fmt.Errorf("query: unexpected %s", toks[i].val)
 		}
 		i++
 		for {
-			if i+2 >= len(toks) || toks[i].kind != kindIdent || toks[i+1].val != "=" || toks[i+2].kind != kindString {
+			c, next, err := takeColRef(toks, i)
+			if err != nil || next >= len(toks) || toks[next].val != "=" || next+1 >= len(toks) || toks[next+1].kind != kindString {
 				return nil, nil, fmt.Errorf("query: bad WHERE")
 			}
-			where = append(where, pred{toks[i].val, toks[i+2].val})
-			i += 3
+			where = append(where, wherePred{col: c, val: toks[next+1].val})
+			i = next + 2
 			if i >= len(toks) {
 				break
 			}
@@ -184,46 +204,258 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 			i++
 		}
 	}
-	colIndex := map[string]int{}
-	for n, c := range tb.cols {
-		colIndex[c] = n
+	left, err := db.bind(leftRef)
+	if err != nil {
+		return nil, nil, err
 	}
-	proj := make([]int, len(cols))
-	for n, c := range cols {
-		idx, ok := colIndex[c]
-		if !ok {
-			return nil, nil, fmt.Errorf("query: no column %s", c)
+	var right *side
+	if rightRef != nil {
+		s, err := db.bind(*rightRef)
+		if err != nil {
+			return nil, nil, err
 		}
-		proj[n] = idx
+		right = &s
+		if err := mustResolve(onL, &left, right); err != nil {
+			return nil, nil, err
+		}
+		if err := mustResolve(onR, &left, right); err != nil {
+			return nil, nil, err
+		}
+	}
+	for _, c := range cols {
+		if err := mustResolve(c, &left, right); err != nil {
+			return nil, nil, err
+		}
 	}
 	for _, p := range where {
-		if _, ok := colIndex[p.col]; !ok {
-			return nil, nil, fmt.Errorf("query: no column %s", p.col)
+		if err := mustResolve(p.col, &left, right); err != nil {
+			return nil, nil, err
 		}
+	}
+	names := make([]string, len(cols))
+	for n, c := range cols {
+		names[n] = c.name
 	}
 	var rows [][]string
-	for _, row := range tb.rows {
-		if !match(row, colIndex, where) {
-			continue
+	if right == nil {
+		for _, row := range left.tb.rows {
+			if !rowWhere(where, left, row, nil, nil) {
+				continue
+			}
+			rows = append(rows, project(cols, left, row, nil, nil))
 		}
-		out := make([]string, len(proj))
-		for n, idx := range proj {
-			out[n] = row[idx]
-		}
-		rows = append(rows, out)
+		return names, rows, nil
 	}
-	return append([]string(nil), cols...), rows, nil
+	for _, lr := range left.tb.rows {
+		for _, rr := range right.tb.rows {
+			lv, err := lookup(onL, left, lr, right, rr)
+			if err != nil {
+				return nil, nil, err
+			}
+			rv, err := lookup(onR, left, lr, right, rr)
+			if err != nil {
+				return nil, nil, err
+			}
+			if lv != rv {
+				continue
+			}
+			if !rowWhere(where, left, lr, right, rr) {
+				continue
+			}
+			rows = append(rows, project(cols, left, lr, right, rr))
+		}
+	}
+	return names, rows, nil
 }
 
-type pred struct{ col, val string }
+type colRef struct {
+	qual string
+	name string
+}
 
-func match(row []string, colIndex map[string]int, where []pred) bool {
+type wherePred struct {
+	col colRef
+	val string
+}
+
+type tableRef struct {
+	name  string
+	alias string
+}
+
+type side struct {
+	ref tableRef
+	tb  *table
+	idx map[string]int
+}
+
+func parseSelectList(toks []token, i int) ([]colRef, int, error) {
+	var cols []colRef
+	for i < len(toks) && !strings.EqualFold(toks[i].val, "FROM") {
+		if toks[i].val == "," {
+			i++
+			continue
+		}
+		c, next, err := takeColRef(toks, i)
+		if err != nil {
+			return nil, i, fmt.Errorf("query: bad select list")
+		}
+		cols = append(cols, c)
+		i = next
+	}
+	if len(cols) == 0 || i >= len(toks) {
+		return nil, i, fmt.Errorf("query: SELECT needs FROM")
+	}
+	return cols, i, nil
+}
+
+func parseTableRef(toks []token, i int) (tableRef, int, error) {
+	name, i, err := takeQualified(toks, i)
+	if err != nil {
+		return tableRef{}, i, fmt.Errorf("query: SELECT needs a table")
+	}
+	ref := tableRef{name: name}
+	if i < len(toks) && toks[i].kind == kindIdent && !isKeyword(toks[i].val) {
+		ref.alias = toks[i].val
+		i++
+	}
+	return ref, i, nil
+}
+
+func takeQualified(toks []token, i int) (string, int, error) {
+	if i >= len(toks) || toks[i].kind != kindIdent {
+		return "", i, fmt.Errorf("query: expected a name")
+	}
+	name := toks[i].val
+	i++
+	for i+1 < len(toks) && toks[i].val == "." && toks[i+1].kind == kindIdent {
+		name += "." + toks[i+1].val
+		i += 2
+	}
+	return name, i, nil
+}
+
+func takeColRef(toks []token, i int) (colRef, int, error) {
+	name, i, err := takeQualified(toks, i)
+	if err != nil {
+		return colRef{}, i, err
+	}
+	parts := strings.Split(name, ".")
+	switch len(parts) {
+	case 1:
+		return colRef{name: parts[0]}, i, nil
+	case 2:
+		return colRef{qual: parts[0], name: parts[1]}, i, nil
+	default:
+		return colRef{}, i, fmt.Errorf("query: bad column %s", name)
+	}
+}
+
+func isKeyword(s string) bool {
+	switch strings.ToUpper(s) {
+	case "WHERE", "JOIN", "INNER", "ON", "AND", "SELECT", "FROM", "ORDER", "LIMIT", "GROUP", "LEFT", "RIGHT":
+		return true
+	default:
+		return false
+	}
+}
+
+func (db *DB) bind(ref tableRef) (side, error) {
+	tb, ok := db.tables[ref.name]
+	if !ok {
+		return side{}, fmt.Errorf("query: no table %s", ref.name)
+	}
+	idx := make(map[string]int, len(tb.cols))
+	for n, c := range tb.cols {
+		idx[c] = n
+	}
+	return side{ref: ref, tb: tb, idx: idx}, nil
+}
+
+func (s side) matches(qual string) bool {
+	if qual == "" {
+		return false
+	}
+	if s.ref.alias != "" && s.ref.alias == qual {
+		return true
+	}
+	if s.ref.name == qual {
+		return true
+	}
+	if i := strings.LastIndex(s.ref.name, "."); i >= 0 && s.ref.name[i+1:] == qual {
+		return true
+	}
+	return false
+}
+
+func (s side) has(ref colRef) bool {
+	if ref.qual != "" && !s.matches(ref.qual) {
+		return false
+	}
+	_, ok := s.idx[ref.name]
+	return ok
+}
+
+func mustResolve(ref colRef, left, right *side) error {
+	lok := left.has(ref)
+	rok := right != nil && right.has(ref)
+	if lok && rok {
+		return fmt.Errorf("query: ambiguous column %s", ref.name)
+	}
+	if !lok && !rok {
+		label := ref.name
+		if ref.qual != "" {
+			label = ref.qual + "." + ref.name
+		}
+		return fmt.Errorf("query: no column %s", label)
+	}
+	return nil
+}
+
+func lookup(ref colRef, left side, leftRow []string, right *side, rightRow []string) (string, error) {
+	var lv, rv string
+	lok, rok := false, false
+	if left.has(ref) {
+		lv = leftRow[left.idx[ref.name]]
+		lok = true
+	}
+	if right != nil && right.has(ref) {
+		rv = rightRow[right.idx[ref.name]]
+		rok = true
+	}
+	if lok && rok {
+		return "", fmt.Errorf("query: ambiguous column %s", ref.name)
+	}
+	if lok {
+		return lv, nil
+	}
+	if rok {
+		return rv, nil
+	}
+	return "", fmt.Errorf("query: no column %s", ref.name)
+}
+
+func rowWhere(where []wherePred, left side, leftRow []string, right *side, rightRow []string) bool {
 	for _, p := range where {
-		if row[colIndex[p.col]] != p.val {
+		got, err := lookup(p.col, left, leftRow, right, rightRow)
+		if err != nil || got != p.val {
 			return false
 		}
 	}
 	return true
+}
+
+func project(cols []colRef, left side, leftRow []string, right *side, rightRow []string) []string {
+	out := make([]string, len(cols))
+	for n, c := range cols {
+		v, err := lookup(c, left, leftRow, right, rightRow)
+		if err != nil {
+			out[n] = ""
+			continue
+		}
+		out[n] = v
+	}
+	return out
 }
 
 func splitStatements(sql string) []string {
@@ -302,7 +534,7 @@ func tokenize(s string) ([]token, error) {
 			continue
 		}
 		switch s[i] {
-		case '(', ')', ',', '=', '*':
+		case '(', ')', ',', '=', '*', '.':
 			out = append(out, token{kind: kindSym, val: s[i : i+1]})
 			i++
 		default:

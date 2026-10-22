@@ -159,6 +159,10 @@ func liveEnv(base string, extra map[string]string) func(string) string {
 		"PROVEN_GENERATOR_APP":            "proven",
 		"PROVEN_GENERATOR_MODEL":          "meterless/auto",
 		"PROVEN_GENERATOR_REQUIRE_NVIDIA": "all",
+		"ZETARIS_REST_URL":                "http://127.0.0.1:9",
+		"ZETARIS_API_KEY":                 "zetaris-test-key",
+		"ZETARIS_ORG_ID":                  "1",
+		"ZETARIS_TIMEOUT":                 "1s",
 	}
 	for k, v := range extra {
 		m[k] = v
