@@ -21,6 +21,12 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if s.BaseURL != "http://127.0.0.1:8088" || s.App != "proven" || s.Model != "meterless/auto" {
 		t.Fatalf("%#v", s)
 	}
+	if s.SkepticModel != generator.DefaultSkepticModel || s.ModelFor("skeptic") != generator.DefaultSkepticModel {
+		t.Fatalf("skeptic model %s", s.SkepticModel)
+	}
+	if s.ModelFor("planner") != "meterless/auto" {
+		t.Fatalf("planner model %s", s.ModelFor("planner"))
+	}
 	if s.Timeout != 60*time.Second {
 		t.Fatalf("timeout %s", s.Timeout)
 	}
@@ -82,6 +88,24 @@ func TestLoadRefusesAnUnknownAgent(t *testing.T) {
 	_, err := generator.Load(envWith(generator.EnvRequireNVIDIA, "planner,bob"))
 	cfg := configErr(t, err)
 	if cfg.Field != generator.EnvRequireNVIDIA || cfg.Value != "planner,bob" {
+		t.Fatalf("%#v", cfg)
+	}
+}
+
+func TestLoadAcceptsAnotherSkepticModel(t *testing.T) {
+	s, err := generator.Load(envWith(generator.EnvSkepticModel, "anthropic/claude-opus"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.SkepticModel != "anthropic/claude-opus" || s.ModelFor("skeptic") != "anthropic/claude-opus" {
+		t.Fatalf("%s", s.SkepticModel)
+	}
+}
+
+func TestLoadRefusesASkepticModelWithASpace(t *testing.T) {
+	_, err := generator.Load(envWith(generator.EnvSkepticModel, "not a model"))
+	cfg := configErr(t, err)
+	if cfg.Field != generator.EnvSkepticModel {
 		t.Fatalf("%#v", cfg)
 	}
 }

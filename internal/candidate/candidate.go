@@ -46,10 +46,23 @@ type Evidence struct {
 }
 
 // Refutation is one skeptic attempt.
+// Refuted is the model's claim. It does not drop the finding.
+// A drop needs TestFound with TestFailsOnChange false, or QueryRows that
+// contradict the finding. TestCannotRun or QueryCannotRun means the
+// instrument did not answer.
 type Refutation struct {
-	Attempted bool
-	Refuted   bool
-	Reason    string
+	Attempted         bool
+	Refuted           bool
+	Reason            string
+	TestPath          string
+	TestName          string
+	Command           string
+	SQL               string
+	TestFound         bool
+	TestFailsOnChange bool
+	TestCannotRun     bool
+	QueryRows         [][]string
+	QueryCannotRun    bool
 }
 
 // Candidate is a risk plus what the later agents added.

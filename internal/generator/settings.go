@@ -18,7 +18,12 @@ const (
 	EnvModel         = "PROVEN_GENERATOR_MODEL"
 	EnvTimeout       = "PROVEN_GENERATOR_TIMEOUT"
 	EnvRequireNVIDIA = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
+	EnvSkepticModel  = "PROVEN_SKEPTIC_MODEL"
 )
+
+// DefaultSkepticModel is Nemotron through Nightshift (ADR-0006 point 5).
+// An empty PROVEN_SKEPTIC_MODEL means this model. A set value is used as it is.
+const DefaultSkepticModel = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 
 const (
 	defaultBaseURL = "http://127.0.0.1:8088"
@@ -61,9 +66,19 @@ type Settings struct {
 	Model         string
 	Token         string
 	Timeout       time.Duration
+	SkepticModel  string
 	requireAll    bool
 	requireNone   bool
 	requireNVIDIA map[string]bool
+}
+
+// ModelFor is the model field one agent sends. The skeptic uses SkepticModel.
+// Every other agent uses Model.
+func (s Settings) ModelFor(agent string) string {
+	if agent == "skeptic" && s.SkepticModel != "" {
+		return s.SkepticModel
+	}
+	return s.Model
 }
 
 // requiresNVIDIA reports whether this agent's answer must be an nvidia/* model.
@@ -109,6 +124,13 @@ func Load(env func(string) string) (Settings, error) {
 	if err := checkToken(EnvModel, model, 128, "a non-empty model or routing mode without spaces, at most 128 characters", modelName); err != nil {
 		return Settings{}, err
 	}
+	skepticModel := env(EnvSkepticModel)
+	if skepticModel == "" {
+		skepticModel = DefaultSkepticModel
+	}
+	if err := checkToken(EnvSkepticModel, skepticModel, 128, "a non-empty model or routing mode without spaces, at most 128 characters", modelName); err != nil {
+		return Settings{}, err
+	}
 	timeout := defaultTimeout
 	if raw := env(EnvTimeout); raw != "" {
 		d, perr := time.ParseDuration(raw)
@@ -127,7 +149,8 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	return Settings{
 		BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
-		requireAll: all, requireNone: none, requireNVIDIA: set,
+		SkepticModel: skepticModel,
+		requireAll:   all, requireNone: none, requireNVIDIA: set,
 	}, nil
 }
 

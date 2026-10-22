@@ -49,21 +49,25 @@ type Options struct {
 	Guardrail guardrail.Adapter
 	// GuardOff writes one "no guardrail" line and checks nothing.
 	GuardOff bool
+	// SkepticModel is the skeptic's configured model. Empty means the Nemotron default.
+	// Sample mode does not read the environment to fill it.
+	SkepticModel string
 }
 
 // Pipeline is one reviewer.
 type Pipeline struct {
-	sample     bool
-	testRun    testrun.Adapter
-	proverIdle string
-	gen        generator.Generator
-	liveQuery  query.Adapter
-	trace      *trace.Writer
-	rail       guardrail.Adapter
-	guardOff   bool
-	atBoundary func(stage string)
-	mem        *hmem.Store
-	world      *world.Store
+	sample       bool
+	testRun      testrun.Adapter
+	proverIdle   string
+	gen          generator.Generator
+	liveQuery    query.Adapter
+	trace        *trace.Writer
+	rail         guardrail.Adapter
+	guardOff     bool
+	skepticModel string
+	atBoundary   func(stage string)
+	mem          *hmem.Store
+	world        *world.Store
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -105,7 +109,7 @@ func Build(opts Options) (*Pipeline, error) {
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
-		mem: mem, world: wm,
+		skepticModel: opts.SkepticModel, mem: mem, world: wm,
 	}
 	if !opts.GuardOff && p.rail == nil {
 		if opts.Sample {
@@ -136,6 +140,9 @@ type Request struct {
 // Review runs planner, investigator, prover, skeptic, judge and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
 func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
+	if p.trace != nil {
+		defer p.trace.Close()
+	}
 	defer func() {
 		if err != nil {
 			return
@@ -191,7 +198,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
-	gen = recording{inner: gen, models: &st.models}
+	gen = recording{inner: gen, models: &st.models, trace: p.trace}
 	gen, err = p.applyGuard(gen)
 	if err != nil {
 		return candidate.Draft{}, err
@@ -279,11 +286,22 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			continue
 		}
 		cands[i] = next
+		if err := p.runRefutation(ctx, &cands[i], q, run); err != nil {
+			if _, fatal := st.soften(ctx, err); fatal != nil {
+				if errors.Is(fatal, errPartial) {
+					return p.cut(st, cands, allow)
+				}
+				return candidate.Draft{}, fatal
+			}
+		}
 	}
 	for _, c := range cands {
 		if err := st.refutation(c); err != nil {
 			return candidate.Draft{}, err
 		}
+	}
+	if err := p.noteFamily(st); err != nil {
+		return candidate.Draft{}, err
 	}
 	p.boundary("refuted")
 	if ctx.Err() != nil {
@@ -307,6 +325,85 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	return keep(writer.Write(writer.Input{
 		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
 	})), nil
+}
+
+// runRefutation asks the prover or the investigator to run what the skeptic proposed.
+// A proposal with no test and no query is not evidence. H-MEM is not on this
+// base, so a refutation that lands is recorded on the trace by the caller.
+func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Adapter, run testrun.Adapter) error {
+	r := &c.Refutation
+	if r.TestName != "" {
+		out, err := prover.Execute(ctx, run, testrun.Request{
+			FindingID: c.ID, Path: r.TestPath, Name: r.TestName, Command: r.Command,
+		})
+		if err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
+			r.TestCannotRun = true
+			r.Reason = "the refuting test could not run"
+			return err
+		}
+		if !out.Found {
+			r.TestCannotRun = true
+			r.Reason = "the refuting test could not run"
+		} else {
+			r.TestFound = true
+			r.TestFailsOnChange = out.FailsOnChange
+			if !out.FailsOnChange {
+				name := out.Name
+				if name == "" {
+					name = r.TestName
+				}
+				r.Reason = "test " + name + " passes on the change"
+			}
+		}
+	}
+	if r.SQL != "" {
+		res, err := investigator.Execute(ctx, q, r.SQL)
+		if err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
+			r.QueryCannotRun = true
+			if !r.TestFound || r.TestFailsOnChange {
+				r.Reason = "the refuting query could not run"
+			}
+			return err
+		}
+		r.QueryRows = copyRows(res.Rows)
+		if judge.QueryContradicts(*c, r.QueryRows) && (r.Reason == "" || r.TestFailsOnChange || !r.TestFound) {
+			r.Reason = "query rows contradict the finding"
+		}
+	}
+	return nil
+}
+
+// noteFamily writes the same-family sentence when the skeptic and the finder
+// share a family. Two unknown models are not that case. The review is not refused.
+func (p *Pipeline) noteFamily(st *state) error {
+	sk := p.skepticModel
+	if sk == "" {
+		sk = generator.DefaultSkepticModel
+	}
+	for _, m := range st.models {
+		if m.Agent == "skeptic" && m.FromReceipt && m.Model != "" && m.Model != "unknown" {
+			sk = m.Model
+			break
+		}
+	}
+	finder := "unknown"
+	for _, m := range st.models {
+		if m.Agent == "planner" && m.Model != "" {
+			finder = m.Model
+			break
+		}
+	}
+	sentence, ok := skeptic.SameFamilySentence(sk, finder)
+	if !ok {
+		return nil
+	}
+	return st.event("review", "family", "skeptic", sentence)
 }
 
 func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Adapter, testrun.Adapter, error) {
@@ -426,7 +523,7 @@ func (s *state) refutation(c candidate.Candidate) error {
 		RuleID:      c.RuleID,
 		Path:        c.Path,
 		Title:       c.Title,
-		HasEvidence: judge.Evidenced(c.Evidence),
+		HasEvidence: judge.Evidenced(c),
 	})
 }
 
@@ -531,24 +628,50 @@ func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.E
 type recording struct {
 	inner  generator.Generator
 	models *[]candidate.ModelUse
+	trace  *trace.Writer
 }
 
 func (g recording) Complete(ctx context.Context, agent, prompt string) (string, error) {
 	text, err := g.inner.Complete(ctx, agent, prompt)
 	if rep, ok := g.inner.(generator.Reported); ok {
 		if u, ok := rep.LastUse(); ok {
-			*g.models = append(*g.models, candidate.ModelUse{
+			m := candidate.ModelUse{
 				Agent: agent, Route: u.Route, Model: u.Model,
 				ReceiptID: u.ReceiptID, FromReceipt: u.FromReceipt,
-			})
+			}
+			*g.models = append(*g.models, m)
+			if terr := g.record(m); terr != nil && err == nil {
+				return "", terr
+			}
 		}
 		return text, err
 	}
 	if err != nil {
 		return "", err
 	}
-	*g.models = append(*g.models, candidate.ModelUse{Agent: agent, Model: "unknown", FromReceipt: false})
+	m := candidate.ModelUse{Agent: agent, Model: "unknown", FromReceipt: false}
+	*g.models = append(*g.models, m)
+	if terr := g.record(m); terr != nil {
+		return "", terr
+	}
 	return text, nil
+}
+
+// record writes one "model" event per generator call: the route, the routed
+// model and the Nightshift receipt id, so a reader can match the trace to the
+// provider's signed receipt.
+func (g recording) record(m candidate.ModelUse) error {
+	if g.trace == nil {
+		return nil
+	}
+	return g.trace.Append(trace.Event{
+		Kind:  "model",
+		Agent: m.Agent,
+		Text:  "model call",
+		Model: &trace.Model{
+			Route: m.Route, Model: m.Model, ReceiptID: m.ReceiptID, FromReceipt: m.FromReceipt,
+		},
+	})
 }
 
 func changedFiles(req Request) ([]string, error) {
