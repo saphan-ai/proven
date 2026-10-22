@@ -130,6 +130,9 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   evidence is the query and its rows (ADR-0007 point 2), live and in sample mode. **Negative control:** a version the
   advisory does not cover gives no finding. A join drops a CVE absent from one side: the review never reads a missing
   row as "not exploited" (ADR-0023). **Unplug:** Zetaris down → degraded, named.
+  **Hard point, Wildcard track (the owner via the advisor, 2026-10-22):** by **2026-10-27**, a LIVE Proven review draws
+  at least one finding's evidence from Zetaris: the query's SQL and rows appear in the trace, recorded and demonstrable,
+  not only in sample mode. W5 carries it; W5 is dispatched as soon as W2 (the live generator) lands.
 - **master-was-wrong:** —
 
 ### W6 `the-skeptic-and-the-judge`
