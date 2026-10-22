@@ -13,11 +13,11 @@ func TestBetweenTwoCommits(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[change-test] git: first")
 	first := rev(t, dir)
 	write(t, filepath.Join(dir, "b.txt"), "b")
 	git(t, dir, "add", "b.txt")
-	git(t, dir, "commit", "-m", "second")
+	git(t, dir, "commit", "-m", "[change-test] git: second")
 	second := rev(t, dir)
 
 	got, err := Between(dir, first, second)
@@ -34,7 +34,7 @@ func TestBetweenWorkingTreeIncludesEditsAndUntracked(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[change-test] git: first")
 	base := rev(t, dir)
 	write(t, filepath.Join(dir, "a.txt"), "changed")
 	write(t, filepath.Join(dir, "c.txt"), "new")
@@ -53,7 +53,7 @@ func TestBetweenMissingBaselineNamesTheCommit(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[change-test] git: first")
 
 	_, err := Between(dir, "does-not-exist", "")
 	if err == nil || !strings.Contains(err.Error(), "does-not-exist") {
@@ -66,7 +66,7 @@ func TestBetweenMissingHeadNamesTheCommit(t *testing.T) {
 	git(t, dir, "init")
 	write(t, filepath.Join(dir, "a.txt"), "a")
 	git(t, dir, "add", "a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[change-test] git: first")
 	base := rev(t, dir)
 
 	_, err := Between(dir, base, "missing-head")
@@ -151,7 +151,7 @@ func TestBetweenWorkingTreeInSubdirectoryKeepsUntracked(t *testing.T) {
 	}
 	write(t, filepath.Join(dir, "sub", "a.txt"), "a")
 	git(t, dir, "add", "sub/a.txt")
-	git(t, dir, "commit", "-m", "first")
+	git(t, dir, "commit", "-m", "[change-test] git: first")
 	base := rev(t, dir)
 	write(t, filepath.Join(dir, "sub", "c.txt"), "new")
 	write(t, filepath.Join(dir, "top.txt"), "outside the target")
