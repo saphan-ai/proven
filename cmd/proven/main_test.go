@@ -32,6 +32,9 @@ func TestScanSamplePrintsF1AndF2NotF3(t *testing.T) {
 		"finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list",
 		"evidence query local-sample snapshot=sample-2026-10-22",
 		"row: evil.example/leftpad | 1.2.3 | CVE-2026-0001 | true",
+		"finding F4 ERROR CVE-2026-0001 for leftpad v1.2.3 is on the KEV list",
+		"SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'",
+		"row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known",
 		"failed services: none",
 	} {
 		if !strings.Contains(body, want) {

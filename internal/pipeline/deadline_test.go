@@ -42,7 +42,7 @@ func TestDeadlineOmitsUnjudgedFindings(t *testing.T) {
 					got[e.FindingID] = e.Text
 				}
 			}
-			for _, id := range []string{"F1", "F2", "F3"} {
+			for _, id := range []string{"F1", "F2", "F3", "F4"} {
 				if got[id] != "not judged: deadline" {
 					t.Fatalf("%s verdict %q", id, got[id])
 				}

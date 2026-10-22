@@ -2,6 +2,7 @@
 package change
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,6 +51,11 @@ func walk(root string, dst map[string][]byte) error {
 		}
 		if info.IsDir() {
 			return nil
+		}
+		// Walk uses Lstat, so a link is visible here. ReadFile would follow it
+		// and a fixture could name a file outside this tree.
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("change: symlink %s", path)
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {

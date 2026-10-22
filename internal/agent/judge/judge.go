@@ -43,6 +43,11 @@ func Decide(c candidate.Candidate) candidate.Candidate {
 	return c
 }
 
+// Evidenced reports whether Decide would count this candidate's own evidence.
+func Evidenced(c candidate.Candidate) bool {
+	return counts(c)
+}
+
 func counts(c candidate.Candidate) bool {
 	for _, e := range c.Evidence {
 		if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {

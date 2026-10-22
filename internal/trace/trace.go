@@ -4,6 +4,7 @@ package trace
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -15,16 +16,35 @@ import (
 
 // Event is one claim, piece of evidence, refutation, verdict or guardrail check.
 // RunID and Time are stamped by Append when the caller leaves them empty.
+// EventID, the change key and the finding key are optional. Older lines omit them.
+// HasEvidence is set on a refutation the skeptic made of a finding that has proof.
 type Event struct {
-	RunID      string      `json:"run_id"`
-	Time       string      `json:"time"`
-	FindingID  string      `json:"finding_id"`
-	Kind       string      `json:"kind"`
-	Agent      string      `json:"agent"`
-	Text       string      `json:"text"`
-	Evidence   []Evidence  `json:"evidence,omitempty"`
-	Refutation *Refutation `json:"refutation,omitempty"`
-	Guardrail  *Check      `json:"guardrail,omitempty"`
+	EventID     string      `json:"event_id,omitempty"`
+	RunID       string      `json:"run_id"`
+	Time        string      `json:"time"`
+	FindingID   string      `json:"finding_id"`
+	Kind        string      `json:"kind"`
+	Agent       string      `json:"agent"`
+	Text        string      `json:"text"`
+	Evidence    []Evidence  `json:"evidence,omitempty"`
+	Refutation  *Refutation `json:"refutation,omitempty"`
+	Guardrail   *Check      `json:"guardrail,omitempty"`
+	Model       *Model      `json:"model,omitempty"`
+	ChangeKey   string      `json:"change_key,omitempty"`
+	RuleID      string      `json:"rule_id,omitempty"`
+	Path        string      `json:"path,omitempty"`
+	Title       string      `json:"title,omitempty"`
+	HasEvidence bool        `json:"has_evidence,omitempty"`
+}
+
+// Model is one generator call as the stream named it: the route, the routed
+// model and the Nightshift receipt id. FromReceipt is true only when the
+// stream named a routed model.
+type Model struct {
+	Route       string `json:"route,omitempty"`
+	Model       string `json:"model"`
+	ReceiptID   string `json:"receipt_id,omitempty"`
+	FromReceipt bool   `json:"from_receipt"`
 }
 
 // Check is one guardrail verdict: the side, the verdict, the categories and the latency.
@@ -121,6 +141,9 @@ func (w *Writer) Append(e Event) error {
 	if e.Time == "" {
 		e.Time = time.Now().UTC().Format(time.RFC3339)
 	}
+	if e.EventID == "" {
+		e.EventID = eventID(e)
+	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
@@ -147,4 +170,21 @@ func (w *Writer) Close() error {
 	err := w.f.Close()
 	w.f = nil
 	return err
+}
+
+// eventID is the sha256 of the event with an empty id, run id and time, so the
+// same claim names the same event in every run and on every replay. The id is
+// not part of its own hash.
+func eventID(e Event) string {
+	e.EventID = ""
+	e.RunID = ""
+	e.Time = ""
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(e); err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(bytes.TrimSpace(buf.Bytes()))
+	return hex.EncodeToString(sum[:])[:16]
 }

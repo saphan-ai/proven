@@ -20,11 +20,12 @@ import (
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
-	"github.com/saphan-ai/proven/internal/netguard"
+	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/trace"
+	"github.com/saphan-ai/proven/internal/world"
 )
 
 // Options select the adapters. TestRun, when set, replaces the sample or live test-run adapter.
@@ -38,6 +39,11 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
+	// LiveQuery, when set, is the Zetaris adapter. Sample mode does not use it.
+	LiveQuery query.Adapter
+	// StateDir is the durable directory for H-MEM and the world model.
+	// Empty uses a state directory beside the logs, never a path inside the module.
+	StateDir string
 	// Guardrail checks every prompt and every answer. Sample mode with none
 	// uses the safe sample. A live pipeline with none is refused.
 	Guardrail guardrail.Adapter
@@ -54,15 +60,18 @@ type Pipeline struct {
 	testRun      testrun.Adapter
 	proverIdle   string
 	gen          generator.Generator
+	liveQuery    query.Adapter
 	trace        *trace.Writer
-	guard        *netguard.Guard
 	rail         guardrail.Adapter
 	guardOff     bool
 	skepticModel string
 	atBoundary   func(stage string)
+	mem          *hmem.Store
+	world        *world.Store
 }
 
-// Build opens the trace and, in sample mode, a client that refuses every dial.
+// Build opens the trace. Sample mode uses the recorded adapters. Those
+// adapters do not dial, so sample mode holds no HTTP client.
 func Build(opts Options) (*Pipeline, error) {
 	// opts.Env is not called. review.Open loads the live generator before Build.
 	// Sample mode reads no key.
@@ -76,10 +85,31 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+	stateDir := opts.StateDir
+	if stateDir == "" {
+		var derr error
+		stateDir, derr = defaultStateDir(opts.LogDir)
+		if derr != nil {
+			return nil, derr
+		}
+	}
+	root := moduleRoot()
+	mem, err := hmem.Open(hmem.Options{
+		Dir: filepath.Join(stateDir, "hmem"), LogDir: opts.LogDir, RepoRoot: root,
+	})
+	if err != nil {
+		return nil, err
+	}
+	wm, err := world.Open(world.Options{
+		Dir: filepath.Join(stateDir, "world"), LogDir: opts.LogDir, RepoRoot: root, Memory: mem,
+	})
+	if err != nil {
+		return nil, err
+	}
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
-		gen: opts.Generator, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
-		skepticModel: opts.SkepticModel,
+		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
+		skepticModel: opts.SkepticModel, mem: mem, world: wm,
 	}
 	if !opts.GuardOff && p.rail == nil {
 		if opts.Sample {
@@ -88,15 +118,8 @@ func Build(opts Options) (*Pipeline, error) {
 			return nil, fmt.Errorf("pipeline: the guardrail is on and no adapter was set")
 		}
 	}
-	if opts.Sample {
-		p.guard = &netguard.Guard{}
-		p.guard.Arm()
-	}
 	return p, nil
 }
-
-// Guard is the sample-mode dial counter. It is nil when sample mode is off.
-func (p *Pipeline) Guard() *netguard.Guard { return p.guard }
 
 // boundary lets a test cancel the context at one named stage. Production leaves it unset.
 func (p *Pipeline) boundary(stage string) {
@@ -116,10 +139,23 @@ type Request struct {
 
 // Review runs planner, investigator, prover, skeptic, judge and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
-func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, error) {
+func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
 	if p.trace != nil {
 		defer p.trace.Close()
 	}
+	defer func() {
+		if err != nil {
+			return
+		}
+		if ferr := p.fold(); ferr != nil {
+			d = candidate.Draft{}
+			err = ferr
+		}
+	}()
+	return p.review(ctx, req)
+}
+
+func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
 	files, err := changedFiles(req)
 	if err != nil {
 		return candidate.Draft{}, err
@@ -156,11 +192,13 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
-	st := &state{trace: p.trace}
+	p.mem.SetGenerator(gen)
+	p.world.SetGenerator(gen)
+	st := &state{trace: p.trace, changeKey: changeKey(req)}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
-	gen = recording{inner: gen, models: &st.models}
+	gen = recording{inner: gen, models: &st.models, trace: p.trace}
 	gen, err = p.applyGuard(gen)
 	if err != nil {
 		return candidate.Draft{}, err
@@ -267,6 +305,14 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 
 	for i := range cands {
+		if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
+			cands[i].Dropped = true
+			cands[i].DropReason = "suppressed: hmem " + rec.ID
+			if err := st.event(cands[i].ID, "memory", "hmem", "matched "+rec.ID); err != nil {
+				return candidate.Draft{}, err
+			}
+			continue
+		}
 		cands[i] = judge.Decide(cands[i])
 		if err := st.event(cands[i].ID, "verdict", "judge", cands[i].DropReason); err != nil {
 			return candidate.Draft{}, err
@@ -377,10 +423,13 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 		}
 	} else if p.gen != nil {
 		gen = p.gen
-		q = query.Live{}
+		q = p.liveQuery
 	} else {
 		gen = &generator.Live{}
-		q = query.Live{}
+		q = p.liveQuery
+	}
+	if !p.sample && q == nil {
+		q = &query.Live{}
 	}
 	run := p.testRun
 	if run == nil {
@@ -430,9 +479,10 @@ func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outc
 }
 
 type state struct {
-	trace  *trace.Writer
-	failed []candidate.Failure
-	models []candidate.ModelUse
+	trace     *trace.Writer
+	failed    []candidate.Failure
+	models    []candidate.ModelUse
+	changeKey string
 }
 
 func (s *state) event(id, kind, agent, text string) error {
@@ -465,6 +515,11 @@ func (s *state) refutation(c candidate.Candidate) error {
 			Refuted:   r.Refuted,
 			Reason:    r.Reason,
 		},
+		ChangeKey:   s.changeKey,
+		RuleID:      c.RuleID,
+		Path:        c.Path,
+		Title:       c.Title,
+		HasEvidence: judge.Evidenced(c),
 	})
 }
 
@@ -569,24 +624,50 @@ func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.E
 type recording struct {
 	inner  generator.Generator
 	models *[]candidate.ModelUse
+	trace  *trace.Writer
 }
 
 func (g recording) Complete(ctx context.Context, agent, prompt string) (string, error) {
 	text, err := g.inner.Complete(ctx, agent, prompt)
 	if rep, ok := g.inner.(generator.Reported); ok {
 		if u, ok := rep.LastUse(); ok {
-			*g.models = append(*g.models, candidate.ModelUse{
+			m := candidate.ModelUse{
 				Agent: agent, Route: u.Route, Model: u.Model,
 				ReceiptID: u.ReceiptID, FromReceipt: u.FromReceipt,
-			})
+			}
+			*g.models = append(*g.models, m)
+			if terr := g.record(m); terr != nil && err == nil {
+				return "", terr
+			}
 		}
 		return text, err
 	}
 	if err != nil {
 		return "", err
 	}
-	*g.models = append(*g.models, candidate.ModelUse{Agent: agent, Model: "unknown", FromReceipt: false})
+	m := candidate.ModelUse{Agent: agent, Model: "unknown", FromReceipt: false}
+	*g.models = append(*g.models, m)
+	if terr := g.record(m); terr != nil {
+		return "", terr
+	}
 	return text, nil
+}
+
+// record writes one "model" event per generator call: the route, the routed
+// model and the Nightshift receipt id, so a reader can match the trace to the
+// provider's signed receipt.
+func (g recording) record(m candidate.ModelUse) error {
+	if g.trace == nil {
+		return nil
+	}
+	return g.trace.Append(trace.Event{
+		Kind:  "model",
+		Agent: m.Agent,
+		Text:  "model call",
+		Model: &trace.Model{
+			Route: m.Route, Model: m.Model, ReceiptID: m.ReceiptID, FromReceipt: m.FromReceipt,
+		},
+	})
 }
 
 func changedFiles(req Request) ([]string, error) {

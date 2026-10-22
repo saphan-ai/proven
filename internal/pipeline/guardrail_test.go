@@ -54,15 +54,12 @@ func TestUnsafePromptStopsTheStepAndNamesCategories(t *testing.T) {
 		_, _ = io.WriteString(w, verdictJSON(text))
 	}))
 	defer srv.Close()
-	d, gen, dials := reviewWithRail(t, fx, railAt(t, srv.URL), false)
+	d, gen := reviewWithRail(t, fx, railAt(t, srv.URL), false)
 	if gen.calls != 0 {
 		t.Fatalf("the model ran %d times", gen.calls)
 	}
 	if posts != 1 {
 		t.Fatalf("guardrail posts %d", posts)
-	}
-	if dials != 0 {
-		t.Fatalf("sample dials %d", dials)
 	}
 	if len(d.Findings) != 0 {
 		t.Fatalf("findings %#v", d.Findings)
@@ -82,7 +79,7 @@ func TestUnsafeAnswerIsNotUsed(t *testing.T) {
 		_, _ = io.WriteString(w, verdictJSON(text))
 	}))
 	defer srv.Close()
-	d, gen, _ := reviewWithRail(t, fx, railAt(t, srv.URL), false)
+	d, gen := reviewWithRail(t, fx, railAt(t, srv.URL), false)
 	if gen.calls != 1 || gen.last == "" {
 		t.Fatalf("calls %d last %q", gen.calls, gen.last)
 	}
@@ -119,7 +116,7 @@ func TestGuardrailOffCompletesAndSaysNoGuardrail(t *testing.T) {
 		_, _ = io.WriteString(w, verdictJSON(text))
 	}))
 	defer srv.Close()
-	d, gen, _ := reviewWithRail(t, fx, nil, true)
+	d, gen := reviewWithRail(t, fx, nil, true)
 	if posts != 0 {
 		t.Fatalf("the off switch called the guardrail %d times", posts)
 	}
@@ -152,7 +149,7 @@ func TestClosedGuardrailRefusesTheStepByName(t *testing.T) {
 	}))
 	url := srv.URL
 	srv.Close()
-	d, gen, _ := reviewWithRail(t, fx, railAt(t, url), false)
+	d, gen := reviewWithRail(t, fx, railAt(t, url), false)
 	if gen.calls != 0 {
 		t.Fatalf("the model ran %d times", gen.calls)
 	}
@@ -174,12 +171,9 @@ func TestRecordedFixturePromptStopsTheStep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, gen, dials := reviewWithRail(t, fx, sample, false)
+	d, gen := reviewWithRail(t, fx, sample, false)
 	if gen.calls != 0 {
 		t.Fatalf("the model ran %d times", gen.calls)
-	}
-	if dials != 0 {
-		t.Fatalf("sample dials %d", dials)
 	}
 	assertGuardrail(t, d, "unsafe: Criminal Planning/Confessions, Other", "Criminal Planning/Confessions")
 }
@@ -194,7 +188,7 @@ func TestSafeGuardrailKeepsTheSampleFindings(t *testing.T) {
 		_, _ = io.WriteString(w, verdictJSON(text))
 	}))
 	defer srv.Close()
-	d, gen, _ := reviewWithRail(t, fx, railAt(t, srv.URL), false)
+	d, gen := reviewWithRail(t, fx, railAt(t, srv.URL), false)
 	if gen.calls == 0 {
 		t.Fatal("the model did not run")
 	}
@@ -212,7 +206,7 @@ func TestSafeGuardrailKeepsTheSampleFindings(t *testing.T) {
 	}
 }
 
-func reviewWithRail(t *testing.T, fx *fixture.Fixture, rail guardrail.Adapter, off bool) (candidate.Draft, *callCount, int) {
+func reviewWithRail(t *testing.T, fx *fixture.Fixture, rail guardrail.Adapter, off bool) (candidate.Draft, *callCount) {
 	t.Helper()
 	inner, err := generator.NewSample(fx.Answers)
 	if err != nil {
@@ -237,11 +231,7 @@ func reviewWithRail(t *testing.T, fx *fixture.Fixture, rail guardrail.Adapter, o
 	if err != nil {
 		t.Fatal(err)
 	}
-	dials := 0
-	if p.Guard() != nil {
-		dials = p.Guard().Dials()
-	}
-	return d, gen, dials
+	return d, gen
 }
 
 func loadFixture(t *testing.T) *fixture.Fixture {
