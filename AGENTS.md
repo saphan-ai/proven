@@ -64,9 +64,22 @@ The reviewer sits behind `internal/review`. `review.Open` wires the packages bel
 | `internal/agent/judge` | keeps a finding only when it has evidence |
 | `internal/agent/writer` | fills the review result |
 | `internal/pipeline` | runs the six agents in that order |
-| `cmd/proven` | `proven scan --sample <fixture>` |
+| `internal/cli` | the shell: ADR-0020 flags, variables, exit codes and the text format |
+| `cmd/proven` | `proven scan` and `proven ci`; it calls the shell |
 
 The sample change is `testdata/fixture/discount`.
+
+## 4. The command line
+
+The `proven` binary is `cmd/proven`. The shell is `internal/cli`. It reads every flag and variable in
+ADR-0020 §1, with a flag winning over its variable and the variable over the default, and it sets the
+exit code from ADR-0020 §2. It calls `review.Open` in `internal/review` and does not change that
+package. `--sample` and `SAMPLE_MODE=true` set sample mode on that call. The sample change is
+`testdata/fixture/discount`. The shell does not read `tests/fixtures/sample-findings.json`.
+Text output prints each finding's id, severity, title, location and message, then each piece of
+evidence (a test, or a query with its rows) and the failed services. JSON and SARIF go through
+`Formatter` and `FormatterFor` in `internal/cli`, which refuse them until the formats wagon.
+`scan` without `--sample`, on a target the reviewer cannot load, exits 2: Proven could not review.
 
 ## Configuration
 
