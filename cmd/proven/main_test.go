@@ -25,6 +25,66 @@ func TestScanSamplePrintsF1AndF2NotF3(t *testing.T) {
 	assertDiscountText(t, stdout.String())
 }
 
+func TestScanOpenFamilyNameIsAccepted(t *testing.T) {
+	root := repoRoot(t)
+	cfg := filepath.Join(t.TempDir(), "proven.yaml")
+	if err := os.WriteFile(cfg, []byte("families: gemini-*=Google\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	code := cli.Run(
+		[]string{"scan", "--sample", "--config=" + cfg, filepath.Join(root, "testdata", "fixture", "discount")},
+		os.Getenv, &stdout, &stderr, nil,
+	)
+	if code != 0 {
+		t.Fatalf("exit %d\n%s\n%s", code, stdout.String(), stderr.String())
+	}
+	if strings.Contains(stderr.String(), "unknown family") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestScanMalformedFamilyExits7(t *testing.T) {
+	root := repoRoot(t)
+	cfg := filepath.Join(t.TempDir(), "proven.yaml")
+	if err := os.WriteFile(cfg, []byte("families: gemini-*\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	code := cli.Run(
+		[]string{"scan", "--sample", "--config=" + cfg, filepath.Join(root, "testdata", "fixture", "discount")},
+		os.Getenv, &stdout, &stderr, nil,
+	)
+	if code != 7 {
+		t.Fatalf("exit %d\n%s\n%s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "families") || !strings.Contains(stderr.String(), "pattern=value") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestScanUnknownClassExits7(t *testing.T) {
+	root := repoRoot(t)
+	cfg := filepath.Join(t.TempDir(), "proven.yaml")
+	if err := os.WriteFile(cfg, []byte("path_rules: **/*.go=frontend\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	code := cli.Run(
+		[]string{"scan", "--sample", "--config=" + cfg, filepath.Join(root, "testdata", "fixture", "discount")},
+		os.Getenv, &stdout, &stderr, nil,
+	)
+	if code != 7 {
+		t.Fatalf("exit %d\n%s\n%s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "path_rules") || !strings.Contains(stderr.String(), "frontend") || !strings.Contains(stderr.String(), "unknown class") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
 func TestScanSampleErrorExits1(t *testing.T) {
 	root := repoRoot(t)
 	t.Chdir(t.TempDir())
@@ -146,6 +206,11 @@ func writeText(t *testing.T, buf *bytes.Buffer, res review.Result) {
 func assertDiscountText(t *testing.T, body string) {
 	t.Helper()
 	for _, want := range []string{
+		"review class: security",
+		"review rule: go.mod",
+		"author model not stated; default reviewer NVIDIA",
+		"reviewer NVIDIA; role default; family NVIDIA; author model not stated",
+		"special-review model: not configured",
 		"finding F1 ERROR Discount is applied twice",
 		"evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true",
 		"finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list",

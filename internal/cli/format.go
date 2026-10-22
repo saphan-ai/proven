@@ -44,6 +44,27 @@ func render(format string, result review.Result) ([]byte, error) {
 type textFormatter struct{}
 
 func (textFormatter) Write(w io.Writer, result review.Result) error {
+	if _, err := fmt.Fprintf(w, "review class: %s\n", result.Class); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "review rule: %s\n", result.ClassRule); err != nil {
+		return err
+	}
+	if result.SettingsStatement != "" {
+		if _, err := fmt.Fprintln(w, result.SettingsStatement); err != nil {
+			return err
+		}
+	}
+	if result.AuthorModelStatement != "" {
+		if _, err := fmt.Fprintln(w, result.AuthorModelStatement); err != nil {
+			return err
+		}
+	}
+	for _, line := range result.ReviewerStatements {
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return err
+		}
+	}
 	for _, finding := range result.Findings {
 		if err := writeFinding(w, finding); err != nil {
 			return err
