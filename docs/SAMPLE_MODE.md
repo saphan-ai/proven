@@ -3,7 +3,7 @@
 Sample mode runs a whole Proven review with **no network and no keys**. Every model answer, every test outcome and every
 query row comes from a recorded fixture, so anyone can run it on a laptop and get the same result every time.
 
-Every command and every output on this page was run on 22 October 2026 on a clean clone of `main` at `e749dfa`, with
+Every command and every output on this page was run on 22 October 2026 on a clean clone of `main` at `39225b0`, with
 Go 1.26.8 on macOS. Long output is shortened where marked.
 
 ## What sample mode exercises, and what it does not
