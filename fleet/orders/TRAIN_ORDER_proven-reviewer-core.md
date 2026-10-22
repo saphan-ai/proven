@@ -99,6 +99,17 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   prints no finding; `--baseline-commit=does-not-exist` fails naming it.
 - **master-was-wrong:** —
 
+### W1d `a-partial-review-reports-only-judged-findings`
+- **added:** by the master, 2026-10-22, from the retroactive codex review of W1 (verdict reject, run
+  run-20261022-032603-536d8bb3): two BLOCKING findings on `main`.
+- **what:** (1) a review cut by its deadline reports only findings the Judge kept; an unjudged candidate is never in the
+  result (ADR-0002 point 2); (2) the trace carries the full evidence (test outcome and output; query columns and rows)
+  and the full refutation (attempted, refuted, reason) (ADR-0018 point 3). Dispatched after W1c lands (both touch the
+  pipeline).
+- **dod:** a test with a deadline after planning: no unjudged finding in the result; the trace of F1, F2 and F3 carries
+  the full evidence and refutation. **Negative control:** remove the partial-path filter and the deadline test turns red.
+- **master-was-wrong:** —
+
 ### W2 `the-generator-through-nightshift`
 - **what:** the live generator: Nightshift by default (ADR-0019), any OpenAI-compatible endpoint by setting; base URL,
   token and model or routing mode from the environment, validated on load (ADR-0013). Each review names the route and
