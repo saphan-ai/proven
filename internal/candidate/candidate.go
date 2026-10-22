@@ -60,6 +60,10 @@ type Candidate struct {
 	Dropped    bool
 	DropReason string
 	Unresolved bool
+	// ProverNote is why a written test is not evidence. The pipeline copies it
+	// into the trace. Empty when the prover did not write a test, or when the
+	// written test is evidence.
+	ProverNote string
 }
 
 // Failure names a service the review degraded around.

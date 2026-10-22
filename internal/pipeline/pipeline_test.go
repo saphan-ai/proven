@@ -427,6 +427,86 @@ func buildSample(t *testing.T, logDir string, run testrun.Adapter) *Pipeline {
 	return p
 }
 
+// A written test that passes on the change and on the base is not evidence.
+// The trace names that reason. The runner is the only thing that runs.
+func TestWrittenTestThatPassesOnBothIsNamedInTheTrace(t *testing.T) {
+	fx, err := fixture.Load(fixturePath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := generator.NewSample(fx.Answers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "package billing\n\nimport \"testing\"\n\nfunc TestExtra(t *testing.T) {\n\tif Discounted(100, 20) != 80 {\n\t\tt.Fatal(Discounted(100, 20))\n\t}\n}\n"
+	raw, err := json.Marshal(map[string]string{
+		"path": "billing/extra_test.go", "content": body, "name": "TestExtra",
+		"command": "go test ./billing -run TestExtra",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := &outcomeRun{out: testrun.Outcome{Found: true, PassesOnBase: true, Path: "billing/extra_test.go", Name: "TestExtra"}}
+	p, err := Build(Options{
+		Sample: true, LogDir: t.TempDir(), Generator: &proverSwap{inner: inner, response: string(raw)}, TestRun: run,
+		Env: func(k string) string {
+			t.Fatalf("sample mode read %s", k)
+			return ""
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.calls != 1 || run.last.Content != body {
+		t.Fatalf("calls %d content %q", run.calls, run.last.Content)
+	}
+	if !traceSays(t, d.TracePath, "F1", "evidence", "written test passed on the change") {
+		b, readErr := os.ReadFile(d.TracePath)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		t.Fatalf("trace:\n%s", b)
+	}
+	for _, c := range d.Findings {
+		if c.ID != "F1" {
+			continue
+		}
+		for _, e := range c.Evidence {
+			if e.Test != nil {
+				t.Fatal("F1 kept a test that passed on both")
+			}
+		}
+	}
+}
+
+type proverSwap struct {
+	inner    generator.Generator
+	response string
+}
+
+func (g *proverSwap) Complete(ctx context.Context, agent, prompt string) (string, error) {
+	if agent == "prover" && strings.Contains(prompt, "id: F1\n") {
+		return g.response, nil
+	}
+	return g.inner.Complete(ctx, agent, prompt)
+}
+
+type outcomeRun struct {
+	calls int
+	last  testrun.Request
+	out   testrun.Outcome
+}
+
+func (o *outcomeRun) Run(_ context.Context, req testrun.Request) (testrun.Outcome, error) {
+	o.calls++
+	o.last = req
+	return o.out, nil
+}
+
 func kept(d candidate.Draft, id string) (candidate.Candidate, bool) {
 	for _, c := range d.Findings {
 		if c.ID == id {

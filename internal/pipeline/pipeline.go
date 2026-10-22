@@ -240,7 +240,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		return p.cut(st, cands, allow)
 	}
 	for i := range cands {
-		next, err := prover.Prove(ctx, cands[i], gen, run)
+		next, err := prover.Prove(ctx, cands[i], gen, run, prover.Options{
+			BaseDir:         filepath.Join(fx.Root, "base"),
+			ChangeDir:       filepath.Join(fx.Root, "change"),
+			MaxWrittenBytes: testrun.DefaultMaxWrittenBytes,
+		})
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -583,6 +587,9 @@ func keepFindings(in []candidate.Candidate, allow map[string]struct{}) []candida
 
 func evidenceText(c candidate.Candidate) string {
 	if len(c.Evidence) == 0 {
+		if c.ProverNote != "" {
+			return c.ProverNote
+		}
 		return "none"
 	}
 	text := ""
@@ -598,7 +605,13 @@ func evidenceText(c candidate.Candidate) string {
 		}
 	}
 	if text == "" {
+		if c.ProverNote != "" {
+			return c.ProverNote
+		}
 		return "none"
+	}
+	if c.ProverNote != "" {
+		return text + "; " + c.ProverNote
 	}
 	return text
 }
