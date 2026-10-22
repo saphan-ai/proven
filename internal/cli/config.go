@@ -255,7 +255,13 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		if len(positionals) != 0 {
 			return config{}, &cliError{code: exitFatal, msg: "ci takes no target"}
 		}
+		// proven.yaml is resolved from cfg.target below. ci has no positional
+		// target, so the checkout is GITHUB_WORKSPACE, including when this
+		// process was started outside that directory.
 		cfg.target = "."
+		if ws := getenv("GITHUB_WORKSPACE"); ws != "" {
+			cfg.target = ws
+		}
 	default:
 		return config{}, &cliError{code: exitFatal, msg: fmt.Sprintf("unknown command %q", cmd)}
 	}

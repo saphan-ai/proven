@@ -200,6 +200,66 @@ func TestCIWorkspaceIsTheTarget(t *testing.T) {
 	}
 }
 
+func TestCIDefaultConfigIsTheWorkspaceFile(t *testing.T) {
+	outside := t.TempDir()
+	workspace := t.TempDir()
+	want := filepath.Join(workspace, "proven.yaml")
+	if err := os.WriteFile(want, []byte("timeout: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	flagPath := filepath.Join(outside, "flag.yaml")
+	if err := os.WriteFile(flagPath, []byte("timeout: 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	envPath := filepath.Join(outside, "env.yaml")
+	if err := os.WriteFile(envPath, []byte("timeout: 3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(outside)
+
+	t.Run("default", func(t *testing.T) {
+		got := runCIOpen(t, []string{"ci"}, workspace, "")
+		if got != want {
+			t.Fatalf("ConfigPath %q, workspace file %q", got, want)
+		}
+	})
+	t.Run("flag", func(t *testing.T) {
+		got := runCIOpen(t, []string{"ci", "--config=" + flagPath}, workspace, "")
+		if got != flagPath {
+			t.Fatalf("ConfigPath %q, flag %q", got, flagPath)
+		}
+	})
+	t.Run("variable", func(t *testing.T) {
+		got := runCIOpen(t, []string{"ci"}, workspace, envPath)
+		if got != envPath {
+			t.Fatalf("ConfigPath %q, variable %q", got, envPath)
+		}
+	})
+}
+
+func runCIOpen(t *testing.T, args []string, workspace, provenConfig string) string {
+	t.Helper()
+	var got review.Options
+	var stdout, stderr bytes.Buffer
+	code := Run(args, func(k string) string {
+		switch k {
+		case "GITHUB_WORKSPACE":
+			return workspace
+		case "PROVEN_CONFIG":
+			return provenConfig
+		default:
+			return ""
+		}
+	}, &stdout, &stderr, func(opts review.Options) (review.Reviewer, error) {
+		got = opts
+		return &captureReviewer{}, nil
+	})
+	if code != exitOK {
+		t.Fatalf("exit %d stderr %s", code, stderr.String())
+	}
+	return got.ConfigPath
+}
+
 func TestOpenerPanicExits2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan"}, emptyEnv, &stdout, &stderr, func(review.Options) (review.Reviewer, error) {
