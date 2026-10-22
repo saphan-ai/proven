@@ -38,9 +38,21 @@ The first day of the train [`proven-cli-and-action`](../fleet/orders/TRAIN_ORDER
 
 - **Answer sent:** one row — `the-command-line` · reviews: none (the order said master-verify, written before the rule) · nvidia receipt: none · merged: no. Before W1b is accepted, its whole diff gets the two parallel reviews, one NVIDIA, so W1's code does not land without an NVIDIA receipt.
 
+### 7 · W1b returns; the master verifies; two reviews ordered
+
+- W1b returned stop-2-ready at cca7e5c: W1's command line on today's main, one sample path through the reviewer's `review.Open`, both trains' tests green, an unplug of sample mode red in three tests.
+- **Master verify (macm5):** vet clean, all tests green; `scan --sample testdata/fixture/discount` prints F1 and F2, exit 0; `--error` 1; `--config=auto` 7; without a reviewer 2; `internal/review` unchanged; clean merge with today's main.
+- **Reviews ordered in parallel** (owner signed): NVIDIA through Nightshift on a qwen-code seat, and codex. The codex one ran; the NVIDIA one waited for room on its machine.
+
+### 8 · codex review → master: reject
+
+- **Answer received:** `reject`, four blocking findings and one owed. Three belong to the shell: `proven ci` copies the base instead of computing the merge base; an invalid environment variable is refused even when a valid flag overrides it; a panic while opening the reviewer is not exit 2. Two belong to the review seam the reviewer train owns: `review.Open` ignores the baseline, head, include and exclude fields and the configuration file, so `--exclude='*'` still prints every finding.
+- **What the master did:** held the NVIDIA review (it would review code about to change), wrote W1b round 2 for the shell's three findings with the review pasted into the order, and asked the reviewer train's master to take the two seam findings.
+
 ## Waiting for answers
 
-- W1b's return; then the two review orders for the owner's signature, and the NVIDIA one's network opening.
+- the owner's signature of W1b round 2; then the round, the master's verify, and the two parallel reviews again (NVIDIA and codex).
+- the reviewer train's master: which wagon takes the seam findings, and when.
 
 ## REDACTED
 
