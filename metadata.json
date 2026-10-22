@@ -21,26 +21,27 @@
   },
   "sponsors": {
     "zetaris": {
-      "status": "planned",
-      "how": "The evidence layer: every evidence source (OSV, CISA KEV, FIRST EPSS, the repository's history) is a table behind Zetaris, and a finding about a dependency is proved by one SQL query and the rows it returned.",
+      "status": "in-progress",
+      "how": "The evidence layer: the Investigator proves a finding about a dependency with one SQL query over REST and the rows it returned (CISA KEV, FIRST EPSS, OSV by advisory id). In sample mode the same SQL runs over local sample tables shaped like the Zetaris views; live Zetaris evidence in a review is next.",
       "interface": "rest",
       "deployment": "local-docker",
-      "data_sources": ["OSV", "CISA KEV", "FIRST EPSS", "git history"],
-      "where": [],
-      "evidence": [],
+      "data_sources": ["CISA KEV", "FIRST EPSS", "OSV", "git history"],
+      "where": ["internal/query/", "internal/agent/investigator/", "cmd/livecheck/"],
+      "evidence": ["docs/SAMPLE_MODE.md", "testdata/fixture/discount/tables.sql", "fleet/infra/zetaris/README.md"],
       "decisions": [
         "fleet/decisions/ADR-0002-evidence-is-a-test-or-a-query-through-zetaris.md",
         "fleet/decisions/ADR-0004-first-evidence-sources.md",
-        "fleet/decisions/ADR-0015-zetaris-through-its-rest-api.md"
+        "fleet/decisions/ADR-0015-zetaris-through-its-rest-api.md",
+        "fleet/decisions/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md"
       ]
     },
     "meterless": {
-      "status": "planned",
-      "how": "H-MEM remembers findings refuted in earlier reviews and maintainers' rulings; the World Model holds each review's claims, evidence, refutations and verdicts. Built in Go and checked with Meterless's conformance suites. Every model call goes through Meterless Nightshift.",
+      "status": "in-progress",
+      "how": "H-MEM remembers findings refuted in earlier reviews, so they do not come back; the World Model holds the entities a review has seen, and its ingest survives a kill and a restart. Both are a minimum in Go, checked with Meterless's own conformance suites (H-MEM 9 of 13, World Model 7 of 8; the failures are the sections not built yet). Every model call goes through Meterless Nightshift, and the answering model is read from its signed receipt.",
       "engines": ["H-MEM", "World Model"],
       "provider": "nightshift",
-      "where": [],
-      "evidence": [],
+      "where": ["internal/hmem/", "internal/world/", "internal/generator/", "conformance/meterless/"],
+      "evidence": ["docs/SAMPLE_MODE.md", "docs/ARCHITECTURE.md", "fleet/infra/nvidia/README.md"],
       "decisions": [
         "fleet/decisions/ADR-0003-meterless-engines-in-go.md",
         "fleet/decisions/ADR-0018-meterless-engines-minimum-and-their-contract.md",
@@ -48,21 +49,23 @@
       ]
     },
     "cursor": {
-      "status": "in-progress",
-      "how": "Cursor agents write the product code, each from a written order, in its own copy of the repository; their reports and the reviews of their work are in fleet/.",
-      "models": ["composer-2.5"],
+      "status": "working",
+      "how": "Cursor agents write Proven's product code: up to four at once, headless on a Linux machine, each from a signed order, in its own copy of the repository, inside a jail with its own network and an egress door, and with every model request recorded by a proxy. 16 changes were merged on day one.",
+      "models": ["grok-4.7-high"],
       "surfaces": ["agent-cli"],
-      "where": ["fleet/orders/", "fleet/status/"],
-      "evidence": ["fleet/LEDGER.md"],
-      "decisions": []
+      "where": ["fleet/orders/", "fleet/status/", "fleet/infra/cursor/"],
+      "evidence": ["fleet/infra/cursor/README.md", "assets/build/2026-10-22_three-cursor-runs-on-grok.png", "fleet/LEDGER.md"],
+      "decisions": [
+        "fleet/decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md"
+      ]
     },
     "nvidia": {
-      "status": "planned",
-      "how": "Nemotron is the default first reviewer and the Skeptic that tries to refute each finding; Nemotron 3.5 Content Safety guards every prompt and answer.",
-      "models": ["Nemotron (reviewer and Skeptic)", "Nemotron 3.5 Content Safety"],
+      "status": "in-progress",
+      "how": "Nemotron answers Proven's agents through Meterless Nightshift, and the Skeptic that tries to refute each finding defaults to Nemotron; an answer that did not come from an NVIDIA model is refused by name. Nemotron 3.5 Content Safety checks every prompt and every answer, on our own model server or through NVIDIA's hosted API.",
+      "models": ["nvidia/nemotron-3.5-super-vl-120b-a12b", "Nemotron 3.5 Content Safety"],
       "route": "via-meterless",
-      "where": [],
-      "evidence": [],
+      "where": ["internal/generator/", "internal/guardrail/", "internal/agent/skeptic/"],
+      "evidence": ["fleet/infra/nvidia/README.md", "docs/CONFIGURATION.md"],
       "decisions": [
         "fleet/decisions/ADR-0005-guardrail-on-by-default.md",
         "fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md",
@@ -78,15 +81,15 @@
     },
     {
       "name": "Test corpus",
-      "what": "21 test cases from 28 real review disagreements, with their code, declared as prior art.",
+      "what": "21 test-case contracts from 28 real review disagreements, declared as prior art; their executable tests are written inside the build window.",
       "where": ["tests/"],
       "since": "2026-10-19"
     }
   ],
   "run": {
-    "setup": "README.md",
+    "setup": "docs/SAMPLE_MODE.md",
     "sample_mode": true,
-    "secrets": ["ZETARIS_API_KEY", "ZETARIS_ORG_ID", "METERLESS_RUNTIME_TOKEN"]
+    "secrets": ["METERLESS_RUNTIME_TOKEN", "ZETARIS_API_KEY", "ZETARIS_ORG_ID", "PROVEN_GUARDRAIL_KEY"]
   },
   "evidence_logs": "logs/"
 }
