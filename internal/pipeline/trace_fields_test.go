@@ -98,7 +98,20 @@ func TestTraceCarriesEvidenceAndRefutation(t *testing.T) {
 		t.Fatalf("rows %#v", q.Rows)
 	}
 
-	for _, id := range []string{"F1", "F2", "F3"} {
+	f4 := oneProof(t, events, "F4")
+	if f4.Query == nil || f4.Kind != "query" {
+		t.Fatalf("F4 evidence %#v", f4)
+	}
+	kq := f4.Query
+	if kq.SQL != "SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'" ||
+		kq.Engine != "local-sample" || kq.Snapshot != "sample-2026-10-22" {
+		t.Fatalf("F4 query %#v", kq)
+	}
+	if len(kq.Rows) != 1 || kq.Rows[0][0] != "CVE-2026-0001" || kq.Rows[0][1] != "evil.example" || kq.Rows[0][2] != "leftpad" {
+		t.Fatalf("F4 rows %#v", kq.Rows)
+	}
+
+	for _, id := range []string{"F1", "F2", "F3", "F4"} {
 		line := rawEvent(t, raw, id, "refutation")
 		if !bytes.Contains(line, []byte(`"attempted":true`)) || !bytes.Contains(line, []byte(`"refuted":false`)) || !bytes.Contains(line, []byte(`"reason":"no refutation"`)) {
 			t.Fatalf("%s refutation %s", id, line)

@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/saphan-ai/proven/internal/limit"
-	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Sample runs SQL on the local engine. It opens no network.
@@ -41,17 +40,4 @@ func (s *Sample) Query(ctx context.Context, sql string) (Result, error) {
 		rows = [][]string{}
 	}
 	return Result{SQL: sql, Engine: "local-sample", Columns: cols, Rows: rows}, nil
-}
-
-// Live is the live query adapter for this wagon. Zetaris is a later wagon.
-type Live struct{}
-
-// Query reports the query service as down.
-func (Live) Query(ctx context.Context, sql string) (Result, error) {
-	ctx, cancel := limit.Bound(ctx)
-	defer cancel()
-	if err := ctx.Err(); err != nil {
-		return Result{}, err
-	}
-	return Result{}, &service.Down{Service: "query", Reason: "no live query engine in this wagon"}
 }

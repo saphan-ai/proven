@@ -23,6 +23,12 @@ var exemptBanned = map[string]map[string]string{
 	"internal/change/between.go": {
 		"os/exec": "git read commands name changed files and do not run the change",
 	},
+	"internal/guardrail/live.go": {
+		"net/http": "the live guardrail calls the content-safety endpoint",
+	},
+	"internal/query/live.go": {
+		"net/http": "the live query adapter calls the Zetaris REST API",
+	},
 }
 
 func TestInternalAndCmdDoNotImportBannedPackages(t *testing.T) {
@@ -76,6 +82,11 @@ func TestInternalAndCmdDoNotImportBannedPackages(t *testing.T) {
 			}
 			if reason := exemptBanned[rel][p]; reason != "" {
 				used[rel+"\x00"+p] = true
+				continue
+			}
+			// query/live.go is the Zetaris REST client. sample.go and the
+			// local engine still must not import net or net/http.
+			if rel == "internal/query/live.go" && p == "net/http" {
 				continue
 			}
 			t.Errorf("%s imports %s", rel, p)
