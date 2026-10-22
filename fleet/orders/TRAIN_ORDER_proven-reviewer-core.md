@@ -56,8 +56,11 @@ builds on it; where the advisor is wrong, the wagon's `master-was-wrong:` field 
 
 Executors: Cursor seats on runner-cursor, `grok-4.7-high` by default; `--model` on the dispatch line. **The owner, 2026-10-22
 (translated from Polish):** *"Proven's coding goes on Grok, and the review goes on one of the other models plus, in
-parallel and mandatory, NVIDIA."* Every review of this train is therefore two independent reviews of the same diff: one
-on a non-Grok model (`codex` first) and one on an NVIDIA model; neither sees the other's verdict before returning. Every session
+parallel and mandatory, NVIDIA."* Every review of this train is therefore two independent reviews of the same diff, run in
+PARALLEL, never one after the other, and neither sees the other's verdict before returning: **(a) mandatory**, an
+`nvidia/*` model through Nightshift with its signed receipt (ADR-0019 amendment 1: no `nvidia/*` receipt = the review is
+refused; the Nightshift call streams); **(b)** a non-Grok model when such a review seat is free; when none is free, Grok
+on a Cursor seat is allowed (the owner's rule as relayed by the advisor, 2026-10-22). Every session
 recorded (ADR-0024). Reviews on `codex` with `--role review`, the focus phrased as the property that must hold (law #9,
 law #56). Intermediate wagons are master-verified; the last carries the stream's named review (law #29).
 
