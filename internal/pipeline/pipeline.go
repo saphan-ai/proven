@@ -40,6 +40,8 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
+	// LiveQuery, when set, is the Zetaris adapter. Sample mode does not use it.
+	LiveQuery query.Adapter
 	// StateDir is the durable directory for H-MEM and the world model.
 	// Empty uses a state directory beside the logs, never a path inside the module.
 	StateDir string
@@ -56,6 +58,7 @@ type Pipeline struct {
 	testRun    testrun.Adapter
 	proverIdle string
 	gen        generator.Generator
+	liveQuery  query.Adapter
 	trace      *trace.Writer
 	guard      *netguard.Guard
 	rail       guardrail.Adapter
@@ -102,7 +105,7 @@ func Build(opts Options) (*Pipeline, error) {
 	}
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
-		gen: opts.Generator, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
+		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		mem: mem, world: wm,
 	}
 	if !opts.GuardOff && p.rail == nil {
@@ -331,10 +334,13 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 		}
 	} else if p.gen != nil {
 		gen = p.gen
-		q = query.Live{}
+		q = p.liveQuery
 	} else {
 		gen = &generator.Live{}
-		q = query.Live{}
+		q = p.liveQuery
+	}
+	if !p.sample && q == nil {
+		q = &query.Live{}
 	}
 	run := p.testRun
 	if run == nil {
