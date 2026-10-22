@@ -11,10 +11,45 @@ import (
 
 // Event is one claim, piece of evidence, refutation or verdict.
 type Event struct {
-	FindingID string `json:"finding_id"`
-	Kind      string `json:"kind"`
-	Agent     string `json:"agent"`
-	Text      string `json:"text"`
+	FindingID  string      `json:"finding_id"`
+	Kind       string      `json:"kind"`
+	Agent      string      `json:"agent"`
+	Text       string      `json:"text"`
+	Evidence   []Evidence  `json:"evidence,omitempty"`
+	Refutation *Refutation `json:"refutation,omitempty"`
+}
+
+// Evidence is one piece of proof stored with its finding.
+type Evidence struct {
+	Kind  string         `json:"kind"`
+	Test  *TestEvidence  `json:"test,omitempty"`
+	Query *QueryEvidence `json:"query,omitempty"`
+}
+
+// TestEvidence is the prover outcome. Bools are stored even when false.
+type TestEvidence struct {
+	Path          string `json:"path"`
+	Name          string `json:"name"`
+	Command       string `json:"command"`
+	FailsOnChange bool   `json:"fails_on_change"`
+	PassesOnBase  bool   `json:"passes_on_base"`
+	Output        string `json:"output"`
+}
+
+// QueryEvidence is the investigator result, including every column and row.
+type QueryEvidence struct {
+	SQL      string     `json:"sql"`
+	Engine   string     `json:"engine"`
+	Snapshot string     `json:"snapshot"`
+	Columns  []string   `json:"columns"`
+	Rows     [][]string `json:"rows"`
+}
+
+// Refutation is the skeptic attempt. Bools are stored even when false.
+type Refutation struct {
+	Attempted bool   `json:"attempted"`
+	Refuted   bool   `json:"refuted"`
+	Reason    string `json:"reason"`
 }
 
 // Writer appends events to logs/trace.jsonl.
