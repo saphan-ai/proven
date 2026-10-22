@@ -20,7 +20,12 @@ This page is an index of every conversation page in `planning/`, one day at a ti
 | 20 October 2026 | [`CONVERSATION_2026-10-20.md`](CONVERSATION_2026-10-20.md) | the Cursor machine runs, but its agents cannot work unattended yet; Zetaris arrives; proven as a drop-in for scanners, and a Gitea lab for the judges |
 | 21 October 2026 | [`CONVERSATION_2026-10-21_advisor.md`](CONVERSATION_2026-10-21_advisor.md) | the advisor: the test corpus as the Cursor agents' shake-out before the build; the interface and on-premises decisions; Nightshift in a VM; the onboarding questions; recording every Cursor session (ADR-0024) |
 | 21 October 2026 | [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) | the infrastructure master's hops, 19–21 October: the machine, the image, the guardrail model (done), the Zetaris host and its evidence sources |
+| 22 October 2026 | [`CONVERSATION_2026-10-22_proven-cursor-infra.md`](CONVERSATION_2026-10-22_proven-cursor-infra.md) | the infrastructure master: two engine fixes built and reviewed overnight (a dead run's seat, a qwen seat's own endpoint), Grok's model names measured, Cursor sessions recorded |
+| 22 October 2026 | [`CONVERSATION_2026-10-22_proven-cli-and-action.md`](CONVERSATION_2026-10-22_proven-cli-and-action.md) | W1 the command line on Grok: built, verified, accepted, not merged; W1b carries it onto main |
+| 22 October 2026 | [`CONVERSATION_2026-10-22_proven-zetaris-local.md`](CONVERSATION_2026-10-22_proven-zetaris-local.md) | OSV from storage works (CSV, JSON array); W10 real evidence data for the Wildcard |
+| 22 October 2026 | [`CONVERSATION_2026-10-22_proven-test-corpus.md`](CONVERSATION_2026-10-22_proven-test-corpus.md) | the NVIDIA reviews wait for the seat fix; the two-review rule |
 | 22 October 2026 | [`CONVERSATION_2026-10-22_advisor.md`](CONVERSATION_2026-10-22_advisor.md) | build day 1, the advisor with every message to the masters and their answers: the first Cursor session (not recorded), the two-review rule with NVIDIA, the first accept checked, a retroactive review, three categories with the Wildcard |
+| 22 October 2026 | [`CONVERSATION_2026-10-22_proven-reviewer-core.md`](CONVERSATION_2026-10-22_proven-reviewer-core.md) | the reviewer master: the shell–reviewer interface agreed, W1 (the reviewer end to end in sample mode) built on Grok, verified and landed; W1b the Prover in a container, tests written apart |
 
 ---
 

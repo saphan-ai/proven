@@ -2,6 +2,9 @@ package review
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/pipeline"
@@ -17,6 +20,16 @@ func open(opts Options) (Reviewer, error) {
 			Reason:  "the run needs a logs directory",
 			Allowed: []string{"a directory path"},
 		}
+	}
+	var timeout time.Duration
+	explicit := false
+	if opts.ConfigPath != "" {
+		d, err := loadConfigFile(opts.ConfigPath)
+		if err != nil {
+			return nil, err
+		}
+		timeout = d
+		explicit = true
 	}
 	popts := pipeline.Options{
 		Sample: opts.Sample,
@@ -40,20 +53,67 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p}, nil
+	return &runner{p: p, timeout: timeout, explicit: explicit}, nil
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
 type runner struct {
-	p *pipeline.Pipeline
+	p        *pipeline.Pipeline
+	timeout  time.Duration
+	explicit bool
 }
 
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
-	d, err := r.p.Review(ctx, pipeline.Request{Target: req.Target})
+	timeout := r.timeout
+	if !r.explicit {
+		d, err := timeoutInTarget(req.Target)
+		if err != nil {
+			return Result{}, err
+		}
+		timeout = d
+	}
+	if timeout > 0 {
+		if _, ok := ctx.Deadline(); !ok {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+	}
+	d, err := r.p.Review(ctx, pipeline.Request{
+		Target:         req.Target,
+		BaselineCommit: req.BaselineCommit,
+		HeadCommit:     req.HeadCommit,
+		Include:        req.Include,
+		Exclude:        req.Exclude,
+	})
 	if err != nil {
 		return Result{}, err
 	}
 	return fill(d), nil
+}
+
+// timeoutInTarget reads proven.yaml in the review target when Open was given
+// no path. A missing file is the defaults.
+func timeoutInTarget(target string) (time.Duration, error) {
+	path := filepath.Join(target, "proven.yaml")
+	st, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if st.IsDir() {
+		return 0, &ConfigError{
+			Field: "ConfigPath", Value: path, Reason: "path is a directory",
+			Allowed: []string{"a path to an existing file"},
+		}
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	return parseConfig(b)
 }
 
 func fill(d candidate.Draft) Result {

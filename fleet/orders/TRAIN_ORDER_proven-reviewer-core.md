@@ -60,7 +60,8 @@ parallel and mandatory, NVIDIA."* Every review of this train is therefore two in
 PARALLEL, never one after the other, and neither sees the other's verdict before returning: **(a) mandatory**, an
 `nvidia/*` model through Nightshift with its signed receipt (ADR-0019 amendment 1: no `nvidia/*` receipt = the review is
 refused; the Nightshift call streams); **(b)** a non-Grok model when such a review seat is free; when none is free, Grok
-on a Cursor seat is allowed (the owner's rule as relayed by the advisor, 2026-10-22). Every session
+on a Cursor seat is allowed (the owner's rule as relayed by the advisor, 2026-10-22). The rule binds wagons whose review is **named**;
+master-verified wagons stay master-verified (the owner, 2026-10-22: *"nazwane"* — "the named ones"). Every session
 recorded (ADR-0024). Reviews on `codex` with `--role review`, the focus phrased as the property that must hold (law #9,
 law #56). Intermediate wagons are master-verified; the last carries the stream's named review (law #29).
 
@@ -86,6 +87,27 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   it could not run and why; a test that reads Proven's token finds none. **Unplug (law #41):** no container runtime on
   the path → the Prover is named off, F1 is not reported as proved, and no process of the change runs on the host
   (measured by a test).
+- **master-was-wrong:** —
+
+### W1c `the-reviewer-honours-the-request`
+- **added:** by the master, 2026-10-22, from two BLOCKING findings of the review of `proven-cli-and-action` W1b (message
+  `f8ca217af5e64c1b`): the reviewer ignored the request's baseline, head, include and exclude, and never read its
+  configuration file.
+- **what:** the request reaches the pipeline (changed files from the baseline, selection by include/exclude, a missing
+  baseline is fatal); the configuration file is read with a closed key set, refused by name on load (exit 7 in the shell).
+- **dod:** the test plan's nine cases, written by a separate test author, green on the implementation; `--exclude='*'`
+  prints no finding; `--baseline-commit=does-not-exist` fails naming it.
+- **master-was-wrong:** —
+
+### W1d `partial-reviews-report-judged-findings`
+- **added:** by the master, 2026-10-22, from the retroactive codex review of W1 (verdict reject, run
+  run-20261022-032603-536d8bb3): two BLOCKING findings on `main`.
+- **what:** (1) a review cut by its deadline reports only findings the Judge kept; an unjudged candidate is never in the
+  result (ADR-0002 point 2); (2) the trace carries the full evidence (test outcome and output; query columns and rows)
+  and the full refutation (attempted, refuted, reason) (ADR-0018 point 3). Dispatched after W1c lands (both touch the
+  pipeline).
+- **dod:** a test with a deadline after planning: no unjudged finding in the result; the trace of F1, F2 and F3 carries
+  the full evidence and refutation. **Negative control:** remove the partial-path filter and the deadline test turns red.
 - **master-was-wrong:** —
 
 ### W2 `the-generator-through-nightshift`
@@ -129,6 +151,9 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   evidence is the query and its rows (ADR-0007 point 2), live and in sample mode. **Negative control:** a version the
   advisory does not cover gives no finding. A join drops a CVE absent from one side: the review never reads a missing
   row as "not exploited" (ADR-0023). **Unplug:** Zetaris down → degraded, named.
+  **Hard point, Wildcard track (the owner via the advisor, 2026-10-22):** by **2026-10-27**, a LIVE Proven review draws
+  at least one finding's evidence from Zetaris: the query's SQL and rows appear in the trace, recorded and demonstrable,
+  not only in sample mode. W5 carries it; W5 is dispatched as soon as W2 (the live generator) lands.
 - **master-was-wrong:** —
 
 ### W6 `the-skeptic-and-the-judge`

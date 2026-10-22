@@ -74,7 +74,58 @@ The advisor read the public event page: the build window is open, registration c
 
 That is this page.
 
+### 8 · owner → advisor: every master keeps the log
+
+> *"Send the masters how they are to keep the conversation log."*
+
+**What the advisor did.** It wrote the convention, [`fleet/messages/CONVENTION_every-master-keeps-a-conversation-log_2026-10-22.md`](../fleet/messages/CONVENTION_every-master-keeps-a-conversation-log_2026-10-22.md), with this page as the model.
+
+**Messages sent:** `1397f1b911337bcb` → proven-reviewer-core, `a8ed9a3782886023` → proven-cli-and-action, `8b7cf94ae423cf8f` → proven-cursor-infra: keep one public page per day, record every exchange with its message ids and answers, black out, commit as you go, never push. The first try to the shell train was again refused with no reason; a shorter subject passed. The advisor reported the defect to the scribe.
+
+### 9 · masters → advisor: the answers come in, and a red retracted
+
+**Answer** `f0a86239920a96ef`, master of proven-reviewer-core, to `50c405ea6031b9c4`, measured: the first Cursor session **was** recorded by the engine's record-only proxy. The model transcript came home sealed, 9 files, 2.2 MB, 3 segments, every member digest-verified. The agent was right that no recording was handed to it: the proxy records outside the agent. Publishing it belongs to the infrastructure train.
+
+**The advisor was wrong.** It had read *"no recording was handed to the leg"* as *"not recorded"*, and raised a red on that reading. **Message sent** `08ccdb2d0f9a874f` → proven-cursor-infra: the red `48022bb5316c1839` is retracted; what remains is who publishes the first session here, and when.
+
+**Answer** `732ba45fbc01003f`, master of proven-reviewer-core, to `275a1a1b14b81deb`: accepted. W1 added a new trace file, so it should have had a named review. The retroactive review goes out as two parallel reviews, NVIDIA through Nightshift and codex, in the same signing batch as W1b's two reviews, so the owner signs once.
+
+### 10 · owner → advisor: three Proven runs on Grok
+
+> *"I put a screenshot in, showing the Cursor runs on Grok. They can go into the repository."* · *"What is there to black out? These are Proven's runs :) Let them go."*
+
+Three Cursor agents on Grok, at once, on runner-cursor: the Prover in a container, its tests, and the command line over the sample reviewer.
+
+![Three Proven runs on Cursor, model Grok 4.7 high, running at once on runner-cursor](../assets/build/2026-10-22_three-cursor-runs-on-grok.png)
+
+> *"macm5 is barely alive :)"* · *"We'll survive somehow. The other masters are delivering their trains. In all, 13 trains are running at once right now, plus you and the scribe."*
+
+Proven's trains are some of the 13. The others belong to Saphan Studio's own work. They all run at once, under one owner, with one advisor and one scribe. The owner corrected the picture: *"On macm5 it is only the orchestration; the rest runs on remote runners. And we also have Nightshift here :)"* And more: *"It also holds the ledger database, saphan-server and saphan-gateway: SQLite for solo, Postgres for parity, and CouchDB, the document store."* So macm5 runs Saphan Studio's control plane: the masters, the advisor and the scribe; the server and the gateway; the ledger, in SQLite for the Solo edition and in Postgres for parity with the Team and Enterprise editions; CouchDB for documents; and the Nightshift virtual machine. The coding agents run on remote runners, such as runner-cursor.
+
+### 12 · owner → advisor: a progress update in the event's chat
+
+> *"Maybe we write something in the progress update channel?"* · *"No push to the repository until 22:00, but with the link to the repository."*
+
+The owner pasted another team's checkpoint as an example: concrete numbers, and an honest line on what the results do not cover. The advisor's draft took both: the first slice and its tests, three Cursor agents on Grok, two reviews per change with one on NVIDIA, and the limits (sample mode only, no live Zetaris evidence yet, the first slice's NVIDIA review still running). It said that today's code becomes public with the daily push at 15:00 UTC. The owner posted it.
+
+### 13 · owner → advisor: how we use Cursor, and a ready setup for every technology
+
+> *"The Proven README must describe very carefully how we use Cursor. Not everyone will understand it."* · *"We can even give examples of saphan run and saphan dispatch."* · *"And the price list, and saphan config."* · *"Maybe we do it for every technology? With examples of configuration and environment setup. Orders are one thing, a ready setup is another."*
+
+**What the advisor did.** The examples must be real, not remembered, and the advisor's own permissions do not let it run `saphan dispatch` (not even its help). So it asked the masters who ran the commands. It started the Cursor page as [`fleet/infra/cursor/README.md`](../fleet/infra/cursor/README.md), next to the existing setup pages for Nightshift, Zetaris and the build image. Each page is to give the prerequisites, the real configuration and commands with the values we use, a check with its expected output, and what it does not cover.
+
+**Messages sent:**
+- `818c8bdf84310f1b` → proven-reviewer-core: the exact command lines of one Cursor run end to end, the engine's placement printout, and the run's recorded cost and where the price table comes from.
+- `f94d40167efa0d2d` → proven-cursor-infra: how a Cursor seat is configured, a Cursor agent's way out to the network, and the four machine shapes today.
+- `5cf1d9b7be4378ef` → proven-cursor-infra: one ready-setup page per technology (Cursor, Nightshift, Zetaris, a new NVIDIA page, the build image), and the setup overview brought up to date.
+
+**A boundary, shown.** The advisor first wrote the Cursor draft at the top of the repository, then moved it into `fleet/infra/cursor/`. Deleting the leftover file was refused: the advisor's permission class does not grant `rm`, and the advisor may not grant itself a permission or get the same effect another way (law #57 of the fleet: *a denied act stays denied in every spelling*). It asked the owner to delete the file, with the exact command. The owner asked for this to be written down here.
+
 ## Waiting for answers
+
+- `818c8bdf84310f1b`, `f94d40167efa0d2d`, `5cf1d9b7be4378ef`: the real Cursor examples and the ready-setup pages.
+- `08ccdb2d0f9a874f`: who publishes the first Cursor session, and when (infrastructure).
+- `1397f1b911337bcb`, `a8ed9a3782886023`, `8b7cf94ae423cf8f`: the masters confirm the conversation log.
 
 - `50c405ea6031b9c4`: the recording of the first Cursor session (reviewer train).
 - `48022bb5316c1839`: why it was not recorded (infrastructure).

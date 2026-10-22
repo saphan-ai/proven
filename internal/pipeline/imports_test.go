@@ -58,12 +58,21 @@ func TestSamplePackagesDoNotImportNetOrExec(t *testing.T) {
 		}
 		for _, imp := range f.Imports {
 			p := strings.Trim(imp.Path.Value, `"`)
-			if p == "os/exec" && rel == "internal/testrun/container.go" {
+			if !banned[p] {
 				continue
 			}
-			if banned[p] {
-				t.Errorf("%s imports %s", rel, p)
+			// container.go starts the container runtime that runs the change's
+			// tests (ADR-0025); it is the one file allowed to run a program.
+			if rel == "internal/testrun/container.go" && p == "os/exec" {
+				continue
 			}
+			// between.go runs git read commands (rev-parse, diff, ls-files) to
+			// name changed files. It does not run the change. Any other file
+			// that imports os/exec or net still fails this test.
+			if rel == "internal/change/between.go" && p == "os/exec" {
+				continue
+			}
+			t.Errorf("%s imports %s", rel, p)
 		}
 		return nil
 	})
