@@ -66,22 +66,22 @@
     },
     {
       "agent": "prover",
-      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F1\ntitle: Discount is applied twice\n",
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F1\ntitle: Discount is applied twice\n",
       "response": "{\"path\":\"billing/discount_test.go\",\"name\":\"TestDiscounted\",\"command\":\"go test ./billing -run TestDiscounted\"}"
     },
     {
       "agent": "prover",
-      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
       "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
     },
     {
       "agent": "prover",
-      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F3\ntitle: note may include a payment token\n",
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F3\ntitle: note may include a payment token\n",
       "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
     },
     {
       "agent": "prover",
-      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
       "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
     },
     {

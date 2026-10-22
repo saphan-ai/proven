@@ -48,11 +48,12 @@ const (
 // field that gives the container a network, an environment variable or a mount
 // beyond the one checkout.
 type ContainerConfig struct {
-	Runtime string        // container CLI name or path; default "docker"
-	Image   string        // image the test runs in
-	Timeout time.Duration // limit for one test run, base or change
-	CPUs    string        // CPU limit passed to the runtime
-	Memory  string        // memory limit passed to the runtime
+	Runtime         string        // container CLI name or path; default "docker"
+	Image           string        // image the test runs in
+	Timeout         time.Duration // limit for one test run, base or change
+	CPUs            string        // CPU limit passed to the runtime
+	Memory          string        // memory limit passed to the runtime
+	MaxWrittenBytes int           // size limit for a test file the prover writes
 }
 
 var (
@@ -86,11 +87,12 @@ func (e *SettingError) Error() string {
 // DefaultContainerConfig returns the documented defaults.
 func DefaultContainerConfig() ContainerConfig {
 	return ContainerConfig{
-		Runtime: defaultRuntime,
-		Image:   defaultImage,
-		Timeout: defaultTimeout,
-		CPUs:    defaultCPUs,
-		Memory:  defaultMemory,
+		Runtime:         defaultRuntime,
+		Image:           defaultImage,
+		Timeout:         defaultTimeout,
+		CPUs:            defaultCPUs,
+		Memory:          defaultMemory,
+		MaxWrittenBytes: DefaultMaxWrittenBytes,
 	}
 }
 
@@ -129,6 +131,13 @@ func (c ContainerConfig) Validate() error {
 			Field: "Memory", Value: c.Memory,
 			Reason:  "the memory limit is a positive size with suffix b, k, m or g; 0 is refused",
 			Allowed: []string{defaultMemory},
+		}
+	}
+	if c.MaxWrittenBytes <= 0 {
+		return &SettingError{
+			Field: "MaxWrittenBytes", Value: strconv.Itoa(c.MaxWrittenBytes),
+			Reason:  "the written test size limit is a positive number of bytes",
+			Allowed: []string{strconv.Itoa(DefaultMaxWrittenBytes)},
 		}
 	}
 	return nil
@@ -254,6 +263,24 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 		return Outcome{}, err
 	}
 	out := Outcome{Path: req.Path, Name: req.Name, Command: req.Command}
+	if req.Content != "" {
+		if reason := RefuseWritten(req.Path, req.Content, req.Command, req.BaseDir, req.ChangeDir, c.cfg.MaxWrittenBytes); reason != "" {
+			out.Output = "refused: " + reason
+			return out, nil
+		}
+		changeCopy, err := stageWritten(req.ChangeDir, req.Path, req.Content)
+		if err != nil {
+			return out, err
+		}
+		defer os.RemoveAll(changeCopy)
+		baseCopy, err := stageWritten(req.BaseDir, req.Path, req.Content)
+		if err != nil {
+			return out, err
+		}
+		defer os.RemoveAll(baseCopy)
+		req.ChangeDir = changeCopy
+		req.BaseDir = baseCopy
+	}
 	if strings.TrimSpace(req.Command) == "" || req.BaseDir == "" || req.ChangeDir == "" {
 		out.Output = "the test could not run: command, base directory and change directory are required"
 		return out, nil
