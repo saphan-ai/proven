@@ -137,6 +137,32 @@ func TestNegativeControl_RemoveF1RecordedTest(t *testing.T) {
 	}
 }
 
+type dirProbe struct {
+	req testrun.Request
+}
+
+func (d *dirProbe) Run(ctx context.Context, req testrun.Request) (testrun.Outcome, error) {
+	d.req = req
+	return testrun.Outcome{}, nil
+}
+
+func TestCheckoutRunFillsEmptyDirectories(t *testing.T) {
+	probe := &dirProbe{}
+	a := checkoutRun{inner: probe, base: "/tmp/base", change: "/tmp/change"}
+	if _, err := a.Run(context.Background(), testrun.Request{Command: "go test ./billing"}); err != nil {
+		t.Fatal(err)
+	}
+	if probe.req.BaseDir != "/tmp/base" || probe.req.ChangeDir != "/tmp/change" {
+		t.Fatalf("%#v", probe.req)
+	}
+	if _, err := a.Run(context.Background(), testrun.Request{Command: "go test", BaseDir: "/already", ChangeDir: "/set"}); err != nil {
+		t.Fatal(err)
+	}
+	if probe.req.BaseDir != "/already" || probe.req.ChangeDir != "/set" {
+		t.Fatalf("%#v", probe.req)
+	}
+}
+
 func buildSample(t *testing.T, logDir string, run testrun.Adapter) *Pipeline {
 	t.Helper()
 	p, err := Build(Options{

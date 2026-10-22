@@ -10,8 +10,8 @@ import (
 // ProverOffReason is the live adapter's answer while no container runner exists.
 const ProverOffReason = "Prover off: no container runner yet"
 
-// Live runs no code. A container runner is a later wagon, and this adapter
-// does not fall back to the host.
+// Live runs no code. review.Open uses the container adapter instead.
+// A test can still inject Live to name the Prover off. It never runs on the host.
 type Live struct{}
 
 // Run reports the Prover as off.

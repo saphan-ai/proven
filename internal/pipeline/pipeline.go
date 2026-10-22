@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/saphan-ai/proven/internal/agent/investigator"
 	"github.com/saphan-ai/proven/internal/agent/judge"
@@ -28,14 +29,18 @@ type Options struct {
 	LogDir  string
 	Env     func(string) string
 	TestRun testrun.Adapter
+	// ProverIdle, when set, is named on the review as the Prover being off.
+	// The review runs no test code in that case.
+	ProverIdle string
 }
 
 // Pipeline is one reviewer.
 type Pipeline struct {
-	sample  bool
-	testRun testrun.Adapter
-	trace   *trace.Writer
-	guard   *netguard.Guard
+	sample     bool
+	testRun    testrun.Adapter
+	proverIdle string
+	trace      *trace.Writer
+	guard      *netguard.Guard
 }
 
 // Build opens the trace and, in sample mode, a client that refuses every dial.
@@ -49,7 +54,7 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Pipeline{sample: opts.Sample, testRun: opts.TestRun, trace: tw}
+	p := &Pipeline{sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, trace: tw}
 	if opts.Sample {
 		p.guard = &netguard.Guard{}
 		p.guard.Arm()
@@ -79,6 +84,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		return candidate.Draft{}, err
 	}
 	st := &state{trace: p.trace}
+	if p.proverIdle != "" {
+		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
+	}
 	gen = recording{inner: gen, models: &st.models}
 
 	risks, err := planner.Plan(ctx, req.Target, gen)
@@ -198,13 +206,51 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 		gen = generator.Live{}
 		q = query.Live{}
 	}
-	if p.testRun != nil {
-		return gen, q, p.testRun, nil
+	run := p.testRun
+	if run == nil {
+		if p.sample {
+			run = testrun.NewSample(fx.Tests)
+		} else {
+			c, nerr := testrun.NewContainer(testrun.DefaultContainerConfig(), nil)
+			if nerr != nil {
+				d, ok := service.As(nerr)
+				if !ok {
+					return nil, nil, nil, nerr
+				}
+				if p.proverIdle == "" {
+					p.proverIdle = d.Reason
+				}
+				run = testrun.Off{Reason: d.Reason}
+			} else {
+				run = c
+			}
+		}
 	}
-	if p.sample {
-		return gen, q, testrun.NewSample(fx.Tests), nil
+	if _, ok := run.(*testrun.Container); ok {
+		run = checkoutRun{
+			inner:  run,
+			base:   filepath.Join(fx.Root, "base"),
+			change: filepath.Join(fx.Root, "change"),
+		}
 	}
-	return gen, q, testrun.Live{}, nil
+	return gen, q, run, nil
+}
+
+// checkoutRun fills the two checkout directories the container mounts when
+// the caller left them empty. A directory the caller set is left as it is.
+type checkoutRun struct {
+	inner        testrun.Adapter
+	base, change string
+}
+
+func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outcome, error) {
+	if req.BaseDir == "" {
+		req.BaseDir = a.base
+	}
+	if req.ChangeDir == "" {
+		req.ChangeDir = a.change
+	}
+	return a.inner.Run(ctx, req)
 }
 
 type state struct {

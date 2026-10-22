@@ -5,6 +5,8 @@ import (
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/pipeline"
+	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 func open(opts Options) (Reviewer, error) {
@@ -16,11 +18,25 @@ func open(opts Options) (Reviewer, error) {
 			Allowed: []string{"a directory path"},
 		}
 	}
-	p, err := pipeline.Build(pipeline.Options{
+	popts := pipeline.Options{
 		Sample: opts.Sample,
 		LogDir: opts.LogDir,
 		Env:    opts.Env,
-	})
+	}
+	if !opts.Sample {
+		box, err := testrun.NewContainer(testrun.DefaultContainerConfig(), nil)
+		if err != nil {
+			d, ok := service.As(err)
+			if !ok {
+				return nil, err
+			}
+			popts.TestRun = testrun.Off{Reason: d.Reason}
+			popts.ProverIdle = d.Reason
+		} else {
+			popts.TestRun = box
+		}
+	}
+	p, err := pipeline.Build(popts)
 	if err != nil {
 		return nil, err
 	}

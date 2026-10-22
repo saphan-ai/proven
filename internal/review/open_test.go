@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/review"
@@ -95,6 +96,41 @@ func TestCancelledContextIsPartial(t *testing.T) {
 	}
 	if !res.Partial {
 		t.Fatal("want partial")
+	}
+}
+
+func TestLiveModeWithoutRuntimeNamesProverOff(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	rev, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env:    os.Getenv,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := rev.Review(context.Background(), review.Request{Target: fixturePath(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Partial {
+		t.Fatal("partial")
+	}
+	found := false
+	for _, s := range res.FailedServices {
+		if s.Service == "prover" && strings.Contains(s.Reason, "Prover off") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failed %#v", res.FailedServices)
+	}
+	for _, f := range res.Findings {
+		for _, e := range f.Evidence {
+			if e.Kind == review.EvidenceTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
+				t.Fatalf("finding %s proved by a test %#v", f.ID, e.Test)
+			}
+		}
 	}
 }
 
