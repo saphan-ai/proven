@@ -125,32 +125,32 @@ The owner pasted another team's checkpoint as an example: concrete numbers, and 
 
 **What was measured.** The master of the reviewer train reported that the retroactive NVIDIA review of the first slice gave no verdict, twice (runs `run-20261022-060408-a8b95962` and `run-20261022-070728-a08ac0b0` on qwen-nvidia-2). Every answer came from the right model, `nvidia/nemotron-3.5-super-vl-120b-a12b`. It made three tool calls, then answered with one sentence (*"I'll verify HEAD against the order…"*) and no tool call. qwen-code, run headless, treats a text-only turn as the end and reported success. The review status file stayed empty. The same kind of order on qwen-nvidia-1 ran 56 turns. The master stopped retrying and asked the infrastructure master which harness to use (`2ced636a2a2d6f7a`, `0175bf9c40bae5f0`).
 
-> *"We switch to agent-loop!"* · *"Yes, but the harness is incomplete. It has to be extended. Write a question to the onion master."* · *"saphan-agent-onion."* · *"Can you sort it out with this master, what he is to write?"*
+> *"We switch to agent-loop!"* · *"Yes, but the harness is incomplete. It has to be extended. Write a question to the harness train's master."* · *"[the agent-harness train]."* · *"Can you sort it out with this master, what he is to write?"*
 
 **What the advisor did.** It read the registry: the seat `loop-nvidia-1` exists, as role review, backend agent-loop, lane nvidia, billing class metered, one session at a time. It first relayed the switch to the three Proven masters. When the owner said the harness is not ready, it sent a correction: the direction stands, but nothing is dispatched to `loop-nvidia-1` yet, and NVIDIA reviews stay on qwen-nvidia-1..3 until the harness work lands. Two runs that ended after one sentence are not verdicts, so the first slice still owes its NVIDIA review.
 
-The question went to the master of `saphan-agent-onion`, the train that builds Saphan Studio's own agent harness, which is being extended to work with Meterless Nightshift. The advisor added one property for review legs: **a review must not end on a text-only turn while its status file is still empty**. If it still has no report at its bound, it ends as a named failure, never as success. It asked for the plan and a date. The owner got a paste for that master's session.
+The question went to the master of Saphan Studio's agent-harness train, the train that builds Saphan Studio's own agent harness, which is being extended to work with Meterless Nightshift. The advisor added one property for review legs: **a review must not end on a text-only turn while its status file is still empty**. If it still has no report at its bound, it ends as a named failure, never as success. It asked for the plan and a date. The owner got a paste for that master's session.
 
 **Messages sent:**
 - `392407c33acc2110` → proven-cursor-infra, `11461c4d2a621af7` → proven-reviewer-core, `5dfb1d03649493ec` → proven-cli-and-action: NVIDIA reviews move to agent-loop.
 - `2cbb718ae0cec33d` → proven-cursor-infra, `1894c757d654b395` → proven-reviewer-core, `cb7436be7b68470d` → proven-cli-and-action: correction, not yet; stay on qwen-nvidia until the harness is extended.
-- `a58ff3abd404346b` → saphan-agent-onion: the plan for NVIDIA reviews on agent-loop, and a date.
+- `a58ff3abd404346b` → the agent-harness train: the plan for NVIDIA reviews on agent-loop, and a date.
 
 ### 15 · owner → advisor: an overnight plan for NVIDIA on agent-loop, and the review rule until then
 
 > *"I am going to lunch, two hours. When I come back I want to see the plan for running NVIDIA through agent-loop, and after I accept it, implementation overnight. The whole fleet is yours for it, except the Cursor seats on Proven."* · *"It has to be ready tomorrow morning!"* · *"Until there is NVIDIA, the review is done by Claude or Codex, and as the second one we give Grok. We have one more seat to use: we have four and three are working."* · *"The qwen-nvidia seats have to be removed now. Give the commands."*
 
-**What the advisor did.** It gave the owner a paste to wake the master of `saphan-agent-onion` and relayed the same directive in the record. The directive asks for a plan in two hours and an implementation overnight. The plan maps every need to a wagon, with its definition of done, a test that shows the alarm when the mechanism is unplugged, and a quote and a cap. Its first live proof is one review on agent-loop showing the NVIDIA model id and a signed Nightshift receipt. It lists the owner's own acts for one sitting and says plainly what will not be ready by morning. The advisor also had the current code read, so the plan can be checked against what exists, and sent that reading to the master as claims to re-test. It asked the infrastructure master to give the onion master the Nightshift side directly.
+**What the advisor did.** It gave the owner a paste to wake the master of Saphan Studio's agent-harness train and relayed the same directive in the record. The directive asks for a plan in two hours and an implementation overnight. The plan maps every need to a wagon, with its definition of done, a test that shows the alarm when the mechanism is unplugged, and a quote and a cap. Its first live proof is one review on agent-loop showing the NVIDIA model id and a signed Nightshift receipt. It lists the owner's own acts for one sitting and says plainly what will not be ready by morning. The advisor also had the current code read, so the plan can be checked against what exists, and sent that reading to the master as claims to re-test. It asked the infrastructure master to give the harness train's master the Nightshift side directly.
 
 The review rule until then went to the three Proven masters. Every change still gets two independent reviews in parallel: one by Claude Code or Codex, and one by Grok on the fourth Cursor seat, run as a review. Each master keeps a list of the accepted changes still owed an NVIDIA review, so they get it when NVIDIA is back. The advisor's earlier note to stay on qwen-nvidia was wrong and is withdrawn.
 
 For the seats, the advisor rehearsed the three unseat commands in dry-run, then handed them to the owner. The owner ran them. `saphan machine list` now shows no qwen-nvidia seat.
 
 **Messages sent:**
-- `dcd46286b3c81bd5`, `f06914eebe711148` → saphan-agent-onion: the directive, and the reading of the current code.
-- `e509b1bf322ccc51` → proven-cursor-infra: give the onion master the Nightshift side.
+- `dcd46286b3c81bd5`, `f06914eebe711148` → the agent-harness train: the directive, and the reading of the current code.
+- `e509b1bf322ccc51` → proven-cursor-infra: give the harness train's master the Nightshift side.
 - `e283fdf1c94d41f6` → proven-reviewer-core, `a146a14f8bb71983` → proven-cli-and-action, `72591a1976375868` → proven-cursor-infra: the review rule until NVIDIA is back.
-- `be8216075c83d1d0`, `c32052ed280ca97e`, `66b85e16b43edbcd`, `bb320b47367b5af5` → infrastructure, reviewer, CLI and onion: the qwen-nvidia seats are removed.
+- `be8216075c83d1d0`, `c32052ed280ca97e`, `66b85e16b43edbcd`, `bb320b47367b5af5` → infrastructure, reviewer, CLI and the harness train: the qwen-nvidia seats are removed.
 
 ### 16 · the plan accepted; the NVIDIA work runs overnight
 
@@ -160,7 +160,7 @@ The onion master filed the plan at 07:40 UTC: eight wagons, each with its defini
 
 **What the advisor relayed.** The plan was accepted with the CGNAT option (b) and a budget of $500. Every number in the wagons is a configuration key and never a constant. The model credential is held once and carried with the run to whichever machine is chosen; it is never planted on hosts in advance. By 12:46 UTC six wagons had returned `ok` and been verified by their master. The recording wagon and the reviews wait for one signing sitting by the owner.
 
-**Messages sent:** `618183916d2869a9` (accepted, go), `e49727a0d357bc8d` (limits from config), `3e424ed25fe5616e` (the credential travels with the run), `a2af4a1ea9cc924b` (non-stop) → saphan-agent-onion.
+**Messages sent:** `618183916d2869a9` (accepted, go), `e49727a0d357bc8d` (limits from config), `3e424ed25fe5616e` (the credential travels with the run), `a2af4a1ea9cc924b` (non-stop) → the agent-harness train.
 
 ### 17 · owner → advisor: the four Cursor seats run non-stop
 
@@ -188,7 +188,7 @@ The infrastructure master added the section *What happens when a Cursor run star
 
 ## Waiting for answers
 
-- `a2af4a1ea9cc924b`: the NVIDIA agent-loop wagons proven on the branch by 23 October, 00:00–02:00 UTC (saphan-agent-onion).
+- `a2af4a1ea9cc924b`: the NVIDIA agent-loop wagons proven on the branch by 23 October, 00:00–02:00 UTC (the agent-harness train).
 - `1712fa894308a0d2`: the first Cursor recording, cut to the coding (infrastructure).
 - `58c70d8ea4b2030e`: the 16 corpus cases placed (infrastructure).
 - `818c8bdf84310f1b`: the real commands and the cost of one Cursor run, for the Cursor page (reviewer train).

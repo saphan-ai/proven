@@ -49,7 +49,7 @@ A disagreement in a log is not a test case. Each one needed:
 
 An expected outcome is a conclusion that needs evidence, not an answer we picked.
 
-## 4. What is available now (2026-10-19)
+## 4. What is available now (2026-10-22)
 
 | | count | source |
 |---|---|---|
@@ -58,8 +58,7 @@ An expected outcome is a conclusion that needs evidence, not an answer we picked
 | distinct incidents (pieces of work) | 19 | `corpus/manifest.json` |
 | case candidates | 21 | `corpus/manifest.json` |
 | case contracts written | 21 of 21, language-neutral | `corpus/cases/` |
-| Go cases with code | 0 — being built as prior art | `corpus/manifest.json` |
-| TypeScript cases with code | 0 — being built as prior art | `corpus/manifest.json` |
+| cases with code | 5 written on 21 October, before the window, on branches, not merged; 16 ordered on 22 October, in the window | `corpus/manifest.json` |
 | cases independently checked | 0 | |
 | pairs documented without a case | 5 (three environment problems, two repeat rounds) | `corpus/PROVENANCE.md` |
 | pairs that are not disagreements | 3 | `corpus/PROVENANCE.md` |
@@ -109,10 +108,12 @@ so we give no money figure.
 | the original disagreements | 1–28 September 2026 |
 | the fleet's record they come from | 6 July 2026 – today |
 | this corpus's documents (provenance, list, contracts) | from 19 October 2026, before the build window |
-| case code and checks | from 19 October 2026, before the build window — declared prior art |
+| case code and checks | five cases on 21 October (prior art); the other 16 in the build window, from 22 October 2026 |
 | proven's implementation and its evaluation on this corpus | in the build window, 22–27 October 2026 |
 
-Everything in this directory written before 22 October 2026, documents and case code alike, is **prior art**:
+The case contracts are prior art (from 19 October). Five cases were coded on 21 October, before the window, and are
+declared as prior art; every other case's code is written in the build window, from 22 October.
+Everything in this directory written before 22 October 2026 is **prior art**:
 pre-existing evaluation material, declared as such in the submission and not judged as hackathon work. It is
 independent of proven's code and design. Each file's date is its commit date; nothing in this directory will be
 re-dated.

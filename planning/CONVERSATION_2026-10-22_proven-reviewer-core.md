@@ -186,9 +186,57 @@ The train is delegated (master key enrolled), but a delegated order for a far le
 guardrail, W4 H-MEM and the World Model (with Meterless's specification provisioned), W5 evidence through Zetaris, and W1's
 second review are written and wait in one owner script for one signature.
 
+### 18 · four wagons back, one landing chain
+
+W5 (Zetaris evidence), W3 (the guardrail) and W4 (H-MEM and the World Model, minimum) came back from Grok, and so did W1e
+(the fixes W1's second review asked for: the network guard, the import ban, the Judge's base rule, no symbolic links). Each
+was verified by the master with a test that turns red when its guard is removed. All four changed the same pipeline, so
+the master merged them into one chain (W3 → W4 → W5 → W1e) and the owner accepted them in that order. `main` stayed green.
+
+### 19 · "Non-stop, in parallel. We have four seats."
+
+> *"They run NON STOP. In parallel. We have four seats."* · *"When they send reviews, they send the next wagon to Cursor at once!"* (translated)
+
+**Did.** W6 (the Skeptic and the Judge), W7 (the reviewer model and the review class), W4b (Meterless's own conformance
+suites against the Go engines), W9 (the Prover writes its own test, run only in the container), W8 (`livecheck`), W7b (a
+doubled review runs twice), W10 (a live demo a judge can rerun), W11 (the settings page generated from code), W12 (the
+container's settings) and W13 (dependencies checked in OSV) were cut and coded on Grok. The master fixed small defects
+itself: W4b's script read files only the leg had, W7b merged two different risks that shared a number, and four
+commits carried a `Co-authored-by: Cursor` line, which the master removed.
+
+### 20 · W7's named review
+
+The first review (claude-code) rejected W7: a symbolic link let a file outside the reviewed tree into the review, and a
+change could lower its own review class. Round 2 (Grok) fixed both; the master ruled that the settings that decide how
+strict a review is come from the base, not from the change. The re-review accepted with one condition owed (a
+subdirectory's own `proven.yaml`).
+
+### 21 · documentation
+
+> *"Do we have any documentation for these sample-mode scenarios? Or installation?"* (translated)
+
+**Did.** `docs/`: an index, INSTALL, SAMPLE_MODE, ARCHITECTURE and CONFIGURATION (now generated from the code). Every
+command on those pages was run on a clean clone. A proposal for an `AGENTS.md` that any coding agent can follow waits for
+the owner on a branch.
+
+## Owed an NVIDIA review
+
+The owner's rule (hop 6): every named review is two reviews in parallel, one of them NVIDIA through Nightshift. The NVIDIA
+route has been down since the afternoon (it waits for the agent-loop harness). Of this train's changes merged to `main`
+on 22 October, only W1b had an NVIDIA review (accept-with-conditions). W1 is exempt by the owner's ruling: *"W1 went
+without review — it stays that way."* The others were master-verified wagons with no named review, so they owe none,
+except W7, whose named review ran without its NVIDIA half:
+
+| Change | Merged | Named review | NVIDIA review |
+|---|---|---|---|
+| W1 a review end to end in sample mode | yes | retroactive, two (codex reject; claude-code reject) | exempt (owner) |
+| W1b the Prover in a container (and its tests) | yes | codex, three rounds | **yes**, accept-with-conditions |
+| W7 the reviewer model and the review class | landing | claude-code, reject then accept-with-conditions | **owed** |
+| W1c, W1d, W1e, W2, W2b, W3, W4, W4b, W5, W6, W8, W9, W10, W11, W12 | yes | none (master-verified) | not required |
+
 ## Waiting for answers
 
-- R3: the Zetaris storage probe for OSV by package (the infrastructure master).
+- R3: answered 22 October (OSV by package through a Zetaris storage table); W13 builds on it.
 - Who publishes the recordings of Cursor sessions in this repository, and when (the infrastructure track).
 - The Nightshift receipt id of W1b's NVIDIA review (asked of the infrastructure master).
 - The owner's one signature over W3, W4, W5 and W1's second review (one script).

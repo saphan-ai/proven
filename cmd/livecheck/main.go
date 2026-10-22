@@ -12,6 +12,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
@@ -20,14 +21,6 @@ const (
 	exitReady    = 0
 	exitNotReady = 1
 	exitUsage    = 2
-)
-
-// envEvidenceView is the one setting a live review does not load. The query
-// adapter has no view: the investigator writes the SQL. Empty means the
-// default evidence view.
-const (
-	envEvidenceView     = "PROVEN_EVIDENCE_VIEW"
-	defaultEvidenceView = "px_evidence.px_kev_vulns"
 )
 
 const helpText = `livecheck checks every live service a review needs.
@@ -48,7 +41,7 @@ Exit codes:
 
 Settings are the ones a live review loads, from the environment.
 Each check is bounded by that service's own timeout.
-PROVEN_EVIDENCE_VIEW names the evidence view. Empty means px_evidence.px_kev_vulns.
+` + livecheck.EnvEvidenceView + ` names the evidence view. Empty means ` + livecheck.DefaultEvidenceView + `.
 A secret value is never printed.
 `
 
@@ -78,7 +71,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		checkGenerator(env),
 		checkGuardrail(env),
 		checkQuery(env),
-		checkContainer(),
+		checkContainer(env),
 	}
 	readyN, notN := 0, 0
 	for _, c := range checks {
@@ -145,7 +138,7 @@ func checkQuery(env func(string) string) check {
 	if err != nil {
 		return notReady("query", err.Error())
 	}
-	view, err := evidenceView(env(envEvidenceView))
+	view, err := evidenceView(env(livecheck.EnvEvidenceView))
 	if err != nil {
 		return notReady("query", err.Error())
 	}
@@ -159,8 +152,11 @@ func checkQuery(env func(string) string) check {
 	return readyLine("query", fmt.Sprintf("rows %d", len(res.Rows)))
 }
 
-func checkContainer() check {
-	cfg := testrun.DefaultContainerConfig()
+func checkContainer(env func(string) string) check {
+	cfg, err := testrun.Load(env)
+	if err != nil {
+		return notReady("container", err.Error())
+	}
 	box, err := testrun.NewContainer(cfg, nil)
 	if err != nil {
 		return notReady("container", err.Error())
@@ -185,10 +181,10 @@ func notReady(name, reason string) check {
 func evidenceView(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		raw = defaultEvidenceView
+		raw = livecheck.DefaultEvidenceView
 	}
 	if !validView(raw) {
-		return "", fmt.Errorf("configuration refused: %s=%q: not an evidence view; allowed: a schema.table of letters, digits and underscores, at most 128 characters", envEvidenceView, clip(raw))
+		return "", fmt.Errorf("configuration refused: %s=%q: not an evidence view; allowed: a schema.table of letters, digits and underscores, at most 128 characters", livecheck.EnvEvidenceView, clip(raw))
 	}
 	return raw, nil
 }

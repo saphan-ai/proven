@@ -13,7 +13,7 @@ What these costs are, and are not:
 
 | change | built by (model, or Auto → model) | rounds | repair rounds | BLOCKING | OWED | NOTE | pool used | building | reviewing | total | outcome |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| *(first row on 22 October)* | | | | | | | | | | | |
+| *(rows for 22 October's merges are owed: 25 merge commits on main up to tag `day-1`; their costs are not yet collected)* | | | | | | | | | | | |
 
 - **rounds**: how many times the change was built. **repair rounds**: rounds after the first, each caused by a review or a decision that sent it back.
 - **BLOCKING / OWED / NOTE**: conditions found by all the reviews of the change, counted by weight.

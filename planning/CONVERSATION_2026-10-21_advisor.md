@@ -206,7 +206,7 @@ Two acts stay with the owner after the train closed: the question to Meterless, 
 
 > *"We have a problem with agent-loop, which does not support egress yet. My idea: in codex or qwen we configure a custom endpoint to Nightshift and go with one of those harnesses. Look in the documentation for how to do it."* (translated from Polish)
 
-**What the advisor did.** It read the documentation. Codex now speaks only OpenAI's Responses API, and Nightshift documents only Chat Completions, so codex was out. qwen-code speaks Chat Completions, takes custom headers officially, and Saphan Studio's engine already routes a qwen custom provider through its recording proxy. The owner chose qwen, on strix, declared as a subscription seat (*"we have free developer access"*). The same night the review ran: four signed Nightshift receipts, provider NVIDIA, model Nemotron 3.5 Super VL.
+**What the advisor did.** It read the documentation. Codex now speaks only OpenAI's Responses API, and Nightshift documents only Chat Completions, so codex was out. qwen-code speaks Chat Completions, takes custom headers officially, and Saphan Studio's engine already routes a qwen custom provider through its recording proxy. The owner chose qwen, on █████, declared as a subscription seat (*"we have free developer access"*). The same night the review ran: four signed Nightshift receipts, provider NVIDIA, model Nemotron 3.5 Super VL.
 
 ### 29 · advisor → owner: one upstream for every qwen seat
 

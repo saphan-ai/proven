@@ -154,6 +154,22 @@ func TestLiveModeWithoutRuntimeNamesProverOff(t *testing.T) {
 	}
 }
 
+// Mutated field: PROVEN_TEST_MEMORY. A value Validate refuses stops Open.
+func TestLiveModeRefusesABadContainerSetting(t *testing.T) {
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env:    liveEnv("http://127.0.0.1:9", map[string]string{"PROVEN_TEST_MEMORY": "lots"}),
+	})
+	var cfg *review.ConfigError
+	if !errorAs(err, &cfg) || cfg.Field != "PROVEN_TEST_MEMORY" {
+		t.Fatal(err)
+	}
+	if !strings.Contains(err.Error(), "allowed") || !strings.Contains(err.Error(), "512m") {
+		t.Fatal(err)
+	}
+}
+
 func TestEmptyLogDirIsRefused(t *testing.T) {
 	_, err := review.Open(review.Options{Sample: true, Env: os.Getenv})
 	var cfg *review.ConfigError

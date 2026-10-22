@@ -13,7 +13,9 @@ import (
 
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 const (
@@ -167,7 +169,7 @@ func TestGuardrailOffBySettingDoesNotCall(t *testing.T) {
 func TestBadEvidenceViewIsNotSent(t *testing.T) {
 	w := newWorld(t, "ready")
 	var stdout, stderr bytes.Buffer
-	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{envEvidenceView: "px_evidence.bad;drop"}))
+	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{livecheck.EnvEvidenceView: "px_evidence.bad;drop"}))
 	body := stdout.String() + stderr.String()
 	if code == 0 {
 		t.Fatalf("exit 0\n%s", body)
@@ -183,7 +185,7 @@ func TestBadEvidenceViewIsNotSent(t *testing.T) {
 func TestQueryUsesTheConfiguredView(t *testing.T) {
 	w := newWorld(t, "ready")
 	var stdout, stderr bytes.Buffer
-	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{envEvidenceView: "px_evidence.px_epss_cve_rows"}))
+	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{livecheck.EnvEvidenceView: "px_evidence.px_epss_cve_rows"}))
 	body := stdout.String() + stderr.String()
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, body)
@@ -214,6 +216,44 @@ func TestMissingImageIsNotReadyAndDoesNotPull(t *testing.T) {
 	assertNoPull(t, w.record)
 	if !strings.Contains(readRecord(t, w.record), "image inspect golang:1.26") {
 		t.Fatalf("record %s", readRecord(t, w.record))
+	}
+}
+
+// Mutated field: PROVEN_TEST_IMAGE. The inspect argument is that image.
+func TestContainerChecksTheConfiguredImage(t *testing.T) {
+	w := newWorld(t, "missing-image")
+	var stdout, stderr bytes.Buffer
+	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{testrun.EnvImage: "alpine:3"}))
+	body := stdout.String() + stderr.String()
+	if code == 0 {
+		t.Fatalf("exit 0\n%s", body)
+	}
+	rec := readRecord(t, w.record)
+	if !strings.Contains(rec, "image inspect alpine:3") {
+		t.Fatalf("record %s", rec)
+	}
+	if strings.Contains(rec, "golang:1.26") {
+		t.Fatalf("default image was checked\n%s", rec)
+	}
+	if strings.Contains(rec, "pull") {
+		t.Fatalf("pull was named\n%s", rec)
+	}
+}
+
+// Mutated field: PROVEN_TEST_MEMORY. The container line names it and does not start a runtime.
+func TestBadContainerMemoryIsRefusedByName(t *testing.T) {
+	w := newWorld(t, "ready")
+	var stdout, stderr bytes.Buffer
+	code := run(nil, &stdout, &stderr, w.envWith(map[string]string{testrun.EnvMemory: "lots"}))
+	body := stdout.String() + stderr.String()
+	if code == 0 {
+		t.Fatalf("exit 0\n%s", body)
+	}
+	if !strings.Contains(body, "container: not ready:") || !strings.Contains(body, testrun.EnvMemory) || !strings.Contains(body, "allowed") || !strings.Contains(body, "512m") {
+		t.Fatalf("container line\n%s", body)
+	}
+	if b, err := os.ReadFile(w.record); err == nil && len(b) != 0 {
+		t.Fatalf("runtime was started\n%s", b)
 	}
 }
 

@@ -59,7 +59,7 @@
       "integration_working": true,
       "in_use_case": true,
       "use_case_note": "Cursor is how Proven is built: every product change of day one was coded by a Cursor agent.",
-      "how": "Cursor agents write Proven's product code: up to four at once, headless on a Linux machine, each from a signed order, in its own copy of the repository, inside a jail with its own network and an egress door, and with every model request recorded by a proxy. 16 changes were merged on day one.",
+      "how": "Cursor agents write Proven's product code: up to four at once, headless on a Linux machine, each from a signed order, in its own copy of the repository, inside a jail with its own network and an egress door, and with every model request recorded by a proxy. 17 changes were merged on day one.",
       "models": ["grok-4.7-high"],
       "surfaces": ["agent-cli"],
       "where": ["fleet/orders/", "fleet/status/", "fleet/infra/cursor/"],
@@ -93,7 +93,7 @@
     },
     {
       "name": "Test corpus",
-      "what": "21 test-case contracts from 28 real review disagreements, declared as prior art; their executable tests are written inside the build window.",
+      "what": "21 test-case contracts from 28 real review disagreements, prior art written before 22 October; the code of the cases is written inside the build window, from 22 October.",
       "where": ["tests/"],
       "since": "2026-10-19"
     }

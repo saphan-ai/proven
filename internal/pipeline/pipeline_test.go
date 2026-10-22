@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,31 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
+
+// Mutated field: PROVEN_TEST_MEMORY. The live fallback must load it.
+func TestLiveContainerSettingIsRefused(t *testing.T) {
+	p, err := Build(Options{
+		LogDir:   t.TempDir(),
+		GuardOff: true,
+		Env: func(k string) string {
+			if k == testrun.EnvMemory {
+				return "lots"
+			}
+			return ""
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = p.Review(context.Background(), Request{Target: fixturePath(t)})
+	var cfg *testrun.ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != testrun.EnvMemory {
+		t.Fatalf("%v", err)
+	}
+	if !strings.Contains(err.Error(), "allowed") {
+		t.Fatalf("%v", err)
+	}
+}
 
 func TestUnplugLiveTestRunNamesProverOff(t *testing.T) {
 	p := buildSample(t, t.TempDir(), testrun.Live{})
@@ -407,6 +433,52 @@ func TestCheckoutRunFillsEmptyDirectories(t *testing.T) {
 	}
 	if probe.req.BaseDir != "/already" || probe.req.ChangeDir != "/set" {
 		t.Fatalf("%#v", probe.req)
+	}
+}
+
+// Mutated field: Options.MaxWrittenBytes. A body over that limit is not run.
+func TestWrittenLimitFromOptionsRefusesBeforeTheRun(t *testing.T) {
+	fx, err := fixture.Load(fixturePath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := generator.NewSample(fx.Answers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "package billing\n\nimport \"testing\"\n\nfunc TestExtra(t *testing.T) {\n\tif Discounted(100, 20) != 80 {\n\t\tt.Fatal(Discounted(100, 20))\n\t}\n}\n"
+	raw, err := json.Marshal(map[string]string{
+		"path": "billing/extra_test.go", "content": body, "name": "TestExtra",
+		"command": "go test ./billing -run TestExtra",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := &outcomeRun{out: testrun.Outcome{Found: true, PassesOnBase: true, Path: "billing/extra_test.go", Name: "TestExtra"}}
+	p, err := Build(Options{
+		Sample: true, LogDir: t.TempDir(), Generator: &proverSwap{inner: inner, response: string(raw)},
+		TestRun: run, MaxWrittenBytes: 8,
+		Env: func(k string) string {
+			t.Fatalf("sample mode read %s", k)
+			return ""
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.calls != 0 {
+		t.Fatalf("calls %d", run.calls)
+	}
+	if !traceSays(t, d.TracePath, "F1", "evidence", "refused: "+testrun.ReasonTooLarge) {
+		b, readErr := os.ReadFile(d.TracePath)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		t.Fatalf("trace:\n%s", b)
 	}
 }
 
