@@ -399,6 +399,66 @@ func TestTimeoutSetsADeadline(t *testing.T) {
 	}
 }
 
+// 9223372036 is the largest second count that fits in a time.Duration.
+// The next second overflows the conversion and used to look like a finished review.
+func TestTimeoutDurationBound(t *testing.T) {
+	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
+	t.Chdir(t.TempDir())
+	const (
+		largest = "9223372036"
+		next    = "9223372037"
+	)
+	cases := []struct {
+		name string
+		args []string
+		env  map[string]string
+		want int
+	}{
+		{
+			name: "flag largest",
+			args: []string{"scan", "--sample", "--timeout=" + largest, target},
+			want: exitOK,
+		},
+		{
+			name: "flag next",
+			args: []string{"scan", "--sample", "--timeout=" + next, target},
+			want: exitConfig,
+		},
+		{
+			name: "variable largest",
+			args: []string{"scan", "--sample", target},
+			env:  map[string]string{"PROVEN_TIMEOUT": largest},
+			want: exitOK,
+		},
+		{
+			name: "variable next",
+			args: []string{"scan", "--sample", target},
+			env:  map[string]string{"PROVEN_TIMEOUT": next},
+			want: exitConfig,
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			getenv := emptyEnv
+			if tt.env != nil {
+				getenv = envOf(tt.env)
+			}
+			var stdout, stderr bytes.Buffer
+			code := Run(tt.args, getenv, &stdout, &stderr, nil)
+			if code != tt.want {
+				t.Fatalf("exit %d, want %d\nstderr: %s\nstdout: %s", code, tt.want, stderr.String(), stdout.String())
+			}
+			if tt.want == exitConfig {
+				if !strings.Contains(stderr.String(), largest) {
+					t.Fatalf("stderr does not name %s: %q", largest, stderr.String())
+				}
+				return
+			}
+			assertDiscountText(t, stdout.String())
+		})
+	}
+}
+
 func TestJSONFormatHasNoWriter(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan", "--json"}, emptyEnv, &stdout, &stderr, openCapture(&captureReviewer{}))

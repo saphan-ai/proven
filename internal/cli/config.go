@@ -4,12 +4,18 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/review"
 )
+
+// maxTimeoutSec is the largest whole number of seconds that fits in a time.Duration.
+// math.MaxInt64 / time.Second is 9223372036; the next second overflows the conversion.
+const maxTimeoutSec = int64(math.MaxInt64 / time.Second)
 
 const (
 	exitOK       = 0
@@ -464,7 +470,15 @@ func parseTimeout(field, v string) (int, error) {
 	if err != nil || n < 0 {
 		return 0, refuse(field, v, "timeout is a whole number of seconds, zero or more", []string{"0", "a positive number of seconds"})
 	}
+	if int64(n) > maxTimeoutSec {
+		return 0, refuseTimeoutBound(field, v)
+	}
 	return n, nil
+}
+
+func refuseTimeoutBound(field, v string) error {
+	limit := strconv.FormatInt(maxTimeoutSec, 10)
+	return refuse(field, v, "timeout is a whole number of seconds from 0 through "+limit, []string{"0", limit})
 }
 
 func resolveSample(getenv func(string) string, h *holders) (bool, error) {
