@@ -102,6 +102,12 @@ Three Cursor agents on Grok, at once, on runner-cursor: the Prover in a containe
 
 Proven's trains are some of the 13. The others belong to Saphan Studio's own work. They all run at once, under one owner, with one advisor and one scribe. The owner corrected the picture: *"On macm5 it is only the orchestration; the rest runs on remote runners. And we also have Nightshift here :)"* And more: *"It also holds the ledger database, saphan-server and saphan-gateway: SQLite for solo, Postgres for parity, and CouchDB, the document store."* So macm5 runs Saphan Studio's control plane: the masters, the advisor and the scribe; the server and the gateway; the ledger, in SQLite for the Solo edition and in Postgres for parity with the Team and Enterprise editions; CouchDB for documents; and the Nightshift virtual machine. The coding agents run on remote runners, such as runner-cursor.
 
+### 12 · owner → advisor: a progress update in the event's chat
+
+> *"Maybe we write something in the progress update channel?"* · *"No push to the repository until 22:00, but with the link to the repository."*
+
+The owner pasted another team's checkpoint as an example: concrete numbers, and an honest line on what the results do not cover. The advisor's draft took both: the first slice and its tests, three Cursor agents on Grok, two reviews per change with one on NVIDIA, and the limits (sample mode only, no live Zetaris evidence yet, the first slice's NVIDIA review still running). It said that today's code becomes public with the daily push at 15:00 UTC. The owner posted it.
+
 ## Waiting for answers
 
 - `08ccdb2d0f9a874f`: who publishes the first Cursor session, and when (infrastructure).
