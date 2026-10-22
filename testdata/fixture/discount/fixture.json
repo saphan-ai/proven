@@ -1,6 +1,6 @@
 {
   "snapshot": "sample-2026-10-22",
-  "planner_prompt_sha256": "5691698554484d2d9cdbcbae1372d9823b5997cb00139fd977f2b1f09f65cf89",
+  "planner_prompt_sha256": "44469e122c2dd1f8a1b6713a97a193ca454168196e89c8ff3537ed938f920442",
   "planner_response": [
     {
       "id": "F1",
@@ -36,47 +36,47 @@
   "responses": [
     {
       "agent": "investigator",
-      "prompt": "query F1\nDiscount is applied twice\nbilling/discount.go",
+      "prompt": "Task: Write one SQL query that would confirm this risk.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F1\ntitle: Discount is applied twice\npath: billing/discount.go\n",
       "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'billing/discount' AND version = 'change'\"}"
     },
     {
       "agent": "investigator",
-      "prompt": "query F2\nDependency leftpad v1.2.3 is on the known-exploited list\ngo.mod",
+      "prompt": "Task: Write one SQL query that would confirm this risk.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\npath: go.mod\n",
       "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'\"}"
     },
     {
       "agent": "investigator",
-      "prompt": "query F3\nnote may include a payment token\nbilling/discount.go",
+      "prompt": "Task: Write one SQL query that would confirm this risk.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F3\ntitle: note may include a payment token\npath: billing/discount.go\n",
       "response": "{\"sql\":\"SELECT package, version, cve, kev FROM advisories WHERE package = 'billing/note' AND version = 'change'\"}"
     },
     {
       "agent": "prover",
-      "prompt": "prove F1\nDiscount is applied twice",
+      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F1\ntitle: Discount is applied twice\n",
       "response": "{\"path\":\"billing/discount_test.go\",\"name\":\"TestDiscounted\",\"command\":\"go test ./billing -run TestDiscounted\"}"
     },
     {
       "agent": "prover",
-      "prompt": "prove F2\nDependency leftpad v1.2.3 is on the known-exploited list",
+      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
       "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
     },
     {
       "agent": "prover",
-      "prompt": "prove F3\nnote may include a payment token",
+      "prompt": "Task: Name one test that fails on the change and passes on the base.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F3\ntitle: note may include a payment token\n",
       "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
     },
     {
       "agent": "skeptic",
-      "prompt": "refute F1\nDiscount is applied twice",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean) and reason (string).\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\"}\n\nid: F1\ntitle: Discount is applied twice\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     },
     {
       "agent": "skeptic",
-      "prompt": "refute F2\nDependency leftpad v1.2.3 is on the known-exploited list",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean) and reason (string).\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     },
     {
       "agent": "skeptic",
-      "prompt": "refute F3\nnote may include a payment token",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean) and reason (string).\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\"}\n\nid: F3\ntitle: note may include a payment token\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     }
   ],

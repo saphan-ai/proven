@@ -3,18 +3,24 @@ package prover
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 
+	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
+// testSpec is the JSON the prover asks a model to return.
+var testSpec = answer.Spec{
+	Task:    "Name one test that fails on the change and passes on the base.",
+	Shape:   "one JSON object. It has path (string), name (string) and command (string).",
+	Example: `{"path":"pkg/file_test.go","name":"TestExample","command":"go test ./pkg -run TestExample"}`,
+}
+
 // Prompt asks which test would prove one risk.
 func Prompt(id, title string) string {
-	return "prove " + id + "\n" + title
+	return answer.Instruct(testSpec, "id: "+id+"\ntitle: "+title+"\n")
 }
 
 type row struct {
@@ -26,13 +32,9 @@ type row struct {
 // Prove asks for a test name, then asks the adapter for its outcome.
 // An empty name means the generator proposed no test. The adapter executes no code in sample mode.
 func Prove(ctx context.Context, c candidate.Candidate, gen generator.Generator, run testrun.Adapter) (candidate.Candidate, error) {
-	raw, err := gen.Complete(ctx, "prover", Prompt(c.ID, c.Title))
-	if err != nil {
-		return c, err
-	}
 	var got row
-	if err := json.Unmarshal([]byte(raw), &got); err != nil {
-		return c, fmt.Errorf("prover: response is not a test: %w", err)
+	if err := answer.Read(ctx, gen, "prover", Prompt(c.ID, c.Title), testSpec, &got); err != nil {
+		return c, err
 	}
 	if got.Name == "" {
 		return c, nil

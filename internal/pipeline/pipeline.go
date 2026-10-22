@@ -238,9 +238,15 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 	var q query.Adapter
 	var err error
 	if p.sample {
-		gen, err = generator.NewSample(fx.Answers)
-		if err != nil {
-			return nil, nil, nil, err
+		if p.gen != nil {
+			// A test may replace the recorded answers. The sample query and
+			// the recorded tests stay in place. A review leaves Generator unset.
+			gen = p.gen
+		} else {
+			gen, err = generator.NewSample(fx.Answers)
+			if err != nil {
+				return nil, nil, nil, err
+			}
 		}
 		q, err = query.OpenSample(fx.Tables)
 		if err != nil {
