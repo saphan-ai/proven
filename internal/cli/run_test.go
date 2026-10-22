@@ -740,8 +740,9 @@ func TestCIUnresolvableBaseExits2(t *testing.T) {
 }
 
 // withRefusingGlobalHook points GIT_CONFIG_GLOBAL at a config whose
-// core.hooksPath is a commit-msg hook that exits 1. The four CI fixture
-// tests call it. runGit replaces that file, so the hook does not run.
+// core.hooksPath is a commit-msg hook that exits 1. The seat's own
+// hooksPath is passed as command configuration and wins over that file,
+// so the seat hook still judges fixture subjects.
 func withRefusingGlobalHook(t *testing.T) {
 	t.Helper()
 	hooks := t.TempDir()
@@ -761,11 +762,11 @@ func advancedBaseRepo(t *testing.T, baseBranch string) (dir, fork, baseTip, head
 	t.Helper()
 	dir = t.TempDir()
 	runGit(t, dir, "init", "-b", baseBranch, "--template=")
-	fork = commitFile(t, dir, "f.txt", "root\n", "test: root")
+	fork = commitFile(t, dir, "f.txt", "root\n", "[cli-fixture] repo: root")
 	runGit(t, dir, "branch", "feature")
-	baseTip = commitFile(t, dir, "f.txt", "base advanced\n", "test: advance base")
+	baseTip = commitFile(t, dir, "f.txt", "base advanced\n", "[cli-fixture] repo: advance base")
 	runGit(t, dir, "checkout", "feature")
-	head = commitFile(t, dir, "f.txt", "feature work\n", "test: feature work")
+	head = commitFile(t, dir, "f.txt", "feature work\n", "[cli-fixture] repo: feature work")
 	runGit(t, dir, "checkout", baseBranch)
 	return dir, fork, baseTip, head
 }
@@ -774,7 +775,7 @@ func singleCommitRepo(t *testing.T) (dir, sha string) {
 	t.Helper()
 	dir = t.TempDir()
 	runGit(t, dir, "init", "-b", "main", "--template=")
-	sha = commitFile(t, dir, "f.txt", "only\n", "test: only")
+	sha = commitFile(t, dir, "f.txt", "only\n", "[cli-fixture] repo: only")
 	return dir, sha
 }
 
@@ -810,11 +811,10 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// fixtureGitEnv keeps the process environment and replaces host git
-// configuration. An empty GIT_CONFIG_GLOBAL, GIT_CONFIG_NOSYSTEM and
-// GIT_TERMINAL_PROMPT are set on every fixture command. Injected
-// GIT_CONFIG_COUNT pairs are dropped: on this seat they set core.hooksPath
-// and override the global file.
+// fixtureGitEnv keeps the process environment and replaces the host
+// global and system git files. The seat's command configuration is kept,
+// including core.hooksPath, so the commit-msg hook still judges fixture
+// subjects.
 func fixtureGitEnv(t *testing.T) []string {
 	t.Helper()
 	cfg := filepath.Join(t.TempDir(), "gitconfig")
@@ -846,10 +846,9 @@ func dropFixtureGitEnv(entry string) bool {
 	}
 	switch key {
 	case "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
-		"GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS",
 		"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
 		"GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL":
 		return true
 	}
-	return strings.HasPrefix(key, "GIT_CONFIG_KEY_") || strings.HasPrefix(key, "GIT_CONFIG_VALUE_")
+	return false
 }
