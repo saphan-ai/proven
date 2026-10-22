@@ -123,6 +123,14 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   same review runs degraded and says which service failed.
 - **master-was-wrong:** —
 
+### W2b `agents-ask-a-real-model`
+- **added:** by the master, 2026-10-22, from the first live review through Nightshift (the owner's run): the Planner could
+  not read the model's answer (`response is not a risk list`) and the review ended with exit 2.
+- **what:** each agent's live prompt states the exact JSON of its answer; a tolerant reader (code fence, prose, one repair
+  request); a second bad answer degrades the review and names the agent, never ends it (ADR-0001).
+- **dod:** one live review through Nightshift names each agent's model from the stream (W2's live DoD, carried here).
+- **master-was-wrong:** —
+
 ### W3 `the-guardrail`
 - **what:** ADR-0005: every prompt and every answer through the guardrail adapter, on by default; two backends (our
   model server, NVIDIA's hosted API); a setting turns it off and the trace says so; `unsafe` stops the step and is
