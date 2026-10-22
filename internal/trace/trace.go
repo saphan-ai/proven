@@ -3,20 +3,39 @@ package trace
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
 )
 
-// Event is one claim, piece of evidence, refutation or verdict.
+// Event is one claim, piece of evidence, refutation, verdict or guardrail check.
+// EventID, the change key and the finding key are optional. Older lines omit them.
+// HasEvidence is set on a refutation the skeptic made of a finding that has proof.
 type Event struct {
-	FindingID  string      `json:"finding_id"`
-	Kind       string      `json:"kind"`
-	Agent      string      `json:"agent"`
-	Text       string      `json:"text"`
-	Evidence   []Evidence  `json:"evidence,omitempty"`
-	Refutation *Refutation `json:"refutation,omitempty"`
+	EventID     string      `json:"event_id,omitempty"`
+	FindingID   string      `json:"finding_id"`
+	Kind        string      `json:"kind"`
+	Agent       string      `json:"agent"`
+	Text        string      `json:"text"`
+	Evidence    []Evidence  `json:"evidence,omitempty"`
+	Refutation  *Refutation `json:"refutation,omitempty"`
+	Guardrail   *Check      `json:"guardrail,omitempty"`
+	ChangeKey   string      `json:"change_key,omitempty"`
+	RuleID      string      `json:"rule_id,omitempty"`
+	Path        string      `json:"path,omitempty"`
+	Title       string      `json:"title,omitempty"`
+	HasEvidence bool        `json:"has_evidence,omitempty"`
+}
+
+// Check is one guardrail verdict: the side, the verdict, the categories and the latency.
+type Check struct {
+	Side       string   `json:"side,omitempty"`
+	Verdict    string   `json:"verdict,omitempty"`
+	Categories []string `json:"categories,omitempty"`
+	LatencyMS  int64    `json:"latency_ms"`
 }
 
 // Evidence is one piece of proof stored with its finding.
@@ -79,6 +98,9 @@ func (w *Writer) Path() string { return w.path }
 func (w *Writer) Append(e Event) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if e.EventID == "" {
+		e.EventID = eventID(e)
+	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
@@ -89,4 +111,18 @@ func (w *Writer) Append(e Event) error {
 		return err
 	}
 	return w.f.Sync()
+}
+
+// eventID is the sha256 of the event with an empty id, so a replay of the
+// same line names the same event. The id is not part of its own hash.
+func eventID(e Event) string {
+	e.EventID = ""
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(e); err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(bytes.TrimSpace(buf.Bytes()))
+	return hex.EncodeToString(sum[:])[:16]
 }

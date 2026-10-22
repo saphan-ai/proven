@@ -19,11 +19,14 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/netguard"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/trace"
+	"github.com/saphan-ai/proven/internal/world"
 )
 
 // Options select the adapters. TestRun, when set, replaces the sample or live test-run adapter.
@@ -39,6 +42,14 @@ type Options struct {
 	ProverIdle string
 	// LiveQuery, when set, is the Zetaris adapter. Sample mode does not use it.
 	LiveQuery query.Adapter
+	// StateDir is the durable directory for H-MEM and the world model.
+	// Empty uses a state directory beside the logs, never a path inside the module.
+	StateDir string
+	// Guardrail checks every prompt and every answer. Sample mode with none
+	// uses the safe sample. A live pipeline with none is refused.
+	Guardrail guardrail.Adapter
+	// GuardOff writes one "no guardrail" line and checks nothing.
+	GuardOff bool
 }
 
 // Pipeline is one reviewer.
@@ -50,7 +61,11 @@ type Pipeline struct {
 	liveQuery  query.Adapter
 	trace      *trace.Writer
 	guard      *netguard.Guard
+	rail       guardrail.Adapter
+	guardOff   bool
 	atBoundary func(stage string)
+	mem        *hmem.Store
+	world      *world.Store
 }
 
 // Build opens the trace and, in sample mode, a client that refuses every dial.
@@ -60,13 +75,45 @@ func Build(opts Options) (*Pipeline, error) {
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("pipeline: logs directory is empty")
 	}
+	if opts.GuardOff && opts.Guardrail != nil {
+		return nil, fmt.Errorf("pipeline: the guardrail is off and an adapter was set")
+	}
 	tw, err := trace.Open(opts.LogDir)
+	if err != nil {
+		return nil, err
+	}
+	stateDir := opts.StateDir
+	if stateDir == "" {
+		var derr error
+		stateDir, derr = defaultStateDir(opts.LogDir)
+		if derr != nil {
+			return nil, derr
+		}
+	}
+	root := moduleRoot()
+	mem, err := hmem.Open(hmem.Options{
+		Dir: filepath.Join(stateDir, "hmem"), LogDir: opts.LogDir, RepoRoot: root,
+	})
+	if err != nil {
+		return nil, err
+	}
+	wm, err := world.Open(world.Options{
+		Dir: filepath.Join(stateDir, "world"), LogDir: opts.LogDir, RepoRoot: root, Memory: mem,
+	})
 	if err != nil {
 		return nil, err
 	}
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
-		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw,
+		gen: opts.Generator, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
+		mem: mem, world: wm,
+	}
+	if !opts.GuardOff && p.rail == nil {
+		if opts.Sample {
+			p.rail = guardrail.Safe{}
+		} else {
+			return nil, fmt.Errorf("pipeline: the guardrail is on and no adapter was set")
+		}
 	}
 	if opts.Sample {
 		p.guard = &netguard.Guard{}
@@ -96,7 +143,20 @@ type Request struct {
 
 // Review runs planner, investigator, prover, skeptic, judge and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
-func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, error) {
+func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
+	defer func() {
+		if err != nil {
+			return
+		}
+		if ferr := p.fold(); ferr != nil {
+			d = candidate.Draft{}
+			err = ferr
+		}
+	}()
+	return p.review(ctx, req)
+}
+
+func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
 	files, err := changedFiles(req)
 	if err != nil {
 		return candidate.Draft{}, err
@@ -133,11 +193,17 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
-	st := &state{trace: p.trace}
+	p.mem.SetGenerator(gen)
+	p.world.SetGenerator(gen)
+	st := &state{trace: p.trace, changeKey: changeKey(req)}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
 	gen = recording{inner: gen, models: &st.models}
+	gen, err = p.applyGuard(gen)
+	if err != nil {
+		return candidate.Draft{}, err
+	}
 
 	risks, err := planner.Plan(ctx, req.Target, gen)
 	if err != nil {
@@ -229,6 +295,14 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 
 	for i := range cands {
+		if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
+			cands[i].Dropped = true
+			cands[i].DropReason = "suppressed: hmem " + rec.ID
+			if err := st.event(cands[i].ID, "memory", "hmem", "matched "+rec.ID); err != nil {
+				return candidate.Draft{}, err
+			}
+			continue
+		}
 		cands[i] = judge.Decide(cands[i])
 		if err := st.event(cands[i].ID, "verdict", "judge", cands[i].DropReason); err != nil {
 			return candidate.Draft{}, err
@@ -316,9 +390,10 @@ func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outc
 }
 
 type state struct {
-	trace  *trace.Writer
-	failed []candidate.Failure
-	models []candidate.ModelUse
+	trace     *trace.Writer
+	failed    []candidate.Failure
+	models    []candidate.ModelUse
+	changeKey string
 }
 
 func (s *state) event(id, kind, agent, text string) error {
@@ -351,6 +426,11 @@ func (s *state) refutation(c candidate.Candidate) error {
 			Refuted:   r.Refuted,
 			Reason:    r.Reason,
 		},
+		ChangeKey:   s.changeKey,
+		RuleID:      c.RuleID,
+		Path:        c.Path,
+		Title:       c.Title,
+		HasEvidence: judge.Evidenced(c.Evidence),
 	})
 }
 
@@ -411,6 +491,45 @@ func (s *state) omitUnjudged(cands []candidate.Candidate) ([]candidate.Candidate
 		out = append(out, c)
 	}
 	return out, nil
+}
+
+// applyGuard writes "no guardrail" once when the switch is off.
+// Otherwise it checks the prompt before the model runs and the answer before it is used.
+func (p *Pipeline) applyGuard(gen generator.Generator) (generator.Generator, error) {
+	if p.guardOff {
+		err := p.trace.Append(trace.Event{
+			FindingID: "guardrail",
+			Kind:      "guardrail",
+			Agent:     "pipeline",
+			Text:      "no guardrail",
+		})
+		return gen, err
+	}
+	return guardrail.Wrap(gen, p.rail, func(agent, side string, v guardrail.Verdict, refused string) error {
+		return p.trace.Append(guardEvent(agent, side, v, refused))
+	})
+}
+
+func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.Event {
+	ev := trace.Event{FindingID: "guardrail", Kind: "guardrail", Agent: agent}
+	if refused != "" {
+		ev.Text = "guardrail: " + refused
+		return ev
+	}
+	verdict := "safe"
+	if v.Unsafe() {
+		verdict = "unsafe"
+	}
+	cats := strings.Join(v.Categories, ", ")
+	ev.Text = fmt.Sprintf("%s %s latency=%dms", side, verdict, v.Latency.Milliseconds())
+	if cats != "" {
+		ev.Text += " categories=" + cats
+	}
+	ev.Guardrail = &trace.Check{
+		Side: side, Verdict: verdict, LatencyMS: v.Latency.Milliseconds(),
+		Categories: append([]string(nil), v.Categories...),
+	}
+	return ev
 }
 
 type recording struct {
