@@ -13,6 +13,25 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+func TestGuardrailModeIsRefusedOnOpen(t *testing.T) {
+	// Mutated field: PROVEN_GUARDRAIL_MODE.
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_GUARDRAIL_MODE": "sometimes",
+			"PROVEN_GUARDRAIL_KEY":  "super-secret",
+		}),
+	})
+	var cfg *review.ConfigError
+	if err == nil || !errorAs(err, &cfg) || cfg.Field != "PROVEN_GUARDRAIL_MODE" || cfg.Value != "sometimes" {
+		t.Fatal(err)
+	}
+	if strings.Contains(err.Error(), "super-secret") {
+		t.Fatal("the refusal printed the key")
+	}
+}
+
 func TestLiveSettingsAreRefusedOnOpen(t *testing.T) {
 	// Mutated field: PROVEN_GENERATOR_TIMEOUT.
 	_, err := review.Open(review.Options{
@@ -159,6 +178,8 @@ func liveEnv(base string, extra map[string]string) func(string) string {
 		"PROVEN_GENERATOR_APP":            "proven",
 		"PROVEN_GENERATOR_MODEL":          "meterless/auto",
 		"PROVEN_GENERATOR_REQUIRE_NVIDIA": "all",
+		// These reviews measure the generator. The guardrail's own tests cover the on path.
+		"PROVEN_GUARDRAIL_MODE": "off",
 	}
 	for k, v := range extra {
 		m[k] = v

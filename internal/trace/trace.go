@@ -11,7 +11,7 @@ import (
 	"sync"
 )
 
-// Event is one claim, piece of evidence, refutation or verdict.
+// Event is one claim, piece of evidence, refutation, verdict or guardrail check.
 // EventID, the change key and the finding key are optional. Older lines omit them.
 // HasEvidence is set on a refutation the skeptic made of a finding that has proof.
 type Event struct {
@@ -22,11 +22,20 @@ type Event struct {
 	Text        string      `json:"text"`
 	Evidence    []Evidence  `json:"evidence,omitempty"`
 	Refutation  *Refutation `json:"refutation,omitempty"`
+	Guardrail   *Check      `json:"guardrail,omitempty"`
 	ChangeKey   string      `json:"change_key,omitempty"`
 	RuleID      string      `json:"rule_id,omitempty"`
 	Path        string      `json:"path,omitempty"`
 	Title       string      `json:"title,omitempty"`
 	HasEvidence bool        `json:"has_evidence,omitempty"`
+}
+
+// Check is one guardrail verdict: the side, the verdict, the categories and the latency.
+type Check struct {
+	Side       string   `json:"side,omitempty"`
+	Verdict    string   `json:"verdict,omitempty"`
+	Categories []string `json:"categories,omitempty"`
+	LatencyMS  int64    `json:"latency_ms"`
 }
 
 // Evidence is one piece of proof stored with its finding.
