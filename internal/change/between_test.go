@@ -142,3 +142,25 @@ func write(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestBetweenWorkingTreeInSubdirectoryKeepsUntracked(t *testing.T) {
+	dir := t.TempDir()
+	git(t, dir, "init")
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, "sub", "a.txt"), "a")
+	git(t, dir, "add", "sub/a.txt")
+	git(t, dir, "commit", "-m", "first")
+	base := rev(t, dir)
+	write(t, filepath.Join(dir, "sub", "c.txt"), "new")
+	write(t, filepath.Join(dir, "top.txt"), "outside the target")
+
+	got, err := Between(filepath.Join(dir, "sub"), base, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != "c.txt" {
+		t.Fatalf("files %#v", got)
+	}
+}

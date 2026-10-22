@@ -30,7 +30,7 @@ func Between(target, baseline, head string) ([]string, error) {
 		return nil, err
 	}
 	if head == "" {
-		extra, err := gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "-z"})
+		extra, err := gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
 		if err != nil {
 			return nil, err
 		}
@@ -97,6 +97,13 @@ func underTarget(target string, paths []string) ([]string, error) {
 	abs, err := filepath.Abs(target)
 	if err != nil {
 		return nil, err
+	}
+	// Compare real paths: on macOS the temporary directory is a symlink (/var -> /private/var).
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = real
+	}
+	if real, err := filepath.EvalSymlinks(topRaw); err == nil {
+		topRaw = real
 	}
 	rel, err := filepath.Rel(topRaw, abs)
 	if err != nil {
