@@ -27,11 +27,13 @@ import (
 )
 
 // Options select the adapters. TestRun, when set, replaces the sample or live test-run adapter.
+// Generator, when set, is the live generator. Sample mode does not use it and does not read Env.
 type Options struct {
-	Sample  bool
-	LogDir  string
-	Env     func(string) string
-	TestRun testrun.Adapter
+	Sample    bool
+	LogDir    string
+	Env       func(string) string
+	TestRun   testrun.Adapter
+	Generator generator.Generator
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
@@ -42,6 +44,7 @@ type Pipeline struct {
 	sample     bool
 	testRun    testrun.Adapter
 	proverIdle string
+	gen        generator.Generator
 	trace      *trace.Writer
 	guard      *netguard.Guard
 	atBoundary func(stage string)
@@ -49,8 +52,8 @@ type Pipeline struct {
 
 // Build opens the trace and, in sample mode, a client that refuses every dial.
 func Build(opts Options) (*Pipeline, error) {
-	// opts.Env is not called. This wagon reads no key.
-	_ = opts.Env
+	// opts.Env is not called. review.Open loads the live generator before Build.
+	// Sample mode reads no key.
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("pipeline: logs directory is empty")
 	}
@@ -58,7 +61,7 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Pipeline{sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, trace: tw}
+	p := &Pipeline{sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, gen: opts.Generator, trace: tw}
 	if opts.Sample {
 		p.guard = &netguard.Guard{}
 		p.guard.Arm()
@@ -243,8 +246,11 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 		if err != nil {
 			return nil, nil, nil, err
 		}
+	} else if p.gen != nil {
+		gen = p.gen
+		q = query.Live{}
 	} else {
-		gen = generator.Live{}
+		gen = &generator.Live{}
 		q = query.Live{}
 	}
 	run := p.testRun
@@ -399,6 +405,15 @@ type recording struct {
 
 func (g recording) Complete(ctx context.Context, agent, prompt string) (string, error) {
 	text, err := g.inner.Complete(ctx, agent, prompt)
+	if rep, ok := g.inner.(generator.Reported); ok {
+		if u, ok := rep.LastUse(); ok {
+			*g.models = append(*g.models, candidate.ModelUse{
+				Agent: agent, Route: u.Route, Model: u.Model,
+				ReceiptID: u.ReceiptID, FromReceipt: u.FromReceipt,
+			})
+		}
+		return text, err
+	}
 	if err != nil {
 		return "", err
 	}

@@ -71,9 +71,10 @@ type Failure struct {
 // ModelUse is one generator call, as the receipt named it.
 type ModelUse struct {
 	Agent       string
-	Route       string
-	Model       string
-	FromReceipt bool
+	Route       string // winning_route.provider when the stream named it; else ""
+	Model       string // routed model; "unknown" when the stream named none
+	ReceiptID   string // meterless.receipt_id; "" when the stream named none
+	FromReceipt bool   // true only when the stream named a routed model
 }
 
 // Draft is what the writer hands to the seam.

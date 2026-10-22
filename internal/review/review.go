@@ -142,7 +142,8 @@ type ServiceFailure struct {
 // ModelUse names a model one agent used, as the provider's receipt names it.
 type ModelUse struct {
 	Agent       string // "planner", "investigator", "prover", "skeptic", "judge" or "writer"
-	Route       string // from the receipt; "" when unknown
-	Model       string // from the receipt; "unknown" when the receipt had none, never a guess
-	FromReceipt bool
+	Route       string // winning_route.provider when the stream named it; "" when unknown
+	Model       string // routed model; "unknown" when the stream named none, never a guess
+	ReceiptID   string // meterless.receipt_id when the stream named it; "" otherwise
+	FromReceipt bool   // true only when the stream named a routed model
 }

@@ -72,6 +72,11 @@ func TestSamplePackagesDoNotImportNetOrExec(t *testing.T) {
 			if rel == "internal/change/between.go" && p == "os/exec" {
 				continue
 			}
+			// live.go is the Nightshift client. sample.go still must not
+			// import net or net/http; this exemption is that one file.
+			if rel == "internal/generator/live.go" && p == "net/http" {
+				continue
+			}
 			t.Errorf("%s imports %s", rel, p)
 		}
 		return nil

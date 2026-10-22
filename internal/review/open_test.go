@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,10 +103,16 @@ func TestCancelledContextIsPartial(t *testing.T) {
 
 func TestLiveModeWithoutRuntimeNamesProverOff(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
+	// The endpoint is closed so this test cannot reach a real Nightshift.
+	// Mutated field: the listening socket. It is closed before Open returns.
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("the closed endpoint accepted a call")
+	}))
+	srv.Close()
 	rev, err := review.Open(review.Options{
 		Sample: false,
 		LogDir: t.TempDir(),
-		Env:    os.Getenv,
+		Env:    liveEnv(srv.URL, map[string]string{"PROVEN_GENERATOR_TIMEOUT": "1s"}),
 	})
 	if err != nil {
 		t.Fatal(err)
