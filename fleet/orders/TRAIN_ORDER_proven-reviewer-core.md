@@ -54,7 +54,10 @@ builds on it; where the advisor is wrong, the wagon's `master-was-wrong:` field 
 
 ## §2 WAGONS
 
-Executors: Cursor seats on runner-cursor, `grok-4.7-high` by default; `--model` on the dispatch line. Every session
+Executors: Cursor seats on runner-cursor, `grok-4.7-high` by default; `--model` on the dispatch line. **The owner, 2026-10-22
+(translated from Polish):** *"Proven's coding goes on Grok, and the review goes on one of the other models plus, in
+parallel and mandatory, NVIDIA."* Every review of this train is therefore two independent reviews of the same diff: one
+on a non-Grok model (`codex` first) and one on an NVIDIA model; neither sees the other's verdict before returning. Every session
 recorded (ADR-0024). Reviews on `codex` with `--role review`, the focus phrased as the property that must hold (law #9,
 law #56). Intermediate wagons are master-verified; the last carries the stream's named review (law #29).
 
