@@ -71,7 +71,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		checkGenerator(env),
 		checkGuardrail(env),
 		checkQuery(env),
-		checkContainer(),
+		checkContainer(env),
 	}
 	readyN, notN := 0, 0
 	for _, c := range checks {
@@ -152,8 +152,11 @@ func checkQuery(env func(string) string) check {
 	return readyLine("query", fmt.Sprintf("rows %d", len(res.Rows)))
 }
 
-func checkContainer() check {
-	cfg := testrun.DefaultContainerConfig()
+func checkContainer(env func(string) string) check {
+	cfg, err := testrun.Load(env)
+	if err != nil {
+		return notReady("container", err.Error())
+	}
 	box, err := testrun.NewContainer(cfg, nil)
 	if err != nil {
 		return notReady("container", err.Error())

@@ -69,7 +69,12 @@ func open(opts Options) (Reviewer, error) {
 			return nil, queryConfig(zerr)
 		}
 		popts.LiveQuery = query.NewLive(zset, nil)
-		box, err := testrun.NewContainer(testrun.DefaultContainerConfig(), nil)
+		boxCfg, berr := testrun.Load(env)
+		if berr != nil {
+			return nil, testrunConfig(berr)
+		}
+		popts.MaxWrittenBytes = boxCfg.MaxWrittenBytes
+		box, err := testrun.NewContainer(boxCfg, nil)
 		if err != nil {
 			d, ok := service.As(err)
 			if !ok {
@@ -214,6 +219,17 @@ func queryConfig(err error) error {
 
 func guardrailConfig(err error) error {
 	var cfg *guardrail.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+func testrunConfig(err error) error {
+	var cfg *testrun.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
