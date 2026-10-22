@@ -2,7 +2,7 @@
 
 - incident: I07 (an incident of several review rounds; this case is the earliest one reconstructed; later rounds give PV-010 and PV-011)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22, declared built inside the build window · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -91,8 +91,21 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Toolchain: `go version go1.26.5 linux/amd64` (Go standard library only). Run at 2026-10-22 15:45:13 UTC.
+
+Command: `bash tests/corpus/cases/PV-009/check.sh` (runs base, change and the independent reference on each input). Exit code: 0.
+
+```text
+one-current base=pass change=pass reference=pass
+one-stale base=fail:LANGUAGES 41 -> 43 change=fail:LANGUAGES 41 -> 43 reference=fail:LANGUAGES 41 -> 43
+stale-after-current base=pass change=fail:LANGUAGES 41 -> 42; 42 -> 43 reference=fail:LANGUAGES 41 -> 42; 42 -> 43
+current-after-stale base=fail:LANGUAGES 41 -> 43; 43 -> 42 change=fail:LANGUAGES 41 -> 43; 43 -> 42 reference=fail:LANGUAGES 41 -> 43; 43 -> 42
+three-pairs base=pass change=fail:LANGUAGES 40 -> 42; 41 -> 42; 42 -> 43 reference=fail:LANGUAGES 40 -> 42; 41 -> 42; 42 -> 43
+no-arrow base=pass change=pass reference=pass
+max-int64 base=fail:LANGUAGES 41 -> 9223372036854775807 change=fail:LANGUAGES 41 -> 9223372036854775807 reference=fail:LANGUAGES 41 -> 9223372036854775807
+overflow-int64 base=pass change=pass reference=fail:LANGUAGES 41 -> 9223372036854775808
+twenty-digits base=pass change=pass reference=fail:LANGUAGES 41 -> 10000000000000000000
+```
 
 ## 9. Limits
 
