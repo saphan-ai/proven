@@ -340,24 +340,19 @@ func refuseExclusive(h *holders) error {
 }
 
 func resolveFormat(getenv func(string) string, h *holders) (string, error) {
-	format := "text"
-	if v := getenv("PROVEN_OUTPUT_FORMAT"); v != "" {
-		parsed, err := parseFormat(v)
-		if err != nil {
-			return "", err
-		}
-		format = parsed
-	}
 	if h.text.set && h.text.v {
-		format = "text"
+		return "text", nil
 	}
 	if h.asJSON.set && h.asJSON.v {
-		format = "json"
+		return "json", nil
 	}
 	if h.sarif.set && h.sarif.v {
-		format = "sarif"
+		return "sarif", nil
 	}
-	return format, nil
+	if v := getenv("PROVEN_OUTPUT_FORMAT"); v != "" {
+		return parseFormat(v)
+	}
+	return "text", nil
 }
 
 func parseFormat(v string) (string, error) {
@@ -370,21 +365,16 @@ func parseFormat(v string) (string, error) {
 }
 
 func resolveError(cmd string, getenv func(string) string, h *holders) (bool, error) {
-	errorOn := cmd == "ci"
-	if v := getenv("PROVEN_ERROR"); v != "" {
-		parsed, err := parseBoolSetting("PROVEN_ERROR", v)
-		if err != nil {
-			return false, err
-		}
-		errorOn = parsed
-	}
 	if h.errorOn.set {
-		errorOn = h.errorOn.v
+		return h.errorOn.v, nil
 	}
 	if h.noError.set {
-		errorOn = !h.noError.v
+		return !h.noError.v, nil
 	}
-	return errorOn, nil
+	if v := getenv("PROVEN_ERROR"); v != "" {
+		return parseBoolSetting("PROVEN_ERROR", v)
+	}
+	return cmd == "ci", nil
 }
 
 func resolveBaseline(getenv func(string) string, h *holders) string {
@@ -435,22 +425,13 @@ func isRegistry(v string) bool {
 }
 
 func resolveSeverity(getenv func(string) string, h *holders) (review.Severity, error) {
-	sev := review.SeverityInfo
-	if v := getenv("PROVEN_SEVERITY"); v != "" {
-		parsed, err := parseSeverity("PROVEN_SEVERITY", v)
-		if err != nil {
-			return "", err
-		}
-		sev = parsed
-	}
 	if h.severity.set {
-		parsed, err := parseSeverity("--severity", h.severity.v)
-		if err != nil {
-			return "", err
-		}
-		sev = parsed
+		return parseSeverity("--severity", h.severity.v)
 	}
-	return sev, nil
+	if v := getenv("PROVEN_SEVERITY"); v != "" {
+		return parseSeverity("PROVEN_SEVERITY", v)
+	}
+	return review.SeverityInfo, nil
 }
 
 func parseSeverity(field, v string) (review.Severity, error) {
@@ -463,22 +444,13 @@ func parseSeverity(field, v string) (review.Severity, error) {
 }
 
 func resolveTimeout(getenv func(string) string, h *holders) (int, error) {
-	timeout := 0
-	if v := getenv("PROVEN_TIMEOUT"); v != "" {
-		parsed, err := parseTimeout("PROVEN_TIMEOUT", v)
-		if err != nil {
-			return 0, err
-		}
-		timeout = parsed
-	}
 	if h.timeout.set {
-		parsed, err := parseTimeout("--timeout", h.timeout.v)
-		if err != nil {
-			return 0, err
-		}
-		timeout = parsed
+		return parseTimeout("--timeout", h.timeout.v)
 	}
-	return timeout, nil
+	if v := getenv("PROVEN_TIMEOUT"); v != "" {
+		return parseTimeout("PROVEN_TIMEOUT", v)
+	}
+	return 0, nil
 }
 
 func parseTimeout(field, v string) (int, error) {
@@ -490,18 +462,13 @@ func parseTimeout(field, v string) (int, error) {
 }
 
 func resolveSample(getenv func(string) string, h *holders) (bool, error) {
-	sample := false
-	if v := getenv("SAMPLE_MODE"); v != "" {
-		parsed, err := parseBoolSetting("SAMPLE_MODE", v)
-		if err != nil {
-			return false, err
-		}
-		sample = parsed
-	}
 	if h.sample.set {
-		sample = h.sample.v
+		return h.sample.v, nil
 	}
-	return sample, nil
+	if v := getenv("SAMPLE_MODE"); v != "" {
+		return parseBoolSetting("SAMPLE_MODE", v)
+	}
+	return false, nil
 }
 
 func parseBoolSetting(field, v string) (bool, error) {

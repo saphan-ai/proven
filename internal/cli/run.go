@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/review"
@@ -45,7 +47,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return exitFatal
 	}
-	rev, err := openReviewer(cfg, getenv, open)
+	rev, err := openCall(cfg, getenv, open)
 	if err != nil {
 		var conf *review.ConfigError
 		if errors.As(err, &conf) {
@@ -118,6 +120,15 @@ func writable(cfg config) error {
 		}
 	}
 	return nil
+}
+
+func openCall(cfg config, getenv func(string) string, open opener) (rev review.Reviewer, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("reviewer panicked: %v", rec)
+		}
+	}()
+	return openReviewer(cfg, getenv, open)
 }
 
 func openReviewer(cfg config, getenv func(string) string, open opener) (review.Reviewer, error) {
@@ -224,6 +235,7 @@ func applyCI(cfg *config, getenv func(string) string) error {
 		}
 		have = true
 	}
+	explicitBaseline := cfg.baseline != ""
 	if cfg.baseline == "" {
 		if have && ev.PullRequest.Base.SHA != "" {
 			cfg.baseline = ev.PullRequest.Base.SHA
@@ -236,7 +248,40 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	} else if have {
 		cfg.head = ev.PullRequest.Head.SHA
 	}
+	if explicitBaseline || cfg.baseline == "" {
+		return nil
+	}
+	if cfg.head == "" {
+		return &cliError{code: exitFatal, msg: "ci: no head commit, so the merge base cannot be computed"}
+	}
+	// Exit 2, not 7. ADR-0020 §2 reserves 7 for a configuration refused at load.
+	// A base git cannot resolve means Proven could not review.
+	base, err := gitMergeBase(cfg.target, cfg.baseline, cfg.head)
+	if err != nil {
+		return &cliError{code: exitFatal, msg: fmt.Sprintf("ci: cannot resolve the merge base of %s and %s: %s", cfg.baseline, cfg.head, err.Error())}
+	}
+	cfg.baseline = base
 	return nil
+}
+
+func gitMergeBase(repo, base, head string) (string, error) {
+	cmd := exec.Command("git", "-C", repo, "merge-base", base, head)
+	out, err := cmd.Output()
+	if err != nil {
+		detail := err.Error()
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if msg := strings.TrimSpace(string(exitErr.Stderr)); msg != "" {
+				detail = msg
+			}
+		}
+		return "", errors.New(detail)
+	}
+	sha := strings.TrimSpace(string(out))
+	if sha == "" {
+		return "", errors.New("git merge-base returned no commit")
+	}
+	return sha, nil
 }
 
 func helpText() string {
@@ -249,8 +294,9 @@ usage:
   proven --version
 
 TARGET defaults to ".". proven ci reads GITHUB_EVENT_PATH, GITHUB_SHA and
-GITHUB_BASE_REF. When no baseline flag or variable is set, the baseline commit
-is the pull request base in that event, then GITHUB_BASE_REF.
+GITHUB_BASE_REF. When no baseline flag or variable is set, the baseline is
+the merge base of the pull request base and the head. A base that cannot
+be resolved is exit 2: Proven could not review.
 
 flags:
   --text, --json, --sarif

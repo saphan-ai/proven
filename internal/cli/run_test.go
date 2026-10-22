@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -99,22 +101,18 @@ func assertDiscountText(t *testing.T, body string) {
 
 func TestCICommitsComeFromTheFixtureEvent(t *testing.T) {
 	event := filepath.Join(moduleRoot(t), "tests", "fixtures", "pull_request.json")
-	cap := &captureReviewer{}
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"ci"}, func(k string) string {
 		if k == "GITHUB_EVENT_PATH" {
 			return event
 		}
 		return ""
-	}, &stdout, &stderr, openCapture(cap))
-	if code != exitOK {
+	}, &stdout, &stderr, openCapture(&captureReviewer{}))
+	if code != exitFatal {
 		t.Fatalf("exit %d stderr %s", code, stderr.String())
 	}
-	if cap.req.BaselineCommit != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
-		t.Fatalf("baseline %q", cap.req.BaselineCommit)
-	}
-	if cap.req.HeadCommit != "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
-		t.Fatalf("head %q", cap.req.HeadCommit)
+	if !strings.Contains(stderr.String(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") || !strings.Contains(stderr.String(), "merge base") {
+		t.Fatalf("stderr %q", stderr.String())
 	}
 }
 
@@ -146,12 +144,13 @@ func TestCIFlagAndSHAOverrideTheEvent(t *testing.T) {
 }
 
 func TestCIBaseRefWhenTheEventHasNoSHA(t *testing.T) {
-	dir := t.TempDir()
+	dir, fork, baseTip, head := advancedBaseRepo(t, "release")
 	event := filepath.Join(dir, "event.json")
-	body := []byte(`{"pull_request":{"base":{"ref":"main","sha":""},"head":{"ref":"feature","sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}}`)
-	if err := os.WriteFile(event, body, 0o644); err != nil {
+	body := fmt.Sprintf(`{"pull_request":{"base":{"ref":"main","sha":""},"head":{"ref":"feature","sha":"%s"}}}`, head)
+	if err := os.WriteFile(event, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	t.Chdir(dir)
 	cap := &captureReviewer{}
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"ci"}, func(k string) string {
@@ -167,16 +166,20 @@ func TestCIBaseRefWhenTheEventHasNoSHA(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("exit %d stderr %s", code, stderr.String())
 	}
-	if cap.req.BaselineCommit != "release" {
-		t.Fatalf("baseline %q", cap.req.BaselineCommit)
+	if cap.req.BaselineCommit != fork {
+		t.Fatalf("baseline %q, fork %q, base tip %q", cap.req.BaselineCommit, fork, baseTip)
 	}
-	if cap.req.HeadCommit != "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+	if cap.req.BaselineCommit == baseTip {
+		t.Fatalf("baseline is the base tip %s", baseTip)
+	}
+	if cap.req.HeadCommit != head {
 		t.Fatalf("head %q", cap.req.HeadCommit)
 	}
 }
 
 func TestCIWorkspaceIsTheTarget(t *testing.T) {
-	event := filepath.Join(moduleRoot(t), "tests", "fixtures", "pull_request.json")
+	dir, sha := singleCommitRepo(t)
+	event := writePullRequestEvent(t, dir, sha, sha)
 	cap := &captureReviewer{}
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"ci"}, func(k string) string {
@@ -184,7 +187,7 @@ func TestCIWorkspaceIsTheTarget(t *testing.T) {
 		case "GITHUB_EVENT_PATH":
 			return event
 		case "GITHUB_WORKSPACE":
-			return "/work"
+			return dir
 		default:
 			return ""
 		}
@@ -192,8 +195,21 @@ func TestCIWorkspaceIsTheTarget(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("exit %d stderr %s", code, stderr.String())
 	}
-	if cap.req.Target != "/work" {
+	if cap.req.Target != dir {
 		t.Fatalf("target %q", cap.req.Target)
+	}
+}
+
+func TestOpenerPanicExits2(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan"}, emptyEnv, &stdout, &stderr, func(review.Options) (review.Reviewer, error) {
+		panic("open-boom")
+	})
+	if code != exitFatal {
+		t.Fatalf("exit %d stderr %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "open-boom") {
+		t.Fatalf("stderr %q", stderr.String())
 	}
 }
 
@@ -402,4 +418,210 @@ func TestRunConfigAutoExits7(t *testing.T) {
 	if !strings.Contains(stderr.String(), "configuration file") {
 		t.Fatalf("stderr %q", stderr.String())
 	}
+}
+
+func TestValidFlagBeatsInvalidVariable(t *testing.T) {
+	finding := review.Result{Findings: []review.Finding{{
+		RuleID:   "kept.rule",
+		Severity: review.SeverityError,
+		Message:  "kept",
+		Location: review.Location{Path: "a.go", StartLine: 1},
+	}}}
+	cases := []struct {
+		name     string
+		args     []string
+		env      map[string]string
+		want     int
+		deadline bool
+		finding  bool
+	}{
+		{name: "text", args: []string{"scan", "--text"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitOK},
+		{name: "json", args: []string{"scan", "--json"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitFatal},
+		{name: "sarif", args: []string{"scan", "--sarif"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitFatal},
+		{name: "error", args: []string{"scan", "--error"}, env: map[string]string{"PROVEN_ERROR": "maybe"}, want: exitFindings, finding: true},
+		{name: "no-error", args: []string{"scan", "--no-error"}, env: map[string]string{"PROVEN_ERROR": "maybe"}, want: exitOK, finding: true},
+		{name: "severity", args: []string{"scan", "--severity=INFO"}, env: map[string]string{"PROVEN_SEVERITY": "invalid"}, want: exitOK},
+		{name: "timeout", args: []string{"scan", "--timeout=5"}, env: map[string]string{"PROVEN_TIMEOUT": "nope"}, want: exitOK, deadline: true},
+		{name: "sample-off", args: []string{"scan", "--sample=false"}, env: map[string]string{"SAMPLE_MODE": "not-a-bool"}, want: exitOK},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			rev := &captureReviewer{}
+			if tt.finding {
+				rev.res = finding
+			}
+			var stdout, stderr bytes.Buffer
+			code := Run(tt.args, envOf(tt.env), &stdout, &stderr, openCapture(rev))
+			if code != tt.want {
+				t.Fatalf("exit %d, want %d\nstderr: %s", code, tt.want, stderr.String())
+			}
+			for key := range tt.env {
+				if strings.Contains(stderr.String(), key) {
+					t.Fatalf("stderr names %s: %q", key, stderr.String())
+				}
+			}
+			if tt.deadline && !rev.hasDeadline {
+				t.Fatal("no deadline")
+			}
+		})
+	}
+}
+
+func TestInvalidVariableAloneExits7(t *testing.T) {
+	cases := []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{name: "format", key: "PROVEN_OUTPUT_FORMAT", value: "xml"},
+		{name: "error", key: "PROVEN_ERROR", value: "maybe"},
+		{name: "severity", key: "PROVEN_SEVERITY", value: "invalid"},
+		{name: "timeout", key: "PROVEN_TIMEOUT", value: "nope"},
+		{name: "sample", key: "SAMPLE_MODE", value: "not-a-bool"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"scan"}, envOf(map[string]string{tt.key: tt.value}), &stdout, &stderr, nil)
+			if code != exitConfig {
+				t.Fatalf("exit %d stderr %s", code, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), tt.key) {
+				t.Fatalf("stderr %q", stderr.String())
+			}
+		})
+	}
+}
+
+func TestSampleFlagIgnoresInvalidSampleMode(t *testing.T) {
+	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sample", target}, envOf(map[string]string{"SAMPLE_MODE": "not-a-bool"}), &stdout, &stderr, nil)
+	if code != exitOK {
+		t.Fatalf("exit %d stderr %s\nstdout: %s", code, stderr.String(), stdout.String())
+	}
+	if strings.Contains(stderr.String(), "SAMPLE_MODE") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+	assertDiscountText(t, stdout.String())
+}
+
+func TestConfigFlagIgnoresInvalidVariable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "proven.yaml")
+	if err := os.WriteFile(path, []byte("timeout: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--config=" + path}, envOf(map[string]string{"PROVEN_CONFIG": "auto"}), &stdout, &stderr, openCapture(&captureReviewer{}))
+	if code != exitOK {
+		t.Fatalf("exit %d stderr %s", code, stderr.String())
+	}
+	if strings.Contains(stderr.String(), "PROVEN_CONFIG") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestCIMergeBaseIsTheForkPoint(t *testing.T) {
+	dir, fork, baseTip, head := advancedBaseRepo(t, "main")
+	event := writePullRequestEvent(t, dir, baseTip, head)
+	t.Chdir(dir)
+	cap := &captureReviewer{}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"ci"}, func(k string) string {
+		if k == "GITHUB_EVENT_PATH" {
+			return event
+		}
+		return ""
+	}, &stdout, &stderr, openCapture(cap))
+	if code != exitOK {
+		t.Fatalf("exit %d stderr %s", code, stderr.String())
+	}
+	if cap.req.BaselineCommit != fork {
+		t.Fatalf("baseline %q, fork %q, base tip %q", cap.req.BaselineCommit, fork, baseTip)
+	}
+	if cap.req.BaselineCommit == baseTip {
+		t.Fatalf("baseline is the base tip %s", baseTip)
+	}
+	if cap.req.HeadCommit != head {
+		t.Fatalf("head %q", cap.req.HeadCommit)
+	}
+}
+
+func TestCIUnresolvableBaseExits2(t *testing.T) {
+	dir, head := singleCommitRepo(t)
+	event := writePullRequestEvent(t, dir, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", head)
+	t.Chdir(dir)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"ci"}, func(k string) string {
+		if k == "GITHUB_EVENT_PATH" {
+			return event
+		}
+		return ""
+	}, &stdout, &stderr, openCapture(&captureReviewer{}))
+	if code != exitFatal {
+		t.Fatalf("exit %d stderr %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "merge base") || !strings.Contains(stderr.String(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func advancedBaseRepo(t *testing.T, baseBranch string) (dir, fork, baseTip, head string) {
+	t.Helper()
+	dir = t.TempDir()
+	runGit(t, dir, "init", "-b", baseBranch, "--template=")
+	fork = commitFile(t, dir, "f.txt", "root\n", "root")
+	runGit(t, dir, "branch", "feature")
+	baseTip = commitFile(t, dir, "f.txt", "base advanced\n", "advance base")
+	runGit(t, dir, "checkout", "feature")
+	head = commitFile(t, dir, "f.txt", "feature work\n", "feature work")
+	runGit(t, dir, "checkout", baseBranch)
+	return dir, fork, baseTip, head
+}
+
+func singleCommitRepo(t *testing.T) (dir, sha string) {
+	t.Helper()
+	dir = t.TempDir()
+	runGit(t, dir, "init", "-b", "main", "--template=")
+	sha = commitFile(t, dir, "f.txt", "only\n", "only")
+	return dir, sha
+}
+
+func commitFile(t *testing.T, dir, name, body, message string) string {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", name)
+	runGit(t, dir, "-c", "commit.gpgsign=false", "-c", "user.name=Proven Test", "-c", "user.email=proven-test@example.com", "commit", "-m", message)
+	return runGit(t, dir, "rev-parse", "HEAD")
+}
+
+func writePullRequestEvent(t *testing.T, dir, baseSHA, headSHA string) string {
+	t.Helper()
+	path := filepath.Join(dir, "event.json")
+	body := fmt.Sprintf(`{"pull_request":{"base":{"ref":"main","sha":"%s"},"head":{"ref":"feature","sha":"%s"}}}`, baseSHA, headSHA)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func runGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=Proven Test",
+		"GIT_AUTHOR_EMAIL=proven-test@example.com",
+		"GIT_COMMITTER_NAME=Proven Test",
+		"GIT_COMMITTER_EMAIL=proven-test@example.com",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+	return strings.TrimSpace(string(out))
 }
