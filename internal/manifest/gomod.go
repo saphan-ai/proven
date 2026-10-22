@@ -1,5 +1,5 @@
 // Package manifest reads dependency manifests and names what a change added
-// or raised. Go is the first reader. Another ecosystem is another Reader.
+// or raised. Go, npm and PyPI each have a reader.
 package manifest
 
 import (
@@ -28,10 +28,13 @@ type Hit struct {
 }
 
 // Reader reads one manifest kind.
+// Notes, when set, names lines of the change side that were not dependencies.
+// Each string is one sentence the OSV check writes to the trace.
 type Reader struct {
 	Ecosystem string
 	Match     func(path string) bool
 	Diff      func(base, change []byte) ([]Change, error)
+	Notes     func(change []byte) []string
 }
 
 // Go reads go.mod require lines. A replace or an exclude is not a require.
@@ -46,8 +49,10 @@ func Go() Reader {
 }
 
 // Collect runs each reader on the files it matches.
-func Collect(files []change.File, readers []Reader) ([]Hit, error) {
+// The strings are the readers' skip notes, each prefixed with the file path.
+func Collect(files []change.File, readers []Reader) ([]Hit, []string, error) {
 	var out []Hit
+	var notes []string
 	for _, f := range files {
 		for _, r := range readers {
 			if r.Match == nil || r.Diff == nil || !r.Match(f.Path) {
@@ -55,10 +60,15 @@ func Collect(files []change.File, readers []Reader) ([]Hit, error) {
 			}
 			got, err := r.Diff(f.Base, f.Change)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			for _, c := range got {
 				out = append(out, Hit{Ecosystem: r.Ecosystem, File: f.Path, Change: c})
+			}
+			if r.Notes != nil {
+				for _, n := range r.Notes(f.Change) {
+					notes = append(notes, f.Path+": "+n)
+				}
 			}
 		}
 	}
@@ -68,7 +78,7 @@ func Collect(files []change.File, readers []Reader) ([]Hit, error) {
 		}
 		return out[i].Package < out[j].Package
 	})
-	return out, nil
+	return out, notes, nil
 }
 
 type req struct {
@@ -85,24 +95,7 @@ func diffGo(base, change []byte) ([]Change, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []Change
-	for path, now := range after {
-		old, ok := before[path]
-		if !ok {
-			out = append(out, Change{Package: path, Version: now.version, Line: now.line, Added: true})
-			continue
-		}
-		if old.version == now.version {
-			continue
-		}
-		cmp, ordered := semver.Compare(now.version, old.version)
-		if ordered && cmp <= 0 {
-			continue
-		}
-		out = append(out, Change{Package: path, Version: now.version, Line: now.line, Added: false})
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Package < out[j].Package })
-	return out, nil
+	return diffNamed(before, after, semver.Compare), nil
 }
 
 // parseRequires reads require directives. The last line wins when a module

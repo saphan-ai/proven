@@ -31,10 +31,10 @@ type Outcome struct {
 	Down       *service.Down
 }
 
-// Check reads Go modules the change added or raised, queries the OSV table
-// once per module, and compares the version in Go. A matching range becomes
-// a candidate whose evidence is the query, its rows and the comparison.
-// A CVE alias is also looked up in the KEV view.
+// Check reads Go, npm and PyPI packages the change added or raised, queries
+// the OSV table once per package, and compares the version for that ecosystem.
+// A matching range becomes a candidate whose evidence is the query, its rows
+// and the comparison. A CVE alias is also looked up in the KEV view.
 func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (Outcome, error) {
 	if table == "" {
 		table = DefaultTable
@@ -46,11 +46,12 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 	if err != nil {
 		return Outcome{}, err
 	}
-	hits, err := manifest.Collect(files, []manifest.Reader{manifest.Go()})
+	hits, notes, err := manifest.Collect(files, []manifest.Reader{manifest.Go(), manifest.NPM(), manifest.PyPI()})
 	if err != nil {
 		return Outcome{}, err
 	}
 	var out Outcome
+	out.Notes = append(out.Notes, notes...)
 	if len(hits) == 0 {
 		out.Notes = append(out.Notes, "no dependency added or raised")
 		return out, nil
@@ -99,12 +100,16 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 		return nil, "", err
 	}
 	if len(rows) == 0 {
-		return nil, fmt.Sprintf("%s %s: no affected row; the query returned no rows; SQL: %s", hit.Package, hit.Version, sqlText), nil
+		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; SQL: %s", hit.Package, hit.Version, sqlText)
+		if why := Uncompared(hit.Ecosystem, hit.Version); why != "" {
+			note += "; " + why
+		}
+		return nil, note, nil
 	}
 	var matched []compared
 	var missed []compared
 	for _, row := range rows {
-		ok, sentence := InRange(hit.Version, row.Introduced, row.Fixed, row.LastAffected)
+		ok, sentence := InRangeEcosystem(hit.Ecosystem, hit.Version, row.Introduced, row.Fixed, row.LastAffected)
 		item := compared{row: row, sentence: sentence}
 		if ok {
 			matched = append(matched, item)
