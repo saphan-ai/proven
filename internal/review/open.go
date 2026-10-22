@@ -48,6 +48,7 @@ func open(opts Options) (Reviewer, error) {
 		if lerr != nil {
 			return nil, generatorConfig(lerr)
 		}
+		popts.SkepticModel = settings.SkepticModel
 		gs, gerr := guardrail.Load(env)
 		if gerr != nil {
 			return nil, guardrailConfig(gerr)

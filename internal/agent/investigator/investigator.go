@@ -8,6 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // querySpec is the JSON the investigator asks a model to return.
@@ -24,6 +25,14 @@ func Prompt(id, title, path string) string {
 
 type row struct {
 	SQL string `json:"sql"`
+}
+
+// Execute runs a query the skeptic named. It does not ask a model.
+func Execute(ctx context.Context, q query.Adapter, sql string) (query.Result, error) {
+	if q == nil {
+		return query.Result{}, &service.Down{Service: "query", Reason: "no query engine"}
+	}
+	return q.Query(ctx, sql)
 }
 
 // Investigate asks for SQL and runs it. A query with no rows adds no evidence.
