@@ -65,6 +65,18 @@ The first day of the train [`proven-cli-and-action`](../fleet/orders/TRAIN_ORDER
 - **What happened:** the owner ruled that NVIDIA reviews move from qwen-code to the agent-loop harness. Two minutes later they added that the harness must be extended first.
 - **What the master did:** answered "understood". NVIDIA reviews stay on the qwen-code NVIDIA seats until the agent-loop wagon lands, one at a time, and never on the seat where two reviews ended after one sentence.
 
+### 12 · advisor → master: the interim review rule
+
+- **What happened:** the owner ruled that until NVIDIA runs on agent-loop, the two parallel reviews are claude-code or codex, plus Grok on a fourth Cursor seat; no reviews on the qwen-code NVIDIA seats.
+- **What the master did:** answered "understood" and named the Cursor seat it uses for reviews.
+
+## Owed an NVIDIA review
+
+When NVIDIA reviews run again, these changes get one:
+
+- the-command-line (W1): accepted, its NVIDIA review never ran.
+- cli-over-the-sample-reviewer (W1b): reviewed under the interim rule (codex + Grok) once round 3 returns.
+
 ## Waiting for answers
 
 - the owner's new signature of W1b round 3; then the round, the master's verify, and the two parallel reviews (NVIDIA and codex).

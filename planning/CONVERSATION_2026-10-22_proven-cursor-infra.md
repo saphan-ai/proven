@@ -73,6 +73,17 @@ This page continues [`CONVERSATION_2026-10-21.md`](CONVERSATION_2026-10-21.md) f
 - **What happened:** the owner moved NVIDIA reviews to the agent-loop harness, then said the harness must be extended first. The probe the advisor first asked of this master is skipped until the agent-loop master answers.
 - **What the master did:** answered "understood".
 
+### 13 · advisor → master: the interim review rule
+
+- **What happened:** the owner ruled that until NVIDIA runs on agent-loop, the two parallel reviews are claude-code or codex, plus Grok on a fourth Cursor seat; no reviews on the qwen-code NVIDIA seats.
+- **What the master did:** answered "understood" and named the Cursor seat it uses for reviews.
+
+## Owed an NVIDIA review
+
+When NVIDIA reviews run again, these changes get one:
+
+- none in proven's code from this track; the engine changes W11 and W12 were reviewed by codex.
+
 ## Waiting for answers
 
 - the engine's scribe: who fixes the recording of Cursor's binary frames.
