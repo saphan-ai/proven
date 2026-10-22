@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -32,6 +34,32 @@ func TestDecideBands(t *testing.T) {
 	if world.Decide(0.85) != "auto-merge" || world.Decide(0.84) != "review" ||
 		world.Decide(0.82) != "review" || world.Decide(0.81) != "new" {
 		t.Fatalf("%s %s %s %s", world.Decide(0.85), world.Decide(0.84), world.Decide(0.82), world.Decide(0.81))
+	}
+}
+
+func TestUpsertWritesAnAuditLine(t *testing.T) {
+	dir, logs := t.TempDir(), t.TempDir()
+	s := openAt(t, dir, logs)
+	one := world.Entity{
+		Type: "x", ID: "ent_a", Name: "Audit One",
+		Source: world.Provenance{Kind: "manual", At: "2026-01-01T00:00:00.000Z"},
+	}
+	two := world.Entity{
+		Type: "x", ID: "ent_b", Name: "Audit Two",
+		Source: world.Provenance{Kind: "manual", At: "2026-01-02T00:00:00.000Z"},
+	}
+	if err := s.UpsertEntity(one); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertEntity(two); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(logs, "world.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(b), "\n") != 2 {
+		t.Fatalf("%s", b)
 	}
 }
 

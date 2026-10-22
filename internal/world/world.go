@@ -223,6 +223,20 @@ func (s *Store) UpsertEntity(e Entity) error {
 		e.State = "active"
 	}
 	s.entities[e.ID] = e
+	actor := e.Source.By
+	if actor == "" {
+		actor = "system"
+	}
+	if err := s.audit(trace.Event{
+		EventID:   "upsert:" + e.ID + ":" + e.Source.At,
+		Kind:      "upsert",
+		Agent:     actor,
+		FindingID: e.ID,
+		Text:      e.Name,
+		Title:     e.Name,
+	}); err != nil {
+		return err
+	}
 	return s.persist()
 }
 

@@ -79,12 +79,13 @@ func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, erro
 	}
 	l.has = false
 	l.last = Use{}
-	text, meta, err := l.attempt(ctx, prompt)
+	model := l.cfg.ModelFor(agent)
+	text, meta, err := l.attempt(ctx, prompt, model)
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(text) == "" {
-		text, meta, err = l.attempt(ctx, prompt)
+		text, meta, err = l.attempt(ctx, prompt, model)
 		if err != nil {
 			return "", err
 		}
@@ -143,14 +144,14 @@ func nvidiaModel(model string) bool {
 	return ok && rest != ""
 }
 
-func (l *Live) attempt(parent context.Context, prompt string) (string, streamMeta, error) {
+func (l *Live) attempt(parent context.Context, prompt, model string) (string, streamMeta, error) {
 	if err := parent.Err(); err != nil {
 		return "", streamMeta{}, err
 	}
 	ctx, cancel := context.WithTimeout(parent, l.cfg.Timeout)
 	defer cancel()
 	payload, err := json.Marshal(chatRequest{
-		Model:    l.cfg.Model,
+		Model:    model,
 		Stream:   true,
 		Messages: []chatMessage{{Role: "user", Content: prompt}},
 	})

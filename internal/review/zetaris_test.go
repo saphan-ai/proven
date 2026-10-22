@@ -134,7 +134,7 @@ func agentJSON(prompt string) string {
 		return `[{"id":"K1","rule_id":"known-exploited-cve","title":"CVE-2021-44228 is on the KEV list","message":"The advisory CVE is on the known-exploited list.","severity":"ERROR","path":"go.mod","start_line":5,"end_line":5}]`
 	case strings.Contains(prompt, "Write one SQL"):
 		return `{"sql":"SELECT cve_id FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2021-44228'"}`
-	case strings.Contains(prompt, "Name one test"):
+	case strings.Contains(prompt, "Write one test"):
 		return `{"path":"","name":"","command":""}`
 	case strings.Contains(prompt, "Make one attempt"):
 		return `{"refuted":false,"reason":"no refutation"}`

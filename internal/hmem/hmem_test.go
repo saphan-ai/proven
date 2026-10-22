@@ -69,6 +69,39 @@ func TestScoreMatchesTheFormula(t *testing.T) {
 	}
 }
 
+func TestMarkSupersededLowersTheRank(t *testing.T) {
+	s := openMem(t)
+	conf := 0.9
+	fresh, err := s.Add(hmem.AddInput{
+		Content: "we deploy the api with docker on mondays", Source: "conformance",
+		Confidence: &conf, Layer: hmem.LayerLong, At: fixed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := s.Add(hmem.AddInput{
+		Content: "we deploy the api with docker on fridays", Source: "conformance",
+		Confidence: &conf, Layer: hmem.LayerLong, At: fixed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkSuperseded(old.ID, fresh.ID); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Query("when do we deploy the api with docker", 10, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(q.Hits) < 2 || q.Hits[0].Record.ID != fresh.ID {
+		t.Fatalf("hits %#v", q.Hits)
+	}
+	got, _ := s.Get(old.ID)
+	if got.SupersededBy != fresh.ID {
+		t.Fatalf("supersededBy %q", got.SupersededBy)
+	}
+}
+
 func TestQueryDropsBelowTheThreshold(t *testing.T) {
 	s := openMem(t)
 	zero := 0.0
