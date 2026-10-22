@@ -1,0 +1,204 @@
+package guardrail
+
+import (
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
+	"unicode/utf8"
+)
+
+// Environment variables of the guardrail. The set is closed: Load reads these
+// names and no others. An empty value means the default, except the key,
+// which has none when the guardrail is on.
+const (
+	EnvMode    = "PROVEN_GUARDRAIL_MODE"
+	EnvBaseURL = "PROVEN_GUARDRAIL_BASE_URL"
+	EnvModel   = "PROVEN_GUARDRAIL_MODEL"
+	EnvKey     = "PROVEN_GUARDRAIL_KEY"
+	EnvTimeout = "PROVEN_GUARDRAIL_TIMEOUT"
+)
+
+// Modes. The default is server: the guardrail is on.
+const (
+	ModeServer = "server"
+	ModeNVIDIA = "nvidia"
+	ModeOff    = "off"
+)
+
+const (
+	defaultMode = ModeServer
+	// defaultServerBase is the listen address measured for our model server.
+	// 127.0.0.1:8088 is the generator, a different service.
+	defaultServerBase  = "http://127.0.0.1:8081"
+	defaultNVIDIABase  = "https://integrate.api.nvidia.com/v1"
+	defaultServerModel = "nemotron-3.5-content-safety"
+	// defaultNVIDIAModel is the id third parties publish. NVIDIA's sample
+	// leaves the id blank, so PROVEN_GUARDRAIL_MODEL replaces it.
+	defaultNVIDIAModel = "nvidia/nemotron-3.5-content-safety"
+	// defaultTimeout sits above the measured warm range of 156–706 ms.
+	defaultTimeout = 5 * time.Second
+)
+
+// ConfigError names a refused guardrail setting and the values that are allowed.
+// Value is empty when the field is the key: the secret is never printed.
+type ConfigError struct {
+	Field   string
+	Value   string
+	Allowed []string
+	Reason  string
+}
+
+func (e *ConfigError) Error() string {
+	if e == nil {
+		return "configuration refused"
+	}
+	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
+	if e.Reason != "" {
+		msg += ": " + e.Reason
+	}
+	if len(e.Allowed) > 0 {
+		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
+	}
+	return msg
+}
+
+// Settings is one validated guardrail configuration.
+// Key is held so the call can send it. It is not a value to print.
+// When Mode is off, Key is empty even if the environment had one.
+type Settings struct {
+	Mode    string
+	BaseURL string
+	Model   string
+	Key     string
+	Timeout time.Duration
+}
+
+// Load reads the guardrail settings. A wrong value is refused.
+// Mode off does not keep the key. An empty lookup uses the defaults.
+func Load(env func(string) string) (Settings, error) {
+	if env == nil {
+		env = func(string) string { return "" }
+	}
+	mode := env(EnvMode)
+	if mode == "" {
+		mode = defaultMode
+	}
+	switch mode {
+	case ModeServer, ModeNVIDIA, ModeOff:
+	default:
+		return Settings{}, refuse(EnvMode, clip(mode), "not a guardrail mode", "server, nvidia, or off")
+	}
+	timeout := defaultTimeout
+	if raw := env(EnvTimeout); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil || d <= 0 {
+			return Settings{}, refuse(EnvTimeout, raw, "not a Go duration greater than zero", "a Go duration greater than zero, for example 5s")
+		}
+		timeout = d
+	}
+	if mode == ModeOff {
+		if raw := env(EnvBaseURL); raw != "" {
+			if _, err := checkBase(raw); err != nil {
+				return Settings{}, err
+			}
+		}
+		if raw := env(EnvModel); raw != "" {
+			if err := checkModel(raw); err != nil {
+				return Settings{}, err
+			}
+		}
+		if raw := env(EnvKey); raw != "" {
+			if err := checkKey(raw); err != nil {
+				return Settings{}, err
+			}
+		}
+		return Settings{Mode: ModeOff, Timeout: timeout}, nil
+	}
+	base := env(EnvBaseURL)
+	if base == "" {
+		if mode == ModeNVIDIA {
+			base = defaultNVIDIABase
+		} else {
+			base = defaultServerBase
+		}
+	}
+	base, err := checkBase(base)
+	if err != nil {
+		return Settings{}, err
+	}
+	model := env(EnvModel)
+	if model == "" {
+		if mode == ModeNVIDIA {
+			model = defaultNVIDIAModel
+		} else {
+			model = defaultServerModel
+		}
+	}
+	if err := checkModel(model); err != nil {
+		return Settings{}, err
+	}
+	key := env(EnvKey)
+	if err := checkKey(key); err != nil {
+		return Settings{}, err
+	}
+	return Settings{Mode: mode, BaseURL: base, Model: model, Key: key, Timeout: timeout}, nil
+}
+
+func refuse(field, value, reason, allowed string) *ConfigError {
+	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
+}
+
+func checkKey(key string) error {
+	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
+		return refuse(EnvKey, "", "the guardrail needs a key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
+	}
+	return nil
+}
+
+func checkBase(raw string) (string, error) {
+	allowed := "an absolute http or https URL with no user info, query or fragment, and a path of empty or /v1"
+	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") {
+		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+	}
+	path := strings.TrimRight(u.Path, "/")
+	if path != "" && path != "/v1" {
+		return "", refuse(EnvBaseURL, clip(raw), "the path is not empty or /v1", allowed)
+	}
+	u.Path = path
+	return strings.TrimRight(u.String(), "/"), nil
+}
+
+func checkModel(value string) error {
+	if !utf8.ValidString(value) || len(value) > 128 || !modelName(value) {
+		return refuse(EnvModel, clip(value), "not an allowed value", "a non-empty model id without spaces, at most 128 characters")
+	}
+	return nil
+}
+
+func clip(value string) string {
+	if len(value) > 128 {
+		return value[:128]
+	}
+	return value
+}
+
+func modelName(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r == '.' || r == '_' || r == '-' || r == '/' || r == ':' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' {
+			continue
+		}
+		return false
+	}
+	return true
+}

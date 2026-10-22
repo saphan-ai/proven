@@ -9,6 +9,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -46,6 +47,19 @@ func open(opts Options) (Reviewer, error) {
 		settings, lerr := generator.Load(env)
 		if lerr != nil {
 			return nil, generatorConfig(lerr)
+		}
+		gs, gerr := guardrail.Load(env)
+		if gerr != nil {
+			return nil, guardrailConfig(gerr)
+		}
+		if gs.Mode == guardrail.ModeOff {
+			popts.GuardOff = true
+		} else {
+			rail, nerr := guardrail.New(gs, nil)
+			if nerr != nil {
+				return nil, nerr
+			}
+			popts.Guardrail = rail
 		}
 		popts.Generator = generator.NewLive(settings, nil)
 		box, err := testrun.NewContainer(testrun.DefaultContainerConfig(), nil)
@@ -180,6 +194,17 @@ func toEvidence(e candidate.Evidence) Evidence {
 
 // generatorConfig is the seam's *ConfigError for a refused generator setting.
 // The shell exits 7 on that type.
+func guardrailConfig(err error) error {
+	var cfg *guardrail.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
 func generatorConfig(err error) error {
 	var cfg *generator.ConfigError
 	if errors.As(err, &cfg) {

@@ -19,6 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/netguard"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
@@ -37,6 +38,11 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
+	// Guardrail checks every prompt and every answer. Sample mode with none
+	// uses the safe sample. A live pipeline with none is refused.
+	Guardrail guardrail.Adapter
+	// GuardOff writes one "no guardrail" line and checks nothing.
+	GuardOff bool
 }
 
 // Pipeline is one reviewer.
@@ -47,6 +53,8 @@ type Pipeline struct {
 	gen        generator.Generator
 	trace      *trace.Writer
 	guard      *netguard.Guard
+	rail       guardrail.Adapter
+	guardOff   bool
 	atBoundary func(stage string)
 }
 
@@ -57,11 +65,24 @@ func Build(opts Options) (*Pipeline, error) {
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("pipeline: logs directory is empty")
 	}
+	if opts.GuardOff && opts.Guardrail != nil {
+		return nil, fmt.Errorf("pipeline: the guardrail is off and an adapter was set")
+	}
 	tw, err := trace.Open(opts.LogDir)
 	if err != nil {
 		return nil, err
 	}
-	p := &Pipeline{sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, gen: opts.Generator, trace: tw}
+	p := &Pipeline{
+		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
+		gen: opts.Generator, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
+	}
+	if !opts.GuardOff && p.rail == nil {
+		if opts.Sample {
+			p.rail = guardrail.Safe{}
+		} else {
+			return nil, fmt.Errorf("pipeline: the guardrail is on and no adapter was set")
+		}
+	}
 	if opts.Sample {
 		p.guard = &netguard.Guard{}
 		p.guard.Arm()
@@ -132,6 +153,10 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (candidate.Draft, er
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
 	gen = recording{inner: gen, models: &st.models}
+	gen, err = p.applyGuard(gen)
+	if err != nil {
+		return candidate.Draft{}, err
+	}
 
 	risks, err := planner.Plan(ctx, req.Target, gen)
 	if err != nil {
@@ -402,6 +427,45 @@ func (s *state) omitUnjudged(cands []candidate.Candidate) ([]candidate.Candidate
 		out = append(out, c)
 	}
 	return out, nil
+}
+
+// applyGuard writes "no guardrail" once when the switch is off.
+// Otherwise it checks the prompt before the model runs and the answer before it is used.
+func (p *Pipeline) applyGuard(gen generator.Generator) (generator.Generator, error) {
+	if p.guardOff {
+		err := p.trace.Append(trace.Event{
+			FindingID: "guardrail",
+			Kind:      "guardrail",
+			Agent:     "pipeline",
+			Text:      "no guardrail",
+		})
+		return gen, err
+	}
+	return guardrail.Wrap(gen, p.rail, func(agent, side string, v guardrail.Verdict, refused string) error {
+		return p.trace.Append(guardEvent(agent, side, v, refused))
+	})
+}
+
+func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.Event {
+	ev := trace.Event{FindingID: "guardrail", Kind: "guardrail", Agent: agent}
+	if refused != "" {
+		ev.Text = "guardrail: " + refused
+		return ev
+	}
+	verdict := "safe"
+	if v.Unsafe() {
+		verdict = "unsafe"
+	}
+	cats := strings.Join(v.Categories, ", ")
+	ev.Text = fmt.Sprintf("%s %s latency=%dms", side, verdict, v.Latency.Milliseconds())
+	if cats != "" {
+		ev.Text += " categories=" + cats
+	}
+	ev.Guardrail = &trace.Check{
+		Side: side, Verdict: verdict, LatencyMS: v.Latency.Milliseconds(),
+		Categories: append([]string(nil), v.Categories...),
+	}
+	return ev
 }
 
 type recording struct {
