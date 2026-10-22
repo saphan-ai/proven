@@ -22,7 +22,7 @@ Now that fleet takes on something new. At the hackathon it will build **Proven**
 
 ## Where things stand: end of day 1, 22 October 2026
 
-Day one of six is behind us. **Sixteen changes were merged into Proven today**, each one written by an agent, checked again by its master on a clean checkout on another machine, and approved by Marcin. Every merge commit carries the request it answers and the reason it was accepted.
+Day one of six is behind us. **Seventeen changes were merged into Proven on day one**, each one written by an agent, checked again by its master on a clean checkout on another machine, and approved by Marcin. Every merge commit carries the request it answers and the reason it was accepted.
 
 What Proven can do at the end of day one, in sample mode (recorded data, no network):
 - **The six reviewer agents run end to end** behind the command-line shell's request, and honour every field of it: baseline, head, include and exclude paths, and a configuration file.
@@ -38,14 +38,14 @@ What Proven can do at the end of day one, in sample mode (recorded data, no netw
 |---|---|---|
 | Choosing the topic, with eleven answers from the fleet | done, 16 October | [answers](planning/answers/) |
 | The design, as recorded decisions | 25 decisions accepted, 17–21 October | [decisions](fleet/decisions/) |
-| Building Proven | **16 changes merged on day one**, by two trains: the reviewer and the shell | [git log](https://github.com/saphan-ai/proven/commits/main) · [reviewer order](fleet/orders/TRAIN_ORDER_proven-reviewer-core.md) · [shell order](fleet/orders/TRAIN_ORDER_proven-cli-and-action.md) |
+| Building Proven | **17 changes merged on day one**, all from the reviewer train; the shell's first change is still in progress | [git log](https://github.com/saphan-ai/proven/commits/main) · [reviewer order](fleet/orders/TRAIN_ORDER_proven-reviewer-core.md) · [shell order](fleet/orders/TRAIN_ORDER_proven-cli-and-action.md) |
 | How the agents code with Cursor | four Cursor accounts on one Linux machine, up to four agents coding at once on Grok 4.7, each inside a jail, its own network and an egress door, with every model request recorded | [how it works](fleet/infra/cursor/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-cursor-infra.md) |
 | Recording every Cursor coding session | every session is recorded by the proxy; the first published recordings will show the coding itself, as excerpts tied to the sealed original | [ADR-0024](fleet/decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md) |
 | Zetaris, the sponsor's data platform | running on our own machine; the Investigator reads its evidence through Zetaris over REST; live Zetaris evidence in a review is next | [order](fleet/orders/TRAIN_ORDER_proven-zetaris-local.md) · [ADR-0023](fleet/decisions/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) · [setup](fleet/infra/zetaris/README.md) |
 | Meterless Nightshift and NVIDIA Nemotron | running in its own VM; 206 signed receipts checked, every signature verifies, and a receipt ties each answer to the model that gave it | [NVIDIA page](fleet/infra/nvidia/README.md) · [runbook](fleet/infra/nightshift-vm/README.md) · [ADR-0019](fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) |
 | A local NVIDIA safety model | done: running on our own machine, used by the guardrail | [order](fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) |
-| A test corpus from 28 real review disagreements | 21 case contracts written; the first five cases coded; the other 16 are ordered, one agent per case; declared prior art | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
-| Reviews of the fleet's own changes | every change is checked again by its master; independent reviews run in parallel by two model families. NVIDIA Nemotron reviews resume once they run on Saphan Studio's own agent loop (planned for 23 October); the changes waiting for one are listed in each train's log | [conversation logs](planning/CONVERSATIONS.md) |
+| A test corpus from 28 real review disagreements | the 21 case contracts are prior art, written before 22 October; their code is written inside the build window: the first five cases are coded on branches, not merged yet, and the other 16 are ordered, one agent per case | [tests](tests/README.md) · [order](fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
+| Reviews of the fleet's own changes | every change is checked again by its master; independent reviews run in parallel by two model families. NVIDIA Nemotron reviews resume once they run on Saphan Studio's own agent loop (planned for 23 October); the trains keep a list of the changes waiting for one | [conversation logs](planning/CONVERSATIONS.md) |
 | Public updates | daily, 15:00 UTC | this repository |
 
 **Saphan Studio's Cursor backend, built in parallel.** While the agents coded Proven, Saphan Studio's own fleet kept improving the Cursor backend that those agents run on, and each fix reached the live coding sessions as soon as it landed. Today it gained confinement for Cursor on macOS, Grok models named with their effort (`grok-4.7-high`), every Cursor spawn speaking HTTP/1.1 so the recording proxy can read it, placement of orders signed by a train's master, and a reader of a Cursor account's usage, so the scheduler can place Cursor runs by itself. Still to do: a Cursor seat in a container, and publishing the first session recordings.
@@ -124,7 +124,7 @@ In the fleet, four Cursor agents write the product code. Other agents plan the w
 
 Every agent run records its model and the cost Saphan Studio measured for it. Where a cost was not measured, such as interactive planning sessions, or a share of a subscription the tools cannot read yet, the document says so and why. These figures are what the AI models cost; machines and human time are not included.
 
-**Updates:** once a day at **15:00 UTC** (22:00 in Bangkok; 17:00 in Warsaw during the build week). The last push comes before submissions close on 27 October, 23:45 UTC.
+**Updates:** once a day at **15:00 UTC** (22:00 in Bangkok; 17:00 in Warsaw until 25 October, 16:00 after). The last push comes before submissions close on 27 October, 23:45 UTC.
 
 ## Timeline: what each push brought
 
@@ -134,7 +134,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 |---|---|---|
 | before 22 October, 00:00 UTC: **prior art** | [`prior-art`](https://github.com/saphan-ai/proven/tree/prior-art) (`bf05dd2`, 21 October, 19:53 UTC) | Preparation only, no product code: the topic and the fleet's eleven answers, 25 design decisions, the trains' orders, the machines and services for the agents (Cursor seats, Zetaris, Meterless Nightshift, NVIDIA's safety model), and the 21 test-corpus case contracts |
 | 22 October, 00:03 UTC: **coding starts** | [`start`](https://github.com/saphan-ai/proven/compare/prior-art...start) (`3a1a9f0`) | The first line of product code: the agreed seam between the command-line shell and the reviewer, types only |
-| 22 October, 15:00 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 16 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, and the live-service check. The first documentation and the Cursor and NVIDIA setup pages. |
+| 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 

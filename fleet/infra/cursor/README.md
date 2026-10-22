@@ -6,7 +6,7 @@ This page explains how that works, step by step, with the actual commands and co
 
 ## In one paragraph
 
-[Saphan Studio](https://saphan.ai/) runs the Cursor agent as one of its **backends**, next to Claude Code, Codex and others. A **master** (a coordinating agent) writes an order for one small change. The owner signs it. Saphan Studio places the run on a free **Cursor seat**: one Cursor account, logged in on one machine. It starts Cursor's command-line agent there, headless, in a fresh copy of the repository, inside a sandbox whose only way out is Saphan Studio's **recording proxy**. Every request the agent makes to its model passes through the proxy and is recorded. When the agent is done, the master verifies the result on another machine. Two independent reviewers check it, one of them always an NVIDIA Nemotron model. The owner decides whether it is merged.
+[Saphan Studio](https://saphan.ai/) runs the Cursor agent as one of its **backends**, next to Claude Code, Codex and others. A **master** (a coordinating agent) writes an order for one small change. The owner signs it. Saphan Studio places the run on a free **Cursor seat**: one Cursor account, logged in on one machine. It starts Cursor's command-line agent there, headless, in a fresh copy of the repository, inside a sandbox whose only way out is Saphan Studio's **recording proxy**. Every request the agent makes to its model passes through the proxy and is recorded. When the agent is done, the master verifies the result on another machine. Two independent reviewers from two model families check it. The owner decides whether it is merged.
 
 ## What a Cursor agent may and may not do
 
@@ -19,12 +19,12 @@ This page explains how that works, step by step, with the actual commands and co
 ## The life of one change
 
 1. **Order.** The master writes an order for one change: what to build, how it will be checked (the *definition of done*), and what is out of scope. Every order is public in [`fleet/orders/`](../../orders/).
-2. **Signature.** The owner signs the order. A signature binds the exact bytes, so an order cannot change after it is signed. If it must change, its master amends it and the owner signs it again.
+2. **Signature.** The owner signs the order, so an order cannot change after it is signed. If it must change, its master amends it and the owner signs it again.
 3. **Placement.** Saphan Studio picks the seat. It reads every admitted Cursor seat's state and prints why the winner won.
 4. **Run.** The Cursor agent works on the remote machine, behind the proxy. Every model request is recorded ([ADR-0024](../../decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md)).
 5. **Report.** The agent writes its status report: what it built, what it ran, what failed, and what it could not check.
 6. **Verify.** The master checks the result out at the exact commit, on a different machine, and runs the build and the full test suite again. It does not trust the agent's report.
-7. **Review.** Two independent reviews of the same diff run in parallel, and neither sees the other's verdict. One is always an NVIDIA Nemotron model through Meterless Nightshift, with a signed receipt per request. The other is a different model family.
+7. **Review.** Two independent reviews of the same diff run in parallel, from two model families, and neither sees the other's verdict. One of them is meant to be an NVIDIA Nemotron model through Meterless Nightshift, with a signed receipt per request; those reviews resume once they run on Saphan Studio's own agent loop (planned for 23 October).
 8. **Decision.** The owner reads the reviews and decides. Only the owner merges.
 
 ## What happens when a Cursor run starts
@@ -127,6 +127,6 @@ saphan config set probe.model.cursor grok-4.7-low,grok-4.7-medium,grok-4.7-high,
 | shape | state, 22 October 2026 |
 |---|---|
 | native Linux, far — runner-cursor, 4 seats | **in use**: every Cursor wagon of the build runs here |
-| Docker on runner-cursor | **not built**: a container boundary is composed only for local runs; the Go + Python image waits in [`../go-python/`](../go-python/) |
-| macm5, local — 1 seat | seated and confinable; not yet used by a build wagon |
-| macmini, far | not seated: a Cursor login over ssh fails at the macOS keychain, and a far seat's API key has no carrier yet |
+| Docker on runner-cursor | not used for this build; the Go + Python image is in [`../go-python/`](../go-python/) |
+| macm5, local — 1 seat | seated; not used by a build wagon, because macm5 runs only the orchestration |
+| macmini, far | not used for this build |
