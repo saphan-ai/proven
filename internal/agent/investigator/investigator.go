@@ -3,17 +3,23 @@ package investigator
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
+	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/query"
 )
 
+// querySpec is the JSON the investigator asks a model to return.
+var querySpec = answer.Spec{
+	Task:    "Write one SQL query that would confirm this risk.",
+	Shape:   "one JSON object. It has sql (string).",
+	Example: `{"sql":"SELECT 1"}`,
+}
+
 // Prompt asks for the SQL for one risk.
 func Prompt(id, title, path string) string {
-	return "query " + id + "\n" + title + "\n" + path
+	return answer.Instruct(querySpec, "id: "+id+"\ntitle: "+title+"\npath: "+path+"\n")
 }
 
 type row struct {
@@ -22,13 +28,9 @@ type row struct {
 
 // Investigate asks for SQL and runs it. A query with no rows adds no evidence.
 func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, gen generator.Generator, q query.Adapter) (candidate.Candidate, error) {
-	raw, err := gen.Complete(ctx, "investigator", Prompt(c.ID, c.Title, c.Path))
-	if err != nil {
-		return c, err
-	}
 	var got row
-	if err := json.Unmarshal([]byte(raw), &got); err != nil {
-		return c, fmt.Errorf("investigator: response is not a query: %w", err)
+	if err := answer.Read(ctx, gen, "investigator", Prompt(c.ID, c.Title, c.Path), querySpec, &got); err != nil {
+		return c, err
 	}
 	if got.SQL == "" {
 		return c, nil

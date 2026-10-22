@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/fixture"
+	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -88,6 +90,107 @@ func TestNegativeControl_F3RecordedQueryRow(t *testing.T) {
 	if f3.Evidence[0].Query.Rows[0][0] != "billing/note" {
 		t.Fatalf("row %#v", f3.Evidence[0].Query.Rows)
 	}
+}
+
+// Mutated field: the skeptic's answer. Every skeptic prompt, including the one
+// repair, returns prose. The review must finish, name skeptic, keep F1 and F2,
+// and drop F3 for lack of evidence.
+// Negative control: remove the schema degrade (the service.Down returned after
+// the second decode) and this test turns red.
+func TestProseTwiceDegradesByNameAndDropsUnevidenced(t *testing.T) {
+	fx, err := fixture.Load(fixturePath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := generator.NewSample(fx.Answers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrap := &proseTwice{inner: inner, agent: "skeptic", text: "1. this is not json"}
+	p, err := Build(Options{
+		Sample:    true,
+		LogDir:    t.TempDir(),
+		Generator: wrap,
+		Env: func(k string) string {
+			t.Fatalf("sample mode read %s", k)
+			return ""
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})
+	if err != nil {
+		t.Fatalf("review ended: %v", err)
+	}
+	if d.Partial {
+		t.Fatal("partial")
+	}
+	if wrap.calls != 6 {
+		t.Fatalf("skeptic calls %d, want 6 (one repair each for F1, F2 and F3)", wrap.calls)
+	}
+	named := false
+	for _, f := range d.Failed {
+		if f.Service == "skeptic" && f.Reason == "the model's answer did not follow the schema" {
+			named = true
+		}
+	}
+	if !named || len(d.Failed) != 1 {
+		t.Fatalf("failed %#v", d.Failed)
+	}
+	if _, ok := kept(d, "F1"); !ok {
+		t.Fatal("F1 must stay")
+	}
+	if _, ok := kept(d, "F2"); !ok {
+		t.Fatal("F2 must stay")
+	}
+	if _, ok := kept(d, "F3"); ok {
+		t.Fatal("F3 must stay dropped")
+	}
+	if !traceSays(t, d.TracePath, "F3", "verdict", "dropped: no evidence") {
+		t.Fatal("F3 was not dropped for lack of evidence")
+	}
+}
+
+// proseTwice is a generator whose one agent answers with the same prose twice.
+type proseTwice struct {
+	inner generator.Generator
+	agent string
+	text  string
+	calls int
+}
+
+func (g *proseTwice) Complete(ctx context.Context, agent, prompt string) (string, error) {
+	if agent == g.agent {
+		g.calls++
+		return g.text, nil
+	}
+	return g.inner.Complete(ctx, agent, prompt)
+}
+
+func traceSays(t *testing.T, path, id, kind, text string) bool {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range bytes.Split(b, []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		var e struct {
+			FindingID string `json:"finding_id"`
+			Kind      string `json:"kind"`
+			Text      string `json:"text"`
+		}
+		if err := json.Unmarshal(line, &e); err != nil {
+			t.Fatal(err)
+		}
+		if e.FindingID == id && e.Kind == kind && e.Text == text {
+			return true
+		}
+	}
+	return false
 }
 
 // Mutated fixture field: recorded_tests. The entry whose finding_id is F1 is removed.

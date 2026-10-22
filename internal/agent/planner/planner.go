@@ -3,30 +3,44 @@ package planner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/generator"
 )
 
+// riskSpec is the JSON the planner asks a model to return.
+var riskSpec = answer.Spec{
+	Task:    "Name the risks in this change.",
+	Shape:   "a JSON array of objects. Each object has id (string), rule_id (string), title (string), message (string), severity (string), path (string), start_line (number) and end_line (number).",
+	Example: `[{"id":"F1","rule_id":"example-rule","title":"Example risk","message":"What is wrong.","severity":"ERROR","path":"file.go","start_line":1,"end_line":1}]`,
+}
+
 // Prompt is the planner's prompt for these files. The sample generator keys on it.
 func Prompt(files []change.File) string {
-	b := "name the risks\n"
+	return answer.Instruct(riskSpec, filesText(files))
+}
+
+func filesText(files []change.File) string {
+	var b strings.Builder
 	for _, f := range files {
-		b += "FILE " + f.Path + "\nBASE\n"
-		b += string(f.Base)
+		b.WriteString("FILE ")
+		b.WriteString(f.Path)
+		b.WriteString("\nBASE\n")
+		b.Write(f.Base)
 		if len(f.Base) == 0 || f.Base[len(f.Base)-1] != '\n' {
-			b += "\n"
+			b.WriteByte('\n')
 		}
-		b += "CHANGE\n"
-		b += string(f.Change)
+		b.WriteString("CHANGE\n")
+		b.Write(f.Change)
 		if len(f.Change) == 0 || f.Change[len(f.Change)-1] != '\n' {
-			b += "\n"
+			b.WriteByte('\n')
 		}
 	}
-	return b
+	return b.String()
 }
 
 type row struct {
@@ -49,13 +63,9 @@ func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidat
 	if len(files) == 0 {
 		return nil, fmt.Errorf("planner: the change has no files")
 	}
-	raw, err := gen.Complete(ctx, "planner", Prompt(files))
-	if err != nil {
-		return nil, err
-	}
 	var rows []row
-	if err := json.Unmarshal([]byte(raw), &rows); err != nil {
-		return nil, fmt.Errorf("planner: response is not a risk list: %w", err)
+	if err := answer.Read(ctx, gen, "planner", Prompt(files), riskSpec, &rows); err != nil {
+		return nil, err
 	}
 	seen := map[string]bool{}
 	out := make([]candidate.Risk, 0, len(rows))
