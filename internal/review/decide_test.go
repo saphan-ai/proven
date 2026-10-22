@@ -1,6 +1,8 @@
 package review
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -121,17 +123,48 @@ func TestMobileOutranksUserInterface(t *testing.T) {
 
 func TestSecurityIsDoubledAndBackendIsNot(t *testing.T) {
 	cfg := defaultSettings()
-	sec := reviewerLine("default", cfg.DefaultReviewer, "NVIDIA", nil, nil)
-	lines := []string{sec, "special-review model: not configured"}
-	if !cfg.Doubled["security"] {
-		t.Fatal("security is not doubled")
+	secDir := treeWith(t, "go.mod", "module example.com/sec\n")
+	sec := decideOn(t, cfg, Request{Target: secDir})
+	if sec.Class != "security" || !sec.Doubled {
+		t.Fatalf("class %s doubled %t", sec.Class, sec.Doubled)
 	}
-	if cfg.Doubled["backend"] || cfg.Doubled["docs"] {
-		t.Fatal("a class other than security is doubled")
+	if len(sec.ReviewerStatements) != 2 || sec.ReviewerStatements[1] != "special-review model: not configured" {
+		t.Fatalf("%#v", sec.ReviewerStatements)
 	}
-	if lines[1] != "special-review model: not configured" {
-		t.Fatal(lines[1])
+
+	backDir := treeWith(t, "billing/discount.go", "package billing\n")
+	back := decideOn(t, cfg, Request{Target: backDir})
+	if back.Class != "backend" || back.ClassRule != "fallback" || back.Doubled {
+		t.Fatalf("class %s rule %s doubled %t", back.Class, back.ClassRule, back.Doubled)
 	}
+	if len(back.ReviewerStatements) != 1 {
+		t.Fatalf("%#v", back.ReviewerStatements)
+	}
+}
+
+func treeWith(t *testing.T, rel, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "base"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "change", filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func decideOn(t *testing.T, cfg fileSettings, req Request) Result {
+	t.Helper()
+	var out Result
+	if err := applyDecision(&out, cfg, req); err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
 
 func TestDoubledClassAddsTheSpecialReviewer(t *testing.T) {
