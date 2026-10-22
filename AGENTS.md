@@ -54,7 +54,7 @@ The reviewer sits behind `internal/review`. `review.Open` wires the packages bel
 |---|---|
 | `internal/generator` | one generator interface; the sample answers are recorded by agent and prompt |
 | `internal/query` | query adapter; sample mode runs SQL on a local engine over `tables.sql` |
-| `internal/testrun` | test-run adapter; sample mode returns recorded outcomes and executes no code; the live adapter says the Prover is off |
+| `internal/testrun` | test-run adapter; sample mode returns recorded outcomes and executes no code; the live adapter runs the test in a container, or names the Prover off when no runtime is on the path |
 | `internal/trace` | append-only JSONL trace at `logs/trace.jsonl` |
 | `internal/candidate` | the finding record the agents pass along |
 | `internal/agent/planner` | reads the change and names the risks |
@@ -77,3 +77,17 @@ The reviewer's file is `proven.yaml`. `review.Open` reads `Options.ConfigPath` w
 | `timeout` | `0s` | A Go duration. When it is greater than zero, it bounds a review whose context has no deadline. Zero adds no deadline. The context's own deadline wins when it has one. |
 
 An unknown key, or a `timeout` that is not a Go duration of zero or greater, is refused with `*ConfigError`. The error names the field and the allowed values.
+
+## Prover container defaults
+
+The live Prover runs each test in a container. `DefaultContainerConfig` in `internal/testrun` returns these defaults, and `Validate` refuses a bad value on load. No setting turns the network on or passes a secret in.
+
+| setting | default |
+|---|---|
+| runtime | `docker` |
+| image | `golang:1.26` |
+| time limit | 2 minutes for the base run, and 2 minutes for the change run |
+| CPUs | `1` |
+| memory | `512m` |
+
+Each run is removed when it exits, has no network, has a CPU limit and a memory limit, and has one read-only mount of that one checkout. No environment variable is passed in. A run that passes its time limit is not proof. Removal after that has its own bound of 2 seconds, inside a margin of 3 seconds, so one side returns within its time limit plus 3 seconds even when the runtime hangs on every call. A failed removal is written into the outcome and names the container that may remain. The flags follow docker-run(1) from Docker 29.9.1. That manual says a missing image is pulled on the host before the container starts; it does not document a flag that stops the pull.
