@@ -2,7 +2,7 @@
 
 - incident: I05 (one incident; this case is a later review round of it, and its only pair in the corpus)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -90,8 +90,26 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+- toolchain: Go, standard library only, `go version go1.26.5 linux/amd64`. The case is its own module (`go.mod` in
+  this directory, module `pv006`), so it stays out of the repository's module.
+- run: 2026-10-22T15:35:43Z (UTC)
+- command, from the repository root: `bash tests/corpus/cases/PV-006/check.sh` (it runs `go -C tests/corpus/cases/PV-006 run ./check`)
+- exit code: 0
+
+```
+well-formed base=pass change=pass reference=pass
+listed-token base=fail({limit}) change=fail({limit}) reference=fail
+unlisted-token base=pass change=fail({window}) reference=fail
+dollar-token base=pass change=pass reference=fail
+duration-0-vs-1 base=pass change=pass reference=fail
+duration-equal base=pass change=pass reference=pass
+```
+
+Each line is: input name, base result, change result, reference result. A failing text result names the raw
+placeholder found. The inputs are one catalog entry, `Too many requests. Please wait {wait} before trying again.`, with
+a wait of 30 seconds, plus a suffix per input (` Limit: {limit}.`, ` Window: {window}.`, ` $wait`).
 
 ## 9. Limits
 
