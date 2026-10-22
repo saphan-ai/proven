@@ -3,9 +3,6 @@ package review
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
-	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
@@ -25,14 +22,14 @@ func open(opts Options) (Reviewer, error) {
 			Allowed: []string{"a directory path"},
 		}
 	}
-	var timeout time.Duration
+	cfg := defaultSettings()
 	explicit := false
 	if opts.ConfigPath != "" {
-		d, err := loadConfigFile(opts.ConfigPath)
+		loaded, err := loadConfigFile(opts.ConfigPath)
 		if err != nil {
 			return nil, err
 		}
-		timeout = d
+		cfg = loaded
 		explicit = true
 	}
 	popts := pipeline.Options{
@@ -90,25 +87,32 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, timeout: timeout, explicit: explicit}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit}, nil
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
 type runner struct {
 	p        *pipeline.Pipeline
-	timeout  time.Duration
+	cfg      fileSettings
 	explicit bool
 }
 
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
-	timeout := r.timeout
+	cfg := r.cfg
 	if !r.explicit {
-		d, err := timeoutInTarget(req.Target)
+		var loaded fileSettings
+		var err error
+		if req.BaselineCommit != "" {
+			loaded, err = loadSettingsAtBaseline(req.Target, req.BaselineCommit)
+		} else {
+			loaded, err = loadSettingsInTarget(req.Target)
+		}
 		if err != nil {
 			return Result{}, err
 		}
-		timeout = d
+		cfg = loaded
 	}
+	timeout := cfg.Timeout
 	if timeout > 0 {
 		if _, ok := ctx.Deadline(); !ok {
 			var cancel context.CancelFunc
@@ -126,31 +130,11 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	return fill(d), nil
-}
-
-// timeoutInTarget reads proven.yaml in the review target when Open was given
-// no path. A missing file is the defaults.
-func timeoutInTarget(target string) (time.Duration, error) {
-	path := filepath.Join(target, "proven.yaml")
-	st, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, err
+	out := fill(d)
+	if err := applyDecision(&out, cfg, req); err != nil {
+		return Result{}, err
 	}
-	if st.IsDir() {
-		return 0, &ConfigError{
-			Field: "ConfigPath", Value: path, Reason: "path is a directory",
-			Allowed: []string{"a path to an existing file"},
-		}
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return 0, err
-	}
-	return parseConfig(b)
+	return out, nil
 }
 
 func fill(d candidate.Draft) Result {

@@ -21,7 +21,7 @@ var exemptBanned = map[string]map[string]string{
 		"os/exec": "the container runner starts the runtime that runs the change",
 	},
 	"internal/change/between.go": {
-		"os/exec": "git read commands name changed files and do not run the change",
+		"os/exec": "git read commands (rev-parse, diff, ls-files, log) name changed files and read commit messages; they do not run the change",
 	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",

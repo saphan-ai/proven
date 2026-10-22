@@ -62,6 +62,7 @@ type Request struct {
 	Include        []string // globs over changed paths
 	Exclude        []string
 	MinSeverity    Severity // the shell filters the output by it
+	Description    string   // pull-request description; empty means the request carries none
 }
 
 // Severity is INFO, WARNING or ERROR (SARIF note, warning, error).
@@ -75,11 +76,29 @@ const (
 
 // Result is what a review produced.
 type Result struct {
-	Findings       []Finding        // only findings with evidence (ADR-0002); unresolved ones are marked and counted
-	FailedServices []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
-	Models         []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
-	Partial        bool             // the deadline was reached
-	TracePath      string           // the JSONL trace in LogDir
+	Findings             []Finding        // only findings with evidence (ADR-0002); unresolved ones are marked and counted
+	FailedServices       []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
+	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
+	Partial              bool             // the deadline was reached
+	TracePath            string           // the JSONL trace in LogDir
+	Class                string           // review class the path rules chose (ADR-0012, ADR-0014)
+	ClassRule            string           // path pattern that chose Class, or "fallback"
+	Doubled              bool             // Class is one of the doubled classes
+	DefaultReviewer      string           // configured default reviewer
+	SpecialReviewer      string           // configured special-review model; empty means not configured
+	ReviewerModels       []string         // models this review uses, the default reviewer first
+	ReviewerStatements   []string         // one line per reviewer, plus a line when the special model is not configured
+	AuthorModels         []AuthorModel    // models the change named; empty means none were stated
+	AuthorModelStatement string           // "author model not stated" when the change names no model
+	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
+}
+
+// AuthorModel is one model the change named (ADR-0011).
+type AuthorModel struct {
+	Agent  string // the part before the first colon
+	Model  string // the part after the first colon
+	Family string // a configured family, or "family unknown"
+	Source string // "commit", "description" or "record"
 }
 
 // Finding is one reported problem with its evidence.

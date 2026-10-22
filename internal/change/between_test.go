@@ -143,6 +143,30 @@ func write(t *testing.T, path, body string) {
 	}
 }
 
+func TestMessagesExcludesTheBaselineCommit(t *testing.T) {
+	dir := t.TempDir()
+	git(t, dir, "init")
+	write(t, filepath.Join(dir, "a.txt"), "a")
+	git(t, dir, "add", "a.txt")
+	git(t, dir, "commit", "-m", "[fixture] change: first\n\nalpha-marker")
+	first := rev(t, dir)
+	write(t, filepath.Join(dir, "b.txt"), "b")
+	git(t, dir, "add", "b.txt")
+	git(t, dir, "commit", "-m", "[fixture] change: second\n\nModel-of-record: Claude:claude-3-opus")
+	second := rev(t, dir)
+
+	got, err := Messages(dir, first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || !strings.Contains(got[0], "Model-of-record: Claude:claude-3-opus") {
+		t.Fatalf("%#v", got)
+	}
+	if strings.Contains(got[0], "alpha-marker") {
+		t.Fatal("baseline message was included")
+	}
+}
+
 func TestBetweenWorkingTreeInSubdirectoryKeepsUntracked(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")

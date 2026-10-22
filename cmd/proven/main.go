@@ -95,6 +95,17 @@ func run(args []string, stdout, stderr io.Writer, getwd func() (string, error), 
 }
 
 func printResult(w io.Writer, res review.Result) {
+	fmt.Fprintf(w, "review class: %s\n", res.Class)
+	fmt.Fprintf(w, "review rule: %s\n", res.ClassRule)
+	if res.SettingsStatement != "" {
+		fmt.Fprintln(w, res.SettingsStatement)
+	}
+	if res.AuthorModelStatement != "" {
+		fmt.Fprintln(w, res.AuthorModelStatement)
+	}
+	for _, line := range res.ReviewerStatements {
+		fmt.Fprintln(w, line)
+	}
 	for _, f := range res.Findings {
 		fmt.Fprintf(w, "finding %s %s %s\n", f.ID, f.Severity, f.Title)
 		if f.Unresolved {
