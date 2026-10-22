@@ -62,6 +62,32 @@ Cursor leg yet; the printout above is the check of the seat the master named.
 Cursor's agent there with Grok `grok-4.7-high`, records every model turn through its recording proxy, and brings the
 branch, the transcript and the leg's `_EXEC_STATUS.md` home. W2b ran 28 min 40 s (06:58:45Z to 07:27:24Z), exit 0.
 
+**What happens inside step 3.** Cursor's CLI never runs on its own. Before it starts, the engine builds an environment
+around it on runner-cursor, and the CLI runs only inside that environment. Each item below is taken from W2b's run
+record.
+
+1. **A fresh checkout.** The engine first moves runner-cursor's copy of proven forward to the commit the master named,
+   and reads the result back. Then it cuts the leg's own worktree from that commit. The leg sees only that worktree.
+2. **A file-system sandbox.** `saphan confine-exec` applies a Landlock policy (Linux, ABI 4) before it starts the CLI. The
+   CLI can write only to its worktree, the git paths of its own branch and its seat's Cursor directory. It can write to no
+   other stream's checkout and to no other directory in the home. A seccomp filter also stops it from opening another
+   process's sockets or driving another process (`ptrace`).
+3. **No network except one door.** The CLI and every process it starts run in their own network namespace
+   (`unshare --user --net`), so a direct connection out goes nowhere. The one way out is this run's **egress door**, a
+   per-run socket served by `saphan egress-door`. The door judges every connection against the fleet's egress policy for
+   Cursor (`baseline-cursor-v1`). It opens before the CLI starts and closes when the CLI ends.
+4. **A recording proxy in front of the model.** `saphan guardrail-proxy` stands on loopback in front of
+   `api2.cursor.sh` and speaks Cursor's own protocol. The CLI is started with `-e <proxy> --agent-endpoint <proxy>`, so
+   every model turn goes through the proxy. Every exchange goes to an audit file, and the whole model transcript is
+   sealed and brought home with the run (W2b: 1.8 MB). If the session cannot be recorded, the run does not start.
+5. **Only what it needs.** The CLI is given `HOME` and `PATH` and nothing else. Cursor's own endpoint variables are never
+   passed on, and no key value travels on the ssh hop. The order, the craft files and the skills are placed under
+   `.provision/` in the worktree.
+6. **Git guarded.** A git hook on runner-cursor refuses `fetch`, `merge`, `pull`, `push` and `reset --hard` for this leg.
+   The leg can commit to its own branch and to nothing else.
+7. **Then the CLI.** Only now does Cursor's `agent` start in that worktree, with Grok `grok-4.7-high`. W2b: 60 model
+   turns, 137 tool calls, outcome `ok`.
+
 **4 · The master verifies.** The master checks the returned branch in a fresh worktree: `go build ./...`, `go vet ./...`,
 `go test -count=1 ./...`, the order's negative controls, and a live review through Nightshift. The result is a
 `MASTER_VERIFY` file, landed in the record:
