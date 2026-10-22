@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build meterless-conform and run both Meterless runners against the shims.
 # Works from any directory. Writes SCORECARD_<engine>.txt beside this script.
-# Exit 0 when both runners pass, 1 when a check fails, 2 when a shim does not load.
+# Exit 0 when both runners pass, 1 when a check fails, 2 when a shim does not load, 4 when no runner is found.
+# METERLESS_ENGINES names a Meterless engines/ directory; the default is the leg's .provision/ copy.
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="$ROOT/.saphan/work/meterless-conformance-shim"
@@ -10,6 +11,15 @@ if ! go -C "$ROOT" build -o "$WORK/meterless-conform" ./cmd/meterless-conform; t
   exit 3
 fi
 export METERLESS_CONFORM_BIN="$WORK/meterless-conform"
+
+# The Meterless engines directory (a checkout of Meterless's engines/, Apache-2.0). Not in this repository.
+REF="${METERLESS_ENGINES:-$ROOT/.provision/reference/meterless}"
+for e in hmem world-model; do
+  if [[ ! -f "$REF/$e/conformance/runner.ts" ]]; then
+    echo "run.sh: no Meterless runner at $REF/$e/conformance/runner.ts; set METERLESS_ENGINES to a Meterless engines/ directory" >&2
+    exit 4
+  fi
+done
 
 run_engine() {
   local engine="$1"
@@ -27,12 +37,12 @@ run_engine() {
 hstatus=0
 run_engine hmem HMEM_IMPL \
   "$ROOT/conformance/meterless/hmem/index.ts" \
-  "$ROOT/.provision/reference/meterless/hmem/conformance/runner.ts" || hstatus=$?
+  "$REF/hmem/conformance/runner.ts" || hstatus=$?
 
 wstatus=0
 run_engine world-model WORLD_MODEL_IMPL \
   "$ROOT/conformance/meterless/world-model/index.ts" \
-  "$ROOT/.provision/reference/meterless/world-model/conformance/runner.ts" || wstatus=$?
+  "$REF/world-model/conformance/runner.ts" || wstatus=$?
 
 if [[ "$hstatus" -eq 2 || "$wstatus" -eq 2 ]]; then
   exit 2
