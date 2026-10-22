@@ -9,6 +9,7 @@ setting, the value and what is allowed.
 The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads none of the
 settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
+<!-- generated: settings -->
 ## The model generator: Meterless Nightshift
 
 | Environment variable | Default | What it changes |
@@ -47,19 +48,57 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 
 ## The Prover's container
 
-The container runtime and image are built-in defaults today, not settings: runtime `docker`, image `golang:1.26`. Each
-test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so.
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_TEST_RUNTIME` | `docker` | the container command line, by name or absolute path |
+| `PROVEN_TEST_IMAGE` | `golang:1.26` | the image each test runs in |
+| `PROVEN_TEST_CPUS` | `1` | the CPU limit of one test run |
+| `PROVEN_TEST_MEMORY` | `512m` | the memory limit of one test run; a positive size with suffix b, k, m or g |
+| `PROVEN_TEST_TIMEOUT` | `120s` | the limit for one test run, base or change |
+| `PROVEN_TEST_MAX_WRITTEN_BYTES` | `65536` | the largest test file the Prover may write |
+
+Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these.
+<!-- end generated -->
 
 ## `proven.yaml`
 
-A flat mapping in the reviewed repository. On `main` it has one key:
+`proven.yaml` is one flat mapping of scalar values. A missing file is the defaults below. An unknown key, a nested value, or a bad value is refused on load and proven exits 7. The refusal names the field and the allowed values. A key that is set replaces that setting. It does not merge with the default list.
 
-| Key | Default | What it changes |
-|---|---|---|
-| `timeout` | none | the review's deadline when the shell set none; at the deadline the review returns what the Judge has kept. A configuration file the shell names explicitly is read instead of this one |
+Where the file is read:
 
-The reviewer model, the model-family table and the review classes (ADR-0008 to ADR-0014) add keys here when that work
-lands; this page is updated with them.
+- An explicit config path is that file. A missing path is refused.
+- Otherwise, when the review names a baseline commit, the file is the baseline commit's `proven.yaml`. The change's copy is not read. If the change edits `proven.yaml`, the review prints `the change edits proven.yaml`.
+- Otherwise there is no baseline (a sample fixture, or a review of the whole tree). The file in the target is used.
+
+No environment variable sets these keys.
+
+| key | default | what it does | allowed values |
+|---|---|---|---|
+| `timeout` | `0s` | When greater than zero, bounds a review whose context has no deadline. Zero adds no deadline. The context's own deadline wins when it has one. | A Go duration of zero or greater, for example `30s`, `5m`, or `0s`. |
+| `default_reviewer` | `NVIDIA` | The reviewer used when a class is not doubled, and the first reviewer when it is. Also the name in "default reviewer" when the change names no model. | A non-empty model name. |
+| `special_reviewer` | empty | The second reviewer for a doubled class. Empty prints `special-review model: not configured`. | A model name, or empty. |
+| `families` | `claude-*=Anthropic`, `gpt-*=OpenAI`, `codex-*=OpenAI`, `nemotron-*=NVIDIA`, `qwen*=Alibaba`, `NVIDIA=NVIDIA` | Maps a model name to a family. A model that matches nothing is `family unknown`. The same family as the author prints `yes`; a different known family prints `no`. | Comma-separated `pattern=name`. Any non-empty name is a family. An empty or malformed entry is refused. A bad pattern is refused. |
+| `path_rules` | the list under Default path rules | Maps a path pattern to a review class. The first matching rule of the highest class wins. A pattern with no slash also matches the base name, so `go.mod` matches a nested module. | Comma-separated `pattern=class`. A class is one of `security`, `backend`, `mobile`, `user interface`, `docs`. Patterns use `*` and `**`. |
+| `class_order` | `security`, `backend`, `mobile`, `user interface`, `docs` | Highest risk first. The matching rule whose class is earliest in this list wins. | Every class exactly once. An order that leaves a class out is refused, and the refusal lists the classes. |
+| `fallback_class` | `backend` | The class when no path rule matches. The rule name is `fallback`. | One of the five classes. |
+| `doubled_classes` | `security` | Classes that use the default reviewer and the special reviewer. | `off`, or a comma-separated list of classes. |
+| `author_commit_trailers` | `on` | Read author trailers from commits after the baseline. The baseline commit itself is not read. | `on` or `off`. |
+| `author_description` | `on` | Read author trailers from the pull-request description. | `on` or `off`. |
+| `author_record` | `off` | Read author trailers from a file inside the review target. | `off`, or a relative path or pattern inside the target. An absolute path, a `..` segment, a symlink, and a path that resolves outside the target are refused before the file is read. |
+| `author_trailer_keys` | `Assisted-by` | Trailer keys that can name an author. The value must be `agent:model`. A recognised key with any other value is reported as `author statement unreadable: <line>`, not as "not stated". | A comma-separated list of keys, each once. |
+| `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
+
+### Default path rules
+
+Each of these is class `security`:
+
+`**/auth/**`, `**/payment*/**`, `**/*secret*`, `**/migrations/**`, `go.mod`, `go.sum`, `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.toml`, `Cargo.lock`, `requirements.txt`, `Pipfile.lock`, `poetry.lock`, `Gemfile.lock`, `composer.lock`, `pom.xml`, `build.gradle`, `build.gradle.kts`.
+
+Each of these is class `docs`:
+
+`**/*.md`, `docs/**`.
+
+Anything else is the fallback class.
 
 ## Check the live settings
 
