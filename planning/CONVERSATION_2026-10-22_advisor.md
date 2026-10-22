@@ -192,6 +192,7 @@ The infrastructure master added the section *What happens when a Cursor run star
 - `1712fa894308a0d2`: the first Cursor recording, cut to the coding (infrastructure).
 - `58c70d8ea4b2030e`: the 16 corpus cases placed (infrastructure).
 - `818c8bdf84310f1b`: the real commands and the cost of one Cursor run, for the Cursor page (reviewer train).
+, by 02:00 UTC tomorrow (infrastructure).
 - `08ccdb2d0f9a874f`: who publishes the first Cursor session, and when (infrastructure).
 - `1397f1b911337bcb`, `a8ed9a3782886023`, `8b7cf94ae423cf8f`: the masters confirm the conversation log.
 
