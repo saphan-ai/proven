@@ -160,12 +160,40 @@ Docker on runner-cursor: pass, 31 s. Four additive conflicts with W1c and W1d we
 The live generator through Nightshift, ordered with a recorded Nightshift stream as the reference (routed model and receipt
 id in the stream). W5 (Zetaris evidence, the Wildcard hard point by 27 October) follows it.
 
+### 15 · W2 and W2b: a live review through Nightshift
+
+**W2** `the-generator-through-nightshift` (Grok) built the live generator: streaming, the routed model and receipt id read from
+the stream, a non-NVIDIA answer refused by name. **Landed** `0e2e0c1`. The owner's first live run reached Nightshift, then the
+Planner could not read the model's prose answer. **W2b** `agents-ask-a-real-model` (Grok): every agent asks for exact JSON and
+reads it tolerantly; a second bad answer degrades the review by name. With the owner's consent the master ran a live review:
+it completed, and every model-calling agent named `nvidia/nemotron-3.5-super-vl-120b-a12b` from the stream. **Landed** `511828c`.
+
+> *"Next time, if you can do something in the script, like this token, don't bother me."* (translated)
+
+### 16 · the NVIDIA review of W1
+
+The NVIDIA half of W1's retroactive review failed three more times: twice the model ended the session after one sentence, once
+the engine refused an agent-loop spawn with no declared endpoint. **Decisions (the owner):** route agent-loop through Nightshift
+(a lane `nightshift` on the Cursor runner, seat re-seated); then, via the advisor, NVIDIA reviews wait until the agent-loop
+harness is extended (track saphan-agent-onion). *"There are no qwen-nvidia seats any more, run it on Grok on Cursor."* The
+engine refuses review legs on Cursor (no permission surface for the role), so the second review is ordered on claude-code.
+
+### 17 · the owner away: quiet mode, gates collected
+
+> *"From now on super economy mode … they collect the gates for me."* — corrected: *"Economy means quiet."* (translated)
+
+The train is delegated (master key enrolled), but a delegated order for a far leg is refused by the engine (bug filed). W3 the
+guardrail, W4 H-MEM and the World Model (with Meterless's specification provisioned), W5 evidence through Zetaris, and W1's
+second review are written and wait in one owner script for one signature.
+
 ## Waiting for answers
 
 - R3: the Zetaris storage probe for OSV by package (the infrastructure master).
 - Who publishes the recordings of Cursor sessions in this repository, and when (the infrastructure track).
 - The Nightshift receipt id of W1b's NVIDIA review (asked of the infrastructure master).
-- The NVIDIA half of W1's retroactive review: to run again, one NVIDIA review at a time.
+- The owner's one signature over W3, W4, W5 and W1's second review (one script).
+- The fix for delegated far orders (the scribe).
+- The agent-loop extension for NVIDIA reviews (saphan-agent-onion).
 
 ## Not run
 
