@@ -8,6 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -27,6 +28,14 @@ type row struct {
 	Path    string `json:"path"`
 	Name    string `json:"name"`
 	Command string `json:"command"`
+}
+
+// Execute runs a test the skeptic named. It does not ask a model.
+func Execute(ctx context.Context, run testrun.Adapter, req testrun.Request) (testrun.Outcome, error) {
+	if run == nil {
+		return testrun.Outcome{}, &service.Down{Service: "prover", Reason: "no test runner"}
+	}
+	return run.Run(ctx, req)
 }
 
 // Prove asks for a test name, then asks the adapter for its outcome.
