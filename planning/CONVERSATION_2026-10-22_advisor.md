@@ -121,7 +121,25 @@ The owner pasted another team's checkpoint as an example: concrete numbers, and 
 
 **A boundary, shown.** The advisor first wrote the Cursor draft at the top of the repository, then moved it into `fleet/infra/cursor/`. Deleting the leftover file was refused: the advisor's permission class does not grant `rm`, and the advisor may not grant itself a permission or get the same effect another way (law #57 of the fleet: *a denied act stays denied in every spelling*). It asked the owner to delete the file, with the exact command. The owner asked for this to be written down here.
 
+### 14 · reviewer master → infrastructure; owner → advisor: the NVIDIA review stops after one sentence, so it moves to agent-loop
+
+**What was measured.** The master of the reviewer train reported that the retroactive NVIDIA review of the first slice gave no verdict, twice (runs `run-20261022-060408-a8b95962` and `run-20261022-070728-a08ac0b0` on qwen-nvidia-2). Every answer came from the right model, `nvidia/nemotron-3.5-super-vl-120b-a12b`. It made three tool calls, then answered with one sentence (*"I'll verify HEAD against the order…"*) and no tool call. qwen-code, run headless, treats a text-only turn as the end and reported success. The review status file stayed empty. The same kind of order on qwen-nvidia-1 ran 56 turns. The master stopped retrying and asked the infrastructure master which harness to use (`2ced636a2a2d6f7a`, `0175bf9c40bae5f0`).
+
+> *"We switch to agent-loop!"* · *"Yes, but the harness is incomplete. It has to be extended. Write a question to the onion master."* · *"saphan-agent-onion."* · *"Can you sort it out with this master, what he is to write?"*
+
+**What the advisor did.** It read the registry: the seat `loop-nvidia-1` exists, as role review, backend agent-loop, lane nvidia, billing class metered, one session at a time. It first relayed the switch to the three Proven masters. When the owner said the harness is not ready, it sent a correction: the direction stands, but nothing is dispatched to `loop-nvidia-1` yet, and NVIDIA reviews stay on qwen-nvidia-1..3 until the harness work lands. Two runs that ended after one sentence are not verdicts, so the first slice still owes its NVIDIA review.
+
+The question went to the master of `saphan-agent-onion`, the train that builds Saphan Studio's own agent harness, which is being extended to work with Meterless Nightshift. The advisor added one property for review legs: **a review must not end on a text-only turn while its status file is still empty**. If it still has no report at its bound, it ends as a named failure, never as success. It asked for the plan and a date. The owner got a paste for that master's session.
+
+**Messages sent:**
+- `392407c33acc2110` → proven-cursor-infra, `11461c4d2a621af7` → proven-reviewer-core, `5dfb1d03649493ec` → proven-cli-and-action: NVIDIA reviews move to agent-loop.
+- `2cbb718ae0cec33d` → proven-cursor-infra, `1894c757d654b395` → proven-reviewer-core, `cb7436be7b68470d` → proven-cli-and-action: correction, not yet; stay on qwen-nvidia until the harness is extended.
+- `a58ff3abd404346b` → saphan-agent-onion: the plan for NVIDIA reviews on agent-loop, and a date.
+
 ## Waiting for answers
+
+- `a58ff3abd404346b`, `e53afbd53a52dbc0`: the agent-loop plan for NVIDIA reviews (saphan-agent-onion).
+- `2cbb718ae0cec33d`, `1894c757d654b395`, `cb7436be7b68470d`: the masters confirm NVIDIA reviews stay on qwen-nvidia for now.
 
 - `818c8bdf84310f1b`, `f94d40167efa0d2d`, `5cf1d9b7be4378ef`: the real Cursor examples and the ready-setup pages.
 - `08ccdb2d0f9a874f`: who publishes the first Cursor session, and when (infrastructure).
