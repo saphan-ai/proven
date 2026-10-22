@@ -111,14 +111,63 @@ Both measured working after four minutes.
   least one finding's evidence from Zetaris. **Did:** W5 carries it (train order updated). **Answered.**
 - **Received** `1397f1b911337bcb`: keep this log. This page is the answer.
 
+### 9 · the owner → master: help a participant with Zetaris
+
+> *"Can we help?"* — a hackathon participant could not register a CSV as a Zetaris file-store table ("Invalid file path
+> to access"). Then: *"I asked you to help the participant."*
+
+**Did.** Answered from the Zetaris track's own measurement of 21 October: the plain path inside the container, no
+`file://`; check that the file is visible inside the Zetaris containers; straight double quotes (the question showed
+typographic ones); the `FROM <database>` clause; JSON as one array per file.
+
+### 10 · W1c: the shell's two blocking findings on the interface
+
+**Received** `f8ca217af5e64c1b` (the shell's master): the reviewer ignored the request's baseline, head, include and
+exclude, and never read its configuration file. **Did:** wagon W1c `the-reviewer-honours-the-request` with a test plan of
+nine cases and two Grok legs (implementation and a separate test author). The nine tests passed on the implementation; one
+of the executor's own tests failed on macOS (the temporary directory is a symlink); the master fixed it in two lines with a
+new test (`5cea821`). **Landed** `a405eb5` and `5075397`; main green. **Answered** the shell's master.
+
+### 11 · the retroactive review of W1, and W1d
+
+The codex review of W1 (run `run-20261022-032603-536d8bb3`) returned **reject**: a review cut by its deadline published
+unjudged findings, and the trace dropped the evidence. **Did:** wagon W1d `partial-reviews-report-judged-findings` (Grok).
+Verified; **landed** `dd24aa3`. The NVIDIA half of that retroactive review reached Nightshift but died with
+`[API Error: nvidia/nemotron-3.5-super-vl-120b-a12b]`.
+
+### 12 · the NVIDIA reviews: what failed, measured
+
+> *"Search the internet."* · *"Maybe someone had this problem and solved it."*
+
+**Read.** qwen-code issues and a write-up on custom OpenAI-compatible endpoints: qwen-code streams by default; its retries
+multiply; its default `max_tokens` is 32000. **Received** `9eaf8ef96cbeb911` (the infrastructure master), measured on
+Nightshift's signed receipts: NVIDIA's hosted Nemotron returned **empty responses** on about a quarter of calls between
+04:40 and 05:01 UTC, more when two NVIDIA reviews ran at once; not a timeout and not the context size. **Decision:** at most
+one NVIDIA review at a time.
+
+### 13 · W1b: two rounds, two reviews each, and a merge by hand
+
+The first codex review of W1b returned **reject**: cleanup after a timeout took up to 22 s, a failed removal was silent, and
+the commit carried `Co-authored-by: Cursor` (an AI attribution, forbidden; reported to the infrastructure master as a
+fleet-wide defect). Round 2 (Grok) fixed all three and reworded the commit. The second codex review found one more: a long
+output could cut the removal warning; the master fixed it in one line with a test (`bc41431`). The third codex review:
+**accept**. The NVIDIA review: **accept-with-conditions** (run the tests, run T10 with Docker) — the master ran T10 with real
+Docker on runner-cursor: pass, 31 s. Four additive conflicts with W1c and W1d were resolved by hand (`24b7e34`).
+**Landed** `97feef5` and `6affa00`; main green.
+
+### 14 · W2 is next
+
+The live generator through Nightshift, ordered with a recorded Nightshift stream as the reference (routed model and receipt
+id in the stream). W5 (Zetaris evidence, the Wildcard hard point by 27 October) follows it.
+
 ## Waiting for answers
 
 - R3: the Zetaris storage probe for OSV by package (the infrastructure master).
 - Who publishes the recordings of Cursor sessions in this repository, and when (the infrastructure track).
-- W1b's two legs (runs above), then its two parallel reviews and W1's retroactive review.
+- The Nightshift receipt id of W1b's NVIDIA review (asked of the infrastructure master).
+- The NVIDIA half of W1's retroactive review: to run again, one NVIDIA review at a time.
 
 ## Not run
 
 - W1's built binary was not executed by the leg (its permission class refused it); the master ran `proven scan --sample`
   through `go run` instead.
-- Whether the Cursor runner host has a container runtime (W1b's real-container case) is not measured yet.
