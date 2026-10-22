@@ -152,14 +152,46 @@ For the seats, the advisor rehearsed the three unseat commands in dry-run, then 
 - `e283fdf1c94d41f6` → proven-reviewer-core, `a146a14f8bb71983` → proven-cli-and-action, `72591a1976375868` → proven-cursor-infra: the review rule until NVIDIA is back.
 - `be8216075c83d1d0`, `c32052ed280ca97e`, `66b85e16b43edbcd`, `bb320b47367b5af5` → infrastructure, reviewer, CLI and onion: the qwen-nvidia seats are removed.
 
+### 16 · the plan accepted; the NVIDIA work runs overnight
+
+The onion master filed the plan at 07:40 UTC: eight wagons, each with its definition of done and an unplug test, a quote and a cap. The advisor checked it against its own reading of the code and sent seven remarks, all folded in. The main ones: a review needs more turns than the default bound; the train's budget must cover the caps; macm5 runs the proof only, while the review seats stay on remote machines.
+
+> *"b, the budget without a limit, even $500, it has to be done. Maximum parallelism. If he thinks there are no seats, let him run fleet usage."* · *"The limit of three parallel sessions per account is in the saphan config!"* · *"These credentials we will not write in by hand, because nobody knows which machine the run will go to. It MUST go in the provisioning!"*
+
+**What the advisor relayed.** The plan was accepted with the CGNAT option (b) and a budget of $500. Every number in the wagons is a configuration key and never a constant. The model credential is held once and carried with the run to whichever machine is chosen; it is never planted on hosts in advance. By 12:46 UTC six wagons had returned `ok` and been verified by their master. The recording wagon and the reviews wait for one signing sitting by the owner.
+
+**Messages sent:** `618183916d2869a9` (accepted, go), `e49727a0d357bc8d` (limits from config), `3e424ed25fe5616e` (the credential travels with the run), `a2af4a1ea9cc924b` (non-stop) → saphan-agent-onion.
+
+### 17 · owner → advisor: the four Cursor seats run non-stop
+
+> *"Nothing is happening. Empty seats."* · *"They are to run NON STOP. In parallel. We have four seats."* · *"When they dispatch reviews, let them dispatch the next development wagon to Cursor at once!"* · *"Let's design adding such a mode to the scheduler, so we don't have to shout at them, set by saphan config set and in the console's settings."* · *"The dispatcher design is good. We do it."*
+
+**What the advisor did.** It sent the rule to the three Proven masters and kept its own watch on the Cursor seats, naming the master whenever a seat stayed free. Then it wrote the design for a *continuous mode* of Saphan Studio's scheduler: per train, switched on by the owner, bounded by a window, the train's budget and its allowed seats, and dispatching only what a master could dispatch. The master of the console train took it as four wagons, the first slice by 25 October and the rest by 27 October. The owner accepted it.
+
+Because one master was holding four trains at once, the owner decided to give the shell train its own master. The advisor wrote that master's start-up brief.
+
+**Messages sent:** `6c1667726c6593aa`, `3c22e0f413f05fbb`, `9038d6a2d7e46db6` (non-stop) → the three Proven masters; `647e08b7a4b0ed49`, `669422282d1bf1ce` (the continuous-mode design, accepted) → the console train; `15a5da050b3c1bef` (hand over the shell train) → proven-cli-and-action.
+
+### 18 · owner rulings of the afternoon
+
+> *"W1 went without a review, and it stays that way. There is no NVIDIA anyway."* · *"Have we written all the test cases? They don't have to be written with Cursor."* · *"Cursor is now optional [the organizers' announcement]. But we keep going as we started. When the credits run out, we go normally."* · *"In the Cursor session recordings, show the start of the work, a bit of the black, and the end. Not the opening laws and orchestration. Only the coding."* · *"What happens inside is missing: a sandbox is assembled, an egress gateway is set up, and only in that environment is Cursor's CLI started. That is the point."* · *"There are also the tool grants."*
+
+**What the advisor relayed.**
+- The first slice stays master-verified only, as its order said.
+- The 16 remaining test cases are written on Claude Code and Codex, one agent per case.
+- Proven's code stays on Cursor and Grok while the credits last, then moves to Claude Code or Codex without asking.
+- Published recordings show only the coding, as excerpts tied to the sealed original by its run id and digest.
+
+The infrastructure master added the section *What happens when a Cursor run starts* to the [Cursor page](../fleet/infra/cursor/README.md), with the tool grants and one real run, and wrote the [NVIDIA page](../fleet/infra/nvidia/README.md) with 206 verified Nightshift receipts.
+
+**Messages sent:** `73b7a0b2ed123e7c` (W1 stays) → proven-reviewer-core; `f51753ae9abd3626` (the corpus off Cursor) → proven-cursor-infra; `0e7a80d0cfdec4f9`, `5447b8326c4e0eac`, `90a155b7c9cd0566` (Cursor until the credits run out) → the three Proven masters; `1712fa894308a0d2` (how to cut the recordings), `70dbb67bdfdb69a6`, `4363aacfbe6b6451` (what happens inside, and the tool grants) → proven-cursor-infra.
+
 ## Waiting for answers
 
-- `dcd46286b3c81bd5`: the overnight plan for NVIDIA on agent-loop, for the owner to accept (saphan-agent-onion).
-- `e283fdf1c94d41f6`, `a146a14f8bb71983`, `72591a1976375868`: the masters confirm the review rule and name the free Cursor seat.
-- `a58ff3abd404346b`, `e53afbd53a52dbc0`: the agent-loop plan for NVIDIA reviews (saphan-agent-onion).
-- `2cbb718ae0cec33d`, `1894c757d654b395`, `cb7436be7b68470d`: the masters confirm NVIDIA reviews stay on qwen-nvidia for now.
-
-- `818c8bdf84310f1b`, `f94d40167efa0d2d`, `5cf1d9b7be4378ef`: the real Cursor examples and the ready-setup pages.
+- `a2af4a1ea9cc924b`: the NVIDIA agent-loop wagons proven on the branch by 23 October, 00:00–02:00 UTC (saphan-agent-onion).
+- `1712fa894308a0d2`: the first Cursor recording, cut to the coding (infrastructure).
+- `58c70d8ea4b2030e`: the 16 corpus cases placed (infrastructure).
+- `818c8bdf84310f1b`: the real commands and the cost of one Cursor run, for the Cursor page (reviewer train).
 - `08ccdb2d0f9a874f`: who publishes the first Cursor session, and when (infrastructure).
 - `1397f1b911337bcb`, `a8ed9a3782886023`, `8b7cf94ae423cf8f`: the masters confirm the conversation log.
 

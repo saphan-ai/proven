@@ -46,10 +46,23 @@ type Evidence struct {
 }
 
 // Refutation is one skeptic attempt.
+// Refuted is the model's claim. It does not drop the finding.
+// A drop needs TestFound with TestFailsOnChange false, or QueryRows that
+// contradict the finding. TestCannotRun or QueryCannotRun means the
+// instrument did not answer.
 type Refutation struct {
-	Attempted bool
-	Refuted   bool
-	Reason    string
+	Attempted         bool
+	Refuted           bool
+	Reason            string
+	TestPath          string
+	TestName          string
+	Command           string
+	SQL               string
+	TestFound         bool
+	TestFailsOnChange bool
+	TestCannotRun     bool
+	QueryRows         [][]string
+	QueryCannotRun    bool
 }
 
 // Candidate is a risk plus what the later agents added.
@@ -60,6 +73,10 @@ type Candidate struct {
 	Dropped    bool
 	DropReason string
 	Unresolved bool
+	// ProverNote is why a written test is not evidence. The pipeline copies it
+	// into the trace. Empty when the prover did not write a test, or when the
+	// written test is evidence.
+	ProverNote string
 }
 
 // Failure names a service the review degraded around.

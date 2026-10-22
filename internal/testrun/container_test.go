@@ -52,6 +52,7 @@ func TestValidateNamesTheRefusedSetting(t *testing.T) {
 		{"cpu word", func(c *ContainerConfig) { c.CPUs = "one" }, "CPUs"},
 		{"zero memory", func(c *ContainerConfig) { c.Memory = "0" }, "Memory"},
 		{"memory suffix", func(c *ContainerConfig) { c.Memory = "512M" }, "Memory"},
+		{"zero written limit", func(c *ContainerConfig) { c.MaxWrittenBytes = 0 }, "MaxWrittenBytes"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

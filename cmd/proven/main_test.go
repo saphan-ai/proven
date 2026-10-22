@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/saphan-ai/proven/internal/review"
 )
 
 func TestScanSamplePrintsF1AndF2NotF3(t *testing.T) {
@@ -138,6 +140,40 @@ func TestScanMissingBaselineNamesTheCommit(t *testing.T) {
 	}
 	if strings.Contains(stderr.String(), "unknown flag") || !strings.Contains(stderr.String(), "does-not-exist") {
 		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestSampleOutputPrintsUnresolved(t *testing.T) {
+	var buf bytes.Buffer
+	printResult(&buf, review.Result{
+		Findings: []review.Finding{{
+			ID: "F9", Severity: review.SeverityWarning, Title: "maybe",
+			Unresolved: true,
+			Location:   review.Location{Path: "a.go", StartLine: 1, EndLine: 1},
+			Evidence: []review.Evidence{{
+				Kind: review.EvidenceTest,
+				Test: &review.TestEvidence{Path: "a_test.go", Name: "TestA", FailsOnChange: true, PassesOnBase: true},
+			}},
+		}},
+		FailedServices: []review.ServiceFailure{},
+	})
+	if !strings.Contains(buf.String(), "finding F9 WARNING maybe") || !strings.Contains(buf.String(), "  unresolved\n") {
+		t.Fatal(buf.String())
+	}
+}
+
+func TestSampleOutputPrintsTheSameFamilySentence(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trace.jsonl")
+	sentence := "skeptic family nemotron is the same as the finder family nemotron (nvidia/nemotron-3.5-super-vl-120b-a12b and nvidia/nemotron-3.5-super-vl-120b-a12b)"
+	line := "{\"finding_id\":\"review\",\"kind\":\"family\",\"agent\":\"skeptic\",\"text\":\"" + sentence + "\"}\n"
+	if err := os.WriteFile(path, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	printResult(&buf, review.Result{TracePath: path, Findings: []review.Finding{}, FailedServices: []review.ServiceFailure{}})
+	if !strings.Contains(buf.String(), sentence) {
+		t.Fatal(buf.String())
 	}
 }
 

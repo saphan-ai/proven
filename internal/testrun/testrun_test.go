@@ -32,6 +32,15 @@ func TestSampleReturnsTheRecordedTest(t *testing.T) {
 	if missing.Found {
 		t.Fatal("a different test name must not match")
 	}
+	withFile, err := s.Run(context.Background(), testrun.Request{
+		FindingID: "F1", Name: "TestDiscounted", Content: "package billing\n", Path: "billing/extra_test.go",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !withFile.Found || !withFile.FailsOnChange || !withFile.PassesOnBase {
+		t.Fatal("sample mode must ignore written content and execute nothing")
+	}
 }
 
 func TestLiveNamesProverOff(t *testing.T) {

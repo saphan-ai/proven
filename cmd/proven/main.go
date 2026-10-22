@@ -2,7 +2,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -106,6 +108,9 @@ func printResult(w io.Writer, res review.Result) {
 	}
 	for _, f := range res.Findings {
 		fmt.Fprintf(w, "finding %s %s %s\n", f.ID, f.Severity, f.Title)
+		if f.Unresolved {
+			fmt.Fprintln(w, "  unresolved")
+		}
 		fmt.Fprintf(w, "  %s:%d-%d\n", f.Location.Path, f.Location.StartLine, f.Location.EndLine)
 		fmt.Fprintf(w, "  %s\n", f.Message)
 		for _, e := range f.Evidence {
@@ -131,7 +136,37 @@ func printResult(w io.Writer, res review.Result) {
 			fmt.Fprintf(w, "failed service: %s: %s\n", s.Service, s.Reason)
 		}
 	}
+	if sentence := familySentence(res.TracePath); sentence != "" {
+		fmt.Fprintln(w, sentence)
+	}
 	if res.TracePath != "" {
 		fmt.Fprintf(w, "trace: %s\n", res.TracePath)
 	}
+}
+
+// familySentence is the review's same-family line, when the trace has one.
+func familySentence(path string) string {
+	if path == "" {
+		return ""
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range bytes.Split(b, []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var e struct {
+			Kind string `json:"kind"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(line, &e); err != nil {
+			continue
+		}
+		if e.Kind == "family" && e.Text != "" {
+			return e.Text
+		}
+	}
+	return ""
 }
