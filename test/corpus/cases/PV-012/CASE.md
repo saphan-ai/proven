@@ -2,7 +2,7 @@
 
 - incident: I09 (one incident; this case is a later round of it, and the round after it settled the finding)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -95,8 +95,21 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Toolchain: `go version go1.26.5 linux/amd64` (local Go; module declares `go 1.26`).
+Run at 2026-10-22 15:53:42 UTC from the repository root: `bash tests/corpus/cases/PV-012/check.sh`.
+The script builds both versions with `go build` and checks each input against the two pages and the independent
+seeded-ownership reference. Output, including the script's exit code:
+
+```text
+control | base: 5 (Activity for all teams; control=not-present) | change: 0 (Activity scoped to ours; control=PASS) | reference: 0
+vacuity | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity scoped to theirs; control=PASS) | reference: 5
+application | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity for all teams; control=not-applicable) | reference: 0
+scope-no-team | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity for all teams; control=not-applicable) | reference: 0
+scope-with-team | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity for all teams (request team: ours); control=not-applicable) | reference: 0
+extra-sync | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=not-applicable) | reference: 0
+control-no-registry | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=FAIL) | reference: 0
+exit=0
+```
 
 ## 9. Limits
 
