@@ -118,7 +118,10 @@
         "how": { "description": "What it does in the product, in one or two sentences.", "type": "string" },
         "where": { "description": "Repository paths that implement it.", "type": "array", "items": { "type": "string" } },
         "evidence": { "description": "The test, log or demo moment that shows it working.", "type": "array", "items": { "type": "string" } },
-        "decisions": { "description": "Links to design notes or ADRs.", "type": "array", "items": { "type": "string" } }
+        "decisions": { "description": "Links to design notes or ADRs.", "type": "array", "items": { "type": "string" } },
+        "integration_working": { "description": "The integration itself works: the product reaches the sponsor's technology and gets an answer, shown by a check or a test.", "type": "boolean" },
+        "in_use_case": { "description": "The integration is wired into the product's use-case scenario, end to end, and tested there. An integration can work before it is wired in.", "type": "boolean" },
+        "use_case_note": { "description": "One sentence: what is and is not wired in yet.", "type": "string" }
       }
     },
     "zetaris": {
@@ -126,6 +129,7 @@
       "allOf": [{ "$ref": "#/$defs/usage" }],
       "properties": {
         "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
+        "integration_working": true, "in_use_case": true, "use_case_note": true,
         "interface": { "enum": ["rest", "jdbc", "sql-editor"] },
         "deployment": { "enum": ["local-docker", "hosted"] },
         "data_sources": { "type": "array", "items": { "type": "string" } }
@@ -137,6 +141,7 @@
       "allOf": [{ "$ref": "#/$defs/usage" }],
       "properties": {
         "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
+        "integration_working": true, "in_use_case": true, "use_case_note": true,
         "engines": {
           "type": "array",
           "items": { "enum": ["H-MEM", "Markovian", "World Model", "Scout Intent", "Swarm"] }
@@ -151,6 +156,7 @@
       "properties": {
         "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
         "models": { "type": "array", "items": { "type": "string" } },
+        "integration_working": true, "in_use_case": true, "use_case_note": true,
         "surfaces": { "type": "array", "items": { "enum": ["ide", "agent-cli", "background-agents"] } }
       },
       "unevaluatedProperties": false
@@ -161,6 +167,7 @@
       "properties": {
         "status": true, "how": true, "where": true, "evidence": true, "decisions": true,
         "models": { "type": "array", "items": { "type": "string" } },
+        "integration_working": true, "in_use_case": true, "use_case_note": true,
         "route": { "enum": ["via-meterless", "build.nvidia.com", "local"] }
       },
       "unevaluatedProperties": false
