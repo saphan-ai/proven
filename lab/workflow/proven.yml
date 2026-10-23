@@ -12,6 +12,12 @@ permissions:
   contents: read
   pull-requests: write
 
+# Every step is POSIX sh: the lab's job image (docker:cli, Alpine) has no bash,
+# and act runs a step with bash unless the workflow names a shell.
+defaults:
+  run:
+    shell: sh
+
 jobs:
   review:
     runs-on: ubuntu-latest
