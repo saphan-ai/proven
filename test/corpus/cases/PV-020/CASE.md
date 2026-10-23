@@ -2,7 +2,7 @@
 
 - incident: I01 (one incident; this case is a second review of a change that had already merged)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-23) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -89,7 +89,9 @@ In `expected/EXPECTED.md`.
 
 Run the check and record each line of its output for runs (a), (b) and (c).
 
-Recorded 2026-10-21T17:33:57Z. Toolchain: `go version go1.26.8 linux/amd64`. `base/go.mod` and `change/go.mod` declare `go 1.26`. Standard library only.
+Recorded 2026-10-23T02:24:28Z on Linux. Toolchain: `go version go1.26.5 linux/amd64`. `base/go.mod` and `change/go.mod` declare `go 1.26`. Standard library only. The same command first ran on the unchanged tracked tree at `8c55cee` (exit 0, with the 16 lines below byte for byte), then ran after this round's edits (exit 0, same output). macOS was not run: no macOS host was available.
+
+The check needs Bash and Go 1.26 or later. It can run from any directory in a checkout or source archive. It writes temporary build outputs under `.saphan/work/corpus-pv-020/` inside that tree.
 
 Command, from the repository root:
 

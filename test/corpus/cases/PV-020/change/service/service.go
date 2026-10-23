@@ -68,15 +68,19 @@ func (s *Service) MaxBody() int { return s.maxBody }
 // A body above the limit is refused on every route that is not exempt,
 // including a route the service does not offer. An exempt route accepts it.
 func (s *Service) Decide(method, path string, body []byte) Decision {
+	return s.decideSize(method, path, int64(len(body)))
+}
+
+func (s *Service) decideSize(method, path string, size int64) Decision {
 	route, ok := lookup(method, path)
 	exempt := ok && route.Exempt
-	if s.maxBody > 0 && !exempt && len(body) > s.maxBody {
+	if s.maxBody > 0 && !exempt && size > int64(s.maxBody) {
 		return Decision{Accepted: false, Reason: "body exceeds limit"}
 	}
 	if !ok {
 		return Decision{Accepted: false, Reason: "unknown route"}
 	}
-	if exempt && s.maxBody > 0 && len(body) > s.maxBody {
+	if exempt && s.maxBody > 0 && size > int64(s.maxBody) {
 		return Decision{Accepted: true, Reason: "exempt upload"}
 	}
 	return Decision{Accepted: true, Reason: "accepted"}
@@ -91,17 +95,12 @@ func lookup(method, path string) (Route, bool) {
 	return Route{}, false
 }
 
-// readCeiling bounds memory on a route the product limit does not cover
-// (an exempt upload, or a service with the limit removed). It is not the
-// product limit, and it sits far above DocumentedLimit.
-const readCeiling = 8 << 20
-
 // Handler serves the same rule as Decide over HTTP.
 // On a route the limit covers, the body is counted as it arrives.
-// The handler does not buffer past the limit.
+// Bodies are counted without buffering them.
 func (s *Service) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := s.readBody(w, r)
+		size, err := s.readBodySize(w, r)
 		if err != nil {
 			var tooLarge *http.MaxBytesError
 			if errors.As(err, &tooLarge) && s.limitApplies(r.Method, r.URL.Path) {
@@ -111,7 +110,7 @@ func (s *Service) Handler() http.Handler {
 			writeJSON(w, http.StatusBadRequest, Decision{Accepted: false, Reason: "body unreadable"})
 			return
 		}
-		d := s.Decide(r.Method, r.URL.Path, body)
+		d := s.decideSize(r.Method, r.URL.Path, size)
 		code := http.StatusOK
 		if !d.Accepted {
 			if d.Reason == "unknown route" {
@@ -124,14 +123,12 @@ func (s *Service) Handler() http.Handler {
 	})
 }
 
-func (s *Service) readBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+func (s *Service) readBodySize(w http.ResponseWriter, r *http.Request) (int64, error) {
 	rc := r.Body
 	if s.limitApplies(r.Method, r.URL.Path) {
 		rc = http.MaxBytesReader(w, rc, int64(s.maxBody))
-	} else {
-		rc = http.MaxBytesReader(w, rc, readCeiling)
 	}
-	return io.ReadAll(rc)
+	return io.Copy(io.Discard, rc)
 }
 
 func (s *Service) limitApplies(method, path string) bool {

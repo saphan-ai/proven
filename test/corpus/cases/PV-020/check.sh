@@ -6,9 +6,11 @@
 set -euo pipefail
 
 case_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(git -C "$case_dir" rev-parse --show-toplevel)
-work="$repo/.saphan/work/corpus-pv-020"
-mkdir -p "$work"
+repo=$(CDPATH= cd -- "$case_dir/../../../.." && pwd)
+scratch="$repo/.saphan/work/corpus-pv-020"
+mkdir -p "$scratch"
+work=$(mktemp -d "$scratch/run.XXXXXX")
+trap 'rm -rf "$work"' EXIT
 
 export GOPROXY=off
 export GOSUMDB=off
