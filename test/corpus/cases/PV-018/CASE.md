@@ -82,7 +82,7 @@ Run the check on base, on change and on the mutant, and record each line of its 
 - run: 2026-10-23T02:03Z (UTC), from the repository root; the original five lines were also measured on commit `10dfbe9` before this repair
 - toolchain: `go version go1.26.5 linux/amd64`, standard library only, no network (module `pv018` in this directory, `go 1.20`;
   `GOTOOLCHAIN=local` refuses an older local toolchain instead of downloading one)
-- command: `bash tests/corpus/cases/PV-018/check.sh` (runs `go run ./check`, then `go test -count=1 -v ./change/` in the case module,
+- command: `bash test/corpus/cases/PV-018/check.sh` (runs `go run ./check`, then `go test -count=1 -v ./change/` in the case module,
   then the same test file unchanged against a temporary copy of the module whose `change/validator.go` is the mutant's)
 - exit code: 0
 - output, in full:
