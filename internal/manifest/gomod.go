@@ -1,5 +1,6 @@
-// Package manifest reads dependency manifests and names what a change added
-// or raised. Go, npm and PyPI each have a reader.
+// Package manifest reads dependency manifests and lock files and names what
+// a change added or raised. Go, npm and PyPI each have a manifest reader
+// and a lock reader.
 package manifest
 
 import (
@@ -21,20 +22,28 @@ type Change struct {
 }
 
 // Hit is a Change plus the manifest it came from.
+// Lock is set when the hit came from a lock file.
 type Hit struct {
 	Ecosystem string
 	File      string
+	Lock      bool
 	Change
 }
 
 // Reader reads one manifest kind.
 // Notes, when set, names lines of the change side that were not dependencies.
 // Each string is one sentence the OSV check writes to the trace.
+// Lock is set for a lock file. preferLock then keeps that hit and drops the
+// manifest hit for the same package in the same directory.
+// NoteErr is set when a Diff error is one trace note and not a failed check.
+// A lock file that cannot be parsed then contributes no finding.
 type Reader struct {
 	Ecosystem string
 	Match     func(path string) bool
 	Diff      func(base, change []byte) ([]Change, error)
 	Notes     func(change []byte) []string
+	Lock      bool
+	NoteErr   bool
 }
 
 // Go reads go.mod require lines. A replace or an exclude is not a require.
@@ -60,10 +69,14 @@ func Collect(files []change.File, readers []Reader) ([]Hit, []string, error) {
 			}
 			got, err := r.Diff(f.Base, f.Change)
 			if err != nil {
+				if r.NoteErr {
+					notes = append(notes, f.Path+": "+err.Error())
+					continue
+				}
 				return nil, nil, err
 			}
 			for _, c := range got {
-				out = append(out, Hit{Ecosystem: r.Ecosystem, File: f.Path, Change: c})
+				out = append(out, Hit{Ecosystem: r.Ecosystem, File: f.Path, Lock: r.Lock, Change: c})
 			}
 			if r.Notes != nil {
 				for _, n := range r.Notes(f.Change) {
@@ -76,9 +89,58 @@ func Collect(files []change.File, readers []Reader) ([]Hit, []string, error) {
 		if out[i].File != out[j].File {
 			return out[i].File < out[j].File
 		}
-		return out[i].Package < out[j].Package
+		if out[i].Package != out[j].Package {
+			return out[i].Package < out[j].Package
+		}
+		return out[i].Version < out[j].Version
 	})
-	return out, notes, nil
+	return preferLock(out), notes, nil
+}
+
+// preferLock drops a manifest hit when a lock file in the same directory
+// already names that package. The lock hit carries the exact version.
+// PyPI names match without regard to case. Go and npm names do not.
+func preferLock(hits []Hit) []Hit {
+	type key struct {
+		dir string
+		eco string
+		pkg string
+	}
+	locked := map[key]struct{}{}
+	for _, h := range hits {
+		if !h.Lock {
+			continue
+		}
+		locked[key{dirOf(h.File), h.Ecosystem, foldName(h.Ecosystem, h.Package)}] = struct{}{}
+	}
+	if len(locked) == 0 {
+		return hits
+	}
+	out := make([]Hit, 0, len(hits))
+	for _, h := range hits {
+		if !h.Lock {
+			k := key{dirOf(h.File), h.Ecosystem, foldName(h.Ecosystem, h.Package)}
+			if _, ok := locked[k]; ok {
+				continue
+			}
+		}
+		out = append(out, h)
+	}
+	return out
+}
+
+func dirOf(path string) string {
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[:i]
+	}
+	return ""
+}
+
+func foldName(ecosystem, pkg string) string {
+	if ecosystem == "PyPI" {
+		return strings.ToLower(pkg)
+	}
+	return pkg
 }
 
 type req struct {
