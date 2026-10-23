@@ -225,9 +225,6 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	if cfg.command != "ci" {
 		return nil
 	}
-	if ws := getenv("GITHUB_WORKSPACE"); ws != "" && cfg.target == "." {
-		cfg.target = ws
-	}
 	var ev pullRequestEvent
 	have := false
 	if path := getenv("GITHUB_EVENT_PATH"); path != "" {
