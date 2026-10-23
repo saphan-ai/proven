@@ -15,10 +15,9 @@ func TestMeterlessRunnersLoadTheShim(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not on PATH")
 	}
+	// METERLESS_ENGINES names a Meterless engines/ directory; it is not part of this repository, so without it the
+	// test is skipped by name.
 	ref := os.Getenv("METERLESS_ENGINES")
-	if ref == "" {
-		ref = filepath.Join("..", "..", ".provision", "reference", "meterless")
-	}
 	if _, err := os.Stat(filepath.Join(ref, "hmem", "conformance", "runner.ts")); err != nil {
 		t.Skip("no Meterless runners: set METERLESS_ENGINES to a Meterless engines/ directory")
 	}
