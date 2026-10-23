@@ -15,7 +15,15 @@ import (
 // The git directory is not copied. dst is created if needed.
 // A tracked symlink is not written into dst and is not followed.
 // skipped names each such path, slash-separated, relative to the commit.
+//
+// rev is checked as a commit before git sees it, the way Between checks its
+// revisions: a value that is not a commit, including one that begins with a
+// dash, is refused by name and never reaches the archive command as an
+// argument. Each file and the whole archive are bounded (ADR-0013).
 func ExportCommit(target, rev, dst string) ([]string, error) {
+	if err := ensureCommit(target, rev, "exported"); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return nil, err
 	}
@@ -31,7 +39,9 @@ func ExportCommit(target, rev, dst string) ([]string, error) {
 // An uncommitted edit of a tracked file is included. An untracked file is not.
 // A file deleted in the working tree is omitted. The git directory is not copied.
 // A tracked symlink is not written and is not followed. skipped names each
-// such path, slash-separated, relative to the repository.
+// such path, slash-separated, relative to the repository. Each file is bounded
+// by the file limit and the files together by the archive limit, as in
+// ExportCommit, because the working tree is as untrusted as a commit.
 func ExportWorktree(target, dst string) ([]string, error) {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return nil, err
@@ -44,6 +54,7 @@ func ExportWorktree(target, dst string) ([]string, error) {
 		return nil, err
 	}
 	var skipped []string
+	var total int64
 	for _, rel := range names {
 		clean, err := safeRel(rel)
 		if err != nil {
@@ -54,9 +65,13 @@ func ExportWorktree(target, dst string) ([]string, error) {
 		}
 		src := filepath.Join(target, filepath.FromSlash(clean))
 		out := filepath.Join(dst, filepath.FromSlash(clean))
-		skip, err := copyTracked(src, out)
+		skip, n, err := copyTracked(src, out, clean)
 		if err != nil {
 			return nil, err
+		}
+		total += n
+		if total > Bounds().Archive {
+			return nil, OverBound("the tracked files of the working tree", Bounds().Archive, EnvMaxArchiveBytes)
 		}
 		if skip {
 			skipped = append(skipped, clean)
@@ -100,6 +115,10 @@ func untar(data []byte, dst string) ([]string, error) {
 					return nil, err
 				}
 				continue
+			}
+			// The header says how large the file is before any byte is written.
+			if hdr.Size > Bounds().File {
+				return nil, OverBound("the file "+clean, Bounds().File, EnvMaxFileBytes)
 			}
 			if err := writeTarFile(tr, target, os.FileMode(hdr.Mode).Perm()); err != nil {
 				return nil, err
@@ -179,44 +198,55 @@ func writeTarFile(tr *tar.Reader, dst string, mode os.FileMode) error {
 	return closeErr
 }
 
-// copyTracked copies one tracked working-tree file. A path that is gone was
-// deleted in the working tree, so the change side has no file. A directory is
-// a submodule, which is another repository, and is not copied. skip is true
-// when src is a symlink: F31 leaves it out, and the caller names the path.
-func copyTracked(src, dst string) (skip bool, err error) {
+// copyTracked copies one tracked working-tree file and returns the bytes it
+// copied. A path that is gone was deleted in the working tree, so the change
+// side has no file. A directory is a submodule, which is another repository,
+// and is not copied. skip is true when src is a symlink: F31 leaves it out, and
+// the caller names the path. name is the path the refusal of an oversized file
+// names; the file is read no further than the file limit, even if it grows
+// while it is copied.
+func copyTracked(src, dst, name string) (skip bool, copied int64, err error) {
 	info, err := os.Lstat(src)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, nil
+			return false, 0, nil
 		}
-		return false, err
+		return false, 0, err
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		// Lstat has not followed the link. Return before Open, which would.
-		return true, nil
+		return true, 0, nil
 	}
 	if info.IsDir() {
-		return false, nil
+		return false, 0, nil
 	}
 	if !info.Mode().IsRegular() {
-		return false, fmt.Errorf("change: unsupported file %s", src)
+		return false, 0, fmt.Errorf("change: unsupported file %s", src)
+	}
+	limit := Bounds().File
+	if info.Size() > limit {
+		return false, 0, OverBound("the file "+name, limit, EnvMaxFileBytes)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return false, err
+		return false, 0, err
 	}
 	in, err := os.Open(src)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	defer in.Close()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
-	_, copyErr := io.Copy(out, in)
+	// One byte past the limit shows a file that grew after Lstat.
+	n, copyErr := io.Copy(out, io.LimitReader(in, limit+1))
 	closeErr := out.Close()
 	if copyErr != nil {
-		return false, copyErr
+		return false, 0, copyErr
 	}
-	return false, closeErr
+	if n > limit {
+		return false, 0, OverBound("the file "+name, limit, EnvMaxFileBytes)
+	}
+	return false, n, closeErr
 }
