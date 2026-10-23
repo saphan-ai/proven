@@ -14,6 +14,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 // Reviewer reviews one change.
@@ -60,6 +64,14 @@ type Options struct {
 	Sample     bool                // --sample / SAMPLE_MODE=true: every adapter is its sample implementation (ADR-0001)
 	LogDir     string              // the run's logs/ directory; the reviewer writes its JSONL trace here (ADR-0018)
 	Env        func(string) string // environment lookup; keys come from the environment only (ADR-0001)
+	// gen, when set, replaces the live generator. A review leaves it unset.
+	// Tests set it so a live review makes no network call.
+	gen generator.Generator
+	// liveQuery, when set, replaces the live query adapter. A review leaves it unset.
+	liveQuery query.Adapter
+	// testRun, when set, replaces the container runner. A review leaves it unset,
+	// so a test does not start a container.
+	testRun testrun.Adapter
 }
 
 // Request is one review request.

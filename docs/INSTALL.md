@@ -36,6 +36,8 @@ exits 0. The full output and what each line means: [SAMPLE_MODE.md](SAMPLE_MODE.
 
 ## Before a live review: livecheck
 
+A live review needs only a git repository.
+
 From the repository:
 
 ```bash

@@ -76,11 +76,20 @@ func open(opts Options) (Reviewer, error) {
 			popts.Guardrail = rail
 		}
 		popts.Generator = generator.NewLive(settings, nil)
+		if opts.gen != nil {
+			// A test supplies the generator. The live client above is not called,
+			// so the review does not dial. A review leaves gen unset.
+			popts.Generator = opts.gen
+		}
 		zset, zerr := query.Load(env)
 		if zerr != nil {
 			return nil, queryConfig(zerr)
 		}
 		popts.LiveQuery = query.NewLive(zset, nil)
+		if opts.liveQuery != nil {
+			// A test supplies the query adapter. The live client above is not called.
+			popts.LiveQuery = opts.liveQuery
+		}
 		table, terr := osv.LoadTable(env)
 		if terr != nil {
 			return nil, osvConfig(terr)
@@ -91,24 +100,30 @@ func open(opts Options) (Reviewer, error) {
 			return nil, epssConfig(verr)
 		}
 		popts.EPSSView = view
-		boxCfg, berr := testrun.Load(env)
-		if berr != nil {
-			return nil, testrunConfig(berr)
-		}
-		popts.MaxWrittenBytes = boxCfg.MaxWrittenBytes
-		// ADR-0025: the Prover runs a test only in a container with no network and no secret.
-		// A missing container runtime is not a refusal: the Prover is off, the reason is named in the
-		// review, and the other agents still run. Any other error stops Open.
-		box, err := testrun.NewContainer(boxCfg, nil)
-		if err != nil {
-			d, ok := service.As(err)
-			if !ok {
-				return nil, err
-			}
-			popts.TestRun = testrun.Off{Reason: d.Reason}
-			popts.ProverIdle = d.Reason
+		if opts.testRun != nil {
+			// A test supplies the runner, so Open does not look for a container.
+			// Production leaves testRun unset and uses the container below.
+			popts.TestRun = opts.testRun
 		} else {
-			popts.TestRun = box
+			boxCfg, berr := testrun.Load(env)
+			if berr != nil {
+				return nil, testrunConfig(berr)
+			}
+			popts.MaxWrittenBytes = boxCfg.MaxWrittenBytes
+			// ADR-0025: the Prover runs a test only in a container with no network and no secret.
+			// A missing container runtime is not a refusal: the Prover is off, the reason is named in the
+			// review, and the other agents still run. Any other error stops Open.
+			box, err := testrun.NewContainer(boxCfg, nil)
+			if err != nil {
+				d, ok := service.As(err)
+				if !ok {
+					return nil, err
+				}
+				popts.TestRun = testrun.Off{Reason: d.Reason}
+				popts.ProverIdle = d.Reason
+			} else {
+				popts.TestRun = box
+			}
 		}
 	}
 	p, err := pipeline.Build(popts)
