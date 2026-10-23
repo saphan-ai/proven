@@ -78,18 +78,30 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	// Retrieval is an access: each returned record is touched, audited and
 	// saved, which feeds its recency on the next query.
 	now := s.now()
+	saved := make(map[string]Record, len(scored))
 	for i := range scored {
-		rec := s.records[scored[i].Record.ID]
+		id := scored[i].Record.ID
+		if _, ok := saved[id]; !ok {
+			saved[id] = s.records[id]
+		}
+		rec := s.records[id]
 		rec.LastAccessed = now
 		rec.AccessCount++
 		s.records[rec.ID] = rec
 		scored[i].Record = rec
 		if err := s.audit("read", rec.ID, "retrieval"); err != nil {
+			// A partial touch must not stay: the state file was not written.
+			for id, prev := range saved {
+				s.records[id] = prev
+			}
 			return QueryResult{}, err
 		}
 	}
 	if len(scored) > 0 {
 		if err := s.persist(); err != nil {
+			for id, prev := range saved {
+				s.records[id] = prev
+			}
 			return QueryResult{}, err
 		}
 	}
@@ -173,19 +185,21 @@ func (s *Store) Feedback(id, kind string) error {
 	if !ok {
 		return fmt.Errorf("hmem: unknown feedback %q", kind)
 	}
+	prev := rec
 	if kind == "helpful" {
 		rec.AccessCount++
 	}
 	rec.Confidence = clamp01(rec.Confidence + delta)
 	// A memory marked wrong is tagged for a person to look at, not deleted.
+	// Copy the tags first so a rollback does not share the appended array.
 	if kind == "wrong" && !containsTag(rec.Tags, "review") {
-		rec.Tags = append(rec.Tags, "review")
+		rec.Tags = append(append([]string(nil), rec.Tags...), "review")
 	}
 	s.records[id] = rec
-	if err := s.audit("feedback", id, "retrieval"); err != nil {
+	if err := s.publish("feedback", id, "retrieval", s.seq, map[string]Record{id: prev}, nil); err != nil {
 		return err
 	}
-	return s.persist()
+	return nil
 }
 
 // feedbackDelta is the fixed confidence change for each feedback kind.
