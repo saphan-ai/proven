@@ -150,7 +150,7 @@ func Open(opts Options) (*Store, error) {
 	if err := refuseInside(dir, opts.RepoRoot); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("hmem: state directory: %w", err)
 	}
 	st, err := os.Stat(dir)
@@ -164,7 +164,7 @@ func Open(opts Options) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hmem: logs directory: %w", err)
 	}
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
 		return nil, fmt.Errorf("hmem: logs directory: %w", err)
 	}
 	s := &Store{
@@ -533,7 +533,7 @@ func (s *Store) audit(action, id, actor string) error {
 	if err := enc.Encode(line); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(s.auditPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(s.auditPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("hmem: audit: %w", err)
 	}
@@ -552,7 +552,7 @@ func findingKey(rule, path, title string) string {
 // writeAtomic writes beside path and renames, so a crash never leaves a half-written state.json.
 func writeAtomic(path string, b []byte) error {
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)
