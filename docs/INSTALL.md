@@ -1,5 +1,7 @@
 # Install and first run
 
+The judges' lab starts with `make up`. The runbook is [LAB.md](LAB.md). The steps below are the Go build and the sample review without the lab.
+
 The quick start: build Proven and run a first review with no network and no keys. Every command below was run on
 22 October 2026 on a clean clone of `main` (`16e269a`), with Go 1.26.8 on macOS.
 

@@ -1,0 +1,16 @@
+.git
+.github
+.gitea
+bin
+dist
+lab
+fleet
+planning
+docs
+assets
+tests
+conformance
+demo
+**/.env
+**/.env.*
+**/.DS_Store

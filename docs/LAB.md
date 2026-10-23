@@ -1,0 +1,88 @@
+# The judges' lab
+
+One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address.
+
+You need GNU make and Docker. Docker Compose v2 is the `docker compose` command. Windows is not a target. On macOS the `make` from Homebrew is GNU make; the make that ships with the system is not.
+
+Every version, port and name is a setting in `lab/versions.env`. The environment overrides the file. The list is in [CONFIGURATION.md](CONFIGURATION.md). The image tags were chosen as pins and were not pulled when this page was written. The first `make up` is the check that each tag exists. A missing tag is changed by setting the variable, not by editing the Makefile.
+
+## Start
+
+1. From a checkout of this repository, run `make up`.
+2. The first run prints the admin user, a generated password, and the lab URL. The password is printed once. It is kept in the lab's volume until `make clean`. A later `make up` does not print it again.
+3. Open the URL in a browser. Sign in with that user and password.
+4. Open the `discount` repository. It has one open pull request.
+5. The pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review -->`. That comment is the sample review.
+
+`make status` prints the containers, Gitea's health, whether the runner is registered, whether that comment is present, and the URL.
+
+`make logs` follows every service. `make logs SERVICE=gitea` follows one of `gitea`, `dind`, `runner`.
+
+`make down` stops the lab and removes its containers. The volume, the admin user and the password remain. `make clean` removes the volumes, the local images, `./bin` and `./dist`.
+
+## What the workflow runs
+
+Proven's Action is not on main yet, so the workflow does not use it. It runs:
+
+```text
+proven scan --sample /opt/proven/fixture/discount
+```
+
+That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no network, no keys and no Docker. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
+
+The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that, after `make scan`. This repository does not push it for you.
+
+The seeded copy replaces `saphan/proven` with `PROVEN_IMAGE` when that setting is not the default, and replaces `runs-on: ubuntu-latest` with `RUNNER_LABEL`.
+
+## What `make` does besides the lab
+
+`make` with no target prints every target, the version from `git describe`, whether `go` and `docker` were found, and the lab URL when the lab is up.
+
+`make build` writes `./bin/proven` and `./bin/livecheck`. It uses Go when `go` is on `PATH` and the version is at least the `go` line in `go.mod`. Otherwise it builds the same binaries in `GOLANG_IMAGE` and writes them to the host. If neither Go nor Docker is available, it prints how to install Go on macOS and on Linux and exits 1.
+
+`make build-all` cross-compiles for darwin and linux, amd64 and arm64, with `CGO_ENABLED=0`, into `./dist/`, and writes `./dist/SHA256SUMS`.
+
+`make sample` runs the sample review from a temporary directory outside this repository. It does not pass keys and it does not call Docker.
+
+`make livecheck` runs the live-service check. If `lab/.env` exists, it loads the keys listed in [CONFIGURATION.md](CONFIGURATION.md). With nothing set, the check names each service that is not ready and exits 1.
+
+`make image` builds Proven's image for this machine and loads it. The image is the static `proven` and `livecheck` binaries, `git`, and the `docker` client, on `RUNTIME_IMAGE`, and it runs as a user that is not root. Tags: `latest` and the `git describe` value. OCI labels `created`, `revision` and `version` come from the date, `git rev-parse` and `git describe`.
+
+`make scan` runs Docker Scout on the images this repository builds (Proven, and the seed). It refuses when Scout reports a critical or high finding that has a fix. The severities are `SCOUT_REFUSE_SEVERITIES`. It also scans the pinned third-party images and writes that output between the markers at the bottom of this page. `make push` runs `make scan` first, then pushes `PROVEN_REGISTRY/PROVEN_IMAGE` for `PUSH_PLATFORMS` with `--provenance=mode=max --sbom=true`.
+
+## The runner and Docker
+
+The lab has four services: Gitea, a Docker daemon that lives only inside the lab (`dind`), the Gitea Actions runner, and a one-shot seed.
+
+The runner's Docker host is `tcp://dind:2375`. No service mounts the host's Docker socket. Job containers are started on that inner daemon. The inner daemon is privileged, because Docker-in-Docker needs it. That privilege stays inside the lab. The daemon's port is not published on the host.
+
+The job image is `docker:<DOCKER_VERSION>-cli`, pinned. The runner does not pull an image it already has, so the Proven image loaded by `make up` is the one the workflow runs.
+
+Sample mode does not start a Prover container. A later live run on this runner would start those containers on the lab's daemon, not on the host's.
+
+## Rehearse
+
+`make e2e` starts the lab when Gitea is not running, waits up to `E2E_WAIT_SECONDS`, and asks Gitea's API for the review comment. It exits 0 when the comment is there and prints the API's answer. It exits 1 when the wait ends without the comment.
+
+If Gitea is already running and the runner container is not, `make e2e` does not start the runner. It exits 1 and prints:
+
+```text
+e2e: runner is not running, so the workflow cannot post a review
+```
+
+That is the check that a stopped runner cannot look like a successful rehearsal. From the repository root, stop the runner and run the rehearsal again:
+
+```bash
+docker compose --env-file lab/versions.env -f lab/compose.yaml --project-directory lab stop runner
+make e2e
+```
+
+## Third-party images
+
+These pins are not built here. `make scan` replaces the block below with Docker Scout's output. A finding in a third-party image does not refuse the scan: we cannot patch it, and a judge should see it.
+
+<!-- scout-third-party:start -->
+Not scanned in the change that added the lab. The seat that wrote this page could not run Docker Scout. `make scan` fills this block.
+
+Images: `gitea/gitea:1.22.6`, `gitea/act_runner:0.2.11`, `docker:29.9.1-dind`, `docker:29.9.1-cli`.
+<!-- scout-third-party:end -->
