@@ -4,6 +4,7 @@ package settingspage
 
 import (
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/livecheck"
@@ -23,10 +24,10 @@ const guardrailAfter = "Every prompt and every answer is checked; an `unsafe` ve
 const containerAfter = "Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
-// PROVEN_EVIDENCE_VIEW is declared in livecheck and listed on the evidence
-// table, which is where the page already shows it.
+// PROVEN_EPSS_VIEW is declared in epss. PROVEN_EVIDENCE_VIEW is declared
+// in livecheck. Both are listed on the evidence table.
 func Catalog() []envdoc.Section {
-	evidence := append(append(query.Environment(), osv.Environment()...), livecheck.Environment()...)
+	evidence := append(append(append(query.Environment(), osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
 		{
 			Heading: "The model generator: Meterless Nightshift",

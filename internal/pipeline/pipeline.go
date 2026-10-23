@@ -17,6 +17,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/writer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
@@ -59,6 +60,9 @@ type Options struct {
 	// OSVTable is the package table the dependency check queries.
 	// Empty means osv.DefaultTable. Sample mode leaves this empty and does not read the environment.
 	OSVTable string
+	// EPSSView is the view a finding's CVE is scored from.
+	// Empty means epss.DefaultView. Sample mode leaves this empty and does not read the environment.
+	EPSSView string
 	// MaxWrittenBytes is the loaded container limit for a test the prover writes.
 	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
 	MaxWrittenBytes int
@@ -77,6 +81,7 @@ type Pipeline struct {
 	guardOff     bool
 	skepticModel string
 	osvTable     string
+	epssView     string
 	env          func(string) string
 	maxWritten   int
 	atBoundary   func(stage string)
@@ -124,7 +129,7 @@ func Build(opts Options) (*Pipeline, error) {
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
-		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
+		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
 	}
 	if !opts.GuardOff && p.rail == nil {
 		if opts.Sample {
@@ -442,9 +447,38 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, fatal
 		}
 	}
+	cands, err = p.attachEPSS(ctx, st, q, fx.Snapshot, cands)
+	if err != nil {
+		if _, fatal := st.soften(ctx, err); fatal != nil {
+			if errors.Is(fatal, errPartial) {
+				return p.cut(st, cands, allow)
+			}
+			return candidate.Draft{}, fatal
+		}
+	}
 	return keep(writer.Write(writer.Input{
 		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
 	})), nil
+}
+
+// attachEPSS scores every kept finding whose evidence names a CVE.
+// A missing row is a trace line and adds no evidence.
+func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Adapter, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
+	view := p.epssView
+	if view == "" {
+		view = epss.DefaultView
+	}
+	next, notes, err := epss.Attach(ctx, q, view, snapshot, cands)
+	for _, n := range notes {
+		ev := trace.Event{FindingID: n.FindingID, Kind: "evidence", Agent: "epss", Text: n.Text}
+		if n.HasEvidence {
+			ev.Evidence = traceEvidence([]candidate.Evidence{n.Evidence})
+		}
+		if e := st.trace.Append(ev); e != nil {
+			return nil, e
+		}
+	}
+	return next, err
 }
 
 // addOSV names added and raised modules without a model, queries the OSV

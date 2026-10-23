@@ -25,7 +25,7 @@ func TestSampleReviewReportsTheOSVRange(t *testing.T) {
 	if !strings.Contains(c.Message, "GHSA-px-sample-0002 does not match") {
 		t.Fatalf("message %s", c.Message)
 	}
-	if len(c.Evidence) != 2 || c.Evidence[0].Query == nil || c.Evidence[1].Query == nil {
+	if len(c.Evidence) != 3 || c.Evidence[0].Query == nil || c.Evidence[1].Query == nil || c.Evidence[2].Query == nil {
 		t.Fatalf("evidence %#v", c.Evidence)
 	}
 	q := c.Evidence[0].Query
@@ -37,6 +37,10 @@ func TestSampleReviewReportsTheOSVRange(t *testing.T) {
 	}
 	if c.Evidence[1].Query.Rows[0][0] != "CVE-2026-0001" {
 		t.Fatalf("kev %#v", c.Evidence[1].Query)
+	}
+	ep := c.Evidence[2].Query
+	if len(ep.Rows) != 1 || ep.Rows[0][0] != "CVE-2026-0001" || ep.Rows[0][1] != "0.50000" {
+		t.Fatalf("epss %#v", ep)
 	}
 	raw := traceRaw(t, d.TracePath)
 	if !strings.Contains(string(raw), "introduced 1.0.0 <= v1.2.3 < fixed 1.2.4") {

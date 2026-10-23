@@ -43,24 +43,31 @@ func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 	if !ok {
 		t.Fatal("F2 missing")
 	}
-	if len(f2.Evidence) != 1 || f2.Evidence[0].Kind != review.EvidenceQuery || f2.Evidence[0].Query == nil {
+	if len(f2.Evidence) != 2 || f2.Evidence[0].Kind != review.EvidenceQuery || f2.Evidence[0].Query == nil {
 		t.Fatalf("F2 evidence %#v", f2.Evidence)
 	}
 	q := f2.Evidence[0].Query
 	if q.Engine != "local-sample" || len(q.Rows) != 1 || q.Rows[0][0] != "evil.example/leftpad" {
 		t.Fatalf("F2 query %#v", q)
 	}
+	if f2.Evidence[1].Query == nil || len(f2.Evidence[1].Query.Rows) != 1 || f2.Evidence[1].Query.Rows[0][0] != "CVE-2026-0001" || f2.Evidence[1].Query.Rows[0][1] != "0.50000" {
+		t.Fatalf("F2 EPSS %#v", f2.Evidence[1])
+	}
 	f4, ok := find(res, "F4")
 	if !ok {
 		t.Fatal("F4 missing")
 	}
-	if len(f4.Evidence) != 1 || f4.Evidence[0].Query == nil {
+	if len(f4.Evidence) != 2 || f4.Evidence[0].Query == nil {
 		t.Fatalf("F4 evidence %#v", f4.Evidence)
 	}
 	kq := f4.Evidence[0].Query
 	if kq.Engine != "local-sample" || kq.SQL != "SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'" ||
 		len(kq.Rows) != 1 || kq.Rows[0][0] != "CVE-2026-0001" {
 		t.Fatalf("F4 query %#v", kq)
+	}
+	eq := f4.Evidence[1].Query
+	if eq == nil || len(eq.Rows) != 1 || eq.Rows[0][0] != "CVE-2026-0001" || eq.Rows[0][1] != "0.50000" || eq.Rows[0][2] != "0.90000" || eq.Rows[0][3] != "2026-10-20" {
+		t.Fatalf("F4 EPSS %#v", eq)
 	}
 	if _, ok := find(res, "F3"); ok {
 		t.Fatal("F3 must be dropped")
