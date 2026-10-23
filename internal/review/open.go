@@ -97,6 +97,7 @@ func open(opts Options) (Reviewer, error) {
 		} else {
 			// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
 			popts.SkepticModel = settings.SkepticModel
+			settings.Network = settings.Network.WithDial(opts.dial)
 			popts.Generator = generator.NewLive(settings, nil)
 		}
 		if opts.gen != nil {
@@ -131,6 +132,7 @@ func open(opts Options) (Reviewer, error) {
 			// so and the trace records one "no guardrail" line.
 			popts.GuardOff = true
 		} else {
+			gs.Network = gs.Network.WithDial(opts.dial)
 			rail, nerr := guardrail.New(gs, nil)
 			if nerr != nil {
 				return nil, nerr
@@ -173,6 +175,7 @@ func open(opts Options) (Reviewer, error) {
 			} else if zerr != nil {
 				return nil, queryConfig(zerr)
 			} else {
+				zset.Network = zset.Network.WithDial(opts.dial)
 				popts.LiveStore = store.NewZetaris(zset)
 			}
 		}

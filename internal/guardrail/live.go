@@ -125,12 +125,8 @@ func (c *client) model() string {
 // redirects, so the key is not sent to another host.
 func newClient(cfg Settings, httpClient *http.Client) *client {
 	if httpClient == nil {
-		httpClient = &http.Client{
-			Timeout: cfg.Timeout,
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		// ADR-0034: in the air-gapped mode this client also refuses, at dial time, any address off the network.
+		httpClient = cfg.Network.NewClient(cfg.Timeout)
 	}
 	return &client{cfg: cfg, http: httpClient}
 }

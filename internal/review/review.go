@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -71,6 +72,9 @@ type Options struct {
 	gen generator.Generator
 	// liveStore, when set, replaces the evidence store. A review leaves it unset.
 	liveStore store.Store
+	// dial, when set, opens every connection the live adapters make in the air-gapped mode, after the
+	// address is allowed. A review leaves it unset. Tests set it to record each dial without a socket.
+	dial network.DialFunc
 	// testRun, when set, replaces the container runner. A review leaves it unset,
 	// so a test does not start a container.
 	testRun testrun.Adapter
