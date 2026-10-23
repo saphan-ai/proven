@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/childenv"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -33,7 +34,26 @@ const (
 	defaultCPUs    = "1"
 	defaultMemory  = "512m"
 	checkoutDir    = "/checkout"
+
+	// defaultUser is "nobody" and its group, a fixed unprivileged identity that
+	// exists in common images and owns nothing in the checkout (ADR-0025).
+	defaultUser = "65534:65534"
+	// defaultPids bounds the processes of one container, so a runaway test
+	// cannot exhaust the host's process table.
+	defaultPids = 256
+	// defaultTmpSize bounds each writable scratch mount.
+	defaultTmpSize = "64m"
 )
+
+// scratchDirs are the only writable places in the container beside the
+// checkout's own read-only mount. A Go test builds under /tmp and keeps its
+// build cache under the home of an identity that has none, which is /.cache.
+var scratchDirs = []string{"/tmp", "/.cache"}
+
+// runtimeEnvNames are the variables, beyond PATH and HOME, the runtime process
+// may inherit. They only say where the container daemon is; none holds a
+// credential (ADR-0025).
+var runtimeEnvNames = []string{"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "XDG_RUNTIME_DIR"}
 
 // defaultTimeout is the default limit for one side of a test run.
 const defaultTimeout = 2 * time.Minute
@@ -57,6 +77,9 @@ type ContainerConfig struct {
 	CPUs            string        // CPU limit passed to the runtime
 	Memory          string        // memory limit passed to the runtime
 	MaxWrittenBytes int           // size limit for a test file the prover writes
+	User            string        // fixed unprivileged user and group, "uid:gid"
+	PidsLimit       int           // most processes one container may run
+	TmpSize         string        // size bound of each writable scratch mount
 }
 
 // cpuPattern and memPattern accept only the plain forms docker-run(1)
@@ -64,6 +87,8 @@ type ContainerConfig struct {
 var (
 	cpuPattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`)
 	memPattern = regexp.MustCompile(`^([0-9]+)([bkmg])?$`)
+	// userPattern accepts a numeric uid and gid only; root is refused by validUser.
+	userPattern = regexp.MustCompile(`^([0-9]+):([0-9]+)$`)
 )
 
 // DefaultContainerConfig returns the documented defaults.
@@ -75,6 +100,9 @@ func DefaultContainerConfig() ContainerConfig {
 		CPUs:            defaultCPUs,
 		Memory:          defaultMemory,
 		MaxWrittenBytes: DefaultMaxWrittenBytes,
+		User:            defaultUser,
+		PidsLimit:       defaultPids,
+		TmpSize:         defaultTmpSize,
 	}
 }
 
@@ -125,7 +153,41 @@ func (c ContainerConfig) Validate() error {
 			Allowed: []string{strconv.Itoa(DefaultMaxWrittenBytes)},
 		}
 	}
+	// A setting must not be able to hand the test root, lift the process bound
+	// or make the scratch unbounded (ADR-0025).
+	if !validUser(c.User) {
+		return &ConfigError{
+			Field: "User", Value: c.User,
+			Reason:  "the user is a numeric uid:gid that is not root",
+			Allowed: []string{defaultUser},
+		}
+	}
+	if c.PidsLimit <= 0 {
+		return &ConfigError{
+			Field: "PidsLimit", Value: strconv.Itoa(c.PidsLimit),
+			Reason:  "the process limit is a positive number; 0 and -1 mean no limit and are refused",
+			Allowed: []string{strconv.Itoa(defaultPids)},
+		}
+	}
+	if !validMemory(c.TmpSize) {
+		return &ConfigError{
+			Field: "TmpSize", Value: c.TmpSize,
+			Reason:  "the scratch size is a positive size with suffix b, k, m or g; 0 is refused",
+			Allowed: []string{defaultTmpSize},
+		}
+	}
 	return nil
+}
+
+// validUser accepts a numeric uid:gid where neither is 0, the root identity.
+func validUser(s string) bool {
+	m := userPattern.FindStringSubmatch(s)
+	if m == nil {
+		return false
+	}
+	uid, uerr := strconv.ParseUint(m[1], 10, 32)
+	gid, gerr := strconv.ParseUint(m[2], 10, 32)
+	return uerr == nil && gerr == nil && uid > 0 && gid > 0
 }
 
 // validToken accepts one non-empty word that does not start with a dash.
@@ -156,8 +218,8 @@ func validMemory(s string) bool {
 }
 
 // Container is the live test-run adapter. It runs each side of a test in a
-// fresh container with no network, no environment and one read-only
-// checkout (ADR-0025 points 1 to 4). review.Open builds it from Load.
+// fresh container with no network, no environment, an unprivileged user, a
+// read-only root and one read-only checkout (ADR-0025 points 1 to 4). review.Open builds it from Load.
 type Container struct {
 	runtime string
 	cfg     ContainerConfig
@@ -211,6 +273,9 @@ func (c *Container) Argv(dir, command string) []string {
 // argv builds the run line. Each flag below carries out ADR-0025: --rm and
 // --network none, CPU and memory limits from the settings, and the checkout
 // mounted read-only as the only volume. No -e or --env flag is ever added.
+// The container also runs as a fixed unprivileged user with a process limit,
+// no capabilities, no privilege gain and a read-only root; the bounded tmpfs
+// mounts are the only other place it may write.
 func (c *Container) argv(dir, command, name string) []string {
 	if c == nil {
 		return nil
@@ -229,6 +294,19 @@ func (c *Container) argv(dir, command, name string) []string {
 		"--network", "none",
 		"--cpus", c.cfg.CPUs,
 		"--memory", c.cfg.Memory,
+		"--user", c.cfg.User,
+		"--pids-limit", strconv.Itoa(c.cfg.PidsLimit),
+		"--cap-drop", "ALL",
+		"--security-opt", "no-new-privileges",
+		"--read-only",
+	)
+	for _, dir := range scratchDirs {
+		// nosuid keeps a file written to scratch from gaining privilege; exec stays
+		// allowed because a Go test runs the binary it builds there. Mode 1777 lets
+		// the unprivileged user write to a mount the runtime creates as root.
+		args = append(args, "--tmpfs", dir+":rw,nosuid,mode=1777,size="+c.cfg.TmpSize)
+	}
+	args = append(args,
 		"-v", host+":"+checkoutDir+":ro",
 		"--workdir", checkoutDir,
 		c.cfg.Image,
@@ -403,9 +481,11 @@ func commandOutput(ctx context.Context, argv []string) (string, error) {
 		return "", errors.New("testrun: empty argv")
 	}
 	// argv carries no -e and no --env, so the container does not receive the
-	// process environment. The runtime process itself keeps it, because that
-	// is how it finds its own daemon socket.
+	// process environment. The runtime process gets an explicit minimal one
+	// too (ADR-0025): PATH, HOME and the names that locate its daemon, never
+	// a key, because its output can reach the trace.
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Env = childenv.Minimal(runtimeEnvNames...)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf

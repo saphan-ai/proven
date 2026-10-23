@@ -501,7 +501,12 @@ func contractW1bOtherHostPaths(argv []string, allowed, runtime string) []string 
 		seen[path] = true
 		bad = append(bad, path)
 	}
-	for _, arg := range argv {
+	for i, arg := range argv {
+		// The value of --tmpfs names a path inside the container, where a
+		// memory-backed scratch is made; it is not a host path (ADR-0025).
+		if i > 0 && argv[i-1] == "--tmpfs" {
+			continue
+		}
 		for _, token := range contractW1bPathTokens(arg) {
 			if !filepath.IsAbs(token) {
 				continue
