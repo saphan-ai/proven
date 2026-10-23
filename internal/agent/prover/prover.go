@@ -32,6 +32,7 @@ var testSpec = answer.Spec{
 const (
 	notePassedOnChange = "written test passed on the change"
 	noteFailedOnBase   = "written test failed on the base"
+	noteNotFound       = "written test was not found"
 )
 
 // Prompt asks which test would prove one risk.
@@ -86,6 +87,10 @@ func proveNamed(ctx context.Context, c candidate.Candidate, run testrun.Adapter,
 	if got.Name == "" {
 		return c, nil
 	}
+	// The same refusal as Execute. A nil runner panics on Run.
+	if run == nil {
+		return c, &service.Down{Service: "prover", Reason: "no test runner"}
+	}
 	out, err := run.Run(ctx, testrun.Request{
 		FindingID: c.ID, Path: got.Path, Name: got.Name, Command: got.Command,
 	})
@@ -109,6 +114,10 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 		c.ProverNote = "refused: " + reason
 		return c, nil
 	}
+	// The same refusal as Execute. A nil runner panics on Run.
+	if run == nil {
+		return c, &service.Down{Service: "prover", Reason: "no test runner"}
+	}
 	out, err := run.Run(ctx, testrun.Request{
 		FindingID: c.ID, Path: got.Path, Name: got.Name, Command: got.Command, Content: got.Content,
 		BaseDir: opts.BaseDir, ChangeDir: opts.ChangeDir,
@@ -121,7 +130,13 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 		c.ProverNote = line
 		return c, nil
 	}
-	if out.Found && out.FailsOnChange && out.PassesOnBase {
+	// A runner can report PassesOnBase on a test it did not find. Found is
+	// what happened; the pass flag is not.
+	if !out.Found {
+		c.ProverNote = noteNotFound
+		return c, nil
+	}
+	if out.FailsOnChange && out.PassesOnBase {
 		c.Evidence = append(c.Evidence, testEvidence(out))
 		return c, nil
 	}

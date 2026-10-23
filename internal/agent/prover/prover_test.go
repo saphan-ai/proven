@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -236,6 +237,52 @@ func (f *fakeRun) Run(_ context.Context, req testrun.Request) (testrun.Outcome, 
 		out.Command = req.Command
 	}
 	return out, nil
+}
+
+// TestNilRunnerIsANamedRefusal proves a nil test runner is the same named
+// refusal Execute returns, for a named test and for a written test (F3).
+func TestNilRunnerIsANamedRefusal(t *testing.T) {
+	t.Run("named", func(t *testing.T) {
+		_, err := Prove(context.Background(), candidate.Candidate{
+			Risk: candidate.Risk{ID: "F1", Title: "Discount is applied twice"},
+		}, scriptGen{text: `{"path":"billing/discount_test.go","name":"TestDiscounted","command":"go test"}`}, nil, Options{})
+		assertProverDown(t, err)
+	})
+	t.Run("written", func(t *testing.T) {
+		raw, err := json.Marshal(map[string]string{
+			"path": "billing/extra_test.go", "content": writtenBody, "name": "TestExtra", "command": "go test",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = Prove(context.Background(), candidate.Candidate{
+			Risk: candidate.Risk{ID: "F9", Title: "Discount is applied twice"},
+		}, scriptGen{text: string(raw)}, nil, Options{})
+		assertProverDown(t, err)
+	})
+}
+
+// assertProverDown fails the test unless err is the named missing-runner refusal.
+func assertProverDown(t *testing.T, err error) {
+	t.Helper()
+	d, ok := service.As(err)
+	if !ok || d.Service != "prover" || d.Reason != "no test runner" {
+		t.Fatalf("err %v", err)
+	}
+}
+
+// TestWrittenTestNotFoundSaysNotFound proves a written test the runner did
+// not find is noted as not found, even when the outcome also says it passed
+// on the base (F4).
+func TestWrittenTestNotFoundSaysNotFound(t *testing.T) {
+	run := &fakeRun{out: testrun.Outcome{Found: false, PassesOnBase: true}}
+	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "go test ./billing -run TestExtra", Options{})
+	if len(got.Evidence) != 0 {
+		t.Fatalf("evidence %#v", got.Evidence)
+	}
+	if !strings.Contains(got.ProverNote, "not found") {
+		t.Fatalf("note %q", got.ProverNote)
+	}
 }
 
 // The prompt asks for the file's content, forbids an attack (ADR-0007), and allows naming an existing test.
