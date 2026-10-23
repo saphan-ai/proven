@@ -19,8 +19,8 @@ version comparison its ecosystem uses.
    two versions by the ecosystem's own rules. Everything after that (OSV ranges, KEV, EPSS, the evidence, the report)
    is shared.
 2. **Every adapter ships with a sample scenario and its tests**, so a contribution proves itself in sample mode.
-3. **New languages, in this order:** PHP (Composer, `composer.lock`), Java (Maven, Gradle), C# (NuGet), Rust
-   (`Cargo.lock`), Ruby (`Gemfile.lock`).
+3. **New languages, in this order:** PHP (Composer, `composer.lock`), Rust (`Cargo.lock`; moved up by the owner the
+   same day, *"more and more popular"*), Java (Maven, Gradle), C# (NuGet), Ruby (`Gemfile.lock`).
 4. **`docs/ADAPTERS.md`** explains how to add a language, with the PHP adapter as the worked example.
 
 ## Consequences
