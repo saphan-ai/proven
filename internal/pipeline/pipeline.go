@@ -15,8 +15,9 @@
 //
 // Live mode reads a directory that already has base/ and change/, or a git
 // repository. For a repository it writes those two trees for the review and
-// removes them when the review returns. Sample mode still loads a fixture and
-// does not write trees.
+// removes them when the review returns. A tracked symlink is not written into
+// either tree; the trace names it and the draft lists the path. Sample mode
+// still loads a fixture and does not write trees.
 package pipeline
 
 import (
@@ -279,7 +280,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// Sample mode loads fixture.json and checks it. Live mode does not: an
 	// ordinary repository has no fixture file. The trees the Planner and the
 	// Prover read are fx.Root either way.
-	fx, cleanup, err := p.loadTarget(req)
+	fx, skipped, cleanup, err := p.loadTarget(req)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -296,6 +297,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}); err != nil {
 			return candidate.Draft{}, err
 		}
+		// F31: one line per skipped symlink. The path is the tracked path.
+		// Text is the reason. An empty finding id is ignored by the world
+		// fold, the same way a snapshot line is.
+		for _, path := range skipped {
+			if err := p.trace.Append(trace.Event{
+				Kind: "skipped", Agent: "pipeline", Path: path, Text: "symlink",
+			}); err != nil {
+				return candidate.Draft{}, err
+			}
+		}
 	}
 	gen, q, run, err := p.adapters(fx)
 	if err != nil {
@@ -303,7 +314,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	p.mem.SetGenerator(gen)
 	p.world.SetGenerator(gen)
-	st := &state{trace: p.trace, changeKey: changeKey(req)}
+	st := &state{trace: p.trace, changeKey: changeKey(req), skipped: skipped}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
@@ -567,6 +578,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	return keep(writer.Write(writer.Input{
 		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
+		SkippedPaths: st.skipped,
 	})), nil
 }
 
@@ -820,12 +832,14 @@ func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outc
 }
 
 // state is what one review gathers as it runs: the trace it writes to, the
-// services that failed, the model calls made, and the key of the change.
+// services that failed, the model calls made, the key of the change, and the
+// tracked symlinks the trees left out.
 type state struct {
 	trace     *trace.Writer
 	failed    []candidate.Failure
 	models    []candidate.ModelUse
 	changeKey string
+	skipped   []string
 }
 
 // event writes one plain trace line about a finding.
@@ -925,6 +939,7 @@ func (s *state) partial(cands []candidate.Candidate) (candidate.Draft, error) {
 	}
 	return writer.Write(writer.Input{
 		Candidates: judged, Failed: s.failed, Models: s.models, Partial: true, TracePath: s.trace.Path(),
+		SkippedPaths: s.skipped,
 	}), nil
 }
 

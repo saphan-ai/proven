@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/fixture"
@@ -31,10 +32,10 @@ func workArea(logDir string) (string, error) {
 
 // loadTarget is the trees the agents read. Sample mode loads and checks the
 // fixture. Live mode never reads fixture.json.
-func (p *Pipeline) loadTarget(req Request) (*fixture.Fixture, func(), error) {
+func (p *Pipeline) loadTarget(req Request) (*fixture.Fixture, []string, func(), error) {
 	if p.sample {
 		fx, err := fixture.Load(req.Target)
-		return fx, nil, err
+		return fx, nil, nil, err
 	}
 	return p.loadLiveTarget(req)
 }
@@ -43,14 +44,14 @@ func (p *Pipeline) loadTarget(req Request) (*fixture.Fixture, func(), error) {
 // change/ is used as it is, which is how the demo is laid out. A git
 // repository is copied into a temporary directory under the run's working
 // area; the returned function removes that directory.
-func (p *Pipeline) loadLiveTarget(req Request) (*fixture.Fixture, func(), error) {
+func (p *Pipeline) loadLiveTarget(req Request) (*fixture.Fixture, []string, func(), error) {
 	if hasPreparedTrees(req.Target) {
-		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil
+		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
 	}
 	if req.BaselineCommit == "" {
 		// refuseBareRepository already stopped a git repository that reached
 		// here with no baseline. Anything else is not a pair of trees.
-		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil
+		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
 	}
 	return p.materialize(req)
 }
@@ -81,29 +82,56 @@ func hasPreparedTrees(target string) bool {
 
 // materialize writes base/ from BaselineCommit and change/ from HeadCommit,
 // or from the working tree when HeadCommit is empty. Only tracked files are
-// copied. The directory is under the run's working area and the caller
-// removes it when the review returns.
-func (p *Pipeline) materialize(req Request) (*fixture.Fixture, func(), error) {
+// copied. A tracked symlink is left out of both trees and is not followed.
+// skipped names each such path once, sorted. The directory is under the run's
+// working area and the caller removes it when the review returns.
+func (p *Pipeline) materialize(req Request) (*fixture.Fixture, []string, func(), error) {
 	dir, err := os.MkdirTemp(p.workDir, "proven-trees-")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	remove := func() { _ = os.RemoveAll(dir) }
-	if err := change.ExportCommit(req.Target, req.BaselineCommit, filepath.Join(dir, "base")); err != nil {
+	baseSkipped, err := change.ExportCommit(req.Target, req.BaselineCommit, filepath.Join(dir, "base"))
+	if err != nil {
 		remove()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	changeDir := filepath.Join(dir, "change")
+	var changeSkipped []string
 	if req.HeadCommit == "" {
-		err = change.ExportWorktree(req.Target, changeDir)
+		changeSkipped, err = change.ExportWorktree(req.Target, changeDir)
 	} else {
-		err = change.ExportCommit(req.Target, req.HeadCommit, changeDir)
+		changeSkipped, err = change.ExportCommit(req.Target, req.HeadCommit, changeDir)
 	}
 	if err != nil {
 		remove()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return &fixture.Fixture{Root: dir, Snapshot: gitSnapshot(req.BaselineCommit, req.HeadCommit)}, remove, nil
+	fx := &fixture.Fixture{Root: dir, Snapshot: gitSnapshot(req.BaselineCommit, req.HeadCommit)}
+	return fx, unionSorted(baseSkipped, changeSkipped), remove, nil
+}
+
+// unionSorted returns each path once, sorted. An empty result is nil.
+func unionSorted(parts ...[]string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, part := range parts {
+		for _, name := range part {
+			if name == "" {
+				continue
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			out = append(out, name)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	sort.Strings(out)
+	return out
 }
 
 // gitSnapshot is the evidence snapshot for trees copied from git. It names

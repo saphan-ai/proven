@@ -2,8 +2,8 @@
 //
 // The Writer is the last agent of the review and calls no model. It adds no
 // finding of its own: it keeps what the Judge kept, orders it by EPSS inside
-// each severity (ADR-0004), and carries the failures, model uses and trace
-// path into the draft.
+// each severity (ADR-0004), and carries the failures, model uses, trace path
+// and skipped symlink paths into the draft.
 package writer
 
 import (
@@ -18,12 +18,16 @@ type Input struct {
 	Models     []candidate.ModelUse
 	Partial    bool
 	TracePath  string
+	// SkippedPaths lists tracked paths a live review did not copy because they
+	// are symlinks. Empty when none were skipped.
+	SkippedPaths []string
 }
 
 // Write keeps the findings the judge did not drop and copies the rest of the draft.
 func Write(in Input) candidate.Draft {
 	d := candidate.Draft{
 		Failed: in.Failed, Models: in.Models, Partial: in.Partial, TracePath: in.TracePath,
+		SkippedPaths: append([]string(nil), in.SkippedPaths...),
 	}
 	for _, c := range in.Candidates {
 		if c.Dropped {

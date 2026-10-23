@@ -257,6 +257,9 @@ func fill(d candidate.Draft) Result {
 			Agent: m.Agent, Route: m.Route, Model: m.Model, ReceiptID: m.ReceiptID, FromReceipt: m.FromReceipt,
 		})
 	}
+	if len(d.SkippedPaths) > 0 {
+		out.SkippedPaths = append([]string(nil), d.SkippedPaths...)
+	}
 	if out.Findings == nil {
 		out.Findings = []Finding{}
 	}
