@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# PV-016 check. Run from the repository root: bash tests/corpus/cases/PV-016/check.sh
+# PV-016 check. Run from the repository root: bash test/corpus/cases/PV-016/check.sh
 # For base and for change it builds the tool, then prints one line per code-facing claim in claims.tsv:
 #   claim, what the pages say (the quoted sentence, when the version has that page), what the code did.
 # Exit non-zero on a build or run failure, or when a change-side quote is missing.
 set -u
-case_dir=tests/corpus/cases/PV-016
+case_dir=test/corpus/cases/PV-016
 work_root="$PWD/.saphan/work/corpus-pv-016"
 mkdir -p "$work_root" || exit 1
 work=$(mktemp -d "$work_root/check.XXXXXX") || exit 1

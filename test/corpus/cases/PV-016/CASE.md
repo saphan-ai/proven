@@ -99,7 +99,7 @@ reference, with the four page-internal pairs, is `reference.md`.
 Command, from the repository root:
 
 ```
-bash tests/corpus/cases/PV-016/check.sh
+bash test/corpus/cases/PV-016/check.sh
 ```
 
 Exit code: 0. Output (24 lines, one per claim and version):
