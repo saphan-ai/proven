@@ -68,7 +68,8 @@ type Options struct {
 	// Empty uses a state directory beside the logs, never a path inside the module.
 	StateDir string
 	// Guardrail checks every prompt and every answer. Sample mode with none
-	// uses the safe sample. A live pipeline with none is refused.
+	// uses the safe sample, unless the fixture records a verdict. A live
+	// pipeline with none is refused.
 	Guardrail guardrail.Adapter
 	// GuardOff writes one "no guardrail" line and checks nothing.
 	GuardOff bool
@@ -306,6 +307,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
+	// Sample mode: a fixture may carry recorded guardrail verdicts, so a
+	// scenario shows an unsafe prompt refused with no model server (ADR-0005).
+	rail := p.rail
+	if p.sample && len(fx.Guardrail) > 0 {
+		sampled, serr := guardrail.NewSample(fx.Guardrail)
+		if serr != nil {
+			return candidate.Draft{}, serr
+		}
+		rail = sampled
+	}
 	// raw is kept unwrapped: the special run builds its own wrapped generator
 	// from it, so each run's calls are guarded and recorded once.
 	raw := gen
@@ -314,7 +325,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// The guardrail wraps the recorder: a call the guardrail refuses never
 	// reaches the model, so it is not recorded as a model call.
-	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace})
+	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace}, rail)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -324,7 +335,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if req.DoubleRun {
 		second := p.secondGenerator(req.SpecialModel, raw)
 		if second != nil {
-			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace})
+			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace}, rail)
 			if err != nil {
 				return candidate.Draft{}, err
 			}
@@ -950,11 +961,15 @@ func (p *Pipeline) noteGuardOff() error {
 // guard checks the prompt before the model runs and the answer before it is used
 // (ADR-0005). Each check is written to the trace.
 // When the switch is off it returns the generator unchanged.
-func (p *Pipeline) guard(gen generator.Generator) (generator.Generator, error) {
+// rail nil uses the pipeline's adapter.
+func (p *Pipeline) guard(gen generator.Generator, rail guardrail.Adapter) (generator.Generator, error) {
 	if p.guardOff {
 		return gen, nil
 	}
-	return guardrail.Wrap(gen, p.rail, func(agent, side string, v guardrail.Verdict, refused string) error {
+	if rail == nil {
+		rail = p.rail
+	}
+	return guardrail.Wrap(gen, rail, func(agent, side string, v guardrail.Verdict, refused string) error {
 		return p.trace.Append(guardEvent(agent, side, v, refused))
 	})
 }
