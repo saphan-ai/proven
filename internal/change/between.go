@@ -9,6 +9,40 @@ import (
 	"strings"
 )
 
+// WorkTree reports whether target is inside a git working tree.
+// A missing git binary is an error. A directory that is not a repository is false.
+func WorkTree(target string) (bool, error) {
+	cmd := exec.Command("git", "-C", target, "rev-parse", "--is-inside-work-tree")
+	out, err := cmd.Output()
+	if err == nil {
+		return strings.TrimSpace(string(out)) == "true", nil
+	}
+	// git itself could not run. A non-repository exits non-zero, which is an
+	// answer, not a failure.
+	if _, ok := err.(*exec.Error); ok {
+		return false, fmt.Errorf("git: %w", err)
+	}
+	return false, nil
+}
+
+// gitArchive returns the tar of rev's tracked files. It reads the commit and
+// does not run the change. The git directory is not in the archive.
+func gitArchive(target, rev string) ([]byte, error) {
+	cmd := exec.Command("git", "-C", target, "archive", "--format=tar", "--end-of-options", rev)
+	out, err := cmd.Output()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if ee, ok := err.(*exec.ExitError); ok && msg == "" {
+			msg = strings.TrimSpace(string(ee.Stderr))
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("git: %s", msg)
+	}
+	return out, nil
+}
+
 // Between lists the files changed between baseline and head in target's git
 // repository. An empty head means the working tree, including untracked files.
 // A baseline or a head that does not exist returns an error that names it.

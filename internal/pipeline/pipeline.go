@@ -12,6 +12,11 @@
 // and answer (ADR-0005), the record of every model call, the doubled review
 // with a second model (ADR-0009, ADR-0012), and the partial review a deadline
 // leaves behind.
+//
+// Live mode reads a directory that already has base/ and change/, or a git
+// repository. For a repository it writes those two trees for the review and
+// removes them when the review returns. Sample mode still loads a fixture and
+// does not write trees.
 package pipeline
 
 import (
@@ -100,6 +105,9 @@ type Pipeline struct {
 	atBoundary   func(stage string)
 	mem          *hmem.Store
 	world        *world.Store
+	// workDir is the run's working area. Live git trees are written here, not
+	// inside the repository under review, and removed when the review returns.
+	workDir string
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -143,10 +151,15 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+	area, aerr := workArea(opts.LogDir)
+	if aerr != nil {
+		return nil, aerr
+	}
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
+		workDir: area,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -178,9 +191,10 @@ func (p *Pipeline) boundary(stage string) {
 }
 
 // Request is the part of a review request the pipeline reads. Target is the
-// directory under review. BaselineCommit and HeadCommit name a git change; with
-// no baseline the target is read as a fixture's base/ and change/ trees.
-// Include and Exclude narrow the changed files the review reports on.
+// directory under review. BaselineCommit and HeadCommit name a git change.
+// With no baseline, a directory that has base/ and change/ is read as those
+// trees, and a git repository without them is refused. Include and Exclude
+// narrow the changed files the review reports on.
 type Request struct {
 	Target         string
 	BaselineCommit string
@@ -223,6 +237,14 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 // context that has ended returns the partial draft through cut; any other
 // error stops the review.
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
+	// A git repository with neither a baseline commit nor prepared trees has
+	// nothing for the agents to read. Say what to pass, rather than failing
+	// later as a missing fixture file.
+	if !p.sample {
+		if err := p.refuseBareRepository(req); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	files, err := changedFiles(req)
 	if err != nil {
 		return candidate.Draft{}, err
@@ -253,11 +275,26 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if ctx.Err() != nil {
 		return candidate.Draft{Partial: true, TracePath: p.trace.Path()}, nil
 	}
-	// The target is loaded as a fixture in sample and live mode alike: its
-	// trees are what the Prover's container mounts.
-	fx, err := fixture.Load(req.Target)
+	// Sample mode loads fixture.json and checks it. Live mode does not: an
+	// ordinary repository has no fixture file. The trees the Planner and the
+	// Prover read are fx.Root either way.
+	fx, cleanup, err := p.loadTarget(req)
 	if err != nil {
 		return candidate.Draft{}, err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if !p.sample {
+		// The snapshot name has no fixture.json to come from. It is written
+		// here, not only on query evidence, so a review that keeps no row
+		// still records which trees it read. An empty finding id keeps the
+		// world fold from treating the line as a finding.
+		if err := p.trace.Append(trace.Event{
+			Kind: "snapshot", Agent: "pipeline", Text: fx.Snapshot,
+		}); err != nil {
+			return candidate.Draft{}, err
+		}
 	}
 	gen, q, run, err := p.adapters(fx)
 	if err != nil {
@@ -294,7 +331,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 	}
 
-	risks, err := planner.Plan(ctx, req.Target, gen)
+	risks, err := planner.Plan(ctx, fx.Root, gen)
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
 		// the service; any other Planner error stops the review.
@@ -322,7 +359,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		if ctx.Err() != nil {
 			return p.cut(st, cands, allow)
 		}
-		more, err := planner.Plan(ctx, req.Target, special)
+		more, err := planner.Plan(ctx, fx.Root, special)
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -499,7 +536,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// The dependency check and the EPSS scores come after the Judge: they add
 	// findings judged on their own query rows and do not pass the Skeptic.
-	cands, err = p.addOSV(ctx, st, q, req.Target, fx.Snapshot, cands)
+	cands, err = p.addOSV(ctx, st, q, fx.Root, fx.Snapshot, cands)
 	if err != nil {
 		if _, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
