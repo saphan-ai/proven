@@ -63,3 +63,27 @@ The owner started it: *"It has started. Greet it in a few minutes, once it has r
 **Written** (proven `f8a8b15`): [SECURITY.md](../../SECURITY.md), what Proven treats as untrusted, what it protects and how, each protection read from `main` at `2d3126b`; [SECURITY_REVIEW.md](../../docs/security/SECURITY_REVIEW.md), the nine pieces and their status; [ADR-0028](../../docs/adr/ADR-0028-proven-is-security-reviewed-as-a-whole-in-pieces.md).
 
 The owner started a master of its own for it, on track `proven-security-review`, and the advisor wrote its kickoff: its first deliverable is the train order, one wagon per piece; it reviews and never fixes, sending each weakness to the master that owns the code.
+
+### 7 · owner → advisor: the second reviewer said no
+
+When the first three security pieces returned, two of them split: Claude accepted with conditions and OpenAI rejected the same commit with failing tests. The owner: *"This is BEAUTIFUL. To be described: why in critical areas one model is not enough."* The advisor added that section to the security review page, with an empty table for both verdicts side by side, to be filled as each piece closes. The owner then asked for a third family: *"tomorrow NVIDIA does the security review"*; the page says so, and the security master was asked to plan it.
+
+The first fix landed the same day: the command run in the Prover's sandbox is built by Proven from the test's file and name, never taken from a model's answer. Both reviewers of that piece had named it. It is the first line of SECURITY.md.
+
+### 8 · owner → advisor: tidy the repository, and keep the product apart from the hackathon
+
+> *"Put fleet and everything else not strictly about the project into a hackathon folder, so that after the hackathon we are left with a proper repository."* Then: *"Today, before the push, when the agents stop, we migrate the whole repository."*
+
+Written as [ADR-0030](../../docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md). The infrastructure master moved everything with `git mv` while the legs were paused, rewrote every link, and added a link check that turns red on a broken link. The design decisions moved to `docs/adr/`; the build's record, this log included, to `hackathon/`.
+
+### 9 · owner → advisor: live mode, and anyone with an NVIDIA key
+
+> *"And the models beyond sample mode? Live mode?"* The advisor measured that `proven scan` ran sample mode only and that the generator called Nightshift alone, which a judge does not have. The owner chose to add NVIDIA's hosted API as a second provider, with Nightshift staying the default: [ADR-0031](../../docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md). Messages to master core (the generator) and the command-line master (live `proven scan`, live mode in the lab).
+
+### 10 · owner → advisor: what shipped today, for a person
+
+The owner ran a script the advisor wrote, on a fresh clone with no keys and no network, and the advisor turned the output into [a walk through a terminal](../SHIPPED_DAY_2.md). Reading it, the owner: *"Maybe give this stream of machine babble some notes for a human? Nobody but a machine will read it."* and *"some separators between the findings"*. Then: *"a nice HTML and Markdown beside JSON and SARIF: one for machines, the other for people."* Written as [ADR-0033](../../docs/adr/ADR-0033-the-text-review-is-written-for-a-person.md) and sent to the command-line master, with a self-contained HTML template on a classless stylesheet and a Markdown layout that is also the pull-request comment.
+
+### 11 · owner → advisor: closer to enterprise
+
+> *"We can add some feature closer to enterprise. We have a good base; now it is just adding blocks."* The advisor proposed three; the owner: *"All of them. They build themselves. The security master takes them."* Written as [ADR-0034](../../docs/adr/ADR-0034-proven-runs-air-gapped.md) (air-gapped mode), [ADR-0035](../../docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md) (a signed evidence pack for auditors) and [ADR-0036](../../docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md) (an organisation policy, exceptions with an owner and an expiry). They go to the security master as a second train of its own, so the security review stays independent of the code it reviews; the owner: *"let it start today."*
