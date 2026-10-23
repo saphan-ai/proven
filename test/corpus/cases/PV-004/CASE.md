@@ -87,7 +87,7 @@ Toolchain, measured on this run:
 Command, from the repository root:
 
 ```
-bash tests/corpus/cases/PV-004/check.sh
+bash test/corpus/cases/PV-004/check.sh
 ```
 
 Exit code: 0
