@@ -120,6 +120,7 @@ In the fleet, four Cursor agents write the product code. Other agents plan the w
 - **[Watch it being built, slice by slice](fleet/)**: from 22 October, each change arrives with the request that asked for it, the builder's report, the independent review and Marcin's decision.
 - **[Design decisions](fleet/decisions/)**: what was decided, and why.
 - **[What it costs](fleet/LEDGER.md)**: the recorded cost of every change, by model.
+- **[Security](SECURITY.md)**: what Proven treats as untrusted, what it protects and how, and **[how its code is reviewed for security as a whole](SECURITY_REVIEW.md)**, piece by piece.
 - **[How to code with Saphan Studio, step by step](https://github.com/saphan-ai/quake-watch-server)**: published alongside Proven, a sample app built as a series. First the server, an earthquake alert service on the USGS public feed; the mobile clients follow in their own repositories. Every step is recorded as it is built: the order, the agents' work, the review and the owner's decision.
 
 Every agent run records its model and the cost Saphan Studio measured for it. Where a cost was not measured, such as interactive planning sessions, or a share of a subscription the tools cannot read yet, the document says so and why. These figures are what the AI models cost; machines and human time are not included.
@@ -137,6 +138,8 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
+
+**Found a vulnerability?** Please report it privately: [Report a vulnerability](https://github.com/saphan-ai/proven/security/advisories/new) on this repository's Security tab (GitHub's private vulnerability reporting is on). Not in a public issue. See [SECURITY.md](SECURITY.md).
 
 ## For technical readers
 

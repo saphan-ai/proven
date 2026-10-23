@@ -14,6 +14,8 @@ import (
 // Environment variables of the live Zetaris adapter. The set is closed.
 // An empty row limit or timeout means the default. The URL, the key and the
 // organisation id have no default.
+// ADR-0013 and ADR-0015, point 3: every value of the adapter is a setting,
+// validated when it loads. The key comes from the environment only.
 const (
 	EnvRESTURL  = "ZETARIS_REST_URL"
 	EnvAPIKey   = "ZETARIS_API_KEY"
@@ -22,6 +24,8 @@ const (
 	EnvTimeout  = "ZETARIS_TIMEOUT"
 )
 
+// The defaults of the two optional settings. Environment prints them from
+// these constants, so the page and the code cannot disagree.
 const (
 	defaultRowLimit = 100
 	defaultTimeout  = 60 * time.Second
@@ -70,6 +74,8 @@ type ConfigError struct {
 	Reason  string
 }
 
+// Error names the setting, the refused value, why, and what is allowed, as
+// ADR-0013 asks of every refusal.
 func (e *ConfigError) Error() string {
 	if e == nil {
 		return "configuration refused"
@@ -95,6 +101,8 @@ type Settings struct {
 }
 
 // Load reads the live Zetaris settings. A wrong value is refused before a review runs.
+// ADR-0013: a value that is set wrongly is refused by name. Only an empty
+// optional value takes its default.
 func Load(env func(string) string) (Settings, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -107,14 +115,19 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	// The key is checked for presence, length and line breaks only. A line break
+	// would split the Authorization header.
 	key := env(EnvAPIKey)
 	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
 		return Settings{}, refuse(EnvAPIKey, "", "the live query adapter needs an API key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
+	// ADR-0023, point 6: the organisation id is the numeric id Zetaris issues.
 	org := strings.TrimSpace(env(EnvOrgID))
 	if !orgID(org) {
 		return Settings{}, refuse(EnvOrgID, clip(org), "not an organisation id", "a non-empty string of digits, at most 18 characters")
 	}
+	// The row limit is bounded, so one query cannot pull a whole source into the
+	// review.
 	limit := defaultRowLimit
 	if raw := strings.TrimSpace(env(EnvRowLimit)); raw != "" {
 		n, nerr := strconv.Atoi(raw)
@@ -134,6 +147,8 @@ func Load(env func(string) string) (Settings, error) {
 	return Settings{BaseURL: base, APIKey: key, OrgID: org, RowLimit: limit, Timeout: timeout}, nil
 }
 
+// refuse builds a ConfigError. The key's value is blanked here, in one place,
+// so no caller can print it.
 func refuse(field, value, reason, allowed string) *ConfigError {
 	if field == EnvAPIKey {
 		value = ""
@@ -141,6 +156,9 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
 }
 
+// checkBase accepts an absolute http or https URL. User info is refused, so a
+// password cannot travel in the URL. A query, a fragment and a trailing slash
+// are refused or trimmed, because the client appends the route to the path.
 func checkBase(raw string) (string, error) {
 	allowed := "an absolute http or https URL with no user info, query or fragment"
 	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") || !utf8.ValidString(raw) {
@@ -157,6 +175,8 @@ func checkBase(raw string) (string, error) {
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
+// orgID reports whether s is an organisation id: digits only, at most 18 of
+// them, so it fits a 64-bit integer.
 func orgID(s string) bool {
 	if s == "" || len(s) > 18 {
 		return false
@@ -169,6 +189,8 @@ func orgID(s string) bool {
 	return true
 }
 
+// clip shortens a refused value before it is printed, so a long paste does
+// not flood the refusal.
 func clip(value string) string {
 	if len(value) > 128 {
 		return value[:128]

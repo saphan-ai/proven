@@ -12,8 +12,10 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
+// writtenBody is a small Go test file the model might write.
 const writtenBody = "package billing\n\nimport \"testing\"\n\nfunc TestExtra(t *testing.T) {\n\tif Discounted(100, 20) != 80 {\n\t\tt.Fatal(Discounted(100, 20))\n\t}\n}\n"
 
+// A written test that fails on the change and passes on the base becomes test evidence.
 func TestWrittenTestThatFailsOnChangeIsEvidence(t *testing.T) {
 	run := &fakeRun{}
 	run.when = func(req testrun.Request) testrun.Outcome {
@@ -44,6 +46,7 @@ func TestWrittenTestThatFailsOnChangeIsEvidence(t *testing.T) {
 	}
 }
 
+// A written test that passes on both checkouts is not evidence and leaves a note.
 func TestPassesOnBothWritesNoEvidence(t *testing.T) {
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: false, PassesOnBase: true}}
 	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "go test ./billing -run TestExtra", Options{})
@@ -58,6 +61,7 @@ func TestPassesOnBothWritesNoEvidence(t *testing.T) {
 	}
 }
 
+// A written test that fails on the base is not evidence and leaves a note.
 func TestWrittenTestThatFailsOnTheBaseWritesNoEvidence(t *testing.T) {
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: true, PassesOnBase: false}}
 	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "go test ./billing -run TestExtra", Options{})
@@ -69,6 +73,7 @@ func TestWrittenTestThatFailsOnTheBaseWritesNoEvidence(t *testing.T) {
 	}
 }
 
+// A reply with no content runs the named existing test, and writes no file.
 func TestNamedTestWithoutContentStaysTheFallback(t *testing.T) {
 	run := &fakeRun{out: testrun.Outcome{
 		Found: true, FailsOnChange: true, PassesOnBase: true,
@@ -88,6 +93,7 @@ func TestNamedTestWithoutContentStaysTheFallback(t *testing.T) {
 	}
 }
 
+// An empty reply calls no runner and leaves no evidence and no note.
 func TestEmptyAnswerProposesNoTest(t *testing.T) {
 	run := &fakeRun{}
 	got, err := Prove(context.Background(), candidate.Candidate{
@@ -101,18 +107,22 @@ func TestEmptyAnswerProposesNoTest(t *testing.T) {
 	}
 }
 
+// A written test at an absolute path is refused before the runner.
 func TestRefusesAbsolutePath(t *testing.T) {
 	assertRefused(t, "/tmp/extra_test.go", writtenBody, "go test", Options{}, "refused: "+testrun.ReasonAbsolutePath)
 }
 
+// A written test whose path leaves the repository is refused.
 func TestRefusesPathThatLeavesTheRepository(t *testing.T) {
 	assertRefused(t, "../extra_test.go", writtenBody, "go test", Options{}, "refused: "+testrun.ReasonLeavesRepo)
 }
 
+// A written file that is not a test file is refused.
 func TestRefusesAPathThatIsNotATestFile(t *testing.T) {
 	assertRefused(t, "billing/discount.go", writtenBody, "go test", Options{}, "refused: "+testrun.ReasonNotATestFile)
 }
 
+// A written test may not overwrite a non-test file of the checkout.
 func TestRefusesOverwritingANonTestFile(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
@@ -125,11 +135,13 @@ func TestRefusesOverwritingANonTestFile(t *testing.T) {
 	assertRefused(t, "billing/discount.go", writtenBody, "go test", Options{BaseDir: base, ChangeDir: change}, "refused: "+testrun.ReasonOverwrites)
 }
 
+// Content over the size limit is refused.
 func TestRefusesContentOverTheSizeLimit(t *testing.T) {
 	opts := Options{MaxWrittenBytes: 8}
 	assertRefused(t, "billing/extra_test.go", "package p\n", "go test", opts, "refused: "+testrun.ReasonTooLarge)
 }
 
+// Content exactly at the size limit runs: the limit is inclusive.
 func TestContentAtTheSizeLimitRuns(t *testing.T) {
 	body := "12345678"
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: true, PassesOnBase: true, Name: "TestExtra"}}
@@ -139,10 +151,12 @@ func TestContentAtTheSizeLimitRuns(t *testing.T) {
 	}
 }
 
+// A blank command is refused.
 func TestRefusesEmptyCommand(t *testing.T) {
 	assertRefused(t, "billing/extra_test.go", writtenBody, "   ", Options{}, "refused: "+testrun.ReasonEmptyCommand)
 }
 
+// A written test may replace an existing test file.
 func TestAllowsReplacingATestFile(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
@@ -156,6 +170,7 @@ func TestAllowsReplacingATestFile(t *testing.T) {
 	}
 }
 
+// assertRefused checks that a written test is refused with note, before any run and with no evidence.
 func assertRefused(t *testing.T, path, content, command string, opts Options, note string) {
 	t.Helper()
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: true, PassesOnBase: true}}
@@ -171,6 +186,7 @@ func assertRefused(t *testing.T, path, content, command string, opts Options, no
 	}
 }
 
+// proveWrittenCase runs Prove with a model reply that writes this test.
 func proveWrittenCase(t *testing.T, run *fakeRun, path, content, name, command string, opts Options) candidate.Candidate {
 	t.Helper()
 	raw, err := json.Marshal(map[string]string{
@@ -188,12 +204,14 @@ func proveWrittenCase(t *testing.T, run *fakeRun, path, content, name, command s
 	return got
 }
 
+// scriptGen is a generator that always returns text.
 type scriptGen struct{ text string }
 
 func (s scriptGen) Complete(context.Context, string, string) (string, error) {
 	return s.text, nil
 }
 
+// fakeRun is a test runner that records its requests and returns a fixed or computed outcome.
 type fakeRun struct {
 	calls int
 	last  testrun.Request
@@ -220,6 +238,7 @@ func (f *fakeRun) Run(_ context.Context, req testrun.Request) (testrun.Outcome, 
 	return out, nil
 }
 
+// The prompt asks for the file's content, forbids an attack (ADR-0007), and allows naming an existing test.
 func TestPromptAsksForTheFile(t *testing.T) {
 	p := Prompt("F1", "Discount is applied twice")
 	for _, want := range []string{"content (string)", "does not attack anything", "Leave content empty"} {

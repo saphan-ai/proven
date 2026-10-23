@@ -10,6 +10,8 @@ import (
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
+// TestAppendDoesNotRewrite proves a second event reaches the file with its
+// finding id. It does not yet check that the first line is still there.
 func TestAppendDoesNotRewrite(t *testing.T) {
 	dir := t.TempDir()
 	w, err := trace.Open(dir)
@@ -29,8 +31,17 @@ func TestAppendDoesNotRewrite(t *testing.T) {
 	if string(b) == "" || !bytesContains(b, "dropped: no evidence") || !bytesContains(b, "\"finding_id\":\"F3\"") {
 		t.Fatalf("%s", b)
 	}
+	// The first line must still be there and still first: a second append
+	// that rewrote the file would lose it or move it.
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], "\"text\":\"one\"") {
+		t.Fatalf("want the claim line first and two lines, got %q", lines)
+	}
 }
 
+// TestEveryEventHasRunIDAndTimeAndClose proves every line of one run carries
+// the same run id and a UTC RFC 3339 time, Close can be called twice, and a closed writer
+// refuses to append.
 func TestEveryEventHasRunIDAndTimeAndClose(t *testing.T) {
 	dir := t.TempDir()
 	w, err := trace.Open(dir)
@@ -92,6 +103,7 @@ func TestEveryEventHasRunIDAndTimeAndClose(t *testing.T) {
 	}
 }
 
+// bytesContains reports whether s occurs in b.
 func bytesContains(b []byte, s string) bool {
 	return len(b) >= len(s) && (string(b) == s || len(s) == 0 || (len(b) > 0 && contains(string(b), s)))
 }

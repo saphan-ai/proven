@@ -70,6 +70,14 @@ hold (law #9).
   panics → exit 2; a reviewer that reports a failed service → exit 0 or 1, never 2, and the service is named.
 - **master-was-wrong:** —
 
+### W1b `cli-over-the-sample-reviewer`
+- **what:** W1's command line carried over the reviewer train's seam: `proven scan` and `proven ci` call the reviewer only
+  through `internal/review` (`review.Open`), sample mode through the sample reviewer, the shell in `internal/cli` with a thin
+  `cmd/proven` main. Split from W1 on 2026-10-21 when the reviewer seam landed.
+- **dod:** W1's DoD over the seam; every round carries main's own `cmd/proven` behaviour into `internal/cli`; two
+  parallel reviews of the final round (owner's interim rule, 2026-10-22).
+- **master-was-wrong:** —
+
 ### W2 `three-formats`
 - **what:** text, JSON and SARIF 2.1.0 from the same result; `-o` and the three `--*-output=` files at once.
 - **dod:** the SARIF validates against the official 2.1.0 schema in the test; severity maps to `note`/`warning`/`error`;
@@ -136,3 +144,17 @@ hold (law #9).
   before dispatch, and its cap is twice the quote (law #16).
 - Reviews on `codex`: quoted by the master at the review order.
 - GitHub Actions minutes on the test repository: within the free allowance of the account; measured in W4.
+
+## CODE IS WRITTEN TO BE READ (ADR-0027, owner 2026-10-23; amended in place, law #21)
+Judges will read proven's code. Every executor order of this train carries these six points, and every review order checks
+them:
+1. Every package has a package comment: what it is for and where it sits in the review (which of the six agents, or
+   which adapter, uses it).
+2. Every exported name has a doc comment beginning with the name (go doc form).
+3. Every step a reader would stop at carries a comment saying WHY — a guard, an order that matters, a value from a
+   setting, a refusal. Never a comment that restates the code.
+4. Code that carries out a decision names it (e.g. `ADR-0025: the test runs with no network`).
+5. Every test says which property it proves.
+6. English, plain. No AI attribution, no internal host names, paths or credential names, no commented-out code.
+Shell scripts follow the same rule in their own comment form.
+

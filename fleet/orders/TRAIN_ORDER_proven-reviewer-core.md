@@ -1,5 +1,4 @@
 # TRAIN ORDER — proven-reviewer-core
-
 - master: MASTER (claude-code), appointed by the owner on 2026-10-21 (R1)
 - status: SIGNED by the owner on 2026-10-21 (draft 5eb97ecb0c6125c955ad414f167f9d2b, valid until withdrawn); §3 then filled
   in by the master with the owner's answers, no other change. **No wagon is dispatched before 2026-10-22 00:00 UTC.**
@@ -65,6 +64,16 @@ master-verified wagons stay master-verified (the owner, 2026-10-22: *"nazwane"* 
 recorded (ADR-0024). Reviews on `codex` with `--role review`, the focus phrased as the property that must hold (law #9,
 law #56). Intermediate wagons are master-verified; the last carries the stream's named review (law #29).
 
+**Comments for the judges: a standing rule for every executor order of this train (ADR-0027, the owner, 2026-10-23).**
+Every order carries it and every review and master verify checks it:
+(1) every package has a package comment: what it is for and where it sits in the review (which of the six agents, or
+which adapter, uses it); (2) every exported name has a doc comment that begins with the name (`go doc` form); (3) every
+step a reader would stop at (a guard, an order that matters, a value from a setting, a refusal) has a comment that says
+WHY, never one that restates the code; (4) code that carries out a decision names it (`ADR-0025: the test runs with no
+network`); (5) every test says which property it proves; (6) English, plain; no AI attribution, no internal host names,
+paths or credential names, no commented-out code. The code already on main gets these comments from the master, with no
+executor (ADR-0027 point 8): the diff changes comment lines only.
+
 ### W1 `a-review-end-to-end-in-sample-mode`
 - **what:** the six agents as the simplest code that can work, behind the seam of `proven-cli-and-action` W1: a change
   in → a review out, in sample mode, with no network and no key. The generator interface of ADR-0018 point 2 with a
@@ -110,6 +119,16 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   the full evidence and refutation. **Negative control:** remove the partial-path filter and the deadline test turns red.
 - **master-was-wrong:** —
 
+### W1e `the-reviewer-guards-hold`
+- **added:** by the master, 2026-10-22, from the second retroactive review of W1 (claude-code, verdict reject, run
+  run-20261022-104845-275508ca). Its blocking C1 was already fixed by W1d on `main`.
+- **what:** C3: the sample-mode network guard is used by every adapter that could dial, or it is deleted; the import ban
+  walks every non-test package under `internal/` and `cmd/` with an explicit EXEMPT list and bans `syscall`, `plugin` and
+  `os.StartProcess` too. C4: a Judge test for `FailsOnChange:true, PassesOnBase:false` (dropped). C6: `change.Read` does
+  not follow symlinks; only the container runner executes a test command.
+- **dod:** each guard has a test that turns red when the guard is removed (four negative controls, law #27).
+- **master-was-wrong:** —
+
 ### W2 `the-generator-through-nightshift`
 - **what:** the live generator: Nightshift by default (ADR-0019), any OpenAI-compatible endpoint by setting; base URL,
   token and model or routing mode from the environment, validated on load (ADR-0013). Each review names the route and
@@ -150,6 +169,14 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   **Negative control:** clear H-MEM and the refuted finding returns.
 - **master-was-wrong:** —
 
+### W4b `meterless-conformance-shim`
+- **added:** by the master, 2026-10-22: W4's verify could not run Meterless's conformance suites (TypeScript, W4 is Go).
+- **what:** a Go command speaking JSON lines over stdin/stdout, a TypeScript shim per engine, and a script that runs both
+  Meterless runners against proven's Go engines and commits the scorecards as they are.
+- **dod:** the runners load the shims (never exit 2); scorecards committed; FAILs listed by section, deferred sections
+  named. **Negative control:** the shim's `add` drops its argument and the add checks fail.
+- **master-was-wrong:** —
+
 ### W5 `evidence-through-zetaris`
 - **what:** the Zetaris adapter over REST (ADR-0015, ADR-0023): the Investigator's queries over KEV, EPSS and OSV by
   advisory id, read with Proven's own key; the same queries on a local engine over small samples in sample mode
@@ -169,6 +196,10 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
   Nightshift by default, a setting), tries to refute every finding; the Judge settles by the evidence, never by a vote;
   a refuted finding is dropped and written to the trace and to H-MEM. Findings the evidence does not settle are reported
   as unresolved (`unresolved-count`, ADR-0020).
+  **Also (from W1's second review, 2026-10-22):** C2: set `Unresolved` where the evidence did not settle a finding
+  (`internal/candidate`, `internal/review/open.go`); the Judge relates query rows to the finding they prove. C5: every
+  trace `Event` carries the run id and a timestamp, and the trace writer has `Close` (after W4, which owns the World Model
+  log, lands).
 - **dod:** a fixture where the Skeptic's refutation carries a test that passes on the change: the finding is dropped. A
   fixture where the refutation has no evidence: the finding stays. **Negative control:** set the Skeptic to the same
   family as the finder and the review says so, by name (ADR-0009, ADR-0010).
@@ -184,6 +215,90 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
 - **review:** named — the stream's review (law #29).
 - **master-was-wrong:** —
 
+### W8 `livecheck-names-every-service`
+- **added:** by the master, 2026-10-22 (the owner's non-stop rule; a demo needs it).
+- **what:** `cmd/livecheck`: generator, guardrail, Zetaris and the container runtime, each `ready` or `not ready: <reason>`,
+  never a secret printed; non-zero exit when any is not ready.
+- **dod:** httptest fakes per service; a no-secret test. **Negative control:** one fake answers an error → `not ready`.
+- **master-was-wrong:** —
+
+### W9 `the-prover-writes-its-test`
+- **added:** by the master, 2026-10-22: on `main` the live Prover only names an existing test, so a real review almost
+  never gets test evidence.
+- **what:** the Prover writes the proving test; it runs only in the container, in copies of base and change (ADR-0025);
+  path, size and overwrite refusals by name; evidence only when it fails on the change and passes on the base.
+- **dod:** fake generator and runner tests per outcome and refusal. **Negative controls:** base check removed; `../` let
+  through; file written into the real checkout.
+- **master-was-wrong:** —
+
+### W7b `the-doubled-review-runs-twice`
+- **added:** by the master, 2026-10-22 (advisor: cut the next slices; stacked on W7, which is under its named review).
+- **what:** a doubled class runs its model-calling agents a second time on the special-review model; the union is judged
+  by evidence; each finding names the model(s) that found it.
+- **dod:** two fake generators. **Negative control:** the second run reuses the first generator → red.
+- **master-was-wrong:** —
+
+### W10 `a-live-demo-a-judge-can-rerun`
+- **added:** by the master, 2026-10-22, for the Wildcard point (a live review with Zetaris evidence by 2026-10-27).
+- **what:** `demo/live/`: a small change with a test-provable bug and a dependency raised to a KEV-listed CVE; `run.sh`
+  runs livecheck then a live review and prints the evidence.
+- **dod:** the bug's test fails on change, passes on base. **Negative control:** change = base → red.
+- **master-was-wrong:** —
+
+### W11 `the-settings-page-is-generated`
+- **added:** by the master, 2026-10-22 (the owner asked for docs; a hand-written settings page drifts).
+- **what:** `docs/CONFIGURATION.md`'s environment tables generated from the code's declarations; a drift test.
+- **dod:** **Negative control:** a setting added without regenerating → the drift test red, naming it.
+- **master-was-wrong:** —
+
+### W12 `the-container-is-configured`
+- **added:** by the master, 2026-10-22: the Prover's container runtime, image and limits are hardcoded (ADR-0013).
+- **what:** `PROVEN_TEST_*` settings with documented defaults, validated on load, used by both callers and livecheck.
+- **dod:** a table test per setting. **Negative control:** the loader ignores the image setting → red.
+- **master-was-wrong:** —
+
+### W13 `dependencies-are-checked-in-osv`
+- **added:** by the master, 2026-10-22: RC-5 measured (OSV by package through a Zetaris FILESTORE table; R3 option 1).
+- **what:** go.mod changes → one OSV query per changed module → a Go-side version-range check; `cmd/osv-to-csv`; the
+  table shape and the administrator statements in `docs/OSV_TABLE.md`.
+- **dod:** range table tests. **Negative control:** the comparison always says affected → red.
+- **master-was-wrong:** —
+
+### W15 `more-manifests-are-checked`
+- **added:** by the master, 2026-10-22 (night, non-stop): stacked on W13.
+- **what:** package.json (npm) and requirements.txt (PyPI) changes checked against OSV by package; per-ecosystem version
+  comparison; an unparsable version gives no finding.
+- **dod:** table tests per reader and comparer. **Negative control:** the requirements reader drops a pin → red.
+- **master-was-wrong:** —
+
+### W16 `epss-scores-each-cve-finding`
+- **added:** by the master, 2026-10-22 (night, non-stop).
+- **what:** every finding naming a CVE gets its EPSS row from Zetaris as evidence; findings ordered by EPSS within a
+  severity.
+- **dod:** attachment and ordering tests. **Negative control:** skip the attachment → red.
+- **master-was-wrong:** —
+
+### W17 `lock-files-are-checked`
+- **added:** by the master, 2026-10-23 (night): stacked on W15.
+- **what:** go.sum, package-lock.json and poetry.lock changes checked against OSV, so a transitive dependency is not missed.
+- **dod:** table tests per reader. **Negative control:** go.sum keeps `/go.mod` lines → red.
+- **master-was-wrong:** —
+
+### W19 `a-scenario-per-kind-of-evidence`
+- **added:** by the master, 2026-10-23 (night): stacked on W16; for the judges.
+- **what:** four sample scenarios (refuted, unsafe prompt, OSV Go module, unknown author), each with a test and a
+  docs/SAMPLE_MODE.md section with its real output.
+- **dod:** **Negative control:** the refutation carries no evidence → the finding stays → red.
+- **master-was-wrong:** —
+
+### W20 `proven-reviewer-core-test`
+- **added:** by the master, 2026-10-23 (canon: one tester per train, at its end; MASTER.md §1).
+- **what:** the TESTER (`--role executor`, craft TESTER, `governance/TESTER.md` §2a) over the commit that carries every
+  wagon of this train: every wagon's acceptance items and the train's step plan (install, sample mode, the five sample
+  scenarios, livecheck, the live demo up to its keys), never the executors' claims.
+- **dod:** a test report with no BLOCKING finding; a BLOCKING finding opens a fix wagon and the tester runs again.
+- **master-was-wrong:** —
+
 ## §3 DECISIONS OWED BY THE OWNER
 
 - **R1 — the master. DECIDED by the owner 2026-10-21:** *"We can have a new master."* (translated from Polish). A second
@@ -191,7 +306,7 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
 - **R2 — where the Prover runs the change's tests. DECIDED by the owner 2026-10-21:** *"OK."* The Prover runs the change's
   code only in a container with no network and no secret; with no container runtime it runs no code. Written as
   [ADR-0025](../decisions/ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md).
-- **R3 — OSV by package. OPEN.** Waits for the Zetaris storage probe (RC-5), asked of the infrastructure master; the owner
+- **R3 — OSV by package. MEASURED 2026-10-22 (RC-5: a Zetaris FILESTORE table answers with Proven's key; W13 builds it).** Was OPEN: Waits for the Zetaris storage probe (RC-5), asked of the infrastructure master; the owner
   chose option 1 on 2026-10-21. The infrastructure master, 2026-10-21: OSV by package through a Zetaris REST source is
   impossible (the nested POST body is sent as a string and OSV answers 400); OSV by advisory id works; the storage probe
   is not yet run, its result promised before 2026-10-22 00:00 UTC. Until the probe answers, W5 builds KEV, EPSS and OSV by advisory id only. The ADR for OSV
@@ -215,3 +330,4 @@ law #56). Intermediate wagons are master-verified; the last carries the stream's
 - Model calls in tests: sample mode by default; a live call through Nightshift to NVIDIA's hosted API is priced by
   NVIDIA's terms and runs only with the owner's consent at the call (law #49).
 - Reviews on `codex`: quoted at the review order.
+

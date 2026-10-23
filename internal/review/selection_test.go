@@ -11,6 +11,8 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+// TestExcludeAllDropsFindings proves that excluding every path leaves no finding, and that the trace
+// names the paths the selection left out, so a reader sees why the review is empty.
 func TestExcludeAllDropsFindings(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	res, err := rev.Review(context.Background(), review.Request{
@@ -29,6 +31,8 @@ func TestExcludeAllDropsFindings(t *testing.T) {
 	}
 }
 
+// TestExcludeWinsOverInclude proves that a path both Include and Exclude match is excluded, and that
+// the other paths stay in the review.
 func TestExcludeWinsOverInclude(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	res, err := rev.Review(context.Background(), review.Request{
@@ -52,6 +56,7 @@ func TestExcludeWinsOverInclude(t *testing.T) {
 	}
 }
 
+// TestIncludeKeepsOnlyMatchingFiles proves that Include keeps only the findings on matching paths.
 func TestIncludeKeepsOnlyMatchingFiles(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	res, err := rev.Review(context.Background(), review.Request{
@@ -69,6 +74,8 @@ func TestIncludeKeepsOnlyMatchingFiles(t *testing.T) {
 	}
 }
 
+// TestBadGlobIsFatal proves that a malformed glob stops the review with an error that quotes it, rather
+// than matching nothing.
 func TestBadGlobIsFatal(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	_, err := rev.Review(context.Background(), review.Request{
@@ -80,6 +87,7 @@ func TestBadGlobIsFatal(t *testing.T) {
 	}
 }
 
+// TestMissingBaselineNamesTheCommit proves that a baseline commit that does not exist is an error naming it.
 func TestMissingBaselineNamesTheCommit(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	_, err := rev.Review(context.Background(), review.Request{
@@ -91,6 +99,8 @@ func TestMissingBaselineNamesTheCommit(t *testing.T) {
 	}
 }
 
+// TestBaselineKeepsOnlyTheChangedPath proves that with a baseline, only the paths the commits changed are
+// reviewed: a finding on an unchanged file is not reported.
 func TestBaselineKeepsOnlyTheChangedPath(t *testing.T) {
 	dir := copyFixtureTree(t)
 	gitRun(t, dir, "init")
@@ -124,6 +134,7 @@ func TestBaselineKeepsOnlyTheChangedPath(t *testing.T) {
 	}
 }
 
+// copyFixtureTree copies the discount fixture into a temporary directory a test may change.
 func copyFixtureTree(t *testing.T) string {
 	t.Helper()
 	src := fixturePath(t)
@@ -152,6 +163,8 @@ func copyFixtureTree(t *testing.T) string {
 	return dst
 }
 
+// gitRun runs git in dir with a fixed identity, no signing and a fixed default branch, so the test does
+// not depend on the machine's git settings.
 func gitRun(t *testing.T, dir string, args ...string) []byte {
 	t.Helper()
 	full := append([]string{

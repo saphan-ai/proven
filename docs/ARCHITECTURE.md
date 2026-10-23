@@ -52,7 +52,7 @@ Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own
 ## Modes
 
 - **Sample** (`--sample`): recorded answers, outcomes and rows; no network. See [SAMPLE_MODE.md](SAMPLE_MODE.md).
-- **Live**: Nightshift, Zetaris, the guardrail and a container runtime. See [CONFIGURATION.md](CONFIGURATION.md); check
+- **Live**: Nightshift, Zetaris, the guardrail and a container runtime. A live review needs only a git repository. See [CONFIGURATION.md](CONFIGURATION.md); check
   readiness with `go run ./cmd/livecheck`. A service that is missing is named in the review's failed services.
 
 ## The seam

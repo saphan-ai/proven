@@ -1,4 +1,12 @@
 // Package trace is the World Model log: append-only JSONL in the run's logs directory.
+//
+// Every agent of the review writes here through the pipeline: the Planner's
+// claims, the Investigator's and the Prover's evidence, the Skeptic's
+// refutations, the Judge's verdicts, each guardrail check and each model call.
+// ADR-0003 and ADR-0018 point 3: the trace the judges read is this stream, not
+// text written beside it, and the world package folds the same lines into
+// the review's state. A line is never rewritten, so the log shows what the
+// agents did in the order they did it.
 package trace
 
 import (
@@ -18,6 +26,8 @@ import (
 // RunID and Time are stamped by Append when the caller leaves them empty.
 // EventID, the change key and the finding key are optional. Older lines omit them.
 // HasEvidence is set on a refutation the skeptic made of a finding that has proof.
+// ChangeKey, RuleID, Path and Title name the finding across reviews; the
+// world package uses them to remember a refutation in H-MEM (ADR-0006 point 4).
 type Event struct {
 	EventID     string      `json:"event_id,omitempty"`
 	RunID       string      `json:"run_id"`
@@ -57,14 +67,16 @@ type Check struct {
 	LatencyMS  int64    `json:"latency_ms"`
 }
 
-// Evidence is one piece of proof stored with its finding.
+// Evidence is one piece of proof stored with its finding. Kind says which of
+// Test or Query is set (ADR-0002: evidence is a test or a query).
 type Evidence struct {
 	Kind  string         `json:"kind"`
 	Test  *TestEvidence  `json:"test,omitempty"`
 	Query *QueryEvidence `json:"query,omitempty"`
 }
 
-// TestEvidence is the prover outcome. Bools are stored even when false.
+// TestEvidence is the prover outcome. Bools are stored even when false, so a
+// reader sees that a test did not fail rather than a missing field.
 type TestEvidence struct {
 	Path          string `json:"path"`
 	Name          string `json:"name"`
@@ -74,7 +86,8 @@ type TestEvidence struct {
 	Output        string `json:"output"`
 }
 
-// QueryEvidence is the investigator result, including every column and row.
+// QueryEvidence is the investigator result, including every column and row,
+// so a judge can read the proof without rerunning the query.
 type QueryEvidence struct {
 	SQL      string     `json:"sql"`
 	Engine   string     `json:"engine"`
@@ -83,7 +96,8 @@ type QueryEvidence struct {
 	Rows     [][]string `json:"rows"`
 }
 
-// Refutation is the skeptic attempt. Bools are stored even when false.
+// Refutation is the skeptic attempt. Bools are stored even when false, so a
+// failed attempt is visible and not mistaken for no attempt.
 type Refutation struct {
 	Attempted bool   `json:"attempted"`
 	Refuted   bool   `json:"refuted"`
@@ -91,7 +105,8 @@ type Refutation struct {
 }
 
 // Writer appends events to logs/trace.jsonl.
-// One Open is one run: every event carries that run id.
+// One Open is one run: every event carries that run id. A mutex serialises
+// Append, so concurrent agents never interleave two lines.
 type Writer struct {
 	path  string
 	f     *os.File
@@ -117,6 +132,7 @@ func Open(dir string) (*Writer, error) {
 	return &Writer{path: path, f: f, runID: id}, nil
 }
 
+// newRunID returns 128 random bits in hex, so two runs never share an id.
 func newRunID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -148,6 +164,7 @@ func (w *Writer) Append(e Event) error {
 	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
+	// Code and SQL in an event keep their <, > and & as written.
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(e); err != nil {
 		return err
@@ -155,6 +172,7 @@ func (w *Writer) Append(e Event) error {
 	if _, err := w.f.Write(buf.Bytes()); err != nil {
 		return err
 	}
+	// Sync after each line: a review that dies still leaves every event it wrote.
 	return w.f.Sync()
 }
 
@@ -174,9 +192,10 @@ func (w *Writer) Close() error {
 	return err
 }
 
-// eventID is the sha256 of the event with an empty id, run id and time, so the
-// same claim names the same event in every run and on every replay. The id is
-// not part of its own hash.
+// eventID is the first 16 hex digits of the sha256 of the event with an empty
+// id, run id and time, so the same claim names the same event in every run and
+// on every replay. The id is not part of its own hash. The world package skips
+// an id it has already applied, which makes its ingest idempotent (ADR-0018 point 5).
 func eventID(e Event) string {
 	e.EventID = ""
 	e.RunID = ""

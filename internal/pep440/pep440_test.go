@@ -2,6 +2,9 @@ package pep440
 
 import "testing"
 
+// TestCompare proves PEP 440 order for the accepted forms: zero padding,
+// a < b < rc < release < post, the other spellings of each label, a missing
+// number read as 0, and leading zeros and case ignored.
 func TestCompare(t *testing.T) {
 	cases := []struct {
 		a, b string
@@ -43,6 +46,9 @@ func TestCompare(t *testing.T) {
 	}
 }
 
+// TestReject proves that an epoch, a local version, a wildcard, a dev
+// release and a malformed string are refused by Parse and Compare, and that
+// Reject names the reason in a sentence.
 func TestReject(t *testing.T) {
 	cases := []struct {
 		in, want string

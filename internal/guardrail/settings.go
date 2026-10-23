@@ -29,6 +29,7 @@ const (
 )
 
 const (
+	// ADR-0005 point 1: the default mode keeps the guardrail on.
 	defaultMode = ModeServer
 	// defaultServerBase is the listen address measured for our model server.
 	// 127.0.0.1:8088 is the generator, a different service.
@@ -85,6 +86,7 @@ type ConfigError struct {
 	Reason  string
 }
 
+// Error names the setting, the refused value and what is allowed.
 func (e *ConfigError) Error() string {
 	if e == nil {
 		return "configuration refused"
@@ -133,6 +135,8 @@ func Load(env func(string) string) (Settings, error) {
 		}
 		timeout = d
 	}
+	// With the guardrail off the other settings are still checked, so a typo is
+	// caught before it is switched back on; the key is then dropped, not kept.
 	if mode == ModeOff {
 		if raw := env(EnvBaseURL); raw != "" {
 			if _, err := checkBase(raw); err != nil {
@@ -181,10 +185,13 @@ func Load(env func(string) string) (Settings, error) {
 	return Settings{Mode: mode, BaseURL: base, Model: model, Key: key, Timeout: timeout}, nil
 }
 
+// refuse builds the refusal for one setting with one allowed form.
 func refuse(field, value, reason, allowed string) *ConfigError {
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
 }
 
+// checkKey refuses an empty or malformed key. The refusal never carries the
+// value: it is a secret. A line break could split the Authorization header.
 func checkKey(key string) error {
 	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
 		return refuse(EnvKey, "", "the guardrail needs a key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
@@ -192,6 +199,9 @@ func checkKey(key string) error {
 	return nil
 }
 
+// checkBase accepts only a plain http or https root. User info would carry a
+// credential in the URL, and a query or fragment would change every endpoint
+// built from it. The result has no trailing slash.
 func checkBase(raw string) (string, error) {
 	allowed := "an absolute http or https URL with no user info, query or fragment, and a path of empty or /v1"
 	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") {
@@ -212,6 +222,8 @@ func checkBase(raw string) (string, error) {
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
+// checkModel refuses a model id that is not valid UTF-8, too long, or has a
+// character modelName does not allow.
 func checkModel(value string) error {
 	if !utf8.ValidString(value) || len(value) > 128 || !modelName(value) {
 		return refuse(EnvModel, clip(value), "not an allowed value", "a non-empty model id without spaces, at most 128 characters")
@@ -219,6 +231,7 @@ func checkModel(value string) error {
 	return nil
 }
 
+// clip keeps a refused value short enough to print in an error.
 func clip(value string) string {
 	if len(value) > 128 {
 		return value[:128]
@@ -226,6 +239,7 @@ func clip(value string) string {
 	return value
 }
 
+// modelName allows letters, digits and . _ - / : as in "nvidia/model:tag".
 func modelName(s string) bool {
 	if s == "" {
 		return false

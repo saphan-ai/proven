@@ -6,10 +6,13 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 )
 
+// risk builds a candidate risk for the merge tests.
 func risk(id, rule, title, path string, start, end int) candidate.Risk {
 	return candidate.Risk{ID: id, RuleID: rule, Title: title, Path: path, StartLine: start, EndLine: end}
 }
 
+// In a doubled review, two different risks that the two runs both numbered F1
+// stay two findings, and the special run's risk gets a new id.
 func TestDoubledRunsKeepDistinctRisksThatShareAnID(t *testing.T) {
 	base := []candidate.Candidate{{
 		Risk: risk("F1", "discount-applied-twice", "Discount is applied twice", "billing/discount.go", 5, 5),
@@ -37,6 +40,8 @@ func TestDoubledRunsKeepDistinctRisksThatShareAnID(t *testing.T) {
 	}
 }
 
+// In a doubled review, the same rule at the same place from both runs is one
+// finding under the default run's id, carrying both reviewer models.
 func TestDoubledRunsJoinTheSameRiskUnderOneFinding(t *testing.T) {
 	base := []candidate.Candidate{{
 		Risk: risk("F1", "discount-applied-twice", "Discount is applied twice", "billing/discount.go", 5, 5),

@@ -21,7 +21,7 @@ var exemptBanned = map[string]map[string]string{
 		"os/exec": "the container runner starts the runtime that runs the change",
 	},
 	"internal/change/between.go": {
-		"os/exec": "git read commands (rev-parse, diff, ls-files, log) name changed files and read commit messages; they do not run the change",
+		"os/exec": "git read commands (rev-parse, diff, ls-files, log, archive) name changed files, read commit messages and copy tracked trees; they do not run the change",
 	},
 	"internal/cli/run.go": {
 		"os/exec": "git merge-base names the fork point and does not run the change",
@@ -34,6 +34,10 @@ var exemptBanned = map[string]map[string]string{
 	},
 }
 
+// No production file under internal/ or cmd/ imports a package that dials the
+// network, starts a process or loads code, except the files named in
+// exemptBanned, each with its reason. ADR-0025: only the container runner
+// starts the change's code.
 func TestInternalAndCmdDoNotImportBannedPackages(t *testing.T) {
 	banned := map[string]bool{
 		"net":      true,

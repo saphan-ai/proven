@@ -8,6 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 )
 
+// With only the key set, the guardrail is on with the server backend and its defaults.
 func TestLoadUsesServerDefaults(t *testing.T) {
 	seen := map[string]int{}
 	s, err := guardrail.Load(func(k string) string {
@@ -38,6 +39,7 @@ func TestLoadUsesServerDefaults(t *testing.T) {
 	}
 }
 
+// The nvidia mode takes NVIDIA's hosted address and model id by default.
 func TestLoadNVIDIADefaults(t *testing.T) {
 	s, err := guardrail.Load(func(k string) string {
 		switch k {
@@ -57,6 +59,7 @@ func TestLoadNVIDIADefaults(t *testing.T) {
 	}
 }
 
+// With the guardrail off, a key in the environment is not kept.
 func TestLoadOffDoesNotKeepTheKey(t *testing.T) {
 	s, err := guardrail.Load(func(k string) string {
 		switch k {
@@ -76,6 +79,7 @@ func TestLoadOffDoesNotKeepTheKey(t *testing.T) {
 	}
 }
 
+// An unknown mode is refused by name.
 // Mutated field: PROVEN_GUARDRAIL_MODE.
 func TestLoadRefusesAnUnknownMode(t *testing.T) {
 	_, err := guardrail.Load(envWith(guardrail.EnvMode, "sometimes"))
@@ -88,6 +92,7 @@ func TestLoadRefusesAnUnknownMode(t *testing.T) {
 	}
 }
 
+// A timeout that is not a Go duration is refused.
 // Mutated field: PROVEN_GUARDRAIL_TIMEOUT.
 func TestLoadRefusesABadTimeout(t *testing.T) {
 	_, err := guardrail.Load(envWith(guardrail.EnvTimeout, "nope"))
@@ -100,6 +105,7 @@ func TestLoadRefusesABadTimeout(t *testing.T) {
 	}
 }
 
+// A zero timeout is refused: a check must have a bound.
 // Mutated field: PROVEN_GUARDRAIL_TIMEOUT, set to zero.
 func TestLoadRefusesAZeroTimeout(t *testing.T) {
 	_, err := guardrail.Load(envWith(guardrail.EnvTimeout, "0s"))
@@ -109,6 +115,7 @@ func TestLoadRefusesAZeroTimeout(t *testing.T) {
 	}
 }
 
+// A guardrail that is on without a key is refused, and the refusal prints no value.
 // Mutated field: PROVEN_GUARDRAIL_KEY. Empty, so the error must not invent one.
 func TestLoadRefusesAMissingKey(t *testing.T) {
 	_, err := guardrail.Load(func(string) string { return "" })
@@ -118,6 +125,7 @@ func TestLoadRefusesAMissingKey(t *testing.T) {
 	}
 }
 
+// A base that is not an http or https URL is refused.
 // Mutated field: PROVEN_GUARDRAIL_BASE_URL.
 func TestLoadRefusesABadBaseURL(t *testing.T) {
 	_, err := guardrail.Load(envWith(guardrail.EnvBaseURL, "not a url"))
@@ -127,6 +135,7 @@ func TestLoadRefusesABadBaseURL(t *testing.T) {
 	}
 }
 
+// A base with a path other than /v1 is refused.
 // Mutated field: PROVEN_GUARDRAIL_BASE_URL, a path other than empty or /v1.
 func TestLoadRefusesABaseURLWithAPath(t *testing.T) {
 	_, err := guardrail.Load(envWith(guardrail.EnvBaseURL, "http://127.0.0.1:8081/safety"))
@@ -136,6 +145,7 @@ func TestLoadRefusesABaseURLWithAPath(t *testing.T) {
 	}
 }
 
+// A base URL ending in /v1 is accepted.
 func TestLoadAcceptsAnAPIRoot(t *testing.T) {
 	s, err := guardrail.Load(envWith(guardrail.EnvBaseURL, "http://127.0.0.1:8081/v1"))
 	if err != nil {
@@ -146,6 +156,7 @@ func TestLoadAcceptsAnAPIRoot(t *testing.T) {
 	}
 }
 
+// envWith is an environment with a key and one other setting.
 func envWith(key, value string) func(string) string {
 	return func(k string) string {
 		if k == guardrail.EnvKey {
@@ -158,6 +169,7 @@ func envWith(key, value string) func(string) string {
 	}
 }
 
+// configErr fails the test unless err is a ConfigError.
 func configErr(t *testing.T, err error) *guardrail.ConfigError {
 	t.Helper()
 	cfg, ok := err.(*guardrail.ConfigError)

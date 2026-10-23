@@ -15,8 +15,14 @@ import (
 // rowSQL is the discount fixture query that returns one advisory row.
 const rowSQL = "SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'"
 
+// defaultOnlyTitle marks a risk only the default run names; the special run must never see it.
 const defaultOnlyTitle = "DEFAULT-ONLY-MARKER-7f3a"
 
+// TestDoubledSecurityRunsBothGenerators proves ADR-0009 point 3 end to end: a doubled security review
+// runs the planner and the skeptic a second time on the special model, as a fresh agent that never sees
+// the first run's risks or answers. A risk both runs found is one finding naming both models, the default
+// first; a risk one run found names that run; a risk with no evidence is dropped whichever run found it;
+// and the trace records which run made each claim.
 func TestDoubledSecurityRunsBothGenerators(t *testing.T) {
 	def := newScript("NVIDIA", risks(
 		risk("B1", "seen by both"),
@@ -84,6 +90,8 @@ func TestDoubledSecurityRunsBothGenerators(t *testing.T) {
 	}
 }
 
+// TestNonDoubledClassRunsOnce proves that a class that is not doubled never calls the special model,
+// even when one is configured.
 func TestNonDoubledClassRunsOnce(t *testing.T) {
 	def := newScript("NVIDIA", risks(risk("D1", defaultOnlyTitle)), `{"refuted":false,"reason":"no refutation"}`)
 	def.sql = map[string]string{"D1": rowSQL}
@@ -110,6 +118,8 @@ func TestNonDoubledClassRunsOnce(t *testing.T) {
 	}
 }
 
+// TestDoubledWithoutSpecialModelRunsOnce proves that a doubled class with no special model configured
+// runs once and says so, rather than inventing a second reviewer.
 func TestDoubledWithoutSpecialModelRunsOnce(t *testing.T) {
 	def := newScript("NVIDIA", risks(risk("D1", defaultOnlyTitle)), `{"refuted":false,"reason":"no refutation"}`)
 	def.sql = map[string]string{"D1": rowSQL}
@@ -134,6 +144,8 @@ func TestDoubledWithoutSpecialModelRunsOnce(t *testing.T) {
 	}
 }
 
+// reviewScripted runs one review with the explicit settings cfg and the two scripted generators. Its
+// environment lookup fails the test, because a sample review must read no environment.
 func reviewScripted(t *testing.T, cfg fileSettings, def, spec *scriptGen) Result {
 	t.Helper()
 	p, err := pipeline.Build(pipeline.Options{
@@ -157,11 +169,14 @@ func reviewScripted(t *testing.T, cfg fileSettings, def, spec *scriptGen) Result
 	return res
 }
 
+// scriptCall is one call a scripted generator received.
 type scriptCall struct {
 	agent  string
 	prompt string
 }
 
+// scriptGen is a generator that answers from a script and records every call, so a test can see
+// which model each agent used and what it was shown.
 type scriptGen struct {
 	model   string
 	planner string
@@ -170,10 +185,13 @@ type scriptGen struct {
 	calls   []scriptCall
 }
 
+// newScript returns a scripted generator for model, with the planner's and the skeptic's answers.
 func newScript(model, planner, skeptic string) *scriptGen {
 	return &scriptGen{model: model, planner: planner, skeptic: skeptic}
 }
 
+// Complete answers by agent: the planner's risks, the investigator's SQL for the risk named in the
+// prompt, no test from the prover, and the skeptic's answer.
 func (g *scriptGen) Complete(ctx context.Context, agent, prompt string) (string, error) {
 	g.calls = append(g.calls, scriptCall{agent: agent, prompt: prompt})
 	switch agent {
@@ -198,10 +216,12 @@ func (g *scriptGen) Complete(ctx context.Context, agent, prompt string) (string,
 	}
 }
 
+// LastUse names the script's model as if a receipt had named it.
 func (g *scriptGen) LastUse() (generator.Use, bool) {
 	return generator.Use{Model: g.model, FromReceipt: true}, true
 }
 
+// riskRow is one risk in the planner's JSON answer.
 type riskRow struct {
 	ID        string `json:"id"`
 	RuleID    string `json:"rule_id"`
@@ -213,6 +233,7 @@ type riskRow struct {
 	EndLine   int    `json:"end_line"`
 }
 
+// risk returns a planner risk on the discount fixture.
 func risk(id, title string) riskRow {
 	return riskRow{
 		// The message names the package the sample row is about: the Judge keeps a query only when its rows
@@ -222,6 +243,7 @@ func risk(id, title string) riskRow {
 	}
 }
 
+// risks encodes rows as the planner's JSON answer.
 func risks(rows ...riskRow) string {
 	b, err := json.Marshal(rows)
 	if err != nil {
@@ -230,6 +252,7 @@ func risks(rows ...riskRow) string {
 	return string(b)
 }
 
+// promptID returns the risk id an agent's prompt carries on its "id: " line.
 func promptID(prompt string) string {
 	for _, line := range strings.Split(prompt, "\n") {
 		if strings.HasPrefix(line, "id: ") {
@@ -239,6 +262,7 @@ func promptID(prompt string) string {
 	return ""
 }
 
+// called reports whether agent called the generator g.
 func called(g *scriptGen, agent string) bool {
 	for _, c := range g.calls {
 		if c.agent == agent {
@@ -248,6 +272,7 @@ func called(g *scriptGen, agent string) bool {
 	return false
 }
 
+// modelUsed reports whether the result names model, from a receipt, for agent.
 func modelUsed(res Result, agent, model string) bool {
 	for _, m := range res.Models {
 		if m.Agent == agent && m.Model == model && m.FromReceipt {
@@ -257,6 +282,7 @@ func modelUsed(res Result, agent, model string) bool {
 	return false
 }
 
+// finding returns the finding with id.
 func finding(res Result, id string) (Finding, bool) {
 	for _, f := range res.Findings {
 		if f.ID == id {
@@ -266,6 +292,7 @@ func finding(res Result, id string) (Finding, bool) {
 	return Finding{}, false
 }
 
+// same reports whether two string lists are equal, in order.
 func same(got, want []string) bool {
 	if len(got) != len(want) {
 		return false
@@ -278,6 +305,7 @@ func same(got, want []string) bool {
 	return true
 }
 
+// claimRuns returns, in trace order, the run ("default" or "special") of each claim made for id.
 func claimRuns(t *testing.T, path, id string) []string {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -304,6 +332,7 @@ func claimRuns(t *testing.T, path, id string) []string {
 	return runs
 }
 
+// discountFixture returns the discount fixture under the module's testdata directory.
 func discountFixture(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

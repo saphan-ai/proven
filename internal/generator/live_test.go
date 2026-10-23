@@ -16,12 +16,15 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// The routed model and receipt id in the recorded stream, and a model outside the NVIDIA family.
 const (
 	routedNVIDIA = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 	receiptID    = "rcpt_req_k67ooqsx"
 	otherModel   = "openai/gpt-4o"
 )
 
+// A recorded Nightshift stream gives its text, one POST with the contract
+// headers, and the routed model and receipt id from the receipt.
 func TestLiveReadsTheProvisionedStream(t *testing.T) {
 	body := streamFixture(t)
 	var posts int
@@ -49,6 +52,7 @@ func TestLiveReadsTheProvisionedStream(t *testing.T) {
 	}
 }
 
+// The configured model is sent, but the reported model comes from the receipt, not from the setting.
 // Mutated field: PROVEN_GENERATOR_MODEL. The stream still names the NVIDIA model.
 func TestLiveSendsTheConfiguredModelAndDoesNotTrustIt(t *testing.T) {
 	sse := streamFixture(t)
@@ -83,6 +87,8 @@ func TestLiveSendsTheConfiguredModelAndDoesNotTrustIt(t *testing.T) {
 	}
 }
 
+// The Skeptic sends Nemotron by default and the configured Skeptic model when
+// one is set (ADR-0006).
 func TestLiveSendsNemotronForTheSkeptic(t *testing.T) {
 	sse := streamFixture(t)
 	var got string
@@ -114,6 +120,7 @@ func TestLiveSendsNemotronForTheSkeptic(t *testing.T) {
 	}
 }
 
+// A receipt naming a non-NVIDIA model is refused by name (ADR-0019 point 4).
 // Mutated field: meterless.routed_model. The chunk model field stays nvidia/*.
 func TestLiveRefusesANonNVIDIARoutedModel(t *testing.T) {
 	body := strings.Replace(streamFixture(t), `"routed_model":"`+routedNVIDIA+`"`, `"routed_model":"`+otherModel+`"`, 1)
@@ -137,6 +144,7 @@ func TestLiveRefusesANonNVIDIARoutedModel(t *testing.T) {
 	}
 }
 
+// With the requirement off, a non-NVIDIA answer is kept.
 // Mutated field: PROVEN_GENERATOR_REQUIRE_NVIDIA, set to none.
 func TestLiveAcceptsANonNVIDIAModelWhenTheAgentIsNotRequired(t *testing.T) {
 	body := strings.Replace(streamFixture(t), `"routed_model":"`+routedNVIDIA+`"`, `"routed_model":"`+otherModel+`"`, 1)
@@ -156,6 +164,7 @@ func TestLiveAcceptsANonNVIDIAModelWhenTheAgentIsNotRequired(t *testing.T) {
 	}
 }
 
+// The requirement applies only to the agents it lists.
 // Mutated field: PROVEN_GENERATOR_REQUIRE_NVIDIA, set to skeptic only.
 // The planner is outside that list, so the same non-NVIDIA answer is kept.
 func TestLiveKeepsANonNVIDIAAnswerForAnAgentThatIsNotListed(t *testing.T) {
@@ -175,13 +184,31 @@ func TestLiveKeepsANonNVIDIAAnswerForAnAgentThatIsNotListed(t *testing.T) {
 	}
 }
 
+// ADR-0019 point 4: with NVIDIA required, an answer without a receipt is
+// refused, and the trace still names the model as unknown.
 // Mutated field: the top-level meterless object, removed.
+func TestLiveRefusesAnAnswerWithoutAReceipt(t *testing.T) {
+	body := withoutMeterless(t, streamFixture(t))
+	srv := httptest.NewServer(replay(body))
+	defer srv.Close()
+	live := liveAt(t, srv.URL, nil)
+	if _, err := live.Complete(context.Background(), "planner", "prompt"); err == nil || !strings.Contains(err.Error(), "no receipt") {
+		t.Fatalf("err %v, want a refusal that names the missing receipt", err)
+	}
+	u, ok := live.LastUse()
+	if !ok || u.Model != "unknown" || u.FromReceipt {
+		t.Fatalf("use %#v ok %v", u, ok)
+	}
+}
+
+// Without the receipt the model is reported as unknown; no other field stands in for it.
+// Mutated field: the top-level meterless object, removed, with the NVIDIA requirement off.
 // The chunk model field and meterless_deliberation.receipt_id stay, and neither is the receipt.
 func TestLiveReportsModelUnknownWhenMeterlessIsRemoved(t *testing.T) {
 	body := withoutMeterless(t, streamFixture(t))
 	srv := httptest.NewServer(replay(body))
 	defer srv.Close()
-	live := liveAt(t, srv.URL, nil)
+	live := liveAt(t, srv.URL, map[string]string{generator.EnvRequireNVIDIA: "none"})
 	text, err := live.Complete(context.Background(), "planner", "prompt")
 	if err != nil {
 		t.Fatal(err)
@@ -195,6 +222,7 @@ func TestLiveReportsModelUnknownWhenMeterlessIsRemoved(t *testing.T) {
 	}
 }
 
+// The winning provider in the receipt is reported as the route.
 func TestLiveReadsTheProviderWhenTheStreamNamesIt(t *testing.T) {
 	body := strings.Replace(streamFixture(t), `"routed_model":"`+routedNVIDIA+`"`, `"routed_model":"`+routedNVIDIA+`","winning_route":{"provider":"nvidia"}`, 1)
 	srv := httptest.NewServer(replay(body))
@@ -209,6 +237,7 @@ func TestLiveReadsTheProviderWhenTheStreamNamesIt(t *testing.T) {
 	}
 }
 
+// A 401 is named as unauthorized after one request; it is not retried.
 // Mutated field: the HTTP status, set to 401.
 func TestLiveNamesUnauthorizedAndDoesNotRetry(t *testing.T) {
 	var posts int
@@ -232,6 +261,7 @@ func TestLiveNamesUnauthorizedAndDoesNotRetry(t *testing.T) {
 	}
 }
 
+// A server slower than the timeout is named as a timeout.
 // Mutated field: the server does not answer before the timeout.
 func TestLiveNamesATimeout(t *testing.T) {
 	release := make(chan struct{})
@@ -257,6 +287,7 @@ func TestLiveNamesATimeout(t *testing.T) {
 	}
 }
 
+// An empty answer is retried once, and a second empty answer is a named failure.
 // Mutated field: the stream body, replaced with an empty event stream.
 func TestLiveRetriesAnEmptyStreamOnce(t *testing.T) {
 	var posts int
@@ -277,6 +308,7 @@ func TestLiveRetriesAnEmptyStreamOnce(t *testing.T) {
 	}
 }
 
+// When the retry answers, its text and its receipt are kept.
 func TestLiveRetriesAnEmptyStreamThenKeepsTheSecond(t *testing.T) {
 	var posts int
 	body := streamFixture(t)
@@ -304,6 +336,7 @@ func TestLiveRetriesAnEmptyStreamThenKeepsTheSecond(t *testing.T) {
 	}
 }
 
+// The models call is GET /v1/models with the same contract headers as a completion.
 func TestLiveDiscoverySendsTheContract(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -323,6 +356,7 @@ func TestLiveDiscoverySendsTheContract(t *testing.T) {
 	}
 }
 
+// A base URL ending in /v1 does not get a second /v1.
 // Mutated field: the base URL path, set to /v1. The call stays /v1/chat/completions.
 func TestLivePostsOnceWhenTheBaseIsTheAPIRoot(t *testing.T) {
 	body := streamFixture(t)
@@ -342,6 +376,7 @@ func TestLivePostsOnceWhenTheBaseIsTheAPIRoot(t *testing.T) {
 	}
 }
 
+// A closed port is named as unreachable, not as a timeout.
 func TestClosedPortIsUnreachable(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	url := srv.URL
@@ -354,6 +389,7 @@ func TestClosedPortIsUnreachable(t *testing.T) {
 	}
 }
 
+// WithModel sends its own model and leaves the original generator's model and last use alone.
 func TestLiveWithModelSendsThatModelAndKeepsTheOriginal(t *testing.T) {
 	sse := streamFixture(t)
 	var got []string
@@ -387,6 +423,7 @@ func TestLiveWithModelSendsThatModelAndKeepsTheOriginal(t *testing.T) {
 	}
 }
 
+// liveAt builds a live generator for base with a test token and any extra settings.
 func liveAt(t *testing.T, base string, extra map[string]string) *generator.Live {
 	t.Helper()
 	env := map[string]string{
@@ -407,6 +444,7 @@ func liveAt(t *testing.T, base string, extra map[string]string) *generator.Live 
 	return generator.NewLive(cfg, nil)
 }
 
+// assertContract checks the method, path, headers and body of one completion request.
 func assertContract(t *testing.T, r *http.Request, model, app string) {
 	t.Helper()
 	if r.Method != http.MethodPost || r.URL.Path != "/v1/chat/completions" {
@@ -433,6 +471,7 @@ func assertContract(t *testing.T, r *http.Request, model, app string) {
 	}
 }
 
+// replay answers every request with body as an event stream.
 func replay(body string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -440,6 +479,7 @@ func replay(body string) http.HandlerFunc {
 	}
 }
 
+// withoutMeterless removes the top-level meterless object from every event of a stream.
 func withoutMeterless(t *testing.T, sse string) string {
 	t.Helper()
 	var b strings.Builder
@@ -484,6 +524,7 @@ func withoutMeterless(t *testing.T, sse string) string {
 	return b.String()
 }
 
+// streamFixture reads the recorded Nightshift stream from the module's test data.
 func streamFixture(t *testing.T) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(moduleRoot(t), "testdata", "generator", "nightshift-stream.sse"))
@@ -493,6 +534,7 @@ func streamFixture(t *testing.T) string {
 	return string(b)
 }
 
+// moduleRoot walks up from the test's directory to the module's go.mod.
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

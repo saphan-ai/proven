@@ -1,6 +1,12 @@
 // Package guardrail checks a prompt, and an answer, before a review uses them.
 // An unsafe verdict stops that step. A guardrail that does not answer refuses
 // the step by name. It never treats a missing verdict as safe.
+//
+// ADR-0005: the guardrail is on by default. Every prompt an agent sends to a
+// model, and every answer it gets back, passes NVIDIA's Nemotron 3.5 Content
+// Safety first. Wrap puts the check around the generator the model-calling
+// agents use. One adapter has two backends, our own model server and NVIDIA's
+// hosted API; a setting turns the guardrail off, and the trace then says so.
 package guardrail
 
 import (
@@ -38,6 +44,8 @@ func Refuse(reason string) *service.Down {
 	return &service.Down{Service: Service, Reason: reason}
 }
 
+// unsafeReason is the refusal text for an unsafe verdict, with its categories
+// when the guardrail named any.
 func unsafeReason(v Verdict) string {
 	if len(v.Categories) == 0 {
 		return "unsafe"

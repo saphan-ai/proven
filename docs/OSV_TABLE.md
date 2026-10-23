@@ -16,7 +16,7 @@ Proven defines this table. One row is one affected range of one advisory. The fi
 | `severity` | a short severity when the advisory has one, otherwise the first score string |
 | `published` | the advisory's published time, as the source wrote it |
 
-`cmd/osv-to-csv` writes this header. It reads a directory of OSV JSON files, one advisory per file, and does not walk subdirectories. A file that does not end in `.json` is skipped. A `versions` list with no ranges becomes one row per version, with `introduced` and `last_affected` set to that version.
+`cmd/osv-to-csv` writes this header. It reads a directory of OSV JSON files, one advisory per file, and does not walk subdirectories. A file that does not end in `.json` is skipped. A `versions` list becomes one row per version, with `introduced` and `last_affected` set to that version, when the entry has no SEMVER or ECOSYSTEM range. A GIT range names commits, not versions, and is not a row.
 
 ```bash
 go run ./cmd/osv-to-csv <advisory-dir> <out.csv>
@@ -47,6 +47,14 @@ A `replace` or an `exclude` in `go.mod` is not read. Only `require` lines are.
 `package.json` contributes `dependencies` and `devDependencies`. Other sections are not read. A dependency whose value is not a string is skipped, and the trace names it.
 
 `requirements.txt` contributes pinned `name==version` lines. The name may carry extras in brackets; the extras are not part of the package name. A blank line or a comment is ignored. Any other line is skipped, and the trace names the line.
+
+`go.sum` contributes module versions. A line is a module path, a version and a hash. A line whose version ends in `/go.mod` is the checksum of that module's go.mod file, not a second module, and is ignored. One module may be pinned at more than one version. Each version the change adds, and each version that is higher than every version of that module on the base, is checked. A line that is not a module, a version and an `h1:` hash means the file was not parsed: no finding from that file, and the trace names the line.
+
+`package-lock.json` contributes the `packages` map when `lockfileVersion` is 2 or 3. The ecosystem is npm. The root entry and any path that does not sit under `node_modules/` are not dependencies. The package name is the entry's `name` when it has one, otherwise the path after the last `node_modules/`. An entry with no version string is not a pin. A file this reader cannot parse gives no finding, and the trace says why.
+
+`poetry.lock` contributes each `[[package]]` table's `name` and `version`. The ecosystem is PyPI. The version is the one written before the next table header. Lines in any other table, including a multi-line array, are not pins. A file this reader cannot parse gives no finding, and the trace says why.
+
+A package that both a manifest and its lock file add or raise is checked once. The lock file's version is the one compared, and the finding names the lock file. The pairs are `go.mod` with `go.sum`, `package.json` with `package-lock.json`, and `requirements.txt` with `poetry.lock`, each pair in the same directory. PyPI names are compared and queried after PEP 503 normalisation: lower case, and every run of `-`, `_` or `.` becomes one `-`. Go module paths and npm names do not. A package that only one of the two files names is still checked.
 
 ## What the administrator runs
 

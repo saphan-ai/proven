@@ -11,6 +11,7 @@ func Family(model string) string {
 		return "unknown"
 	}
 	low := strings.ToLower(model)
+	// Nemotron is reached under more than one vendor prefix, so the name decides, not the prefix.
 	if strings.Contains(low, "nemotron") {
 		return "nemotron"
 	}
@@ -26,6 +27,7 @@ func Family(model string) string {
 func SameFamilySentence(skepticModel, finderModel string) (string, bool) {
 	sf := Family(skepticModel)
 	ff := Family(finderModel)
+	// An unknown family is never called the same: there is nothing to compare.
 	if sf == "unknown" || sf != ff {
 		return "", false
 	}

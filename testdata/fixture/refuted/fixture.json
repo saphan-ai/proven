@@ -1,0 +1,44 @@
+{
+  "snapshot": "sample-2026-10-23",
+  "planner_prompt_sha256": "3dd2a8dd841665497b1efa88b32138e9d5cc7308314a49ab8b323fe601951811",
+  "planner_response": [
+    {
+      "id": "F1",
+      "rule_id": "total-skips-a-row",
+      "title": "Total skips a row",
+      "message": "Total stops one short, so the last element is left out.",
+      "severity": "ERROR",
+      "path": "sum/sum.go",
+      "start_line": 4,
+      "end_line": 4
+    }
+  ],
+  "responses": [
+    {
+      "agent": "investigator",
+      "prompt": "Task: Write one SQL query that would confirm this risk. For a CVE query px_evidence.px_kev_vulns. For an EPSS score query px_evidence.px_epss_cve_rows. For an advisory id query px_evidence.px_osv_id. Do not treat a missing row as not exploited.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has sql (string).\n\nExample:\n{\"sql\":\"SELECT 1\"}\n\nid: F1\ntitle: Total skips a row\npath: sum/sum.go\n",
+      "response": "{\"sql\":\"SELECT item FROM checks WHERE item = 'Total'\"}"
+    },
+    {
+      "agent": "prover",
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F1\ntitle: Total skips a row\n",
+      "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
+    },
+    {
+      "agent": "skeptic",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string), command (string) and sql (string). Empty path, name, command and sql mean there is no refuting test and no refuting query.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"command\":\"\",\"sql\":\"\"}\n\nid: F1\ntitle: Total skips a row\n",
+      "response": "{\"refuted\":true,\"reason\":\"the test passes\",\"path\":\"sum/sum_test.go\",\"name\":\"TestTotal\",\"command\":\"go test ./sum -run TestTotal\",\"sql\":\"\"}"
+    }
+  ],
+  "recorded_tests": [
+    {
+      "finding_id": "F1",
+      "path": "sum/sum_test.go",
+      "name": "TestTotal",
+      "command": "go test ./sum -run TestTotal",
+      "fails_on_change": false,
+      "passes_on_base": true,
+      "output": "base: PASS\nchange: PASS"
+    }
+  ]
+}

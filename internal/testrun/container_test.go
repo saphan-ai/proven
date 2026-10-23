@@ -16,6 +16,8 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// TestDefaultContainerConfigValidates proves the defaults pass Validate and
+// that AGENTS.md documents each of them, so the code and the page cannot drift.
 func TestDefaultContainerConfigValidates(t *testing.T) {
 	cfg := DefaultContainerConfig()
 	if cfg.Runtime != "docker" || cfg.Image != "golang:1.26" || cfg.Timeout != 2*time.Minute || cfg.CPUs != "1" || cfg.Memory != "512m" {
@@ -36,6 +38,8 @@ func TestDefaultContainerConfigValidates(t *testing.T) {
 	}
 }
 
+// TestValidateNamesTheRefusedSetting proves each bad value is refused by its
+// field name with allowed values, and that a fractional CPU limit is accepted.
 func TestValidateNamesTheRefusedSetting(t *testing.T) {
 	base := DefaultContainerConfig()
 	cases := []struct {
@@ -75,6 +79,8 @@ func TestValidateNamesTheRefusedSetting(t *testing.T) {
 	}
 }
 
+// TestNewContainerDoesNotLookUpAnInvalidSetting proves a bad setting is
+// refused before the runtime is looked up, and is not reported as a down service.
 func TestNewContainerDoesNotLookUpAnInvalidSetting(t *testing.T) {
 	called := false
 	_, err := NewContainer(ContainerConfig{}, func(string) (string, error) {
@@ -92,6 +98,8 @@ func TestNewContainerDoesNotLookUpAnInvalidSetting(t *testing.T) {
 	}
 }
 
+// TestNewContainerMissingRuntimeIsProverDown proves a missing runtime turns
+// the Prover off by name, with the runtime named in the reason (ADR-0025 point 6).
 func TestNewContainerMissingRuntimeIsProverDown(t *testing.T) {
 	_, err := NewContainer(DefaultContainerConfig(), func(name string) (string, error) {
 		if name != "docker" {
@@ -108,6 +116,8 @@ func TestNewContainerMissingRuntimeIsProverDown(t *testing.T) {
 	}
 }
 
+// TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv proves the run line is
+// stable and carries no network, no environment and one read-only mount (ADR-0025).
 func TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv(t *testing.T) {
 	dir := t.TempDir()
 	c := mustContainer(t, DefaultContainerConfig())
@@ -152,6 +162,8 @@ func TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv(t *testing.T) {
 	}
 }
 
+// TestArgvUsesTheConfiguredLimits proves the CPU, memory and image settings
+// reach the run line unchanged.
 func TestArgvUsesTheConfiguredLimits(t *testing.T) {
 	cfg := DefaultContainerConfig()
 	cfg.CPUs = "0.5"
@@ -172,6 +184,8 @@ func TestArgvUsesTheConfiguredLimits(t *testing.T) {
 	}
 }
 
+// TestRunReadsBothCheckoutsAndDoesNotProveATimeout proves a run that times
+// out on both sides is not proof, and each side is run once and removed once.
 func TestRunReadsBothCheckoutsAndDoesNotProveATimeout(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
@@ -219,6 +233,8 @@ func TestRunReadsBothCheckoutsAndDoesNotProveATimeout(t *testing.T) {
 
 // T7: Timeout is 1s and every runtime call would sleep 30s. The fake returns
 // when its context ends, which is what exec.CommandContext does to a hang.
+// It proves Run returns within both sides' limits plus the cleanup margin,
+// and names each container that may remain.
 func TestRunReturnsWithinTenSecondsWhenTheRuntimeHangs(t *testing.T) {
 	if cleanupMargin > 3*time.Second || cleanupBound <= 0 || cleanupBound > cleanupMargin {
 		t.Fatalf("cleanup margin %s bound %s", cleanupMargin, cleanupBound)
@@ -270,6 +286,8 @@ func TestRunReturnsWithinTenSecondsWhenTheRuntimeHangs(t *testing.T) {
 	}
 }
 
+// TestRunNamesTheContainerWhenRemovalFails proves a failed removal names the
+// container and the runtime's error in the output.
 func TestRunNamesTheContainerWhenRemovalFails(t *testing.T) {
 	cfg := DefaultContainerConfig()
 	cfg.Timeout = 20 * time.Millisecond
@@ -305,6 +323,8 @@ func TestRunNamesTheContainerWhenRemovalFails(t *testing.T) {
 	}
 }
 
+// TestRunSetsProofOnlyWhenChangeFailsAndBasePasses proves the proof needs the
+// change side to fail and the base side to pass, each in its own checkout.
 func TestRunSetsProofOnlyWhenChangeFailsAndBasePasses(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
@@ -337,6 +357,8 @@ func TestRunSetsProofOnlyWhenChangeFailsAndBasePasses(t *testing.T) {
 	}
 }
 
+// TestRunDockerFailureIsNotProof proves exit 125, the runtime's own failure,
+// is reported as a test that could not run, not as a failing test.
 func TestRunDockerFailureIsNotProof(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
 	code := exitCode(t, 125)
@@ -355,6 +377,8 @@ func TestRunDockerFailureIsNotProof(t *testing.T) {
 	}
 }
 
+// TestRunDoesNotStartWhenTheRequestIsIncomplete proves a request without a
+// command or checkouts starts no container and proves nothing.
 func TestRunDoesNotStartWhenTheRequestIsIncomplete(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
 	c.run = func(context.Context, []string) (string, error) {
@@ -370,6 +394,8 @@ func TestRunDoesNotStartWhenTheRequestIsIncomplete(t *testing.T) {
 	}
 }
 
+// TestRunCancelledContextStartsNothing proves a cancelled review starts no
+// container and returns the cancellation.
 func TestRunCancelledContextStartsNothing(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
 	c.run = func(context.Context, []string) (string, error) {
@@ -384,6 +410,7 @@ func TestRunCancelledContextStartsNothing(t *testing.T) {
 	}
 }
 
+// TestOffRunsNothing proves the Off adapter reports the Prover off by name.
 func TestOffRunsNothing(t *testing.T) {
 	_, err := (Off{Reason: "Prover off: container runtime \"docker\" not found"}).Run(context.Background(), Request{Command: "go test"})
 	d, ok := service.As(err)
@@ -392,6 +419,7 @@ func TestOffRunsNothing(t *testing.T) {
 	}
 }
 
+// mustContainer builds a Container whose runtime lookup always succeeds.
 func mustContainer(t *testing.T, cfg ContainerConfig) *Container {
 	t.Helper()
 	c, err := NewContainer(cfg, func(string) (string, error) { return "/bin/docker", nil })
@@ -401,6 +429,7 @@ func mustContainer(t *testing.T, cfg ContainerConfig) *Container {
 	return c
 }
 
+// exitCode returns a real *exec.ExitError with code, as the runtime would.
 func exitCode(t *testing.T, code int) error {
 	t.Helper()
 	cmd := exec.Command("sh", "-c", "exit "+strconv.Itoa(code))
@@ -444,6 +473,7 @@ func forbidEnv(t *testing.T, argv []string) {
 	}
 }
 
+// stripName drops the per-run --name, so a run line can be compared with Argv.
 func stripName(argv []string) []string {
 	out := make([]string, 0, len(argv))
 	for i := 0; i < len(argv); i++ {
@@ -465,6 +495,7 @@ func mountOf(argv []string) string {
 	return ""
 }
 
+// mountHost returns the host side of the run line's one mount.
 func mountHost(argv []string) string {
 	mount := mountOf(argv)
 	if i := strings.Index(mount, ":/checkout:ro"); i >= 0 {
@@ -485,6 +516,7 @@ func sameSentence(got, want []string) bool {
 	return true
 }
 
+// repoRoot finds the module root, where AGENTS.md lives.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -504,6 +536,8 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
+// TestRemovalFailureSurvivesLongOutput proves a removal failure stays in the
+// output when the side's own output is longer than the output limit.
 func TestRemovalFailureSurvivesLongOutput(t *testing.T) {
 	cfg := DefaultContainerConfig()
 	cfg.Timeout = 20 * time.Millisecond

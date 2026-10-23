@@ -7,6 +7,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 )
 
+// A finding with no evidence is dropped.
 func TestDropsWhenThereIsNoEvidence(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{Risk: candidate.Risk{ID: "F3"}})
 	if !got.Dropped || got.DropReason != "dropped: no evidence" {
@@ -14,6 +15,7 @@ func TestDropsWhenThereIsNoEvidence(t *testing.T) {
 	}
 }
 
+// A test that fails on the change and passes on the base keeps the finding.
 func TestKeepsATestThatFailsOnTheChange(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{ID: "F1"},
@@ -27,6 +29,7 @@ func TestKeepsATestThatFailsOnTheChange(t *testing.T) {
 	}
 }
 
+// A test that fails on the base too is not evidence.
 func TestDropsATestThatDoesNotPassOnTheBase(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{ID: "F4"},
@@ -40,6 +43,7 @@ func TestDropsATestThatDoesNotPassOnTheBase(t *testing.T) {
 	}
 }
 
+// A query with no rows is not evidence.
 func TestDropsAQueryWithNoRows(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{ID: "F3"},
@@ -53,6 +57,7 @@ func TestDropsAQueryWithNoRows(t *testing.T) {
 	}
 }
 
+// Query rows that name the finding keep it.
 func TestKeepsAQueryWhoseRowNamesTheFinding(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{
@@ -72,6 +77,7 @@ func TestKeepsAQueryWhoseRowNamesTheFinding(t *testing.T) {
 	}
 }
 
+// Rows that do not name the finding are not its evidence.
 func TestDropsAQueryWhoseRowsSayNothingAboutTheFinding(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{
@@ -90,6 +96,7 @@ func TestDropsAQueryWhoseRowsSayNothingAboutTheFinding(t *testing.T) {
 	}
 }
 
+// A refuting test that passes on the change drops the finding.
 func TestDropsWhenTheRefutingTestPassesOnTheChange(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{ID: "F1"},
@@ -109,6 +116,8 @@ func TestDropsWhenTheRefutingTestPassesOnTheChange(t *testing.T) {
 	}
 }
 
+// A refutation without evidence, even one the model calls refuted, does not
+// drop a finding that has evidence: the model's flag is not a vote.
 func TestKeepsWhenTheRefutationHasNoEvidence(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{ID: "F1"},
@@ -123,6 +132,7 @@ func TestKeepsWhenTheRefutationHasNoEvidence(t *testing.T) {
 	}
 }
 
+// A refuting test that cannot run leaves the finding kept and marked unresolved.
 func TestUnresolvedWhenTheRefutingTestCannotRun(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{ID: "F1"},
@@ -142,6 +152,7 @@ func TestUnresolvedWhenTheRefutingTestCannotRun(t *testing.T) {
 	}
 }
 
+// Refuting rows that name the finding and deny it drop the finding.
 func TestDropsWhenQueryRowsContradict(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{

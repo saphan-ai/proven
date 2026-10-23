@@ -6,6 +6,9 @@ import (
 	"testing"
 )
 
+// A dependency the change adds is reported from the OSV package table with the
+// range it falls in and the advisory it does not match, its KEV and EPSS rows
+// as further query evidence, and the version comparison on the trace.
 func TestSampleReviewReportsTheOSVRange(t *testing.T) {
 	p := buildSample(t, t.TempDir(), nil)
 	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})

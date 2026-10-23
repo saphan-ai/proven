@@ -8,6 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// scriptGen is a generator that counts its calls and returns fixed text.
 type scriptGen struct {
 	text  string
 	calls int
@@ -18,6 +19,7 @@ func (g *scriptGen) Complete(ctx context.Context, agent, prompt string) (string,
 	return g.text, nil
 }
 
+// scriptRail is a guardrail that returns its verdicts in order.
 type scriptRail struct {
 	rows []guardrail.Verdict
 	i    int
@@ -29,6 +31,8 @@ func (s *scriptRail) Check(ctx context.Context, prompt, answer string) (guardrai
 	return v, nil
 }
 
+// An unsafe prompt is refused with its categories, the model is never
+// called, and the check is observed once.
 func TestWrapStopsBeforeTheModelWhenThePromptIsUnsafe(t *testing.T) {
 	gen := &scriptGen{text: "must-not-leak"}
 	rail := &scriptRail{rows: []guardrail.Verdict{{
@@ -58,6 +62,7 @@ func TestWrapStopsBeforeTheModelWhenThePromptIsUnsafe(t *testing.T) {
 	}
 }
 
+// An unsafe answer is refused and its text is not returned.
 func TestWrapDoesNotReturnAnUnsafeAnswer(t *testing.T) {
 	gen := &scriptGen{text: "must-not-leak"}
 	rail := &scriptRail{rows: []guardrail.Verdict{
@@ -81,6 +86,7 @@ func TestWrapDoesNotReturnAnUnsafeAnswer(t *testing.T) {
 	}
 }
 
+// The recorded unsafe-prompt verdict, bound to a fixture prompt, stops the call before the model.
 func TestRecordedFixtureVerdictStopsTheCall(t *testing.T) {
 	rec := guardrail.RecordedUnsafePrompt()
 	rec.Prompt = "one fixture prompt"
@@ -103,6 +109,7 @@ func TestRecordedFixtureVerdictStopsTheCall(t *testing.T) {
 	}
 }
 
+// The Safe sample answers safe for the prompt and for the answer.
 func TestSafeSampleAnswersSafe(t *testing.T) {
 	v, err := guardrail.Safe{}.Check(context.Background(), "prompt", "answer")
 	if err != nil || v.Unsafe() || v.User != "safe" || v.Response != "safe" {

@@ -1,4 +1,9 @@
 // Package answer reads a model reply into the JSON an agent asked for.
+//
+// It is shared by the model-calling agents (Planner, Investigator, Prover and
+// Skeptic): each states a Spec, sends it through Instruct, and reads the reply
+// with Read. A reply that is not the asked-for JSON gets one repair, then the
+// step degrades by the agent's name rather than failing the review.
 package answer
 
 import (
@@ -65,6 +70,7 @@ func Read(ctx context.Context, gen generator.Generator, agent, prompt string, sp
 	if err != nil {
 		return err
 	}
+	// A reply that decodes is used as it is, with no second call.
 	if err := Decode(raw, dst); err == nil {
 		return nil
 	}
@@ -73,6 +79,8 @@ func Read(ctx context.Context, gen generator.Generator, agent, prompt string, sp
 		return err
 	}
 	if err := Decode(again, dst); err != nil {
+		// The failure is named for the agent, not for the model service: the model
+		// answered, but not in the form asked for.
 		return &service.Down{Service: agent, Reason: FailReason}
 	}
 	return nil
@@ -81,12 +89,16 @@ func Read(ctx context.Context, gen generator.Generator, agent, prompt string, sp
 // Decode unmarshals JSON taken from a fenced code block or from surrounding
 // prose. A trailing comma is accepted.
 func Decode(raw string, dst any) error {
+	// With no bracketed value found, the whole reply is tried, so the decode
+	// error names what was wrong with it.
 	cands := candidates(raw)
 	if len(cands) == 0 {
 		cands = []string{strings.TrimSpace(raw)}
 	}
 	var last error
 	for _, c := range cands {
+		// Each try starts from a zero value, so a partial decode of one
+		// candidate cannot leave fields behind for the next.
 		reset(dst)
 		err := json.Unmarshal([]byte(stripTrailingCommas(c)), dst)
 		if err == nil {
@@ -101,6 +113,9 @@ func Decode(raw string, dst any) error {
 	return last
 }
 
+// candidates lists the JSON values in raw, in order. When raw has a fenced
+// code block, only the first block is searched: prose around it may hold
+// example JSON that is not the answer.
 func candidates(raw string) []string {
 	text := raw
 	if body, ok := firstFence(raw); ok {
@@ -109,6 +124,7 @@ func candidates(raw string) []string {
 	return jsonValues(text)
 }
 
+// firstFence returns the body of the first ``` block, after its language line.
 func firstFence(s string) (string, bool) {
 	i := strings.Index(s, "```")
 	if i < 0 {
@@ -127,6 +143,8 @@ func firstFence(s string) (string, bool) {
 	return rest[:j], true
 }
 
+// jsonValues finds each balanced {...} or [...] value in s. After a match the
+// scan resumes past it, so a nested value is not listed twice.
 func jsonValues(s string) []string {
 	var out []string
 	for i := 0; i < len(s); i++ {
@@ -146,6 +164,9 @@ func jsonValues(s string) []string {
 	return out
 }
 
+// matchValue finds the bracket that closes the one at start. Brackets inside
+// strings, escaped quotes included, do not count. It returns the value and the
+// index just past it.
 func matchValue(s string, start int) (string, int, bool) {
 	open := s[start]
 	close := byte('}')
@@ -186,6 +207,8 @@ func matchValue(s string, start int) (string, int, bool) {
 	return "", start, false
 }
 
+// stripTrailingCommas removes a comma that comes right before a closing bracket,
+// a common model slip. A comma inside a string is kept.
 func stripTrailingCommas(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -221,6 +244,7 @@ func stripTrailingCommas(s string) string {
 	return b.String()
 }
 
+// commaBeforeClose reports whether only white space lies between i and a closing bracket.
 func commaBeforeClose(s string, i int) bool {
 	for i < len(s) {
 		switch s[i] {
@@ -235,6 +259,7 @@ func commaBeforeClose(s string, i int) bool {
 	return false
 }
 
+// reset sets what dst points to back to its zero value.
 func reset(dst any) {
 	v := reflect.ValueOf(dst)
 	if v.Kind() != reflect.Pointer || v.IsNil() {

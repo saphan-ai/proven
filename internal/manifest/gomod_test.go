@@ -6,6 +6,9 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 )
 
+// TestGoDiffAddsAndRaises proves that go.mod yields an added and a raised
+// module with the change-side line, reads a require block and an indirect
+// comment, and drops a lowered module.
 func TestGoDiffAddsAndRaises(t *testing.T) {
 	base := []byte("module example.com/shop\n\ngo 1.26\n\nrequire example.com/old v1.0.0\n")
 	change := []byte(`module example.com/shop
@@ -34,6 +37,8 @@ require (
 	}
 }
 
+// TestGoDiffIgnoresAReplace proves that a replace directive does not change
+// the version the reader reports: only require lines count.
 func TestGoDiffIgnoresAReplace(t *testing.T) {
 	base := []byte("module m\n\ngo 1.26\n")
 	change := []byte("module m\n\ngo 1.26\n\nrequire example.com/a v1.0.0\nreplace example.com/a => example.com/a v1.2.0\n")
@@ -46,6 +51,8 @@ func TestGoDiffIgnoresAReplace(t *testing.T) {
 	}
 }
 
+// TestCollectRunsEveryReader proves that Collect runs each reader on the files
+// it matches and returns the hits sorted by file.
 func TestCollectRunsEveryReader(t *testing.T) {
 	extra := Reader{
 		Ecosystem: "Demo",

@@ -12,6 +12,7 @@ var errVerdict = errors.New("guardrail: verdict lines are missing or not safe or
 // A </think> block may come first; those lines are not the verdict.
 // wantResponse is set when the check sent an answer, and then Response Safety is required.
 func Parse(text string, wantResponse bool) (Verdict, error) {
+	// The verdict follows the last </think>; a reasoning block before it may quote the verdict words.
 	if i := strings.LastIndex(text, "</think>"); i >= 0 {
 		text = text[i+len("</think>"):]
 	}
@@ -35,6 +36,8 @@ func Parse(text string, wantResponse bool) (Verdict, error) {
 			cats = splitCategories(rest)
 		}
 	}
+	// Anything other than the exact words "safe" or "unsafe" is refused, so an
+	// unexpected answer is never read as safe.
 	if !sawUser || !safeWord(user) {
 		return Verdict{}, errVerdict
 	}
@@ -48,16 +51,19 @@ func Parse(text string, wantResponse bool) (Verdict, error) {
 	if sawResponse {
 		v.Response = response
 	}
+	// Categories only explain an unsafe verdict; a safe one carries none.
 	if !v.Unsafe() {
 		v.Categories = nil
 	}
 	return v, nil
 }
 
+// safeWord reports whether s is one of the two measured verdict words.
 func safeWord(s string) bool {
 	return s == "safe" || s == "unsafe"
 }
 
+// splitCategories reads a comma-separated category line, dropping empty entries.
 func splitCategories(s string) []string {
 	if strings.TrimSpace(s) == "" {
 		return nil

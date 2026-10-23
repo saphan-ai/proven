@@ -1,7 +1,10 @@
 // Command meterless-conform exposes the H-MEM and world stores on stdin.
 // One JSON request per line, one JSON answer per line. No network.
-// Each process handles one request. A session is a directory under the
-// temp dir, so the next process opens the same store.
+//
+// It lets Meterless's own conformance suites test the Go engines through the
+// TypeScript bridge in conformance/meterless (ADR-0003, point 4; ADR-0018,
+// point 7). The bridge starts one process per request, so a session is a
+// directory under the temp dir, and the next process opens the same store.
 package main
 
 import (
@@ -24,8 +27,12 @@ func main() {
 	os.Exit(run(os.Stdin, os.Stdout, os.Stderr))
 }
 
+// run answers each line in turn. A bad request gets an answer with ok false;
+// only a failure to read or to write stops the process.
 func run(in *os.File, out *os.File, errOut *os.File) int {
 	sc := bufio.NewScanner(in)
+	// A line may be up to 8 MiB: an ingest request carries all its observations
+	// on one line.
 	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
@@ -42,6 +49,8 @@ func run(in *os.File, out *os.File, errOut *os.File) int {
 	return 0
 }
 
+// request holds the fields of every operation; each one reads those it
+// needs. At is the time, in Unix milliseconds, that an H-MEM call runs at.
 type request struct {
 	ID           int               `json:"id"`
 	Engine       string            `json:"engine"`
@@ -61,6 +70,8 @@ type request struct {
 	Observations []json.RawMessage `json:"observations"`
 }
 
+// handle decodes one line and sends it to its engine. A line that does not
+// decode is answered with id 0, because its id is unknown.
 func handle(line []byte) map[string]any {
 	var req request
 	if err := json.Unmarshal(line, &req); err != nil {
@@ -76,6 +87,7 @@ func handle(line []byte) map[string]any {
 	}
 }
 
+// hmemOp runs one H-MEM operation.
 func hmemOp(req request) map[string]any {
 	switch req.Op {
 	case "open":
@@ -87,6 +99,8 @@ func hmemOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"session": id})
+	// ADR-0018, point 1: these belong to the parts built after the minimum, so
+	// they are refused by name, not faked.
 	case "sleep", "dream", "conflicts", "ledger":
 		return fail(req.ID, "hmem: "+req.Op+" is deferred (ADR-0018)")
 	}
@@ -138,6 +152,8 @@ func hmemOp(req request) map[string]any {
 	}
 }
 
+// worldOp runs one World Model operation. normalize, entityId and decide are
+// pure functions and need no session.
 func worldOp(req request) map[string]any {
 	switch req.Op {
 	case "normalize":
@@ -155,6 +171,8 @@ func worldOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"session": id})
+	// ADR-0018, point 1: the graph is outside the minimum, so it is refused by
+	// name.
 	case "relate", "neighbors":
 		return fail(req.ID, "world: bitemporal graph is outside the minimum (ADR-0018)")
 	}
@@ -178,6 +196,7 @@ func worldOp(req request) map[string]any {
 	case "canonical":
 		return ok(req.ID, map[string]any{"canonical": st.Canonical()})
 	case "audit":
+		// The audit is the World Model's own JSONL log (ADR-0018, point 3).
 		rows, err := readAudit(filepath.Join(sessionBase(req.Session), "logs", "world.jsonl"))
 		if err != nil {
 			return fail(req.ID, err.Error())
@@ -188,6 +207,8 @@ func worldOp(req request) map[string]any {
 	}
 }
 
+// createSession makes a new random session directory with the folders both
+// stores write to. The prefix h or w says which engine it is for.
 func createSession(prefix string) (string, error) {
 	var buf [8]byte
 	if _, err := rand.Read(buf[:]); err != nil {
@@ -207,10 +228,14 @@ func createSession(prefix string) (string, error) {
 	return id, nil
 }
 
+// sessionBase is a session's directory under the temp dir.
 func sessionBase(id string) string {
 	return filepath.Join(os.TempDir(), "proven-meterless-conform", id)
 }
 
+// knownSession accepts only an id this command could have made, a prefix and
+// hex digits, for a directory that exists. The id is joined into a path, so
+// this also keeps a request from naming a path outside the sessions.
 func knownSession(id string) error {
 	if len(id) < 2 || id[0] != 'h' && id[0] != 'w' {
 		return fmt.Errorf("unknown session")
@@ -227,6 +252,8 @@ func knownSession(id string) error {
 	return nil
 }
 
+// openH opens a session's H-MEM store with the request's time as its clock,
+// so the suite controls time.
 func openH(id string, at int64) (*hmem.Store, error) {
 	if err := knownSession(id); err != nil {
 		return nil, fmt.Errorf("hmem: %w", err)
@@ -239,6 +266,9 @@ func openH(id string, at int64) (*hmem.Store, error) {
 	})
 }
 
+// addH decodes an add request's input and adds the memory at the request's
+// time. An empty or null input is passed on as empty fields, and the store
+// decides.
 func addH(st *hmem.Store, at int64, raw json.RawMessage) (hmem.Record, error) {
 	var body struct {
 		Content    string   `json:"content"`
@@ -270,6 +300,8 @@ func addH(st *hmem.Store, at int64, raw json.RawMessage) (hmem.Record, error) {
 	})
 }
 
+// openW opens a session's World Model, backed by the session's own H-MEM
+// store (ADR-0018, point 4).
 func openW(id string) (*world.Store, error) {
 	if err := knownSession(id); err != nil {
 		return nil, fmt.Errorf("world: %w", err)
@@ -289,6 +321,8 @@ func openW(id string) (*world.Store, error) {
 	})
 }
 
+// upsertW decodes an entity and upserts it. An external key gives its id;
+// otherwise the id comes from the type and the name.
 func upsertW(st *world.Store, raw json.RawMessage) (world.Entity, error) {
 	var in struct {
 		Type        string `json:"type"`
@@ -324,6 +358,8 @@ func upsertW(st *world.Store, raw json.RawMessage) (world.Entity, error) {
 	return e, nil
 }
 
+// ingestW writes the observations as JSONL and ingests them. A blank
+// observation is skipped.
 func ingestW(st *world.Store, obs []json.RawMessage) (world.Report, error) {
 	var buf bytes.Buffer
 	for _, raw := range obs {
@@ -337,6 +373,8 @@ func ingestW(st *world.Store, obs []json.RawMessage) (world.Report, error) {
 	return st.Ingest(&buf, 0)
 }
 
+// readAudit reads a JSONL log and numbers its rows from 1. A log not yet
+// written is an empty audit.
 func readAudit(path string) ([]map[string]any, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -363,12 +401,14 @@ func readAudit(path string) ([]map[string]any, error) {
 	return out, nil
 }
 
+// ok marks an answer as successful and adds its id.
 func ok(id int, fields map[string]any) map[string]any {
 	fields["id"] = id
 	fields["ok"] = true
 	return fields
 }
 
+// fail is an answer with ok false and the error.
 func fail(id int, msg string) map[string]any {
 	return map[string]any{"id": id, "ok": false, "error": msg}
 }

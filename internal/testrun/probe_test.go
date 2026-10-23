@@ -10,6 +10,8 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// TestProbeAsksTheRuntimeAndInspectsTheImage proves the probe makes exactly
+// two calls, version then image inspect, and never pulls.
 func TestProbeAsksTheRuntimeAndInspectsTheImage(t *testing.T) {
 	c := probedContainer(t)
 	var got [][]string
@@ -42,6 +44,7 @@ func TestProbeAsksTheRuntimeAndInspectsTheImage(t *testing.T) {
 }
 
 // Mutated field: the runtime's exit status. version fails, so inspect is not run.
+// It proves a silent runtime is named down with its last output line as the reason.
 func TestProbeStopsWhenTheRuntimeDoesNotAnswer(t *testing.T) {
 	c := probedContainer(t)
 	var got []string
@@ -60,6 +63,7 @@ func TestProbeStopsWhenTheRuntimeDoesNotAnswer(t *testing.T) {
 }
 
 // Mutated field: image inspect's exit status. The image is absent, and pull is not a call.
+// It proves a missing image is named down and is not fetched.
 func TestProbeNamesAMissingImage(t *testing.T) {
 	c := probedContainer(t)
 	var got [][]string
@@ -84,6 +88,7 @@ func TestProbeNamesAMissingImage(t *testing.T) {
 }
 
 // Mutated field: the probe context deadline. A hung runtime is a timeout.
+// It proves the reason is "timeout", not a claim that the image is absent.
 func TestProbeTimesOut(t *testing.T) {
 	c := probedContainer(t)
 	c.cfg.Timeout = 20 * time.Millisecond
@@ -98,6 +103,8 @@ func TestProbeTimesOut(t *testing.T) {
 	}
 }
 
+// TestProbeHonoursACancelledContext proves a cancelled caller calls no runtime
+// and gets its own cancellation back.
 func TestProbeHonoursACancelledContext(t *testing.T) {
 	c := probedContainer(t)
 	c.run = func(context.Context, []string) (string, error) {
@@ -112,6 +119,7 @@ func TestProbeHonoursACancelledContext(t *testing.T) {
 	}
 }
 
+// probedContainer builds a Container with the defaults and a found runtime.
 func probedContainer(t *testing.T) *Container {
 	t.Helper()
 	c, err := NewContainer(DefaultContainerConfig(), func(string) (string, error) {

@@ -12,7 +12,8 @@ import (
 
 // Environment variables of the live generator. The set is closed: Load reads
 // these names and no others. An empty value means the default, except the
-// token, which has none.
+// token, which has none. ADR-0013: no value the generator runs with is
+// hardcoded; each comes from one of these settings or its named default.
 const (
 	EnvToken         = "METERLESS_RUNTIME_TOKEN"
 	EnvBaseURL       = "PROVEN_GENERATOR_BASE_URL"
@@ -28,6 +29,8 @@ const (
 const DefaultSkepticModel = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 
 const (
+	// The defaults below apply when a setting is empty. defaultRequire "all" means
+	// every agent must be answered by an NVIDIA model (ADR-0019 point 4).
 	defaultBaseURL = "http://127.0.0.1:8088"
 	defaultApp     = "proven"
 	defaultModel   = "meterless/auto"
@@ -79,6 +82,7 @@ func Environment() []envdoc.Setting {
 }
 
 // agents is the closed set a require-NVIDIA list may name.
+// The names are the six agents of the review, as they call the generator.
 var agents = []string{"planner", "investigator", "prover", "skeptic", "judge", "writer"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
@@ -89,6 +93,8 @@ type ConfigError struct {
 	Reason  string
 }
 
+// Error names the setting, the refused value and what is allowed. A refused
+// token is reported with an empty value, so the secret is never printed.
 func (e *ConfigError) Error() string {
 	if e == nil {
 		return "configuration refused"
@@ -131,6 +137,7 @@ func (s Settings) requiresNVIDIA(agent string) bool {
 	if s.requireNone {
 		return false
 	}
+	// A Settings not built by Load has no list: it fails closed and requires NVIDIA.
 	if s.requireAll || s.requireNVIDIA == nil {
 		return true
 	}
@@ -140,10 +147,13 @@ func (s Settings) requiresNVIDIA(agent string) bool {
 // Load reads the live-generator settings. A wrong value is refused.
 // An empty lookup uses the defaults, and an empty token is refused.
 func Load(env func(string) string) (Settings, error) {
+	// A nil lookup is an empty environment, so the defaults apply and the token is refused.
 	if env == nil {
 		env = func(string) string { return "" }
 	}
 	token := env(EnvToken)
+	// A line break in the token could split the Authorization header. The value is
+	// not echoed in the refusal: it is a secret.
 	if strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") || len(token) > 4096 {
 		return Settings{}, refuse(EnvToken, "", "the live generator needs a runtime token", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
@@ -199,10 +209,14 @@ func Load(env func(string) string) (Settings, error) {
 	}, nil
 }
 
+// refuse builds the refusal for one setting with one allowed form.
 func refuse(field, value, reason, allowed string) *ConfigError {
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
 }
 
+// checkBase accepts only a plain http or https root. User info would carry a
+// credential in the URL, and a query or fragment would change every endpoint
+// built from it. The result has no trailing slash.
 func checkBase(raw string) (string, error) {
 	allowed := "an absolute http or https URL with no user info, query or fragment, and a path of empty or /v1"
 	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") {
@@ -223,6 +237,8 @@ func checkBase(raw string) (string, error) {
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
+// checkToken refuses a value that is not valid UTF-8, is longer than max, or has a
+// character ok does not allow.
 func checkToken(field, value string, max int, allowed string, ok func(string) bool) error {
 	if !utf8.ValidString(value) || len(value) > max || !ok(value) {
 		return refuse(field, clip(value), "not an allowed value", allowed)
@@ -230,6 +246,7 @@ func checkToken(field, value string, max int, allowed string, ok func(string) bo
 	return nil
 }
 
+// clip keeps a refused value short enough to print in an error.
 func clip(value string) string {
 	if len(value) > 128 {
 		return value[:128]
@@ -237,6 +254,8 @@ func clip(value string) string {
 	return value
 }
 
+// appName allows letters, digits, dots, underscores and hyphens, because the
+// value is sent as a header.
 func appName(s string) bool {
 	if s == "" {
 		return false
@@ -250,6 +269,7 @@ func appName(s string) bool {
 	return true
 }
 
+// modelName allows the app-name characters plus "/" and ":", as in "nvidia/model:tag".
 func modelName(s string) bool {
 	if s == "" {
 		return false
@@ -263,6 +283,9 @@ func modelName(s string) bool {
 	return true
 }
 
+// parseRequire reads PROVEN_GENERATOR_REQUIRE_NVIDIA: "all", "none", or a
+// comma-separated list of agent names. An unknown name is refused, not ignored,
+// so a typo cannot quietly drop an agent from the NVIDIA check.
 func parseRequire(raw string) (all, none bool, set map[string]bool, err error) {
 	switch raw {
 	case "all":

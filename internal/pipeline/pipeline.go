@@ -1,4 +1,22 @@
 // Package pipeline runs the six agents in order and implements the review.
+//
+// It is the reviewer behind review.Open. One Review call reads the change, lets
+// the Planner name candidate risks, has the Investigator write a query and the
+// Prover write a test for each, lets the Skeptic try to refute every finding,
+// has the Judge keep only what carries evidence (ADR-0002), adds the dependency
+// check against the OSV table and the EPSS scores, and hands the result to the
+// Writer. Every step writes to the trace, which is then folded into H-MEM and
+// the World Model.
+//
+// The pipeline also owns what wraps the agents: the guardrail on every prompt
+// and answer (ADR-0005), the record of every model call, the doubled review
+// with a second model (ADR-0009, ADR-0012), and the partial review a deadline
+// leaves behind.
+//
+// Live mode reads a directory that already has base/ and change/, or a git
+// repository. For a repository it writes those two trees for the review and
+// removes them when the review returns. Sample mode still loads a fixture and
+// does not write trees.
 package pipeline
 
 import (
@@ -50,7 +68,8 @@ type Options struct {
 	// Empty uses a state directory beside the logs, never a path inside the module.
 	StateDir string
 	// Guardrail checks every prompt and every answer. Sample mode with none
-	// uses the safe sample. A live pipeline with none is refused.
+	// uses the safe sample, unless the fixture records a verdict. A live
+	// pipeline with none is refused.
 	Guardrail guardrail.Adapter
 	// GuardOff writes one "no guardrail" line and checks nothing.
 	GuardOff bool
@@ -68,7 +87,7 @@ type Options struct {
 	MaxWrittenBytes int
 }
 
-// Pipeline is one reviewer.
+// Pipeline is one reviewer. Build makes it; Review runs it once.
 type Pipeline struct {
 	sample       bool
 	testRun      testrun.Adapter
@@ -87,6 +106,9 @@ type Pipeline struct {
 	atBoundary   func(stage string)
 	mem          *hmem.Store
 	world        *world.Store
+	// workDir is the run's working area. Live git trees are written here, not
+	// inside the repository under review, and removed when the review returns.
+	workDir string
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -98,6 +120,8 @@ func Build(opts Options) (*Pipeline, error) {
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("pipeline: logs directory is empty")
 	}
+	// ADR-0005: "off" and an adapter together are a contradiction, refused here
+	// rather than settled silently one way.
 	if opts.GuardOff && opts.Guardrail != nil {
 		return nil, fmt.Errorf("pipeline: the guardrail is off and an adapter was set")
 	}
@@ -113,6 +137,8 @@ func Build(opts Options) (*Pipeline, error) {
 			return nil, derr
 		}
 	}
+	// The stores refuse a state directory inside the proven module, so they are
+	// told where the module is.
 	root := moduleRoot()
 	mem, err := hmem.Open(hmem.Options{
 		Dir: filepath.Join(stateDir, "hmem"), LogDir: opts.LogDir, RepoRoot: root,
@@ -126,11 +152,19 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+	area, aerr := workArea(opts.LogDir)
+	if aerr != nil {
+		return nil, aerr
+	}
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
+		workDir: area,
 	}
+	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
+	// sample guardrail, which answers safe; a live pipeline without one is
+	// refused rather than run unchecked.
 	if !opts.GuardOff && p.rail == nil {
 		if opts.Sample {
 			p.rail = guardrail.Safe{}
@@ -157,14 +191,19 @@ func (p *Pipeline) boundary(stage string) {
 	}
 }
 
-// Request is the part of a review request this wagon reads.
+// Request is the part of a review request the pipeline reads. Target is the
+// directory under review. BaselineCommit and HeadCommit name a git change.
+// With no baseline, a directory that has base/ and change/ is read as those
+// trees, and a git repository without them is refused. Include and Exclude
+// narrow the changed files the review reports on.
 type Request struct {
 	Target         string
 	BaselineCommit string
 	HeadCommit     string
 	Include        []string
 	Exclude        []string
-	// DoubleRun is set when the class is doubled and a special-review model is configured.
+	// DoubleRun is set when the class is doubled and a special-review model is configured
+	// (ADR-0012).
 	DoubleRun bool
 	// DefaultModel and SpecialModel are the configured reviewer names.
 	DefaultModel string
@@ -173,10 +212,15 @@ type Request struct {
 
 // Review runs planner, investigator, prover, skeptic, judge and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
+// When ctx ends before the Judge has decided, the draft is partial and holds only
+// judged findings. After a review with no error the trace is folded into the World
+// Model and H-MEM; if that fails, the review fails.
 func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
 	if p.trace != nil {
 		defer p.trace.Close()
 	}
+	// Fold only a review that ended without an error. This defer runs before
+	// the trace is closed, and reads what the review wrote.
 	defer func() {
 		if err != nil {
 			return
@@ -189,7 +233,19 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	return p.review(ctx, req)
 }
 
+// review is the body of Review. Every agent step follows one pattern: an error
+// from a service that is down is noted and the review goes on without it; a
+// context that has ended returns the partial draft through cut; any other
+// error stops the review.
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
+	// A git repository with neither a baseline commit nor prepared trees has
+	// nothing for the agents to read. Say what to pass, rather than failing
+	// later as a missing fixture file.
+	if !p.sample {
+		if err := p.refuseBareRepository(req); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	files, err := changedFiles(req)
 	if err != nil {
 		return candidate.Draft{}, err
@@ -198,6 +254,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
+	// The files left out are named on the trace, so a reader sees what the
+	// review did not cover.
 	if err := p.trace.Append(trace.Event{
 		FindingID: "selection",
 		Kind:      "selection",
@@ -218,9 +276,26 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if ctx.Err() != nil {
 		return candidate.Draft{Partial: true, TracePath: p.trace.Path()}, nil
 	}
-	fx, err := fixture.Load(req.Target)
+	// Sample mode loads fixture.json and checks it. Live mode does not: an
+	// ordinary repository has no fixture file. The trees the Planner and the
+	// Prover read are fx.Root either way.
+	fx, cleanup, err := p.loadTarget(req)
 	if err != nil {
 		return candidate.Draft{}, err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if !p.sample {
+		// The snapshot name has no fixture.json to come from. It is written
+		// here, not only on query evidence, so a review that keeps no row
+		// still records which trees it read. An empty finding id keeps the
+		// world fold from treating the line as a finding.
+		if err := p.trace.Append(trace.Event{
+			Kind: "snapshot", Agent: "pipeline", Text: fx.Snapshot,
+		}); err != nil {
+			return candidate.Draft{}, err
+		}
 	}
 	gen, q, run, err := p.adapters(fx)
 	if err != nil {
@@ -232,27 +307,45 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
+	// Sample mode: a fixture may carry recorded guardrail verdicts, so a
+	// scenario shows an unsafe prompt refused with no model server (ADR-0005).
+	rail := p.rail
+	if p.sample && len(fx.Guardrail) > 0 {
+		sampled, serr := guardrail.NewSample(fx.Guardrail)
+		if serr != nil {
+			return candidate.Draft{}, serr
+		}
+		rail = sampled
+	}
+	// raw is kept unwrapped: the special run builds its own wrapped generator
+	// from it, so each run's calls are guarded and recorded once.
 	raw := gen
 	if err := p.noteGuardOff(); err != nil {
 		return candidate.Draft{}, err
 	}
-	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace})
+	// The guardrail wraps the recorder: a call the guardrail refuses never
+	// reaches the model, so it is not recorded as a model call.
+	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace}, rail)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
+	// ADR-0009, ADR-0012: a doubled review runs a second Planner and a second
+	// Skeptic on the special-review model.
 	var special generator.Generator
 	if req.DoubleRun {
 		second := p.secondGenerator(req.SpecialModel, raw)
 		if second != nil {
-			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace})
+			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace}, rail)
 			if err != nil {
 				return candidate.Draft{}, err
 			}
 		}
 	}
 
-	risks, err := planner.Plan(ctx, req.Target, gen)
+	risks, err := planner.Plan(ctx, fx.Root, gen)
 	if err != nil {
+		// A Planner whose service is down leaves an empty review that names
+		// the service; any other Planner error stops the review.
 		if d, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
 				return p.cut(st, nil, allow)
@@ -277,7 +370,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		if ctx.Err() != nil {
 			return p.cut(st, cands, allow)
 		}
-		more, err := planner.Plan(ctx, req.Target, special)
+		more, err := planner.Plan(ctx, fx.Root, special)
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -295,6 +388,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				Risk: r, Runs: []string{runSpecial}, Models: []string{reviewerModel(req, runSpecial)},
 			})
 		}
+		// The two runs number their risks on their own, so they are merged by
+		// what the risk is. The claim names a renamed risk under both ids.
 		var ids []string
 		cands, ids = mergeCandidates(cands, extra)
 		for i, r := range more {
@@ -307,11 +402,14 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			}
 		}
 	}
+	// After each stage, a context that has ended returns what is judged so far.
 	p.boundary("planned")
 	if ctx.Err() != nil {
 		return p.cut(st, cands, allow)
 	}
 
+	// An agent step that fails for one candidate leaves that candidate as it
+	// was; the others go on.
 	for i := range cands {
 		next, err := investigator.Investigate(ctx, cands[i], fx.Snapshot, gen, q)
 		if err != nil {
@@ -330,6 +428,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		return p.cut(st, cands, allow)
 	}
 	for i := range cands {
+		// ADR-0025: the Prover's test runs in the container on the fixture's
+		// base and change trees, with no network and no secret.
 		next, err := prover.Prove(ctx, cands[i], gen, run, prover.Options{
 			BaseDir:         filepath.Join(fx.Root, "base"),
 			ChangeDir:       filepath.Join(fx.Root, "change"),
@@ -356,6 +456,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		return p.cut(st, cands, allow)
 	}
 
+	// ADR-0006: every finding faces the Skeptic, and what it proposes is run
+	// as a test or a query; its word alone is not evidence.
 	for i := range cands {
 		if hasRun(cands[i], runDefault) {
 			next, err := skeptic.Attempt(ctx, cleared(cands[i]), gen)
@@ -382,6 +484,9 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				return candidate.Draft{}, err
 			}
 		}
+		// The special Skeptic sees only risks its own run named. Its result
+		// is written to the trace under the special run; it becomes the
+		// finding's refutation only when the default run did not name the risk.
 		if special != nil && hasRun(cands[i], runSpecial) {
 			next, err := skeptic.Attempt(ctx, cleared(cands[i]), special)
 			ref := candidate.Refutation{Attempted: false, Reason: "not attempted"}
@@ -424,6 +529,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		return p.cut(st, cands, allow)
 	}
 
+	// H-MEM is read before the Judge: a finding an earlier review of this
+	// change refuted is dropped and does not come back.
 	for i := range cands {
 		if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
 			cands[i].Dropped = true
@@ -438,7 +545,9 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
-	cands, err = p.addOSV(ctx, st, q, req.Target, fx.Snapshot, cands)
+	// The dependency check and the EPSS scores come after the Judge: they add
+	// findings judged on their own query rows and do not pass the Skeptic.
+	cands, err = p.addOSV(ctx, st, q, fx.Root, fx.Snapshot, cands)
 	if err != nil {
 		if _, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
@@ -464,6 +573,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 // attachEPSS scores every kept finding whose evidence names a CVE.
 // A missing row is a trace line and adds no evidence.
 func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Adapter, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
+	// ADR-0013: the view is a setting; empty means the named default.
 	view := p.epssView
 	if view == "" {
 		view = epss.DefaultView
@@ -501,6 +611,8 @@ func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root,
 		return cands, err
 	}
 	for _, c := range checked.Candidates {
+		// The Judge still decides an OSV finding: a matching range is
+		// evidence, nothing else is.
 		c = judge.Decide(c)
 		if e := st.trace.Append(trace.Event{
 			FindingID: c.ID, Kind: "claim", Agent: "osv", Text: c.Title,
@@ -530,8 +642,9 @@ func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root,
 }
 
 // runRefutation asks the prover or the investigator to run what the skeptic proposed.
-// A proposal with no test and no query is not evidence. H-MEM is not on this
-// base, so a refutation that lands is recorded on the trace by the caller.
+// A proposal with no test and no query is not evidence. The caller writes the
+// refutation to the trace, and H-MEM learns it from the trace when the review is
+// folded in.
 func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Adapter, run testrun.Adapter) error {
 	r := &c.Refutation
 	if r.TestName != "" {
@@ -539,6 +652,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 			FindingID: c.ID, Path: r.TestPath, Name: r.TestName, Command: r.Command,
 		})
 		if err != nil {
+			// A deadline is not a test that cannot run; it is passed up as is.
 			if ctx.Err() != nil {
 				return err
 			}
@@ -574,6 +688,8 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 			return err
 		}
 		r.QueryRows = copyRows(res.Rows)
+		// A test result already gives the reason when it refutes; the query
+		// sets it only when the test did not run or did not refute.
 		if judge.QueryContradicts(*c, r.QueryRows) && (r.Reason == "" || r.TestFailsOnChange || !r.TestFound) {
 			r.Reason = "query rows contradict the finding"
 		}
@@ -588,6 +704,8 @@ func (p *Pipeline) noteFamily(st *state) error {
 	if sk == "" {
 		sk = generator.DefaultSkepticModel
 	}
+	// A provider receipt is the stronger word on which model answered, so it
+	// replaces the configured name.
 	for _, m := range st.models {
 		if m.Agent == "skeptic" && m.FromReceipt && m.Model != "" && m.Model != "unknown" {
 			sk = m.Model
@@ -608,6 +726,10 @@ func (p *Pipeline) noteFamily(st *state) error {
 	return st.event("review", "family", "skeptic", sentence)
 }
 
+// adapters picks the generator, the query adapter and the test runner for this
+// review. Sample mode uses the fixture's recorded answers, tables and test
+// outcomes; live mode uses the adapters Build was given, and loads the container
+// settings only when no runner was given.
 func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Adapter, testrun.Adapter, error) {
 	var gen generator.Generator
 	var q query.Adapter
@@ -646,11 +768,14 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 			if lerr != nil {
 				return nil, nil, nil, lerr
 			}
+			// An explicit Options.MaxWrittenBytes wins over the setting.
 			if p.maxWritten <= 0 {
 				p.maxWritten = cfg.MaxWrittenBytes
 			}
 			c, nerr := testrun.NewContainer(cfg, nil)
 			if nerr != nil {
+				// ADR-0025: a missing container runtime turns the Prover off
+				// and names why; it does not stop the review. A bad setting does.
 				d, ok := service.As(nerr)
 				if !ok {
 					return nil, nil, nil, nerr
@@ -664,6 +789,8 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 			}
 		}
 	}
+	// Only the container needs the two trees on disk; a recorded or injected
+	// runner does not.
 	if _, ok := run.(*testrun.Container); ok {
 		run = checkoutRun{
 			inner:  run,
@@ -681,6 +808,7 @@ type checkoutRun struct {
 	base, change string
 }
 
+// Run fills the empty checkout directories and runs req on the inner adapter.
 func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outcome, error) {
 	if req.BaseDir == "" {
 		req.BaseDir = a.base
@@ -691,6 +819,8 @@ func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outc
 	return a.inner.Run(ctx, req)
 }
 
+// state is what one review gathers as it runs: the trace it writes to, the
+// services that failed, the model calls made, and the key of the change.
 type state struct {
 	trace     *trace.Writer
 	failed    []candidate.Failure
@@ -698,14 +828,17 @@ type state struct {
 	changeKey string
 }
 
+// event writes one plain trace line about a finding.
 func (s *state) event(id, kind, agent, text string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: kind, Agent: agent, Text: text})
 }
 
+// claim writes the Planner's claim for a risk, under the run that named it.
 func (s *state) claim(id, text, run string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: "claim", Agent: "planner", Text: text, Run: run})
 }
 
+// evidence writes what the Investigator and the Prover found for a candidate.
 func (s *state) evidence(c candidate.Candidate) error {
 	return s.trace.Append(trace.Event{
 		FindingID: c.ID,
@@ -716,6 +849,8 @@ func (s *state) evidence(c candidate.Candidate) error {
 	})
 }
 
+// refutation writes the Skeptic's result for a candidate. It carries the change
+// key, rule, path and title, which is what H-MEM stores a refutation by.
 func (s *state) refutation(c candidate.Candidate, run string) error {
 	text := c.Refutation.Reason
 	if text == "" {
@@ -741,6 +876,9 @@ func (s *state) refutation(c candidate.Candidate, run string) error {
 	})
 }
 
+// soften sorts an agent error. A service that is down is noted and reported as
+// degraded, so the review goes on without it. An ended context becomes
+// errPartial, so the caller returns a partial draft. Anything else is fatal.
 func (s *state) soften(ctx context.Context, err error) (degraded bool, fatal error) {
 	if err == nil {
 		return false, nil
@@ -755,8 +893,10 @@ func (s *state) soften(ctx context.Context, err error) (degraded bool, fatal err
 	return false, err
 }
 
+// errPartial tells the review loop to stop and return what is judged so far.
 var errPartial = errors.New("review partial")
 
+// note adds a failed service once; the first reason given is kept.
 func (s *state) note(d *service.Down) {
 	for _, f := range s.failed {
 		if f.Service == d.Service {
@@ -766,6 +906,7 @@ func (s *state) note(d *service.Down) {
 	s.failed = append(s.failed, candidate.Failure{Service: d.Service, Reason: d.Reason})
 }
 
+// cut ends the review early with a partial draft, limited to the selected files.
 func (p *Pipeline) cut(st *state, cands []candidate.Candidate, allow map[string]struct{}) (candidate.Draft, error) {
 	d, err := st.partial(cands)
 	if err != nil {
@@ -775,6 +916,7 @@ func (p *Pipeline) cut(st *state, cands []candidate.Candidate, allow map[string]
 	return d, nil
 }
 
+// partial writes the draft of a review the deadline cut short.
 func (s *state) partial(cands []candidate.Candidate) (candidate.Draft, error) {
 	// partial-path filter: a candidate the judge has not judged is not a finding.
 	judged, err := s.omitUnjudged(cands)
@@ -786,6 +928,8 @@ func (s *state) partial(cands []candidate.Candidate) (candidate.Draft, error) {
 	}), nil
 }
 
+// omitUnjudged drops every candidate the Judge has not decided, and writes a
+// "not judged: deadline" verdict for each so the trace accounts for it.
 func (s *state) omitUnjudged(cands []candidate.Candidate) ([]candidate.Candidate, error) {
 	var out []candidate.Candidate
 	for _, c := range cands {
@@ -800,7 +944,8 @@ func (s *state) omitUnjudged(cands []candidate.Candidate) ([]candidate.Candidate
 	return out, nil
 }
 
-// noteGuardOff writes "no guardrail" once when the switch is off.
+// noteGuardOff writes "no guardrail" once when the switch is off, so a review
+// run without the guardrail says so on its trace (ADR-0005).
 func (p *Pipeline) noteGuardOff() error {
 	if !p.guardOff {
 		return nil
@@ -813,17 +958,24 @@ func (p *Pipeline) noteGuardOff() error {
 	})
 }
 
-// guard checks the prompt before the model runs and the answer before it is used.
+// guard checks the prompt before the model runs and the answer before it is used
+// (ADR-0005). Each check is written to the trace.
 // When the switch is off it returns the generator unchanged.
-func (p *Pipeline) guard(gen generator.Generator) (generator.Generator, error) {
+// rail nil uses the pipeline's adapter.
+func (p *Pipeline) guard(gen generator.Generator, rail guardrail.Adapter) (generator.Generator, error) {
 	if p.guardOff {
 		return gen, nil
 	}
-	return guardrail.Wrap(gen, p.rail, func(agent, side string, v guardrail.Verdict, refused string) error {
+	if rail == nil {
+		rail = p.rail
+	}
+	return guardrail.Wrap(gen, rail, func(agent, side string, v guardrail.Verdict, refused string) error {
 		return p.trace.Append(guardEvent(agent, side, v, refused))
 	})
 }
 
+// guardEvent is the trace line for one guardrail check: the refusal when the
+// check could not be made, otherwise the side, verdict, latency and categories.
 func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.Event {
 	ev := trace.Event{FindingID: "guardrail", Kind: "guardrail", Agent: agent}
 	if refused != "" {
@@ -846,12 +998,17 @@ func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.E
 	return ev
 }
 
+// recording wraps a generator and records every model call, on the review and
+// on the trace.
 type recording struct {
 	inner  generator.Generator
 	models *[]candidate.ModelUse
 	trace  *trace.Writer
 }
 
+// Complete calls the inner generator and records which model answered. A
+// generator that reports its use is recorded even when the call failed, since
+// a call was made. One that does not is recorded as "unknown", never guessed.
 func (g recording) Complete(ctx context.Context, agent, prompt string) (string, error) {
 	text, err := g.inner.Complete(ctx, agent, prompt)
 	if rep, ok := g.inner.(generator.Reported); ok {
@@ -895,6 +1052,8 @@ func (g recording) record(m candidate.ModelUse) error {
 	})
 }
 
+// changedFiles lists the files of the change: from git when a baseline commit
+// is named, otherwise from the fixture's two trees.
 func changedFiles(req Request) ([]string, error) {
 	if req.BaselineCommit != "" {
 		return change.Between(req.Target, req.BaselineCommit, req.HeadCommit)
@@ -910,6 +1069,7 @@ func changedFiles(req Request) ([]string, error) {
 	return out, nil
 }
 
+// selectionText is the trace text naming the files left out, sorted.
 func selectionText(dropped []string) string {
 	if len(dropped) == 0 {
 		return "selected out: none"
@@ -919,6 +1079,7 @@ func selectionText(dropped []string) string {
 	return "selected out: " + strings.Join(cp, ", ")
 }
 
+// keepFindings keeps the findings whose path is one of the selected files.
 func keepFindings(in []candidate.Candidate, allow map[string]struct{}) []candidate.Candidate {
 	var out []candidate.Candidate
 	for _, c := range in {
@@ -929,6 +1090,8 @@ func keepFindings(in []candidate.Candidate, allow map[string]struct{}) []candida
 	return out
 }
 
+// evidenceText is the one-line trace text for a candidate's evidence, followed
+// by the Prover's note when there is one, or "none".
 func evidenceText(c candidate.Candidate) string {
 	if len(c.Evidence) == 0 {
 		if c.ProverNote != "" {
@@ -960,6 +1123,8 @@ func evidenceText(c candidate.Candidate) string {
 	return text
 }
 
+// traceEvidence copies evidence into its trace form. Rows and columns are
+// copied, so the trace never shares a slice with a candidate.
 func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 	if len(in) == 0 {
 		return nil
@@ -987,6 +1152,7 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 	return out
 }
 
+// copyRows deep-copies query rows.
 func copyRows(rows [][]string) [][]string {
 	if rows == nil {
 		return nil
@@ -998,6 +1164,8 @@ func copyRows(rows [][]string) [][]string {
 	return out
 }
 
+// The two runs of a doubled review. A review that is not doubled has only
+// the default run.
 const (
 	runDefault = "default"
 	runSpecial = "special"
@@ -1019,6 +1187,8 @@ func (p *Pipeline) secondGenerator(model string, sample generator.Generator) gen
 	return sample
 }
 
+// reviewerModel is the model name a run is credited to on the review: the
+// configured name, or the run's own name when none was configured.
 func reviewerModel(req Request, run string) string {
 	if run == runSpecial {
 		if req.SpecialModel != "" {
@@ -1032,6 +1202,7 @@ func reviewerModel(req Request, run string) string {
 	return runDefault
 }
 
+// hasRun reports whether run named the candidate.
 func hasRun(c candidate.Candidate, run string) bool {
 	for _, r := range c.Runs {
 		if r == run {
@@ -1079,6 +1250,9 @@ func mergeCandidates(base, extra []candidate.Candidate) (merged []candidate.Cand
 	return base, ids
 }
 
+// riskKey is what makes two risks the same risk: the rule id with the path and
+// lines, or, with no rule id, the title with spaces and case evened out and the
+// path.
 func riskKey(r candidate.Risk) string {
 	if strings.TrimSpace(r.RuleID) == "" {
 		return "title\x00" + strings.ToLower(strings.Join(strings.Fields(r.Title), " ")) + "\x00" + r.Path
@@ -1086,6 +1260,7 @@ func riskKey(r candidate.Risk) string {
 	return fmt.Sprintf("rule\x00%s\x00%s\x00%d\x00%d", r.RuleID, r.Path, r.StartLine, r.EndLine)
 }
 
+// appendNew appends the values of src that dst does not hold yet.
 func appendNew(dst, src []string) []string {
 	for _, s := range src {
 		seen := false
@@ -1102,6 +1277,8 @@ func appendNew(dst, src []string) []string {
 	return dst
 }
 
+// evidenceAgent names the agent the evidence is credited to: the Prover when a
+// test is among it, otherwise the Investigator.
 func evidenceAgent(c candidate.Candidate) string {
 	for _, e := range c.Evidence {
 		if e.Kind == candidate.KindTest {

@@ -37,16 +37,22 @@ SSHO="-o UserKnownHostsFile=$KH"; [ -f "$KEY" ] && SSHO="$SSHO -o IdentitiesOnly
 # code signature and runs setuid root, which would put an unsigned binary on the host to contain another one.
 TART_VER=2.40.1; TART_SHA=363e2701154a8155cbc1bb6d845430c9b42697d2a186bc49574471ca2877db46; TART_TEAM=9M2P8L4D89
 
+# ok and no print the one line every step owes; no also stops the script, so a failed step never lets the next one run.
 ok() { echo "✔ $*"; }
 no() { echo "✖ $*"; exit 1; }
+# vm_exists asks Tart's own list; an exact-name match, so a VM called nightshift2 is not taken for nightshift.
 vm_exists() { command -v tart >/dev/null && tart list -q 2>/dev/null | grep -qx "$VM"; }
+# vm_args returns the running `tart run` command line: its flags are the measurement of what the guest shares.
 vm_args() { ps -axww -o args= | grep "tart run $VM" | grep -v grep | head -1; }
 
+# check measures the host before anything is installed: macOS version (the Tahoe guest needs 26), free memory and disk
+# against the VM's size plus headroom for the host, and whether the image registry answers.
 check() {
   v=$(sw_vers -productVersion)
   case "$v" in 2[6-9].*) ok "$(sysctl -n machdep.cpu.brand_string), macOS $v";; *) no "macOS $v — the Tahoe guest needs macOS 26";; esac
   fr=$(vm_stat | awk '/page size of/{ps=$8} /Pages free/{f=$3} /Pages inactive/{i=$3} /Pages speculative/{s=$3} END{print int((f+i+s)*ps/1073741824)}')
   dk=$(df -g /System/Volumes/Data | awk 'NR==2{print $4}')
+  # Headroom: 8 GiB of memory stays with the host; the disk needs the VM, the 25 GB image and 95 GB for the host to keep.
   need_m=$((MEM_MB/1024+8)); need_d=$((DISK_GB+25+95))
   echo "  memory: ${fr} GiB free+inactive - $((MEM_MB/1024)) for the VM = $((fr-MEM_MB/1024)) GiB left · disk: ${dk} GiB free - $((DISK_GB+25)) ($DISK_GB VM + 25 image) = $((dk-DISK_GB-25)) GiB left"
   [ "$fr" -ge "$need_m" ] && [ "$dk" -ge "$need_d" ] && ok "fits" || no "does not fit (needs $need_m GiB memory and $need_d GB disk free)"
@@ -61,6 +67,8 @@ fetch() { # fetch <url> <sha256> <dir> — download and verify, or stop
   tar xzf "$3/a.tar.gz" -C "$3" || no "extract failed"
 }
 
+# install_tools puts the pinned Tart in /Applications after two proofs: the archive's SHA-256 matches the pin, and the
+# app is signed by Cirrus Labs' team and notarized. A one-line wrapper in /usr/local/bin is the only file sudo writes.
 install_tools() {
   d=$(mktemp -d)
   if [ -x /Applications/tart.app/Contents/MacOS/tart ] && /Applications/tart.app/Contents/MacOS/tart --version 2>/dev/null | grep -qx "$TART_VER"; then
@@ -78,6 +86,7 @@ install_tools() {
   rm -rf "$d"
 }
 
+# create clones the base image and sizes the VM from the settings; it refuses rather than overwrite an existing VM.
 create() {
   command -v tart >/dev/null || no "tart is not installed — run: $0 install-tools"
   vm_exists && no "a VM named $VM already exists — see: tart list"
@@ -94,11 +103,14 @@ start() {
   # No --dir: nothing of the host is shared. --no-clipboard unless CLIPBOARD=1: Tart shares the clipboard by default.
   cf=--no-clipboard; [ "$CLIPBOARD" = 1 ] && cf=
   nohup tart run "$VM" $cf >> "$LOG" 2>&1 &
+  # The guest takes a while to boot: wait up to 5 minutes (60 × 5 s) for Tart to report its address.
   ip=""; for i in $(seq 1 60); do ip=$(tart ip "$VM" 2>/dev/null) && [ -n "$ip" ] && break; sleep 5; done
   [ -n "$ip" ] && ok "$VM running at $ip; its window is open on this Mac" || no "no address after 5 min — see $LOG"
   status
 }
 
+# status reads the running command line, not a remembered setting: a shared folder is always a failure, a shared
+# clipboard is a failure unless CLIPBOARD=1 asked for it.
 status() {
   vm_exists || { echo "no VM named $VM"; return 1; }
   tart get "$VM"
@@ -113,6 +125,8 @@ status() {
 
 stop() { tart stop "$VM" && ok "$VM stopped" || no "tart stop failed"; }
 
+# copy_installer checks the installer twice against the SHA-256 Meterless publishes: on the host before it is sent, and
+# inside the VM after the copy, so neither the download nor the transfer can change it unnoticed.
 copy_installer() {
   f="${1:-}"; [ -f "$f" ] || no "usage: $0 copy-installer <path of the .dmg>"
   n=$(basename "$f")
@@ -172,6 +186,8 @@ pf_plist() { cat <<EOF
 EOF
 }
 
+# isolate writes the rules, the loader and the LaunchDaemon to a temp dir and checks all three (pf parses the rules,
+# plutil the plist, /etc/pf.conf evaluates com.apple/*) before sudo installs anything. DRY=1 stops after the checks.
 isolate() {
   d=$(mktemp -d); pf_rules > "$d/rules"; pf_loader > "$d/loader"; pf_plist > "$d/plist"
   /sbin/pfctl -n -f "$d/rules" >/dev/null 2>&1 && ok "pf rules parse" || no "pf rules do not parse: /sbin/pfctl -n -f $d/rules"
@@ -185,14 +201,17 @@ isolate() {
   ok "installed $PF_RULES, $PF_LOADER, $PF_PLIST"
   sudo launchctl bootout system/$PF_LABEL 2>/dev/null
   sudo launchctl bootstrap system "$PF_PLIST" || no "launchctl bootstrap failed"
+  # launchctl returns before the loader has run; give it a moment, then read the anchor from pf itself.
   sleep 2
   n=$(sudo /sbin/pfctl -a $ANCHOR -s rules 2>/dev/null | grep -c .)
   st=$(sudo /sbin/pfctl -s info 2>/dev/null | awk '/^Status:/{print $2}')
+  # The anchor holds five rules (pf_rules); fewer means it did not load as written.
   [ "$n" -ge 5 ] && [ "$st" = Enabled ] && ok "anchor $ANCHOR holds $n rules; pf is $st" || no "anchor holds $n rules, pf is '$st'"
   rm -rf "$d"
   echo "  Now measure from the guest: $0 reach"
 }
 
+# unisolate removes only what isolate installed; pf itself is left as macOS had it.
 unisolate() {
   sudo launchctl bootout system/$PF_LABEL 2>/dev/null
   sudo /sbin/pfctl -a $ANCHOR -F all 2>/dev/null

@@ -1,4 +1,9 @@
-// Package query runs SQL for the investigator.
+// Package query runs the Investigator's SQL. It holds the one Adapter
+// interface and its two implementations: Live sends a SELECT to Zetaris over
+// REST (ADR-0015), and Sample runs the same SQL on a small local engine over
+// sample tables, so sample mode and the tests need no network (ADR-0002,
+// point 4). The EPSS and OSV steps of the pipeline query through the same
+// Adapter. The Judge keeps the SQL and its rows as evidence.
 package query
 
 import (
@@ -7,6 +12,8 @@ import (
 	"unicode"
 )
 
+// tokenKind is what a token is: a name or keyword, a quoted string, or one
+// symbol.
 type tokenKind int
 
 const (
@@ -15,22 +22,30 @@ const (
 	kindSym
 )
 
+// token is one lexical unit of a statement. A string's val has its quotes
+// removed and each doubled quote turned back into one.
 type token struct {
 	kind tokenKind
 	val  string
 }
 
 // DB is an in-memory table store for the sample queries.
+// It reads only the small SQL the samples and the evidence queries use:
+// CREATE TABLE, INSERT of quoted strings, and a SELECT with at most one inner
+// join and a WHERE of equalities joined by AND.
 type DB struct {
 	tables map[string]*table
 }
 
+// table keeps every cell as text, the form the live adapter also returns.
 type table struct {
 	cols []string
 	rows [][]string
 }
 
 // LoadSQL runs CREATE TABLE and INSERT statements.
+// Any other statement is refused: a sample file only declares tables and
+// their rows.
 func LoadSQL(sql string) (*DB, error) {
 	db := &DB{tables: map[string]*table{}}
 	for _, stmt := range splitStatements(sql) {
@@ -58,6 +73,8 @@ func LoadSQL(sql string) (*DB, error) {
 }
 
 // Query runs one SELECT and returns the projected rows.
+// More than one statement, or anything but a SELECT, is refused, so a query
+// cannot change the loaded tables.
 func (db *DB) Query(sql string) ([]string, [][]string, error) {
 	stmts := splitStatements(sql)
 	if len(stmts) != 1 {
@@ -73,6 +90,8 @@ func (db *DB) Query(sql string) ([]string, [][]string, error) {
 	return db.execSelect(toks)
 }
 
+// execCreate defines an empty table. Column types are read and ignored,
+// because every cell is text.
 func (db *DB) execCreate(toks []token) error {
 	// CREATE TABLE name ( col type , ... )
 	// name may be schema.table, the form the evidence views use.
@@ -83,6 +102,8 @@ func (db *DB) execCreate(toks []token) error {
 	if err != nil || i >= len(toks) || toks[i].val != "(" {
 		return fmt.Errorf("query: bad CREATE TABLE")
 	}
+	// A second CREATE of the same name is refused, so it cannot silently drop
+	// the rows already loaded.
 	if _, ok := db.tables[name]; ok {
 		return fmt.Errorf("query: table %s already exists", name)
 	}
@@ -108,6 +129,7 @@ func (db *DB) execCreate(toks []token) error {
 	return nil
 }
 
+// execInsert appends one row of quoted values to a table created before it.
 func (db *DB) execInsert(toks []token) error {
 	// INSERT INTO name VALUES ( 'a' , 'b' )
 	if len(toks) < 4 || !strings.EqualFold(toks[1].val, "INTO") {
@@ -130,11 +152,14 @@ func (db *DB) execInsert(toks []token) error {
 		if toks[i].val == "," {
 			continue
 		}
+		// Cells are text, so only quoted values are taken.
 		if toks[i].kind != kindString {
 			return fmt.Errorf("query: INSERT values must be strings")
 		}
 		vals = append(vals, toks[i].val)
 	}
+	// A row with too few or too many values is refused: a missing cell would
+	// shift every column after it.
 	if len(vals) != len(tb.cols) {
 		return fmt.Errorf("query: INSERT has %d values, table %s has %d columns", len(vals), name, len(tb.cols))
 	}
@@ -142,6 +167,8 @@ func (db *DB) execInsert(toks []token) error {
 	return nil
 }
 
+// execSelect runs
+// SELECT cols FROM t [a] [[INNER] JOIN u [b] ON x = y] [WHERE c = 'v' [AND ...]].
 func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 	cols, i, err := parseSelectList(toks, 1)
 	if err != nil {
@@ -184,6 +211,9 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 	}
 	var where []wherePred
 	if i < len(toks) {
+		// Anything after the table or the join must be a WHERE. ORDER BY, LIMIT and
+		// the rest are refused rather than ignored, so a query never returns rows it
+		// did not ask for.
 		if !strings.EqualFold(toks[i].val, "WHERE") {
 			return nil, nil, fmt.Errorf("query: unexpected %s", toks[i].val)
 		}
@@ -198,12 +228,16 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 			if i >= len(toks) {
 				break
 			}
+			// Only AND: a predicate this engine cannot read is refused, not half-read.
 			if !strings.EqualFold(toks[i].val, "AND") {
 				return nil, nil, fmt.Errorf("query: only AND is supported")
 			}
 			i++
 		}
 	}
+	// Every column is resolved before any row is read. A wrong or ambiguous name
+	// is an error, never an empty result, because an empty result would read as
+	// "no evidence".
 	left, err := db.bind(leftRef)
 	if err != nil {
 		return nil, nil, err
@@ -246,6 +280,8 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 		}
 		return names, rows, nil
 	}
+	// A nested-loop inner join. The sample tables are small, so no index is
+	// built.
 	for _, lr := range left.tb.rows {
 		for _, rr := range right.tb.rows {
 			lv, err := lookup(onL, left, lr, right, rr)
@@ -268,27 +304,33 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 	return names, rows, nil
 }
 
+// colRef is a column, optionally qualified by a table name or an alias.
 type colRef struct {
 	qual string
 	name string
 }
 
+// wherePred is one column = 'value' test of a WHERE clause.
 type wherePred struct {
 	col colRef
 	val string
 }
 
+// tableRef is a table named in FROM or JOIN, with its optional alias.
 type tableRef struct {
 	name  string
 	alias string
 }
 
+// side is a table bound for one query, with its column positions by name.
 type side struct {
 	ref tableRef
 	tb  *table
 	idx map[string]int
 }
 
+// parseSelectList reads the column list up to FROM. A star or an expression
+// is refused: every output column is named.
 func parseSelectList(toks []token, i int) ([]colRef, int, error) {
 	var cols []colRef
 	for i < len(toks) && !strings.EqualFold(toks[i].val, "FROM") {
@@ -309,6 +351,8 @@ func parseSelectList(toks []token, i int) ([]colRef, int, error) {
 	return cols, i, nil
 }
 
+// parseTableRef reads a table name and an optional alias. A keyword after the
+// name is not taken as an alias.
 func parseTableRef(toks []token, i int) (tableRef, int, error) {
 	name, i, err := takeQualified(toks, i)
 	if err != nil {
@@ -322,6 +366,7 @@ func parseTableRef(toks []token, i int) (tableRef, int, error) {
 	return ref, i, nil
 }
 
+// takeQualified reads a dotted name such as schema.table or alias.column.
 func takeQualified(toks []token, i int) (string, int, error) {
 	if i >= len(toks) || toks[i].kind != kindIdent {
 		return "", i, fmt.Errorf("query: expected a name")
@@ -335,6 +380,8 @@ func takeQualified(toks []token, i int) (string, int, error) {
 	return name, i, nil
 }
 
+// takeColRef splits a dotted name into a qualifier and a column. A name of
+// more than two parts is refused.
 func takeColRef(toks []token, i int) (colRef, int, error) {
 	name, i, err := takeQualified(toks, i)
 	if err != nil {
@@ -351,6 +398,8 @@ func takeColRef(toks []token, i int) (colRef, int, error) {
 	}
 }
 
+// isKeyword lists the words that end a table reference, so they are never
+// read as an alias. The parser then refuses those it does not support.
 func isKeyword(s string) bool {
 	switch strings.ToUpper(s) {
 	case "WHERE", "JOIN", "INNER", "ON", "AND", "SELECT", "FROM", "ORDER", "LIMIT", "GROUP", "LEFT", "RIGHT":
@@ -360,6 +409,7 @@ func isKeyword(s string) bool {
 	}
 }
 
+// bind looks up a table by its full name and indexes its columns.
 func (db *DB) bind(ref tableRef) (side, error) {
 	tb, ok := db.tables[ref.name]
 	if !ok {
@@ -372,6 +422,8 @@ func (db *DB) bind(ref tableRef) (side, error) {
 	return side{ref: ref, tb: tb, idx: idx}, nil
 }
 
+// matches reports whether qual names this side: its alias, its full name, or
+// the last part of a schema.table name.
 func (s side) matches(qual string) bool {
 	if qual == "" {
 		return false
@@ -388,6 +440,8 @@ func (s side) matches(qual string) bool {
 	return false
 }
 
+// has reports whether the column is on this side and its qualifier, if any,
+// names this side.
 func (s side) has(ref colRef) bool {
 	if ref.qual != "" && !s.matches(ref.qual) {
 		return false
@@ -396,6 +450,7 @@ func (s side) has(ref colRef) bool {
 	return ok
 }
 
+// mustResolve requires a column to exist on exactly one side of the join.
 func mustResolve(ref colRef, left, right *side) error {
 	lok := left.has(ref)
 	rok := right != nil && right.has(ref)
@@ -412,6 +467,7 @@ func mustResolve(ref colRef, left, right *side) error {
 	return nil
 }
 
+// lookup reads a column's value from the current pair of rows.
 func lookup(ref colRef, left side, leftRow []string, right *side, rightRow []string) (string, error) {
 	var lv, rv string
 	lok, rok := false, false
@@ -435,6 +491,7 @@ func lookup(ref colRef, left side, leftRow []string, right *side, rightRow []str
 	return "", fmt.Errorf("query: no column %s", ref.name)
 }
 
+// rowWhere reports whether a pair of rows passes every WHERE test.
 func rowWhere(where []wherePred, left side, leftRow []string, right *side, rightRow []string) bool {
 	for _, p := range where {
 		got, err := lookup(p.col, left, leftRow, right, rightRow)
@@ -445,6 +502,8 @@ func rowWhere(where []wherePred, left side, leftRow []string, right *side, right
 	return true
 }
 
+// project builds one output row in select-list order. The columns were
+// resolved before the scan; a cell that still does not resolve is left empty.
 func project(cols []colRef, left side, leftRow []string, right *side, rightRow []string) []string {
 	out := make([]string, len(cols))
 	for n, c := range cols {
@@ -458,6 +517,8 @@ func project(cols []colRef, left side, leftRow []string, right *side, rightRow [
 	return out
 }
 
+// splitStatements splits on semicolons outside quoted strings. A doubled
+// quote inside a string is kept as written, for the tokenizer to read.
 func splitStatements(sql string) []string {
 	var out []string
 	var b strings.Builder
@@ -490,6 +551,9 @@ func splitStatements(sql string) []string {
 	return out
 }
 
+// tokenize turns a statement into tokens. A character the small grammar does
+// not use, a digit included, is refused, so an unexpected statement fails
+// loudly instead of running in part.
 func tokenize(s string) ([]token, error) {
 	var out []token
 	i := 0
@@ -505,6 +569,7 @@ func tokenize(s string) ([]token, error) {
 			closed := false
 			for j < len(s) {
 				if s[j] == '\'' {
+					// Two quotes inside a string are one quote, as in standard SQL.
 					if j+1 < len(s) && s[j+1] == '\'' {
 						b.WriteByte('\'')
 						j += 2
@@ -544,6 +609,8 @@ func tokenize(s string) ([]token, error) {
 	return out, nil
 }
 
+// isIdent reports whether b can start a name: an ASCII letter or an
+// underscore.
 func isIdent(b byte) bool {
 	return b == '_' || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// The sample answers only the exact agent and prompt it recorded; another
+// prompt or another agent gets no answer.
 func TestSampleMatchesAgentAndPrompt(t *testing.T) {
 	s, err := generator.NewSample([]generator.Response{
 		{Agent: "planner", Prompt: "name the risks\n", Response: "[]"},
@@ -30,6 +32,8 @@ func TestSampleMatchesAgentAndPrompt(t *testing.T) {
 	}
 }
 
+// A live generator with no settings fails as a named Nightshift outage,
+// not with a panic or a silent empty answer.
 func TestUnconfiguredLiveGeneratorIsDown(t *testing.T) {
 	live := &generator.Live{}
 	_, err := live.Complete(context.Background(), "planner", "name the risks\n")

@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+// A symlink in either tree is refused, its target is never returned, and the
+// error names the link.
 func TestReadRefusesASymlink(t *testing.T) {
 	const marker = "outside-the-tree"
 	for _, side := range []string{"base", "change"} {
@@ -42,6 +44,8 @@ func TestReadRefusesASymlink(t *testing.T) {
 	}
 }
 
+// A regular file that exists only in change/ is returned once, with its path
+// and its content.
 func TestReadReturnsARegularFile(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "base"), 0o755); err != nil {

@@ -1,4 +1,10 @@
 // Package skeptic makes one refutation attempt per finding.
+//
+// The Skeptic gets each finding and makes one attempt to
+// refute it (ADR-0006). It runs on another model family than the finder,
+// through PROVEN_SKEPTIC_MODEL. It only proposes: a refuting test goes to the
+// Prover's runner, a refuting query to the Investigator's engine, and the
+// Judge decides on what they return. It never drops a finding itself.
 package skeptic
 
 import (
@@ -24,6 +30,7 @@ func Prompt(id, title string) string {
 	return answer.Instruct(refuteSpec, "id: "+id+"\ntitle: "+title+"\n")
 }
 
+// row is the refutation as the model returns it.
 type row struct {
 	Refuted bool   `json:"refuted"`
 	Reason  string `json:"reason"`
@@ -42,6 +49,7 @@ func Attempt(ctx context.Context, c candidate.Candidate, gen generator.Generator
 		return c, err
 	}
 	reason := got.Reason
+	// The trace always says why, even when the model gave no reason.
 	if reason == "" {
 		reason = "no refutation"
 	}

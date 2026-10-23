@@ -46,6 +46,9 @@ type tracedRefute struct {
 	Reason    string `json:"reason"`
 }
 
+// The trace alone lets a reader follow a finding: a test's path, name, command,
+// outcomes and output, a query's SQL, engine, snapshot, columns and rows, and
+// each refutation attempt. A finding with no proof stores none.
 func TestTraceCarriesEvidenceAndRefutation(t *testing.T) {
 	p := buildSample(t, t.TempDir(), nil)
 	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})

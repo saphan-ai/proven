@@ -31,6 +31,7 @@ type ConfigError struct {
 	Reason  string
 }
 
+// Error names the environment variable, the refused value, the reason and the allowed values.
 func (e *ConfigError) Error() string {
 	if e == nil {
 		return "configuration refused"
@@ -45,8 +46,10 @@ func (e *ConfigError) Error() string {
 	return msg
 }
 
-// Load reads the live container settings. A wrong value is refused.
+// Load reads the live container settings (ADR-0013). A wrong value is refused.
 // An empty lookup uses DefaultContainerConfig. Validate has accepted the result.
+// A refusal is a *ConfigError that names the environment variable, so the
+// shell can tell the user which setting to fix; no container is started.
 func Load(env func(string) string) (ContainerConfig, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -64,6 +67,8 @@ func Load(env func(string) string) (ContainerConfig, error) {
 	if raw := env(EnvMemory); raw != "" {
 		cfg.Memory = raw
 	}
+	// Timeout and size are parsed here because the type changes; a value that
+	// parses but is not positive is refused by Validate below.
 	if raw := env(EnvTimeout); raw != "" {
 		d, err := time.ParseDuration(raw)
 		if err != nil {
@@ -84,6 +89,7 @@ func Load(env func(string) string) (ContainerConfig, error) {
 	return cfg, nil
 }
 
+// timeoutAllowed and bytesAllowed describe the allowed form of a value that did not parse.
 func timeoutAllowed() string {
 	shown := defaultTimeout.String()
 	return "a Go duration greater than zero, for example " + shown + "; empty means " + shown
@@ -93,10 +99,13 @@ func bytesAllowed() string {
 	return fmt.Sprintf("a positive integer; empty means %d", DefaultMaxWrittenBytes)
 }
 
+// refuse builds a ConfigError with one allowed form.
 func refuse(field, value, reason, allowed string) *ConfigError {
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
 }
 
+// fromSetting renames a SettingError's field to its environment variable,
+// so the user sees the name they set, not the Go field.
 func fromSetting(err error) error {
 	var se *SettingError
 	if !errors.As(err, &se) || se == nil {
@@ -110,6 +119,7 @@ func fromSetting(err error) error {
 	}
 }
 
+// envName maps a ContainerConfig field to the variable that sets it.
 func envName(field string) string {
 	switch field {
 	case "Runtime":
@@ -129,6 +139,7 @@ func envName(field string) string {
 	}
 }
 
+// clip bounds a refused value at 128 bytes, so a huge value cannot flood the error.
 func clip(value string) string {
 	if len(value) > 128 {
 		return value[:128]

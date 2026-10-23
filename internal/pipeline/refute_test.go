@@ -12,6 +12,8 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
+// ADR-0006: a refuting test the Skeptic proposes that passes on the change drops
+// the finding, and the trace says why. Other findings are not touched.
 func TestRefutationThatPassesOnTheChangeDropsTheFinding(t *testing.T) {
 	body := `{"refuted":true,"reason":"the test passes","path":"billing/discount_test.go","name":"TestRefute","command":"go test ./billing -run TestRefute","sql":""}`
 	d := reviewWithSkeptic(t, body, &scriptedRun{pass: "TestRefute"})
@@ -33,6 +35,8 @@ func TestRefutationThatPassesOnTheChangeDropsTheFinding(t *testing.T) {
 	}
 }
 
+// ADR-0006: a refutation with no test and no query is only an opinion, so the
+// finding is kept.
 func TestRefutationWithNoEvidenceLeavesTheFinding(t *testing.T) {
 	body := `{"refuted":true,"reason":"the model disagrees","path":"","name":"","command":"","sql":""}`
 	d := reviewWithSkeptic(t, body, &scriptedRun{})
@@ -48,6 +52,8 @@ func TestRefutationWithNoEvidenceLeavesTheFinding(t *testing.T) {
 	}
 }
 
+// A refuting test that cannot run leaves the finding in the review, marked
+// unresolved with that reason, neither kept as proved nor dropped.
 func TestRefutingTestThatCannotRunIsUnresolved(t *testing.T) {
 	body := `{"refuted":true,"reason":"try this","path":"billing/discount_test.go","name":"TestMissing","command":"go test ./billing -run TestMissing","sql":""}`
 	d := reviewWithSkeptic(t, body, &scriptedRun{miss: "TestMissing"})
@@ -63,6 +69,8 @@ func TestRefutingTestThatCannotRunIsUnresolved(t *testing.T) {
 	}
 }
 
+// ADR-0006: when the Skeptic and the finder are of the same model family, the
+// trace says so by name, and the review still runs.
 func TestSameFamilyIsStatedByName(t *testing.T) {
 	model := generator.DefaultSkepticModel
 	d := reviewReported(t, map[string]string{"*": model})
@@ -78,6 +86,8 @@ func TestSameFamilyIsStatedByName(t *testing.T) {
 	}
 }
 
+// When the Skeptic and the finder are of different families, no same-family
+// sentence is written.
 func TestDifferentFamiliesAreNotNamed(t *testing.T) {
 	d := reviewReported(t, map[string]string{
 		"planner": generator.DefaultSkepticModel,
@@ -92,6 +102,8 @@ func TestDifferentFamiliesAreNotNamed(t *testing.T) {
 	}
 }
 
+// A sample review, whose models are unknown, never states that the Skeptic and
+// the finder share a family.
 func TestSampleReviewDoesNotNameAnUnknownFamily(t *testing.T) {
 	p := buildSample(t, t.TempDir(), nil)
 	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})

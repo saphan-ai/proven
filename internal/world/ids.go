@@ -7,12 +7,16 @@ import (
 	"unicode"
 )
 
-// NormalizeName folds case, diacritics and whitespace.
+// NormalizeName folds case, diacritics and whitespace, so two spellings of
+// one name give one entity id. The meterless-conform command exposes it to
+// the World Model conformance suite.
 // The fold covers Latin-1 letters and combining marks, which is the set the
 // conformance vector uses. It does not abbreviate or stem.
 func NormalizeName(name string) string {
 	var b strings.Builder
 	for _, r := range name {
+		// Each listed Unicode space becomes a plain space, and zero-width characters
+		// are dropped, so invisible differences do not split one name in two.
 		switch r {
 		case '\u00a0', '\u2000', '\u2001', '\u2002', '\u2003', '\u2004', '\u2005',
 			'\u2006', '\u2007', '\u2008', '\u2009', '\u200a', '\u202f', '\u205f', '\u3000':
@@ -42,18 +46,21 @@ func decompose(r rune) []rune {
 }
 
 // EntityIDFromName is ent_ plus the first 16 hex digits of sha256(type + ":" + normalized name).
+// The type is part of the hash, so a person and an organisation of the same name stay apart.
 func EntityIDFromName(typ, name string) string {
 	sum := sha256.Sum256([]byte(typ + ":" + NormalizeName(name)))
 	return "ent_" + hex.EncodeToString(sum[:])[:16]
 }
 
-// ExternalID is the literal grammar type:system:externalId.
+// ExternalID is the literal grammar type:system:externalId. The world store
+// names a finding entity this way, with the system "review".
 func ExternalID(typ, system, id string) string {
 	return typ + ":" + system + ":" + id
 }
 
 // Decide bands a similarity. 0.85 and above auto-merges. 0.82 up to 0.85 queues.
-// Below 0.82 is a new entity.
+// Below 0.82 is a new entity. The bands come from the World Model
+// specification and its conformance vectors, not from a setting.
 func Decide(similarity float64) string {
 	if similarity >= 0.85 {
 		return "auto-merge"

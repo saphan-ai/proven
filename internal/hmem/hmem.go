@@ -1,5 +1,13 @@
 // Package hmem is the minimum memory store and retrieval service.
 // Dreaming, sleep and conflict resolution are not in this package.
+//
+// It is the reviewer's memory across pull requests (ADR-0003 point 1), built
+// to the Meterless H-MEM specification (ADR-0018 point 1). In a review it
+// keeps the Skeptic's refutations: when the Skeptic refutes a finding that
+// has evidence, the world package stores it here, and the next review of the
+// same change matches it so the refuted finding does not come back
+// (ADR-0006 point 4, ADR-0018 point 6). The store is a JSON file outside the
+// repository, with an append-only audit log in the run's logs directory.
 package hmem
 
 import (
@@ -18,6 +26,8 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 )
 
+// schemaVersion is the state.json format. Open refuses any other version
+// rather than guess at a file it does not know.
 const schemaVersion = 1
 
 // Layers and types are the closed sets from the memory record.
@@ -31,7 +41,8 @@ const (
 	TypePersonal   = "personal"
 )
 
-// Record is one memory. Source and provenance are mandatory.
+// Record is one memory. Source and provenance are mandatory. The JSON names
+// follow the Meterless memory record, so the conformance suite reads them as is.
 type Record struct {
 	ID           string     `json:"id"`
 	Content      string     `json:"content"`
@@ -80,7 +91,9 @@ type AddInput struct {
 	At         int64
 }
 
-// RefutationKey names a finding a skeptic refuted on one change.
+// RefutationKey names a finding a skeptic refuted on one change. ChangeKey,
+// RuleID, Path and Title identify it; Reason is the Skeptic's words and At
+// the time to record, in Unix milliseconds (zero means now).
 type RefutationKey struct {
 	ChangeKey string
 	RuleID    string
@@ -91,7 +104,8 @@ type RefutationKey struct {
 }
 
 // Options open a store. Dir is the durable directory. LogDir receives the audit JSONL.
-// RepoRoot, when set, refuses a Dir inside that tree.
+// RepoRoot, when set, refuses a Dir inside that tree, so memory never lands
+// in the repository under review. Clock, when set, replaces the wall clock.
 type Options struct {
 	Dir      string
 	LogDir   string
@@ -111,6 +125,7 @@ type Store struct {
 	records   map[string]Record
 }
 
+// disk is the shape of state.json. Seq is kept so Add never reuses an id after a reopen.
 type disk struct {
 	Version int      `json:"version"`
 	Seq     int      `json:"seq"`
@@ -183,6 +198,7 @@ func Open(opts Options) (*Store, error) {
 	return s, nil
 }
 
+// refuseInside refuses a state directory at or below root.
 func refuseInside(dir, root string) error {
 	if root == "" {
 		return nil
@@ -195,12 +211,17 @@ func refuseInside(dir, root string) error {
 	if err != nil {
 		return fmt.Errorf("hmem: state directory: %w", err)
 	}
-	if rel == "." || !strings.HasPrefix(rel, "..") {
+	// A name such as "..state" starts with ".." and is still inside; only ".."
+	// itself or a "../" prefix leaves the repository.
+	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 		return fmt.Errorf("hmem: state directory %s is inside the repository", dir)
 	}
 	return nil
 }
 
+// validate refuses a record outside the closed sets or without its source
+// and provenance. Open runs it on every loaded record, so a hand-edited file
+// cannot bring in a record the store would never write.
 func validate(rec Record) error {
 	if rec.ID == "" || strings.TrimSpace(rec.Content) == "" {
 		return fmt.Errorf("hmem: record %q is missing id or content", rec.ID)
@@ -227,7 +248,8 @@ func validate(rec Record) error {
 	return nil
 }
 
-// SetGenerator stores the model interface. Remember, Add and Query do not call it.
+// SetGenerator stores the model interface. RememberRefutation, Add and Query do not call it.
+// ADR-0018: every model call goes through an injected generator, never inside the engine.
 func (s *Store) SetGenerator(g generator.Generator) { s.gen = g }
 
 // Generator is the model interface this store was given.
@@ -283,6 +305,7 @@ func (s *Store) Add(in AddInput) (Record, error) {
 		ChatID:       in.ChatID,
 	}
 	rec.Namespace = namespace(rec.Domain, rec.Type)
+	// A refused record gives its sequence number back, so ids stay dense.
 	if err := validate(rec); err != nil {
 		s.seq--
 		return Record{}, err
@@ -298,13 +321,16 @@ func (s *Store) Add(in AddInput) (Record, error) {
 }
 
 // RememberRefutation stores a refuted finding. The same key returns the same record
-// and does not append a second one.
+// and does not append a second one. The world package calls it when it
+// ingests a refutation that had evidence, so a replayed trace stores nothing twice.
 func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if k.ChangeKey == "" || k.RuleID == "" || k.Path == "" {
 		return Record{}, fmt.Errorf("hmem: a refutation needs a change, a rule and a path")
 	}
+	// The id is derived from the key, not from the sequence: that is what
+	// makes a second call with the same key find the first record.
 	fk := findingKey(k.RuleID, k.Path, k.Title)
 	sum := sha256.Sum256([]byte(k.ChangeKey + "\n" + fk))
 	id := "mem_" + hex.EncodeToString(sum[:])[:16]
@@ -315,6 +341,8 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	if now == 0 {
 		now = s.now()
 	}
+	// A refutation is a long-term fact with high confidence: the Skeptic
+	// refuted it with evidence, not by opinion.
 	content := fmt.Sprintf("refuted %s %s: %s", k.RuleID, k.Path, k.Reason)
 	conf := 0.9
 	rec := Record{
@@ -354,6 +382,8 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 }
 
 // MatchRefutation returns the stored refutation of this finding on this change.
+// It matches the exact keys, not the ranked retrieval: a refutation must come
+// back for the same finding only, never for a finding that merely reads alike.
 func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -364,6 +394,7 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 		if rec.ChangeKey != changeKey || rec.FindingKey != want {
 			continue
 		}
+		// The lowest id wins, so the answer does not depend on map order.
 		if !ok || rec.ID < found.ID {
 			found = rec
 			ok = true
@@ -415,6 +446,7 @@ func (s *Store) All() []Record {
 	return s.snapshot()
 }
 
+// snapshot returns the records sorted by id. The caller holds s.mu.
 func (s *Store) snapshot() []Record {
 	out := make([]Record, 0, len(s.records))
 	for _, rec := range s.records {
@@ -424,6 +456,7 @@ func (s *Store) snapshot() []Record {
 	return out
 }
 
+// now is the store's time in Unix milliseconds, the unit of the memory record.
 func (s *Store) now() int64 {
 	if s.clock != nil {
 		return s.clock().UnixMilli()
@@ -431,6 +464,7 @@ func (s *Store) now() int64 {
 	return time.Now().UnixMilli()
 }
 
+// persist writes the whole store. Sorted records make the file the same for the same state.
 func (s *Store) persist() error {
 	file := disk{Version: schemaVersion, Seq: s.seq, Records: s.snapshot()}
 	b, err := json.MarshalIndent(file, "", "  ")
@@ -441,6 +475,8 @@ func (s *Store) persist() error {
 	return writeAtomic(filepath.Join(s.dir, "state.json"), b)
 }
 
+// audit appends one line to hmem.jsonl and syncs it (ADR-0018 point 3:
+// audit is append-only JSONL in the run's logs).
 func (s *Store) audit(action, id, actor string) error {
 	line := map[string]any{
 		"memoryId":  id,
@@ -465,10 +501,12 @@ func (s *Store) audit(action, id, actor string) error {
 	return f.Sync()
 }
 
+// findingKey joins the parts that name a finding across reviews.
 func findingKey(rule, path, title string) string {
 	return rule + "\n" + path + "\n" + title
 }
 
+// writeAtomic writes beside path and renames, so a crash never leaves a half-written state.json.
 func writeAtomic(path string, b []byte) error {
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
@@ -477,6 +515,7 @@ func writeAtomic(path string, b []byte) error {
 	return os.Rename(tmp, path)
 }
 
+// clamp01 bounds x to [0, 1].
 func clamp01(x float64) float64 {
 	if x < 0 {
 		return 0
