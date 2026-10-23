@@ -27,25 +27,32 @@ and its logs.
 4. **`make image` builds Proven's image for the local platform; `make push` builds it for several platforms** (by
    default linux/amd64 and linux/arm64) with provenance and an SBOM, and pushes `saphan/proven` to Docker Hub. The
    registry and the image name are settings.
-5. **Proven's own image is tagged `latest`** (the owner, 23 October). Each push also carries the tag `git describe`
+5. **Every image we build is minimal and scanned by Docker Scout** (the owner, 23 October). Proven's image carries the
+   static binary and only the two programs Proven runs (`git`, and the container client the Prover calls), on the
+   smallest base that holds them, and runs as a user that is not root. The same holds for any helper image of the lab
+   we build (the seed). `make scan` runs Docker Scout on each image we build, and `make push` runs it first and refuses
+   to push while Scout reports a critical or high vulnerability with a fix available; the severities that refuse are a
+   setting. The pinned images of others in the lab (Gitea, its runner, Docker) are scanned too and their result is
+   written in `docs/LAB.md`: we cannot fix them, and a judge should know what they hold.
+6. **Proven's own image is tagged `latest`** (the owner, 23 October). Each push also carries the tag `git describe`
    gives, so the image a judge ran on a given day can still be pulled. Every other image in the lab (Gitea, its
    runner, `golang`, Docker) stays pinned to a version, as ADR-0017 point 6 says.
-6. **`make up` starts the lab of ADR-0017; `make down` stops it.** One Compose file: Gitea, a Gitea Actions runner, and a
+7. **`make up` starts the lab of ADR-0017; `make down` stops it.** One Compose file: Gitea, a Gitea Actions runner, and a
    one-time seed that creates the admin (password generated and printed once), the demo repository with an open pull
    request and Proven's workflow, and registers the runner. Everything binds to localhost.
-7. **The runner starts the Prover's containers in Docker in Docker** inside the lab, never through the host's Docker
+8. **The runner starts the Prover's containers in Docker in Docker** inside the lab, never through the host's Docker
    socket (the owner, 23 October). The lab's jobs get no control of the judge's Docker.
-8. **`make status`** shows the containers, Gitea's health, whether the runner is registered, the last workflow result on
+9. **`make status`** shows the containers, Gitea's health, whether the runner is registered, the last workflow result on
    the pull request and the lab's address. **`make logs`** follows the logs (`SERVICE=` for one service).
-9. **`make sample`** runs the sample-mode review from a directory outside the repository, with no network, no keys and
+10. **`make sample`** runs the sample-mode review from a directory outside the repository, with no network, no keys and
    no Docker. **`make livecheck`** names which live services are ready, reading an optional `lab/.env`.
-10. **`make e2e` is the judge's rehearsal:** it starts the lab, waits for the workflow, asks Gitea's API whether
+11. **`make e2e` is the judge's rehearsal:** it starts the lab, waits for the workflow, asks Gitea's API whether
     Proven's review is on the pull request, and exits 0 or 1. It is the daily rehearsal run before each push.
-11. **`make clean`** removes the lab's containers, volumes and local images, and `./bin` and `./dist`.
-12. **Every version, port and name is a setting** with its default in one file, `lab/versions.env`, which the
+12. **`make clean`** removes the lab's containers, volumes and local images, and `./bin` and `./dist`.
+13. **Every version, port and name is a setting** with its default in one file, `lab/versions.env`, which the
     environment can override, and each one is listed in `docs/CONFIGURATION.md`. Keys live only in `lab/.env`, which
     is never committed; the repository holds `lab/.env.example`.
-13. **The judge's runbook is `docs/LAB.md`**, and the README's quick start begins with `make up`.
+14. **The judge's runbook is `docs/LAB.md`**, and the README's quick start begins with `make up`.
 
 ## Consequences
 
@@ -55,4 +62,6 @@ and its logs.
   handing the lab's jobs the host's Docker.
 - `latest` moves with every push: a judge who pulls on a later day gets a later Proven. The dated tag is how a given
   day's image is pulled again.
+- Docker Scout needs a Docker Hub sign-in, so `make scan` and `make push` are the maintainers' targets. A judge who
+  only builds and starts the lab never needs an account.
 - Windows is not a target: `make` and the scripts assume macOS or Linux.
