@@ -6,8 +6,8 @@ workroot="$root/.saphan/work/corpus-pv-012"
 mkdir -p "$workroot"
 work="$(mktemp -d "$workroot/run.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
-GOTOOLCHAIN=local go build -o "$work/base" "$root/tests/corpus/cases/PV-012/base/main.go"
-GOTOOLCHAIN=local go build -o "$work/change" "$root/tests/corpus/cases/PV-012/change/main.go"
+GOTOOLCHAIN=local go build -o "$work/base" "$root/test/corpus/cases/PV-012/base/main.go"
+GOTOOLCHAIN=local go build -o "$work/change" "$root/test/corpus/cases/PV-012/change/main.go"
 
 foreign=(messages-1 edits-1 comments-1 uploads-1 audit-1)
 result() {

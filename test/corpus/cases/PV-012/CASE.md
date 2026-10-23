@@ -101,7 +101,7 @@ In `expected/EXPECTED.md`.
 Toolchain: `go version go1.26.5 linux/amd64` (local Go; module declares `go 1.26`). The check requires a locally
 installed Go 1.26 or newer and sets `GOTOOLCHAIN=local`, so an older host fails instead of downloading a toolchain.
 Baseline at 2026-10-23 01:34:31 UTC and final run at 2026-10-23 01:36:04 UTC from the repository root:
-`bash tests/corpus/cases/PV-012/check.sh` (both exit 0; the baseline printed the first seven lines below).
+`bash test/corpus/cases/PV-012/check.sh` (both exit 0; the baseline printed the first seven lines below).
 The script builds both versions with `go build` and prints each input's results from the two pages beside the independent
 seeded-ownership reference. The request's team changes only the scope sentence; narrowing uses the team supplied when
 the page is built, so `scope-with-team` still serves all five foreign events. The ownership negative control re-stamps
