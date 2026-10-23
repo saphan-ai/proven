@@ -8,9 +8,9 @@ are in [DESIGN.md](../hackathon/DESIGN.md) and in the decisions under [fleet/dec
 ```mermaid
 flowchart LR
     C[change: base and head] --> P[Planner<br/>names the risks]
-    P --> I[Investigator<br/>writes a query]
+    P --> I[Investigator<br/>picks a query template]
     P --> V[Prover<br/>writes a test]
-    I -->|SQL| Z[(Zetaris<br/>KEV · EPSS · OSV)]
+    I -->|template and values,<br/>Proven builds the SQL| Z[(Zetaris<br/>KEV · EPSS · OSV)]
     V -->|test| K[[container<br/>no network, no secret]]
     Z -->|rows| S[Skeptic<br/>tries to refute]
     K -->|fails on change,<br/>passes on base| S
@@ -25,7 +25,7 @@ flowchart LR
 | Agent | Does | Never |
 |---|---|---|
 | Planner | reads the change and names candidate risks | reports a risk on its own |
-| Investigator | writes one SQL query per risk, run through Zetaris | treats a missing row as "not exploited" |
+| Investigator | picks one query template and its values per risk; Proven checks each value and builds the SQL ([QUERIES.md](QUERIES.md), [ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)), run through Zetaris | writes SQL; treats a missing row as "not exploited" |
 | Prover | writes the test that proves a risk; it runs once on the base and once on the change | runs code outside the container |
 | Skeptic | tries to refute each finding, from another model family than the finder | decides: it only proposes |
 | Judge | keeps a finding only on evidence: a test that fails on the change and passes on the base, or a query and its rows | settles by vote or confidence |

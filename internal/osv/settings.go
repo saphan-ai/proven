@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
 // EnvTable is the environment variable that names the OSV package table.
@@ -15,7 +16,7 @@ const EnvTable = "PROVEN_OSV_TABLE"
 const EnvKEVView = "PROVEN_KEV_VIEW"
 
 // DefaultTable is the table a review queries when EnvTable is empty.
-const DefaultTable = "px_osvfile.px_osv_pkg"
+const DefaultTable = querytpl.DefaultOSVTable
 
 // ConfigError names a refused OSV setting and the values that are allowed.
 type ConfigError struct {
@@ -69,36 +70,10 @@ func LoadTable(env func(string) string) (string, error) {
 // ValidTable reports whether name can be placed in a FROM clause.
 // One identifier, or schema.table. Nothing else.
 // The name goes into the SQL unquoted, so this check is what keeps a setting
-// from carrying SQL of its own.
+// from carrying SQL of its own. ADR-0032: the one rule lives in querytpl,
+// which builds the query.
 func ValidTable(name string) bool {
-	parts := strings.Split(name, ".")
-	if len(parts) < 1 || len(parts) > 2 {
-		return false
-	}
-	for _, p := range parts {
-		if !ident(p) {
-			return false
-		}
-	}
-	return true
-}
-
-// ident reports whether s is one SQL identifier: a letter or underscore,
-// then letters, digits and underscores.
-func ident(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c == '_':
-		case i > 0 && c >= '0' && c <= '9':
-		default:
-			return false
-		}
-	}
-	return true
+	return querytpl.ValidRelation(name)
 }
 
 // Environment lists the OSV settings for the configuration page.

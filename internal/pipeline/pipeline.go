@@ -1,7 +1,7 @@
 // Package pipeline runs the six agents in order and implements the review.
 //
 // It is the reviewer behind review.Open. One Review call reads the change, lets
-// the Planner name candidate risks, has the Investigator write a query and the
+// the Planner name candidate risks, has the Investigator pick a query template and the
 // Prover write a test for each, lets the Skeptic try to refute every finding,
 // has the Judge keep only what carries evidence (ADR-0002), adds the dependency
 // check against the OSV table and the EPSS scores, and hands the result to the
@@ -46,6 +46,7 @@ import (
 	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -288,7 +289,16 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 		c.Runs, c.Models = rd.Texts(c.Runs), rd.Texts(c.Models)
 		r := &c.Refutation
 		r.Reason, r.TestPath, r.TestName = rd.Text(r.Reason), rd.Text(r.TestPath), rd.Text(r.TestName)
-		r.SQL = rd.Text(r.SQL)
+		// ADR-0032: a refutation names a query template and its values, never SQL;
+		// the values are redacted like any other text a review keeps.
+		r.Query.Template = rd.Text(r.Query.Template)
+		if r.Query.Params != nil {
+			params := make(map[string]string, len(r.Query.Params))
+			for k, v := range r.Query.Params {
+				params[k] = rd.Text(v)
+			}
+			r.Query.Params = params
+		}
 		r.QueryRows = redactRows(rd, r.QueryRows)
 		if c.Evidence != nil {
 			ev := make([]candidate.Evidence, len(c.Evidence))
@@ -520,8 +530,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// An agent step that fails for one candidate leaves that candidate as it
 	// was; the others go on.
+	// ADR-0032: the Investigator and the Skeptic name a template; the table and
+	// view names come from the review's settings, read once.
+	rel := p.relations(ctx)
 	for i := range cands {
-		next, err := investigator.Investigate(ctx, cands[i], fx.Snapshot, gen, q)
+		next, err := investigator.Investigate(ctx, cands[i], fx.Snapshot, gen, q, rel)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -752,6 +765,18 @@ func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root,
 	return cands, nil
 }
 
+// relations is the table and view names the review's settings give, for the
+// templates the Investigator and the Skeptic name (ADR-0032, ADR-0013). An
+// empty name means the default, and querytpl checks each name again when it
+// builds, so a setting that is not a plain name is refused there.
+func (p *Pipeline) relations(ctx context.Context) querytpl.Relations {
+	return querytpl.Relations{
+		OSVTable: p.osvTable,
+		KEVView:  osv.KEVViewOf(ctx),
+		EPSSView: p.epssView,
+	}
+}
+
 // runRefutation asks the prover or the investigator to run what the skeptic proposed.
 // A proposal with no test and no query is not evidence. The caller writes the
 // refutation to the trace, and H-MEM learns it from the trace when the review is
@@ -786,9 +811,18 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 			}
 		}
 	}
-	if r.SQL != "" {
-		res, err := investigator.Execute(ctx, q, r.SQL)
+	if !r.Query.Empty() {
+		res, err := investigator.Execute(ctx, q, r.Query, p.relations(ctx))
 		if err != nil {
+			// ADR-0032: a request Proven refuses was checked by the Skeptic
+			// already, so this is a settings refusal. It is not a query that
+			// could not run; the instrument never answered.
+			var refusal *querytpl.Refusal
+			if errors.As(err, &refusal) {
+				r.Query = querytpl.Request{}
+				r.Reason = "refused: " + refusal.Error()
+				return nil
+			}
 			if ctx.Err() != nil {
 				return err
 			}
@@ -1220,9 +1254,19 @@ func keepFindings(in []candidate.Candidate, allow map[string]struct{}) []candida
 // evidenceText is the one-line trace text for a candidate's evidence, followed
 // by the Prover's note when there is one, or "none".
 func evidenceText(c candidate.Candidate) string {
+	// The Investigator's refusal (ADR-0032) leads the notes, so the trace says
+	// why the finding has no query evidence.
+	notes := c.ProverNote
+	if c.QueryNote != "" {
+		if notes != "" {
+			notes = c.QueryNote + "; " + notes
+		} else {
+			notes = c.QueryNote
+		}
+	}
 	if len(c.Evidence) == 0 {
-		if c.ProverNote != "" {
-			return c.ProverNote
+		if notes != "" {
+			return notes
 		}
 		return "none"
 	}
@@ -1239,13 +1283,13 @@ func evidenceText(c candidate.Candidate) string {
 		}
 	}
 	if text == "" {
-		if c.ProverNote != "" {
-			return c.ProverNote
+		if notes != "" {
+			return notes
 		}
 		return "none"
 	}
-	if c.ProverNote != "" {
-		return text + "; " + c.ProverNote
+	if notes != "" {
+		return text + "; " + notes
 	}
 	return text
 }

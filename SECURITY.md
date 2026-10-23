@@ -57,8 +57,11 @@ A finding is proved by a test of the expected behaviour, never by an exploit
 
 ### Evidence queries carry the change's values as literals
 
-A package name or a version taken from the change goes into an evidence query only as a quoted SQL string literal,
-never as query text.
+Proven builds every evidence query itself, from a fixed list of query templates
+([QUERIES.md](docs/QUERIES.md), [ADR-0032](docs/adr/ADR-0032-proven-builds-every-query-from-a-template.md)). A
+model picks a template and gives values; it never writes SQL. Each value, whether it comes from a model or from the
+change, is checked against a strict format and goes into the query only as a quoted string literal that holds exactly
+that value. A value outside its format is refused, never escaped. Proven does not claim a read-only Zetaris key.
 
 ### Proven keeps its memory outside the repository it reviews
 

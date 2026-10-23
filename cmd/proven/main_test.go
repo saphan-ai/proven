@@ -245,7 +245,6 @@ func assertDiscountText(t *testing.T, body string) {
 		"evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true",
 		"finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list",
 		"evidence query local-sample snapshot=sample-2026-10-22",
-		"row: evil.example/leftpad | 1.2.3 | CVE-2026-0001 | true",
 		"finding F4 ERROR CVE-2026-0001 for leftpad v1.2.3 is on the KEV list",
 		"SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'",
 		"row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known",
@@ -262,6 +261,17 @@ func assertDiscountText(t *testing.T, body string) {
 	}
 	if strings.Contains(body, "finding F3") {
 		t.Fatalf("F3 was printed\n%s", body)
+	}
+	// ADR-0032: F2's query evidence is the osv-by-package template, built by
+	// Proven, so it carries the OSV rows of the package and no free-text query.
+	f2 := body[strings.Index(body, "finding F2"):strings.Index(body, "finding F4")]
+	for _, want := range []string{
+		"SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'",
+		"row: GHSA-px-sample-0002 |  | Go | evil.example/leftpad | 2.0.0 | 2.1.0 |  | LOW | 2026-03-01",
+	} {
+		if !strings.Contains(f2, want) {
+			t.Fatalf("F2 section is missing %q\n%s", want, f2)
+		}
 	}
 	if strings.Contains(body, "example.com/unused") {
 		t.Fatalf("an unrelated package was queried\n%s", body)

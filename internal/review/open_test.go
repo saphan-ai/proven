@@ -51,7 +51,8 @@ func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 		t.Fatalf("F2 evidence %#v", f2.Evidence)
 	}
 	q := f2.Evidence[0].Query
-	if q.Engine != "local-sample" || len(q.Rows) != 1 || q.Rows[0][0] != "evil.example/leftpad" {
+	// ADR-0032: F2's query is the osv-by-package template, which returns the OSV rows of the package.
+	if q.Engine != "local-sample" || len(q.Rows) != 2 || q.Rows[0][3] != "evil.example/leftpad" {
 		t.Fatalf("F2 query %#v", q)
 	}
 	if f2.Evidence[1].Query == nil || len(f2.Evidence[1].Query.Rows) != 1 || f2.Evidence[1].Query.Rows[0][0] != "CVE-2026-0001" || f2.Evidence[1].Query.Rows[0][1] != "0.50000" {

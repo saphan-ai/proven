@@ -12,8 +12,11 @@ import (
 	"github.com/saphan-ai/proven/internal/pipeline"
 )
 
-// rowSQL is the discount fixture query that returns one advisory row.
-const rowSQL = "SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'"
+// rowAnswer is the recorded Investigator answer on the discount fixture that returns the OSV rows of
+// one package: a template and its values, never SQL (ADR-0032). rowSQL is the query Proven builds from it.
+const rowAnswer = `{"template":"osv-by-package","params":{"ecosystem":"Go","package":"evil.example/leftpad"}}`
+
+const rowSQL = "SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'"
 
 // defaultOnlyTitle marks a risk only the default run names; the special run must never see it.
 const defaultOnlyTitle = "DEFAULT-ONLY-MARKER-7f3a"
@@ -29,7 +32,7 @@ func TestDoubledSecurityRunsBothGenerators(t *testing.T) {
 		risk("D1", defaultOnlyTitle),
 		risk("N1", "no evidence from either"),
 	), `{"refuted":false,"reason":"default-saw-it"}`)
-	def.sql = map[string]string{"B1": rowSQL, "D1": rowSQL, "S1": rowSQL}
+	def.sql = map[string]string{"B1": rowAnswer, "D1": rowAnswer, "S1": rowAnswer}
 	spec := newScript("qwen-special", risks(
 		risk("B1", "seen by both"),
 		risk("S1", "special-only-marker"),
@@ -61,7 +64,7 @@ func TestDoubledSecurityRunsBothGenerators(t *testing.T) {
 	if !ok || !same(b1.Models, []string{"NVIDIA", "qwen-special"}) {
 		t.Fatalf("B1 %#v", b1.Models)
 	}
-	if len(b1.Evidence) != 2 || b1.Evidence[0].Query == nil || len(b1.Evidence[0].Query.Rows) != 1 || b1.Evidence[0].Query.SQL != rowSQL {
+	if len(b1.Evidence) != 2 || b1.Evidence[0].Query == nil || len(b1.Evidence[0].Query.Rows) != 2 || b1.Evidence[0].Query.SQL != rowSQL {
 		t.Fatalf("B1 evidence %#v", b1.Evidence)
 	}
 	d1, ok := finding(res, "D1")
@@ -94,7 +97,7 @@ func TestDoubledSecurityRunsBothGenerators(t *testing.T) {
 // even when one is configured.
 func TestNonDoubledClassRunsOnce(t *testing.T) {
 	def := newScript("NVIDIA", risks(risk("D1", defaultOnlyTitle)), `{"refuted":false,"reason":"no refutation"}`)
-	def.sql = map[string]string{"D1": rowSQL}
+	def.sql = map[string]string{"D1": rowAnswer}
 	spec := newScript("qwen-special", risks(risk("S1", "special-only-marker")), `{"refuted":false,"reason":"no refutation"}`)
 	cfg := defaultSettings()
 	cfg.SpecialReviewer = "qwen-special"
@@ -122,7 +125,7 @@ func TestNonDoubledClassRunsOnce(t *testing.T) {
 // runs once and says so, rather than inventing a second reviewer.
 func TestDoubledWithoutSpecialModelRunsOnce(t *testing.T) {
 	def := newScript("NVIDIA", risks(risk("D1", defaultOnlyTitle)), `{"refuted":false,"reason":"no refutation"}`)
-	def.sql = map[string]string{"D1": rowSQL}
+	def.sql = map[string]string{"D1": rowAnswer}
 	spec := newScript("qwen-special", risks(risk("S1", "special-only-marker")), `{"refuted":false,"reason":"no refutation"}`)
 	cfg := defaultSettings()
 	res := reviewScripted(t, cfg, def, spec)
@@ -181,7 +184,7 @@ type scriptGen struct {
 	model   string
 	planner string
 	skeptic string
-	sql     map[string]string
+	sql     map[string]string // recorded Investigator answers by risk id
 	calls   []scriptCall
 }
 
@@ -198,15 +201,10 @@ func (g *scriptGen) Complete(ctx context.Context, agent, prompt string) (string,
 	case "planner":
 		return g.planner, nil
 	case "investigator":
-		sql := ""
-		if g.sql != nil {
-			sql = g.sql[promptID(prompt)]
+		if answer, ok := g.sql[promptID(prompt)]; ok {
+			return answer, nil
 		}
-		b, err := json.Marshal(map[string]string{"sql": sql})
-		if err != nil {
-			return "", err
-		}
-		return string(b), nil
+		return `{"template":"","params":{}}`, nil
 	case "prover":
 		return `{"path":"","name":"","command":""}`, nil
 	case "skeptic":

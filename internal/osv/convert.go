@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
 // Columns is the CSV header, one flat row per affected range. It is also
 // the column list the dependency check selects and reads by name.
 // docs/OSV_TABLE.md says what each column holds.
-var Columns = []string{
-	"id", "aliases", "ecosystem", "package", "introduced", "fixed", "last_affected", "severity", "published",
-}
+var Columns = querytpl.OSVPackageColumns
 
 // Row is one affected range of one advisory: one row of the OSV table.
 type Row struct {
