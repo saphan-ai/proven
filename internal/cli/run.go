@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/childenv"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -326,6 +327,10 @@ func applyCI(cfg *config, getenv func(string) string) error {
 // returns git's own sentence when it cannot answer.
 func gitMergeBase(repo, base, head string) (string, error) {
 	cmd := exec.Command("git", "-C", repo, "merge-base", base, head)
+	// Property: no key reaches a subprocess. An inherited environment would
+	// hand git, and any hook or alias it runs, every key Proven holds; git
+	// needs PATH and HOME only (ADR-0025).
+	cmd.Env = childenv.Minimal()
 	out, err := cmd.Output()
 	if err != nil {
 		detail := err.Error()
