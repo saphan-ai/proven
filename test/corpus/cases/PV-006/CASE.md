@@ -95,7 +95,7 @@ Run the check on base and on change and record each line of its output.
 - toolchain: Go, standard library only, `go version go1.26.5 linux/amd64`. The case is its own module (`go.mod` in
   this directory, module `pv006`), so it stays out of the repository's module.
 - run: 2026-10-23T09:07:42Z (UTC)
-- command, from the repository root: `bash tests/corpus/cases/PV-006/check.sh` (it runs `go -C tests/corpus/cases/PV-006 run ./check`)
+- command, from the repository root: `bash test/corpus/cases/PV-006/check.sh` (it runs `go -C test/corpus/cases/PV-006 run ./check`)
 - exit code: 0
 
 ```
@@ -113,7 +113,7 @@ lines report the shown and retry-after values. The inputs are one catalog entry,
 `Too many requests. Please wait {wait} before trying again.`, with a wait of 30 seconds, plus a suffix per text input
 (` Limit: {limit}.`, ` Window: {window}.`, ` $wait`).
 
-- negative control command: `go -C tests/corpus/cases/PV-006 test -count=1 -v ./check` (exit code 0). It replaces
+- negative control command: `go -C test/corpus/cases/PV-006 test -count=1 -v ./check` (exit code 0). It replaces
   `$wait` in the rendered notice with `30 sec`; the evidence check raises an error:
 
 ```
