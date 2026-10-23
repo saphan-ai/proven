@@ -11,9 +11,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
+	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -31,7 +31,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 	target, err := filepath.Abs(args[0])
 	if err != nil {
-		fmt.Fprintln(stderr, redact(err.Error(), env))
+		fmt.Fprintln(stderr, redactText(err.Error(), env))
 		return 2
 	}
 	logDir := filepath.Join(provenRoot(target), "logs")
@@ -49,12 +49,12 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 	var buf bytes.Buffer
 	printResult(&buf, res)
-	fmt.Fprint(stdout, redact(buf.String(), env))
+	fmt.Fprint(stdout, redactText(buf.String(), env))
 	return 0
 }
 
 func fail(stderr io.Writer, env func(string) string, err error) int {
-	fmt.Fprintln(stderr, redact(err.Error(), env))
+	fmt.Fprintln(stderr, redactText(err.Error(), env))
 	var cfg *review.ConfigError
 	if errors.As(err, &cfg) {
 		return 7
@@ -142,20 +142,8 @@ func familySentence(path string) string {
 	return ""
 }
 
-func redact(s string, env func(string) string) string {
-	var secrets []string
-	seen := map[string]bool{}
-	for _, key := range []string{"METERLESS_RUNTIME_TOKEN", "PROVEN_GUARDRAIL_KEY", "ZETARIS_API_KEY"} {
-		v := env(key)
-		if v == "" || seen[v] {
-			continue
-		}
-		seen[v] = true
-		secrets = append(secrets, v)
-	}
-	sort.Slice(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
-	for _, sec := range secrets {
-		s = strings.ReplaceAll(s, sec, "redacted")
-	}
-	return s
+// redactText strips every configured secret and the organisation id from text this
+// command prints, with the one redactor the review itself uses.
+func redactText(s string, env func(string) string) string {
+	return redact.FromEnv(env).Text(s)
 }

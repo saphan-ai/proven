@@ -66,6 +66,17 @@ Each test runs with no network and no secret (ADR-0025). With no container runti
 | Environment variable | Default | What it changes |
 |---|---|---|
 | `PROVEN_ADAPTER_TIMEOUT` | `5s` | the limit on one adapter call when the caller set no shorter deadline. Sample mode uses the default and does not read this variable |
+
+## Reads of the repository under review
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_MAX_ARCHIVE_BYTES` | `134217728` | the most one export reads from the repository under review: a git archive, or the tracked files of a working tree |
+| `PROVEN_MAX_FILE_BYTES` | `8388608` | the largest single file, git blob or commit log read from the repository under review |
+| `PROVEN_MAX_CONFIG_BYTES` | `1048576` | the largest `proven.yaml` Proven reads |
+| `PROVEN_MAX_RECORD_BYTES` | `1048576` | the most the author record may hold, summed over the files `author_record` names |
+
+A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
 <!-- end generated -->
 
 ## `proven.yaml`

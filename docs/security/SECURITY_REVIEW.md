@@ -53,12 +53,23 @@ security pieces that is the minimum, not a luxury, for three reasons:
   difference shows exactly where the property is in doubt, and the fix is aimed there.
 
 The same rule holds for every change of Proven: two reviews from different model families, neither seeing the other
-([ADR-0009](../adr/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md)). For each closed piece, the
-table below gives both verdicts side by side, on the same commit.
+([ADR-0009](../adr/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md)). The table gives both verdicts side
+by side, on the same commit, as they came back on 23 October. What each reviewer found is published only once its
+fix is merged ([SECURITY.md](../../SECURITY.md)).
 
-| Piece | Commit | claude-code | codex | Agreed? |
+| Piece | Commit | Anthropic Claude (claude-code) | OpenAI (codex) | Agreed? |
 |---|---|---|---|---|
-| filled in as each piece closes | | | | |
+| 0, tools first | `90d6951` | reject | reject | yes |
+| 1, the Prover's container | `90d6951` | accept with conditions | **reject**, with failing tests | **no** |
+| 2, secrets | `90d6951` | accept with conditions | **reject**, with five failing tests | **no** |
+| 3, the reviewed repository as input | `436ef04` | reject | reject | yes |
+| 4, evidence queries | `436ef04` | reject | reject | yes |
+
+On pieces 1 and 2, one reviewer would have let the code through. On piece 1 both reviewers named the same weakness,
+and Claude still accepted with conditions; OpenAI rejected. That weakness is the first one fixed. On piece 2 Claude
+found nothing that broke the property; OpenAI rejected the same commit and proved it with five tests that fail.
+"Reject" means the property did not hold at that commit; each piece's fixes are made in the train that owns the code,
+and each fix gets its own two reviews.
 
 **A third family, on 24 October.** On 23 October the pieces were reviewed by Anthropic's Claude (on claude-code) and
 OpenAI's model (on codex). On 24 October the review runs again with NVIDIA's Nemotron as a reviewer, through a governed
