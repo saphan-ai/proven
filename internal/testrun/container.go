@@ -420,7 +420,9 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 		if dir == "" {
 			continue
 		}
-		if info, err := os.Lstat(dir); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		// The cleaned path is the one checked: a trailing slash makes Lstat follow
+		// the link, and the cleaned form is what names the mount source.
+		if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
 			out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
 			return out, nil
 		}

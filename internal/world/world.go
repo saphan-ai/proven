@@ -139,7 +139,7 @@ func Open(opts Options) (*Store, error) {
 	if err := refuseInside(dir, opts.RepoRoot); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := privateDir(dir); err != nil {
 		return nil, fmt.Errorf("world: state directory: %w", err)
 	}
 	st, err := os.Stat(dir)
@@ -569,9 +569,24 @@ func (s *Store) audit(ev trace.Event) error {
 	if err != nil {
 		return fmt.Errorf("world: audit: %w", err)
 	}
+	// OpenFile sets the mode only when it creates; an existing file is narrowed too.
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
+		return fmt.Errorf("world: audit: %w", err)
+	}
 	defer f.Close()
 	if _, err := f.Write(buf.Bytes()); err != nil {
 		return err
 	}
 	return f.Sync()
+}
+
+// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
+// mode only when it creates, and a directory an earlier run left at 0755 must
+// not stay readable by others (Proven's own state is readable only by its user).
+func privateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(dir, 0o700)
 }
