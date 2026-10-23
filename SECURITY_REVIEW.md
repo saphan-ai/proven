@@ -60,6 +60,11 @@ table below gives both verdicts side by side, on the same commit.
 |---|---|---|---|---|
 | filled in as each piece closes | | | | |
 
+**A third family, on 24 October.** On 23 October the pieces were reviewed by Anthropic's Claude (on claude-code) and
+OpenAI's model (on codex). On 24 October the review runs again with NVIDIA's Nemotron as a reviewer, through a governed
+agent loop, on the commit with the first fixes in it: the pieces already reviewed, to see what a third family finds that
+the first two did not, and the pieces still ahead. Its verdicts are added beside the others.
+
 ## What is published, and when
 
 - This page's status column is updated as each piece moves: *not started*, *in review*, *fixes in progress*, *holds*.
