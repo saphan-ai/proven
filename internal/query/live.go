@@ -11,10 +11,18 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/service"
 )
+
+// liveBuilt counts live clients NewLive has constructed in this process.
+var liveBuilt atomic.Int64
+
+// LiveBuilt is how many live clients NewLive has constructed.
+// A sample review leaves it unchanged.
+func LiveBuilt() int64 { return liveBuilt.Load() }
 
 // Live runs one SELECT on Zetaris over the SQL-editor route the 2026-10-21
 // measurement proved: POST {base}/sql-editor/sqls/run. ADR-0015, point 4 asks
@@ -32,6 +40,7 @@ type Live struct {
 // follow redirects, so the API key is not sent to another host.
 // The timeout of that client is the query timeout from Settings.
 func NewLive(cfg Settings, client *http.Client) *Live {
+	liveBuilt.Add(1)
 	if client == nil {
 		client = &http.Client{
 			Timeout: cfg.Timeout,

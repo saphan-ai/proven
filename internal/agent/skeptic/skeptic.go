@@ -14,6 +14,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 // refuteSpec is the JSON the skeptic asks a model to return.
@@ -21,8 +22,8 @@ import (
 // The model's refuted flag does not drop the finding.
 var refuteSpec = answer.Spec{
 	Task:    "Make one attempt to refute this finding.",
-	Shape:   "one JSON object. It has refuted (boolean), reason (string), path (string), name (string), command (string) and sql (string). Empty path, name, command and sql mean there is no refuting test and no refuting query.",
-	Example: `{"refuted":false,"reason":"no refutation","path":"","name":"","command":"","sql":""}`,
+	Shape:   "one JSON object. It has refuted (boolean), reason (string), path (string), name (string) and sql (string). Empty path, name and sql mean there is no refuting test and no refuting query. Do not add a command: Proven builds the command that runs the test.",
+	Example: `{"refuted":false,"reason":"no refutation","path":"","name":"","sql":""}`,
 }
 
 // Prompt asks for one refutation of a finding.
@@ -30,7 +31,8 @@ func Prompt(id, title string) string {
 	return answer.Instruct(refuteSpec, "id: "+id+"\ntitle: "+title+"\n")
 }
 
-// row is the refutation as the model returns it.
+// row is the refutation as the model returns it. The prompt does not ask for
+// Command. It is read only so that an answer that carries one can be refused.
 type row struct {
 	Refuted bool   `json:"refuted"`
 	Reason  string `json:"reason"`
@@ -59,8 +61,14 @@ func Attempt(ctx context.Context, c candidate.Candidate, gen generator.Generator
 		Reason:    reason,
 		TestPath:  got.Path,
 		TestName:  got.Name,
-		Command:   got.Command,
 		SQL:       strings.TrimSpace(got.SQL),
+	}
+	// ADR-0025: an answer that carries a command proposes no test. The model
+	// names a test by file and name only, and Proven builds the command, so a
+	// test that arrives beside a command text is not run.
+	if strings.TrimSpace(got.Command) != "" {
+		c.Refutation.TestPath, c.Refutation.TestName = "", ""
+		c.Refutation.Reason = "refused: " + testrun.ReasonModelCommand
 	}
 	return c, nil
 }

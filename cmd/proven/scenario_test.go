@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/saphan-ai/proven/internal/cli"
 )
 
 func TestRefutedScenarioDropsTheFinding(t *testing.T) {
@@ -87,12 +89,22 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 	root := repoRoot(t)
 	t.Chdir(t.TempDir())
 	var stdout, stderr bytes.Buffer
-	code := run(
+	// cli.Run loads the variables ADR-0020 §1 documents (cli.KnownCLIEnv:
+	// PROVEN_OUTPUT_FORMAT, PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT,
+	// SEMGREP_BASELINE_COMMIT, SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE,
+	// PROVEN_EXCLUDE, PROVEN_SEVERITY, PROVEN_TIMEOUT, SAMPLE_MODE, and
+	// GITHUB_EVENT_PATH, GITHUB_BASE_REF, GITHUB_SHA). An empty answer keeps the
+	// default. Any other key, including an adapter secret, fails the test.
+	// W19 failed on every key; that predicate cannot survive the loader.
+	code := cli.Run(
 		[]string{"scan", "--sample", filepath.Join(root, "testdata", "fixture", name)},
-		&stdout, &stderr, os.Getwd, func(k string) string {
+		func(k string) string {
+			if cli.KnownCLIEnv(k) {
+				return ""
+			}
 			t.Fatalf("sample mode read %s", k)
 			return ""
-		},
+		}, &stdout, &stderr, nil,
 	)
 	if code != 0 {
 		t.Fatalf("exit %d\n%s\n%s", code, stdout.String(), stderr.String())

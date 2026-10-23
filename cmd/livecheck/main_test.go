@@ -235,8 +235,10 @@ func TestMissingImageIsNotReadyAndDoesNotPull(t *testing.T) {
 	if !strings.Contains(body, "container: not ready:") || !strings.Contains(body, "golang:1.26") || !strings.Contains(body, "not present") {
 		t.Fatalf("container line\n%s", body)
 	}
-	if strings.Contains(body, "pull") {
-		t.Fatalf("pull was named\n%s", body)
+	// The line names the act that fixes it; assertNoPull below proves livecheck
+	// never runs that act itself.
+	if !strings.Contains(body, "next: docker pull golang:1.26") {
+		t.Fatalf("the next act is not named\n%s", body)
 	}
 	assertNoPull(t, w.record)
 	if !strings.Contains(readRecord(t, w.record), "image inspect golang:1.26") {
