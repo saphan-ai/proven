@@ -2,7 +2,7 @@
 
 - incident: I10 (one incident; this case is its first round)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-23) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -88,18 +88,40 @@ Command, from the repository root:
 bash tests/corpus/cases/PV-013/check.sh
 ```
 
-Toolchain: `go version` reports `go version go1.26.8 linux/amd64`. The case modules pin `go 1.26`. The check builds with `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`.
-Run at: 2026-10-21T16:48:38Z.
+Toolchain: `go version` reports `go version go1.26.5 linux/amd64`. The case modules pin `go 1.26`. The check builds with `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`.
+Run at: 2026-10-23 02:20 UTC.
 Exit code: 0.
 
 ```
-control | base: none | change: pass | token_in_output: no
-valid-name | base: accepted | change: accepted | token_in_output: no
-token-in-credentials-show | base: (empty) | change: (empty) | token_in_output: no
-bad-token-env | base: accepted | change: refused: token_env must be an environment-variable name matching [A-Z][A-Z0-9_]*; rejected value: chat-token | token_in_output: no
-bad-channel | base: accepted | change: refused: channel must be a channel name matching #[a-z0-9][a-z0-9_-]*; rejected value: not a channel | token_in_output: no
-bad-endpoint | base: accepted | change: refused: endpoint must be an http or https URL with a host; rejected value: not-a-url | token_in_output: no
-token-in-name-then-show | base: accepted / token_env=tok_synthetic_0000_not_a_secret | change: refused: token_env must be an environment-variable name matching [A-Z][A-Z0-9_]*; rejected value: tok_synthetic_0000_not_a_secret / (empty) | token_in_output: yes
+control | base: none | change: pass | base_token_in_output: no | change_token_in_output: no
+valid-name | base: accepted | change: accepted | base_token_in_output: no | change_token_in_output: no
+token-in-credentials-show | base: (empty) | change: (empty) | base_token_in_output: no | change_token_in_output: no
+bad-token-env | base: accepted | change: refused: token_env must be an environment-variable name matching [A-Z][A-Z0-9_]*; rejected value: chat-token | base_token_in_output: no | change_token_in_output: no
+bad-channel | base: accepted | change: refused: channel must be a channel name matching #[a-z0-9][a-z0-9_-]*; rejected value: not a channel | base_token_in_output: no | change_token_in_output: no
+bad-endpoint | base: accepted | change: refused: endpoint must be an http or https URL with a host; rejected value: not-a-url | base_token_in_output: no | change_token_in_output: no
+token-in-name-then-show | base: accepted / token_env=tok_synthetic_0000_not_a_secret | change: refused: token_env must be an environment-variable name matching [A-Z][A-Z0-9_]*; rejected value: tok_synthetic_0000_not_a_secret / (empty) | base_token_in_output: yes | change_token_in_output: yes
+```
+
+Negative controls, from the repository root, at 2026-10-23 02:20 UTC:
+
+```
+bash tests/corpus/cases/PV-013/check.sh --negative-control
+```
+
+Exit code: 1 (expected: base contains the token, but change does not).
+
+```
+negative-base-only | base: tok_synthetic_0000_not_a_secret | change: refused: token_env rejected | base_token_in_output: yes | change_token_in_output: no
+```
+
+```
+bash tests/corpus/cases/PV-013/check.sh --negative-control=no-refusal
+```
+
+Exit code: 1 (expected: change prints the token without a refusal).
+
+```
+negative-no-refusal | base: none | change: accepted: tok_synthetic_0000_not_a_secret | base_token_in_output: no | change_token_in_output: yes
 ```
 
 ## 9. Limits
