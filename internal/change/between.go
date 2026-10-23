@@ -2,7 +2,9 @@ package change
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -26,19 +28,48 @@ func WorkTree(target string) (bool, error) {
 }
 
 // gitArchive returns the tar of rev's tracked files. It reads the commit and
-// does not run the change. The git directory is not in the archive.
+// does not run the change. The git directory is not in the archive. The
+// stream is bounded by the archive limit.
 func gitArchive(target, rev string) ([]byte, error) {
 	cmd := exec.Command("git", "-C", target, "archive", "--format=tar", "--end-of-options", rev)
-	out, err := cmd.Output()
+	return outputBounded(cmd, Bounds().Archive, "the archive of the commit", EnvMaxArchiveBytes)
+}
+
+// outputBounded runs cmd and returns its standard output. A repository can make
+// git print as much as it likes, so the read stops one byte past max and the
+// command is ended: the output is never held whole. The refusal names what was
+// read and the bound, and never the output.
+func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	pipe, err := cmd.StdoutPipe()
 	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("git: %w", err)
+	}
+	out, readErr := io.ReadAll(io.LimitReader(pipe, max+1))
+	if readErr == nil && int64(len(out)) > max {
+		// Past the bound: end git, so it does not keep writing into a pipe
+		// nobody reads, and report the bound.
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return nil, OverBound(what, max, env)
+	}
+	waitErr := cmd.Wait()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if waitErr != nil {
 		msg := strings.TrimSpace(string(out))
-		if ee, ok := err.(*exec.ExitError); ok && msg == "" {
-			msg = strings.TrimSpace(string(ee.Stderr))
+		if msg == "" {
+			msg = strings.TrimSpace(stderr.String())
 		}
 		if msg == "" {
-			msg = err.Error()
+			msg = waitErr.Error()
 		}
-		return nil, fmt.Errorf("git: %s", msg)
+		return nil, &gitFailure{msg: msg}
 	}
 	return out, nil
 }
@@ -98,25 +129,28 @@ func Blob(target, rev, rel string) ([]byte, bool, error) {
 	}
 	// "./" makes the path relative to target, not to the repository root (git rev:path rule).
 	cmd := exec.Command("git", "-C", target, "show", "--end-of-options", rev+":./"+rel)
-	out, err := cmd.Output()
+	out, err := outputBounded(cmd, Bounds().File, "the file "+rel+" in the commit", EnvMaxFileBytes)
 	if err == nil {
 		return out, true, nil
 	}
-	ee, ok := err.(*exec.ExitError)
-	if !ok {
-		return nil, false, fmt.Errorf("git: %w", err)
+	var gf *gitFailure
+	if !errors.As(err, &gf) {
+		return nil, false, err
 	}
-	msg := strings.TrimSpace(string(ee.Stderr))
 	// These are git's words for a path absent from the commit. That is an
 	// answer, not a failure, so it returns ok false with no error.
-	if strings.Contains(msg, "does not exist") || strings.Contains(msg, "exists on disk, but not in") {
+	if strings.Contains(gf.msg, "does not exist") || strings.Contains(gf.msg, "exists on disk, but not in") {
 		return nil, false, nil
 	}
-	if msg == "" {
-		msg = err.Error()
-	}
-	return nil, false, fmt.Errorf("git: %s", msg)
+	return nil, false, err
 }
+
+// gitFailure is git exiting non-zero. It is a type of its own so a caller can
+// tell git's answer from a refusal made by this package.
+type gitFailure struct{ msg string }
+
+// Error reports git's own message.
+func (e *gitFailure) Error() string { return "git: " + e.msg }
 
 // Messages returns the commit messages between baseline and head, oldest first.
 // The baseline commit itself is not included. An empty head means HEAD.
@@ -134,16 +168,11 @@ func Messages(target, baseline, head string) ([]string, error) {
 	// %x1e ends each message with an ASCII record separator, so a message
 	// with blank lines in it is still split in the right place.
 	cmd := exec.Command("git", "-C", target, "log", "--reverse", "--format=%B%x1e", "--end-of-options", baseline+".."+end)
-	out, err := cmd.Output()
+	// The log is repository content: a commit message can be as long as its
+	// author likes, so the read is bounded like a file.
+	out, err := outputBounded(cmd, Bounds().File, "the commit log", EnvMaxFileBytes)
 	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if ee, ok := err.(*exec.ExitError); ok && msg == "" {
-			msg = strings.TrimSpace(string(ee.Stderr))
-		}
-		if msg == "" {
-			msg = err.Error()
-		}
-		return nil, fmt.Errorf("git: %s", msg)
+		return nil, err
 	}
 	return splitMessages(out), nil
 }
@@ -191,16 +220,10 @@ func ensureCommit(target, rev, which string) error {
 // paths. A failure carries git's own message.
 func gitZ(args []string) ([]string, error) {
 	cmd := exec.Command("git", args...)
-	out, err := cmd.Output()
+	// A list of path names is repository content too, so it has the archive bound.
+	out, err := outputBounded(cmd, Bounds().Archive, "the list of file names", EnvMaxArchiveBytes)
 	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if ee, ok := err.(*exec.ExitError); ok && msg == "" {
-			msg = strings.TrimSpace(string(ee.Stderr))
-		}
-		if msg == "" {
-			msg = err.Error()
-		}
-		return nil, fmt.Errorf("git: %s", msg)
+		return nil, err
 	}
 	return splitZ(out), nil
 }

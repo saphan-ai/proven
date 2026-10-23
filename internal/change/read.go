@@ -16,6 +16,7 @@ package change
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -63,6 +64,7 @@ func Read(root string) ([]File, error) {
 // walk reads every regular file under root into dst, keyed by its slash path
 // relative to root.
 func walk(root string, dst map[string][]byte) error {
+	var total int64
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -79,11 +81,44 @@ func walk(root string, dst map[string][]byte) error {
 		if err != nil {
 			return err
 		}
-		b, err := os.ReadFile(path)
+		// The trees are repository content: a file larger than the bound is
+		// refused by name before it is read, and so are trees that together
+		// exceed the archive bound. The read itself stops at the bound, so a
+		// file that grows after Stat is not read whole.
+		b, err := ReadBounded(path, Bounds().File, "the file "+filepath.ToSlash(rel), EnvMaxFileBytes)
 		if err != nil {
 			return err
+		}
+		total += int64(len(b))
+		if total > Bounds().Archive {
+			return OverBound("the files under "+filepath.Base(root), Bounds().Archive, EnvMaxArchiveBytes)
 		}
 		dst[filepath.ToSlash(rel)] = b
 		return nil
 	})
+}
+
+// ReadBounded reads the file at path and refuses one larger than limit bytes.
+// what names the file in the refusal and env names the setting that sets the
+// bound; the refusal never carries the content. The size is checked before the
+// read, and the read itself stops one byte past the bound, so a file that
+// grows after the check is still never held whole. ReadBounded follows a
+// symlink as os.Open does: a caller that must not follow one checks first.
+func ReadBounded(path string, limit int64, what, env string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	if info, err := f.Stat(); err == nil && info.Size() > limit {
+		return nil, OverBound(what, limit, env)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, OverBound(what, limit, env)
+	}
+	return b, nil
 }

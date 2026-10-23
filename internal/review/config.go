@@ -157,7 +157,8 @@ func loadConfigFile(path string) (fileSettings, error) {
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	b, err := os.ReadFile(path)
+	// ADR-0013: the file is read no further than the configuration bound.
+	b, err := change.ReadBounded(path, change.Bounds().Config, "the configuration file "+filepath.Base(path), change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, &ConfigError{
 			Field: "ConfigPath", Value: path, Reason: err.Error(),
@@ -177,6 +178,10 @@ func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
 	}
 	if !ok {
 		return defaultSettings(), nil
+	}
+	// Blob is bounded by the file limit; proven.yaml has a smaller bound of its own.
+	if bound := change.Bounds().Config; int64(len(b)) > bound {
+		return fileSettings{}, change.OverBound("proven.yaml", bound, change.EnvMaxConfigBytes)
 	}
 	return parseConfig(b)
 }
@@ -198,7 +203,8 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	b, err := os.ReadFile(path)
+	// ADR-0013: the target's copy is repository content, so it is bounded.
+	b, err := change.ReadBounded(path, change.Bounds().Config, "proven.yaml", change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, err
 	}

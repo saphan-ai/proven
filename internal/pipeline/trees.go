@@ -40,20 +40,21 @@ func (p *Pipeline) loadTarget(req Request) (*fixture.Fixture, []string, func(), 
 	return p.loadLiveTarget(req)
 }
 
-// loadLiveTarget picks the live trees. A directory that already has base/ and
-// change/ is used as it is, which is how the demo is laid out. A git
-// repository is copied into a temporary directory under the run's working
-// area; the returned function removes that directory.
+// loadLiveTarget picks the live trees. With a baseline commit the git range
+// decides them, always: the repository under review is the change, and the
+// change must not choose which trees the agents read, so a base/ or change/
+// directory inside it is never taken for the prepared pair. The range is copied
+// into a temporary directory under the run's working area; the returned
+// function removes that directory. With no baseline, a directory that already
+// has base/ and change/ is used as it is, which is how the demo is laid out.
 func (p *Pipeline) loadLiveTarget(req Request) (*fixture.Fixture, []string, func(), error) {
-	if hasPreparedTrees(req.Target) {
-		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
+	if req.BaselineCommit != "" {
+		return p.materialize(req)
 	}
-	if req.BaselineCommit == "" {
-		// refuseBareRepository already stopped a git repository that reached
-		// here with no baseline. Anything else is not a pair of trees.
-		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
-	}
-	return p.materialize(req)
+	// refuseBareRepository already stopped a git repository that reached here
+	// with no baseline and no prepared trees. Anything else is not a pair of
+	// trees, and the readers name what is missing.
+	return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
 }
 
 // refuseBareRepository refuses a git target that has no baseline commit and
