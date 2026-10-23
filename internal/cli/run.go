@@ -15,17 +15,23 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+// versionLine is what --version prints until releases are stamped at build time.
 const versionLine = "proven development\n"
 
 // opener loads a reviewer for a non-sample run under test.
 // nil, and every sample run, uses review.Open.
 type opener func(review.Options) (review.Reviewer, error)
 
-// Run executes one proven invocation and returns the process exit code.
+// Run executes one proven invocation and returns the process exit code
+// (ADR-0020 §2: 0 reviewed, 1 findings under --error, 2 could not review,
+// 7 configuration refused). Every input arrives as a parameter, never from
+// the process, so a test drives exactly what the binary would.
 func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, open opener) int {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
+	// Settings are resolved and refused before anything is opened, so a bad
+	// value costs nothing and its exit code is the one ADR-0020 §2 names.
 	cfg, err := resolve(args, getenv, fileExists)
 	if err != nil {
 		fmt.Fprintln(stderr, err.Error())
@@ -43,12 +49,16 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return errorCode(err)
 	}
+	// Every requested format must have a writer before the review runs: a
+	// review that cannot be written is time spent for an exit 2 anyway.
 	if err := writable(cfg); err != nil {
 		fmt.Fprintln(stderr, err.Error())
 		return exitFatal
 	}
 	rev, err := openCall(cfg, getenv, open)
 	if err != nil {
+		// A setting the reviewer refuses (its own keys, its proven.yaml) is a
+		// configuration refused at load, exit 7; anything else is exit 2.
 		var conf *review.ConfigError
 		if errors.As(err, &conf) {
 			fmt.Fprintln(stderr, conf.Error())
@@ -57,6 +67,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return exitFatal
 	}
+	// --timeout bounds the whole review; zero means no deadline (ADR-0020 §1).
 	ctx := context.Background()
 	if cfg.timeoutSec > 0 {
 		var cancel context.CancelFunc
@@ -80,6 +91,8 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return exitFatal
 	}
+	// The severity floor is applied here as well as in the request, so the
+	// outputs and the exit code agree whatever a reviewer returns.
 	result.Findings = filterFindings(result.Findings, cfg.severity)
 	if cfg.verbose && !cfg.quiet {
 		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", cfg.target, cfg.baseline, cfg.head)
@@ -88,6 +101,8 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return exitFatal
 	}
+	// A failed outside service is named in the output and is not exit 2:
+	// the review still ran on what it could reach (ADR-0020 §2).
 	code := exitOK
 	if cfg.errorOnFindings && len(result.Findings) > 0 {
 		code = exitFindings
@@ -95,6 +110,8 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	return code
 }
 
+// errorCode is the exit code an error carries; an error that carries none
+// means Proven could not review, exit 2.
 func errorCode(err error) int {
 	var ce *cliError
 	if errors.As(err, &ce) {
@@ -103,11 +120,14 @@ func errorCode(err error) int {
 	return exitFatal
 }
 
+// fileExists reports whether path is a regular file; resolve takes it as a
+// parameter so tests can decide which configuration files exist.
 func fileExists(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && !st.IsDir()
 }
 
+// writable refuses before the review when any requested format has no writer.
 func writable(cfg config) error {
 	names := []string{cfg.format}
 	if cfg.textOutput != "" {
@@ -127,6 +147,8 @@ func writable(cfg config) error {
 	return nil
 }
 
+// openCall opens the reviewer and turns a panic into an error, so a broken
+// reviewer is exit 2 with a sentence, never a Go stack trace (ADR-0020 §2).
 func openCall(cfg config, getenv func(string) string, open opener) (rev review.Reviewer, err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -136,6 +158,9 @@ func openCall(cfg config, getenv func(string) string, open opener) (rev review.R
 	return openReviewer(cfg, getenv, open)
 }
 
+// openReviewer builds the reviewer's options. The trace goes to logs/ in
+// the directory the command starts from, which is where docs/SAMPLE_MODE.md
+// tells a reader to look.
 func openReviewer(cfg config, getenv func(string) string, open opener) (review.Reviewer, error) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -147,12 +172,16 @@ func openReviewer(cfg config, getenv func(string) string, open opener) (review.R
 		LogDir:     filepath.Join(wd, "logs"),
 		Env:        getenv,
 	}
+	// Sample mode always takes the real review.Open, never a test's opener:
+	// the sample reviewer is the thing under test, with no network and no
+	// keys (ADR-0001).
 	if cfg.sample || open == nil {
 		return review.Open(opts)
 	}
 	return open(opts)
 }
 
+// reviewCall runs the review and turns a panic into an error, as openCall does.
 func reviewCall(ctx context.Context, rev review.Reviewer, req review.Request) (res review.Result, err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -162,6 +191,10 @@ func reviewCall(ctx context.Context, rev review.Reviewer, req review.Request) (r
 	return rev.Review(ctx, req)
 }
 
+// writeOutputs writes the chosen format to standard output or -o, and each
+// --*-output file besides, all from the one result (ADR-0020 §1). Every body
+// is rendered before any file is written, so a format that fails leaves no
+// half-written set behind.
 func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 	primary, err := render(cfg.format, result)
 	if err != nil {
@@ -208,6 +241,9 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 	return nil
 }
 
+// pullRequestEvent is the part of GitHub's pull_request event payload ci
+// reads. Gitea is an equal target (ADR-0022); that its payload carries the
+// same fields is still to be measured on the lab's Gitea.
 type pullRequestEvent struct {
 	PullRequest struct {
 		Base struct {
@@ -221,6 +257,12 @@ type pullRequestEvent struct {
 	} `json:"pull_request"`
 }
 
+// applyCI fills the baseline and head of a `proven ci` run from the pull
+// request it runs for. The baseline comes from --baseline-commit, else the
+// event's base SHA, else GITHUB_BASE_REF; the head from GITHUB_SHA, else
+// the event's head SHA. ci never falls back to reviewing the whole
+// checkout: without a baseline or a head it exits 2 and names what is
+// missing.
 func applyCI(cfg *config, getenv func(string) string) error {
 	if cfg.command != "ci" {
 		return nil
@@ -264,6 +306,9 @@ func applyCI(cfg *config, getenv func(string) string) error {
 		// Exit 2, not 7. ADR-0020 §2 reserves 7 for a configuration refused at load.
 		return &cliError{code: exitFatal, msg: "ci: no head commit: set GITHUB_SHA, or GITHUB_EVENT_PATH with a head SHA"}
 	}
+	// A baseline the caller named is used as given. One found in the event
+	// or GITHUB_BASE_REF is the branch the pull request targets, so the
+	// review starts from where the change forked from it, not its tip.
 	if explicitBaseline {
 		return nil
 	}
@@ -277,6 +322,8 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	return nil
 }
 
+// gitMergeBase asks git for the fork point of base and head in repo and
+// returns git's own sentence when it cannot answer.
 func gitMergeBase(repo, base, head string) (string, error) {
 	cmd := exec.Command("git", "-C", repo, "merge-base", base, head)
 	out, err := cmd.Output()
@@ -297,6 +344,8 @@ func gitMergeBase(repo, base, head string) (string, error) {
 	return sha, nil
 }
 
+// helpText is the --help page: the flags of ADR-0020 §1 with the variable
+// beside each, and the exit codes of §2.
 func helpText() string {
 	return `proven — review a change
 
