@@ -2,7 +2,7 @@
 
 - incident: I17 (one incident; this case is its first round)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-23 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -87,10 +87,12 @@ In `expected/EXPECTED.md`.
 Run the check on base and on change and record each line of its output.
 
 - toolchain: Go `go1.26.8 darwin/arm64`, standard library only; the case is its own module (`go.mod`, module `pv019`).
+- round 2 toolchain: Go `go1.26.5 linux/amd64`, already installed; Go 1.26 or later must be installed to run this case without a toolchain download.
+- round 2 run: 2026-10-23 01:42:50 UTC. The nine output lines below were reproduced byte for byte (1,354 bytes) from the repository root.
 - run: 2026-10-22, in the leg started at 16:05 UTC (the run directory's stamp is `20261022-160539`; the seat's
   command allow-list refused `date`, so no finer clock reading was taken).
 - commands, from the repository root:
-  - `bash tests/corpus/cases/PV-019/check.sh` — exit code 0 (the shell reported no failure)
+  - `bash tests/corpus/cases/PV-019/check.sh` — exit code 0 on 2026-10-22 and on the round 2 run
   - `go -C tests/corpus/cases/PV-019 test ./change` — the shipped content test on the shipped table: `ok  	pv019/change`
 - output of `check.sh`, unedited:
 
@@ -110,7 +112,6 @@ channel-empty | shipped content test: fail [ed-cedar failure channel = "", want 
   `preview` row, a status base does not know; change passes the shipped table and refuses only the `preview` row with an
   install route and the empty channel; it passes the session-switch, plugin-folder, unsupported-with-route and
   wrong-channel inputs that the reference refuses.
-- note: the worktree's base is `main` at 5d8a8b8, not the `d81a93d` the order names.
 
 ## 9. Limits
 
