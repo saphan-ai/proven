@@ -46,7 +46,10 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0030](ADR-0030-the-product-and-the-hackathon-live-apart.md) | the product and the hackathon live apart: the build's record moves to `hackathon/`, the design decisions to `docs/adr/`; moved before the day-2 push with a permanent link check | accepted, 2026-10-23 |
 | [0031](ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md) | the generator can also call NVIDIA's hosted API (Nightshift stays the default); `proven scan` runs live; the lab turns live on from one NVIDIA key | accepted, 2026-10-23 |
 | [0032](ADR-0032-proven-builds-every-query-from-a-template.md) | a model picks a query template and its values; Proven validates each value and builds the SQL; a read-only Zetaris key only if measured | accepted, 2026-10-23 |
-| [0033](ADR-0033-the-text-review-is-written-for-a-person.md) | the text review is written for a person: a summary, one separated block per problem, "how we know" in plain words; the machine detail moves to `--verbose`, JSON and SARIF | accepted, 2026-10-23 |
+| [0033](ADR-0033-the-text-review-is-written-for-a-person.md) | the text review is written for a person: a summary, one separated block per problem, "how we know" in plain words; the machine detail moves to `--verbose`, JSON and SARIF; Markdown and HTML for people | accepted, 2026-10-23 |
+| [0034](ADR-0034-proven-runs-air-gapped.md) | Proven runs air-gapped: one setting keeps every call on the organisation's network, and a test proves it | accepted, 2026-10-23 |
+| [0035](ADR-0035-every-review-leaves-a-signed-evidence-pack.md) | every review can leave a signed evidence pack; `proven verify` checks it for an auditor | accepted, 2026-10-23 |
+| [0036](ADR-0036-an-organisation-policy-and-exceptions-that-expire.md) | one organisation policy for every repository; a risk is accepted only with an owner and an expiry | accepted, 2026-10-23 |
 
 **Rules for an ADR**
 
