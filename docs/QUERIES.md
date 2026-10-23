@@ -1,7 +1,7 @@
 # Queries
 
 Every question Proven asks Zetaris is one of the templates below, and no other. A model never writes a query
-([ADR-0032](../fleet/decisions/ADR-0032-proven-builds-every-query-from-a-template.md)): the Investigator and the Skeptic
+([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)): the Investigator and the Skeptic
 pick a template and give the values of its parameters, and Proven checks each value against the format on this page and
 builds the SQL itself. The OSV check and the EPSS check build their queries from the same templates, so every query
 Proven sends has one author. The list lives in `internal/querytpl`; a test holds this page to it.
