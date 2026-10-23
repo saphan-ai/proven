@@ -64,7 +64,7 @@ Every `gitea` command `make up` runs inside the container uses `GITEA_RUN_USER`.
 
 The runner's Docker host is `tcp://dind:2375`. No service mounts the host's Docker socket. Job containers are started on that inner daemon. The inner daemon is privileged, because Docker-in-Docker needs it. That privilege stays inside the lab. The daemon's port is not published on the host.
 
-`make up` also pulls the Prover's test image (`PROVEN_TEST_IMAGE`, `golang:1.26` by default) into that inner daemon, by digest when `TEST_IMAGE_DIGEST` is set. Without it the lab's `make livecheck` reports `No such image: golang:1.26`. The digest in `lab/versions.env` is empty until someone with network reads it: the first `make up` pulls by tag and prints the digest to put there.
+`make up` also pulls the Prover's test image (`PROVEN_TEST_IMAGE`, `golang:1.26` by default) into that inner daemon, by digest when `TEST_IMAGE_DIGEST` is set. Without it the lab's `make livecheck` reports `No such image: golang:1.26`. The digest is pinned in `lab/versions.env` as `TEST_IMAGE_DIGEST`: it is the digest of the `golang:1.26` index (both platforms), read from Docker Hub on 2026-10-23. `make up` pulls `golang@<digest>` and tags it `golang:1.26`, so a judge gets the bytes we measured, not whatever the tag names later. To refresh it, run `docker buildx imagetools inspect golang:1.26`, copy the `Digest:` line of the index into `TEST_IMAGE_DIGEST`, and run `make up`. If you empty the setting, `make up` pulls the tag instead and prints the digest it got.
 
 Gitea starts a workflow for a pull request only when the repository's Actions unit is on. The seed turns the unit on by name, and the Compose file adds `repo.actions` to Gitea's default units. If the unit was off when the pull request opened, the seed closes and reopens the pull request so the workflow starts. The seeded copy of the workflow posts to Gitea at `http://gitea:3000/api/v1` instead of `github.api_url`, because the job runs on the inner daemon, where `127.0.0.1` is not Gitea.
 
@@ -76,7 +76,15 @@ Sample mode does not start a Prover container. A later live run on this runner w
 
 ## Rehearse
 
-`make e2e` starts the lab when Gitea is not running, waits up to `E2E_WAIT_SECONDS`, and asks Gitea's API for the review comment. It exits 0 when the comment is there and prints the API's answer. It exits 1 when the wait ends without the comment.
+`make e2e` starts the lab when Gitea is not running and waits up to `E2E_WAIT_SECONDS`. It then asks Gitea (1.22.6, `GET /repos/{owner}/{repo}/actions/tasks`) for the workflow run of the pull request's current head commit. It exits 0 only when that run succeeded and a `proven-review` comment was created at or after the run started. It prints the API's answer. A review comment left by an older run, or by anyone else, does not count: a lab volume kept by `make down` keeps its comments.
+
+It exits 1 when that run finished as `failure`, `cancelled` or `skipped`, and names the run and its status:
+
+```text
+e2e: workflow run #2 for pull request #1 (head commit <sha>) finished with status failure
+```
+
+It also exits 1 when the wait ends with no run, a run that is still going, or a successful run with no new review.
 
 If Gitea is already running and the runner container is not, `make e2e` does not start the runner. It exits 1 and prints:
 
@@ -90,6 +98,15 @@ That is the check that a stopped runner cannot look like a successful rehearsal.
 docker compose --env-file lab/versions.env -f lab/compose.yaml --project-directory lab stop runner
 make e2e
 ```
+
+A second check proves e2e cannot be fooled by an old comment. With the runner alive and an old review comment on the pull request, make the current run fail and require `make e2e` to refuse:
+
+```bash
+make e2e
+make e2e-failed-run
+```
+
+`make e2e-failed-run` commits a workflow that fails on purpose to the pull request's head branch, runs `make e2e`, and puts the original workflow back. It exits 0 when e2e exited non-zero and named the failed run, and 1 when e2e accepted it. It needs the first `make e2e` to have passed, so an old comment exists. Restoring the workflow starts one more run; wait for it to finish before you run `make e2e` again.
 
 ## Third-party images
 
