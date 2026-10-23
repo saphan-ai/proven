@@ -21,8 +21,9 @@ import (
 )
 
 // open is Open. It refuses a missing LogDir, loads proven.yaml when the shell named one, and in live
-// mode loads every adapter's settings from the environment (ADR-0001, ADR-0013). Any refused setting
-// returns a *ConfigError, so the shell exits 7 before any review starts.
+// mode loads every adapter's settings from the environment (ADR-0001, ADR-0013). A wrong non-empty
+// value returns a *ConfigError, so the shell exits 7 before any review starts. An empty secret does
+// not: that service is down and the review names it (ADR-0013 point 4a).
 func open(opts Options) (Reviewer, error) {
 	// The trace is written under LogDir; a review with no trace could not show how a finding was judged.
 	if opts.LogDir == "" {
@@ -59,18 +60,33 @@ func open(opts Options) (Reviewer, error) {
 			env = func(string) string { return "" }
 		}
 		settings, lerr := generator.Load(env)
-		if lerr != nil {
+		if d, ok := service.As(lerr); ok {
+			// ADR-0013 point 4a: an empty token does not build a live client.
+			popts.Down = append(popts.Down, *d)
+			popts.Generator = generator.Absent{Reason: d.Reason}
+		} else if lerr != nil {
 			return nil, generatorConfig(lerr)
+		} else {
+			// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
+			popts.SkepticModel = settings.SkepticModel
+			popts.Generator = generator.NewLive(settings, nil)
 		}
-		// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
-		popts.SkepticModel = settings.SkepticModel
+		if opts.gen != nil {
+			// A test supplies the generator. The live client above is not called,
+			// so the review does not dial. A review leaves gen unset.
+			popts.Generator = opts.gen
+		}
 		gs, gerr := guardrail.Load(env)
-		if gerr != nil {
+		if d, ok := service.As(gerr); ok {
+			// ADR-0005 point 5: an empty key is not off. Every model call is
+			// refused by this adapter, and the trace gets one line per refusal.
+			popts.Down = append(popts.Down, *d)
+			popts.Guardrail = guardrail.Absent{Reason: d.Reason}
+		} else if gerr != nil {
 			return nil, guardrailConfig(gerr)
-		}
-		// ADR-0005: the guardrail is on unless a setting turns it off. When off, the pipeline is told
-		// so and the trace records one "no guardrail" line.
-		if gs.Mode == guardrail.ModeOff {
+		} else if gs.Mode == guardrail.ModeOff {
+			// ADR-0005: the guardrail is on unless a setting turns it off. When off, the pipeline is told
+			// so and the trace records one "no guardrail" line.
 			popts.GuardOff = true
 		} else {
 			rail, nerr := guardrail.New(gs, nil)
@@ -79,17 +95,15 @@ func open(opts Options) (Reviewer, error) {
 			}
 			popts.Guardrail = rail
 		}
-		popts.Generator = generator.NewLive(settings, nil)
-		if opts.gen != nil {
-			// A test supplies the generator. The live client above is not called,
-			// so the review does not dial. A review leaves gen unset.
-			popts.Generator = opts.gen
-		}
 		zset, zerr := query.Load(env)
-		if zerr != nil {
+		if d, ok := service.As(zerr); ok {
+			popts.Down = append(popts.Down, *d)
+			popts.LiveQuery = query.Absent{Reason: d.Reason}
+		} else if zerr != nil {
 			return nil, queryConfig(zerr)
+		} else {
+			popts.LiveQuery = query.NewLive(zset, nil)
 		}
-		popts.LiveQuery = query.NewLive(zset, nil)
 		if opts.liveQuery != nil {
 			// A test supplies the query adapter. The live client above is not called.
 			popts.LiveQuery = opts.liveQuery

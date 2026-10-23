@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Environment variables of the guardrail. The set is closed: Load reads these
@@ -67,7 +68,7 @@ func Environment() []envdoc.Setting {
 			Name:        EnvKey,
 			Default:     "none",
 			Secret:      true,
-			Description: "the guardrail's key. Secret: never printed",
+			Description: "the guardrail's key. Secret: never printed. Empty is not off: every model call is refused",
 		},
 		{
 			Name:        EnvTimeout,
@@ -149,7 +150,10 @@ func Load(env func(string) string) (Settings, error) {
 			}
 		}
 		if raw := env(EnvKey); raw != "" {
-			if err := checkKey(raw); err != nil {
+			// Mode off drops the key. A broken non-empty key is still refused,
+			// so turning the guardrail back on later does not hide a bad value.
+			// An empty key is not an error here: off is the switch (ADR-0005 point 3).
+			if err := refuseBrokenKey(raw); err != nil {
 				return Settings{}, err
 			}
 		}
@@ -190,10 +194,25 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
 }
 
-// checkKey refuses an empty or malformed key. The refusal never carries the
-// value: it is a secret. A line break could split the Authorization header.
+// checkKey refuses a malformed key and names an empty one as down.
+// The error never carries the value: it is a secret. A line break could
+// split the Authorization header, so a non-empty broken key is still a
+// refusal (ADR-0013 point 4a). An empty key is not mode off (ADR-0005 point 5).
 func checkKey(key string) error {
-	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
+	if err := refuseBrokenKey(key); err != nil {
+		return err
+	}
+	if strings.TrimSpace(key) == "" {
+		return &service.Down{Service: Service, Reason: EnvKey + " is empty"}
+	}
+	return nil
+}
+
+// refuseBrokenKey refuses a key that is set but cannot be sent.
+// An empty key is not this case. The refusal's value is empty, so the secret
+// is never printed.
+func refuseBrokenKey(key string) error {
+	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
 		return refuse(EnvKey, "", "the guardrail needs a key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
 	return nil

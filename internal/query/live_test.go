@@ -39,7 +39,8 @@ func TestLoadRefusesABadSettingAndDoesNotPrintTheKey(t *testing.T) {
 	if strings.Contains(err.Error(), secret) {
 		t.Fatal("the refusal printed the API key")
 	}
-	// Mutated field: ZETARIS_API_KEY, set to empty. The refusal's value stays empty.
+	// Mutated field: ZETARIS_API_KEY, set to empty. The service is down, and the
+	// error does not invent a value.
 	_, err = query.Load(func(k string) string {
 		switch k {
 		case query.EnvRESTURL:
@@ -50,11 +51,31 @@ func TestLoadRefusesABadSettingAndDoesNotPrintTheKey(t *testing.T) {
 			return ""
 		}
 	})
-	if err == nil || !asConfig(err, &cfg) || cfg.Field != query.EnvAPIKey || cfg.Value != "" {
+	d, ok := service.As(err)
+	if !ok || d.Service != "zetaris" || !strings.Contains(d.Reason, query.EnvAPIKey) {
 		t.Fatal(err)
 	}
 	if strings.Contains(err.Error(), secret) {
-		t.Fatal("the refusal printed the API key")
+		t.Fatal("the error printed the API key")
+	}
+	// Mutated field: ZETARIS_API_KEY, set to a non-empty value with a line break.
+	_, err = query.Load(func(k string) string {
+		switch k {
+		case query.EnvRESTURL:
+			return "http://127.0.0.1:9/api/v1.0"
+		case query.EnvAPIKey:
+			return "not-a-secret\n"
+		case query.EnvOrgID:
+			return "1"
+		default:
+			return ""
+		}
+	})
+	if err == nil || !asConfig(err, &cfg) || cfg.Field != query.EnvAPIKey || cfg.Value != "" {
+		t.Fatal(err)
+	}
+	if strings.Contains(err.Error(), "not-a-secret") || strings.Contains(err.Error(), secret) {
+		t.Fatal("the refusal printed a key")
 	}
 }
 

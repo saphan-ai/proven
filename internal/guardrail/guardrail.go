@@ -7,6 +7,8 @@
 // Safety first. Wrap puts the check around the generator the model-calling
 // agents use. One adapter has two backends, our own model server and NVIDIA's
 // hosted API; a setting turns the guardrail off, and the trace then says so.
+// An empty key is not that setting: Absent refuses every check and does not
+// dial (ADR-0005 point 5).
 package guardrail
 
 import (
