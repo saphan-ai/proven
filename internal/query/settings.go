@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Environment variables of the live Zetaris adapter. The set is closed.
@@ -45,7 +46,7 @@ func Environment() []envdoc.Setting {
 			Name:        EnvAPIKey,
 			Default:     "none (required live)",
 			Secret:      true,
-			Description: "Proven's Zetaris key. Secret: never printed",
+			Description: "Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it",
 		},
 		{
 			Name:        EnvOrgID,
@@ -115,10 +116,11 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	// The key is checked for presence, length and line breaks only. A line break
-	// would split the Authorization header.
+	// A line break or an over-long key is a wrong value, refused before any
+	// review. The value is not echoed: it is a secret. An empty key is a down
+	// service, decided after the other settings so a bad URL is still refused.
 	key := env(EnvAPIKey)
-	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
+	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
 		return Settings{}, refuse(EnvAPIKey, "", "the live query adapter needs an API key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
 	// ADR-0023, point 6: the organisation id is the numeric id Zetaris issues.
@@ -143,6 +145,11 @@ func Load(env func(string) string) (Settings, error) {
 			return Settings{}, refuse(EnvTimeout, clip(raw), "not a Go duration greater than zero", "a Go duration greater than zero, for example 60s; empty means 60s")
 		}
 		timeout = d
+	}
+	// ADR-0013 point 4a: an empty key means Zetaris is down. The review goes
+	// on and names it. The reason names the variable and not the value.
+	if strings.TrimSpace(key) == "" {
+		return Settings{}, &service.Down{Service: "zetaris", Reason: EnvAPIKey + " is empty"}
 	}
 	return Settings{BaseURL: base, APIKey: key, OrgID: org, RowLimit: limit, Timeout: timeout}, nil
 }

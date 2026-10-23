@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Environment variables of the live generator. The set is closed: Load reads
@@ -46,7 +47,7 @@ func Environment() []envdoc.Setting {
 			Name:        EnvToken,
 			Default:     "none (required live)",
 			Secret:      true,
-			Description: "the runtime token sent to Nightshift. Secret: never printed",
+			Description: "the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it",
 		},
 		{
 			Name:        EnvBaseURL,
@@ -144,17 +145,19 @@ func (s Settings) requiresNVIDIA(agent string) bool {
 	return s.requireNVIDIA[agent]
 }
 
-// Load reads the live-generator settings. A wrong value is refused.
-// An empty lookup uses the defaults, and an empty token is refused.
+// Load reads the live-generator settings. A wrong non-empty value is refused.
+// An empty token is not a refusal: Nightshift is down (ADR-0013 point 4a).
+// An empty lookup uses the defaults for every setting that has one.
 func Load(env func(string) string) (Settings, error) {
-	// A nil lookup is an empty environment, so the defaults apply and the token is refused.
+	// A nil lookup is an empty environment, so the defaults apply and the token is empty.
 	if env == nil {
 		env = func(string) string { return "" }
 	}
 	token := env(EnvToken)
-	// A line break in the token could split the Authorization header. The value is
-	// not echoed in the refusal: it is a secret.
-	if strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") || len(token) > 4096 {
+	// A line break or an over-long token is a wrong value, refused before any
+	// review. The value is not echoed: it is a secret. An empty token is
+	// handled after the other settings, so a bad URL is still refused.
+	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 {
 		return Settings{}, refuse(EnvToken, "", "the live generator needs a runtime token", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
 	base := env(EnvBaseURL)
@@ -201,6 +204,11 @@ func Load(env func(string) string) (Settings, error) {
 	all, none, set, err := parseRequire(req)
 	if err != nil {
 		return Settings{}, err
+	}
+	// ADR-0013 point 4a: an empty token means Nightshift is down. The review
+	// goes on and names it. The reason names the variable and not the value.
+	if strings.TrimSpace(token) == "" {
+		return Settings{}, &service.Down{Service: "nightshift", Reason: EnvToken + " is empty"}
 	}
 	return Settings{
 		BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,

@@ -23,7 +23,7 @@ import (
 // guardrailAfter is the sentence that follows the guardrail table. It is
 // not a setting. It stays inside the generated block so the one marker pair
 // still covers every environment table.
-const guardrailAfter = "Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name."
+const guardrailAfter = "Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name. An empty key is not off: every model call is refused and the review names the guardrail."
 
 // containerAfter follows the container table. It is not a setting.
 const containerAfter = "Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these."
