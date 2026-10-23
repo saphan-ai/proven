@@ -10,8 +10,10 @@
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
 // and answer (ADR-0005), the record of every model call, the doubled review
-// with a second model (ADR-0009, ADR-0012), and the partial review a deadline
-// leaves behind.
+// with a second model (ADR-0009, ADR-0012), the partial review a deadline
+// leaves behind, and the redaction of every configured secret from the trace,
+// the recorded models and a failure's reason, because a service can echo a value
+// it was sent (ADR-0025).
 //
 // Live mode reads a directory that already has base/ and change/, or a git
 // repository. For a repository it writes those two trees for the review and
@@ -43,6 +45,7 @@ import (
 	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/trace"
@@ -86,6 +89,10 @@ type Options struct {
 	// MaxWrittenBytes is the loaded container limit for a test the prover writes.
 	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
 	MaxWrittenBytes int
+	// Redactor replaces the configured secrets in the trace, in a failure's
+	// reason and in the models a review records. Nil redacts nothing, which is
+	// right for sample mode: it loads no secret.
+	Redactor *redact.Redactor
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
@@ -110,6 +117,8 @@ type Pipeline struct {
 	// workDir is the run's working area. Live git trees are written here, not
 	// inside the repository under review, and removed when the review returns.
 	workDir string
+	// redactor replaces the configured secrets in text a service returned.
+	redactor *redact.Redactor
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -130,6 +139,12 @@ func Build(opts Options) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+	// ADR-0025: one redactor, built by review.Open from the values the live settings
+	// loaded, stands at every place a service's text becomes trace or result text.
+	// Build does not read the environment to make it, so sample mode reads no
+	// setting; with none given, nothing is redacted.
+	rd := opts.Redactor
+	tw.SetRedactor(rd)
 	stateDir := opts.StateDir
 	if stateDir == "" {
 		var derr error
@@ -161,7 +176,7 @@ func Build(opts Options) (*Pipeline, error) {
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
-		workDir: area,
+		workDir: area, redactor: rd,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -314,7 +329,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	p.mem.SetGenerator(gen)
 	p.world.SetGenerator(gen)
-	st := &state{trace: p.trace, changeKey: changeKey(req), skipped: skipped}
+	st := &state{trace: p.trace, redactor: p.redactor, changeKey: changeKey(req), skipped: skipped}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
@@ -336,7 +351,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// The guardrail wraps the recorder: a call the guardrail refuses never
 	// reaches the model, so it is not recorded as a model call.
-	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace}, rail)
+	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace, redactor: p.redactor}, rail)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -346,7 +361,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if req.DoubleRun {
 		second := p.secondGenerator(req.SpecialModel, raw)
 		if second != nil {
-			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace}, rail)
+			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace, redactor: p.redactor}, rail)
 			if err != nil {
 				return candidate.Draft{}, err
 			}
@@ -835,7 +850,11 @@ func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outc
 // services that failed, the model calls made, the key of the change, and the
 // tracked symlinks the trees left out.
 type state struct {
-	trace     *trace.Writer
+	trace *trace.Writer
+	// redactor is applied to the text of a service that becomes a failure
+	// reason in the draft: the trace writer redacts what it writes, and the
+	// draft is a second place that text lands.
+	redactor  *redact.Redactor
 	failed    []candidate.Failure
 	models    []candidate.ModelUse
 	changeKey string
@@ -917,7 +936,9 @@ func (s *state) note(d *service.Down) {
 			return
 		}
 	}
-	s.failed = append(s.failed, candidate.Failure{Service: d.Service, Reason: d.Reason})
+	// A refusal reason can carry a service's own words, such as a routed model or a
+	// safety category, which may echo a configured value.
+	s.failed = append(s.failed, candidate.Failure{Service: d.Service, Reason: s.redactor.Text(d.Reason)})
 }
 
 // cut ends the review early with a partial draft, limited to the selected files.
@@ -1019,6 +1040,9 @@ type recording struct {
 	inner  generator.Generator
 	models *[]candidate.ModelUse
 	trace  *trace.Writer
+	// redactor is applied to the route, model and receipt id a service reported,
+	// before they are kept on the review: a service can echo a configured value there.
+	redactor *redact.Redactor
 }
 
 // Complete calls the inner generator and records which model answered. A
@@ -1032,7 +1056,11 @@ func (g recording) Complete(ctx context.Context, agent, prompt string) (string, 
 				Agent: agent, Route: u.Route, Model: u.Model,
 				ReceiptID: u.ReceiptID, FromReceipt: u.FromReceipt,
 			}
-			*g.models = append(*g.models, m)
+			// Each place the use lands redacts for itself: the trace writer redacts what it
+			// writes, and the copy kept on the review is redacted here.
+			kept := m
+			kept.Route, kept.Model, kept.ReceiptID = g.redactor.Text(m.Route), g.redactor.Text(m.Model), g.redactor.Text(m.ReceiptID)
+			*g.models = append(*g.models, kept)
 			if terr := g.record(m); terr != nil && err == nil {
 				return "", terr
 			}
