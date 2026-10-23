@@ -11,6 +11,7 @@ import (
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
@@ -28,8 +29,9 @@ const guardrailAfter = "Every prompt and every answer is checked; an `unsafe` ve
 const containerAfter = "Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
-// PROVEN_EPSS_VIEW is declared in epss. PROVEN_EVIDENCE_VIEW is declared
-// in livecheck. Both are listed on the evidence table.
+// PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
+// beside PROVEN_OSV_TABLE. PROVEN_EVIDENCE_VIEW is declared in livecheck.
+// PROVEN_ADAPTER_TIMEOUT is declared in limit.
 // The evidence table joins the rows of four packages: the Zetaris adapter,
 // OSV, EPSS and livecheck.
 func Catalog() []envdoc.Section {
@@ -52,6 +54,10 @@ func Catalog() []envdoc.Section {
 			Heading: "The Prover's container",
 			Rows:    testrun.Environment(),
 			After:   containerAfter,
+		},
+		{
+			Heading: "One adapter call",
+			Rows:    limit.Environment(),
 		},
 	}
 }

@@ -7,10 +7,11 @@
 // a trace line, never a finding.
 //
 // The package also defines the OSV table itself: its columns, the setting
-// that names it (PROVEN_OSV_TABLE, ADR-0013), and the converter behind
-// cmd/osv-to-csv that flattens OSV advisories into its rows. OSV by package
-// cannot be a Zetaris REST table (ADR-0023), so the table is a file an
-// administrator puts in Zetaris's storage. docs/OSV_TABLE.md is the contract.
+// that names it (PROVEN_OSV_TABLE, ADR-0013), the setting that names the
+// KEV view (PROVEN_KEV_VIEW), and the converter behind cmd/osv-to-csv that
+// flattens OSV advisories into its rows. OSV by package cannot be a Zetaris
+// REST table (ADR-0023), so the table is a file an administrator puts in
+// Zetaris's storage. docs/OSV_TABLE.md is the contract.
 package osv
 
 import (
@@ -30,8 +31,37 @@ import (
 // RuleID is the kind of a dependency finding this check names.
 const RuleID = "osv-affected-package"
 
-// KEVView is the known-exploited view an advisory alias is looked up in.
+// KEVView is the known-exploited view used when PROVEN_KEV_VIEW is empty.
+// The name is a setting (ADR-0013): a review loads it and Check reads it
+// from the context. Sample mode does not set the context, so this default
+// is what a sample review queries, and the variable is not read.
 const KEVView = "px_evidence.px_kev_vulns"
+
+// kevViewKey is the context key of the view WithKEVView stored.
+type kevViewKey struct{}
+
+// WithKEVView returns a context that carries the KEV view Check queries.
+// The review sets it from PROVEN_KEV_VIEW after that setting loads.
+// Sample mode does not set it, so Check uses KEVView and does not read
+// the environment.
+func WithKEVView(ctx context.Context, view string) context.Context {
+	return context.WithValue(ctx, kevViewKey{}, view)
+}
+
+// loadedKEVView is the view on ctx, or KEVView when the context carries none.
+// The name is pasted into the SQL, so a value that is not a view is refused
+// here as well as at load.
+func loadedKEVView(ctx context.Context) (string, error) {
+	view, _ := ctx.Value(kevViewKey{}).(string)
+	view = strings.TrimSpace(view)
+	if view == "" {
+		view = KEVView
+	}
+	if !ValidView(view) {
+		return "", fmt.Errorf("osv: view name %q is not allowed", view)
+	}
+	return view, nil
+}
 
 // cveID matches a CVE id, the only alias the KEV view is keyed by. Because
 // an id must match it, kevSQL can place the id in the SQL with no escaping.
@@ -180,6 +210,12 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	// ADR-0004: a CVE alias of a matching advisory is also looked up in CISA
 	// KEV, once per id. A missing KEV row does not drop the finding; the
 	// message only says so.
+	// ADR-0013: the view is a setting. The pipeline call does not take it,
+	// so the loaded name rides the context. Empty means KEVView.
+	view, verr := loadedKEVView(ctx)
+	if verr != nil {
+		return nil, "", verr
+	}
 	seen := map[string]struct{}{}
 	var kevNotes []string
 	for _, item := range matched {
@@ -188,7 +224,11 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 				continue
 			}
 			seen[id] = struct{}{}
-			kres, kerr := q.Query(ctx, kevSQL(id))
+			sql, serr := kevSQL(view, id)
+			if serr != nil {
+				return nil, "", serr
+			}
+			kres, kerr := q.Query(ctx, sql)
 			if kerr != nil {
 				if d, ok := service.As(kerr); ok {
 					kevNotes = append(kevNotes, "alias "+id+" was not looked up in KEV: "+d.Error())
@@ -323,10 +363,17 @@ func moduleSQL(table, ecosystem, pkg string) (string, error) {
 	return "SELECT " + strings.Join(Columns, ", ") + " FROM " + table + " WHERE ecosystem = " + eco + " AND package = " + mod, nil
 }
 
-// kevSQL builds the KEV lookup for one CVE. id has matched cveID, so it holds
-// no quote and needs no escaping.
-func kevSQL(id string) string {
-	return "SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM " + KEVView + " WHERE cve_id = '" + id + "'"
+// kevSQL builds the KEV lookup for one CVE. view has passed ValidView and id
+// has matched cveID, so neither holds a quote and neither needs escaping.
+// Both are checked again here because they are pasted into the SQL text.
+func kevSQL(view, id string) (string, error) {
+	if !ValidView(view) {
+		return "", fmt.Errorf("osv: view name %q is not allowed", view)
+	}
+	if !cveID.MatchString(id) {
+		return "", fmt.Errorf("osv: %q is not a CVE id", id)
+	}
+	return "SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM " + view + " WHERE cve_id = '" + id + "'", nil
 }
 
 // quoteLiteral makes a SQL string literal by doubling single quotes. A line

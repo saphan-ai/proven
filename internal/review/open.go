@@ -6,11 +6,13 @@ package review
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
@@ -48,6 +50,8 @@ func open(opts Options) (Reviewer, error) {
 		LogDir: opts.LogDir,
 		Env:    opts.Env,
 	}
+	var kevView string
+	var adapterLimit time.Duration
 	// In sample mode the pipeline uses its recorded adapters, so none of the live settings are read.
 	if !opts.Sample {
 		env := opts.Env
@@ -110,21 +114,36 @@ func open(opts Options) (Reviewer, error) {
 		} else {
 			popts.TestRun = box
 		}
+		// ADR-0013: the KEV view and the adapter bound are settings. A wrong
+		// value stops Open before any review. Sample mode skips this block
+		// and does not read either variable.
+		kev, kerr := osv.LoadView(env)
+		if kerr != nil {
+			return nil, osvConfig(kerr)
+		}
+		kevView = kev
+		bound, aerr := limit.Load(env)
+		if aerr != nil {
+			return nil, limitConfig(aerr)
+		}
+		adapterLimit = bound
 	}
 	p, err := pipeline.Build(popts)
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit}, nil
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
 // cfg is the explicit configuration when explicit is true; otherwise it is unused and each
 // Review loads the settings of the change it reviews.
 type runner struct {
-	p        *pipeline.Pipeline
-	cfg      fileSettings
-	explicit bool
+	p            *pipeline.Pipeline
+	cfg          fileSettings
+	explicit     bool
+	kevView      string
+	adapterLimit time.Duration
 }
 
 // Review runs one review: settings, deadline, class, the six agents, then the decision lines.
@@ -166,6 +185,16 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		}
 		class, _ := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
 		double = cfg.Doubled[class]
+	}
+	// The KEV view and the adapter bound ride the context. The pipeline's
+	// calls do not take them, and this change does not edit that package.
+	// Sample mode leaves both unset, so the defaults apply and the
+	// environment is not read.
+	if r.kevView != "" {
+		ctx = osv.WithKEVView(ctx, r.kevView)
+	}
+	if r.adapterLimit > 0 {
+		ctx = limit.WithBound(ctx, r.adapterLimit)
 	}
 	d, err := r.p.Review(ctx, pipeline.Request{
 		Target:         req.Target,
@@ -281,9 +310,21 @@ func epssConfig(err error) error {
 	return err
 }
 
-// osvConfig turns a refused OSV table setting into the seam's *ConfigError.
+// osvConfig turns a refused OSV setting into the seam's *ConfigError.
 func osvConfig(err error) error {
 	var cfg *osv.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// limitConfig turns a refused adapter-bound setting into the seam's *ConfigError.
+func limitConfig(err error) error {
+	var cfg *limit.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
