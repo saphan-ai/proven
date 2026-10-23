@@ -46,7 +46,7 @@ func TestRequirementsDiffAddsAndRaises(t *testing.T) {
 
 // TestRequirementsPinsCommonForms proves that extras, spaces, markers, --hash
 // options and inline comments still read as a pin, while === and a URL
-// requirement are skipped with a note.
+// requirement are skipped with a note. The reported name is the PEP 503 form.
 func TestRequirementsPinsCommonForms(t *testing.T) {
 	change := []byte(joinLines(
 		"pkg[extra]==1.4.0",
@@ -63,8 +63,8 @@ func TestRequirementsPinsCommonForms(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Change{
-		{Package: "Flask", Version: "2.0.1", Line: 7, Added: true},
 		{Package: "commented", Version: "1.0", Line: 5, Added: true},
+		{Package: "flask", Version: "2.0.1", Line: 7, Added: true},
 		{Package: "hashed", Version: "1.0", Line: 4, Added: true},
 		{Package: "marked", Version: "1.2.3", Line: 3, Added: true},
 		{Package: "pkg", Version: "1.4.0", Line: 1, Added: true},
@@ -115,6 +115,30 @@ func TestRequirementsUnparsedChangeIsStillReported(t *testing.T) {
 	}
 }
 
+// TestRequirementsPEP503NamesAreTheSamePackage proves that Requests and
+// requests are one package, and that zope_interface and zope.interface are
+// one package. The same version is not a change. A higher version is a raise,
+// not an added package.
+func TestRequirementsPEP503NamesAreTheSamePackage(t *testing.T) {
+	base := []byte("Requests==2.31.0\nzope_interface==5.0.0\n")
+	change := []byte("requests==2.31.0\nzope.interface==6.0.0\n")
+	got, err := diffRequirements(base, change)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Change{
+		{Package: "zope-interface", Version: "6.0.0", Line: 2, Added: false},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("%#v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %#v want %#v", got[i], want[i])
+		}
+	}
+}
+
 // TestRequirementsMatch proves that the PyPI reader matches requirements.txt at
 // any depth, with exact case, and no other file name.
 func TestRequirementsMatch(t *testing.T) {
@@ -137,7 +161,7 @@ func TestCollectCarriesSkipNotes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Ecosystem != "PyPI" || got[0].Package != "Flask" {
+	if len(got) != 1 || got[0].Ecosystem != "PyPI" || got[0].Package != "flask" {
 		t.Fatalf("%#v", got)
 	}
 	if len(notes) != 1 || notes[0] != `app/requirements.txt: line 2 skipped ("Django>=2"): not a pinned name==version` {

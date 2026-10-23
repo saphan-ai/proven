@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/pep440"
+	"github.com/saphan-ai/proven/internal/pep503"
 )
 
 // Poetry reads poetry.lock. Each [[package]] table contributes its name
-// and its version. The ecosystem is PyPI. The name and the version are
-// the assignments written before the next table header.
+// and its version. The ecosystem is PyPI. The version is the assignment
+// written before the next table header. The name is that assignment in
+// PEP 503 form.
 func Poetry() Reader {
 	return Reader{
 		Ecosystem: "PyPI",
@@ -39,8 +41,10 @@ func diffPoetry(base, change []byte) ([]Change, error) {
 }
 
 // parsePoetry reads poetry.lock line by line. It is not a TOML parser: it
-// reads only what a [[package]] table needs, and refuses a line it does
-// not understand outside one, so a file of another kind is not taken for
+// reads only the name and version of each [[package]] table. Lines in any
+// other table, including a multi-line array, are skipped. A line outside
+// every table that is not an assignment is refused, and a file with no
+// [[package]] table is refused, so a file of another kind is not taken for
 // an empty lock.
 func parsePoetry(b []byte) (versions, error) {
 	out := versions{}
@@ -51,6 +55,9 @@ func parsePoetry(b []byte) (versions, error) {
 	line := 0
 	seen := false
 	inHeader := false
+	// inOther is a table that is not [[package]], such as a sub-table or
+	// [metadata]. Nothing in it is a pin of this package.
+	inOther := false
 	start := 0
 	name, version := "", ""
 	verLine := 0
@@ -67,7 +74,9 @@ func parsePoetry(b []byte) (versions, error) {
 		if version == "" {
 			return fmt.Errorf("[[package]] at line %d has no version", start)
 		}
-		addVersion(out, name, version, verLine)
+		// PEP 503: the pin is stored under the normalised name, so a later
+		// file that spells it differently is the same package.
+		addVersion(out, pep503.Normalise(name), version, verLine)
 		name, version = "", ""
 		return nil
 	}
@@ -87,15 +96,25 @@ func parsePoetry(b []byte) (versions, error) {
 			if trim == "[[package]]" {
 				seen = true
 				inHeader = true
+				inOther = false
 				start = line
+			} else {
+				inHeader = false
+				// A ']' in a multi-line array has no '='. Refusing that line
+				// drops a real poetry.lock, and NoteErr then reports no finding.
+				inOther = true
 			}
+			continue
+		}
+		if inOther {
 			continue
 		}
 		key, val, ok, err := poetryAssign(trim, line)
 		if err != nil {
 			return nil, err
 		}
-		// Outside a [[package]] table only key = value lines are expected.
+		// A line outside every table, with no '=', is not a lock file. Reading
+		// it as an empty pin set would hide that.
 		if !inHeader {
 			if !ok && !strings.Contains(trim, "=") {
 				return nil, fmt.Errorf("line %d: not a package table", line)

@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/pep440"
+	"github.com/saphan-ai/proven/internal/pep503"
 )
 
 // PyPI reads requirements.txt. A pinned line is name==version.
-// Extras in brackets are not part of the package name. A blank line or a
-// comment is ignored. Every other line is skipped, and Notes names it.
+// Extras in brackets are not part of the package name. The name is stored
+// in PEP 503 form. A blank line or a comment is ignored. Every other line
+// is skipped, and Notes names it.
 func PyPI() Reader {
 	return Reader{
 		Ecosystem: "PyPI",
@@ -64,7 +66,9 @@ func parseRequirements(b []byte) (map[string]req, []string, error) {
 		if !ok {
 			continue
 		}
-		out[name] = req{version: version, line: line}
+		// PEP 503: the key is the normalised name. A later pin of the same
+		// package wins even when the spelling differs, as it does for pip.
+		out[pep503.Normalise(name)] = req{version: version, line: line}
 	}
 	if err := sc.Err(); err != nil {
 		return nil, nil, fmt.Errorf("requirements.txt: %w", err)
