@@ -52,6 +52,9 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0036](ADR-0036-an-organisation-policy-and-exceptions-that-expire.md) | one organisation policy for every repository; a risk is accepted only with an owner and an expiry | accepted, 2026-10-23 |
 | [0037](ADR-0037-bring-your-own-second-reviewer.md) | bring your own second reviewer: any OpenAI-compatible model; with it connected every change is reviewed by two, and their disagreement is shown | accepted, 2026-10-23 |
 | [0038](ADR-0038-a-language-is-one-small-adapter.md) | a language is one small adapter behind a public interface; PHP, Java, C#, Rust and Ruby join Go, JavaScript and Python | accepted, 2026-10-23 |
+| [0039](ADR-0039-more-evidence-sources.md) | more evidence sources through Zetaris: malicious packages, project health, CVSS, licences | accepted, 2026-10-23 |
+| [0040](ADR-0040-a-tool-run-is-evidence.md) | a deterministic tool's run is evidence, through a tool adapter: race detector, fuzzing, static analysis, coverage | accepted, 2026-10-23 |
+| [0041](ADR-0041-agreed-by-two-models-is-shown-apart.md) | what two models agree on without proof is shown apart, labelled as an opinion, never as proven | accepted, 2026-10-23 |
 
 **Rules for an ADR**
 
