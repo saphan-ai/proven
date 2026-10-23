@@ -8,18 +8,20 @@ package query
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
 
-// tokenKind is what a token is: a name or keyword, a quoted string, or one
-// symbol.
+// tokenKind is what a token is: a name or keyword, a quoted string, an
+// integer, or one symbol.
 type tokenKind int
 
 const (
 	kindIdent tokenKind = iota
 	kindString
 	kindSym
+	kindNumber
 )
 
 // token is one lexical unit of a statement. A string's val has its quotes
@@ -32,7 +34,8 @@ type token struct {
 // DB is an in-memory table store for the sample queries.
 // It reads only the small SQL the samples and the evidence queries use:
 // CREATE TABLE, INSERT of quoted strings, and a SELECT with at most one inner
-// join and a WHERE of equalities joined by AND.
+// join, a WHERE of equalities joined by AND, an integer in the select list,
+// and LIMIT.
 type DB struct {
 	tables map[string]*table
 }
@@ -168,7 +171,8 @@ func (db *DB) execInsert(toks []token) error {
 }
 
 // execSelect runs
-// SELECT cols FROM t [a] [[INNER] JOIN u [b] ON x = y] [WHERE c = 'v' [AND ...]].
+// SELECT cols FROM t [a] [[INNER] JOIN u [b] ON x = y] [WHERE c = 'v' [AND ...]] [LIMIT n].
+// A select item may be a column or an integer literal.
 func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 	cols, i, err := parseSelectList(toks, 1)
 	if err != nil {
@@ -210,13 +214,9 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 		}
 	}
 	var where []wherePred
-	if i < len(toks) {
-		// Anything after the table or the join must be a WHERE. ORDER BY, LIMIT and
-		// the rest are refused rather than ignored, so a query never returns rows it
-		// did not ask for.
-		if !strings.EqualFold(toks[i].val, "WHERE") {
-			return nil, nil, fmt.Errorf("query: unexpected %s", toks[i].val)
-		}
+	// limit < 0 means the query set no LIMIT. Zero is a real limit: no row.
+	limit := -1
+	if i < len(toks) && strings.EqualFold(toks[i].val, "WHERE") {
 		i++
 		for {
 			c, next, err := takeColRef(toks, i)
@@ -225,7 +225,7 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 			}
 			where = append(where, wherePred{col: c, val: toks[next+1].val})
 			i = next + 2
-			if i >= len(toks) {
+			if i >= len(toks) || strings.EqualFold(toks[i].val, "LIMIT") {
 				break
 			}
 			// Only AND: a predicate this engine cannot read is refused, not half-read.
@@ -234,6 +234,25 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 			}
 			i++
 		}
+	}
+	if i < len(toks) && strings.EqualFold(toks[i].val, "LIMIT") {
+		// LIMIT is applied, not ignored: a query must not return rows it did
+		// not ask for, and it must be able to ask for one.
+		i++
+		if i >= len(toks) || toks[i].kind != kindNumber {
+			return nil, nil, fmt.Errorf("query: LIMIT needs an integer")
+		}
+		n, nerr := strconv.Atoi(toks[i].val)
+		if nerr != nil {
+			return nil, nil, fmt.Errorf("query: LIMIT needs an integer")
+		}
+		limit = n
+		i++
+	}
+	// ORDER BY and anything else are refused rather than ignored, so a query
+	// never returns rows it did not ask for.
+	if i < len(toks) {
+		return nil, nil, fmt.Errorf("query: unexpected %s", toks[i].val)
 	}
 	// Every column is resolved before any row is read. A wrong or ambiguous name
 	// is an error, never an empty result, because an empty result would read as
@@ -273,6 +292,9 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 	var rows [][]string
 	if right == nil {
 		for _, row := range left.tb.rows {
+			if limit >= 0 && len(rows) >= limit {
+				break
+			}
 			if !rowWhere(where, left, row, nil, nil) {
 				continue
 			}
@@ -283,7 +305,13 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 	// A nested-loop inner join. The sample tables are small, so no index is
 	// built.
 	for _, lr := range left.tb.rows {
+		if limit >= 0 && len(rows) >= limit {
+			break
+		}
 		for _, rr := range right.tb.rows {
+			if limit >= 0 && len(rows) >= limit {
+				break
+			}
 			lv, err := lookup(onL, left, lr, right, rr)
 			if err != nil {
 				return nil, nil, err
@@ -305,9 +333,12 @@ func (db *DB) execSelect(toks []token) ([]string, [][]string, error) {
 }
 
 // colRef is a column, optionally qualified by a table name or an alias.
+// literal is set when the select item is an integer. The cell is the digits,
+// and the item is not resolved against a table.
 type colRef struct {
-	qual string
-	name string
+	qual    string
+	name    string
+	literal bool
 }
 
 // wherePred is one column = 'value' test of a WHERE clause.
@@ -335,6 +366,13 @@ func parseSelectList(toks []token, i int) ([]colRef, int, error) {
 	var cols []colRef
 	for i < len(toks) && !strings.EqualFold(toks[i].val, "FROM") {
 		if toks[i].val == "," {
+			i++
+			continue
+		}
+		// An integer is a constant column. It is not a name, so it is not
+		// resolved against the table: SELECT 1 is a probe, not a column.
+		if toks[i].kind == kindNumber {
+			cols = append(cols, colRef{name: toks[i].val, literal: true})
 			i++
 			continue
 		}
@@ -452,6 +490,9 @@ func (s side) has(ref colRef) bool {
 
 // mustResolve requires a column to exist on exactly one side of the join.
 func mustResolve(ref colRef, left, right *side) error {
+	if ref.literal {
+		return nil
+	}
 	lok := left.has(ref)
 	rok := right != nil && right.has(ref)
 	if lok && rok {
@@ -507,6 +548,10 @@ func rowWhere(where []wherePred, left side, leftRow []string, right *side, right
 func project(cols []colRef, left side, leftRow []string, right *side, rightRow []string) []string {
 	out := make([]string, len(cols))
 	for n, c := range cols {
+		if c.literal {
+			out[n] = c.name
+			continue
+		}
 		v, err := lookup(c, left, leftRow, right, rightRow)
 		if err != nil {
 			out[n] = ""
@@ -552,8 +597,8 @@ func splitStatements(sql string) []string {
 }
 
 // tokenize turns a statement into tokens. A character the small grammar does
-// not use, a digit included, is refused, so an unexpected statement fails
-// loudly instead of running in part.
+// not use is refused, so an unexpected statement fails loudly instead of
+// running in part. A digit is an integer literal: SELECT 1 and LIMIT need one.
 func tokenize(s string) ([]token, error) {
 	var out []token
 	i := 0
@@ -561,6 +606,17 @@ func tokenize(s string) ([]token, error) {
 		r := rune(s[i])
 		if unicode.IsSpace(r) {
 			i++
+			continue
+		}
+		// A digit is an integer literal, not a name. SELECT 1 and LIMIT both
+		// need one, and a name cannot start with a digit.
+		if s[i] >= '0' && s[i] <= '9' {
+			j := i + 1
+			for j < len(s) && s[j] >= '0' && s[j] <= '9' {
+				j++
+			}
+			out = append(out, token{kind: kindNumber, val: s[i:j]})
+			i = j
 			continue
 		}
 		if s[i] == '\'' {
@@ -589,7 +645,7 @@ func tokenize(s string) ([]token, error) {
 			i = j
 			continue
 		}
-		if isIdent(s[i]) && (len(out) == 0 || !unicode.IsDigit(r)) {
+		if isIdent(s[i]) {
 			j := i + 1
 			for j < len(s) && (isIdent(s[j]) || unicode.IsDigit(rune(s[j]))) {
 				j++

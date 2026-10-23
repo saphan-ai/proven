@@ -81,6 +81,36 @@ INSERT INTO px_evidence.px_epss_cve_rows VALUES ('CVE-2026-0001', '0.50000', '0.
 	}
 }
 
+// TestSelectIntegerAndLimit proves the local engine runs SELECT 1 … LIMIT 1:
+// the cell is the literal, and LIMIT caps the rows the table would return.
+// Mutated field: the integer token. Refusing a digit as a bad character
+// makes this red.
+func TestSelectIntegerAndLimit(t *testing.T) {
+	const sql = `
+CREATE TABLE px_evidence.px_kev_vulns (cve_id TEXT);
+INSERT INTO px_evidence.px_kev_vulns VALUES ('CVE-2026-0001');
+INSERT INTO px_evidence.px_kev_vulns VALUES ('CVE-2026-0002');
+`
+	db, err := query.LoadSQL(sql)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols, rows, err := db.Query("SELECT 1 FROM px_evidence.px_kev_vulns LIMIT 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cols) != 1 || cols[0] != "1" || len(rows) != 1 || len(rows[0]) != 1 || rows[0][0] != "1" {
+		t.Fatalf("limited %#v %#v", cols, rows)
+	}
+	_, all, err := db.Query("SELECT 1 FROM px_evidence.px_kev_vulns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 || all[0][0] != "1" || all[1][0] != "1" {
+		t.Fatalf("unlimited %#v", all)
+	}
+}
+
 // TestLiveQueryUnconfiguredNamesZetaris proves a Live with no settings fails
 // as the zetaris service, with no panic.
 func TestLiveQueryUnconfiguredNamesZetaris(t *testing.T) {
