@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -198,5 +199,154 @@ func TestOutputWriteFailureExits2(t *testing.T) {
 				t.Fatalf("error does not name the path: %s", stderr.String())
 			}
 		})
+	}
+}
+
+// funcReviewer runs a function as the review, so a test can change the disk
+// between the load checks and the writes.
+type funcReviewer func() review.Result
+
+func (f funcReviewer) Review(context.Context, review.Request) (review.Result, error) {
+	return f(), nil
+}
+
+// TestDanglingAliasOutputsAreRefused proves that an output named through a
+// symlink whose target does not exist yet is the same file as the output named
+// by the target: exit 7, both flags named, no review, nothing written. Every
+// ordered pair of the four flags is tried, with the alias on either side. The
+// mutated field is the path of the alias flag: a link to the other output's
+// path, still absent. Without the Readlink resolution every row returns 0 and
+// the later format replaces the earlier one.
+func TestDanglingAliasOutputsAreRefused(t *testing.T) {
+	for _, first := range outputFlags {
+		for _, second := range outputFlags {
+			if first == second {
+				continue
+			}
+			t.Run(first.name+" actual, "+second.name+" alias", func(t *testing.T) {
+				dir := t.TempDir()
+				actual := filepath.Join(dir, "actual.json")
+				alias := filepath.Join(dir, "alias.json")
+				if err := os.Symlink("actual.json", alias); err != nil {
+					t.Skipf("symlinks are not available here: %v", err)
+				}
+				rev := &captureReviewer{}
+				var stdout, stderr bytes.Buffer
+				code := Run([]string{"scan", first.arg + actual, second.arg + alias}, emptyEnv, &stdout, &stderr, openCapture(rev))
+				if code != exitConfig {
+					t.Fatalf("exit %d, want %d; stderr %s", code, exitConfig, stderr.String())
+				}
+				for _, want := range []string{first.name, second.name} {
+					if !strings.Contains(stderr.String(), want) {
+						t.Errorf("refusal does not name %q: %s", want, stderr.String())
+					}
+				}
+				if _, err := os.Stat(actual); err == nil {
+					t.Error("a file was written despite the refusal")
+				}
+				if rev.req.Target != "" {
+					t.Error("the review ran despite the refusal")
+				}
+			})
+		}
+	}
+}
+
+// TestDanglingAliasChainsAreFollowed proves that the resolution follows a
+// chain of links, with a relative target taken against the directory of the
+// link that holds it: sub/b.json -> ../a.json -> actual.json, none present.
+// The mutated field is the alias: two hops, one of them in another directory.
+func TestDanglingAliasChainsAreFollowed(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("actual.json", filepath.Join(dir, "a.json")); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+	if err := os.Symlink(filepath.Join("..", "a.json"), filepath.Join(dir, "sub", "b.json")); err != nil {
+		t.Fatal(err)
+	}
+	rev := &captureReviewer{}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--json-output", filepath.Join(dir, "actual.json"), "--sarif-output", filepath.Join(dir, "sub", "b.json")}, emptyEnv, &stdout, &stderr, openCapture(rev))
+	if code != exitConfig {
+		t.Fatalf("exit %d, want %d; stderr %s", code, exitConfig, stderr.String())
+	}
+	if rev.req.Target != "" {
+		t.Error("the review ran despite the refusal")
+	}
+}
+
+// TestLinkLoopAndLongChainAreRefusedAtLoad proves that an output that is a
+// link loop, or a chain longer than the bound, is refused at load with exit 7
+// naming its flag, and that the review does not run. The mutated field is the
+// output path: a link to itself, or a chain of more than the bound.
+func TestLinkLoopAndLongChainAreRefusedAtLoad(t *testing.T) {
+	dir := t.TempDir()
+	loop := filepath.Join(dir, "loop.json")
+	if err := os.Symlink("loop.json", loop); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+	prev := "end.json"
+	for i := 0; i <= maxOutputLinkHops; i++ {
+		name := "hop" + strings.Repeat("x", i) + ".json"
+		if err := os.Symlink(prev, filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+		prev = name
+	}
+	for name, path := range map[string]string{"loop": loop, "long chain": filepath.Join(dir, prev)} {
+		t.Run(name, func(t *testing.T) {
+			rev := &captureReviewer{}
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"scan", "--sarif-output", path}, emptyEnv, &stdout, &stderr, openCapture(rev))
+			if code != exitConfig {
+				t.Fatalf("exit %d, want %d; stderr %s", code, exitConfig, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "--sarif-output") {
+				t.Errorf("refusal does not name the flag: %s", stderr.String())
+			}
+			if rev.req.Target != "" {
+				t.Error("the review ran despite the refusal")
+			}
+		})
+	}
+}
+
+// TestAliasCreatedAfterLoadIsRefusedAtWrite proves the second line of
+// defence: a link that appears after the load checks passed, made here by the
+// review itself, is caught when the second output is about to be written. Exit
+// 2, both flags named, and the first output is left as it was written. The
+// mutated field is the disk between load and write: alias.json becomes a link
+// to the first output. Without the write-time check the SARIF body replaces
+// the JSON body and the exit is 0.
+func TestAliasCreatedAfterLoadIsRefusedAtWrite(t *testing.T) {
+	dir := t.TempDir()
+	actual := filepath.Join(dir, "actual.json")
+	alias := filepath.Join(dir, "alias.json")
+	rev := funcReviewer(func() review.Result {
+		if err := os.Symlink(actual, alias); err != nil {
+			t.Errorf("symlinks are not available here: %v", err)
+		}
+		return review.Result{}
+	})
+	var stdout, stderr bytes.Buffer
+	open := func(review.Options) (review.Reviewer, error) { return rev, nil }
+	code := Run([]string{"scan", "--json", "-o", actual, "--sarif-output", alias}, emptyEnv, &stdout, &stderr, open)
+	if code != exitFatal {
+		t.Fatalf("exit %d, want %d; stderr %s", code, exitFatal, stderr.String())
+	}
+	for _, want := range []string{"-o", "--sarif-output"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Errorf("refusal does not name %q: %s", want, stderr.String())
+		}
+	}
+	body, err := os.ReadFile(actual)
+	if err != nil {
+		t.Fatalf("the first output is gone: %v", err)
+	}
+	if strings.Contains(string(body), "$schema") {
+		t.Errorf("the first output was replaced by the SARIF body: %s", body)
 	}
 }

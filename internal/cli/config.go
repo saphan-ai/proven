@@ -463,7 +463,10 @@ func refuseCollidingOutputs(cfg config) error {
 		if n.path == "" {
 			continue
 		}
-		identity := outputIdentity(n.path)
+		identity, err := outputIdentity(n.path)
+		if err != nil {
+			return refuse(n.flag, n.path, err.Error(), nil)
+		}
 		if first, ok := byIdentity[identity]; ok {
 			return refuse(n.flag, identity, "same file as "+first+"; each output needs its own path", nil)
 		}
@@ -482,16 +485,55 @@ func refuseCollidingOutputs(cfg config) error {
 	return nil
 }
 
-// outputIdentity is the path the file would have with every symbolic link in
-// its existing prefix resolved: EvalSymlinks runs on the longest prefix that
-// exists, and the not-yet-existing tail is joined on unchanged.
-func outputIdentity(path string) string {
+// maxOutputLinkHops bounds the symbolic links followed from one output path.
+// The kernel stops at 40 as well; a longer chain or a loop is refused at load
+// instead of being left to fail at the write.
+const maxOutputLinkHops = 40
+
+// outputIdentity is the path the file would have with every symbolic link
+// resolved, whether or not the file exists. It resolves the existing prefix,
+// and when the final component is a link that EvalSymlinks could not follow
+// because its target is absent, it reads the link and goes on from the target
+// (a relative target is taken against the directory holding the link), for at
+// most maxOutputLinkHops links.
+//
+// WHY the dangling link is followed: os.WriteFile on alias.json -> actual.json
+// creates actual.json, so a not-yet-existing target is the same file as the
+// link's name. Without this the check keys the link by its own name, sees no
+// collision with an output named actual.json, and the later format replaces
+// the earlier one.
+func outputIdentity(path string) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		// Abs fails only when the working directory is unreadable; the
 		// cleaned path is still a usable key for the comparison.
 		abs = filepath.Clean(path)
 	}
+	for hops := 0; ; hops++ {
+		abs = resolveExistingPrefix(abs)
+		info, err := os.Lstat(abs)
+		if err != nil || info.Mode()&os.ModeSymlink == 0 {
+			return abs, nil
+		}
+		// A link survives resolveExistingPrefix only when it dangles or
+		// loops; either way its target is what the write would reach.
+		if hops == maxOutputLinkHops {
+			return "", fmt.Errorf("more than %d symbolic links, or a link loop", maxOutputLinkHops)
+		}
+		target, err := os.Readlink(abs)
+		if err != nil {
+			return abs, nil
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(abs), target)
+		}
+		abs = filepath.Clean(target)
+	}
+}
+
+// resolveExistingPrefix runs EvalSymlinks on the longest prefix of an absolute
+// path that exists and joins the not-yet-existing tail on unchanged.
+func resolveExistingPrefix(abs string) string {
 	prefix, tail := abs, ""
 	for {
 		if resolved, err := filepath.EvalSymlinks(prefix); err == nil {

@@ -201,6 +201,7 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		return err
 	}
 	type extraFile struct {
+		flag string
 		path string
 		body []byte
 	}
@@ -210,35 +211,60 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.textOutput, body})
+		extras = append(extras, extraFile{"--text-output", cfg.textOutput, body})
 	}
 	if cfg.jsonOutput != "" {
 		body, err := render("json", result)
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.jsonOutput, body})
+		extras = append(extras, extraFile{"--json-output", cfg.jsonOutput, body})
 	}
 	if cfg.sarifOutput != "" {
 		body, err := render("sarif", result)
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.sarifOutput, body})
+		extras = append(extras, extraFile{"--sarif-output", cfg.sarifOutput, body})
 	}
+	files := extras
 	if cfg.output == "" {
 		if _, err := stdout.Write(primary); err != nil {
 			return err
 		}
-	} else if err := os.WriteFile(cfg.output, primary, 0o644); err != nil {
-		return err
+	} else {
+		files = append([]extraFile{{"-o", cfg.output, primary}}, extras...)
 	}
-	for _, one := range extras {
+	// WHY a second check beside refuseCollidingOutputs: that one runs at load,
+	// and the disk can change before the write (a link made while the review
+	// ran). Two outputs must never share one file, so each file is compared
+	// with the files already written in this run before it is written, and the
+	// run stops with the first output intact.
+	var written []writtenOutput
+	for _, one := range files {
+		if info, err := os.Stat(one.path); err == nil {
+			for _, w := range written {
+				if os.SameFile(info, w.info) {
+					return fmt.Errorf("%s and %s are the same file (%s); %s is left as it was written", w.flag, one.flag, one.path, w.flag)
+				}
+			}
+		}
 		if err := os.WriteFile(one.path, one.body, 0o644); err != nil {
 			return err
 		}
+		info, err := os.Stat(one.path)
+		if err != nil {
+			return err
+		}
+		written = append(written, writtenOutput{one.flag, info})
 	}
 	return nil
+}
+
+// writtenOutput is a file this run has written, kept for os.SameFile.
+type writtenOutput struct {
+	flag string
+	info os.FileInfo
 }
 
 // pullRequestEvent is the part of GitHub's pull_request event payload ci
