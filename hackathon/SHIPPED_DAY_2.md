@@ -109,8 +109,6 @@ summary: 0 ready, 4 not ready
 exit: 1
 ```
 
-**Note.** With nothing configured, every live service is named with the reason, and no secret is printed. Two things
-found by this walk, both ordered for 24 October: `livecheck` will print the next step (`docker pull golang:1.26`); and a
-live `proven scan` with no keys still stops at the first missing setting instead of naming every down service and
-reviewing with what is left. Tomorrow a single NVIDIA API key will be enough to run a live review
+**Note.** With nothing configured, every live service is named with the reason, and no secret is printed. Tomorrow a
+single NVIDIA API key will be enough to run a live review
 ([ADR-0031](../docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
