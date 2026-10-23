@@ -43,9 +43,10 @@ finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list
   go.mod:5-5
   The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.
   evidence query local-sample snapshot=sample-2026-10-22
-  SQL: SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'
-  columns: package, version, cve, kev
-  row: evil.example/leftpad | 1.2.3 | CVE-2026-0001 | true
+  SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'
+  columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15
+  row: GHSA-px-sample-0002 |  | Go | evil.example/leftpad | 2.0.0 | 2.1.0 |  | LOW | 2026-03-01
   evidence query local-sample snapshot=sample-2026-10-22
   SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
   columns: cve_id, epss, percentile, score_date
@@ -105,7 +106,7 @@ hmem: state directory <repository>/state/hmem is inside the repository
 |---|---|
 | `base/`, `change/` | Two copies of a tiny Go module: before and after the change |
 | `fixture.json` | The recorded model answers (`planner_response`, `responses`) and test outcomes (`recorded_tests`) |
-| `tables.sql` | The sample tables the queries run over: `advisories`, the Zetaris-shaped views `px_evidence.px_kev_vulns`, `px_epss_cve_rows`, `px_epss_page_rows` and `px_osv_id`, and the OSV package table `px_osvfile.px_osv_pkg` |
+| `tables.sql` | The sample tables the queries run over: `advisories` (a plain table that no query template reads; it stays as the local engine's example of a table that is not a Zetaris view), the Zetaris-shaped views `px_evidence.px_kev_vulns`, `px_epss_cve_rows`, `px_epss_page_rows` and `px_osv_id`, and the OSV package table `px_osvfile.px_osv_pkg` |
 
 **The change** (`base/` → `change/`):
 
@@ -125,7 +126,7 @@ and in `go.mod`:
 | Finding | Verdict | Evidence |
 |---|---|---|
 | F1 Discount is applied twice | reported | a test: `TestDiscounted` fails on the change and passes on the base |
-| F2 leftpad v1.2.3 is known-exploited | reported | a query and its row in `advisories` |
+| F2 leftpad v1.2.3 is known-exploited | reported | a query and its rows in `px_osvfile.px_osv_pkg` |
 | F3 `note` may include a payment token | **dropped** | none: the Planner named it, nothing proved it; the trace says `dropped: no evidence` |
 | F4 CVE-2026-0001 is on the KEV list | reported | a query and its row in `px_evidence.px_kev_vulns` |
 | osv:evil.example/leftpad | reported | the OSV package query, both range rows, the comparison `introduced 1.0.0 <= v1.2.3 < fixed 1.2.4`, and the KEV row for the alias `CVE-2026-0001`. The row for `example.com/unused` is not returned |
@@ -159,6 +160,10 @@ Run the same command a second time in the same directory: the findings are the s
    An optional `guardrail` list records verdicts. A record with `"agent": "planner"` and an empty prompt is bound to
    this fixture's planner prompt. `"user": "unsafe"` and `categories` stop that step and the trace names the categories.
    A fixture with no `guardrail` list answers `safe`.
+   The Investigator's and the Skeptic's recorded answers name a query template and its values, never SQL
+   ([QUERIES.md](QUERIES.md)): `{"template":"kev-by-cve","params":{"cve_id":"CVE-2026-0001"}}`. An empty `template`
+   means no query. A recorded answer is found by its agent and the exact prompt text the code builds, so after a change
+   to a prompt the recorded prompts are regenerated.
 4. Run `proven scan --sample testdata/fixture/<name>` from outside the repository, as above.
 
 The four scenarios below run the same way: from `/tmp/proven-run`, with the repository in `$OLDPWD` as in "Run it".
@@ -166,8 +171,9 @@ The four scenarios below run the same way: from `/tmp/proven-run`, with the repo
 ## The scenario: `testdata/fixture/refuted`
 
 The Skeptic's recorded answer names `TestTotal`. The recorded outcome passes on the change, so F1 is dropped. The trace
-verdict is `dropped: refuted: test TestTotal passes on the change`. F1 is not printed. The query row would have kept
-the finding: with the refutation's path, name and sql emptied, the same test prints F1 and fails.
+verdict is `dropped: refuted: test TestTotal passes on the change`. F1 is not printed. The query row (the Investigator's
+`osv-by-advisory` template, built into SQL by Proven) would have kept the finding: with the refutation's path and name
+emptied, the same test prints F1 and fails.
 
 ```bash
 /tmp/proven scan --sample "$OLDPWD/testdata/fixture/refuted"
