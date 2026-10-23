@@ -91,5 +91,7 @@ down here once it is fixed, with the change that fixed it.
 
 ## Reporting a vulnerability
 
-Please report it privately through GitHub's **Report a vulnerability** button on this repository's Security tab, not in
-a public issue. Say what you found, how to reproduce it, and which commit you used.
+Please report it privately through GitHub's private vulnerability reporting, which is on for this repository:
+[Report a vulnerability](https://github.com/saphan-ai/proven/security/advisories/new), or the same button on the
+Security tab. Not in a public issue. Say what you found, how to reproduce it, and which commit you used. Only the
+maintainers see the report until a fix is published.
