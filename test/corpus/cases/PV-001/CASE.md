@@ -76,24 +76,24 @@ In `expected/EXPECTED.md`.
 
 Run the check on base and on change and record each line of its output.
 
-Ran 2026-10-21 17:15:20 UTC. The clock is the modification time of `tests/corpus/cases/PV-001/dist/check.js`: `ls -l --full-time` printed `2026-10-21 17:15:20.960824501 +0000`. `check.sh` writes that file and then runs it.
+Ran 2026-10-21 17:15:20 UTC. The clock is the modification time of `test/corpus/cases/PV-001/dist/check.js`: `ls -l --full-time` printed `2026-10-21 17:15:20.960824501 +0000`. `check.sh` writes that file and then runs it.
 
 Toolchain, measured on this run:
 
 - `node --version` printed `v24.5.0`
 - `npm --version` printed `11.19.1`
-- `node tests/corpus/cases/PV-001/node_modules/typescript/bin/tsc --version` printed `Version 7.0.2`
+- `node test/corpus/cases/PV-001/node_modules/typescript/bin/tsc --version` printed `Version 7.0.2`
 - `package.json` pins typescript `7.0.2` and parse5 `8.0.1` with no range
 - `package-lock.json` locks those pins, and locks parse5's dependency entities at `8.1.0`
 
 Commands, from the repository root:
 
 ```
-npm ci --prefix tests/corpus/cases/PV-001
-bash tests/corpus/cases/PV-001/check.sh
+npm ci --prefix test/corpus/cases/PV-001
+bash test/corpus/cases/PV-001/check.sh
 ```
 
-`npm ci --prefix tests/corpus/cases/PV-001` exited 0. `bash tests/corpus/cases/PV-001/check.sh` exited 0 and printed:
+`npm ci --prefix test/corpus/cases/PV-001` exited 0. `bash test/corpus/cases/PV-001/check.sh` exited 0 and printed:
 
 ```
 comment-without-frame base=pass change=fail missing=home reference=fail missing=home
