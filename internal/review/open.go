@@ -63,7 +63,7 @@ func open(opts Options) (Reviewer, error) {
 		if lerr != nil {
 			return nil, generatorConfig(lerr)
 		}
-		// ADR-0025: the redactor holds the value of every secret this review loads, so no key
+		// ADR-0005, ADR-0013 point 4: the redactor holds the value of every secret this review loads, so no key
 		// a service echoes back reaches the trace or the result.
 		popts.Redactor = redact.FromEnv(env)
 		// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.

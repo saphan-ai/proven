@@ -1,7 +1,7 @@
 // Package redact removes the values of Proven's configured secrets from text
 // before that text is written or printed.
 //
-// ADR-0005, ADR-0013 and ADR-0025: no key reaches the trace, the result, a
+// ADR-0005 and ADR-0013 point 4: no key reaches the trace, the result, a
 // refusal reason or an error message. A service can echo a value it was sent,
 // in a routed model, a receipt id or a safety category, so the settings
 // loaders never print a secret and every writer that carries a service's text

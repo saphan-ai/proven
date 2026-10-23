@@ -167,7 +167,7 @@ func (w *Writer) Append(e Event) error {
 	if w.f == nil {
 		return fmt.Errorf("trace: closed")
 	}
-	// ADR-0025: a secret never reaches the trace. The event is redacted before its id is
+	// ADR-0005, ADR-0013 point 4: a secret never reaches the trace. The event is redacted before its id is
 	// computed, so the id names the text that is written and not the text that was refused.
 	e = redactEvent(e, w.redactor)
 	if e.RunID == "" {

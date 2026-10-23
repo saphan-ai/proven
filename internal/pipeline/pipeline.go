@@ -12,8 +12,8 @@
 // and answer (ADR-0005), the record of every model call, the doubled review
 // with a second model (ADR-0009, ADR-0012), the partial review a deadline
 // leaves behind, and the redaction of every configured secret from the trace,
-// the recorded models and a failure's reason, because a service can echo a value
-// it was sent (ADR-0025).
+// the recorded models, a failure's reason and every finding, because a service
+// can echo a value it was sent (ADR-0005, ADR-0013 point 4).
 //
 // Live mode reads a directory that already has base/ and change/, or a git
 // repository. For a repository it writes those two trees for the review and
@@ -90,8 +90,9 @@ type Options struct {
 	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
 	MaxWrittenBytes int
 	// Redactor replaces the configured secrets in the trace, in a failure's
-	// reason and in the models a review records. Nil redacts nothing, which is
-	// right for sample mode: it loads no secret.
+	// reason, in the models a review records and in every finding. A live
+	// pipeline with none is refused; nil in sample mode redacts nothing, which is
+	// right because sample mode loads no secret.
 	Redactor *redact.Redactor
 }
 
@@ -135,11 +136,17 @@ func Build(opts Options) (*Pipeline, error) {
 	if opts.GuardOff && opts.Guardrail != nil {
 		return nil, fmt.Errorf("pipeline: the guardrail is off and an adapter was set")
 	}
+	// ADR-0005, ADR-0013 point 4: a live pipeline holds keys, so it never runs
+	// with nothing to redact them; the refusal is made here, before any file is
+	// opened, like the refusal of a live pipeline with no guardrail.
+	if !opts.Sample && opts.Redactor == nil {
+		return nil, fmt.Errorf("pipeline: a live pipeline needs a redactor and none was set")
+	}
 	tw, err := trace.Open(opts.LogDir)
 	if err != nil {
 		return nil, err
 	}
-	// ADR-0025: one redactor, built by review.Open from the values the live settings
+	// ADR-0005, ADR-0013 point 4: one redactor, built by review.Open from the values the live settings
 	// loaded, stands at every place a service's text becomes trace or result text.
 	// Build does not read the environment to make it, so sample mode reads no
 	// setting; with none given, nothing is redacted.
@@ -246,7 +253,70 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 			err = ferr
 		}
 	}()
-	return p.review(ctx, req)
+	d, err = p.review(ctx, req)
+	if err != nil {
+		return d, err
+	}
+	// ADR-0005, ADR-0013 point 4: the draft is the last place model and service text
+	// can reach the result, so it is redacted once here, after every agent has run.
+	d.Findings = p.redactFindings(d.Findings)
+	return d, nil
+}
+
+// redactFindings returns a copy of in with the configured secrets replaced in
+// every string of every finding and its evidence. The copy shares no memory
+// with in, because the same candidates were already written to the trace and
+// the stores.
+func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidate {
+	if in == nil {
+		return nil
+	}
+	rd := p.redactor
+	out := make([]candidate.Candidate, len(in))
+	for i, c := range in {
+		c.ID, c.RuleID = rd.Text(c.ID), rd.Text(c.RuleID)
+		c.Title, c.Message = rd.Text(c.Title), rd.Text(c.Message)
+		c.Severity, c.Path = rd.Text(c.Severity), rd.Text(c.Path)
+		c.DropReason, c.ProverNote = rd.Text(c.DropReason), rd.Text(c.ProverNote)
+		c.Runs, c.Models = rd.Texts(c.Runs), rd.Texts(c.Models)
+		r := &c.Refutation
+		r.Reason, r.TestPath, r.TestName = rd.Text(r.Reason), rd.Text(r.TestPath), rd.Text(r.TestName)
+		r.Command, r.SQL = rd.Text(r.Command), rd.Text(r.SQL)
+		r.QueryRows = redactRows(rd, r.QueryRows)
+		if c.Evidence != nil {
+			ev := make([]candidate.Evidence, len(c.Evidence))
+			for j, e := range c.Evidence {
+				ev[j] = candidate.Evidence{Kind: rd.Text(e.Kind)}
+				if t := e.Test; t != nil {
+					cp := *t
+					cp.Path, cp.Name = rd.Text(t.Path), rd.Text(t.Name)
+					cp.Command, cp.Output = rd.Text(t.Command), rd.Text(t.Output)
+					ev[j].Test = &cp
+				}
+				if q := e.Query; q != nil {
+					cp := *q
+					cp.SQL, cp.Engine, cp.Snapshot = rd.Text(q.SQL), rd.Text(q.Engine), rd.Text(q.Snapshot)
+					cp.Columns, cp.Rows = rd.Texts(q.Columns), redactRows(rd, q.Rows)
+					ev[j].Query = &cp
+				}
+			}
+			c.Evidence = ev
+		}
+		out[i] = c
+	}
+	return out
+}
+
+// redactRows returns a copy of rows with rd applied to every cell. A nil slice stays nil.
+func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
+	if rows == nil {
+		return nil
+	}
+	out := make([][]string, len(rows))
+	for i, row := range rows {
+		out[i] = rd.Texts(row)
+	}
+	return out
 }
 
 // review is the body of Review. Every agent step follows one pattern: an error
