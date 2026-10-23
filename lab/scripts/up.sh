@@ -65,10 +65,14 @@ else
   echo "lab url: $lab_url"
 fi
 
+# The list is read once. A clean clone has no private tree beside the
+# repository, so the file is temporary and this script removes it on exit.
+users=$(mktemp)
+trap 'rm -f "$users"' EXIT
 i=0
 listed=0
 while [ "$i" -lt 20 ]; do
-  if compose exec -T gitea gitea admin user list >"$ROOT/.saphan/work/judges-lab-makefile/gitea-users.txt" 2>/dev/null; then
+  if compose exec -T gitea gitea admin user list >"$users" 2>/dev/null; then
     listed=1
     break
   fi
@@ -78,7 +82,7 @@ done
 if [ "$listed" -ne 1 ]; then
   die "up: Gitea did not accept an admin command"
 fi
-if ! grep -q "$LAB_ADMIN_USER" "$ROOT/.saphan/work/judges-lab-makefile/gitea-users.txt"; then
+if ! grep -q "$LAB_ADMIN_USER" "$users"; then
   compose exec -T gitea gitea admin user create \
     --admin \
     --username "$LAB_ADMIN_USER" \
@@ -86,7 +90,7 @@ if ! grep -q "$LAB_ADMIN_USER" "$ROOT/.saphan/work/judges-lab-makefile/gitea-use
     --email "$LAB_ADMIN_EMAIL" \
     --must-change-password=false
 fi
-rm -f "$ROOT/.saphan/work/judges-lab-makefile/gitea-users.txt"
+rm -f "$users"
 
 LAB_ADMIN_PASSWORD=$pass compose run --rm -T seed
 compose up -d runner
