@@ -106,6 +106,14 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 | `PROVEN_MAX_RECORD_BYTES` | `1048576` | the most the author record may hold, summed over the files `author_record` names |
 
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
+
+## The organisation policy
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_POLICY` | none | a path to the organisation policy file, read before each repository's `proven.yaml`; see [POLICY.md](POLICY.md). A path inside the repository under review is refused, and so is a missing or unreadable file. Sample mode reads it too |
+
+A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036).
 <!-- end generated -->
 
 ## `proven.yaml`
