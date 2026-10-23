@@ -17,11 +17,13 @@ import (
 // math.MaxInt64 / time.Second is 9223372036; the next second overflows the conversion.
 const maxTimeoutSec = int64(math.MaxInt64 / time.Second)
 
+// The exit codes of ADR-0020 §2, Semgrep's own, so a pipeline that branches
+// on them needs no change.
 const (
-	exitOK       = 0
-	exitFindings = 1
-	exitFatal    = 2
-	exitConfig   = 7
+	exitOK       = 0 // reviewed; no findings, or findings without --error
+	exitFindings = 1 // reviewed; findings, with --error
+	exitFatal    = 2 // Proven could not review
+	exitConfig   = 7 // a setting was refused when it loaded
 )
 
 // KnownCLIEnv reports whether name is an environment variable ADR-0020 §1
@@ -78,6 +80,7 @@ type config struct {
 	head            string
 }
 
+// cliError is a refusal that carries its own exit code.
 type cliError struct {
 	code int
 	msg  string
@@ -85,6 +88,9 @@ type cliError struct {
 
 func (e *cliError) Error() string { return e.msg }
 
+// boolPresence is a boolean flag that remembers whether it was given at
+// all, because an absent flag must fall through to its variable while an
+// explicit --sample=false must not.
 type boolPresence struct {
 	name string
 	set  bool
@@ -122,6 +128,8 @@ func (b *boolPresence) Set(s string) error {
 
 func (b *boolPresence) IsBoolFlag() bool { return true }
 
+// setString is a string flag that remembers whether it was given, so an
+// explicit empty value still wins over the variable.
 type setString struct {
 	set bool
 	v   string
@@ -140,6 +148,8 @@ func (s *setString) Set(v string) error {
 	return nil
 }
 
+// multiFlag is a repeatable flag (--include, --exclude), each use one glob,
+// as Semgrep takes them.
 type multiFlag struct {
 	set bool
 	v   []string
@@ -153,6 +163,7 @@ func (m *multiFlag) Set(v string) error {
 	return nil
 }
 
+// holders is every flag of one parse, before the variables and defaults are applied.
 type holders struct {
 	text, asJSON, sarif                 boolPresence
 	errorOn, noError                    boolPresence
@@ -163,6 +174,8 @@ type holders struct {
 	include, exclude                    multiFlag
 }
 
+// knownFlagNames is the list an unknown flag's refusal prints, so the
+// reader sees what is allowed instead of a usage page.
 func knownFlagNames() []string {
 	return []string{
 		"--baseline-commit",
@@ -189,6 +202,9 @@ func knownFlagNames() []string {
 	}
 }
 
+// defineFlags builds the flag set of ADR-0020 §1. Its output is discarded
+// and its usage silenced: every refusal is written by resolve, with the
+// allowed values, never by the flag package.
 func defineFlags() (*flag.FlagSet, *holders) {
 	h := &holders{}
 	// Set is not told which flag it is setting. The name is the spelling
@@ -230,6 +246,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	return fs, h
 }
 
+// refusedBoolFlag names the boolean flag whose value the parse refused, if any.
 func refusedBoolFlag(h *holders) (string, string, bool) {
 	flags := []*boolPresence{
 		&h.text, &h.asJSON, &h.sarif, &h.errorOn, &h.noError,
@@ -244,6 +261,8 @@ func refusedBoolFlag(h *holders) (string, string, bool) {
 	return "", "", false
 }
 
+// isValueFlag reports whether a flag takes the next argument as its value,
+// which arrange needs to keep a value from being read as the command.
 func isValueFlag(name string) bool {
 	switch name {
 	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout":
@@ -281,6 +300,8 @@ func arrange(args []string) (cmd string, flagArgs []string, positionals []string
 	return cmd, flagArgs, positionals
 }
 
+// flagToken returns the flag name in arg, without dashes or value, and
+// whether arg is a flag at all ("-" alone is a path, not a flag).
 func flagToken(arg string) (string, bool) {
 	if arg == "-" || !strings.HasPrefix(arg, "-") {
 		return "", false
@@ -295,6 +316,10 @@ func flagToken(arg string) (string, bool) {
 	return name, true
 }
 
+// resolve turns the arguments and the environment into one config, flag
+// over variable over default, and refuses a value outside its allowed set
+// with the allowed list (ADR-0013). Nothing here reads a secret or opens a
+// connection: it only decides what the run will ask for.
 func resolve(args []string, getenv func(string) string, exists func(string) bool) (config, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -315,6 +340,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		}
 		return config{}, &cliError{code: exitFatal, msg: err.Error()}
 	}
+	// --help and --version answer without a command, like any CLI.
 	if (h.help.set && h.help.v) || (h.ver.set && h.ver.v) {
 		return config{help: h.help.set && h.help.v, version: h.ver.set && h.ver.v}, nil
 	}
@@ -402,6 +428,8 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	return cfg, nil
 }
 
+// refuseExclusive refuses pairs that cannot both hold: two output formats,
+// --error with --no-error, --quiet with --verbose.
 func refuseExclusive(h *holders) error {
 	formats := 0
 	if h.text.set {
@@ -425,6 +453,8 @@ func refuseExclusive(h *holders) error {
 	return nil
 }
 
+// resolveFormat picks the standard-output format: a format flag, else
+// PROVEN_OUTPUT_FORMAT, else text.
 func resolveFormat(getenv func(string) string, h *holders) (string, error) {
 	if h.text.set && h.text.v {
 		return "text", nil
@@ -450,6 +480,9 @@ func parseFormat(v string) (string, error) {
 	}
 }
 
+// resolveError decides whether findings fail the run. ci defaults to yes,
+// because a pull-request check that cannot fail is not a check; scan
+// defaults to no, as Semgrep's does.
 func resolveError(cmd string, getenv func(string) string, h *holders) (bool, error) {
 	if h.errorOn.set {
 		return h.errorOn.v, nil
@@ -463,6 +496,9 @@ func resolveError(cmd string, getenv func(string) string, h *holders) (bool, err
 	return cmd == "ci", nil
 }
 
+// resolveBaseline reads the baseline commit. Semgrep's two variables are
+// read after Proven's own, so a pipeline that already sets them keeps
+// working unchanged (ADR-0016).
 func resolveBaseline(getenv func(string) string, h *holders) string {
 	switch {
 	case h.baseline.set:
@@ -478,6 +514,8 @@ func resolveBaseline(getenv func(string) string, h *holders) string {
 	}
 }
 
+// resolveConfig finds Proven's configuration file: --config, else
+// PROVEN_CONFIG, else proven.yaml in the target, else none (the defaults).
 func resolveConfig(target string, getenv func(string) string, exists func(string) bool, h *holders) (string, error) {
 	var path string
 	switch {
@@ -494,6 +532,8 @@ func resolveConfig(target string, getenv func(string) string, exists func(string
 	if path == "" {
 		return "", nil
 	}
+	// A Semgrep registry name (auto, p/…, r/…) is refused by name rather than
+	// read as a missing file: Proven has no rule registry to fetch.
 	if isRegistry(path) {
 		return "", refuse("--config", path, "--config takes a path to a Proven configuration file", []string{"a file path", "proven.yaml if present", "omit to use the defaults"})
 	}
@@ -503,6 +543,7 @@ func resolveConfig(target string, getenv func(string) string, exists func(string
 	return path, nil
 }
 
+// isRegistry reports whether v is a Semgrep registry reference.
 func isRegistry(v string) bool {
 	if strings.EqualFold(v, "auto") {
 		return true
@@ -510,6 +551,9 @@ func isRegistry(v string) bool {
 	return strings.HasPrefix(v, "p/") || strings.HasPrefix(v, "r/")
 }
 
+// resolveSeverity reads the lowest severity reported. Unlike Semgrep's
+// --severity, which selects exact levels, Proven's is a floor: WARNING
+// keeps WARNING and ERROR.
 func resolveSeverity(getenv func(string) string, h *holders) (review.Severity, error) {
 	if h.severity.set {
 		return parseSeverity("--severity", h.severity.v)
@@ -520,6 +564,7 @@ func resolveSeverity(getenv func(string) string, h *holders) (review.Severity, e
 	return review.SeverityInfo, nil
 }
 
+// parseSeverity accepts the three levels in any case.
 func parseSeverity(field, v string) (review.Severity, error) {
 	switch strings.ToUpper(v) {
 	case "INFO", "WARNING", "ERROR":
@@ -529,6 +574,7 @@ func parseSeverity(field, v string) (review.Severity, error) {
 	}
 }
 
+// resolveTimeout reads the review's time limit in seconds; zero is no limit.
 func resolveTimeout(getenv func(string) string, h *holders) (int, error) {
 	if h.timeout.set {
 		return parseTimeout("--timeout", h.timeout.v)
@@ -539,6 +585,8 @@ func resolveTimeout(getenv func(string) string, h *holders) (int, error) {
 	return 0, nil
 }
 
+// parseTimeout refuses a value that is not a whole number of seconds, and
+// one too large to become a time.Duration, rather than letting it wrap.
 func parseTimeout(field, v string) (int, error) {
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 0 {
@@ -550,11 +598,14 @@ func parseTimeout(field, v string) (int, error) {
 	return n, nil
 }
 
+// refuseTimeoutBound refuses a timeout above maxTimeoutSec and names the range.
 func refuseTimeoutBound(field, v string) error {
 	limit := strconv.FormatInt(maxTimeoutSec, 10)
 	return refuse(field, v, "timeout is a whole number of seconds from 0 through "+limit, []string{"0", limit})
 }
 
+// resolveSample decides sample mode: the sample reviewer, with no network
+// and no keys (ADR-0001). SAMPLE_MODE set to the empty string counts as unset.
 func resolveSample(getenv func(string) string, h *holders) (bool, error) {
 	if h.sample.set {
 		return h.sample.v, nil
@@ -565,6 +616,8 @@ func resolveSample(getenv func(string) string, h *holders) (bool, error) {
 	return false, nil
 }
 
+// parseBoolSetting reads a boolean variable and refuses anything else with
+// true, false as the allowed values: the same answer the flag gives.
 func parseBoolSetting(field, v string) (bool, error) {
 	parsed, err := strconv.ParseBool(v)
 	if err != nil {
@@ -573,6 +626,8 @@ func parseBoolSetting(field, v string) (bool, error) {
 	return parsed, nil
 }
 
+// splitList reads a comma-separated variable, the variable form of a
+// repeatable flag, dropping empty items.
 func splitList(s string) []string {
 	if strings.TrimSpace(s) == "" {
 		return nil
@@ -588,6 +643,8 @@ func splitList(s string) []string {
 	return out
 }
 
+// refuse builds an exit-7 refusal in the reviewer's own ConfigError form,
+// so a setting refused by the shell and one refused by the reviewer read alike.
 func refuse(field, value, reason string, allowed []string) error {
 	ce := &review.ConfigError{Field: field, Value: value, Reason: reason, Allowed: allowed}
 	return &cliError{code: exitConfig, msg: ce.Error()}

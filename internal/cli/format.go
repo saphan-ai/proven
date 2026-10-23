@@ -30,6 +30,8 @@ func FormatterFor(format string) (Formatter, error) {
 	}
 }
 
+// render writes result in format to memory, so a failure is known before
+// any output is written.
 func render(format string, result review.Result) ([]byte, error) {
 	writer, err := FormatterFor(format)
 	if err != nil {
@@ -42,8 +44,13 @@ func render(format string, result review.Result) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// textFormatter is the human-readable output: the review class, then each
+// finding with the evidence that proves it, then the services that failed.
 type textFormatter struct{}
 
+// Write prints the review in a fixed order a reader can scan top to bottom.
+// "failed services: none" is printed rather than left out, so a reader can
+// tell a review that reached everything from one whose failures went unsaid.
 func (textFormatter) Write(w io.Writer, result review.Result) error {
 	if _, err := fmt.Fprintf(w, "review class: %s\n", result.Class); err != nil {
 		return err
@@ -101,6 +108,9 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 }
 
 // familySentence is the review's same-family line, when the trace has one.
+// It is read back from the trace rather than passed in the result, so the
+// output says exactly what the run recorded; an unreadable trace prints no
+// line instead of failing the review.
 func familySentence(path string) string {
 	if path == "" {
 		return ""
@@ -127,6 +137,9 @@ func familySentence(path string) string {
 	return ""
 }
 
+// writeFinding prints one finding: its name, severity and title, its EPSS
+// lines, an "unresolved" mark when its evidence did not settle it, where it
+// is, why it matters, its rule, and the evidence behind it.
 func writeFinding(w io.Writer, finding review.Finding) error {
 	name := finding.ID
 	if name == "" {
@@ -156,6 +169,8 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	if _, err := fmt.Fprintf(w, "  %s\n", finding.Message); err != nil {
 		return err
 	}
+	// The rule line is printed only when it adds something the name line
+	// does not already say.
 	if finding.RuleID != "" && finding.RuleID != name {
 		if _, err := fmt.Fprintf(w, "  rule %s\n", finding.RuleID); err != nil {
 			return err
@@ -169,6 +184,9 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	return nil
 }
 
+// writeEvidence prints the proof under a finding: the test the Prover wrote,
+// with whether it fails on the change and passes on the base, or the query
+// that was run and the rows it returned. A reader can rerun either.
 func writeEvidence(w io.Writer, evidence review.Evidence) error {
 	switch evidence.Kind {
 	case review.EvidenceTest:
@@ -208,6 +226,7 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 	return nil
 }
 
+// filterFindings keeps the findings at or above min.
 func filterFindings(in []review.Finding, min review.Severity) []review.Finding {
 	if len(in) == 0 {
 		return nil
@@ -222,6 +241,8 @@ func filterFindings(in []review.Finding, min review.Severity) []review.Finding {
 	return out
 }
 
+// severityRank orders the severities; an unknown one ranks with INFO, so
+// it is never hidden by a floor.
 func severityRank(s review.Severity) int {
 	switch s {
 	case review.SeverityWarning:
