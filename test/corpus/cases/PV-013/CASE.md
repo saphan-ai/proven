@@ -85,7 +85,7 @@ Run the check on base and on change and record each line of its output.
 Command, from the repository root:
 
 ```
-bash tests/corpus/cases/PV-013/check.sh
+bash test/corpus/cases/PV-013/check.sh
 ```
 
 Toolchain: `go version` reports `go version go1.26.5 linux/amd64`. The case modules pin `go 1.26`. The check builds with `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`.
@@ -105,7 +105,7 @@ token-in-name-then-show | base: accepted / token_env=tok_synthetic_0000_not_a_se
 Negative controls, from the repository root, at 2026-10-23 02:20 UTC:
 
 ```
-bash tests/corpus/cases/PV-013/check.sh --negative-control
+bash test/corpus/cases/PV-013/check.sh --negative-control
 ```
 
 Exit code: 1 (expected: base contains the token, but change does not).
@@ -115,7 +115,7 @@ negative-base-only | base: tok_synthetic_0000_not_a_secret | change: refused: to
 ```
 
 ```
-bash tests/corpus/cases/PV-013/check.sh --negative-control=no-refusal
+bash test/corpus/cases/PV-013/check.sh --negative-control=no-refusal
 ```
 
 Exit code: 1 (expected: change prints the token without a refusal).

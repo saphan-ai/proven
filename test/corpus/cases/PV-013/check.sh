@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PV-013 check. From the repository root:
-#   bash tests/corpus/cases/PV-013/check.sh
+#   bash test/corpus/cases/PV-013/check.sh
 # Runs the shipped control, then prints one line per contract input:
 #   <input> | base: <result> | change: <result> | base_token_in_output: <yes|no> | change_token_in_output: <yes|no>
 # base ships no control. change ships the no-leak control.
