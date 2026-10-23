@@ -33,6 +33,9 @@ type Outcome struct {
 
 // Check reads Go, npm and PyPI packages the change added or raised, queries
 // the OSV table once per package, and compares the version for that ecosystem.
+// A lock file contributes the packages it pins. When a manifest and its lock
+// file both name a package, the lock file's version is the one compared.
+// A lock file that cannot be parsed adds a trace note and no finding.
 // A matching range becomes a candidate whose evidence is the query, its rows
 // and the comparison. A CVE alias is also looked up in the KEV view.
 func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (Outcome, error) {
@@ -46,7 +49,11 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 	if err != nil {
 		return Outcome{}, err
 	}
-	hits, notes, err := manifest.Collect(files, []manifest.Reader{manifest.Go(), manifest.NPM(), manifest.PyPI()})
+	hits, notes, err := manifest.Collect(files, []manifest.Reader{
+		manifest.Go(), manifest.GoSum(),
+		manifest.NPM(), manifest.NPMLock(),
+		manifest.PyPI(), manifest.Poetry(),
+	})
 	if err != nil {
 		return Outcome{}, err
 	}

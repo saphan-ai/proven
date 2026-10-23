@@ -221,6 +221,123 @@ CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, packa
 	}
 }
 
+func TestCheckGoSumFindsATransitive(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/go.mod":   "module m\n\ngo 1.26\n",
+		"change/go.mod": "module m\n\ngo 1.26\n",
+		"change/go.sum": "example.com/trans v1.2.3 h1:abc\nexample.com/trans v1.2.3/go.mod h1:def\n",
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-t', '', 'Go', 'example.com/trans', '1.0.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "go.sum" || !strings.Contains(c.Message, "example.com/trans v1.2.3") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if !strings.Contains(c.Evidence[0].Query.SQL, "ecosystem = 'Go' AND package = 'example.com/trans'") {
+		t.Fatal(c.Evidence[0].Query.SQL)
+	}
+}
+
+func TestCheckLockVersionWins(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/package.json":      "{}\n",
+		"change/package.json":    "{\"dependencies\":{\"left-pad\":\"^9.9.9\"}}\n",
+		"base/package-lock.json": "{\"lockfileVersion\":3,\"packages\":{}}\n",
+		"change/package-lock.json": `{
+  "lockfileVersion": 3,
+  "packages": {
+    "node_modules/left-pad": {"version": "1.2.3"}
+  }
+}
+`,
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-npm', '', 'npm', 'left-pad', '1.0.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "package-lock.json" || !strings.Contains(c.Message, "left-pad 1.2.3") || strings.Contains(c.Message, "^9.9.9") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if strings.Contains(strings.Join(out.Notes, "\n"), "not a semantic version") {
+		t.Fatalf("manifest range was checked: %#v", out.Notes)
+	}
+}
+
+func TestCheckPoetryLockMatches(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/keep.txt":      "ok\n",
+		"change/poetry.lock": "[[package]]\nname = \"leftpad\"\nversion = \"1.2.3\"\n",
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('PYSEC-1', '', 'PyPI', 'leftpad', '1.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "poetry.lock" || !strings.Contains(c.Message, "leftpad 1.2.3") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if !strings.Contains(c.Evidence[0].Query.SQL, "ecosystem = 'PyPI' AND package = 'leftpad'") {
+		t.Fatal(c.Evidence[0].Query.SQL)
+	}
+}
+
+func TestCheckMalformedLockIsANote(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/go.mod":              "module m\n\ngo 1.26\n",
+		"change/go.mod":            "module m\n\ngo 1.26\n\nrequire example.com/mod v1.2.3\n",
+		"change/go.sum":            "not-a-sum\n",
+		"change/package-lock.json": "{",
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-1', '', 'Go', 'example.com/mod', '1.0.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 || out.Candidates[0].Path != "go.mod" {
+		t.Fatalf("%#v", out.Candidates)
+	}
+	body := strings.Join(out.Notes, "\n")
+	for _, want := range []string{
+		"go.sum: change: line 1: not a module version hash",
+		"package-lock.json: change: invalid JSON:",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+}
+
 func TestLoadTableRefusesABadName(t *testing.T) {
 	if _, err := LoadTable(func(string) string { return "" }); err != nil {
 		t.Fatal(err)
@@ -266,6 +383,19 @@ func writePair(t *testing.T, root, name, base, change string) {
 			continue
 		}
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(side.body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func writeTree(t *testing.T, root string, files map[string]string) {
+	t.Helper()
+	for name, body := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
