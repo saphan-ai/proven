@@ -51,3 +51,15 @@ The command-line master read it, but master core still had no answer on its own 
 - to a fresh session, the kickoff: its one track; the canon to read; its standing message watcher; its order, read from the file; the decisions it inherits (ADR-0016, 0017, 0020, 0021, 0022, 0026, 0027); its neighbours; the rules of the week; its closing line.
 
 The owner started it: *"It has started. Greet it in a few minutes, once it has read everything and knows where things stand."*
+
+**Message sent** `362926c23f78141f` → the new master, proven-cli-and-action, five minutes later: a welcome, what the advisor does for it, and where its train stood: W1b's twelfth round and its two signed reviews; W19 of master core landing first, with W1b carrying its one call; its own comment pass under ADR-0027; its image (W3) agreeing with ADR-0026 and with the lab of the infrastructure train; and the security review starting the same day, whose piece on output and CI covers its code. One rule repeated: when reviews are dispatched, the next wagon goes out in the same turn, so no Cursor seat idles.
+
+### 6 · owner → advisor: a systematic security review, in pieces, of the whole
+
+> *"Maybe start a systematic security review? We do it in pieces, but a whole one."* Then: *"Describe it in the documentation: two documents, SECURITY.md in the root folder, about the product, and then the process, SECURITY_REVIEW.md."*
+
+**The advisor's proposal**: review the code by trust boundary rather than by directory, nine pieces, each with the property that must hold; two independent reviews per piece; a weakness becomes a fix with a failing test in the train that owns the code, and is published only after the fix is merged.
+
+**Written** (proven `f8a8b15`): [SECURITY.md](../SECURITY.md), what Proven treats as untrusted, what it protects and how, each protection read from `main` at `2d3126b`; [SECURITY_REVIEW.md](../SECURITY_REVIEW.md), the nine pieces and their status; [ADR-0028](../fleet/decisions/ADR-0028-proven-is-security-reviewed-as-a-whole-in-pieces.md).
+
+The owner started a master of its own for it, on track `proven-security-review`, and the advisor wrote its kickoff: its first deliverable is the train order, one wagon per piece; it reviews and never fixes, sending each weakness to the master that owns the code.
