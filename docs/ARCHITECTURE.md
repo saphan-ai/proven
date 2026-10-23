@@ -60,3 +60,18 @@ Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own
 The shell (command line, output formats, GitHub Action) and the reviewer meet in one Go package, `internal/review`:
 `review.Open(options)` returns a reviewer, and `Review(ctx, request)` returns the result. Neither side reaches into the
 other.
+
+## Levels of proof (ADR-0044)
+
+Each finding carries one named level of proof, `review.Finding.ProofLevel`. The reviewer core sets it from the finding's strongest evidence, and a finding whose evidence gives no level is refused before it reaches the result. From strongest to weakest:
+
+| Level | JSON and SARIF value | Set today |
+|---|---|---|
+| proved by a test | `proved-by-test` | yes: a test fails on the change and passes on the base |
+| proved by a tool | `proved-by-tool` | no: the value exists; the tool-evidence work (ADR-0040) sets it |
+| proved by data | `proved-by-data` | yes: a query and its rows |
+| agreed by two models, not proven | `agreed-by-two-models-not-proven` | no: the value exists; the two-model work (ADR-0041) sets it |
+
+`review.Result.ProofCounts` counts the findings by level, with every level present as a key and 0 when none, so the counts add up to the findings. `review.ProofLevels` lists the levels in this order.
+
+**For the shell train (output formats):** render `Finding.ProofLevel` first in the text, Markdown, HTML and pull-request comment, as a field in JSON and SARIF, and render `Result.ProofCounts` as the totals by level. A proposed fix's own level (ADR-0042) is not in this field and arrives with that work.

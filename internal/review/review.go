@@ -97,7 +97,10 @@ const (
 
 // Result is what a review produced.
 type Result struct {
-	Findings             []Finding        // only findings with evidence (ADR-0002); unresolved ones are marked and counted
+	Findings []Finding // only findings with evidence (ADR-0002); unresolved ones are marked and counted
+	// ProofCounts counts Findings by ProofLevel (ADR-0044 point 3). Every level is a key, with 0
+	// when none; the counts add up to len(Findings). Findings, unresolved ones included, keep their meaning.
+	ProofCounts          map[ProofLevel]int
 	FailedServices       []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
 	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
 	Partial              bool             // the deadline was reached
@@ -117,6 +120,65 @@ type Result struct {
 	SkippedPaths []string
 }
 
+// ProofLevel names how far a reader may trust one finding (ADR-0044). The string is what the
+// JSON and SARIF formats carry, so a value never changes once released.
+type ProofLevel string
+
+// The four levels of proof, strongest first (ADR-0044 point 1).
+const (
+	// ProvedByTest: a test fails on the change and passes on the base (ADR-0002).
+	ProvedByTest ProofLevel = "proved-by-test"
+	// ProvedByTool: a deterministic tool's result differs between base and change (ADR-0040).
+	// No evidence kind sets it yet; the ADR-0040 wagon adds the kind and the rule in ProofLevelOf.
+	ProvedByTool ProofLevel = "proved-by-tool"
+	// ProvedByData: a query and the rows it returned (ADR-0002).
+	ProvedByData ProofLevel = "proved-by-data"
+	// AgreedNotProven: two models reported it and nothing proves it (ADR-0041).
+	// No finding gets it yet; the ADR-0041 wagon sets it.
+	AgreedNotProven ProofLevel = "agreed-by-two-models-not-proven"
+)
+
+// ProofLevels lists every level, strongest first. Counts and renderers walk this order.
+var ProofLevels = []ProofLevel{ProvedByTest, ProvedByTool, ProvedByData, AgreedNotProven}
+
+// Valid reports whether l is one of the four named levels.
+func (l ProofLevel) Valid() bool {
+	for _, known := range ProofLevels {
+		if l == known {
+			return true
+		}
+	}
+	return false
+}
+
+// ProofLevelOf returns the level of the strongest evidence in ev, or an error when ev holds no
+// evidence of a kind that has a level. ADR-0002: a finding without evidence cannot exist, so
+// there is no level to fall back to, and a guess would show a reader proof that is not there.
+func ProofLevelOf(ev []Evidence) (ProofLevel, error) {
+	level := ProofLevel("")
+	rank := len(ProofLevels)
+	for _, e := range ev {
+		var got ProofLevel
+		switch e.Kind {
+		case EvidenceTest:
+			got = ProvedByTest
+		case EvidenceQuery:
+			got = ProvedByData
+		default:
+			continue
+		}
+		for i, l := range ProofLevels {
+			if l == got && i < rank {
+				rank, level = i, got
+			}
+		}
+	}
+	if level == "" {
+		return "", errors.New("review: a finding has no evidence of a known kind, so it has no level of proof")
+	}
+	return level, nil
+}
+
 // AuthorModel is one model the change named (ADR-0011).
 type AuthorModel struct {
 	Agent  string // the part before the first colon
@@ -127,14 +189,16 @@ type AuthorModel struct {
 
 // Finding is one reported problem with its evidence.
 type Finding struct {
-	ID         string // stable within one review
-	RuleID     string // the kind of finding; SARIF ruleId
-	Title      string
-	Message    string
-	Severity   Severity
-	Location   Location
-	Evidence   []Evidence // at least one
-	Unresolved bool       // the evidence did not settle it; counts in findings-count and in unresolved-count
+	ID       string // stable within one review
+	RuleID   string // the kind of finding; SARIF ruleId
+	Title    string
+	Message  string
+	Severity Severity
+	Location Location
+	Evidence []Evidence // at least one
+	// ProofLevel is the finding's one named level of proof (ADR-0044). It is never empty in a Result.
+	ProofLevel ProofLevel
+	Unresolved bool // the evidence did not settle it; counts in findings-count and in unresolved-count
 	// Models names the reviewer models that reported this finding.
 	// One name when one run found it. Both names, the default reviewer first, when both did.
 	Models []string
