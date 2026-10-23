@@ -52,24 +52,24 @@ type textFormatter struct{}
 // "failed services: none" is printed rather than left out, so a reader can
 // tell a review that reached everything from one whose failures went unsaid.
 func (textFormatter) Write(w io.Writer, result review.Result) error {
-	if _, err := fmt.Fprintf(w, "review class: %s\n", result.Class); err != nil {
+	if _, err := fmt.Fprintf(w, "review class: %s\n", visible(result.Class)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "review rule: %s\n", result.ClassRule); err != nil {
+	if _, err := fmt.Fprintf(w, "review rule: %s\n", visible(result.ClassRule)); err != nil {
 		return err
 	}
 	if result.SettingsStatement != "" {
-		if _, err := fmt.Fprintln(w, result.SettingsStatement); err != nil {
+		if _, err := fmt.Fprintln(w, visible(result.SettingsStatement)); err != nil {
 			return err
 		}
 	}
 	if result.AuthorModelStatement != "" {
-		if _, err := fmt.Fprintln(w, result.AuthorModelStatement); err != nil {
+		if _, err := fmt.Fprintln(w, visible(result.AuthorModelStatement)); err != nil {
 			return err
 		}
 	}
 	for _, line := range result.ReviewerStatements {
-		if _, err := fmt.Fprintln(w, line); err != nil {
+		if _, err := fmt.Fprintln(w, visible(line)); err != nil {
 			return err
 		}
 	}
@@ -84,7 +84,7 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		}
 	} else {
 		for _, failed := range result.FailedServices {
-			if _, err := fmt.Fprintf(w, "failed service: %s: %s\n", failed.Service, failed.Reason); err != nil {
+			if _, err := fmt.Fprintf(w, "failed service: %s: %s\n", visible(failed.Service), visible(failed.Reason)); err != nil {
 				return err
 			}
 		}
@@ -95,12 +95,12 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		}
 	}
 	if sentence := familySentence(result.TracePath); sentence != "" {
-		if _, err := fmt.Fprintln(w, sentence); err != nil {
+		if _, err := fmt.Fprintln(w, visible(sentence)); err != nil {
 			return err
 		}
 	}
 	if result.TracePath != "" {
-		if _, err := fmt.Fprintf(w, "trace: %s\n", result.TracePath); err != nil {
+		if _, err := fmt.Fprintf(w, "trace: %s\n", visible(result.TracePath)); err != nil {
 			return err
 		}
 	}
@@ -145,7 +145,7 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	if name == "" {
 		name = finding.RuleID
 	}
-	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", name, finding.Severity, finding.Title); err != nil {
+	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", visible(name), visible(string(finding.Severity)), visible(finding.Title)); err != nil {
 		return err
 	}
 	for _, e := range finding.Evidence {
@@ -153,7 +153,7 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			continue
 		}
 		for _, line := range epss.Phrases(e.Query.Columns, e.Query.Rows) {
-			if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
+			if _, err := fmt.Fprintf(w, "  %s\n", visible(line)); err != nil {
 				return err
 			}
 		}
@@ -163,16 +163,16 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", finding.Location.Path, finding.Location.StartLine, finding.Location.EndLine); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", visible(finding.Location.Path), finding.Location.StartLine, finding.Location.EndLine); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %s\n", finding.Message); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s\n", visible(finding.Message)); err != nil {
 		return err
 	}
 	// The rule line is printed only when it adds something the name line
 	// does not already say.
 	if finding.RuleID != "" && finding.RuleID != name {
-		if _, err := fmt.Fprintf(w, "  rule %s\n", finding.RuleID); err != nil {
+		if _, err := fmt.Fprintf(w, "  rule %s\n", visible(finding.RuleID)); err != nil {
 			return err
 		}
 	}
@@ -194,13 +194,13 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		test := evidence.Test
-		if _, err := fmt.Fprintf(w, "  evidence test %s %s fails_on_change=%t passes_on_base=%t\n", test.Path, test.Name, test.FailsOnChange, test.PassesOnBase); err != nil {
+		if _, err := fmt.Fprintf(w, "  evidence test %s %s fails_on_change=%t passes_on_base=%t\n", visible(test.Path), visible(test.Name), test.FailsOnChange, test.PassesOnBase); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  command: %s\n", test.Command); err != nil {
+		if _, err := fmt.Fprintf(w, "  command: %s\n", visible(test.Command)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  output: %s\n", strings.TrimSpace(test.Output)); err != nil {
+		if _, err := fmt.Fprintf(w, "  output: %s\n", visibleLines(strings.TrimSpace(test.Output))); err != nil {
 			return err
 		}
 	case review.EvidenceQuery:
@@ -208,22 +208,61 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		query := evidence.Query
-		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", query.Engine, query.Snapshot); err != nil {
+		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", visible(query.Engine), visible(query.Snapshot)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  SQL: %s\n", query.SQL); err != nil {
+		if _, err := fmt.Fprintf(w, "  SQL: %s\n", visible(query.SQL)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  columns: %s\n", strings.Join(query.Columns, ", ")); err != nil {
+		if _, err := fmt.Fprintf(w, "  columns: %s\n", visible(strings.Join(query.Columns, ", "))); err != nil {
 			return err
 		}
 		for _, row := range query.Rows {
-			if _, err := fmt.Fprintf(w, "  row: %s\n", strings.Join(row, " | ")); err != nil {
+			if _, err := fmt.Fprintf(w, "  row: %s\n", visible(strings.Join(row, " | "))); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// visible returns s with every control byte shown as a visible escape such as
+// \x1b: the C0 bytes, DEL and the C1 bytes, a newline included. Every text the
+// writer prints that can come from the change goes through it, so the change
+// cannot move the cursor, recolour or rewrite the reader's terminal. A tab is
+// kept, because it only spaces. JSON and SARIF need no such step: their
+// encoders already escape.
+func visible(s string) string {
+	return escapeControls(s, false)
+}
+
+// visibleLines is visible for a field that is several lines long, such as a
+// test's output: the newline between its lines is kept and every other
+// control byte is shown as an escape.
+func visibleLines(s string) string {
+	return escapeControls(s, true)
+}
+
+func escapeControls(s string, keepNewline bool) string {
+	var b strings.Builder
+	for _, r := range s {
+		if isControl(r, keepNewline) {
+			fmt.Fprintf(&b, `\x%02x`, r)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func isControl(r rune, keepNewline bool) bool {
+	switch r {
+	case '\t':
+		return false
+	case '\n':
+		return !keepNewline
+	}
+	return r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 }
 
 // filterFindings keeps the findings at or above min.
