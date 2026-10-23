@@ -260,11 +260,15 @@ func applyCI(cfg *config, getenv func(string) string) error {
 		}
 		return &cliError{code: exitFatal, msg: "ci: no pull-request baseline: set --baseline-commit, or GITHUB_EVENT_PATH with a base SHA, or GITHUB_BASE_REF"}
 	}
+	if cfg.head == "" {
+		// An empty head is the working tree. ci would then review a different
+		// checkout from the pull request it was asked for, including when the
+		// baseline was passed explicitly and the merge base is not computed.
+		// Exit 2, not 7. ADR-0020 §2 reserves 7 for a configuration refused at load.
+		return &cliError{code: exitFatal, msg: "ci: no head commit: set GITHUB_SHA, or GITHUB_EVENT_PATH with a head SHA"}
+	}
 	if explicitBaseline {
 		return nil
-	}
-	if cfg.head == "" {
-		return &cliError{code: exitFatal, msg: "ci: no head commit, so the merge base cannot be computed"}
 	}
 	// Exit 2, not 7. ADR-0020 §2 reserves 7 for a configuration refused at load.
 	// A base git cannot resolve means Proven could not review.

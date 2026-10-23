@@ -219,8 +219,9 @@ func TestCIDefaultConfigIsTheWorkspaceFile(t *testing.T) {
 	}
 	t.Chdir(outside)
 
-	// ci with no baseline exits 2 before open. This test checks the config
-	// path, so each call passes an explicit baseline.
+	// ci with no baseline exits 2 before open, and so does ci with no head.
+	// This test checks the config path, so each call passes an explicit
+	// baseline and runCIOpen supplies a head.
 	t.Run("default", func(t *testing.T) {
 		got := runCIOpen(t, []string{"ci", "--baseline-commit=from-flag"}, workspace, "")
 		if got != want {
@@ -251,6 +252,8 @@ func runCIOpen(t *testing.T, args []string, workspace, provenConfig string) stri
 			return workspace
 		case "PROVEN_CONFIG":
 			return provenConfig
+		case "GITHUB_SHA":
+			return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		default:
 			return ""
 		}
@@ -766,10 +769,57 @@ func TestCIMissingContextExits2(t *testing.T) {
 			t.Fatalf("stderr %q", stderr)
 		}
 	})
-	t.Run("explicit baseline still reviews", func(t *testing.T) {
+	// An explicit baseline used to skip the head check. An empty head is the
+	// working tree, so ci would review a different checkout from the one asked for.
+	t.Run("explicit baseline without a head", func(t *testing.T) {
 		code, opened, stdout, stderr := runCIOpened(t, []string{"ci", "--baseline-commit=from-flag"}, emptyEnv)
-		if code != exitOK || !opened {
+		if code != exitFatal || opened {
 			t.Fatalf("exit %d opened %v stderr %q stdout %q", code, opened, stderr, stdout)
+		}
+		for _, want := range []string{"GITHUB_SHA", "GITHUB_EVENT_PATH"} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("stderr %q missing %s", stderr, want)
+			}
+		}
+	})
+	t.Run("explicit baseline and GITHUB_SHA", func(t *testing.T) {
+		const head = "dddddddddddddddddddddddddddddddddddddddd"
+		cap := &captureReviewer{}
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"ci", "--baseline-commit=from-flag"}, func(k string) string {
+			if k == "GITHUB_SHA" {
+				return head
+			}
+			return ""
+		}, &stdout, &stderr, openCapture(cap))
+		if code != exitOK {
+			t.Fatalf("exit %d stderr %s", code, stderr.String())
+		}
+		if cap.req.BaselineCommit != "from-flag" || cap.req.HeadCommit != head {
+			t.Fatalf("baseline %q head %q", cap.req.BaselineCommit, cap.req.HeadCommit)
+		}
+	})
+	t.Run("explicit baseline and event head", func(t *testing.T) {
+		dir := t.TempDir()
+		event := filepath.Join(dir, "event.json")
+		const head = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+		body := `{"pull_request":{"base":{"ref":"main","sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"head":{"ref":"feature","sha":"` + head + `"}}}`
+		if err := os.WriteFile(event, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cap := &captureReviewer{}
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"ci", "--baseline-commit=from-flag"}, func(k string) string {
+			if k == "GITHUB_EVENT_PATH" {
+				return event
+			}
+			return ""
+		}, &stdout, &stderr, openCapture(cap))
+		if code != exitOK {
+			t.Fatalf("exit %d stderr %s", code, stderr.String())
+		}
+		if cap.req.BaselineCommit != "from-flag" || cap.req.HeadCommit != head {
+			t.Fatalf("baseline %q head %q", cap.req.BaselineCommit, cap.req.HeadCommit)
 		}
 	})
 	t.Run("scan without baseline still reviews", func(t *testing.T) {
