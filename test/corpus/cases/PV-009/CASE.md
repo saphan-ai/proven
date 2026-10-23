@@ -83,7 +83,7 @@ receives only those and the description of the change in §1 — never the check
   2^63. Two further findings were shown by planted mutations that stayed green. The reviewer did not show that any
   published note carries such a number (the hole was latent). Its verdict label, accept with conditions, sits oddly
   with a finding it called blocking.
-- Newly reconstructed evidence: none yet; it is built with the case code.
+- Newly reconstructed evidence: the case code and its nine-input output are recorded in §8.
 
 ## 7. Expected outcome
 
@@ -91,9 +91,11 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Toolchain: `go version go1.26.5 linux/amd64` (Go standard library only). Run at 2026-10-22 15:45:13 UTC.
+Toolchain: `go version go1.26.5 linux/amd64` (Go standard library only). Run at 2026-10-23 09:16:00 UTC on Linux.
 
 Command: `bash tests/corpus/cases/PV-009/check.sh` (runs base, change and the independent reference on each input). Exit code: 0.
+
+The repository requires Go 1.26 or later. On a host with an older Go, `GOTOOLCHAIN=auto` may download the required toolchain and needs network access. The literal command has not been run on macOS; its exit code and output there are unverified.
 
 ```text
 one-current base=pass change=pass reference=pass
