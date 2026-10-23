@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -664,6 +665,69 @@ func TestInvalidVariableAloneExits7(t *testing.T) {
 				t.Fatalf("stderr %q", stderr.String())
 			}
 		})
+	}
+}
+
+// recordingTransport counts uses of http.DefaultTransport. A sample run
+// that dials through the default client increments n.
+type recordingTransport struct {
+	t *testing.T
+	n int
+}
+
+func (r *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.n++
+	r.t.Errorf("sample mode sent %s %s", req.Method, req.URL)
+	return nil, fmt.Errorf("network refused")
+}
+
+// TestSampleModeReadsNoAdapterSecret proves a --sample run does not read an
+// adapter secret. The getenv answers the variables ADR-0020 §1 documents
+// (KnownCLIEnv) and holds a decoy for each secret this test chose:
+// METERLESS_RUNTIME_TOKEN, ZETARIS_API_KEY, ZETARIS_ORG_ID (named in that
+// section) and PROVEN_GUARDRAIL_KEY (the guardrail adapter's secret).
+// A RoundTrip on http.DefaultTransport fails the test. Zero calls means this
+// run did not use the default HTTP client. A dial on a Transport of its own
+// would not be counted.
+func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
+	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
+	t.Chdir(t.TempDir())
+	prev := http.DefaultTransport
+	trip := &recordingTransport{t: t}
+	http.DefaultTransport = trip
+	t.Cleanup(func() { http.DefaultTransport = prev })
+
+	decoys := []string{
+		"METERLESS_RUNTIME_TOKEN",
+		"ZETARIS_API_KEY",
+		"ZETARIS_ORG_ID",
+		"PROVEN_GUARDRAIL_KEY",
+	}
+	asked := map[string]int{}
+	getenv := func(k string) string {
+		asked[k]++
+		for _, name := range decoys {
+			if k == name {
+				return "decoy"
+			}
+		}
+		if !KnownCLIEnv(k) {
+			t.Errorf("sample mode read %s, which ADR-0020 §1 does not name", k)
+		}
+		return ""
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sample", target}, getenv, &stdout, &stderr, nil)
+	if code != exitOK {
+		t.Fatalf("exit %d\nstderr: %s\nstdout: %s", code, stderr.String(), stdout.String())
+	}
+	for _, name := range decoys {
+		if asked[name] != 0 {
+			t.Errorf("%s was read %d times", name, asked[name])
+		}
+	}
+	if trip.n != 0 {
+		t.Errorf("default HTTP client calls: %d", trip.n)
 	}
 }
 
