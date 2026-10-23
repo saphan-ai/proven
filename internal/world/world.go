@@ -139,7 +139,7 @@ func Open(opts Options) (*Store, error) {
 	if err := refuseInside(dir, opts.RepoRoot); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := privateDir(dir); err != nil {
 		return nil, fmt.Errorf("world: state directory: %w", err)
 	}
 	st, err := os.Stat(dir)
@@ -545,7 +545,7 @@ func (s *Store) persist() error {
 	}
 	b = append(b, '\n')
 	tmp := filepath.Join(s.dir, "state.json.tmp")
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, filepath.Join(s.dir, "state.json"))
@@ -565,8 +565,13 @@ func (s *Store) audit(ev trace.Event) error {
 	if err := enc.Encode(line); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(s.auditPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(s.auditPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
+		return fmt.Errorf("world: audit: %w", err)
+	}
+	// OpenFile sets the mode only when it creates; an existing file is narrowed too.
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
 		return fmt.Errorf("world: audit: %w", err)
 	}
 	defer f.Close()
@@ -574,4 +579,14 @@ func (s *Store) audit(ev trace.Event) error {
 		return err
 	}
 	return f.Sync()
+}
+
+// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
+// mode only when it creates, and a directory an earlier run left at 0755 must
+// not stay readable by others (Proven's own state is readable only by its user).
+func privateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(dir, 0o700)
 }

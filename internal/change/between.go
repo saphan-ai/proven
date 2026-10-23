@@ -46,12 +46,36 @@ func gitArchive(target, rev string) ([]byte, error) {
 	return outputBounded(cmd, Bounds().Archive, "the archive of the commit", EnvMaxArchiveBytes)
 }
 
+// maxFailureBytes is the most of a command's standard error kept for a failure message.
+const maxFailureBytes = 512
+
+// clippedBuffer keeps the first max bytes written to it and discards the rest, so what a repository
+// makes git print on standard error is never held whole (ADR-0013).
+type clippedBuffer struct {
+	buf bytes.Buffer
+	max int
+}
+
+// Write keeps what fits and reports every byte as written, so the command never blocks or fails on it.
+func (c *clippedBuffer) Write(p []byte) (int, error) {
+	if room := c.max - c.buf.Len(); room > 0 {
+		if len(p) < room {
+			room = len(p)
+		}
+		c.buf.Write(p[:room])
+	}
+	return len(p), nil
+}
+
+// String returns what was kept.
+func (c *clippedBuffer) String() string { return c.buf.String() }
+
 // outputBounded runs cmd and returns its standard output. A repository can make
 // git print as much as it likes, so the read stops one byte past max and the
 // command is ended: the output is never held whole. The refusal names what was
 // read and the bound, and never the output.
 func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
-	var stderr bytes.Buffer
+	stderr := clippedBuffer{max: maxFailureBytes}
 	cmd.Stderr = &stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -73,10 +97,9 @@ func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
 		return nil, readErr
 	}
 	if waitErr != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg == "" {
-			msg = strings.TrimSpace(stderr.String())
-		}
+		// ADR-0013: standard output is repository content, so git's failure message is its
+		// standard error alone, and that is clipped.
+		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = waitErr.Error()
 		}
