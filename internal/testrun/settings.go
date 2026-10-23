@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 )
 
 // Environment variables of the live container. The set is closed: Load reads
@@ -60,6 +61,16 @@ func Load(env func(string) string) (ContainerConfig, error) {
 		env = func(string) string { return "" }
 	}
 	cfg := DefaultContainerConfig()
+	// A wrong PROVEN_NETWORK is refused before a container starts. The image is
+	// never pulled: --pull never is on every run, so there is no PullNever switch.
+	policy, perr := network.Load(env)
+	if perr != nil {
+		if ne, ok := network.As(perr); ok {
+			return ContainerConfig{}, &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+		}
+		return ContainerConfig{}, perr
+	}
+	_ = policy
 	if raw := env(EnvRuntime); raw != "" {
 		cfg.Runtime = raw
 	}

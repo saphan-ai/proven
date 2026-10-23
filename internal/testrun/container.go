@@ -433,8 +433,8 @@ func (c *Container) argv(dir string, test []string, name string) []string {
 	if name != "" {
 		args = append(args, "--name", name)
 	}
+	args = append(args, "--rm")
 	args = append(args,
-		"--rm",
 		"--network", "none",
 		// ADR-0025: the review never fetches an image at test time. An absent image is the
 		// Prover down, and Run names the pull the owner does by hand.
