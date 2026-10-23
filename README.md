@@ -41,7 +41,7 @@ What else came in today:
 - **One sample scenario per kind of evidence and refusal**, all runnable with no network and no keys.
 - **A missing key no longer stops a review**: the service is named as down, and a guardrail that is down refuses every model call instead of letting it through unchecked.
 - **Code written to be read**: the masters went over the code written so far and added the comments a judge needs.
-- **The repository split**: the product at the top, the build's record in [`hackathon/`](hackathon/). Eleven design decisions were written today ([ADR-0026 to ADR-0036](docs/adr/)).
+- **We reshaped the repository, because Proven is no longer a toy**: the product at the top, laid out the way a Go project is, and the build's record in [`hackathon/`](hackathon/), so that after the hackathon what is left is a product. Eleven design decisions were written today ([ADR-0026 to ADR-0036](docs/adr/)).
 - **Two more agent masters joined**, one for the command line and one for the security review, because one master was carrying four streams of work.
 
 **See it run:** [what shipped today, step by step in a terminal](hackathon/SHIPPED_DAY_2.md).
