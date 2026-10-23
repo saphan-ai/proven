@@ -57,12 +57,15 @@ func TestCollectRunsEveryReader(t *testing.T) {
 			return []Change{{Package: "demo", Version: "1", Line: 1, Added: true}}, nil
 		},
 	}
-	got, err := Collect([]change.File{
+	got, notes, err := Collect([]change.File{
 		{Path: "go.mod", Change: []byte("module m\n\ngo 1.26\n\nrequire example.com/a v1.0.0\n")},
 		{Path: "deps.txt", Change: []byte("demo\n")},
 	}, []Reader{Go(), extra})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(notes) != 0 {
+		t.Fatalf("notes %#v", notes)
 	}
 	if len(got) != 2 || got[0].Ecosystem != "Demo" || got[1].Ecosystem != "Go" {
 		t.Fatalf("%#v", got)
