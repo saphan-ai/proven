@@ -44,6 +44,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0028](ADR-0028-proven-is-security-reviewed-as-a-whole-in-pieces.md) | the code is security-reviewed as a whole in nine pieces, each a trust boundary; two reviews per piece; a weakness becomes a fix with a failing test and is published only after it is merged; SECURITY.md and SECURITY_REVIEW.md at the root | accepted, 2026-10-23 |
 | [0029](ADR-0029-a-piece-is-reviewed-at-one-commit-when-its-code-is-on-main.md) | a security piece is reviewed at one commit of main, and only once its code is on main; Docker Scout runs in the lab piece | proposed, 2026-10-23 |
 | [0030](ADR-0030-the-product-and-the-hackathon-live-apart.md) | the product and the hackathon live apart: the build's record moves to `hackathon/`, the design decisions to `docs/adr/`; moved before the day-2 push with a permanent link check | accepted, 2026-10-23 |
+| [0031](ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md) | the generator can also call NVIDIA's hosted API (Nightshift stays the default); `proven scan` runs live; the lab turns live on from one NVIDIA key | accepted, 2026-10-23 |
 
 **Rules for an ADR**
 
