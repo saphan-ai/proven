@@ -1,4 +1,4 @@
-// Package data holds what the validators and the check share: the page and
+// Package data holds what the validators share: the page and
 // violation types, the two budgets, the citation marker and the shipped rows.
 package data
 

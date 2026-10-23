@@ -50,8 +50,8 @@ pinned, and recorded in §8.
 ## 4. Synthetic transformation
 
 Replaced: the pages, their rows, the marker and the numbers. Kept, as the causal property of the disagreement: on the
-shipped data the content rule and the list of names select exactly the same rows, so the shipped tests cannot tell them
-apart, while a planted row elsewhere can.
+shipped data the content rule and the list of names give the same validation outcomes, so the shipped tests cannot tell
+them apart, while a planted row elsewhere can. The rules need not select the same rows when both budgets pass.
 Not kept: the other parts of the catch-up merge and two further findings about them (see Limits).
 
 ## 5. Review target
@@ -79,10 +79,11 @@ In `expected/EXPECTED.md`.
 
 Run the check on base, on change and on the mutant, and record each line of its output.
 
-- run: 2026-10-22T16:04Z (UTC), from the repository root
-- toolchain: `go version go1.26.8 darwin/arm64`, standard library only, no network (module `pv018` in this directory, `go 1.26`)
-- command: `bash tests/corpus/cases/PV-018/check.sh` (runs `go run ./check`, then `go test -count=1 ./change/` in the case module,
-  then the same test file unchanged against a scratch copy of the module whose `change/validator.go` is the mutant's)
+- run: 2026-10-23T02:03Z (UTC), from the repository root; the original five lines were also measured on commit `10dfbe9` before this repair
+- toolchain: `go version go1.26.5 linux/amd64`, standard library only, no network (module `pv018` in this directory, `go 1.20`;
+  `GOTOOLCHAIN=local` refuses an older local toolchain instead of downloading one)
+- command: `bash tests/corpus/cases/PV-018/check.sh` (runs `go run ./check`, then `go test -count=1 -v ./change/` in the case module,
+  then the same test file unchanged against a temporary copy of the module whose `change/validator.go` is the mutant's)
 - exit code: 0
 - output, in full:
 
@@ -90,8 +91,8 @@ Run the check on base, on change and on the mutant, and record each line of its 
 input=shipped base=pass change=pass mutant=pass reference=pass
 input=planted-citing-row-outside-the-three-pages base=pass change=fail(changelog#0:160>120) mutant=pass reference=fail(changelog#0:160>120)
 input=plain-row-between-budgets-on-a-listed-page base=pass change=pass mutant=fail(install#2:160>120) reference=pass
-suite change=pass
-suite mutant=pass
+suite change=pass(4/4)
+suite mutant=pass(4/4)
 ```
 
 - budgets: wide 200 bytes, narrow 120 bytes, marker `{{measure:`; a violation prints as `page#row:size>budget`.
@@ -104,3 +105,4 @@ suite mutant=pass
   and whether a credential field refused a value. On the credential field, reviewer A was right and reviewer B wrong. Not
   reconstructed here.
 - It shows one gap in test power; it does not show that the validator is wrong today.
+- The reference repeats the stated content rule; its agreement with change is not independent evidence of correctness.
