@@ -55,13 +55,25 @@ What else came in today:
 | **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. |
 | **Cursor** | The command line was written by Cursor agents on Grok 4.7 and landed today; up to four agents code at once on one Linux machine, each inside its own jail, and every run's model traffic is recorded. | Cursor is how Proven is built. [how it works](hackathon/fleet/infra/cursor/README.md) |
 
-### Tomorrow, 24 October
+### Next: everything still in the plan
 
-- A live review with a single NVIDIA API key, and live evidence from Zetaris in the review.
-- NVIDIA Nemotron joins the security review as a third model family.
-- A review written for a person, with Markdown and HTML reports beside JSON and SARIF.
-- The judges' lab: Gitea, a pull request and Proven's review on it, started with one `make up`.
-- Air-gapped mode, a signed evidence pack for auditors, and an organisation policy: the first features for enterprise use.
+Each day, what lands moves from this list to the day's summary.
+
+- **Connect your own second reviewer**, for example Grok, OpenAI or Claude, and see where the two disagree; what both agree on without proof is shown apart, as an opinion ([ADR-0037](docs/adr/ADR-0037-bring-your-own-second-reviewer.md), [ADR-0041](docs/adr/ADR-0041-agreed-by-two-models-is-shown-apart.md)).
+- **Run Proven live with a single free NVIDIA key** ([ADR-0031](docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
+- **Reports people can read**, in HTML and Markdown, next to JSON and SARIF for machines ([ADR-0033](docs/adr/ADR-0033-the-text-review-is-written-for-a-person.md)).
+- **Comments on the pull request**, in GitHub and in Gitea, and a GitHub Action to add Proven to any pipeline.
+- **A ready-to-run Docker environment with a local Gitea**, where you can watch Proven review a pull request ([ADR-0026](docs/adr/ADR-0026-one-makefile-builds-proven-and-runs-the-judges-lab.md)).
+- **More proof, not only tests**: a data race or a crash found by running real tools on the old and the new code ([ADR-0040](docs/adr/ADR-0040-a-tool-run-is-evidence.md)).
+- **More sources**: packages published on purpose to do harm, project health, severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)).
+- **More languages**: PHP, Rust, Java, C# and Ruby, next to Go, JavaScript and Python, and a simple adapter so anyone can add theirs ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
+- **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
+- **Features for compliance audits**: a signed record of every review that an auditor can check ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)).
+- **One security policy for a whole organisation**, and accepted risks that expire ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
+- **NVIDIA's model joins our security review** as a third reviewer.
+- **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
+
+Four days to go. It will be tough, but we will make it.
 
 ### Day one, 22 October
 
