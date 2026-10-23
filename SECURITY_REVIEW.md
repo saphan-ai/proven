@@ -15,8 +15,8 @@ crossed, not only the files where it is expected.
 | # | Piece | The property that must hold | Status |
 |---|---|---|---|
 | 0 | **Tools first** | `govulncheck`, `gosec` and `staticcheck` run over the whole repository; their output is the baseline the other pieces start from | in review |
-| 1 | **The Prover's container** | code from the change runs with no network, no secret and bounded resources; nothing in the change can shape the container's arguments or reach beyond its read-only checkout | in review |
-| 2 | **Secrets** | no key reaches the trace, the logs, the reports, a pull-request comment or a container; a missing key is named, never printed | in review |
+| 1 | **The Prover's container** | code from the change runs with no network, no secret and bounded resources; nothing in the change can shape the container's arguments or reach beyond its read-only checkout | fixes in progress |
+| 2 | **Secrets** | no key reaches the trace, the logs, the reports, a pull-request comment or a container; a missing key is named, never printed | fixes in progress |
 | 3 | **The reviewed repository as input** | a git range, a path, a manifest, a lock file or `proven.yaml` from the change cannot inject arguments into a command or lead Proven to read or write outside the places it should | not started |
 | 4 | **Evidence queries** | a value from the change enters a query only as a literal and cannot change the query's meaning | not started |
 | 5 | **Models** | text in the change cannot make an agent drop its rules; the guardrail checks every prompt and answer; a model's answer without evidence never becomes a finding | not started |
