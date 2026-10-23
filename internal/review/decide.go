@@ -485,7 +485,7 @@ func pathInside(root, resolved string) bool {
 func authorStatement(models []AuthorModel, unreadable []string, defaultReviewer string) string {
 	parts := make([]string, 0, len(models)+len(unreadable))
 	for _, m := range models {
-		parts = append(parts, fmt.Sprintf("author %s:%s family %s from %s", m.Agent, m.Model, m.Family, m.Source))
+		parts = append(parts, fmt.Sprintf("author %s:%s %s from %s", m.Agent, m.Model, familyPhrase(m.Family), m.Source))
 	}
 	for _, line := range unreadable {
 		parts = append(parts, "author statement unreadable: "+line)
@@ -496,10 +496,19 @@ func authorStatement(models []AuthorModel, unreadable []string, defaultReviewer 
 	return strings.Join(parts, "; ")
 }
 
+// familyPhrase writes "family <name>", except for "family unknown", which
+// already carries the word and would otherwise print it twice.
+func familyPhrase(family string) string {
+	if strings.HasPrefix(family, "family ") {
+		return family
+	}
+	return "family " + family
+}
+
 // reviewerLine is one reviewer's statement: its model, role and family, and for each author model
 // whether it shares the author's family. ADR-0009 point 5: a reader sees which independence the review had.
 func reviewerLine(role, model, family string, authors []AuthorModel, unreadable []string) string {
-	head := fmt.Sprintf("reviewer %s; role %s; family %s", model, role, family)
+	head := fmt.Sprintf("reviewer %s; role %s; %s", model, role, familyPhrase(family))
 	if len(authors) == 0 && len(unreadable) == 0 {
 		return head + "; author model not stated"
 	}

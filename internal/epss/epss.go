@@ -60,7 +60,8 @@ func (e *ConfigError) Error() string {
 
 // quote wraps the refused value in double quotes. It does not escape it.
 func quote(s string) string {
-	return `"` + s + `"`
+	// %q escapes a quote or a control character, so a refusal prints the value as it is.
+	return fmt.Sprintf("%q", s)
 }
 
 // LoadView reads EnvView. An empty value is DefaultView.

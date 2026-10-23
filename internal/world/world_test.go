@@ -232,3 +232,20 @@ func openAt(t *testing.T, dir, logs string) *world.Store {
 	}
 	return s
 }
+
+// TestStateNamedWithTwoDotsInsideIsRefused proves a state directory inside the
+// repository whose name starts with ".." (here "..state") is still refused:
+// only a path that leaves the repository is outside it.
+func TestStateNamedWithTwoDotsInsideIsRefused(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "..state")
+	mem, err := hmem.Open(hmem.Options{Dir: t.TempDir(), LogDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The memory is valid, so only the state directory can be refused.
+	_, err = world.Open(world.Options{Dir: dir, LogDir: t.TempDir(), RepoRoot: root, Memory: mem})
+	if err == nil || !strings.Contains(err.Error(), "inside the repository") {
+		t.Fatalf("err %v, want the state directory refused as inside the repository", err)
+	}
+}

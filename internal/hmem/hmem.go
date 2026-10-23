@@ -211,7 +211,9 @@ func refuseInside(dir, root string) error {
 	if err != nil {
 		return fmt.Errorf("hmem: state directory: %w", err)
 	}
-	if rel == "." || !strings.HasPrefix(rel, "..") {
+	// A name such as "..state" starts with ".." and is still inside; only ".."
+	// itself or a "../" prefix leaves the repository.
+	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 		return fmt.Errorf("hmem: state directory %s is inside the repository", dir)
 	}
 	return nil

@@ -280,3 +280,15 @@ func hasTag(tags []string, want string) bool {
 	}
 	return false
 }
+
+// TestStateNamedWithTwoDotsInsideIsRefused proves a state directory inside the
+// repository whose name starts with ".." (here "..state") is still refused:
+// only a path that leaves the repository is outside it.
+func TestStateNamedWithTwoDotsInsideIsRefused(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "..state")
+	_, err := hmem.Open(hmem.Options{Dir: dir, LogDir: t.TempDir(), RepoRoot: root})
+	if err == nil || !strings.Contains(err.Error(), "inside the repository") {
+		t.Fatalf("err %v, want the state directory refused as inside the repository", err)
+	}
+}

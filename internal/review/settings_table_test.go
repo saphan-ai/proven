@@ -141,7 +141,7 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 		dir, base, head := commitWithTrailer(t)
 		req := Request{Target: dir, BaselineCommit: base, HeadCommit: head}
 		def := decideOn(t, defaultSettings(), req)
-		if !strings.Contains(def.AuthorModelStatement, "author Ada:model-a family family unknown from commit") {
+		if !strings.Contains(def.AuthorModelStatement, "author Ada:model-a family unknown from commit") {
 			t.Fatal(def.AuthorModelStatement)
 		}
 		off := decideOn(t, mustParse(t, "author_commit_trailers: off\n"), req)
@@ -176,10 +176,10 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 			t.Fatal(def.AuthorModelStatement)
 		}
 		glob := decideOn(t, mustParse(t, "author_record: MODEL*.txt\n"), Request{Target: dir})
-		if !strings.Contains(glob.AuthorModelStatement, "author Ada:model-a family family unknown from record") {
+		if !strings.Contains(glob.AuthorModelStatement, "author Ada:model-a family unknown from record") {
 			t.Fatal(glob.AuthorModelStatement)
 		}
-		if !strings.Contains(glob.AuthorModelStatement, "author Bea:model-b family family unknown from record") {
+		if !strings.Contains(glob.AuthorModelStatement, "author Bea:model-b family unknown from record") {
 			t.Fatal(glob.AuthorModelStatement)
 		}
 		mustRefuse(t, "author_record: /etc/passwd\n", "author_record", "absolute path")

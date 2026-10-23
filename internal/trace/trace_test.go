@@ -31,6 +31,12 @@ func TestAppendDoesNotRewrite(t *testing.T) {
 	if string(b) == "" || !bytesContains(b, "dropped: no evidence") || !bytesContains(b, "\"finding_id\":\"F3\"") {
 		t.Fatalf("%s", b)
 	}
+	// The first line must still be there and still first: a second append
+	// that rewrote the file would lose it or move it.
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], "\"text\":\"one\"") {
+		t.Fatalf("want the claim line first and two lines, got %q", lines)
+	}
 }
 
 // TestEveryEventHasRunIDAndTimeAndClose proves every line of one run carries

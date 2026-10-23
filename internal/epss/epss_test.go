@@ -259,3 +259,12 @@ func repoRoot(t *testing.T) string {
 		dir = parent
 	}
 }
+
+// TestConfigErrorEscapesTheValue proves a refused value is printed escaped, so a
+// quote or a control character in it cannot break or forge the refusal line.
+func TestConfigErrorEscapesTheValue(t *testing.T) {
+	msg := (&ConfigError{Field: "PROVEN_EPSS_VIEW", Value: "a\"b\nc"}).Error()
+	if !strings.Contains(msg, `"a\"b\nc"`) {
+		t.Fatalf("value not escaped: %s", msg)
+	}
+}
