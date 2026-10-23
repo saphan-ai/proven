@@ -88,6 +88,40 @@ func TestOSVTableNameIsRefusedOnOpen(t *testing.T) {
 	}
 }
 
+// TestKEVViewNameIsRefusedOnOpen proves that a KEV view name that is not a plain identifier is refused
+// on Open, so it never reaches a query.
+func TestKEVViewNameIsRefusedOnOpen(t *testing.T) {
+	// Mutated field: PROVEN_KEV_VIEW.
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_KEV_VIEW": "px_evidence.bad;drop",
+		}),
+	})
+	var cfg *review.ConfigError
+	if err == nil || !errorAs(err, &cfg) || cfg.Field != "PROVEN_KEV_VIEW" || cfg.Value != "px_evidence.bad;drop" {
+		t.Fatal(err)
+	}
+}
+
+// TestAdapterTimeoutIsRefusedOnOpen proves that an adapter bound that is not a duration is refused
+// on Open, before any review.
+func TestAdapterTimeoutIsRefusedOnOpen(t *testing.T) {
+	// Mutated field: PROVEN_ADAPTER_TIMEOUT.
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_ADAPTER_TIMEOUT": "nope",
+		}),
+	})
+	var cfg *review.ConfigError
+	if err == nil || !errorAs(err, &cfg) || cfg.Field != "PROVEN_ADAPTER_TIMEOUT" || cfg.Value != "nope" {
+		t.Fatal(err)
+	}
+}
+
 // TestLiveReviewCarriesTheRoutedModel proves that a live review reports the model and receipt the
 // provider's stream named (ADR-0019), not the model it asked for.
 func TestLiveReviewCarriesTheRoutedModel(t *testing.T) {

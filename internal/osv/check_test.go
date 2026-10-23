@@ -426,6 +426,75 @@ func TestLoadTableRefusesABadName(t *testing.T) {
 	}
 }
 
+// TestLoadViewEmptyIsTheDefaultAndABadNameIsRefused proves an empty setting
+// is KEVView, a real view name is kept, and a name carrying SQL is refused
+// with the variable on one line.
+// Mutated field: PROVEN_KEV_VIEW.
+func TestLoadViewEmptyIsTheDefaultAndABadNameIsRefused(t *testing.T) {
+	got, err := LoadView(nil)
+	if err != nil || got != KEVView {
+		t.Fatalf("nil %s %v", got, err)
+	}
+	got, err = LoadView(func(string) string { return "  " })
+	if err != nil || got != KEVView {
+		t.Fatalf("blank %s %v", got, err)
+	}
+	got, err = LoadView(func(k string) string {
+		if k == EnvKEVView {
+			return "px_evidence.px_kev_alt"
+		}
+		return ""
+	})
+	if err != nil || got != "px_evidence.px_kev_alt" {
+		t.Fatalf("set %s %v", got, err)
+	}
+	_, err = LoadView(func(string) string { return "px_evidence.bad;drop" })
+	var cfg *ConfigError
+	if err == nil || !asConfig(err, &cfg) || cfg.Field != EnvKEVView || cfg.Value != "px_evidence.bad;drop" || strings.Contains(err.Error(), "\n") {
+		t.Fatal(err)
+	}
+	if !strings.Contains(err.Error(), "allowed") {
+		t.Fatal(err)
+	}
+}
+
+// TestCheckUsesTheKEVViewOnTheContext proves the lookup queries the view the
+// review loaded, not the default table beside it.
+// Mutated field: the view on the context. Leaving it unset queries
+// px_evidence.px_kev_vulns, which has no row in this fixture.
+func TestCheckUsesTheKEVViewOnTheContext(t *testing.T) {
+	root := t.TempDir()
+	writeMods(t, root,
+		"module m\n\ngo 1.26\n",
+		"module m\n\ngo 1.26\n\nrequire example.com/mod v1.2.3\n",
+	)
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-1', 'CVE-2026-0001', 'Go', 'example.com/mod', '1.0.0', '1.2.4', '', 'HIGH', '2026-01-15');
+CREATE TABLE px_evidence.px_kev_vulns (cve_id TEXT, vendor_project TEXT, product TEXT, date_added TEXT, known_ransomware TEXT);
+CREATE TABLE px_evidence.px_kev_alt (cve_id TEXT, vendor_project TEXT, product TEXT, date_added TEXT, known_ransomware TEXT);
+INSERT INTO px_evidence.px_kev_alt VALUES ('CVE-2026-0001', 'example', 'mod', '2026-01-15', 'Known');
+`)
+	ctx := WithKEVView(context.Background(), "px_evidence.px_kev_alt")
+	out, err := Check(ctx, q, root, "", "snap-kev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if !strings.Contains(c.Message, "alias CVE-2026-0001 is on the KEV list") {
+		t.Fatalf("message %s", c.Message)
+	}
+	if len(c.Evidence) != 2 || c.Evidence[1].Query == nil {
+		t.Fatalf("evidence %#v", c.Evidence)
+	}
+	if !strings.Contains(c.Evidence[1].Query.SQL, "FROM px_evidence.px_kev_alt ") {
+		t.Fatalf("sql %s", c.Evidence[1].Query.SQL)
+	}
+}
+
 // downQuery is a query adapter whose service is always down.
 type downQuery struct{}
 

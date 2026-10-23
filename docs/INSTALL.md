@@ -44,11 +44,11 @@ From the repository:
 go run ./cmd/livecheck
 ```
 
-With nothing configured it names every service that is not ready, and why, and exits 1:
+With nothing configured it names every service that is not ready, and why, and exits 1. An empty secret makes that service down and named, and the review continues; a wrong non-empty value is still refused, and an empty guardrail key refuses every model call unless the mode is off.
 
 ```text
-generator: not ready: configuration refused: METERLESS_RUNTIME_TOKEN="": the live generator needs a runtime token; …
-guardrail: not ready: configuration refused: PROVEN_GUARDRAIL_KEY="": the guardrail needs a key; …
+generator: not ready: nightshift: METERLESS_RUNTIME_TOKEN is empty
+guardrail: not ready: guardrail: PROVEN_GUARDRAIL_KEY is empty
 query: not ready: configuration refused: ZETARIS_REST_URL="": the live query adapter needs a base URL; …
 container: not ready: prover: Prover off: container runtime "docker" not found: …
 summary: 0 ready, 4 not ready

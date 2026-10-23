@@ -24,14 +24,15 @@ var testSpec = answer.Spec{
 		"The test asserts the correct behaviour and fails because the change breaks it. " +
 		"It does not attack anything. " +
 		"Leave content empty to name one test that already exists.",
-	Shape:   "one JSON object. It has path (string), content (string), name (string) and command (string).",
-	Example: `{"path":"pkg/file_test.go","content":"package pkg\n\nimport \"testing\"\n\nfunc TestExample(t *testing.T) {\n\tif Got() != 1 {\n\t\tt.Fatal(Got())\n\t}\n}\n","name":"TestExample","command":"go test ./pkg -run TestExample"}`,
+	Shape:   "one JSON object. It has path (string), content (string) and name (string). Do not add a command: Proven builds the command that runs the test.",
+	Example: `{"path":"pkg/file_test.go","content":"package pkg\n\nimport \"testing\"\n\nfunc TestExample(t *testing.T) {\n\tif Got() != 1 {\n\t\tt.Fatal(Got())\n\t}\n}\n","name":"TestExample"}`,
 }
 
 // Prover notes say why a written test gave no evidence. The trace and the review show them.
 const (
 	notePassedOnChange = "written test passed on the change"
 	noteFailedOnBase   = "written test failed on the base"
+	noteNotFound       = "written test was not found"
 )
 
 // Prompt asks which test would prove one risk.
@@ -39,7 +40,8 @@ func Prompt(id, title string) string {
 	return answer.Instruct(testSpec, "id: "+id+"\ntitle: "+title+"\n")
 }
 
-// row is the test as the model returns it.
+// row is the test as the model returns it. The prompt does not ask for Command.
+// It is read only so that an answer that carries one can be refused.
 type row struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
@@ -47,10 +49,15 @@ type row struct {
 	Command string `json:"command"`
 }
 
-// Execute runs a test the skeptic named. It does not ask a model.
+// Execute runs a test the skeptic named. It does not ask a model. The name and
+// path are checked first (ADR-0025): one that fails is an outcome with no test
+// found and a "refused:" line, and the runner is not called.
 func Execute(ctx context.Context, run testrun.Adapter, req testrun.Request) (testrun.Outcome, error) {
 	if run == nil {
 		return testrun.Outcome{}, &service.Down{Service: "prover", Reason: "no test runner"}
+	}
+	if reason := testrun.RefuseTest(req.Path, req.Name); reason != "" {
+		return testrun.Outcome{Path: req.Path, Name: req.Name, Output: "refused: " + reason}, nil
 	}
 	return run.Run(ctx, req)
 }
@@ -72,6 +79,13 @@ func Prove(ctx context.Context, c candidate.Candidate, gen generator.Generator, 
 	if err := answer.Read(ctx, gen, "prover", Prompt(c.ID, c.Title), testSpec, &got); err != nil {
 		return c, err
 	}
+	// ADR-0025: only the test's file and name are the model's. An answer that
+	// also carries a command is refused whole, so no text of a model is ever
+	// close to the line the container runs.
+	if strings.TrimSpace(got.Command) != "" {
+		c.ProverNote = "refused: " + testrun.ReasonModelCommand
+		return c, nil
+	}
 	// No content names a test that already exists; content is a new test file.
 	if strings.TrimSpace(got.Content) == "" {
 		return proveNamed(ctx, c, run, got)
@@ -86,8 +100,17 @@ func proveNamed(ctx context.Context, c candidate.Candidate, run testrun.Adapter,
 	if got.Name == "" {
 		return c, nil
 	}
+	// The same refusal as Execute. A nil runner panics on Run.
+	if run == nil {
+		return c, &service.Down{Service: "prover", Reason: "no test runner"}
+	}
+	// A name or path that fails the checks gives the finding no test evidence.
+	if reason := testrun.RefuseTest(got.Path, got.Name); reason != "" {
+		c.ProverNote = "refused: " + reason
+		return c, nil
+	}
 	out, err := run.Run(ctx, testrun.Request{
-		FindingID: c.ID, Path: got.Path, Name: got.Name, Command: got.Command,
+		FindingID: c.ID, Path: got.Path, Name: got.Name,
 	})
 	if err != nil {
 		return c, err
@@ -103,14 +126,18 @@ func proveNamed(ctx context.Context, c candidate.Candidate, run testrun.Adapter,
 // runs, and every outcome that is not evidence leaves a note saying why.
 func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapter, got row, opts Options) (candidate.Candidate, error) {
 	// A path outside the repository, a file that is not a test, an overwrite of
-	// code, an empty command or a file over the size limit is refused before the
-	// runner is called.
-	if reason := testrun.RefuseWritten(got.Path, got.Content, got.Command, opts.BaseDir, opts.ChangeDir, opts.MaxWrittenBytes); reason != "" {
+	// code, a name that is not a test name or a file over the size limit is
+	// refused before the runner is called.
+	if reason := testrun.RefuseWritten(got.Path, got.Content, got.Name, opts.BaseDir, opts.ChangeDir, opts.MaxWrittenBytes); reason != "" {
 		c.ProverNote = "refused: " + reason
 		return c, nil
 	}
+	// The same refusal as Execute. A nil runner panics on Run.
+	if run == nil {
+		return c, &service.Down{Service: "prover", Reason: "no test runner"}
+	}
 	out, err := run.Run(ctx, testrun.Request{
-		FindingID: c.ID, Path: got.Path, Name: got.Name, Command: got.Command, Content: got.Content,
+		FindingID: c.ID, Path: got.Path, Name: got.Name, Content: got.Content,
 		BaseDir: opts.BaseDir, ChangeDir: opts.ChangeDir,
 	})
 	if err != nil {
@@ -121,7 +148,13 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 		c.ProverNote = line
 		return c, nil
 	}
-	if out.Found && out.FailsOnChange && out.PassesOnBase {
+	// A runner can report PassesOnBase on a test it did not find. Found is
+	// what happened; the pass flag is not.
+	if !out.Found {
+		c.ProverNote = noteNotFound
+		return c, nil
+	}
+	if out.FailsOnChange && out.PassesOnBase {
 		c.Evidence = append(c.Evidence, testEvidence(out))
 		return c, nil
 	}

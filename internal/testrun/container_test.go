@@ -63,7 +63,7 @@ func TestValidateNamesTheRefusedSetting(t *testing.T) {
 			cfg := base
 			tc.edit(&cfg)
 			err := cfg.Validate()
-			var se *SettingError
+			var se *ConfigError
 			if !errors.As(err, &se) || se.Field != tc.field {
 				t.Fatalf("%v", err)
 			}
@@ -121,8 +121,8 @@ func TestNewContainerMissingRuntimeIsProverDown(t *testing.T) {
 func TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv(t *testing.T) {
 	dir := t.TempDir()
 	c := mustContainer(t, DefaultContainerConfig())
-	argv := c.Argv(dir, "go test ./billing -run TestDiscounted")
-	again := c.Argv(dir, "go test ./billing -run TestDiscounted")
+	argv := c.Argv(dir, goTest)
+	again := c.Argv(dir, goTest)
 	if strings.Join(argv, "\x00") != strings.Join(again, "\x00") {
 		t.Fatal("Argv is not stable")
 	}
@@ -152,8 +152,15 @@ func TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv(t *testing.T) {
 	if mounts != 1 {
 		t.Fatalf("mounts %d in %v", mounts, argv)
 	}
-	if argv[len(argv)-4] != "golang:1.26" || argv[len(argv)-3] != "sh" || argv[len(argv)-2] != "-c" || argv[len(argv)-1] != "go test ./billing -run TestDiscounted" {
+	// The words after the image are the test command and nothing else: no shell.
+	tail := argv[len(argv)-len(goTest)-1:]
+	if tail[0] != "golang:1.26" || strings.Join(tail[1:], "\x00") != strings.Join(goTest, "\x00") {
 		t.Fatalf("%v", argv)
+	}
+	for _, a := range argv {
+		if a == "sh" || a == "-c" {
+			t.Fatalf("a shell in the run line: %v", argv)
+		}
 	}
 	for _, a := range argv {
 		if a == "--name" {
@@ -170,7 +177,7 @@ func TestArgvUsesTheConfiguredLimits(t *testing.T) {
 	cfg.Memory = "256m"
 	cfg.Image = "golang:1.26-bookworm"
 	c := mustContainer(t, cfg)
-	argv := c.Argv(t.TempDir(), "go test")
+	argv := c.Argv(t.TempDir(), goTest)
 	assertPair(t, argv, "--cpus", "0.5")
 	assertPair(t, argv, "--memory", "256m")
 	found := false
@@ -202,7 +209,7 @@ func TestRunReadsBothCheckoutsAndDoesNotProveATimeout(t *testing.T) {
 		return "still running", ctx.Err()
 	}
 	out, err := c.Run(context.Background(), Request{
-		Command: "go test ./billing", BaseDir: base, ChangeDir: change, Name: "TestDiscounted", Path: "billing/discount_test.go",
+		BaseDir: base, ChangeDir: change, Name: "TestDiscounted", Path: "billing/discount_test.go",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +224,7 @@ func TestRunReadsBothCheckoutsAndDoesNotProveATimeout(t *testing.T) {
 	for _, argv := range runs {
 		if argv[1] == "run" {
 			runCount++
-			if !sameSentence(stripName(argv), c.Argv(mountHost(argv), "go test ./billing")) {
+			if !sameSentence(stripName(argv), c.Argv(mountHost(argv), goTest)) {
 				t.Fatalf("ran %v", argv)
 			}
 		}
@@ -264,7 +271,7 @@ func TestRunReturnsWithinTenSecondsWhenTheRuntimeHangs(t *testing.T) {
 	}
 	start := time.Now()
 	out, err := c.Run(context.Background(), Request{
-		Command: "go test ./billing", BaseDir: base, ChangeDir: change,
+		Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: base, ChangeDir: change,
 	})
 	elapsed := time.Since(start)
 	t.Logf("elapsed %s calls %v", elapsed.Round(time.Millisecond), calls)
@@ -305,7 +312,7 @@ func TestRunNamesTheContainerWhenRemovalFails(t *testing.T) {
 		return "still running", ctx.Err()
 	}
 	out, err := c.Run(context.Background(), Request{
-		Command: "go test", BaseDir: t.TempDir(), ChangeDir: t.TempDir(),
+		Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: t.TempDir(), ChangeDir: t.TempDir(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -348,7 +355,7 @@ func TestRunSetsProofOnlyWhenChangeFailsAndBasePasses(t *testing.T) {
 			return "", nil
 		}
 	}
-	out, err := c.Run(context.Background(), Request{Command: "go test", BaseDir: base, ChangeDir: change})
+	out, err := c.Run(context.Background(), Request{Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: base, ChangeDir: change})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +375,7 @@ func TestRunDockerFailureIsNotProof(t *testing.T) {
 		}
 		return "docker: Error response from daemon", code
 	}
-	out, err := c.Run(context.Background(), Request{Command: "go test", BaseDir: t.TempDir(), ChangeDir: t.TempDir()})
+	out, err := c.Run(context.Background(), Request{Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: t.TempDir(), ChangeDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +411,7 @@ func TestRunCancelledContextStartsNothing(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := c.Run(ctx, Request{Command: "go test", BaseDir: t.TempDir(), ChangeDir: t.TempDir()})
+	_, err := c.Run(ctx, Request{Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: t.TempDir(), ChangeDir: t.TempDir()})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -412,7 +419,7 @@ func TestRunCancelledContextStartsNothing(t *testing.T) {
 
 // TestOffRunsNothing proves the Off adapter reports the Prover off by name.
 func TestOffRunsNothing(t *testing.T) {
-	_, err := (Off{Reason: "Prover off: container runtime \"docker\" not found"}).Run(context.Background(), Request{Command: "go test"})
+	_, err := (Off{Reason: "Prover off: container runtime \"docker\" not found"}).Run(context.Background(), Request{Path: "billing/discount_test.go", Name: "TestDiscounted"})
 	d, ok := service.As(err)
 	if !ok || d.Service != "prover" || !strings.Contains(d.Reason, "Prover off") {
 		t.Fatal(err)
@@ -551,7 +558,7 @@ func TestRemovalFailureSurvivesLongOutput(t *testing.T) {
 		return long, ctx.Err()
 	}
 	out, err := c.Run(context.Background(), Request{
-		Command: "go test", BaseDir: t.TempDir(), ChangeDir: t.TempDir(),
+		Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: t.TempDir(), ChangeDir: t.TempDir(),
 	})
 	if err != nil {
 		t.Fatal(err)

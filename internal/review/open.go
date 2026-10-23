@@ -6,11 +6,13 @@ package review
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
@@ -19,8 +21,9 @@ import (
 )
 
 // open is Open. It refuses a missing LogDir, loads proven.yaml when the shell named one, and in live
-// mode loads every adapter's settings from the environment (ADR-0001, ADR-0013). Any refused setting
-// returns a *ConfigError, so the shell exits 7 before any review starts.
+// mode loads every adapter's settings from the environment (ADR-0001, ADR-0013). A wrong non-empty
+// value returns a *ConfigError, so the shell exits 7 before any review starts. An empty secret does
+// not: that service is down and the review names it (ADR-0013 point 4a).
 func open(opts Options) (Reviewer, error) {
 	// The trace is written under LogDir; a review with no trace could not show how a finding was judged.
 	if opts.LogDir == "" {
@@ -48,6 +51,8 @@ func open(opts Options) (Reviewer, error) {
 		LogDir: opts.LogDir,
 		Env:    opts.Env,
 	}
+	var kevView string
+	var adapterLimit time.Duration
 	// In sample mode the pipeline uses its recorded adapters, so none of the live settings are read.
 	if !opts.Sample {
 		env := opts.Env
@@ -55,18 +60,33 @@ func open(opts Options) (Reviewer, error) {
 			env = func(string) string { return "" }
 		}
 		settings, lerr := generator.Load(env)
-		if lerr != nil {
+		if d, ok := service.As(lerr); ok {
+			// ADR-0013 point 4a: an empty token does not build a live client.
+			popts.Down = append(popts.Down, *d)
+			popts.Generator = generator.Absent{Reason: d.Reason}
+		} else if lerr != nil {
 			return nil, generatorConfig(lerr)
+		} else {
+			// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
+			popts.SkepticModel = settings.SkepticModel
+			popts.Generator = generator.NewLive(settings, nil)
 		}
-		// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
-		popts.SkepticModel = settings.SkepticModel
+		if opts.gen != nil {
+			// A test supplies the generator. The live client above is not called,
+			// so the review does not dial. A review leaves gen unset.
+			popts.Generator = opts.gen
+		}
 		gs, gerr := guardrail.Load(env)
-		if gerr != nil {
+		if d, ok := service.As(gerr); ok {
+			// ADR-0005 point 5: an empty key is not off. Every model call is
+			// refused by this adapter, and the trace gets one line per refusal.
+			popts.Down = append(popts.Down, *d)
+			popts.Guardrail = guardrail.Absent{Reason: d.Reason}
+		} else if gerr != nil {
 			return nil, guardrailConfig(gerr)
-		}
-		// ADR-0005: the guardrail is on unless a setting turns it off. When off, the pipeline is told
-		// so and the trace records one "no guardrail" line.
-		if gs.Mode == guardrail.ModeOff {
+		} else if gs.Mode == guardrail.ModeOff {
+			// ADR-0005: the guardrail is on unless a setting turns it off. When off, the pipeline is told
+			// so and the trace records one "no guardrail" line.
 			popts.GuardOff = true
 		} else {
 			rail, nerr := guardrail.New(gs, nil)
@@ -75,17 +95,15 @@ func open(opts Options) (Reviewer, error) {
 			}
 			popts.Guardrail = rail
 		}
-		popts.Generator = generator.NewLive(settings, nil)
-		if opts.gen != nil {
-			// A test supplies the generator. The live client above is not called,
-			// so the review does not dial. A review leaves gen unset.
-			popts.Generator = opts.gen
-		}
 		zset, zerr := query.Load(env)
-		if zerr != nil {
+		if d, ok := service.As(zerr); ok {
+			popts.Down = append(popts.Down, *d)
+			popts.LiveQuery = query.Absent{Reason: d.Reason}
+		} else if zerr != nil {
 			return nil, queryConfig(zerr)
+		} else {
+			popts.LiveQuery = query.NewLive(zset, nil)
 		}
-		popts.LiveQuery = query.NewLive(zset, nil)
 		if opts.liveQuery != nil {
 			// A test supplies the query adapter. The live client above is not called.
 			popts.LiveQuery = opts.liveQuery
@@ -125,21 +143,36 @@ func open(opts Options) (Reviewer, error) {
 				popts.TestRun = box
 			}
 		}
+		// ADR-0013: the KEV view and the adapter bound are settings. A wrong
+		// value stops Open before any review. Sample mode skips this block
+		// and does not read either variable.
+		kev, kerr := osv.LoadView(env)
+		if kerr != nil {
+			return nil, osvConfig(kerr)
+		}
+		kevView = kev
+		bound, aerr := limit.Load(env)
+		if aerr != nil {
+			return nil, limitConfig(aerr)
+		}
+		adapterLimit = bound
 	}
 	p, err := pipeline.Build(popts)
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit}, nil
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
 // cfg is the explicit configuration when explicit is true; otherwise it is unused and each
 // Review loads the settings of the change it reviews.
 type runner struct {
-	p        *pipeline.Pipeline
-	cfg      fileSettings
-	explicit bool
+	p            *pipeline.Pipeline
+	cfg          fileSettings
+	explicit     bool
+	kevView      string
+	adapterLimit time.Duration
 }
 
 // Review runs one review: settings, deadline, class, the six agents, then the decision lines.
@@ -181,6 +214,16 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		}
 		class, _ := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
 		double = cfg.Doubled[class]
+	}
+	// The KEV view and the adapter bound ride the context. The pipeline's
+	// calls do not take them, and this change does not edit that package.
+	// Sample mode leaves both unset, so the defaults apply and the
+	// environment is not read.
+	if r.kevView != "" {
+		ctx = osv.WithKEVView(ctx, r.kevView)
+	}
+	if r.adapterLimit > 0 {
+		ctx = limit.WithBound(ctx, r.adapterLimit)
 	}
 	d, err := r.p.Review(ctx, pipeline.Request{
 		Target:         req.Target,
@@ -227,6 +270,9 @@ func fill(d candidate.Draft) Result {
 		out.Models = append(out.Models, ModelUse{
 			Agent: m.Agent, Route: m.Route, Model: m.Model, ReceiptID: m.ReceiptID, FromReceipt: m.FromReceipt,
 		})
+	}
+	if len(d.SkippedPaths) > 0 {
+		out.SkippedPaths = append([]string(nil), d.SkippedPaths...)
 	}
 	if out.Findings == nil {
 		out.Findings = []Finding{}
@@ -296,9 +342,21 @@ func epssConfig(err error) error {
 	return err
 }
 
-// osvConfig turns a refused OSV table setting into the seam's *ConfigError.
+// osvConfig turns a refused OSV setting into the seam's *ConfigError.
 func osvConfig(err error) error {
 	var cfg *osv.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// limitConfig turns a refused adapter-bound setting into the seam's *ConfigError.
+func limitConfig(err error) error {
+	var cfg *limit.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

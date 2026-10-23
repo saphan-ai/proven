@@ -112,6 +112,9 @@ type Result struct {
 	AuthorModels         []AuthorModel    // models the change named; empty means none were stated
 	AuthorModelStatement string           // "author model not stated" when the change names no model
 	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
+	// SkippedPaths lists tracked paths a live review did not copy because they
+	// are symlinks, slash-separated and sorted. Empty when none were skipped.
+	SkippedPaths []string
 }
 
 // AuthorModel is one model the change named (ADR-0011).

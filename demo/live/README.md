@@ -44,7 +44,7 @@ bash demo/live/run.sh
 
 The script builds `proven`, `livecheck` and the live review command. It then runs `livecheck`. If any service is not ready, it prints that output and stops. It does not start the review. If every service is ready, it reviews this directory and prints each finding, its evidence, and the trace path. The trace is `logs/trace.jsonl` in the proven repository.
 
-Settings come from the environment only. The script does not print a secret. A value of `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY` or `ZETARIS_API_KEY` is replaced with `redacted` if a service echoes it.
+Settings come from the environment only. The script does not print a secret. A value of `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY` or `ZETARIS_API_KEY` is replaced with `redacted` if a service echoes it. An empty one of those three makes that service down and names it, and an empty guardrail key refuses every model call unless `PROVEN_GUARDRAIL_MODE` is `off`.
 
 ### Generator
 

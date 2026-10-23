@@ -233,6 +233,67 @@ func openAt(t *testing.T, dir, logs string) *world.Store {
 	return s
 }
 
+// TestFailedWriteLeavesMemoryAsItWas proves a failed audit or persist does not
+// keep the entity or the folded finding in memory (the world model matches
+// the state file after the error).
+func TestFailedWriteLeavesMemoryAsItWas(t *testing.T) {
+	t.Run("upsert audit", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		blockWorldAudit(t, logs)
+		err := s.UpsertEntity(world.Entity{
+			Type: "x", ID: "ent_fail", Name: "Should Not Stick",
+			Source: world.Provenance{Kind: "manual", At: "2026-01-01T00:00:00.000Z"},
+		})
+		if err == nil {
+			t.Fatal("upsert succeeded while the audit could not be written")
+		}
+		if strings.Contains(s.Canonical(), "ent_fail") {
+			t.Fatal("memory kept the entity after a failed audit")
+		}
+	})
+	t.Run("upsert persist", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		if err := os.Mkdir(filepath.Join(dir, "state.json.tmp"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		err := s.UpsertEntity(world.Entity{
+			Type: "x", ID: "ent_fail", Name: "Should Not Stick",
+			Source: world.Provenance{Kind: "manual", At: "2026-01-01T00:00:00.000Z"},
+		})
+		if err == nil {
+			t.Fatal("upsert succeeded while the state file could not be written")
+		}
+		if strings.Contains(s.Canonical(), "ent_fail") {
+			t.Fatal("memory kept the entity after a failed persist")
+		}
+	})
+	t.Run("ingest", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		blockWorldAudit(t, logs)
+		if _, err := s.Ingest(bytes.NewReader(sampleLog(t, false)), 0); err == nil {
+			t.Fatal("ingest succeeded while the audit could not be written")
+		}
+		if strings.Contains(s.Canonical(), `"id":"F1"`) || strings.Contains(s.Canonical(), `"id": "F1"`) {
+			t.Fatal("memory kept the finding after a failed audit")
+		}
+	})
+}
+
+// blockWorldAudit replaces world.jsonl with a directory, so the next audit open fails.
+func blockWorldAudit(t *testing.T, logs string) {
+	t.Helper()
+	path := filepath.Join(logs, "world.jsonl")
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestStateNamedWithTwoDotsInsideIsRefused proves a state directory inside the
 // repository whose name starts with ".." (here "..state") is still refused:
 // only a path that leaves the repository is outside it.

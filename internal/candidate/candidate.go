@@ -72,7 +72,6 @@ type Refutation struct {
 	Reason            string
 	TestPath          string
 	TestName          string
-	Command           string
 	SQL               string
 	TestFound         bool
 	TestFailsOnChange bool
@@ -129,4 +128,7 @@ type Draft struct {
 	Models    []ModelUse
 	Partial   bool
 	TracePath string
+	// SkippedPaths lists tracked paths a live review did not copy because they
+	// are symlinks, slash-separated and sorted. Empty when none were skipped.
+	SkippedPaths []string
 }

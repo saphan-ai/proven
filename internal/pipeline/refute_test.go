@@ -15,7 +15,7 @@ import (
 // ADR-0006: a refuting test the Skeptic proposes that passes on the change drops
 // the finding, and the trace says why. Other findings are not touched.
 func TestRefutationThatPassesOnTheChangeDropsTheFinding(t *testing.T) {
-	body := `{"refuted":true,"reason":"the test passes","path":"billing/discount_test.go","name":"TestRefute","command":"go test ./billing -run TestRefute","sql":""}`
+	body := `{"refuted":true,"reason":"the test passes","path":"billing/discount_test.go","name":"TestRefute","sql":""}`
 	d := reviewWithSkeptic(t, body, &scriptedRun{pass: "TestRefute"})
 	if _, ok := kept(d, "F1"); ok {
 		t.Fatal("F1 must be dropped")
@@ -55,7 +55,7 @@ func TestRefutationWithNoEvidenceLeavesTheFinding(t *testing.T) {
 // A refuting test that cannot run leaves the finding in the review, marked
 // unresolved with that reason, neither kept as proved nor dropped.
 func TestRefutingTestThatCannotRunIsUnresolved(t *testing.T) {
-	body := `{"refuted":true,"reason":"try this","path":"billing/discount_test.go","name":"TestMissing","command":"go test ./billing -run TestMissing","sql":""}`
+	body := `{"refuted":true,"reason":"try this","path":"billing/discount_test.go","name":"TestMissing","sql":""}`
 	d := reviewWithSkeptic(t, body, &scriptedRun{miss: "TestMissing"})
 	f1, ok := kept(d, "F1")
 	if !ok {
@@ -236,7 +236,7 @@ type scriptedRun struct {
 func (s *scriptedRun) Run(ctx context.Context, req testrun.Request) (testrun.Outcome, error) {
 	if s.pass != "" && req.Name == s.pass {
 		return testrun.Outcome{
-			Found: true, Path: req.Path, Name: req.Name, Command: req.Command,
+			Found: true, Path: req.Path, Name: req.Name,
 			FailsOnChange: false, PassesOnBase: true, Output: "change: PASS",
 		}, nil
 	}

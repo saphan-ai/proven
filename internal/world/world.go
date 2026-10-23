@@ -9,7 +9,8 @@
 // resumable (ADR-0018 point 5): an event already applied is skipped, so a run
 // killed halfway and started again reaches the same state. A refutation the
 // Skeptic made with evidence is handed to H-MEM, which backs this store's
-// memory (ADR-0018 point 4).
+// memory (ADR-0018 point 4). A failed audit or persist puts the in-memory
+// fold back, so memory and the state file agree.
 package world
 
 import (
@@ -236,6 +237,7 @@ func (s *Store) SetGenerator(g generator.Generator) { s.gen = g }
 func (s *Store) Generator() generator.Generator { return s.gen }
 
 // UpsertEntity writes one entity. Missing provenance is refused.
+// A failed audit or persist leaves the entity map as it was.
 func (s *Store) UpsertEntity(e Entity) error {
 	if err := checkProvenance(e.Source); err != nil {
 		return err
@@ -247,6 +249,7 @@ func (s *Store) UpsertEntity(e Entity) error {
 	if e.State == "" {
 		e.State = "active"
 	}
+	prev, existed := s.entities[e.ID]
 	s.entities[e.ID] = e
 	actor := e.Source.By
 	if actor == "" {
@@ -254,17 +257,26 @@ func (s *Store) UpsertEntity(e Entity) error {
 	}
 	// The audit id is built from the entity and its provenance time, so the
 	// same write names the same line.
-	if err := s.audit(trace.Event{
+	err := s.audit(trace.Event{
 		EventID:   "upsert:" + e.ID + ":" + e.Source.At,
 		Kind:      "upsert",
 		Agent:     actor,
 		FindingID: e.ID,
 		Text:      e.Name,
 		Title:     e.Name,
-	}); err != nil {
+	})
+	if err == nil {
+		err = s.persist()
+	}
+	if err != nil {
+		if existed {
+			s.entities[e.ID] = prev
+		} else {
+			delete(s.entities, e.ID)
+		}
 		return err
 	}
-	return s.persist()
+	return nil
 }
 
 // checkProvenance refuses a write that does not say how and when it was learned.
@@ -280,6 +292,12 @@ func checkProvenance(p Provenance) error {
 // A line with no event_id takes its id from the sha256 of the line.
 func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 	before := s.Canonical()
+	// The whole pass is one write. Any failure puts this snapshot back, so a
+	// retry on the same store applies the events again instead of skipping
+	// ones the state file does not hold (ADR-0018 point 5). H-MEM is not in
+	// the snapshot: a refutation it already stored stays, and the retry
+	// finds that same record.
+	snap := s.cloneState()
 	sc := bufio.NewScanner(r)
 	// A trace line can carry a whole query result, so lines up to 4 MiB are read.
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
@@ -291,7 +309,8 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 		}
 		var ev trace.Event
 		if err := json.Unmarshal(line, &ev); err != nil {
-			return rep, fmt.Errorf("world: log line: %w", err)
+			s.restoreState(snap)
+			return Report{}, fmt.Errorf("world: log line: %w", err)
 		}
 		if ev.EventID == "" {
 			sum := sha256.Sum256(line)
@@ -303,11 +322,13 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 			continue
 		}
 		if err := s.apply(ev); err != nil {
-			return rep, err
+			s.restoreState(snap)
+			return Report{}, err
 		}
 		s.applied[ev.EventID] = struct{}{}
 		if err := s.audit(ev); err != nil {
-			return rep, err
+			s.restoreState(snap)
+			return Report{}, err
 		}
 		rep.Applied++
 		if stopAfter > 0 && rep.Applied >= stopAfter {
@@ -316,12 +337,15 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return rep, err
+		s.restoreState(snap)
+		return Report{}, err
 	}
 	// State is written once per pass. A pass killed before this line leaves
 	// the old state.json, and the next pass applies the same events again.
+	// A persist error is the same fact for the live store: roll the fold back.
 	if err := s.persist(); err != nil {
-		return rep, err
+		s.restoreState(snap)
+		return Report{}, err
 	}
 	rep.Changed = s.Canonical() != before
 	return rep, nil
@@ -456,6 +480,56 @@ func (s *Store) Canonical() string {
 		return ""
 	}
 	return string(b)
+}
+
+// foldSnap is the in-memory fold before a pass, deep enough that later
+// appends do not change it.
+type foldSnap struct {
+	applied  map[string]struct{}
+	findings map[string]*Finding
+	entities map[string]Entity
+}
+
+func (s *Store) cloneState() foldSnap {
+	applied := make(map[string]struct{}, len(s.applied))
+	for id := range s.applied {
+		applied[id] = struct{}{}
+	}
+	findings := make(map[string]*Finding, len(s.findings))
+	for id, f := range s.findings {
+		findings[id] = cloneFinding(f)
+	}
+	entities := make(map[string]Entity, len(s.entities))
+	for id, e := range s.entities {
+		e.Attrs = cloneAttrs(e.Attrs)
+		entities[id] = e
+	}
+	return foldSnap{applied: applied, findings: findings, entities: entities}
+}
+
+func (s *Store) restoreState(snap foldSnap) {
+	s.applied = snap.applied
+	s.findings = snap.findings
+	s.entities = snap.entities
+}
+
+func cloneFinding(f *Finding) *Finding {
+	cp := *f
+	cp.Claims = append([]string(nil), f.Claims...)
+	cp.Evidence = append([]string(nil), f.Evidence...)
+	cp.Refutations = append([]Refutation(nil), f.Refutations...)
+	return &cp
+}
+
+func cloneAttrs(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 // persist writes the canonical state indented, through a temporary file and

@@ -159,10 +159,16 @@ func TestLivePreparedTreesNeedNoFixtureJSON(t *testing.T) {
 
 // recordingGen is the stub generator. It records planner prompts and, when
 // work is set, notices the temporary trees while the Planner is running.
+// marker and linkName, when set, record whether a symlink or its target
+// content was present in those trees at that moment.
 type recordingGen struct {
-	work     string
-	prompts  []string
-	sawTrees bool
+	work        string
+	prompts     []string
+	sawTrees    bool
+	marker      string
+	linkName    string
+	markerSeen  bool
+	linkPresent bool
 }
 
 // Complete returns an empty planner list, so the review finishes with no
@@ -174,6 +180,9 @@ func (g *recordingGen) Complete(_ context.Context, agent, prompt string) (string
 	g.prompts = append(g.prompts, prompt)
 	if g.work != "" {
 		g.sawTrees = treesPresent(g.work)
+	}
+	if g.marker != "" && g.work != "" {
+		g.markerSeen, g.linkPresent = treesHold(g.work, g.linkName, g.marker)
 	}
 	return "[]", nil
 }
@@ -301,6 +310,170 @@ func traceSnapshot(t *testing.T, path, text string) bool {
 		}
 	}
 	return false
+}
+
+// TestLiveGitReviewSkipsATrackedSymlink proves a live review of two commits
+// still finishes when the second commit adds a tracked symlink beside a
+// changed regular file. The regular file reaches the Planner. The link is
+// named once on the trace. The file the link points at, outside the
+// repository, is not read: its content is not in the planner prompt, the
+// trace, or the result, and the link is not in the trees while the Planner runs.
+func TestLiveGitReviewSkipsATrackedSymlink(t *testing.T) {
+	repo, base, head, marker := commitsWithSymlink(t)
+	work := t.TempDir()
+	gen := &recordingGen{work: work, marker: marker, linkName: "linked.txt"}
+	res := reviewLive(t, work, gen, Request{
+		Target: repo, BaselineCommit: base, HeadCommit: head,
+	})
+	if res.Partial {
+		t.Fatal("partial")
+	}
+	prompt := plannerPrompt(t, gen)
+	const want = "FILE note.txt\nBASE\nbase-text\nCHANGE\ncommitted-change\n"
+	if !strings.Contains(prompt, want) {
+		t.Fatalf("planner prompt missing the changed file\n%s", prompt)
+	}
+	assertSymlinkSkipped(t, res, gen, prompt, marker, "linked.txt")
+}
+
+// TestLiveWorktreeReviewSkipsATrackedSymlink proves the same property when
+// the change side is the working tree rather than a second commit. The
+// baseline commit already tracks the symlink, and an uncommitted edit of the
+// regular file still reaches the Planner.
+func TestLiveWorktreeReviewSkipsATrackedSymlink(t *testing.T) {
+	repo, _, head, marker := commitsWithSymlink(t)
+	if err := os.WriteFile(filepath.Join(repo, "note.txt"), []byte("uncommitted-edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	work := t.TempDir()
+	gen := &recordingGen{work: work, marker: marker, linkName: "linked.txt"}
+	res := reviewLive(t, work, gen, Request{
+		Target: repo, BaselineCommit: head, HeadCommit: "",
+	})
+	prompt := plannerPrompt(t, gen)
+	const want = "FILE note.txt\nBASE\ncommitted-change\nCHANGE\nuncommitted-edit\n"
+	if !strings.Contains(prompt, want) {
+		t.Fatalf("planner prompt missing the uncommitted edit\n%s", prompt)
+	}
+	assertSymlinkSkipped(t, res, gen, prompt, marker, "linked.txt")
+}
+
+// assertSymlinkSkipped checks the link was named once and its target was not read.
+func assertSymlinkSkipped(t *testing.T, res Result, gen *recordingGen, prompt, marker, rel string) {
+	t.Helper()
+	if strings.Contains(prompt, marker) || strings.Contains(prompt, "FILE "+rel+"\n") {
+		t.Fatalf("planner prompt contains the symlink or its target\n%s", prompt)
+	}
+	if gen.linkPresent {
+		t.Fatal("the symlink was in a tree while the Planner ran")
+	}
+	if gen.markerSeen {
+		t.Fatal("the symlink target was read into a tree")
+	}
+	raw, err := os.ReadFile(res.TracePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte(marker)) {
+		t.Fatal("the symlink target was written into the trace")
+	}
+	if n := countSkipped(t, raw, rel); n != 1 {
+		t.Fatalf("skipped events for %s: %d", rel, n)
+	}
+	encoded, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encoded, []byte(marker)) {
+		t.Fatal("the symlink target was written into the result")
+	}
+	if len(res.SkippedPaths) != 1 || res.SkippedPaths[0] != rel {
+		t.Fatalf("skipped paths: %#v", res.SkippedPaths)
+	}
+}
+
+// countSkipped counts trace lines that name rel as a skipped symlink.
+func countSkipped(t *testing.T, raw []byte, rel string) int {
+	t.Helper()
+	n := 0
+	for _, line := range bytes.Split(raw, []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var ev struct {
+			Kind string `json:"kind"`
+			Path string `json:"path"`
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(line, &ev) != nil {
+			continue
+		}
+		if ev.Kind == "skipped" && ev.Path == rel && ev.Text == "symlink" {
+			n++
+		}
+	}
+	return n
+}
+
+// treesHold reports whether any tree under work holds marker in a regular
+// file, or holds an entry named linkName. A symlink is not followed.
+func treesHold(work, linkName, marker string) (markerSeen, linkPresent bool) {
+	_ = filepath.Walk(work, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			if linkName != "" && filepath.Base(path) == linkName {
+				linkPresent = true
+			}
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		if linkName != "" && filepath.Base(path) == linkName {
+			linkPresent = true
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if bytes.Contains(b, []byte(marker)) {
+			markerSeen = true
+		}
+		return nil
+	})
+	return markerSeen, linkPresent
+}
+
+// commitsWithSymlink builds a scratch repository with two commits. The second
+// changes note.txt and adds linked.txt, a tracked symlink to a file outside
+// the repository. marker is that file's content.
+func commitsWithSymlink(t *testing.T) (dir, base, head, marker string) {
+	t.Helper()
+	dir = t.TempDir()
+	gitCmd(t, dir, "init")
+	if err := os.WriteFile(filepath.Join(dir, "note.txt"), []byte("base-text\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, dir, "add", "note.txt")
+	gitCmd(t, dir, "commit", "-m", "[fixture] note: base")
+	base = strings.TrimSpace(string(gitCmd(t, dir, "rev-parse", "HEAD")))
+	if err := os.WriteFile(filepath.Join(dir, "note.txt"), []byte("committed-change\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	marker = "symlink-target-secret-not-in-repo"
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outside, []byte(marker), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "linked.txt")); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, dir, "add", "note.txt", "linked.txt")
+	gitCmd(t, dir, "commit", "-m", "[fixture] note: change and link")
+	head = strings.TrimSpace(string(gitCmd(t, dir, "rev-parse", "HEAD")))
+	return dir, base, head, marker
 }
 
 // twoCommits builds a scratch git repository with two commits of note.txt and

@@ -8,9 +8,19 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/saphan-ai/proven/internal/service"
 )
+
+// liveBuilt counts live clients NewLive has constructed in this process.
+// Sample mode does not call NewLive, so the count does not move during a
+// sample review.
+var liveBuilt atomic.Int64
+
+// LiveBuilt is how many live clients NewLive has constructed.
+// A sample review leaves it unchanged.
+func LiveBuilt() int64 { return liveBuilt.Load() }
 
 // Use is what one completion reported about the model that answered.
 // Model is "unknown" when the stream did not name a routed model.
@@ -50,6 +60,7 @@ func (l *Live) WithModel(model string) *Live {
 // NewLive builds a live generator. A nil client uses one that does not follow
 // redirects, so the runtime token is not sent to another host.
 func NewLive(cfg Settings, client *http.Client) *Live {
+	liveBuilt.Add(1)
 	if client == nil {
 		client = &http.Client{
 			Timeout: cfg.Timeout,

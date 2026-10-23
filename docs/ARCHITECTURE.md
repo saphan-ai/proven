@@ -1,7 +1,7 @@
 # Architecture
 
 One page: the six agents, the order they run in, and what each one may and may not do. The reasons behind each choice
-are in [DESIGN.md](../DESIGN.md) and in the decisions under [fleet/decisions/](../fleet/decisions/).
+are in [DESIGN.md](../hackathon/DESIGN.md) and in the decisions under [fleet/decisions/](adr/).
 
 ## The pipeline
 
@@ -47,13 +47,13 @@ decides: a matching range is evidence, and a version outside every range is a tr
 - **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
 
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
-`conformance/meterless/run.sh`.
+`test/conformance/meterless/run.sh`.
 
 ## Modes
 
 - **Sample** (`--sample`): recorded answers, outcomes and rows; no network. See [SAMPLE_MODE.md](SAMPLE_MODE.md).
 - **Live**: Nightshift, Zetaris, the guardrail and a container runtime. A live review needs only a git repository. See [CONFIGURATION.md](CONFIGURATION.md); check
-  readiness with `go run ./cmd/livecheck`. A service that is missing is named in the review's failed services.
+  readiness with `go run ./cmd/livecheck`. A service that is missing is named in the review's failed services. A tracked symlink is left out of the trees; the trace names it and the result lists the path.
 
 ## The seam
 

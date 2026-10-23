@@ -23,7 +23,9 @@ const (
 )
 
 // ConfigError names a refused container setting and the values that are allowed.
-// Field is the environment variable. A refusal does not start a container.
+// Field is the Go field when Validate refuses the struct, and the environment
+// variable when Load refuses a setting. A refusal does not start a container.
+// There is no setting that gives the container a network or a secret (ADR-0013).
 type ConfigError struct {
 	Field   string
 	Value   string
@@ -104,10 +106,10 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
 }
 
-// fromSetting renames a SettingError's field to its environment variable,
+// fromSetting renames a ConfigError's field to its environment variable,
 // so the user sees the name they set, not the Go field.
 func fromSetting(err error) error {
-	var se *SettingError
+	var se *ConfigError
 	if !errors.As(err, &se) || se == nil {
 		return err
 	}
