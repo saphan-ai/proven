@@ -33,11 +33,12 @@ func TestLoadRefusesABadSettingAndDoesNotPrintTheKey(t *testing.T) {
 		}
 	})
 	var cfg *query.ConfigError
-	if err == nil || !asConfig(err, &cfg) || cfg.Field != query.EnvOrgID || cfg.Value != "nope" {
+	// ADR-0013 point 4: the refusal names the organisation id's variable and withholds its value.
+	if err == nil || !asConfig(err, &cfg) || cfg.Field != query.EnvOrgID || cfg.Value != "" {
 		t.Fatal(err)
 	}
-	if strings.Contains(err.Error(), secret) {
-		t.Fatal("the refusal printed the API key")
+	if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "nope") {
+		t.Fatal("the refusal printed the API key or the organisation id")
 	}
 	// Mutated field: ZETARIS_API_KEY, set to empty. The refusal's value stays empty.
 	_, err = query.Load(func(k string) string {

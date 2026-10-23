@@ -66,7 +66,8 @@ func Environment() []envdoc.Setting {
 }
 
 // ConfigError names a refused Zetaris setting and the values that are allowed.
-// The API key's Value is always empty: a refusal does not print the secret.
+// The Value of the API key and of the organisation id is always empty: a
+// refusal names the variable and the rule, and does not print either.
 type ConfigError struct {
 	Field   string
 	Value   string
@@ -124,7 +125,9 @@ func Load(env func(string) string) (Settings, error) {
 	// ADR-0023, point 6: the organisation id is the numeric id Zetaris issues.
 	org := strings.TrimSpace(env(EnvOrgID))
 	if !orgID(org) {
-		return Settings{}, refuse(EnvOrgID, clip(org), "not an organisation id", "a non-empty string of digits, at most 18 characters")
+		// ADR-0013 point 4: the id identifies Proven's account, so a refusal names the variable and
+		// the rule and says the value is withheld, as it does for the key.
+		return Settings{}, refuse(EnvOrgID, "", "not an organisation id; the value is not printed", "a non-empty string of digits, at most 18 characters")
 	}
 	// The row limit is bounded, so one query cannot pull a whole source into the
 	// review.
@@ -147,10 +150,10 @@ func Load(env func(string) string) (Settings, error) {
 	return Settings{BaseURL: base, APIKey: key, OrgID: org, RowLimit: limit, Timeout: timeout}, nil
 }
 
-// refuse builds a ConfigError. The key's value is blanked here, in one place,
-// so no caller can print it.
+// refuse builds a ConfigError. The value of the key and of the organisation id
+// is blanked here, in one place, so no caller can print it.
 func refuse(field, value, reason, allowed string) *ConfigError {
-	if field == EnvAPIKey {
+	if field == EnvAPIKey || field == EnvOrgID {
 		value = ""
 	}
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
