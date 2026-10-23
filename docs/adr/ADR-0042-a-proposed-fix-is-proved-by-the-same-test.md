@@ -20,6 +20,13 @@ only a suggestion until something shows it works. Proven already has the test th
 4. **The fix is a suggestion on the pull request**, never a commit: a person applies it.
 5. **For a dependency finding, the fix is the smallest version that leaves the advisory's affected range**, named with
    the advisory row that shows it.
+6. **A fix that fails its test is tried again**, by the same model with the failure in hand, up to a number of attempts
+   set in the settings; only then is it reported as *fix not proved* (added the same day, after the owner read that
+   GitHub's agentic autofix iterates until its rescan closes the alert).
+7. **Every proposed fix carries its own explanation**: what it changes, why it closes the problem, and the validation
+   steps that were run, with their commands, so a reader can run them again.
+8. **Proven checks behaviour, not only the alert**: a fix is proved by the test that showed the problem now passing,
+   not by the finding disappearing from a rescan; a problem can stop being reported and still be there.
 
 ## Consequences
 
