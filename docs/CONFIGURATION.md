@@ -142,6 +142,8 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `DIND_PORT` | `2375` | Port that daemon listens on inside the lab network. Not published on the host |
 | `ACT_RUNNER_VERSION` | `0.2.11` | Gitea Actions runner image tag |
 | `DOCKER_VERSION` | `29.9.1` | Tag of the `docker` dind and cli images |
+| `PROVEN_TEST_IMAGE` | `golang:1.26` | The image the Prover runs each test in (also in the table above). `make up` pulls it into the lab's inner Docker daemon before the first review, so the Prover does not meet `No such image` there |
+| `TEST_IMAGE_DIGEST` | empty | `sha256:<64 hex>` of `PROVEN_TEST_IMAGE`. When set, `make up` pulls `<image>@<digest>` and tags it with the `PROVEN_TEST_IMAGE` name. When empty, `make up` pulls by tag and prints the digest it got, so the pin can be written here. The image name must have no registry port |
 | `RUNNER_NAME` | `proven-lab` | Name the runner registers with |
 | `RUNNER_LABEL` | `ubuntu-latest` | Label the lab's jobs use. The workflow file's `runs-on` matches this default |
 | `LAB_ADMIN_USER` | `proven` | Admin user. `make up` creates it when the account is missing, including on a volume that already holds the password |

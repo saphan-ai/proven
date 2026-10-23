@@ -95,8 +95,41 @@ ensure_repo() {
   fi
 }
 
+# Gitea runs a workflow only for a repository whose Actions unit is on.
+# A repository made through the API gets the units in [repository]
+# DEFAULT_REPO_UNITS, and a repository kept from an older volume may lack it.
+# A pull request opened while the unit was off has no task, so a change here
+# sets RETRIGGER and ensure_pr starts the workflow again.
+RETRIGGER=0
+
+ensure_actions_unit() {
+  repo="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO"
+  code=$(curl -sS --max-time 30 -o /tmp/unit.json -w '%{http_code}' \
+    -H "Authorization: token $API_TOKEN" "$repo")
+  if [ "$code" != "200" ]; then
+    echo "seed: could not read the repository (HTTP $code)" >&2
+    exit 1
+  fi
+  if grep -q '"has_actions":true' /tmp/unit.json; then
+    return 0
+  fi
+  code=$(api PATCH "$repo" /tmp/unit.json -d '{"has_actions":true}')
+  if [ "$code" != "200" ]; then
+    echo "seed: could not turn on the Actions unit (HTTP $code)" >&2
+    exit 1
+  fi
+  if ! grep -q '"has_actions":true' /tmp/unit.json; then
+    echo "seed: Gitea did not turn on the Actions unit" >&2
+    exit 1
+  fi
+  RETRIGGER=1
+}
+
+# The job runs on the lab's inner daemon, where 127.0.0.1 is not Gitea.
+# github.api_url is built from ROOT_URL, so the seeded copy posts to the
+# address the lab network serves instead.
 render_workflow() {
-  sed "s|saphan/proven:latest|${PROVEN_IMAGE}:latest|g; s|runs-on: ubuntu-latest|runs-on: ${RUNNER_LABEL}|" \
+  sed "s|saphan/proven:latest|${PROVEN_IMAGE}:latest|g; s|runs-on: ubuntu-latest|runs-on: ${RUNNER_LABEL}|; s|\${{ github.api_url }}|${GITEA_INTERNAL_URL}/api/v1|" \
     /workflow/proven.yml >/tmp/proven.yml
 }
 
@@ -202,6 +235,18 @@ ensure_pr() {
     -H "Authorization: token $API_TOKEN" \
     "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/pulls?state=open")
   if [ "$code" = "200" ] && grep -q '"number":' /tmp/pulls.json; then
+    # The pull request exists. If the Actions unit was off when it opened,
+    # it has no task; closing and opening it again starts the workflow.
+    if [ "$RETRIGGER" = "1" ]; then
+      num=$(sed -n 's/.*"number":\([0-9][0-9]*\).*/\1/p' /tmp/pulls.json | head -n 1)
+      pr="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/pulls/$num"
+      api PATCH "$pr" /tmp/pr.json -d '{"state":"closed"}' >/dev/null
+      code=$(api PATCH "$pr" /tmp/pr.json -d '{"state":"open"}')
+      if [ "$code" != "201" ] && [ "$code" != "200" ]; then
+        echo "seed: could not reopen the pull request (HTTP $code)" >&2
+        exit 1
+      fi
+    fi
     return 0
   fi
   code=$(api POST "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/pulls" /tmp/pr.json \
@@ -216,6 +261,7 @@ wait_ready
 save_password
 ensure_token
 ensure_repo
+ensure_actions_unit
 ensure_workflow
 ensure_secret
 ensure_runner_token

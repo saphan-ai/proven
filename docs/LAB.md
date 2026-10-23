@@ -64,6 +64,12 @@ Every `gitea` command `make up` runs inside the container uses `GITEA_RUN_USER`.
 
 The runner's Docker host is `tcp://dind:2375`. No service mounts the host's Docker socket. Job containers are started on that inner daemon. The inner daemon is privileged, because Docker-in-Docker needs it. That privilege stays inside the lab. The daemon's port is not published on the host.
 
+`make up` also pulls the Prover's test image (`PROVEN_TEST_IMAGE`, `golang:1.26` by default) into that inner daemon, by digest when `TEST_IMAGE_DIGEST` is set. Without it the lab's `make livecheck` reports `No such image: golang:1.26`. The digest in `lab/versions.env` is empty until someone with network reads it: the first `make up` pulls by tag and prints the digest to put there.
+
+Gitea starts a workflow for a pull request only when the repository's Actions unit is on. The seed turns the unit on by name, and the Compose file adds `repo.actions` to Gitea's default units. If the unit was off when the pull request opened, the seed closes and reopens the pull request so the workflow starts. The seeded copy of the workflow posts to Gitea at `http://gitea:3000/api/v1` instead of `github.api_url`, because the job runs on the inner daemon, where `127.0.0.1` is not Gitea.
+
+`make check-links` checks that every relative Markdown link and every path in `metadata.json` resolves.
+
 The job image is `docker:<DOCKER_VERSION>-cli`, pinned. The runner does not pull an image it already has, so the Proven image loaded by `make up` is the one the workflow runs.
 
 Sample mode does not start a Prover container. A later live run on this runner would start those containers on the lab's daemon, not on the host's.

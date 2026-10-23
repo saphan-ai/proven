@@ -55,6 +55,21 @@ fi
 docker save "$PROVEN_IMAGE:latest" | docker exec -i "$dind_id" docker load
 docker exec "$dind_id" docker pull "docker:${DOCKER_VERSION}-cli"
 
+# The Prover starts each test in PROVEN_TEST_IMAGE on this inner daemon. The
+# lab measured "No such image: golang:1.26" when nothing had pulled it. The
+# pull is by digest when TEST_IMAGE_DIGEST is set, then the image is tagged
+# with the name the Prover uses.
+if [ -n "${TEST_IMAGE_DIGEST:-}" ]; then
+  test_repo=${PROVEN_TEST_IMAGE%%:*}
+  docker exec "$dind_id" docker pull "${test_repo}@${TEST_IMAGE_DIGEST}"
+  docker exec "$dind_id" docker tag "${test_repo}@${TEST_IMAGE_DIGEST}" "$PROVEN_TEST_IMAGE"
+else
+  echo "up: TEST_IMAGE_DIGEST is not set; pulling $PROVEN_TEST_IMAGE by tag" >&2
+  docker exec "$dind_id" docker pull "$PROVEN_TEST_IMAGE"
+  pulled=$(docker exec "$dind_id" docker image inspect --format '{{index .RepoDigests 0}}' "$PROVEN_TEST_IMAGE" 2>/dev/null || true)
+  echo "up: the tag resolved to ${pulled:-an unknown digest}. Set TEST_IMAGE_DIGEST in lab/versions.env to pin it." >&2
+fi
+
 pass=$(compose run --rm --no-deps -T --user 0:0 --entrypoint cat seed /state/password 2>/dev/null || true)
 if [ -z "$pass" ]; then
   pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')

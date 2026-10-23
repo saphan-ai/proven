@@ -36,4 +36,5 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 
 echo "e2e: no proven review on the pull request after ${E2E_WAIT_SECONDS}s" >&2
+echo "e2e: open the pull request's Actions tab in the lab, or run: make logs SERVICE=runner" >&2
 exit 1

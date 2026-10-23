@@ -21,6 +21,9 @@ services:
       GITEA__server__START_SSH_SERVER: "${GITEA_START_SSH_SERVER}"
       GITEA__service__DISABLE_REGISTRATION: "true"
       GITEA__actions__ENABLED: "true"
+      # A repository made through the API gets these units. The seed also
+      # turns the Actions unit on by name, so a kept volume is repaired.
+      GITEA__repository__DEFAULT_REPO_UNITS: "repo.code,repo.releases,repo.issues,repo.pulls,repo.wiki,repo.projects,repo.packages,repo.actions"
       GITEA__security__INSTALL_LOCK: "true"
     ports:
       - "${LAB_BIND}:${GITEA_HTTP_PORT}:${GITEA_CONTAINER_HTTP_PORT}"
