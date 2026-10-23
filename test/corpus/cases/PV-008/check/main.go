@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -74,6 +73,27 @@ func waitFor(ch <-chan struct{}) bool {
 	}
 }
 
+// observe bounds calls that may block before they return an observation.
+func observe[T any](call func() T) (T, bool) {
+	result := make(chan T, 1)
+	go func() { result <- call() }()
+	select {
+	case value := <-result:
+		return value, true
+	case <-time.After(waitLimit):
+		var zero T
+		return zero, false
+	}
+}
+
+func lateFrame(s session) string {
+	ch, ok := observe(s.Subscribe)
+	if !ok {
+		return "subscribe:blocked"
+	}
+	return frame(ch)
+}
+
 func frame(ch <-chan string) string {
 	select {
 	case f := <-ch:
@@ -85,17 +105,17 @@ func frame(ch <-chan string) string {
 
 // start closes a session over a fresh worker and waits until the stop has been
 // entered (and, for a normal worker, until Close has returned).
-func start(i impl, wedged bool) (session, *worker, <-chan struct{}) {
+func start(i impl, wedged bool) (session, *worker, string) {
 	w := newWorker(wedged)
 	s := i.make(w)
 	done := closeAsync(s)
 	if !waitFor(w.entered) {
-		return s, w, done
+		return s, w, "stop-not-entered"
 	}
-	if !wedged {
-		waitFor(done)
+	if !wedged && !waitFor(done) {
+		return s, w, "close-not-returned"
 	}
-	return s, w, done
+	return s, w, ""
 }
 
 var inputs = []struct {
@@ -103,23 +123,39 @@ var inputs = []struct {
 	run  func(i impl) string
 }{
 	{"normal-close-then-late-subscriber", func(i impl) string {
-		s, w, _ := start(i, false)
+		s, w, failure := start(i, false)
 		defer close(w.release)
-		return frame(s.Subscribe())
+		if failure != "" {
+			return failure
+		}
+		return lateFrame(s)
 	}},
 	{"wedged-stop-then-late-subscriber", func(i impl) string {
-		s, w, _ := start(i, true)
+		s, w, failure := start(i, true)
 		defer close(w.release)
-		return frame(s.Subscribe())
+		if failure != "" {
+			return failure
+		}
+		return lateFrame(s)
 	}},
 	{"wedged-stop-then-read-state", func(i impl) string {
-		s, w, _ := start(i, true)
+		s, w, failure := start(i, true)
 		defer close(w.release)
-		return "state:" + s.State()
+		if failure != "" {
+			return failure
+		}
+		state, ok := observe(s.State)
+		if !ok {
+			return "state:blocked"
+		}
+		return "state:" + state
 	}},
 	{"wedged-stop-then-second-close", func(i impl) string {
-		s, w, _ := start(i, true)
+		s, w, failure := start(i, true)
 		defer close(w.release)
+		if failure != "" {
+			return failure
+		}
 		if waitFor(closeAsync(s)) {
 			return "returned"
 		}
@@ -135,5 +171,4 @@ func main() {
 		}
 		fmt.Printf("%s | %s\n", in.name, strings.Join(res, " | "))
 	}
-	os.Exit(0)
 }
