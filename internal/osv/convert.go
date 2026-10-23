@@ -102,6 +102,7 @@ type affected struct {
 		Name      string `json:"name"`
 	} `json:"package"`
 	Ranges []struct {
+		Type   string  `json:"type"`
 		Events []event `json:"events"`
 	} `json:"ranges"`
 	Versions          []string        `json:"versions"`
@@ -155,10 +156,18 @@ func readFile(path string) ([]Row, error) {
 		}
 		var ranges []span
 		for _, rg := range aff.Ranges {
+			// A GIT range names commits. Those strings are not versions, and a
+			// row made from them never matches. Only SEMVER and ECOSYSTEM are
+			// version ranges. Any other type is skipped the same way, so an
+			// unknown type cannot invent rows.
+			if rg.Type != "SEMVER" && rg.Type != "ECOSYSTEM" {
+				continue
+			}
 			ranges = append(ranges, eventsToSpans(rg.Events)...)
 		}
-		// An entry with only a versions list becomes one row per version, each a
-		// range of one version: introduced and last_affected are that version.
+		// No version range left, including an entry whose ranges are only GIT:
+		// the versions list is the affected set. Each version is one row,
+		// introduced and last_affected both that version.
 		if len(ranges) == 0 {
 			for _, v := range aff.Versions {
 				v = strings.TrimSpace(v)
