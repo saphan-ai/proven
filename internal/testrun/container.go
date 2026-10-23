@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,12 +44,27 @@ const (
 	defaultPids = 256
 	// defaultTmpSize bounds each writable scratch mount.
 	defaultTmpSize = "64m"
+
+	// maxPidsLimit and maxTmpBytes are the upper bounds of the PidsLimit and
+	// TmpSize settings, so no setting can turn a bound into a practically open
+	// one (ADR-0025 point 5). The scratch bound is 1 GiB per mount.
+	maxPidsLimit = 4096
+	maxTmpBytes  = 1 << 30
 )
 
 // scratchDirs are the only writable places in the container beside the
-// checkout's own read-only mount. A Go test builds under /tmp and keeps its
-// build cache under the home of an identity that has none, which is /.cache.
-var scratchDirs = []string{"/tmp", "/.cache"}
+// checkout's own read-only mount. A Go test builds and runs its binary under
+// /tmp, and its build cache lives there too (see containerEnv).
+var scratchDirs = []string{"/tmp"}
+
+// containerEnv is the whole environment the container receives, passed as -e.
+// The values are constants, never read from Proven's environment, and none is
+// a secret. They put the home and the Go build cache on scratch, because the
+// root is read-only and the image's own home for the unprivileged user (for the
+// default image, a path that does not exist) is not writable. This amends the
+// "no -e" contract of ADR-0025 point 3: no secret and no inherited value is
+// passed; these two fixed values are.
+var containerEnv = []string{"HOME=/tmp", "GOCACHE=/tmp/go-build"}
 
 // runtimeEnvNames are the variables, beyond PATH and HOME, the runtime process
 // may inherit. They only say where the container daemon is; none holds a
@@ -162,17 +178,17 @@ func (c ContainerConfig) Validate() error {
 			Allowed: []string{defaultUser},
 		}
 	}
-	if c.PidsLimit <= 0 {
+	if c.PidsLimit <= 0 || c.PidsLimit > maxPidsLimit {
 		return &ConfigError{
 			Field: "PidsLimit", Value: strconv.Itoa(c.PidsLimit),
-			Reason:  "the process limit is a positive number; 0 and -1 mean no limit and are refused",
+			Reason:  "the process limit is a positive number of at most " + strconv.Itoa(maxPidsLimit) + "; 0 and -1 mean no limit and are refused",
 			Allowed: []string{strconv.Itoa(defaultPids)},
 		}
 	}
-	if !validMemory(c.TmpSize) {
+	if !validMemory(c.TmpSize) || sizeBytes(c.TmpSize) > maxTmpBytes {
 		return &ConfigError{
 			Field: "TmpSize", Value: c.TmpSize,
-			Reason:  "the scratch size is a positive size with suffix b, k, m or g; 0 is refused",
+			Reason:  "the scratch size is a positive size of at most 1g with suffix b, k, m or g; 0 is refused",
 			Allowed: []string{defaultTmpSize},
 		}
 	}
@@ -188,6 +204,33 @@ func validUser(s string) bool {
 	uid, uerr := strconv.ParseUint(m[1], 10, 32)
 	gid, gerr := strconv.ParseUint(m[2], 10, 32)
 	return uerr == nil && gerr == nil && uid > 0 && gid > 0
+}
+
+// sizeBytes returns the bytes of a size that validMemory accepted, and
+// math.MaxInt64 for one too large to count, so the caller's upper bound
+// refuses it. A bare number is bytes, as in docker-run(1).
+func sizeBytes(s string) int64 {
+	m := memPattern.FindStringSubmatch(s)
+	if m == nil {
+		return math.MaxInt64
+	}
+	n, err := strconv.ParseUint(m[1], 10, 64)
+	if err != nil {
+		return math.MaxInt64
+	}
+	unit := uint64(1)
+	switch m[2] {
+	case "k":
+		unit = 1 << 10
+	case "m":
+		unit = 1 << 20
+	case "g":
+		unit = 1 << 30
+	}
+	if n > math.MaxInt64/unit {
+		return math.MaxInt64
+	}
+	return int64(n * unit)
 }
 
 // validToken accepts one non-empty word that does not start with a dash.
@@ -218,7 +261,7 @@ func validMemory(s string) bool {
 }
 
 // Container is the live test-run adapter. It runs each side of a test in a
-// fresh container with no network, no environment, an unprivileged user, a
+// fresh container with no network, a fixed non-secret environment, an unprivileged user, a
 // read-only root and one read-only checkout (ADR-0025 points 1 to 4). review.Open builds it from Load.
 type Container struct {
 	runtime string
@@ -272,7 +315,8 @@ func (c *Container) Argv(dir, command string) []string {
 
 // argv builds the run line. Each flag below carries out ADR-0025: --rm and
 // --network none, CPU and memory limits from the settings, and the checkout
-// mounted read-only as the only volume. No -e or --env flag is ever added.
+// mounted read-only as the only volume. The only -e flags are the fixed,
+// non-secret values of containerEnv; nothing of Proven's environment is passed.
 // The container also runs as a fixed unprivileged user with a process limit,
 // no capabilities, no privilege gain and a read-only root; the bounded tmpfs
 // mounts are the only other place it may write.
@@ -301,10 +345,15 @@ func (c *Container) argv(dir, command, name string) []string {
 		"--read-only",
 	)
 	for _, dir := range scratchDirs {
-		// nosuid keeps a file written to scratch from gaining privilege; exec stays
-		// allowed because a Go test runs the binary it builds there. Mode 1777 lets
-		// the unprivileged user write to a mount the runtime creates as root.
-		args = append(args, "--tmpfs", dir+":rw,nosuid,mode=1777,size="+c.cfg.TmpSize)
+		// The runtimes mount a tmpfs noexec unless told otherwise, so exec is
+		// named: a Go test runs the binary it builds on scratch. nosuid and nodev
+		// keep a file written there from gaining privilege or acting as a device.
+		// Mode 1777 lets the unprivileged user write to a mount the runtime
+		// creates as root.
+		args = append(args, "--tmpfs", dir+":rw,exec,nosuid,nodev,mode=1777,size="+c.cfg.TmpSize)
+	}
+	for _, e := range containerEnv {
+		args = append(args, "-e", e)
 	}
 	args = append(args,
 		"-v", host+":"+checkoutDir+":ro",
@@ -480,8 +529,8 @@ func commandOutput(ctx context.Context, argv []string) (string, error) {
 	if len(argv) == 0 {
 		return "", errors.New("testrun: empty argv")
 	}
-	// argv carries no -e and no --env, so the container does not receive the
-	// process environment. The runtime process gets an explicit minimal one
+	// argv carries only the fixed -e values of containerEnv, so the container
+	// does not receive the process environment. The runtime process gets an explicit minimal one
 	// too (ADR-0025): PATH, HOME and the names that locate its daemon, never
 	// a key, because its output can reach the trace.
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)

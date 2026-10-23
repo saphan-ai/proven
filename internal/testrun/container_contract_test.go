@@ -55,7 +55,8 @@ func TestContractW1bT1(t *testing.T) {
 }
 
 // TestContractW1bT2 proves no environment variable of Proven reaches the
-// container, even when one holds a secret (ADR-0025 point 3).
+// container, even when one holds a secret; only the two fixed non-secret
+// values pass (ADR-0025 point 3).
 func TestContractW1bT2(t *testing.T) {
 	t.Setenv("METERLESS_RUNTIME_TOKEN", contractW1bSecret)
 	runtime := contractW1bRuntime(t, "exit 0\n")
@@ -418,10 +419,18 @@ func contractW1bNetworkNone(argv []string) bool {
 // contractW1bEnvLeak returns the first argv element that passes environment
 // to the container or carries the planted secret.
 func contractW1bEnvLeak(argv []string) string {
-	for _, arg := range argv {
+	// The two fixed values of ADR-0025 are the only environment the container
+	// may receive; any other -e value is a leak.
+	fixed := map[string]bool{"HOME=/tmp": true, "GOCACHE=/tmp/go-build": true}
+	for i, arg := range argv {
 		switch arg {
-		case "-e", "--env", "--env-file":
+		case "--env", "--env-file":
 			return arg
+		case "-e":
+			if i+1 >= len(argv) || !fixed[argv[i+1]] {
+				return arg
+			}
+			continue
 		}
 		if strings.HasPrefix(arg, "--env=") || strings.HasPrefix(arg, "--env-file=") {
 			return arg
@@ -504,7 +513,8 @@ func contractW1bOtherHostPaths(argv []string, allowed, runtime string) []string 
 	for i, arg := range argv {
 		// The value of --tmpfs names a path inside the container, where a
 		// memory-backed scratch is made; it is not a host path (ADR-0025).
-		if i > 0 && argv[i-1] == "--tmpfs" {
+		// An -e value is a variable for the container, not a host path.
+		if i > 0 && (argv[i-1] == "--tmpfs" || argv[i-1] == "-e") {
 			continue
 		}
 		for _, token := range contractW1bPathTokens(arg) {

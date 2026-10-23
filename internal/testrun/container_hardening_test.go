@@ -2,6 +2,9 @@ package testrun
 
 import (
 	"context"
+	"os"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -26,24 +29,85 @@ func TestArgvHardensTheContainer(t *testing.T) {
 	assertPair(t, argv, "--network", "none")
 }
 
-// TestArgvScratchIsBoundedTmpfs proves the only writable places beside the
-// checkout are size-bounded tmpfs mounts, so a read-only root still lets a
-// Go test build.
+// TestArgvScratchIsBoundedTmpfs proves the only writable place beside the
+// checkout is a size-bounded tmpfs at /tmp that allows exec (the runtimes mount
+// a tmpfs noexec by default, and a Go test runs the binary it builds there) and
+// refuses setuid files and devices. Mutated option: exec; putting noexec back
+// turns this red.
 func TestArgvScratchIsBoundedTmpfs(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
 	argv := c.Argv(t.TempDir(), "go test ./...")
-	found := false
+	mounts := 0
 	for i, a := range argv {
 		if a != "--tmpfs" {
 			continue
 		}
-		found = true
-		if !strings.Contains(argv[i+1], "size=64m") {
-			t.Errorf("tmpfs %q has no size bound", argv[i+1])
+		mounts++
+		opts := strings.Split(argv[i+1], ":")
+		if len(opts) != 2 || opts[0] != "/tmp" {
+			t.Fatalf("tmpfs %q is not the /tmp scratch", argv[i+1])
+		}
+		have := map[string]bool{}
+		for _, o := range strings.Split(opts[1], ",") {
+			have[o] = true
+		}
+		for _, want := range []string{"rw", "exec", "nosuid", "nodev", "size=64m"} {
+			if !have[want] {
+				t.Errorf("tmpfs %q lacks option %q", argv[i+1], want)
+			}
+		}
+		if have["noexec"] {
+			t.Errorf("tmpfs %q is noexec; a test binary could not run", argv[i+1])
 		}
 	}
-	if !found {
-		t.Fatalf("no --tmpfs scratch in %v", argv)
+	if mounts != 1 {
+		t.Fatalf("%d --tmpfs mounts in %v, want exactly the /tmp scratch", mounts, argv)
+	}
+}
+
+// TestArgvPassesOnlyTheFixedEnvironment proves the container receives exactly
+// HOME=/tmp and GOCACHE=/tmp/go-build, so the build cache lands on scratch, and
+// no other -e value, whatever Proven's own environment holds (ADR-0025).
+// Mutated field: Proven's environment; a planted secret must not appear.
+func TestArgvPassesOnlyTheFixedEnvironment(t *testing.T) {
+	t.Setenv("METERLESS_RUNTIME_TOKEN", secretMarker)
+	t.Setenv("GOCACHE", "/elsewhere")
+	c := mustContainer(t, DefaultContainerConfig())
+	argv := c.Argv(t.TempDir(), "go test ./...")
+	forbidEnv(t, argv)
+	for _, a := range argv {
+		if strings.Contains(a, secretMarker) || strings.Contains(a, "/elsewhere") {
+			t.Fatalf("Proven's environment reached argv: %q", a)
+		}
+	}
+}
+
+// TestRuntimeProcessEnvironmentIsExactlyTheNamedOnes proves the runtime process
+// starts with PATH, HOME and the daemon-locating names that are set, and with
+// nothing else, so a secret cannot reach its output (ADR-0025). Positive
+// control: the expected names must be present, so a child that printed nothing
+// fails. Mutated call: commandOutput's cmd.Env; os.Environ() turns this red.
+func TestRuntimeProcessEnvironmentIsExactlyTheNamedOnes(t *testing.T) {
+	t.Setenv("METERLESS_RUNTIME_TOKEN", secretMarker)
+	t.Setenv("PROVEN_GUARDRAIL_KEY", secretMarker)
+	t.Setenv("PATH", "/usr/bin:/bin")
+	t.Setenv("HOME", "/home/prover")
+	t.Setenv("DOCKER_HOST", "unix:///run/test.sock")
+	for _, name := range []string{"DOCKER_CONTEXT", "DOCKER_CONFIG", "XDG_RUNTIME_DIR"} {
+		t.Setenv(name, "")
+		if err := os.Unsetenv(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	text, err := commandOutput(context.Background(), []string{"/usr/bin/env"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Fields(text)
+	sort.Strings(got)
+	want := []string{"DOCKER_HOST=unix:///run/test.sock", "HOME=/home/prover", "PATH=/usr/bin:/bin"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("runtime process environment %q, want exactly %q", got, want)
 	}
 }
 

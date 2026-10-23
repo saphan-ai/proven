@@ -59,8 +59,8 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_TEST_TIMEOUT` | `120s` | the limit for one test run, base or change |
 | `PROVEN_TEST_MAX_WRITTEN_BYTES` | `65536` | the largest test file the Prover may write |
 | `PROVEN_TEST_USER` | `65534:65534` | the unprivileged user and group the test runs as, as numbers; root is refused |
-| `PROVEN_TEST_PIDS` | `256` | the most processes one test run may start |
-| `PROVEN_TEST_TMP_SIZE` | `64m` | the size limit of each writable scratch mount; a positive size with suffix b, k, m or g |
+| `PROVEN_TEST_PIDS` | `256` | the most processes one test run may start; at most 4096 |
+| `PROVEN_TEST_TMP_SIZE` | `64m` | the size limit of the writable scratch mount; a positive size of at most 1g with suffix b, k, m or g |
 
 Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these.
 

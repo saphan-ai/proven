@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -145,13 +146,14 @@ func TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv(t *testing.T) {
 					t.Fatalf("mount %s", argv[i+1])
 				}
 			}
-		case "-e", "--env", "--env-file", "--privileged", "--network=host":
+		case "--env", "--env-file", "--privileged", "--network=host":
 			t.Fatalf("forbidden %s in %v", a, argv)
 		}
 	}
 	if mounts != 1 {
 		t.Fatalf("mounts %d in %v", mounts, argv)
 	}
+	forbidEnv(t, argv)
 	if argv[len(argv)-4] != "golang:1.26" || argv[len(argv)-3] != "sh" || argv[len(argv)-2] != "-c" || argv[len(argv)-1] != "go test ./billing -run TestDiscounted" {
 		t.Fatalf("%v", argv)
 	}
@@ -220,11 +222,17 @@ func TestRunReadsBothCheckoutsAndDoesNotProveATimeout(t *testing.T) {
 			if !sameSentence(stripName(argv), c.Argv(mountHost(argv), "go test ./billing")) {
 				t.Fatalf("ran %v", argv)
 			}
+			forbidEnv(t, argv)
 		}
 		if argv[1] == "rm" {
 			rmCount++
+			// The removal passes no environment at all.
+			for _, a := range argv {
+				if a == "-e" || strings.HasPrefix(a, "--env") {
+					t.Fatalf("env in %v", argv)
+				}
+			}
 		}
-		forbidEnv(t, argv)
 	}
 	if runCount != 2 || rmCount != 2 {
 		t.Fatalf("runs %d rm %d", runCount, rmCount)
@@ -464,12 +472,26 @@ func assertPair(t *testing.T, argv []string, flag, value string) {
 	t.Fatalf("missing %s %s in %v", flag, value, argv)
 }
 
+// fixedContainerEnv is the exact environment the container may receive
+// (ADR-0025): two constants, no secret, nothing read from Proven's environment.
+var fixedContainerEnv = []string{"HOME=/tmp", "GOCACHE=/tmp/go-build"}
+
+// forbidEnv fails when argv hands the container any environment other than
+// fixedContainerEnv, in any spelling the runtime accepts.
 func forbidEnv(t *testing.T, argv []string) {
 	t.Helper()
-	for _, a := range argv {
-		if a == "-e" || a == "--env" || a == "--env-file" || strings.HasPrefix(a, "--env=") {
+	var got []string
+	for i, a := range argv {
+		switch {
+		case a == "-e" && i+1 < len(argv):
+			got = append(got, argv[i+1])
+		case a == "--env" || a == "--env-file" || strings.HasPrefix(a, "--env=") ||
+			strings.HasPrefix(a, "--env-file=") || strings.HasPrefix(a, "-e="):
 			t.Fatalf("env in %v", argv)
 		}
+	}
+	if !reflect.DeepEqual(got, fixedContainerEnv) {
+		t.Fatalf("container environment %q, want exactly %q in %v", got, fixedContainerEnv, argv)
 	}
 }
 

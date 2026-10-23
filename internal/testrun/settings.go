@@ -118,7 +118,7 @@ func bytesAllowed() string {
 }
 
 func pidsAllowed() string {
-	return fmt.Sprintf("a positive integer; empty means %d", defaultPids)
+	return fmt.Sprintf("a positive integer of at most %d; empty means %d", maxPidsLimit, defaultPids)
 }
 
 // refuse builds a ConfigError with one allowed form.
@@ -186,7 +186,7 @@ func Environment() []envdoc.Setting {
 		{Name: EnvTimeout, Default: envdoc.Tick(envdoc.SecondSpec(defaultTimeout)), Description: "the limit for one test run, base or change"},
 		{Name: EnvMaxWrittenBytes, Default: envdoc.Tick(strconv.Itoa(DefaultMaxWrittenBytes)), Description: "the largest test file the Prover may write"},
 		{Name: EnvUser, Default: envdoc.Tick(defaultUser), Description: "the unprivileged user and group the test runs as, as numbers; root is refused"},
-		{Name: EnvPidsLimit, Default: envdoc.Tick(strconv.Itoa(defaultPids)), Description: "the most processes one test run may start"},
-		{Name: EnvTmpSize, Default: envdoc.Tick(defaultTmpSize), Description: "the size limit of each writable scratch mount; a positive size with suffix b, k, m or g"},
+		{Name: EnvPidsLimit, Default: envdoc.Tick(strconv.Itoa(defaultPids)), Description: "the most processes one test run may start; at most 4096"},
+		{Name: EnvTmpSize, Default: envdoc.Tick(defaultTmpSize), Description: "the size limit of the writable scratch mount; a positive size of at most 1g with suffix b, k, m or g"},
 	}
 }
