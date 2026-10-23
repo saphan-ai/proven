@@ -120,7 +120,8 @@ ensure_workflow() {
   body=$(printf '{"message":"Update the proven workflow","branch":"%s","sha":"%s","content":"%s"}' \
     "$LAB_DEMO_BASE" "$sha" "$b64")
   code=$(api PUT "$url" /tmp/wf.json -d "$body")
-  if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+  # 422: the file is already the copy we would write. A second make up must not stop.
+  if [ "$code" != "200" ] && [ "$code" != "201" ] && [ "$code" != "422" ]; then
     echo "seed: could not update the workflow (HTTP $code)" >&2
     exit 1
   fi
@@ -136,9 +137,9 @@ ensure_secret() {
 }
 
 ensure_runner_token() {
-  if [ -s /reg/token ]; then
-    return 0
-  fi
+  # Always write a token. A kept volume may hold one from a run that died
+  # before the runner registered, and that token may already be spent.
+  # The runner reads this file only when it has no registration of its own.
   repo_token="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/actions/runners/registration-token"
   code=$(api POST "$repo_token" /tmp/reg.json -d '{}')
   token=$(json_string token /tmp/reg.json)

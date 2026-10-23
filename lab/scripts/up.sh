@@ -1,8 +1,12 @@
 #!/bin/sh
-# Build the images, start the lab, create the admin once, seed the demo, start the runner.
+# Build the images, start the lab, create the admin when it is missing, seed the demo, start the runner.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker
+
+if [ -z "${GITEA_RUN_USER:-}" ]; then
+  die "up: GITEA_RUN_USER is not set"
+fi
 
 if ! grep -q "tcp://127.0.0.1:${DIND_PORT}" "$ROOT/lab/runner/config.yaml"; then
   die "up: lab/runner/config.yaml does not send jobs to tcp://127.0.0.1:${DIND_PORT}"
@@ -63,16 +67,26 @@ if [ -z "$pass" ]; then
 else
   echo "lab already installed; admin password was printed at first start"
   echo "lab url: $lab_url"
+  echo "up: the volume is kept; repairing the admin user, the runner and the pull request"
 fi
+
+# The image refuses `gitea` as root. `compose exec` is root unless a user is
+# named, so every CLI call uses GITEA_RUN_USER. A kept volume is not a reason
+# to stop: the calls below create whatever is still missing.
+gitea_cli() {
+  compose exec -T -u "$GITEA_RUN_USER" gitea gitea "$@"
+}
 
 # The list is read once. A clean clone has no private tree beside the
 # repository, so the file is temporary and this script removes it on exit.
 users=$(mktemp)
 trap 'rm -f "$users"' EXIT
+err=$(mktemp)
+trap 'rm -f "$users" "$err"' EXIT
 i=0
 listed=0
 while [ "$i" -lt 20 ]; do
-  if compose exec -T gitea gitea admin user list >"$users" 2>/dev/null; then
+  if gitea_cli admin user list >"$users" 2>"$err"; then
     listed=1
     break
   fi
@@ -80,17 +94,18 @@ while [ "$i" -lt 20 ]; do
   sleep 2
 done
 if [ "$listed" -ne 1 ]; then
+  cat "$err" >&2
   die "up: Gitea did not accept an admin command"
 fi
 if ! grep -q "$LAB_ADMIN_USER" "$users"; then
-  compose exec -T gitea gitea admin user create \
+  gitea_cli admin user create \
     --admin \
     --username "$LAB_ADMIN_USER" \
     --password "$pass" \
     --email "$LAB_ADMIN_EMAIL" \
     --must-change-password=false
 fi
-rm -f "$users"
+rm -f "$users" "$err"
 
 LAB_ADMIN_PASSWORD=$pass compose run --rm -T seed
 compose up -d runner

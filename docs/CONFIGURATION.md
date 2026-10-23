@@ -137,13 +137,14 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
 | `GITEA_CONTAINER_HTTP_PORT` | `3000` | Port Gitea listens on inside the lab network |
 | `GITEA_INTERNAL_HOST` | `gitea` | Name of the Gitea service on the lab network |
+| `GITEA_RUN_USER` | `git` | Account `make up` uses for every `gitea` command in the container. The image refuses that command as root, and `compose exec` is root when no user is named |
 | `DIND_HOST` | `dind` | Name of the Docker-in-Docker service |
 | `DIND_PORT` | `2375` | Port that daemon listens on inside the lab network. Not published on the host |
 | `ACT_RUNNER_VERSION` | `0.2.11` | Gitea Actions runner image tag |
 | `DOCKER_VERSION` | `29.9.1` | Tag of the `docker` dind and cli images |
 | `RUNNER_NAME` | `proven-lab` | Name the runner registers with |
 | `RUNNER_LABEL` | `ubuntu-latest` | Label the lab's jobs use. The workflow file's `runs-on` matches this default |
-| `LAB_ADMIN_USER` | `proven` | Admin user created at first start |
+| `LAB_ADMIN_USER` | `proven` | Admin user. `make up` creates it when the account is missing, including on a volume that already holds the password |
 | `LAB_ADMIN_EMAIL` | `proven@localhost` | That user's email |
 | `LAB_DEMO_REPO` | `discount` | Demo repository name |
 | `LAB_DEMO_BASE` | `main` | Base branch |

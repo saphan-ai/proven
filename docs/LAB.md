@@ -9,7 +9,7 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 ## Start
 
 1. From a checkout of this repository, run `make up`.
-2. The first run prints the admin user, a generated password, and the lab URL. The password is printed once. It is kept in the lab's volume until `make clean`. A later `make up` does not print it again.
+2. The first run prints the admin user, a generated password, and the lab URL. The password is printed once. It is kept in the lab's volume until `make clean`. A later `make up` does not print it again. It does not stop because the volume is already there. It creates the admin user, the runner registration and the pull request when any of those is missing.
 3. Open the URL in a browser. Sign in with that user and password.
 4. Open the `discount` repository. It has one open pull request.
 5. The pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review -->`. That comment is the sample review.
@@ -59,6 +59,8 @@ Read that result on the image's page on Docker Hub, for the tag `make push` wrot
 The lab has four services: Gitea, a Docker daemon that lives only inside the lab (`dind`), the Gitea Actions runner, and a one-shot seed.
 
 Gitea does not serve SSH (`GITEA_DISABLE_SSH`, and `GITEA_START_SSH_SERVER` is false). The image already runs OpenSSH on port 22, and Gitea's own SSH server on that same port exited the container. The lab does not need SSH. The web UI is the only published port. `GITEA_SSH_PORT` is kept in the settings and is not published.
+
+Every `gitea` command `make up` runs inside the container uses `GITEA_RUN_USER`. That account is `git` in this image. The same command as root is refused, and `compose exec` is root when no user is named. `make down` keeps the volume, so a second `make up` finds the password already stored. It still repairs a missing admin user, a missing runner registration and a missing pull request, then starts the runner.
 
 The runner's Docker host is `tcp://dind:2375`. No service mounts the host's Docker socket. Job containers are started on that inner daemon. The inner daemon is privileged, because Docker-in-Docker needs it. That privilege stays inside the lab. The daemon's port is not published on the host.
 
