@@ -35,10 +35,11 @@ On 23 October 49 Markdown files linked into `fleet/` or `planning/`, 78 links po
    hackathon/   fleet/  planning/  SAPHAN.md  DESIGN.md
    ```
 3. **The design decisions are the product's**, so they move to `docs/adr/` and stay.
-4. **Two phases.** Phase 1, on 23 October: this decision, the layout map in the README, `CONTRIBUTING.md`; nothing
-   moves. Phase 2, on 25 October (day 4), one change by the fleet: every move with `git mv`, every link and every path
-   in `metadata.json` rewritten, and the masters' train orders updated to the new paths, during a short pause in their
-   public copies. Day 4 leaves two days before the last push to catch what the move broke.
+4. **Two phases, both on 23 October** (the owner moved phase 2 forward the same day: *"today, before the push, when
+   the agents stop, we migrate the whole repository"*). Phase 1: this decision, the layout map in the README,
+   `CONTRIBUTING.md`. Phase 2, before the day-2 push, while the agents are paused: every move with `git mv`, every link
+   and every path in `metadata.json` rewritten, and the masters' train orders updated to the new paths. The four days
+   left before the last push are there to catch what the move broke.
 5. **Links are checked for good, not once.** Phase 2 adds `make check-links`, run in CI: every relative link in every
    Markdown file and every path in `metadata.json` must resolve. A deliberately broken link must turn it red.
 6. **After the hackathon:** tag the repository `hackathon-final`, point the links from `docs/adr/` into `hackathon/` at

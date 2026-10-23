@@ -143,11 +143,11 @@ Every public push is tagged, so you can see exactly what existed before the buil
 
 ## Repository layout
 
-The repository holds two things: **the product**, and **the record of how it was built in the hackathon week**. On
-25 October the record moves into one folder, `hackathon/`, so that after the hackathon the product stands on its own
+The repository holds two things: **the product**, and **the record of how it was built in the hackathon week**. With
+the push of 23 October the record moves into one folder, `hackathon/`, so that after the hackathon the product stands on its own
 ([ADR-0030](fleet/decisions/ADR-0030-the-product-and-the-hackathon-live-apart.md)).
 
-| Today | What it is | From 25 October |
+| Before the move | What it is | After the move |
 |---|---|---|
 | `cmd/`, `internal/` | Proven's code: the command line and the reviewer | unchanged |
 | `docs/` | how to install, run and configure Proven | unchanged, plus `docs/adr/` and `docs/security/` |
