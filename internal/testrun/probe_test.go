@@ -79,8 +79,10 @@ func TestProbeNamesAMissingImage(t *testing.T) {
 	if !ok || d.Service != "prover" || !strings.Contains(d.Reason, "golang:1.26") || !strings.Contains(d.Reason, "not present") {
 		t.Fatalf("%v", err)
 	}
-	if strings.Contains(d.Reason, "pull") {
-		t.Fatalf("reason mentions pull: %s", d.Reason)
+	// The reason names the act that fixes it (the runtime's pull), and the
+	// calls below prove the probe never runs that act itself.
+	if !strings.HasSuffix(d.Reason, "; next: docker pull golang:1.26") {
+		t.Fatalf("reason does not name the next act: %s", d.Reason)
 	}
 	if len(got) != 2 || got[1][1] != "image" || got[1][2] != "inspect" {
 		t.Fatalf("calls %#v", got)

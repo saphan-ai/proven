@@ -57,7 +57,7 @@ func TestWrittenTestIsCopiedAndTheCheckoutStaysUntouched(t *testing.T) {
 		}
 	}
 	out, err := c.Run(context.Background(), Request{
-		Path: "add_test.go", Name: "TestAdd", Command: "go test -run TestAdd .",
+		Path: "add_test.go", Name: "TestAdd",
 		Content: content, BaseDir: base, ChangeDir: change,
 	})
 	if err != nil {
@@ -99,21 +99,23 @@ func TestContainerRefusesAWrittenPathBeforeItRuns(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
 	cases := []struct {
-		name    string
-		path    string
-		content string
-		command string
-		reason  string
-		prep    func()
+		name     string
+		path     string
+		content  string
+		testName string
+		reason   string
+		prep     func()
 	}{
-		{"absolute", "/tmp/add_test.go", "package demo\n", "go test", ReasonAbsolutePath, nil},
-		{"leaves", "../add_test.go", "package demo\n", "go test", ReasonLeavesRepo, nil},
-		{"not a test", "add.go", "package demo\n", "go test", ReasonNotATestFile, nil},
-		{"empty command", "add_test.go", "package demo\n", " ", ReasonEmptyCommand, nil},
-		{"too big", "add_test.go", strings.Repeat("x", 8), "go test", ReasonTooLarge, func() {
+		{"absolute", "/tmp/add_test.go", "package demo\n", "TestAdd", ReasonAbsolutePath, nil},
+		{"leaves", "../add_test.go", "package demo\n", "TestAdd", ReasonLeavesRepo, nil},
+		{"not a test", "add.go", "package demo\n", "TestAdd", ReasonNotATestFile, nil},
+		{"empty name", "add_test.go", "package demo\n", "", ReasonBadName, nil},
+		{"name with shell text", "add_test.go", "package demo\n", "TestAdd; id", ReasonBadName, nil},
+		{"path with a pattern", "a.../add_test.go", "package demo\n", "TestAdd", ReasonBadPackage, nil},
+		{"too big", "add_test.go", strings.Repeat("x", 8), "TestAdd", ReasonTooLarge, func() {
 			c.cfg.MaxWrittenBytes = 4
 		}},
-		{"overwrite", "add.go", "package demo\n", "go test", ReasonOverwrites, func() {
+		{"overwrite", "add.go", "package demo\n", "TestAdd", ReasonOverwrites, func() {
 			if err := os.WriteFile(filepath.Join(change, "add.go"), []byte("package demo\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
@@ -126,8 +128,8 @@ func TestContainerRefusesAWrittenPathBeforeItRuns(t *testing.T) {
 				tc.prep()
 			}
 			out, err := c.Run(context.Background(), Request{
-				Path: tc.path, Content: tc.content, Command: tc.command,
-				BaseDir: base, ChangeDir: change, Name: "TestAdd",
+				Path: tc.path, Content: tc.content,
+				BaseDir: base, ChangeDir: change, Name: tc.testName,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -172,7 +174,7 @@ func TestWrittenGoTestRunsInTheContainer(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err := c.Run(context.Background(), Request{
-		Path: "add_test.go", Name: "TestAdd", Command: "go test -count=1 -run TestAdd .",
+		Path: "add_test.go", Name: "TestAdd",
 		Content: content, BaseDir: base, ChangeDir: change,
 	})
 	if err != nil {

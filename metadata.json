@@ -8,7 +8,7 @@
   },
   "track": "The Agent That Can Explain Why",
   "team": {
-    "name": "Proven",
+    "name": "Saphan.ai",
     "solo": true,
     "builders": [
       { "name": "Marcin \"Wato\" Marzec", "role": "owner: decides and merges; writes no code" }
@@ -30,12 +30,12 @@
       "deployment": "local-docker",
       "data_sources": ["CISA KEV", "FIRST EPSS", "OSV", "git history"],
       "where": ["internal/query/", "internal/agent/investigator/", "cmd/livecheck/"],
-      "evidence": ["docs/SAMPLE_MODE.md", "testdata/fixture/discount/tables.sql", "fleet/infra/zetaris/README.md"],
+      "evidence": ["docs/SAMPLE_MODE.md", "testdata/fixture/discount/tables.sql", "hackathon/fleet/infra/zetaris/README.md"],
       "decisions": [
-        "fleet/decisions/ADR-0002-evidence-is-a-test-or-a-query-through-zetaris.md",
-        "fleet/decisions/ADR-0004-first-evidence-sources.md",
-        "fleet/decisions/ADR-0015-zetaris-through-its-rest-api.md",
-        "fleet/decisions/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md"
+        "docs/adr/ADR-0002-evidence-is-a-test-or-a-query-through-zetaris.md",
+        "docs/adr/ADR-0004-first-evidence-sources.md",
+        "docs/adr/ADR-0015-zetaris-through-its-rest-api.md",
+        "docs/adr/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md"
       ]
     },
     "meterless": {
@@ -46,12 +46,12 @@
       "how": "H-MEM remembers findings refuted in earlier reviews, so they do not come back; the World Model holds the entities a review has seen, and its ingest survives a kill and a restart. Both are a minimum in Go, checked with Meterless's own conformance suites (H-MEM 9 of 13, World Model 7 of 8; the failures are the sections not built yet). Every model call goes through Meterless Nightshift, and the answering model is read from its signed receipt.",
       "engines": ["H-MEM", "World Model"],
       "provider": "nightshift",
-      "where": ["internal/hmem/", "internal/world/", "internal/generator/", "conformance/meterless/"],
-      "evidence": ["docs/SAMPLE_MODE.md", "docs/ARCHITECTURE.md", "fleet/infra/nvidia/README.md"],
+      "where": ["internal/hmem/", "internal/world/", "internal/generator/", "test/conformance/meterless/"],
+      "evidence": ["docs/SAMPLE_MODE.md", "docs/ARCHITECTURE.md", "hackathon/fleet/infra/nvidia/README.md"],
       "decisions": [
-        "fleet/decisions/ADR-0003-meterless-engines-in-go.md",
-        "fleet/decisions/ADR-0018-meterless-engines-minimum-and-their-contract.md",
-        "fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md"
+        "docs/adr/ADR-0003-meterless-engines-in-go.md",
+        "docs/adr/ADR-0018-meterless-engines-minimum-and-their-contract.md",
+        "docs/adr/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md"
       ]
     },
     "cursor": {
@@ -62,10 +62,10 @@
       "how": "Cursor agents write Proven's product code: up to four at once, headless on a Linux machine, each from a signed order, in its own copy of the repository, inside a jail with its own network and an egress door, and with every model request recorded by a proxy. 17 changes were merged on day one.",
       "models": ["grok-4.7-high"],
       "surfaces": ["agent-cli"],
-      "where": ["fleet/orders/", "fleet/status/", "fleet/infra/cursor/"],
-      "evidence": ["fleet/infra/cursor/README.md", "assets/build/2026-10-22_three-cursor-runs-on-grok.png", "fleet/LEDGER.md"],
+      "where": ["hackathon/fleet/orders/", "hackathon/fleet/status/", "hackathon/fleet/infra/cursor/"],
+      "evidence": ["hackathon/fleet/infra/cursor/README.md", "assets/build/2026-10-22_three-cursor-runs-on-grok.png", "hackathon/fleet/LEDGER.md"],
       "decisions": [
-        "fleet/decisions/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md"
+        "docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md"
       ]
     },
     "nvidia": {
@@ -77,11 +77,11 @@
       "models": ["nvidia/nemotron-3.5-super-vl-120b-a12b", "Nemotron 3.5 Content Safety"],
       "route": "via-meterless",
       "where": ["internal/generator/", "internal/guardrail/", "internal/agent/skeptic/"],
-      "evidence": ["fleet/infra/nvidia/README.md", "docs/CONFIGURATION.md"],
+      "evidence": ["hackathon/fleet/infra/nvidia/README.md", "docs/CONFIGURATION.md"],
       "decisions": [
-        "fleet/decisions/ADR-0005-guardrail-on-by-default.md",
-        "fleet/decisions/ADR-0006-a-skeptic-from-another-model-family.md",
-        "fleet/decisions/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md"
+        "docs/adr/ADR-0005-guardrail-on-by-default.md",
+        "docs/adr/ADR-0006-a-skeptic-from-another-model-family.md",
+        "docs/adr/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md"
       ]
     }
   },
@@ -94,7 +94,7 @@
     {
       "name": "Test corpus",
       "what": "21 test-case contracts from 28 real review disagreements, prior art written before 22 October; the code of the cases is written inside the build window, from 22 October.",
-      "where": ["tests/"],
+      "where": ["test/corpus/"],
       "since": "2026-10-19"
     }
   ],

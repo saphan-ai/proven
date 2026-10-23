@@ -17,7 +17,8 @@
 // repository. For a repository it writes those two trees for the review and
 // removes them when the review returns. A tracked symlink is not written into
 // either tree; the trace names it and the draft lists the path. Sample mode
-// still loads a fixture and does not write trees.
+// still loads a fixture and does not write trees. An empty secret is named in
+// the review's failed services before any agent runs (ADR-0013 point 4a).
 package pipeline
 
 import (
@@ -86,6 +87,10 @@ type Options struct {
 	// MaxWrittenBytes is the loaded container limit for a test the prover writes.
 	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
 	MaxWrittenBytes int
+	// Down names services that are already down when the review starts.
+	// An empty secret is recorded here so the review names the service even
+	// when a later check never calls it (ADR-0013 point 4a, ADR-0005 point 5).
+	Down []service.Down
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
@@ -104,6 +109,7 @@ type Pipeline struct {
 	epssView     string
 	env          func(string) string
 	maxWritten   int
+	down         []service.Down
 	atBoundary   func(stage string)
 	mem          *hmem.Store
 	world        *world.Store
@@ -160,7 +166,8 @@ func Build(opts Options) (*Pipeline, error) {
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
-		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes, mem: mem, world: wm,
+		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
+		down: append([]service.Down(nil), opts.Down...), mem: mem, world: wm,
 		workDir: area,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
@@ -317,6 +324,13 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	st := &state{trace: p.trace, changeKey: changeKey(req), skipped: skipped}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
+	}
+	// ADR-0013 point 4a: name a down service even when no later step calls it.
+	// The guardrail refuses the planner's call before the generator runs
+	// (ADR-0005 point 5), and a review with no risks never queries Zetaris.
+	for _, d := range p.down {
+		noted := d
+		st.note(&noted)
 	}
 	// Sample mode: a fixture may carry recorded guardrail verdicts, so a
 	// scenario shows an unsafe prompt refused with no model server (ADR-0005).
@@ -661,7 +675,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 	r := &c.Refutation
 	if r.TestName != "" {
 		out, err := prover.Execute(ctx, run, testrun.Request{
-			FindingID: c.ID, Path: r.TestPath, Name: r.TestName, Command: r.Command,
+			FindingID: c.ID, Path: r.TestPath, Name: r.TestName,
 		})
 		if err != nil {
 			// A deadline is not a test that cannot run; it is passed up as is.

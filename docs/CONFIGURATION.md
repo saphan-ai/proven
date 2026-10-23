@@ -4,7 +4,7 @@ Every setting the reviewer reads, its default, and what it changes (ADR-0013: no
 environment only). The names and defaults below were read from the code on `main` on 22 October 2026
 (`internal/generator/settings.go`, `internal/guardrail/settings.go`, `internal/query/settings.go`,
 `internal/review/config.go`, `cmd/livecheck`). A wrong value stops Proven before any work, and the refusal names the
-setting, the value and what is allowed.
+setting, the value and what is allowed. An empty secret does not: that service is down and the review names it, and an empty guardrail key refuses every model call unless `PROVEN_GUARDRAIL_MODE` is `off`.
 
 The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads none of the
 settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
@@ -14,7 +14,7 @@ settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MOD
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `METERLESS_RUNTIME_TOKEN` | none (required live) | the runtime token sent to Nightshift. Secret: never printed |
+| `METERLESS_RUNTIME_TOKEN` | none (required live) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it |
 | `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address |
 | `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call |
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` | the model asked for; Nightshift's router chooses when `auto` |
@@ -29,17 +29,17 @@ settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MOD
 | `PROVEN_GUARDRAIL_MODE` | `server` | `server` (your own model server), `nvidia` (NVIDIA's hosted API) or `off` (the trace says "no guardrail") |
 | `PROVEN_GUARDRAIL_BASE_URL` | `http://127.0.0.1:8081` for `server`; `https://integrate.api.nvidia.com/v1` for `nvidia` | the guardrail's address |
 | `PROVEN_GUARDRAIL_MODEL` | `nemotron-3.5-content-safety` for `server`; `nvidia/nemotron-3.5-content-safety` for `nvidia` | the safety model. The hosted id is not yet confirmed by a live call |
-| `PROVEN_GUARDRAIL_KEY` | none | the guardrail's key. Secret: never printed |
+| `PROVEN_GUARDRAIL_KEY` | none | the guardrail's key. Secret: never printed. Empty is not off: every model call is refused |
 | `PROVEN_GUARDRAIL_TIMEOUT` | `5s` | the limit for one check |
 
-Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name.
+Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name. An empty key is not off: every model call is refused and the review names the guardrail.
 
 ## Evidence: Zetaris over REST
 
 | Environment variable | Default | What it changes |
 |---|---|---|
 | `ZETARIS_REST_URL` | none (required live) | Zetaris's REST address; an absolute `http` or `https` URL with no user info, query or fragment |
-| `ZETARIS_API_KEY` | none (required live) | Proven's Zetaris key. Secret: never printed |
+| `ZETARIS_API_KEY` | none (required live) | Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it |
 | `ZETARIS_ORG_ID` | none (required live) | the organisation id sent with each query |
 | `ZETARIS_ROW_LIMIT` | `100` | the most rows one query returns |
 | `ZETARIS_TIMEOUT` | `60s` | the limit for one query |
