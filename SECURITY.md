@@ -57,8 +57,11 @@ A finding is proved by a test of the expected behaviour, never by an exploit
 
 ### Evidence queries carry the change's values as literals
 
-A package name or a version taken from the change goes into an evidence query only as a quoted SQL string literal,
-never as query text.
+Proven builds every evidence query itself, from a fixed list of query templates
+([QUERIES.md](docs/QUERIES.md), [ADR-0032](docs/adr/ADR-0032-proven-builds-every-query-from-a-template.md)). A
+model picks a template and gives values; it never writes SQL. Each value, whether it comes from a model or from the
+change, is checked against a strict format and goes into the query only as a quoted string literal that holds exactly
+that value. A value outside its format is refused, never escaped. Proven does not claim a read-only Zetaris key.
 
 ### Proven keeps its memory outside the repository it reviews
 
@@ -91,6 +94,9 @@ tests that prove the fix.
 | Piece | What did not hold | Fixed by | Proved by |
 |---|---|---|---|
 | 1, the Prover's container | The command run inside the Prover's container could come from a model's answer, so text in the change, passed through a model, could choose what ran in the sandbox. Both reviewers of the piece named it. | `1d23854` (23 October): Proven builds the command itself from the test's file and name; a model's answer that carries a command is refused, and a name that is not a valid test name never reaches the container | `internal/agent/prover/command_test.go`, `internal/agent/skeptic/command_test.go`: `TestAnswerThatCarriesACommandIsRefused`, `TestValidNameReachesTheRunnerAsFileAndNameOnly`, `TestExecuteRefusesAnInvalidNameWithoutCallingTheRunner` and three more |
+| 2, secrets | A secret that a service echoed back (the model provider's token in a receipt, the guardrail key in its safety categories, the Zetaris organisation id) could reach the trace, the result, a refusal reason or an error message; a refused organisation id was printed; `livecheck` printed an unknown argument before redacting it; and the refusal tests used empty secrets, so they could not fail. Both reviewers of the piece named parts of it. | `37eabfb` (23 October): one redactor, built from the values actually configured, stands at every writer of the trace, the result and every error; a live review without it is refused | `internal/review/secret_echo_test.go`, `internal/trace/redact_test.go`, `internal/pipeline/secret_test.go`, `cmd/livecheck/secret_test.go`: `TestRuntimeTokenEchoedInTheReceiptIsNotWritten`, `TestGuardrailKeyEchoedInTheCategoriesIsNotWritten`, `TestARefusedSecretIsNamedNotPrinted`, `TestRefusedOrgIDIsNotPrinted`, `TestLivePipelineWithoutARedactorIsRefused` and more |
+| 3, the reviewed repository as input | With a baseline commit, the reviewed repository's own `base/` and `change/` directories could stand in for the git range, so the agents could read trees that the range did not select; and no read of the repository's content had a size limit. Both reviewers of the piece named the second. | `b3e2648` (23 October): the git range alone decides the trees when a baseline commit is given, and every read of repository content (file reads, the archive, `proven.yaml`, the author record) is size-bounded | `TestReviewP3BaselineReviewIgnoresBaseAndChangeDirectoriesInTheRepository` and the size-bound tests of `internal/change` and `internal/review` |
+| 4, evidence queries | A value from the change entered a query as a quoted literal that doubled single quotes but let a backslash, a control byte or invalid UTF-8 through; SQL written by a model reached the evidence platform as text; and the read-only gate counted statements without reading comments or escapes. Both reviewers of the piece named parts of it. | `460da35` (23 October, ADR-0032): every query is built by Proven from a fixed template; each value is checked against a strict format and may hold no quote, backslash, control byte or non-ASCII byte; a model only picks a template and its values; the live gate reads statements strictly | `internal/querytpl` tests, `TestOneSelectRefusesASecondStatementBehindACommentOrEscape`, `TestLocalEngineRefusesTheSameTexts` |
 
 ## What is still being checked
 

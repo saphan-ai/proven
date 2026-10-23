@@ -1,9 +1,10 @@
 // Package osv is the dependency check of the review. It takes the packages
 // a change added or raised (package manifest), queries the OSV package table
 // through the query adapter once per package, and compares the version in
-// Go, not in SQL. It runs with no model. A matching range is a candidate whose
-// evidence is the query and the rows it returned (ADR-0002), and the Judge
-// keeps or drops it like any other finding. A version outside every range is
+// Go, not in SQL. It runs with no model, and the query is built by Proven from
+// the osv-by-package template (ADR-0032, internal/querytpl). A matching range
+// is a candidate whose evidence is the query and the rows it returned
+// (ADR-0002), and the Judge keeps or drops it like any other finding. A version outside every range is
 // a trace line, never a finding.
 //
 // The package also defines the OSV table itself: its columns, the setting
@@ -16,15 +17,15 @@ package osv
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/manifest"
-	"github.com/saphan-ai/proven/internal/pep503"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -35,7 +36,7 @@ const RuleID = "osv-affected-package"
 // The name is a setting (ADR-0013): a review loads it and Check reads it
 // from the context. Sample mode does not set the context, so this default
 // is what a sample review queries, and the variable is not read.
-const KEVView = "px_evidence.px_kev_vulns"
+const KEVView = querytpl.DefaultKEVView
 
 // kevViewKey is the context key of the view WithKEVView stored.
 type kevViewKey struct{}
@@ -48,12 +49,20 @@ func WithKEVView(ctx context.Context, view string) context.Context {
 	return context.WithValue(ctx, kevViewKey{}, view)
 }
 
-// loadedKEVView is the view on ctx, or KEVView when the context carries none.
-// The name is pasted into the SQL, so a value that is not a view is refused
-// here as well as at load.
-func loadedKEVView(ctx context.Context) (string, error) {
+// KEVViewOf is the KEV view WithKEVView stored on ctx, as it was set and not
+// yet checked; empty when the context carries none. A caller that goes on to
+// build a query gives it to querytpl, which refuses a name that is not plain.
+func KEVViewOf(ctx context.Context) string {
 	view, _ := ctx.Value(kevViewKey{}).(string)
-	view = strings.TrimSpace(view)
+	return strings.TrimSpace(view)
+}
+
+// LoadedKEVView is the view on ctx, or KEVView when the context carries none.
+// The name is pasted into the SQL, so a value that is not a view is refused
+// here as well as at load. The pipeline reads it too, so the Investigator's
+// and the Skeptic's queries are built from the same setting (ADR-0032).
+func LoadedKEVView(ctx context.Context) (string, error) {
+	view := KEVViewOf(ctx)
 	if view == "" {
 		view = KEVView
 	}
@@ -62,10 +71,6 @@ func loadedKEVView(ctx context.Context) (string, error) {
 	}
 	return view, nil
 }
-
-// cveID matches a CVE id, the only alias the KEV view is keyed by. Because
-// an id must match it, kevSQL can place the id in the SQL with no escaping.
-var cveID = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
 
 // Outcome is what one dependency check found. Notes are the trace lines for
 // a module that did not become a finding, and for a check that did not run.
@@ -150,8 +155,18 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 // every row. It returns a candidate when at least one row matches, and
 // otherwise a trace note that says why.
 func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit manifest.Hit) (*candidate.Candidate, string, error) {
-	sqlText, err := moduleSQL(table, hit.Ecosystem, hit.Package)
+	// ADR-0032: Proven builds the query from the osv-by-package template. A
+	// package name outside its ecosystem's format has no query: the check says
+	// so in a trace note and goes on to the next package, as it does for a
+	// package with no affected row. The name is the one thing the note must
+	// show a reader, and it is quoted with %q so a control byte or invalid
+	// UTF-8 in it reaches the trace and the terminal as an escape, not raw.
+	sqlText, err := querytpl.OSVPackageSQL(table, hit.Ecosystem, hit.Package)
 	if err != nil {
+		var refusal *querytpl.Refusal
+		if errors.As(err, &refusal) {
+			return nil, fmt.Sprintf("%q %q: osv query refused: %s", hit.Package, hit.Version, refusal.Error()), nil
+		}
 		return nil, "", err
 	}
 	res, err := q.Query(ctx, sqlText)
@@ -212,7 +227,7 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	// message only says so.
 	// ADR-0013: the view is a setting. The pipeline call does not take it,
 	// so the loaded name rides the context. Empty means KEVView.
-	view, verr := loadedKEVView(ctx)
+	view, verr := LoadedKEVView(ctx)
 	if verr != nil {
 		return nil, "", verr
 	}
@@ -224,7 +239,7 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 				continue
 			}
 			seen[id] = struct{}{}
-			sql, serr := kevSQL(view, id)
+			sql, serr := querytpl.KEVSQL(view, id)
 			if serr != nil {
 				return nil, "", serr
 			}
@@ -341,56 +356,12 @@ func readRows(res query.Result) ([]Row, error) {
 	return out, nil
 }
 
-// moduleSQL builds the one query per package. The ecosystem and the package
-// are quoted literals. The table name cannot be quoted, so it is checked.
-func moduleSQL(table, ecosystem, pkg string) (string, error) {
-	if !ValidTable(table) {
-		return "", fmt.Errorf("osv: table name %q is not allowed", table)
-	}
-	eco, err := quoteLiteral(ecosystem)
-	if err != nil {
-		return "", err
-	}
-	// The OSV table keys a PyPI package by its PEP 503 name. A query for the
-	// spelling in the file would miss the row.
-	if ecosystem == "PyPI" {
-		pkg = pep503.Normalise(pkg)
-	}
-	mod, err := quoteLiteral(pkg)
-	if err != nil {
-		return "", err
-	}
-	return "SELECT " + strings.Join(Columns, ", ") + " FROM " + table + " WHERE ecosystem = " + eco + " AND package = " + mod, nil
-}
-
-// kevSQL builds the KEV lookup for one CVE. view has passed ValidView and id
-// has matched cveID, so neither holds a quote and neither needs escaping.
-// Both are checked again here because they are pasted into the SQL text.
-func kevSQL(view, id string) (string, error) {
-	if !ValidView(view) {
-		return "", fmt.Errorf("osv: view name %q is not allowed", view)
-	}
-	if !cveID.MatchString(id) {
-		return "", fmt.Errorf("osv: %q is not a CVE id", id)
-	}
-	return "SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM " + view + " WHERE cve_id = '" + id + "'", nil
-}
-
-// quoteLiteral makes a SQL string literal by doubling single quotes. A line
-// break or a NUL is refused outright; no package name needs one.
-func quoteLiteral(s string) (string, error) {
-	if strings.ContainsAny(s, "\r\n\x00") {
-		return "", fmt.Errorf("osv: value %q cannot be a SQL literal", s)
-	}
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'", nil
-}
-
 // cveAliases picks the CVE ids out of the space-separated aliases column.
 func cveAliases(aliases string) []string {
 	var out []string
 	for _, part := range strings.Fields(aliases) {
 		id := strings.ToUpper(part)
-		if cveID.MatchString(id) {
+		if querytpl.ValidCVE(id) {
 			out = append(out, id)
 		}
 	}

@@ -9,6 +9,8 @@
 // never import the shell's types; review.Open converts a Draft to a Result.
 package candidate
 
+import "github.com/saphan-ai/proven/internal/querytpl"
+
 // Evidence kind strings. They match the seam's EvidenceTest and EvidenceQuery,
 // so the conversion to a review.Result copies the kind unchanged.
 const (
@@ -66,13 +68,16 @@ type Evidence struct {
 // A drop needs TestFound with TestFailsOnChange false, or QueryRows that
 // contradict the finding. TestCannotRun or QueryCannotRun means the
 // instrument did not answer.
+// Query is the template and values the Skeptic named (ADR-0032). It holds no
+// SQL: the pipeline builds the SQL from it, after Proven has checked each value.
+// A request that was refused is cleared, and Reason says why.
 type Refutation struct {
 	Attempted         bool
 	Refuted           bool
 	Reason            string
 	TestPath          string
 	TestName          string
-	SQL               string
+	Query             querytpl.Request
 	TestFound         bool
 	TestFailsOnChange bool
 	TestCannotRun     bool
@@ -100,6 +105,10 @@ type Candidate struct {
 	// into the trace. Empty when the prover did not write a test, or when the
 	// written test is evidence.
 	ProverNote string
+	// QueryNote is why the Investigator's answer is not query evidence: a
+	// template that was refused (ADR-0032). The pipeline copies it into the
+	// trace. Empty when the Investigator proposed no query, or the query ran.
+	QueryNote string
 }
 
 // Failure names a service the review degraded around.

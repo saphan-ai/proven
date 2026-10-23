@@ -1,5 +1,5 @@
 
-H-MEM conformance: implementation = /home/mmarzec/.saphan/workspaces/wt-meterless-conformance-shim/conformance/meterless/hmem/index.ts
+H-MEM conformance: implementation = test/conformance/meterless/hmem/index.ts
 
   record-validation
     PASS rv-001 a record with no source is rejected by construction

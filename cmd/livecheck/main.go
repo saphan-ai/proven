@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -73,13 +73,13 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		fmt.Fprint(stdout, helpText)
 		return exitReady
 	}
+	// The configured values are read once, so every printed line, the summary
+	// and a usage refusal included, is redacted by the one shared redactor.
+	rd := redact.FromEnv(env)
 	if len(args) > 0 {
-		fmt.Fprintf(stderr, "unknown argument %s\n%s", args[0], helpText)
+		fmt.Fprintf(stderr, "unknown argument %s\n%s", rd.Text(args[0]), helpText)
 		return exitUsage
 	}
-	// The secret values are read once, so every printed line, the summary
-	// included, is redacted.
-	secrets := secretValues(env)
 	// Every service is checked even after one fails, so one run names all that
 	// are missing.
 	checks := []check{
@@ -90,14 +90,14 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 	readyN, notN := 0, 0
 	for _, c := range checks {
-		fmt.Fprintln(stdout, redact(c.line, secrets))
+		fmt.Fprintln(stdout, rd.Text(c.line))
 		if c.ready {
 			readyN++
 		} else {
 			notN++
 		}
 	}
-	fmt.Fprintln(stdout, redact(fmt.Sprintf("summary: %d ready, %d not ready", readyN, notN), secrets))
+	fmt.Fprintln(stdout, rd.Text(fmt.Sprintf("summary: %d ready, %d not ready", readyN, notN)))
 	if notN > 0 {
 		return exitNotReady
 	}
@@ -225,33 +225,4 @@ func clip(value string) string {
 		return value[:128]
 	}
 	return value
-}
-
-// secretValues lists the values of the three secret settings, longest first,
-// so a secret that contains another is redacted whole.
-func secretValues(env func(string) string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, key := range []string{generator.EnvToken, guardrail.EnvKey, query.EnvAPIKey} {
-		v := env(key)
-		if v == "" || seen[v] {
-			continue
-		}
-		seen[v] = true
-		out = append(out, v)
-	}
-	sort.Slice(out, func(i, j int) bool { return len(out[i]) > len(out[j]) })
-	return out
-}
-
-// redact strips secret values before a line is printed. A routed model, a
-// receipt id, or a refusal can echo one.
-func redact(s string, secrets []string) string {
-	for _, sec := range secrets {
-		if sec == "" {
-			continue
-		}
-		s = strings.ReplaceAll(s, sec, "redacted")
-	}
-	return s
 }

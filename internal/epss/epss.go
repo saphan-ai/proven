@@ -1,5 +1,6 @@
 // Package epss attaches one EPSS score to each kept finding that names a CVE.
-// The query is deterministic. It does not ask a model.
+// The query is deterministic. It does not ask a model, and Proven builds it from
+// the epss-by-cve template (ADR-0032, internal/querytpl).
 //
 // It runs after the Judge, on the findings it kept, and before the Writer,
 // which orders findings by their best score (see Best). FIRST EPSS is one of
@@ -12,13 +13,13 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -27,12 +28,12 @@ const (
 	// Sample mode does not read it.
 	EnvView = "PROVEN_EPSS_VIEW"
 	// DefaultView is the view a review queries when EnvView is empty.
-	DefaultView = "px_evidence.px_epss_cve_rows"
+	DefaultView = querytpl.DefaultEPSSView
 )
 
-// cvePattern is a CVE id and nothing else. A cell that merely contains one
-// is not a match, so a title or a sentence cannot name a score.
-var cvePattern = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
+// validCVE reports whether s is a CVE id and nothing else. A cell that merely
+// contains one is not a match, so a title or a sentence cannot name a score.
+func validCVE(s string) bool { return querytpl.ValidCVE(s) }
 
 // ConfigError names a refused EPSS setting and the values that are allowed.
 type ConfigError struct {
@@ -88,36 +89,9 @@ func LoadView(env func(string) string) (string, error) {
 // One identifier, or schema.view. Nothing else.
 // The view name is the one part of the score query that is neither a fixed
 // word nor a checked CVE id, so this check is what keeps that query a single
-// SELECT.
+// SELECT. ADR-0032: the one rule lives in querytpl, which builds the query.
 func ValidView(name string) bool {
-	parts := strings.Split(name, ".")
-	if len(parts) < 1 || len(parts) > 2 {
-		return false
-	}
-	for _, p := range parts {
-		if !ident(p) {
-			return false
-		}
-	}
-	return true
-}
-
-// ident reports whether s is a plain identifier: a letter or an underscore,
-// then letters, digits or underscores.
-func ident(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c == '_':
-		case i > 0 && c >= '0' && c <= '9':
-		default:
-			return false
-		}
-	}
-	return true
+	return querytpl.ValidRelation(name)
 }
 
 // Environment lists the EPSS setting for the configuration page.
@@ -174,7 +148,8 @@ func Attach(ctx context.Context, q query.Adapter, view, snapshot string, cands [
 			if err := ctx.Err(); err != nil {
 				return cands, notes, err
 			}
-			sqlText, err := scoreSQL(view, id)
+			// ADR-0032: Proven builds the query from the epss-by-cve template.
+			sqlText, err := querytpl.EPSSSQL(view, id)
 			if err != nil {
 				return cands, notes, err
 			}
@@ -198,19 +173,6 @@ func Attach(ctx context.Context, q query.Adapter, view, snapshot string, cands [
 		}
 	}
 	return cands, notes, nil
-}
-
-// scoreSQL builds the score query. The view and the id are checked again
-// here because they are pasted into the SQL text: an Adapter takes plain
-// SQL, with no bound parameters.
-func scoreSQL(view, id string) (string, error) {
-	if !ValidView(view) {
-		return "", fmt.Errorf("epss: view name %q is not allowed", view)
-	}
-	if !cvePattern.MatchString(id) {
-		return "", fmt.Errorf("epss: %q is not a CVE id", id)
-	}
-	return "SELECT cve_id, epss, percentile, score_date FROM " + view + " WHERE cve_id = '" + id + "'", nil
 }
 
 // toEvidence turns a score answer into query evidence. The engine's snapshot
@@ -360,7 +322,7 @@ func alreadyScored(c candidate.Candidate) map[string]struct{} {
 		}
 		for _, row := range e.Query.Rows {
 			id := strings.ToUpper(strings.TrimSpace(cellAt(row, ix)))
-			if cvePattern.MatchString(id) {
+			if validCVE(id) {
 				out[id] = struct{}{}
 			}
 		}
@@ -382,7 +344,7 @@ func cveIDs(cell string) []string {
 		}
 	}) {
 		id := strings.ToUpper(strings.TrimSpace(part))
-		if cvePattern.MatchString(id) {
+		if validCVE(id) {
 			out = append(out, id)
 		}
 	}

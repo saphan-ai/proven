@@ -87,7 +87,8 @@ func assertDiscountText(t *testing.T, body string) {
 		"evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true",
 		"finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list",
 		"evidence query local-sample snapshot=sample-2026-10-22",
-		"row: evil.example/leftpad | 1.2.3 | CVE-2026-0001 | true",
+		// ADR-0032: F2's query evidence comes from the osv-by-package template.
+		"row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15",
 		"failed services: none",
 	} {
 		if !strings.Contains(body, want) {

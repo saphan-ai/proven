@@ -55,6 +55,9 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0039](ADR-0039-more-evidence-sources.md) | more evidence sources through Zetaris: malicious packages, project health, CVSS, licences | accepted, 2026-10-23 |
 | [0040](ADR-0040-a-tool-run-is-evidence.md) | a deterministic tool's run is evidence, through a tool adapter: race detector, fuzzing, static analysis, coverage | accepted, 2026-10-23 |
 | [0041](ADR-0041-agreed-by-two-models-is-shown-apart.md) | what two models agree on without proof is shown apart, labelled as an opinion, never as proven | accepted, 2026-10-23 |
+| [0042](ADR-0042-a-proposed-fix-is-proved-by-the-same-test.md) | a proposed fix is proved by the same test that proved the problem; a person applies it | accepted, 2026-10-23 |
+| [0043](ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md) | a vulnerable dependency is checked for reachability (`govulncheck` for Go): reached, imported but not reached, or not measured | accepted, 2026-10-23 |
+| [0044](ADR-0044-every-finding-names-its-level-of-proof.md) | every finding names its level of proof first: by a test, by a tool, by data, or agreed by two models | accepted, 2026-10-23 |
 
 **Rules for an ADR**
 

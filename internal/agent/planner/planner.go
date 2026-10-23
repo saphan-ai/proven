@@ -78,14 +78,16 @@ func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidat
 	}
 	seen := map[string]bool{}
 	out := make([]candidate.Risk, 0, len(rows))
-	for _, r := range rows {
+	for i, r := range rows {
 		// Later steps and the trace key every finding on its id, so a missing or
-		// repeated id is refused rather than merged.
+		// repeated id is refused rather than merged. The error names the position and
+		// not the id, because the id is model text and an error must carry none
+		// (ADR-0005, ADR-0013 point 4).
 		if r.ID == "" {
-			return nil, fmt.Errorf("planner: a risk has no id")
+			return nil, fmt.Errorf("planner: risk %d has no id", i+1)
 		}
 		if seen[r.ID] {
-			return nil, fmt.Errorf("planner: duplicate id %s", r.ID)
+			return nil, fmt.Errorf("planner: risk %d repeats an earlier id", i+1)
 		}
 		seen[r.ID] = true
 		out = append(out, candidate.Risk{
