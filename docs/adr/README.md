@@ -50,6 +50,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0034](ADR-0034-proven-runs-air-gapped.md) | Proven runs air-gapped: one setting keeps every call on the organisation's network, and a test proves it | accepted, 2026-10-23 |
 | [0035](ADR-0035-every-review-leaves-a-signed-evidence-pack.md) | every review can leave a signed evidence pack; `proven verify` checks it for an auditor | accepted, 2026-10-23 |
 | [0036](ADR-0036-an-organisation-policy-and-exceptions-that-expire.md) | one organisation policy for every repository; a risk is accepted only with an owner and an expiry | accepted, 2026-10-23 |
+| [0037](ADR-0037-bring-your-own-second-reviewer.md) | bring your own second reviewer: any OpenAI-compatible model; with it connected every change is reviewed by two, and their disagreement is shown | accepted, 2026-10-23 |
 
 **Rules for an ADR**
 
