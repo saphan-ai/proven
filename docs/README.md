@@ -13,4 +13,4 @@ Read in this order.
 | [OSV_TABLE.md](OSV_TABLE.md) | the OSV package table, the CSV converter, and how an administrator loads and refreshes it | first version |
 | SETUP.md (not written yet) | running Proven live: Zetaris, Meterless Nightshift, the NVIDIA guardrail | written by the infrastructure track; not here yet |
 
-The design and its reasons are in [DESIGN.md](../DESIGN.md); every decision is in [fleet/decisions/](../fleet/decisions/).
+The design and its reasons are in [DESIGN.md](../hackathon/DESIGN.md); every decision is in [fleet/decisions/](adr/).
