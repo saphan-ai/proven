@@ -83,6 +83,15 @@ being built in the build week; this paragraph describes the decision until they 
   the Prover stays off rather than running the change's code on the runner
   ([ADR-0021](fleet/decisions/ADR-0021-a-self-hosted-runner-demo-set-up-by-one-script.md)).
 
+## Weaknesses found and fixed
+
+Each line names the piece of the security review that found it, what did not hold, the change that fixed it, and the
+tests that prove the fix.
+
+| Piece | What did not hold | Fixed by | Proved by |
+|---|---|---|---|
+| 1, the Prover's container | The command run inside the Prover's container could come from a model's answer, so text in the change, passed through a model, could choose what ran in the sandbox. Both reviewers of the piece named it. | `1d23854` (23 October): Proven builds the command itself from the test's file and name; a model's answer that carries a command is refused, and a name that is not a valid test name never reaches the container | `internal/agent/prover/command_test.go`, `internal/agent/skeptic/command_test.go`: `TestAnswerThatCarriesACommandIsRefused`, `TestValidNameReachesTheRunnerAsFileAndNameOnly`, `TestExecuteRefusesAnInvalidNameWithoutCallingTheRunner` and three more |
+
 ## What is still being checked
 
 Proven was built in one week. Its code is being reviewed as a whole, piece by piece, against the properties above; the
