@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/saphan-ai/proven/tests/corpus/cases/PV-009/base"
-	"github.com/saphan-ai/proven/tests/corpus/cases/PV-009/change"
+	"github.com/saphan-ai/proven/test/corpus/cases/PV-009/base"
+	"github.com/saphan-ai/proven/test/corpus/cases/PV-009/change"
 )
 
 var referenceArrow = regexp.MustCompile(`->\s*([0-9]+)`)

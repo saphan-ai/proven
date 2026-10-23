@@ -93,7 +93,7 @@ In `expected/EXPECTED.md`.
 
 Toolchain: `go version go1.26.5 linux/amd64` (Go standard library only). Run at 2026-10-23 09:16:00 UTC on Linux.
 
-Command: `bash tests/corpus/cases/PV-009/check.sh` (runs base, change and the independent reference on each input). Exit code: 0.
+Command: `bash test/corpus/cases/PV-009/check.sh` (runs base, change and the independent reference on each input). Exit code: 0.
 
 The repository requires Go 1.26 or later. On a host with an older Go, `GOTOOLCHAIN=auto` may download the required toolchain and needs network access. The literal command has not been run on macOS; its exit code and output there are unverified.
 
