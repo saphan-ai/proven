@@ -1,8 +1,10 @@
 # Proven's image: a static binary, git, and the container client, on Alpine.
-# Versions are build-args from lab/versions.env. Nothing here pins a version.
+# The defaults match GOLANG_IMAGE and RUNTIME_IMAGE in lab/versions.env.
+# make passes the settings, and those values win. An empty default makes
+# BuildKit warn that the base name is empty.
 
-ARG GOLANG_IMAGE
-ARG RUNTIME_IMAGE
+ARG GOLANG_IMAGE=golang:1.26.8
+ARG RUNTIME_IMAGE=alpine:3.22
 FROM ${GOLANG_IMAGE} AS build
 WORKDIR /src
 COPY . .

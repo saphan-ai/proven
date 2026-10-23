@@ -124,15 +124,17 @@ With nothing set, it reports every service `not ready` with the reason and exits
 |---|---|---|
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
 | `LAB_BIND` | `127.0.0.1` | Address the published ports bind to |
-| `GOLANG_IMAGE` | `golang:1.26.8` | Image used when `make build` has no usable Go, and for Proven's image build |
-| `RUNTIME_IMAGE` | `alpine:3.22` | Base of Proven's image and of the seed image |
+| `GOLANG_IMAGE` | `golang:1.26.8` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
+| `RUNTIME_IMAGE` | `alpine:3.22` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
-| `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value |
-| `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms for `make push` |
-| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when a fix is available |
+| `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
+| `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
+| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` refuse when the `docker scout` plugin is installed and a fix is available. `make push` does not run Scout |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI |
-| `GITEA_SSH_PORT` | `2222` | Host port for Gitea SSH |
+| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. This is the only published port |
+| `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
+| `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
+| `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
 | `GITEA_CONTAINER_HTTP_PORT` | `3000` | Port Gitea listens on inside the lab network |
 | `GITEA_INTERNAL_HOST` | `gitea` | Name of the Gitea service on the lab network |
 | `DIND_HOST` | `dind` | Name of the Docker-in-Docker service |
@@ -146,7 +148,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LAB_DEMO_REPO` | `discount` | Demo repository name |
 | `LAB_DEMO_BASE` | `main` | Base branch |
 | `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |
-| `SEED_IMAGE` | `proven-lab-seed` | Name of the seed image we build |
+| `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
 | `SEED_IMAGE_TAG` | `1` | Pin for that image. It is not tagged `latest` |
 | `E2E_WAIT_SECONDS` | `180` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |

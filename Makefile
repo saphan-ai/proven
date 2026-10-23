@@ -18,16 +18,16 @@ build: ## Build ./bin/proven and ./bin/livecheck
 build-all: ## Cross-compile darwin and linux, amd64 and arm64, into ./dist
 	@sh $(ROOT)/lab/scripts/build-all.sh
 
-image: ## Build Proven's image for this machine and load it
+image: ## Build Proven's image for this machine and load it (one platform; a local engine cannot load a manifest list)
 	@sh $(ROOT)/lab/scripts/image.sh
 
-seed-image: ## Build the one-shot lab seed image
+seed-image: ## Build the lab seed for this machine and load it (one platform; make push publishes both)
 	@sh $(ROOT)/lab/scripts/seed-image.sh
 
-scan: ## Scout the images we build, and record third-party images in docs/LAB.md
+scan: ## Scout images when the plugin is present; otherwise name Docker Hub after make push
 	@sh $(ROOT)/lab/scripts/scan.sh
 
-push: ## Scout, then push linux/amd64 and linux/arm64 with provenance and an SBOM
+push: ## Push linux/amd64 and linux/arm64 as one tag per image, with provenance and an SBOM
 	@sh $(ROOT)/lab/scripts/push.sh
 
 up: ## Start the judges' lab

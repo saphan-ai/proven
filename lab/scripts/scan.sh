@@ -1,12 +1,17 @@
 #!/bin/sh
-# Scout the images we build, then record third-party images in docs/LAB.md.
-# A critical or high finding with a fix available refuses the images we build.
+# Scout the images we build when the plugin is installed, then record
+# third-party images in docs/LAB.md. A critical or high finding with a fix
+# available refuses the images we build. make push does not call this script.
+# With no plugin, the scan is read on Docker Hub after make push.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker
 
 if ! docker scout version >/dev/null 2>&1; then
-  die "docker scout is not available; make scan and make push need it"
+  echo "scan: docker scout is not installed. The scan is read on Docker Hub after make push."
+  echo "scan: Proven is ${PROVEN_IMAGE}, tags latest and the git describe value."
+  echo "scan: the seed is ${SEED_IMAGE}:${SEED_IMAGE_TAG}."
+  exit 0
 fi
 
 sh "$ROOT/lab/scripts/image.sh"

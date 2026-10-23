@@ -12,6 +12,8 @@ created=$(oci_created)
 revision=$(oci_revision)
 version=$(oci_version)
 platform=$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')
+echo "seed-image: one platform ($platform). A local engine cannot load a manifest list."
+echo "seed-image: make push publishes $PUSH_PLATFORMS as one tag."
 
 docker buildx build \
   --file "$ROOT/lab/seed/Dockerfile" \
