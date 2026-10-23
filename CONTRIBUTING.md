@@ -24,7 +24,7 @@ A first review needs no network and no keys: [docs/INSTALL.md](docs/INSTALL.md) 
 
 ## How a change is made here
 
-- Every design decision is written down first, as an ADR in [fleet/decisions/](docs/adr/).
+- Every design decision is written down first, as an ADR in [docs/adr/](docs/adr/).
 - Every change gets two independent reviews from different model families before it is merged
   ([ADR-0009](docs/adr/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md)).
 - Code is written to be read: a comment for every package and exported name, and a comment that says why at every step

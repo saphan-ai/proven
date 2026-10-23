@@ -20,9 +20,52 @@ That work led to patent applications, filed in the U.S. and Europe and still pen
 
 Now that fleet takes on something new. At the hackathon it will build **Proven**, an open-source tool for checking code of the kind it writes itself.
 
-## Where things stand: end of day 1, 22 October 2026
+## Where things stand: end of day 2, 23 October 2026
 
-Day one of six is behind us. **Seventeen changes were merged into Proven on day one**, each one written by an agent, checked again by its master on a clean checkout on another machine, and approved by Marcin. Every merge commit carries the request it answers and the reason it was accepted.
+Day two of six is behind us. **Eighteen more changes were merged** (35 in two days), each written by an agent, checked again by its master on a clean checkout, and approved by Marcin; the larger ones were also reviewed by two models other than the one that wrote them.
+
+**The day's biggest step: Proven's code was put through a security review of its own.** Not one diff at a time, but
+the whole code, cut into nine pieces, each one place where something untrusted meets something Proven protects: the
+sandbox that runs the change's code, the keys, the reviewed repository, the evidence queries, the models, the output.
+Each piece was reviewed by **two model families on the same commit**, Anthropic's Claude and OpenAI's, neither seeing
+the other's verdict. They did not always agree: on two of the first three pieces one reviewer accepted with conditions
+and the other rejected the same code and proved it with failing tests. With one reviewer, those pieces would have
+passed. **The first weakness was found, fixed, proved by six tests and merged the same day**: the command run inside
+the sandbox could come from a model's answer, and now Proven builds it itself. Tomorrow NVIDIA's Nemotron reviews the
+pieces again as a third family. The plan, the status of every piece and the verdicts side by side:
+[docs/security/SECURITY_REVIEW.md](docs/security/SECURITY_REVIEW.md); what was fixed: [SECURITY.md](SECURITY.md).
+
+What else came in today:
+- **Proven's own command line**: `proven scan` for a developer and `proven ci` for a pipeline, with the flags and exit codes a CI pipeline already expects. It took 14 rounds: coded by Grok on Cursor, reviewed each round by Claude and OpenAI.
+- **More dependency evidence**: `go.sum`, npm, `requirements.txt` and `poetry.lock` are read; each changed package is checked against OSV by version range, the known-exploited list, and its EPSS score.
+- **One sample scenario per kind of evidence and refusal**, all runnable with no network and no keys.
+- **A missing key no longer stops a review**: the service is named as down, and a guardrail that is down refuses every model call instead of letting it through unchecked.
+- **Code written to be read**: the masters went over the code written so far and added the comments a judge needs.
+- **The repository split**: the product at the top, the build's record in [`hackathon/`](hackathon/). Eleven design decisions were written today ([ADR-0026 to ADR-0036](docs/adr/)).
+- **Two more agent masters joined**, one for the command line and one for the security review, because one master was carrying four streams of work.
+
+**See it run:** [what shipped today, step by step in a terminal](hackathon/SHIPPED_DAY_2.md).
+
+### What works today with the sponsors' technology
+
+| Sponsor | What works, measured | In a review |
+|---|---|---|
+| **Zetaris** | The platform runs on our own machine and its checks pass 9 of 9. Proven's own key reads over REST and is refused every write. OSV by package answers from a file in Zetaris storage, 0.10 to 0.15 s per query. | The Investigator's evidence (KEV, EPSS, OSV) is shaped as Zetaris queries; sample mode runs the same SQL over local tables. [setup](hackathon/fleet/infra/zetaris/README.md) |
+| **Meterless** | Nightshift answers every model call with a signed receipt: 206 receipts, all 206 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 7 of 8; the rest are sections not built yet. | H-MEM and the World Model run in every review, sample mode included; the fleet's own reviews also go through Nightshift. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) |
+| **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. |
+| **Cursor** | The command line was written by Cursor agents on Grok 4.7 and landed today; up to four agents code at once on one Linux machine, each inside its own jail, and every run's model traffic is recorded. | Cursor is how Proven is built. [how it works](hackathon/fleet/infra/cursor/README.md) |
+
+### Tomorrow, 24 October
+
+- A live review with a single NVIDIA API key, and live evidence from Zetaris in the review.
+- NVIDIA Nemotron joins the security review as a third model family.
+- A review written for a person, with Markdown and HTML reports beside JSON and SARIF.
+- The judges' lab: Gitea, a pull request and Proven's review on it, started with one `make up`.
+- Air-gapped mode, a signed evidence pack for auditors, and an organisation policy: the first features for enterprise use.
+
+### Day one, 22 October
+
+**Seventeen changes were merged into Proven on day one**, each one written by an agent, checked again by its master on a clean checkout on another machine, and approved by Marcin. Every merge commit carries the request it answers and the reason it was accepted.
 
 What Proven can do at the end of day one, in sample mode (recorded data, no network):
 - **The six reviewer agents run end to end** behind the command-line shell's request, and honour every field of it: baseline, head, include and exclude paths, and a configuration file.
@@ -136,6 +179,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | before 22 October, 00:00 UTC: **prior art** | [`prior-art`](https://github.com/saphan-ai/proven/tree/prior-art) (`bf05dd2`, 21 October, 19:53 UTC) | Preparation only, no product code: the topic and the fleet's eleven answers, 25 design decisions, the trains' orders, the machines and services for the agents (Cursor seats, Zetaris, Meterless Nightshift, NVIDIA's safety model), and the 21 test-corpus case contracts |
 | 22 October, 00:03 UTC: **coding starts** | [`start`](https://github.com/saphan-ai/proven/compare/prior-art...start) (`3a1a9f0`) | The first line of product code: the agreed seam between the command-line shell and the reviewer, types only |
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. |
+| 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 
