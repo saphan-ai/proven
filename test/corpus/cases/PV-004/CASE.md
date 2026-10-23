@@ -2,7 +2,7 @@
 
 - incident: I03 (a later round of the incident; its first round is a different finding, PV-003)
 - intended fixture language: TypeScript (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-22, declared prior art) · checks: run (2026-10-23) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -76,11 +76,11 @@ In `expected/EXPECTED.md`.
 
 Run the check on base and on change and record each line of its output.
 
-Run at 2026-10-21T17:17:29Z. That clock is the mtime of `tests/corpus/cases/PV-004/dist/check/run.js` from `ls -l --time-style=full-iso` after the command below exited 0. The `date` program is not in this seat's command class.
+Run on Linux at 2026-10-23T08:55:06Z, measured with `date -u +%Y-%m-%dT%H:%M:%SZ` after the check exited. macOS execution was not available on this seat.
 
 Toolchain, measured on this run:
-- node v24.5.0 (`node --version`)
-- npm 11.19.1 (`npm --version`)
+- node v22.23.2 (`node --version`)
+- npm 10.9.8 (`npm --version`)
 - typescript 7.0.2, exact pin in this case's `package.json` and lock file
 - commonmark 0.31.2, exact pin, the reference parser. Locked with it: entities 3.0.1, mdurl 1.0.1, minimist 1.2.8
 
@@ -92,10 +92,10 @@ bash tests/corpus/cases/PV-004/check.sh
 
 Exit code: 0
 
-The script sends install and compile text to standard error, then the check writes the suite count to standard error and one line per input to standard output. Captured together, standard error came first:
+The script sends install and compile text to standard error, then the check writes the suite count to standard error. It compares all 11 output lines byte for byte with `check/expected.stdout` before printing them. Standard output and standard error were captured separately. A cold install needs the npm registry once; after installation, extraction and comparison use local files. The cache is kept inside this worktree. Standard error was:
 
 ```
-added 6 packages, and audited 7 packages in 507ms
+added 6 packages, and audited 7 packages in 483ms
 
 2 packages are looking for funding
   run `npm fund` for details
@@ -121,6 +121,7 @@ indent-four base=command: change=command:echo hello reference=refuse:no-fenced-b
 `````
 
 remark: info-string-backtick reference=command: is the empty fenced block commonmark 0.31.2 opened from the closing line of three backticks. The opening line is not a fence. The same opening line with no closing line has no fenced block.
+remark: indent-four base=command: means the base found no fenced block; it is distinct from the reference's empty fenced block on info-string-backtick.
 
 ## 9. Limits
 
