@@ -76,7 +76,7 @@ func open(opts Options) (Reviewer, error) {
 		if d, ok := service.As(lerr); ok {
 			// ADR-0013 point 4a: an empty token does not build a live client.
 			popts.Down = append(popts.Down, *d)
-			popts.Generator = generator.Absent{Reason: d.Reason}
+			popts.Generator = generator.Absent{Service: d.Service, Reason: d.Reason}
 		} else if lerr != nil {
 			return nil, generatorConfig(lerr)
 		} else {

@@ -32,6 +32,9 @@ const containerAfter = "Each test runs with no network and no secret (ADR-0025).
 // readsAfter follows the read-bound table. It is not a setting.
 const readsAfter = "A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these."
 
+// generatorAfter says, per mode, which keys the generator needs and where to get them (ADR-0031 point 6).
+const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address and the models have defaults, so the key is the only value needed. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these."
+
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
 // beside PROVEN_OSV_TABLE. PROVEN_EVIDENCE_VIEW is declared in livecheck.
@@ -42,8 +45,9 @@ func Catalog() []envdoc.Section {
 	evidence := append(append(append(query.Environment(), osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
 		{
-			Heading: "The model generator: Meterless Nightshift",
+			Heading: "The model generator: Meterless Nightshift or NVIDIA's hosted API",
 			Rows:    generator.Environment(),
+			After:   generatorAfter,
 		},
 		{
 			Heading: "The guardrail: NVIDIA Nemotron content safety",

@@ -10,17 +10,21 @@ The shell's own flags (`proven scan …`) are documented by the shell's track. S
 settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
 <!-- generated: settings -->
-## The model generator: Meterless Nightshift
+## The model generator: Meterless Nightshift or NVIDIA's hosted API
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `METERLESS_RUNTIME_TOKEN` | none (required live) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it |
-| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address |
-| `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call |
-| `PROVEN_GENERATOR_MODEL` | `meterless/auto` | the model asked for; Nightshift's router chooses when `auto` |
+| `PROVEN_GENERATOR_MODE` | `nightshift` | `nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031) |
+| `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
+| `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` for `nightshift`; `https://integrate.api.nvidia.com/v1` for `nvidia` | the generator's address |
+| `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
+| `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/llama-3.3-nemotron-super-49b-v1.5` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default is from NVIDIA's published list and is not yet confirmed by a live call |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | the limit for one model call |
-| `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by the stream's receipt); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
+| `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
 | `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's) |
+
+Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address and the models have defaults, so the key is the only value needed. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these.
 
 ## The guardrail: NVIDIA Nemotron content safety
 

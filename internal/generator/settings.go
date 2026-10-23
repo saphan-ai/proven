@@ -16,6 +16,8 @@ import (
 // token, which has none. ADR-0013: no value the generator runs with is
 // hardcoded; each comes from one of these settings or its named default.
 const (
+	EnvMode          = "PROVEN_GENERATOR_MODE"
+	EnvKey           = "PROVEN_GENERATOR_KEY"
 	EnvToken         = "METERLESS_RUNTIME_TOKEN"
 	EnvBaseURL       = "PROVEN_GENERATOR_BASE_URL"
 	EnvApp           = "PROVEN_GENERATOR_APP"
@@ -29,14 +31,31 @@ const (
 // An empty PROVEN_SKEPTIC_MODEL means this model. A set value is used as it is.
 const DefaultSkepticModel = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 
+// The two providers PROVEN_GENERATOR_MODE chooses between (ADR-0031 point 1).
+const (
+	// ModeNightshift calls Meterless Nightshift and is the default (ADR-0019, ADR-0031 point 2).
+	ModeNightshift = "nightshift"
+	// ModeNVIDIA calls NVIDIA's hosted API directly (ADR-0031 point 3).
+	ModeNVIDIA = "nvidia"
+)
+
 const (
 	// The defaults below apply when a setting is empty. defaultRequire "all" means
 	// every agent must be answered by an NVIDIA model (ADR-0019 point 4).
+	defaultMode    = ModeNightshift
 	defaultBaseURL = "http://127.0.0.1:8088"
 	defaultApp     = "proven"
 	defaultModel   = "meterless/auto"
 	defaultTimeout = 60 * time.Second
 	defaultRequire = "all"
+
+	// The defaults of nvidia mode (ADR-0031 point 3). The base is the hosted
+	// API's OpenAI-compatible root. The model is one id from the list NVIDIA
+	// publishes at build.nvidia.com; it is not the Skeptic's model, so the finder
+	// and the Skeptic differ (ADR-0006). Neither id has been confirmed by a call
+	// with a real key: that check is UNRUN, and a setting replaces either.
+	defaultNVIDIABase  = "https://integrate.api.nvidia.com/v1"
+	defaultNVIDIAModel = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
 )
 
 // Environment lists the live-generator settings in the order the page shows.
@@ -44,25 +63,36 @@ const (
 func Environment() []envdoc.Setting {
 	return []envdoc.Setting{
 		{
+			Name:        EnvMode,
+			Default:     envdoc.Tick(defaultMode),
+			Description: "`nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031)",
+		},
+		{
 			Name:        EnvToken,
-			Default:     "none (required live)",
+			Default:     "none (required in `nightshift` mode)",
 			Secret:      true,
-			Description: "the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it",
+			Description: "the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode",
+		},
+		{
+			Name:        EnvKey,
+			Default:     "none (required in `nvidia` mode)",
+			Secret:      true,
+			Description: "the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode",
 		},
 		{
 			Name:        EnvBaseURL,
-			Default:     envdoc.Tick(defaultBaseURL),
-			Description: "Nightshift's address",
+			Default:     envdoc.Tick(defaultBaseURL) + " for `nightshift`; " + envdoc.Tick(defaultNVIDIABase) + " for `nvidia`",
+			Description: "the generator's address",
 		},
 		{
 			Name:        EnvApp,
 			Default:     envdoc.Tick(defaultApp),
-			Description: "the application name sent with each call",
+			Description: "the application name sent with each call to Nightshift. Not sent in `nvidia` mode",
 		},
 		{
 			Name:        EnvModel,
-			Default:     envdoc.Tick(defaultModel),
-			Description: "the model asked for; Nightshift's router chooses when `auto`",
+			Default:     envdoc.Tick(defaultModel) + " for `nightshift`; " + envdoc.Tick(defaultNVIDIAModel) + " for `nvidia`",
+			Description: "the model asked for; Nightshift's router chooses when `auto`. The hosted default is from NVIDIA's published list and is not yet confirmed by a live call",
 		},
 		{
 			Name:        EnvTimeout,
@@ -72,7 +102,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvRequireNVIDIA,
 			Default:     envdoc.Tick(defaultRequire),
-			Description: "which agents must be answered by an `nvidia/*` model (by the stream's receipt); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name",
+			Description: "which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name",
 		},
 		{
 			Name:        EnvSkepticModel,
@@ -113,9 +143,12 @@ func (e *ConfigError) Error() string {
 // Settings is one validated live-generator configuration.
 // The token is held so the call can send it. It is not a value to print.
 type Settings struct {
-	BaseURL       string
-	App           string
-	Model         string
+	// Mode is ModeNightshift or ModeNVIDIA.
+	Mode    string
+	BaseURL string
+	App     string
+	Model   string
+	// Token is the Nightshift runtime token or, in nvidia mode, the NVIDIA key.
 	Token         string
 	Timeout       time.Duration
 	SkepticModel  string
@@ -146,23 +179,36 @@ func (s Settings) requiresNVIDIA(agent string) bool {
 }
 
 // Load reads the live-generator settings. A wrong non-empty value is refused.
-// An empty token is not a refusal: Nightshift is down (ADR-0013 point 4a).
+// An empty token or key is not a refusal: the service is down (ADR-0013 point 4a).
 // An empty lookup uses the defaults for every setting that has one.
 func Load(env func(string) string) (Settings, error) {
 	// A nil lookup is an empty environment, so the defaults apply and the token is empty.
 	if env == nil {
 		env = func(string) string { return "" }
 	}
-	token := env(EnvToken)
+	mode := env(EnvMode)
+	if mode == "" {
+		mode = defaultMode
+	}
+	if mode != ModeNightshift && mode != ModeNVIDIA {
+		return Settings{}, refuse(EnvMode, clip(mode), "not a generator mode", "nightshift or nvidia")
+	}
+	// Each mode reads its own secret and ignores the other, so a key left in the
+	// environment for one provider is never sent to the other (ADR-0031 point 3).
+	secretEnv, svc, baseDefault, modelDefault := EnvToken, "nightshift", defaultBaseURL, defaultModel
+	if mode == ModeNVIDIA {
+		secretEnv, svc, baseDefault, modelDefault = EnvKey, "nvidia", defaultNVIDIABase, defaultNVIDIAModel
+	}
+	token := env(secretEnv)
 	// A line break or an over-long token is a wrong value, refused before any
 	// review. The value is not echoed: it is a secret. An empty token is
 	// handled after the other settings, so a bad URL is still refused.
 	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 {
-		return Settings{}, refuse(EnvToken, "", "the live generator needs a runtime token", "a non-empty secret in the environment, at most 4096 characters, with no line break")
+		return Settings{}, refuse(secretEnv, "", "the live generator needs a secret", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
 	base := env(EnvBaseURL)
 	if base == "" {
-		base = defaultBaseURL
+		base = baseDefault
 	}
 	base, err := checkBase(base)
 	if err != nil {
@@ -177,7 +223,7 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	model := env(EnvModel)
 	if model == "" {
-		model = defaultModel
+		model = modelDefault
 	}
 	if err := checkToken(EnvModel, model, 128, "a non-empty model or routing mode without spaces, at most 128 characters", modelName); err != nil {
 		return Settings{}, err
@@ -205,16 +251,24 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	// ADR-0013 point 4a: an empty token means Nightshift is down. The review
-	// goes on and names it. The reason names the variable and not the value.
+	// ADR-0013 point 4a: an empty token or key means the service is down. The
+	// review goes on and names it. The reason names the variable and not the value.
 	if strings.TrimSpace(token) == "" {
-		return Settings{}, &service.Down{Service: "nightshift", Reason: EnvToken + " is empty"}
+		return Settings{}, &service.Down{Service: svc, Reason: secretEnv + " is empty"}
 	}
 	return Settings{
-		BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
+		Mode: mode, BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
 		SkepticModel: skepticModel,
 		requireAll:   all, requireNone: none, requireNVIDIA: set,
 	}, nil
+}
+
+// serviceName is the name a failed call carries in the review's failed services.
+func (s Settings) serviceName() string {
+	if s.Mode == ModeNVIDIA {
+		return "nvidia"
+	}
+	return "nightshift"
 }
 
 // refuse builds the refusal for one setting with one allowed form.

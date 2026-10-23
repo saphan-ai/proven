@@ -1,6 +1,7 @@
 // Command livecheck names each live service a review needs, before a demo.
 //
-// It checks the generator (Meterless Nightshift), the guardrail, Zetaris and
+// It checks the generator (Meterless Nightshift or NVIDIA's hosted API, by
+// PROVEN_GENERATOR_MODE), the guardrail, Zetaris and
 // the Prover's container runtime. It reads the same settings a live review
 // loads, sends one small call to each service, and prints one line for each.
 // A secret value is never printed.
@@ -35,7 +36,9 @@ const helpText = `livecheck checks every live service a review needs.
 
 One line per service, then a summary.
 A line is "ready" or "not ready: <reason>".
-The generator line names the routed model and the receipt id, or "none".
+The generator line names the mode (` + generator.EnvMode + `: nightshift or nvidia), the
+model and the receipt id, or "none"; in nvidia mode the receipt is "no receipt".
+A missing or rejected key is named on that line.
 The guardrail line names the verdict and the latency.
 Mode off is ready and prints "off by setting".
 The query line names the row count of one SELECT over the evidence view.
@@ -104,8 +107,11 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	return exitReady
 }
 
-// checkGenerator sends one short prompt and names the routed model and the
-// receipt id the answer carried.
+// checkGenerator sends one short prompt and names the mode in use, the routed
+// model and the receipt id the answer carried. ADR-0031: it checks the provider
+// PROVEN_GENERATOR_MODE chooses, so a missing or rejected NVIDIA key is named
+// here before a review. It makes a completion rather than a model-list call,
+// because a list may be served without a key and would call a wrong key ready.
 func checkGenerator(env func(string) string) check {
 	cfg, err := generator.Load(env)
 	if err != nil {
@@ -126,7 +132,7 @@ func checkGenerator(env func(string) string) check {
 			receipt = use.ReceiptID
 		}
 	}
-	return readyLine("generator", fmt.Sprintf("model %s, receipt %s", model, receipt))
+	return readyLine("generator", fmt.Sprintf("mode %s, model %s, receipt %s", cfg.Mode, model, receipt))
 }
 
 // checkGuardrail checks one short prompt. Mode off is a setting, not a
