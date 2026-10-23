@@ -119,6 +119,12 @@ func stageWritten(src, rel, content string) (string, error) {
 		os.RemoveAll(dst)
 		return "", err
 	}
+	// MkdirTemp makes the root private to its owner; the container user must
+	// be able to read the staged checkout it is mounted on.
+	if err := MakeReadable(dst); err != nil {
+		os.RemoveAll(dst)
+		return "", err
+	}
 	return dst, nil
 }
 
@@ -190,4 +196,30 @@ func writeInside(root, rel, content string) error {
 		return err
 	}
 	return os.WriteFile(dest, []byte(content), 0o644)
+}
+
+// MakeReadable gives group and others read permission on every regular file
+// under root, and read and search permission on every directory. It grants
+// nothing else: no write bit is added and no bit is removed from the owner.
+// The container runs as a fixed unprivileged user that does not own the trees
+// Proven writes, so without this grant it cannot even stat the checkout it is
+// mounted on (ADR-0025). The mount stays read-only; this only lets the
+// container user read it. Symlinks and other special files are left alone,
+// because a mode change on a link would follow it out of the tree.
+func MakeReadable(root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return nil
+		}
+		grant := os.FileMode(0o044)
+		// Search permission is needed on a directory, and an executable file
+		// stays executable for the users who may now read it.
+		if info.IsDir() || info.Mode().Perm()&0o111 != 0 {
+			grant = 0o055
+		}
+		return os.Chmod(path, info.Mode().Perm()|grant)
+	})
 }

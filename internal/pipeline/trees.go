@@ -8,6 +8,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/fixture"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 // liveSnapshotName is the evidence snapshot a live review records when the
@@ -104,6 +105,12 @@ func (p *Pipeline) materialize(req Request) (*fixture.Fixture, []string, func(),
 		changeSkipped, err = change.ExportCommit(req.Target, req.HeadCommit, changeDir)
 	}
 	if err != nil {
+		remove()
+		return nil, nil, nil, err
+	}
+	// The trees are mounted read-only into a container whose user is not their
+	// owner, so others must be able to read them (ADR-0025).
+	if err := testrun.MakeReadable(dir); err != nil {
 		remove()
 		return nil, nil, nil, err
 	}

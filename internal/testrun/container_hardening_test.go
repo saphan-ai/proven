@@ -51,7 +51,7 @@ func TestArgvScratchIsBoundedTmpfs(t *testing.T) {
 		for _, o := range strings.Split(opts[1], ",") {
 			have[o] = true
 		}
-		for _, want := range []string{"rw", "exec", "nosuid", "nodev", "size=64m"} {
+		for _, want := range []string{"rw", "exec", "nosuid", "nodev", "size=512m"} {
 			if !have[want] {
 				t.Errorf("tmpfs %q lacks option %q", argv[i+1], want)
 			}

@@ -42,8 +42,11 @@ const (
 	// defaultPids bounds the processes of one container, so a runaway test
 	// cannot exhaust the host's process table.
 	defaultPids = 256
-	// defaultTmpSize bounds each writable scratch mount.
-	defaultTmpSize = "64m"
+	// defaultTmpSize bounds each writable scratch mount. A Go test build
+	// measured about 135 MB on a cold cache (compiled packages, the build's
+	// work directory and the test binary), so the default leaves a margin of
+	// about four times; maxTmpBytes stays the upper bound.
+	defaultTmpSize = "512m"
 
 	// maxPidsLimit and maxTmpBytes are the upper bounds of the PidsLimit and
 	// TmpSize settings, so no setting can turn a bound into a practically open
