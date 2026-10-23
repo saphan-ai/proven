@@ -190,12 +190,21 @@ func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
 // given no path and the request has no baseline commit. A missing file is the defaults.
 func loadSettingsInTarget(target string) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
-	st, err := os.Stat(path)
+	// ADR-0013, ADR-0025: the target's copy is repository content, so a link is refused by name
+	// before it is opened. Stat and ReadFile would follow it to a file outside the checkout, and
+	// the refusal never quotes what the link points at.
+	st, err := os.Lstat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return defaultSettings(), nil
 		}
 		return fileSettings{}, err
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		return fileSettings{}, &ConfigError{
+			Field: "ConfigPath", Value: path, Reason: "proven.yaml is a symbolic link; Proven reads only a regular file inside the checkout",
+			Allowed: []string{"a regular file named proven.yaml"},
+		}
 	}
 	if st.IsDir() {
 		return fileSettings{}, &ConfigError{

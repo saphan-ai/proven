@@ -39,14 +39,17 @@ func open(opts Options) (Reviewer, error) {
 	// ADR-0013: the size bounds on every read of the repository under review are
 	// settings. They are loaded first, so the explicit configuration below is read
 	// under them too. A wrong value stops Open before any review and is never
-	// replaced by the default. Sample mode reads no setting and keeps the defaults.
+	// replaced by the default. Sample mode reads no setting, so it puts the defaults back: the bounds
+	// are process state, and a sample review must not run under an earlier review's bounds.
+	reads := change.DefaultLimits()
 	if !opts.Sample {
-		reads, rerr := change.LoadLimits(opts.Env)
+		loaded, rerr := change.LoadLimits(opts.Env)
 		if rerr != nil {
 			return nil, readLimitConfig(rerr)
 		}
-		change.UseLimits(reads)
+		reads = loaded
 	}
+	change.UseLimits(reads)
 	cfg := defaultSettings()
 	explicit := false
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
