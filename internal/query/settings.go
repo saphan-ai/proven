@@ -108,13 +108,20 @@ func Load(env func(string) string) (Settings, error) {
 	if env == nil {
 		env = func(string) string { return "" }
 	}
+	// ADR-0013 point 4a: an empty URL, key or organisation id means Zetaris is
+	// down, not that the review is refused. A value that is set but wrong is
+	// still refused. The first empty one is named after every set value has
+	// been checked, so a bad value is never hidden behind an empty one.
+	var missing string
 	base := strings.TrimSpace(env(EnvRESTURL))
 	if base == "" {
-		return Settings{}, refuse(EnvRESTURL, "", "the live query adapter needs a base URL", "an absolute http or https URL with no user info, query or fragment")
-	}
-	base, err := checkBase(base)
-	if err != nil {
-		return Settings{}, err
+		missing = EnvRESTURL
+	} else {
+		var err error
+		base, err = checkBase(base)
+		if err != nil {
+			return Settings{}, err
+		}
 	}
 	// A line break or an over-long key is a wrong value, refused before any
 	// review. The value is not echoed: it is a secret. An empty key is a down
@@ -125,7 +132,11 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	// ADR-0023, point 6: the organisation id is the numeric id Zetaris issues.
 	org := strings.TrimSpace(env(EnvOrgID))
-	if !orgID(org) {
+	if org == "" {
+		if missing == "" {
+			missing = EnvOrgID
+		}
+	} else if !orgID(org) {
 		return Settings{}, refuse(EnvOrgID, clip(org), "not an organisation id", "a non-empty string of digits, at most 18 characters")
 	}
 	// The row limit is bounded, so one query cannot pull a whole source into the
@@ -148,8 +159,11 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	// ADR-0013 point 4a: an empty key means Zetaris is down. The review goes
 	// on and names it. The reason names the variable and not the value.
-	if strings.TrimSpace(key) == "" {
-		return Settings{}, &service.Down{Service: "zetaris", Reason: EnvAPIKey + " is empty"}
+	if missing == "" && strings.TrimSpace(key) == "" {
+		missing = EnvAPIKey
+	}
+	if missing != "" {
+		return Settings{}, &service.Down{Service: "zetaris", Reason: missing + " is empty"}
 	}
 	return Settings{BaseURL: base, APIKey: key, OrgID: org, RowLimit: limit, Timeout: timeout}, nil
 }
