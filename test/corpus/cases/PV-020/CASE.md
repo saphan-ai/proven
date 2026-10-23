@@ -95,7 +95,7 @@ The check needs Bash and Go 1.26 or later. It can run from any directory in a ch
 
 Command, from the repository root:
 
-    bash tests/corpus/cases/PV-020/check.sh
+    bash test/corpus/cases/PV-020/check.sh
 
 Exit code: 0
 
