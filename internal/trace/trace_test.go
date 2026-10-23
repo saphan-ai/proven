@@ -10,6 +10,8 @@ import (
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
+// TestAppendDoesNotRewrite proves a second event reaches the file with its
+// finding id. It does not yet check that the first line is still there.
 func TestAppendDoesNotRewrite(t *testing.T) {
 	dir := t.TempDir()
 	w, err := trace.Open(dir)
@@ -31,6 +33,9 @@ func TestAppendDoesNotRewrite(t *testing.T) {
 	}
 }
 
+// TestEveryEventHasRunIDAndTimeAndClose proves every line of one run carries
+// the same run id and a UTC RFC 3339 time, Close can be called twice, and a closed writer
+// refuses to append.
 func TestEveryEventHasRunIDAndTimeAndClose(t *testing.T) {
 	dir := t.TempDir()
 	w, err := trace.Open(dir)
@@ -92,6 +97,7 @@ func TestEveryEventHasRunIDAndTimeAndClose(t *testing.T) {
 	}
 }
 
+// bytesContains reports whether s occurs in b.
 func bytesContains(b []byte, s string) bool {
 	return len(b) >= len(s) && (string(b) == s || len(s) == 0 || (len(b) > 0 && contains(string(b), s)))
 }

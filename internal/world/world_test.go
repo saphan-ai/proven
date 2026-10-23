@@ -14,6 +14,8 @@ import (
 	"github.com/saphan-ai/proven/internal/world"
 )
 
+// TestNormalizeNameFoldsDiacriticsAndSpace proves two spellings of one name
+// give one id, different names and different types give different ids.
 func TestNormalizeNameFoldsDiacriticsAndSpace(t *testing.T) {
 	accented := "José\u00a0\u00a0García"
 	if world.NormalizeName(accented) != world.NormalizeName("Jose Garcia") {
@@ -30,6 +32,8 @@ func TestNormalizeNameFoldsDiacriticsAndSpace(t *testing.T) {
 	}
 }
 
+// TestDecideBands proves the merge bands at their edges: 0.85 merges, 0.82
+// queues for review, 0.81 is new.
 func TestDecideBands(t *testing.T) {
 	if world.Decide(0.85) != "auto-merge" || world.Decide(0.84) != "review" ||
 		world.Decide(0.82) != "review" || world.Decide(0.81) != "new" {
@@ -37,6 +41,7 @@ func TestDecideBands(t *testing.T) {
 	}
 }
 
+// TestUpsertWritesAnAuditLine proves each entity write adds one audit line.
 func TestUpsertWritesAnAuditLine(t *testing.T) {
 	dir, logs := t.TempDir(), t.TempDir()
 	s := openAt(t, dir, logs)
@@ -63,6 +68,7 @@ func TestUpsertWritesAnAuditLine(t *testing.T) {
 	}
 }
 
+// TestProvenanceIsRequired proves an entity write with no provenance is refused.
 func TestProvenanceIsRequired(t *testing.T) {
 	s := openWorld(t)
 	err := s.UpsertEntity(world.Entity{Type: "person", ID: "ent_x", Name: "No Provenance"})
@@ -71,6 +77,8 @@ func TestProvenanceIsRequired(t *testing.T) {
 	}
 }
 
+// TestIngestIsIdempotent proves a second ingest of the same trace skips every
+// event and leaves the state unchanged (ADR-0018 point 5).
 func TestIngestIsIdempotent(t *testing.T) {
 	s := openWorld(t)
 	log := sampleLog(t, true)
@@ -94,6 +102,8 @@ func TestIngestIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestIngestResumesAfterAStop proves an ingest stopped halfway and resumed
+// from a reopened store reaches the same state as one full pass (ADR-0018 point 5).
 func TestIngestResumesAfterAStop(t *testing.T) {
 	full := openWorld(t)
 	log := sampleLog(t, true)
@@ -122,6 +132,8 @@ func TestIngestResumesAfterAStop(t *testing.T) {
 	}
 }
 
+// TestRefutationWithoutEvidenceIsNotRemembered proves a refutation of a
+// finding with no evidence is folded but not stored in H-MEM.
 func TestRefutationWithoutEvidenceIsNotRemembered(t *testing.T) {
 	s := openWorld(t)
 	log := sampleLog(t, false)
@@ -137,6 +149,8 @@ func TestRefutationWithoutEvidenceIsNotRemembered(t *testing.T) {
 	}
 }
 
+// TestContextNamesTheMemory proves a refutation with evidence is stored in
+// H-MEM and the finding's context names that memory.
 func TestContextNamesTheMemory(t *testing.T) {
 	s := openWorld(t)
 	if _, err := s.Ingest(bytes.NewReader(sampleLog(t, true)), 0); err != nil {
@@ -151,6 +165,7 @@ func TestContextNamesTheMemory(t *testing.T) {
 	}
 }
 
+// TestGeneratorIsNotCalled proves ingest never calls the injected model.
 func TestGeneratorIsNotCalled(t *testing.T) {
 	s := openWorld(t)
 	g := &boom{}
@@ -163,6 +178,7 @@ func TestGeneratorIsNotCalled(t *testing.T) {
 	}
 }
 
+// boom is a generator that records whether it was called.
 type boom struct{ called bool }
 
 func (b *boom) Complete(context.Context, string, string) (string, error) {
@@ -170,6 +186,8 @@ func (b *boom) Complete(context.Context, string, string) (string, error) {
 	return "", nil
 }
 
+// sampleLog is one finding's trace: claim, evidence, refutation and verdict.
+// withEvidence sets whether the refutation was of a finding with proof.
 func sampleLog(t *testing.T, withEvidence bool) []byte {
 	t.Helper()
 	events := []trace.Event{

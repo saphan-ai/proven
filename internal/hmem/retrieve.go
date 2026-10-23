@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+// The defaults and constants of the H-MEM hybrid ranking. They are part of the
+// Meterless specification the store is built to (ADR-0018), not settings.
+// recencyDays is the decay constant of the recency term.
 const (
 	dayMS            = 24 * 60 * 60 * 1000
 	recencyDays      = 14
@@ -20,7 +23,9 @@ type Hit struct {
 	Relevance float64
 }
 
-// QueryResult is the ranked list and the reinjection block.
+// QueryResult is the ranked list and the reinjection block. Context is the
+// text a caller can give back to a model; Reason and Strategy say how the
+// list was chosen.
 type QueryResult struct {
 	Hits     []Hit
 	Context  string
@@ -46,6 +51,8 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	defer s.mu.Unlock()
 	qEmb := Embed(query)
 	qTokens := Tokenize(query)
+	// Only the first eight query tokens count, so a long query cannot drown
+	// the keyword and tag terms.
 	if len(qTokens) > 8 {
 		qTokens = qTokens[:8]
 	}
@@ -62,11 +69,14 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 		if scored[i].Relevance != scored[j].Relevance {
 			return scored[i].Relevance > scored[j].Relevance
 		}
+		// Equal scores fall back to the id, so the order is the same every run.
 		return scored[i].Record.ID < scored[j].Record.ID
 	})
 	if len(scored) > topN {
 		scored = scored[:topN]
 	}
+	// Retrieval is an access: each returned record is touched, audited and
+	// saved, which feeds its recency on the next query.
 	now := s.now()
 	for i := range scored {
 		rec := s.records[scored[i].Record.ID]
@@ -102,6 +112,7 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 }
 
 // Score is the final ranking value for one record. It does not touch the store.
+// It applies the same query trimming as Query, so a test can check one score by hand.
 func Score(rec Record, query string, now int64) float64 {
 	tokens := Tokenize(query)
 	if len(tokens) > 8 {
@@ -110,6 +121,9 @@ func Score(rec Record, query string, now int64) float64 {
 	return score(rec, Embed(query), tokens, extractEntities(query), classifyDomain(query, nil, TypeGeneral), now)
 }
 
+// score is the hybrid formula: a weighted sum of semantic, keyword, tag,
+// domain, entity, layer and recency terms, less a penalty for a superseded
+// record, clamped to [0, 1] and scaled by the record's confidence.
 func score(rec Record, qEmb []float64, qTokens, qEntities []string, qDomain string, now int64) float64 {
 	semantic := clamp01(Cosine(qEmb, rec.Embedding))
 	keyword := Jaccard(qTokens, Tokenize(rec.Content))
@@ -135,6 +149,7 @@ func score(rec Record, qEmb []float64, qTokens, qEntities []string, qDomain stri
 	return clamp01(raw) * rec.Confidence
 }
 
+// layerWeight ranks long-term memory above working, and working above short-term.
 func layerWeight(layer string) float64 {
 	switch layer {
 	case LayerLong:
@@ -162,6 +177,7 @@ func (s *Store) Feedback(id, kind string) error {
 		rec.AccessCount++
 	}
 	rec.Confidence = clamp01(rec.Confidence + delta)
+	// A memory marked wrong is tagged for a person to look at, not deleted.
 	if kind == "wrong" && !containsTag(rec.Tags, "review") {
 		rec.Tags = append(rec.Tags, "review")
 	}
@@ -172,6 +188,8 @@ func (s *Store) Feedback(id, kind string) error {
 	return s.persist()
 }
 
+// feedbackDelta is the fixed confidence change for each feedback kind.
+// An unknown kind is refused, not ignored.
 func feedbackDelta(kind string) (float64, bool) {
 	switch kind {
 	case "helpful":
@@ -185,6 +203,7 @@ func feedbackDelta(kind string) (float64, bool) {
 	}
 }
 
+// containsTag reports whether want is one of tags.
 func containsTag(tags []string, want string) bool {
 	for _, t := range tags {
 		if t == want {
@@ -194,6 +213,9 @@ func containsTag(tags []string, want string) bool {
 	return false
 }
 
+// formatReinjection writes the hits as a memory block grouped by domain, in
+// sorted domain order, each line marked with its layer and ending in its id
+// so a reader can trace a line back to its record.
 func formatReinjection(hits []Hit) string {
 	if len(hits) == 0 {
 		return ""
@@ -231,11 +253,14 @@ func formatReinjection(hits []Hit) string {
 	return b.String()
 }
 
+// techTerms are the technology names that count as entities and as tech domain words.
 var techTerms = []string{
 	"react", "python", "typescript", "javascript", "rust", "sqlite", "postgres",
 	"node", "docker", "graphql", "redis", "llm", "embedding",
 }
 
+// domainKeywords are the words that place a memory in a domain. The order
+// matters: on a tie the earlier domain wins.
 var domainKeywords = []struct {
 	name  string
 	words []string
@@ -245,6 +270,8 @@ var domainKeywords = []struct {
 	{"personal", []string{"family", "hobby", "prefer", "like", "dislike", "morning", "evening"}},
 }
 
+// classifyDomain picks a memory's domain. An explicit project: or tech: tag
+// wins over the words, because a tag is a decision and the words are a guess.
 func classifyDomain(content string, tags []string, typ string) string {
 	for _, t := range tags {
 		if strings.HasPrefix(t, "project:") {
@@ -281,6 +308,8 @@ func classifyDomain(content string, tags []string, typ string) string {
 	return best
 }
 
+// extractEntities finds known technology names, then capitalised words of
+// three or more letters, at most ten in all and each once.
 func extractEntities(content string) []string {
 	seen := map[string]struct{}{}
 	var out []string
@@ -326,10 +355,12 @@ func extractEntities(content string) []string {
 	return out
 }
 
+// isLetter reports whether r is an ASCII letter.
 func isLetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
 
+// namespace files a memory under its domain and a bucket chosen by its type.
 func namespace(domain, typ string) string {
 	bucket := "notes"
 	switch typ {

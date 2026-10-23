@@ -10,6 +10,8 @@ import (
 	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
+// TestConfigurationPageMatchesTheRegistry proves docs/CONFIGURATION.md shows
+// exactly the declared settings, and names the first setting that drifted.
 func TestConfigurationPageMatchesTheRegistry(t *testing.T) {
 	if err := envdoc.Check(Catalog()); err != nil {
 		t.Fatal(err)
@@ -33,6 +35,8 @@ func TestConfigurationPageMatchesTheRegistry(t *testing.T) {
 	t.Fatalf("docs/CONFIGURATION.md drifted on %s; run: go run ./cmd/settings-doc", name)
 }
 
+// TestSecretFlagMatchesTheDescription proves a setting is flagged Secret
+// exactly when its description tells the reader it is secret.
 func TestSecretFlagMatchesTheDescription(t *testing.T) {
 	for _, sec := range Catalog() {
 		for _, row := range sec.Rows {
@@ -44,6 +48,8 @@ func TestSecretFlagMatchesTheDescription(t *testing.T) {
 	}
 }
 
+// configPath finds docs/CONFIGURATION.md from this file, whatever the working
+// directory of the test.
 func configPath(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

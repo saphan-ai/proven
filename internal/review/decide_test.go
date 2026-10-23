@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+// TestFamilyTableDefaults proves the shipped family table of ADR-0011 point 4, and that a model it
+// does not know, even a near miss such as gpt4, is "family unknown", never guessed.
 func TestFamilyTableDefaults(t *testing.T) {
 	cfg := defaultSettings()
 	cases := []struct {
@@ -31,6 +33,8 @@ func TestFamilyTableDefaults(t *testing.T) {
 	}
 }
 
+// TestOpenFamilyNameIsAccepted proves that a family name outside the shipped table is accepted: the
+// family names are open, only the classes are a closed list.
 func TestOpenFamilyNameIsAccepted(t *testing.T) {
 	cfg, err := parseConfig([]byte("families: gemini-*=Google\n"))
 	if err != nil {
@@ -44,6 +48,8 @@ func TestOpenFamilyNameIsAccepted(t *testing.T) {
 	}
 }
 
+// TestConfiguredFamilyTableReplacesTheDefault proves that a configured families table replaces the
+// shipped one instead of merging with it.
 func TestConfiguredFamilyTableReplacesTheDefault(t *testing.T) {
 	cfg, err := parseConfig([]byte("families: gemini-*=OpenAI\n"))
 	if err != nil {
@@ -57,6 +63,9 @@ func TestConfiguredFamilyTableReplacesTheDefault(t *testing.T) {
 	}
 }
 
+// TestClassRules proves the shipped path rules of ADR-0014 point 2: each sample path gets its class and
+// the rule that chose it, a near miss (author/) falls to the fallback, and a base-name rule matches
+// in a subdirectory.
 func TestClassRules(t *testing.T) {
 	cfg := defaultSettings()
 	cases := []struct {
@@ -84,6 +93,8 @@ func TestClassRules(t *testing.T) {
 	}
 }
 
+// TestHighestRiskWinsOverEarlierLowerRule proves ADR-0014 point 3: the highest-risk class wins, not
+// the rule listed first.
 func TestHighestRiskWinsOverEarlierLowerRule(t *testing.T) {
 	rules := []pathRule{
 		{Pattern: "**/*.md", Class: "docs"},
@@ -95,6 +106,8 @@ func TestHighestRiskWinsOverEarlierLowerRule(t *testing.T) {
 	}
 }
 
+// TestConfiguredOrderCanPutDocsAboveSecurity proves that the order of risk is a setting: a configured
+// order decides, with no built-in preference for security.
 func TestConfiguredOrderCanPutDocsAboveSecurity(t *testing.T) {
 	cfg, err := parseConfig([]byte("class_order: docs, user interface, mobile, backend, security\n"))
 	if err != nil {
@@ -110,6 +123,8 @@ func TestConfiguredOrderCanPutDocsAboveSecurity(t *testing.T) {
 	}
 }
 
+// TestMobileOutranksUserInterface proves that with several changed files, the class is decided across
+// all of them by the default order.
 func TestMobileOutranksUserInterface(t *testing.T) {
 	rules := []pathRule{
 		{Pattern: "**/*.tsx", Class: "user interface"},
@@ -121,6 +136,8 @@ func TestMobileOutranksUserInterface(t *testing.T) {
 	}
 }
 
+// TestSecurityIsDoubledAndBackendIsNot proves the default doubling (ADR-0009): a security change is
+// doubled and says when no special model is configured; a backend change runs one reviewer.
 func TestSecurityIsDoubledAndBackendIsNot(t *testing.T) {
 	cfg := defaultSettings()
 	secDir := treeWith(t, "go.mod", "module example.com/sec\n")
@@ -142,6 +159,7 @@ func TestSecurityIsDoubledAndBackendIsNot(t *testing.T) {
 	}
 }
 
+// treeWith builds a base/change pair of directories whose only difference is one new file at rel.
 func treeWith(t *testing.T, rel, body string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -158,6 +176,7 @@ func treeWith(t *testing.T, rel, body string) string {
 	return dir
 }
 
+// decideOn runs applyDecision alone, without the agents, and returns what it filled in.
 func decideOn(t *testing.T, cfg fileSettings, req Request) Result {
 	t.Helper()
 	var out Result
@@ -167,6 +186,8 @@ func decideOn(t *testing.T, cfg fileSettings, req Request) Result {
 	return out
 }
 
+// TestDoubledClassAddsTheSpecialReviewer proves ADR-0009 point 5: a reviewer line names its model and
+// role and says, per author model, whether it shares the family: no, yes, or family unknown.
 func TestDoubledClassAddsTheSpecialReviewer(t *testing.T) {
 	cfg, err := parseConfig([]byte("special_reviewer: qwen-special\n"))
 	if err != nil {
@@ -190,6 +211,8 @@ func TestDoubledClassAddsTheSpecialReviewer(t *testing.T) {
 	}
 }
 
+// TestAuthorStatementWhenNothingIsNamed proves ADR-0011 point 6: with no author model named, the review
+// says "author model not stated" and names the default reviewer.
 func TestAuthorStatementWhenNothingIsNamed(t *testing.T) {
 	got := authorStatement(nil, nil, "NVIDIA")
 	if got != "author model not stated; default reviewer NVIDIA" {
@@ -201,6 +224,8 @@ func TestAuthorStatementWhenNothingIsNamed(t *testing.T) {
 	}
 }
 
+// TestScanTrailersReadsTheAgentAndModel proves that a trailer is read as agent:model, that a bad value
+// is kept as unreadable, that an indented line is not a trailer, and that a repeated model counts once.
 func TestScanTrailersReadsTheAgentAndModel(t *testing.T) {
 	text := "[fixture] change: second\n\nAssisted-by: Claude:claude-3-opus\nAssisted-by: not-a-pair\n  Assisted-by: Indented:nope\n"
 	got, bad := scanTrailers(text, []string{"Assisted-by"}, "commit")
@@ -224,6 +249,8 @@ func TestScanTrailersReadsTheAgentAndModel(t *testing.T) {
 	}
 }
 
+// TestUnreadableTrailerIsNamed proves that a trailer the reader cannot split is quoted in the review
+// as unreadable, and is never reported as "author model not stated".
 func TestUnreadableTrailerIsNamed(t *testing.T) {
 	text := "Assisted-by: claude-opus-5-5\nCo-authored-by: Claude <noreply@example.com>\n"
 	got, bad := scanTrailers(text, []string{"Assisted-by", "Co-authored-by"}, "description")
@@ -249,6 +276,8 @@ func TestUnreadableTrailerIsNamed(t *testing.T) {
 	}
 }
 
+// TestConfigRefusals proves that each bad value is refused with its field, its value, its reason and the
+// allowed values, all in the printed message (ADR-0013, ADR-0014 point 7).
 func TestConfigRefusals(t *testing.T) {
 	cases := []struct {
 		body   string
@@ -284,6 +313,7 @@ func TestConfigRefusals(t *testing.T) {
 	}
 }
 
+// TestClassOrderThatListsEveryClassIsAccepted proves that a reordered list naming every class is accepted.
 func TestClassOrderThatListsEveryClassIsAccepted(t *testing.T) {
 	_, err := parseConfig([]byte("class_order: docs, user interface, mobile, backend, security\n"))
 	if err != nil {
@@ -291,6 +321,8 @@ func TestClassOrderThatListsEveryClassIsAccepted(t *testing.T) {
 	}
 }
 
+// TestRaiseClassOnDoesNotChangeTheClass proves that raise_class is read and kept but changes no class:
+// no model raises a class in this build (ADR-0014 point 9).
 func TestRaiseClassOnDoesNotChangeTheClass(t *testing.T) {
 	cfg, err := parseConfig([]byte("raise_class: on\n"))
 	if err != nil {
@@ -305,6 +337,7 @@ func TestRaiseClassOnDoesNotChangeTheClass(t *testing.T) {
 	}
 }
 
+// TestDoubledOffIsAllowed proves that doubled_classes: off doubles no class.
 func TestDoubledOffIsAllowed(t *testing.T) {
 	cfg, err := parseConfig([]byte("doubled_classes: off\n"))
 	if err != nil {

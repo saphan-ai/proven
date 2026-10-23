@@ -7,6 +7,10 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 )
 
+// TestLockVersionWinsOverTheManifest proves that when a manifest and the lock
+// file beside it name one package, only the lock file's exact version is kept,
+// for Go, npm and PyPI, that PyPI names pair up without regard to case, and
+// that a package only the manifest names is still kept.
 func TestLockVersionWinsOverTheManifest(t *testing.T) {
 	files := []change.File{
 		{Path: "go.mod", Change: []byte("module m\n\ngo 1.26\n\nrequire example.com/mod v1.0.0\n")},
@@ -48,6 +52,9 @@ func TestLockVersionWinsOverTheManifest(t *testing.T) {
 	}
 }
 
+// TestLockInAnotherDirectoryDoesNotWin proves that a lock file pairs only with
+// the manifest in its own directory: a go.sum at the root does not hide a
+// require in svc/go.mod.
 func TestLockInAnotherDirectoryDoesNotWin(t *testing.T) {
 	got, _, err := Collect([]change.File{
 		{Path: "svc/go.mod", Change: []byte("module m\n\ngo 1.26\n\nrequire example.com/mod v1.0.0\n")},
@@ -61,6 +68,9 @@ func TestLockInAnotherDirectoryDoesNotWin(t *testing.T) {
 	}
 }
 
+// TestUnparsedLockIsANote proves that a lock file that does not parse is a
+// trace note naming the file and the reason, not an error, and that the
+// manifest beside it is still read.
 func TestUnparsedLockIsANote(t *testing.T) {
 	got, notes, err := Collect([]change.File{
 		{Path: "go.mod", Change: []byte("module m\n\ngo 1.26\n\nrequire example.com/a v1.0.0\n")},

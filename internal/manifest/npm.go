@@ -22,6 +22,7 @@ func NPM() Reader {
 	}
 }
 
+// diffNPM compares the dependencies of two package.json files.
 func diffNPM(base, change []byte) ([]Change, error) {
 	before, _, err := parseNPM(base)
 	if err != nil {
@@ -34,6 +35,8 @@ func diffNPM(base, change []byte) ([]Change, error) {
 	return diffNamed(before, after, semver.Compare), nil
 }
 
+// npmNotes names the entries of the change side that were not read. A
+// parse error gives no notes here, because diffNPM already returned it.
 func npmNotes(change []byte) []string {
 	_, notes, err := parseNPM(change)
 	if err != nil {
@@ -42,6 +45,8 @@ func npmNotes(change []byte) []string {
 	return notes
 }
 
+// parseNPM reads package.json with a streaming decoder, not into a map,
+// because the finding needs the line of each entry and a map loses it.
 func parseNPM(b []byte) (map[string]req, []string, error) {
 	if len(bytes.TrimSpace(b)) == 0 {
 		return map[string]req{}, nil, nil
@@ -57,6 +62,8 @@ func parseNPM(b []byte) (map[string]req, []string, error) {
 	out := map[string]req{}
 	var notes []string
 	if err := readObject(dec, b, func(key string, _ int) error {
+		// peerDependencies, optionalDependencies and the rest are not read
+		// (docs/OSV_TABLE.md). A name in both sections takes the later one.
 		if key != "dependencies" && key != "devDependencies" {
 			return skipValue(dec)
 		}
@@ -70,6 +77,9 @@ func parseNPM(b []byte) (map[string]req, []string, error) {
 	return out, notes, nil
 }
 
+// readSection reads one dependencies object. A section that is not an
+// object, or an entry that is not a string, is a note, not an error: the
+// rest of the file is still checked.
 func readSection(dec *json.Decoder, b []byte, section string, out map[string]req, notes *[]string) error {
 	tok, err := dec.Token()
 	if err != nil {
@@ -104,6 +114,8 @@ func readSection(dec *json.Decoder, b []byte, section string, out map[string]req
 	})
 }
 
+// readObject calls fn for each key of the object the decoder is inside,
+// with the line the key ends on, and consumes the closing brace.
 func readObject(dec *json.Decoder, b []byte, fn func(key string, line int) error) error {
 	for dec.More() {
 		tok, err := dec.Token()
@@ -128,6 +140,7 @@ func readObject(dec *json.Decoder, b []byte, fn func(key string, line int) error
 	return nil
 }
 
+// skipValue consumes one JSON value of any shape.
 func skipValue(dec *json.Decoder) error {
 	tok, err := dec.Token()
 	if err != nil {
@@ -143,6 +156,8 @@ func skipValue(dec *json.Decoder) error {
 	return skipRest(dec, closeDelim(d))
 }
 
+// skipRest consumes the rest of an object or array whose opening
+// delimiter was already read, up to and including end.
 func skipRest(dec *json.Decoder, end json.Delim) error {
 	if end == '}' {
 		for dec.More() {
@@ -170,6 +185,7 @@ func skipRest(dec *json.Decoder, end json.Delim) error {
 	return nil
 }
 
+// closeDelim returns the delimiter that closes d.
 func closeDelim(d json.Delim) json.Delim {
 	if d == '[' {
 		return ']'
@@ -177,6 +193,7 @@ func closeDelim(d json.Delim) json.Delim {
 	return '}'
 }
 
+// lineAt turns a byte offset of the decoder into a 1-based line number.
 func lineAt(b []byte, offset int64) int {
 	if offset < 0 {
 		return 1

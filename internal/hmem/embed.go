@@ -3,11 +3,15 @@ package hmem
 import "math"
 
 // DIM is the width of the deterministic local embedding.
-// It is a stand-in for a model embedding. No network call builds it.
+// It is a stand-in for a model embedding. No network call builds it, so the
+// store works in sample mode with no credentials (ADR-0018) and the same
+// text always ranks the same.
 const DIM = 64
 
 // Tokenize lowercases text, keeps letters and digits, and drops tokens of one rune.
 func Tokenize(text string) []string {
+	// Only ASCII letters and digits make a token, so the embedding is the
+	// same on every platform and in the conformance suite.
 	lower := []rune(text)
 	for i, r := range lower {
 		if r >= 'A' && r <= 'Z' {
@@ -33,6 +37,8 @@ func Tokenize(text string) []string {
 	return out
 }
 
+// fnv1a is the 32-bit FNV-1a hash, chosen because it is small, fixed and
+// easy to reproduce in another language.
 func fnv1a(s string) uint32 {
 	h := uint32(0x811c9dc5)
 	for i := 0; i < len(s); i++ {
@@ -47,6 +53,8 @@ func Embed(text string) []float64 {
 	vec := make([]float64, DIM)
 	for _, token := range Tokenize(text) {
 		h := fnv1a(token)
+		// Low bits pick the slot, bit 8 the sign and bits 16 to 18 the weight,
+		// so tokens that share a slot rarely cancel out exactly.
 		idx := int(h % DIM)
 		sign := 1.0
 		if (h>>8)%2 != 0 {
@@ -60,6 +68,7 @@ func Embed(text string) []float64 {
 		sum += v * v
 	}
 	norm := math.Sqrt(sum)
+	// Text with no tokens stays the zero vector, which scores 0 against anything.
 	if norm == 0 {
 		return vec
 	}

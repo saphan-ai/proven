@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+// TestRunWritesTheSampleCSV proves that the command writes the sample
+// advisories to the named file, aliases joined, and nothing to stdout.
 func TestRunWritesTheSampleCSV(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out.csv")
@@ -28,6 +30,8 @@ func TestRunWritesTheSampleCSV(t *testing.T) {
 	}
 }
 
+// TestRunUsage proves that a call with no arguments exits with status 2 and
+// prints the usage line.
 func TestRunUsage(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run(nil, &stdout, &stderr); code != 2 || !strings.Contains(stderr.String(), "usage:") {
@@ -35,6 +39,7 @@ func TestRunUsage(t *testing.T) {
 	}
 }
 
+// repoRoot finds the module root, where testdata/ lives.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

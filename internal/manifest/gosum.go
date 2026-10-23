@@ -25,6 +25,8 @@ func GoSum() Reader {
 	}
 }
 
+// diffGoSum compares two go.sum files. The error names the side that did
+// not parse, because Collect writes it into the trace as it is.
 func diffGoSum(base, change []byte) ([]Change, error) {
 	before, err := parseGoSum(base)
 	if err != nil {
@@ -37,6 +39,7 @@ func diffGoSum(base, change []byte) ([]Change, error) {
 	return diffVersions(before, after, semver.Compare), nil
 }
 
+// parseGoSum reads every module version a go.sum pins.
 func parseGoSum(b []byte) (versions, error) {
 	out := versions{}
 	if len(bytes.TrimSpace(b)) == 0 {
@@ -51,9 +54,13 @@ func parseGoSum(b []byte) (versions, error) {
 			continue
 		}
 		fields := strings.Fields(text)
+		// One bad line refuses the whole file. A half-read go.sum could hide
+		// a module and look like a clean check.
 		if len(fields) != 3 || !strings.HasPrefix(fields[2], "h1:") {
 			return nil, fmt.Errorf("line %d: not a module version hash", line)
 		}
+		// "v1.2.3/go.mod" is the hash of that module's go.mod file. The
+		// module itself has its own line, so this one is not a version.
 		if strings.HasSuffix(fields[1], "/go.mod") {
 			continue
 		}

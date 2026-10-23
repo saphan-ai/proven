@@ -13,6 +13,8 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+// TestGuardrailModeIsRefusedOnOpen proves that a bad guardrail mode is refused when Open runs, before any
+// review, and that the refusal never prints the guardrail key.
 func TestGuardrailModeIsRefusedOnOpen(t *testing.T) {
 	// Mutated field: PROVEN_GUARDRAIL_MODE.
 	_, err := review.Open(review.Options{
@@ -32,6 +34,8 @@ func TestGuardrailModeIsRefusedOnOpen(t *testing.T) {
 	}
 }
 
+// TestLiveSettingsAreRefusedOnOpen proves that a bad generator setting is refused on Open as a
+// *ConfigError naming the variable, and that the refusal never prints the token.
 func TestLiveSettingsAreRefusedOnOpen(t *testing.T) {
 	// Mutated field: PROVEN_GENERATOR_TIMEOUT.
 	_, err := review.Open(review.Options{
@@ -51,6 +55,8 @@ func TestLiveSettingsAreRefusedOnOpen(t *testing.T) {
 	}
 }
 
+// TestEPSSViewNameIsRefusedOnOpen proves that an EPSS view name that is not a plain identifier is refused
+// on Open, so it never reaches a query.
 func TestEPSSViewNameIsRefusedOnOpen(t *testing.T) {
 	// Mutated field: PROVEN_EPSS_VIEW.
 	_, err := review.Open(review.Options{
@@ -66,6 +72,7 @@ func TestEPSSViewNameIsRefusedOnOpen(t *testing.T) {
 	}
 }
 
+// TestOSVTableNameIsRefusedOnOpen proves the same for the OSV table name.
 func TestOSVTableNameIsRefusedOnOpen(t *testing.T) {
 	// Mutated field: PROVEN_OSV_TABLE.
 	_, err := review.Open(review.Options{
@@ -81,7 +88,10 @@ func TestOSVTableNameIsRefusedOnOpen(t *testing.T) {
 	}
 }
 
+// TestLiveReviewCarriesTheRoutedModel proves that a live review reports the model and receipt the
+// provider's stream named (ADR-0019), not the model it asked for.
 func TestLiveReviewCarriesTheRoutedModel(t *testing.T) {
+	// An empty PATH finds no container runtime, so the Prover is off and only the generator is measured.
 	t.Setenv("PATH", t.TempDir())
 	const model = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 	const receipt = "rcpt_test_1"
@@ -108,8 +118,12 @@ func TestLiveReviewCarriesTheRoutedModel(t *testing.T) {
 	}
 }
 
+// TestLiveReviewRefusesANonNVIDIAModelByName proves that when NVIDIA is required and the provider routes
+// to another model, the review keeps no finding from that answer, names the refused model in the failed
+// service, and still reports the model the receipt named.
 // Mutated field: meterless.routed_model, set to a non-NVIDIA model.
 func TestLiveReviewRefusesANonNVIDIAModelByName(t *testing.T) {
+	// An empty PATH finds no container runtime, so the Prover is off and only the generator is measured.
 	t.Setenv("PATH", t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -134,8 +148,11 @@ func TestLiveReviewRefusesANonNVIDIAModelByName(t *testing.T) {
 	}
 }
 
+// TestUnauthorizedReviewDegrades proves that a refused token degrades the review instead of failing it:
+// Nightshift is named as failed, "unauthorized", and the request is not retried.
 // Mutated field: the HTTP status, set to 401.
 func TestUnauthorizedReviewDegrades(t *testing.T) {
+	// An empty PATH finds no container runtime, so the Prover is off and only the generator is measured.
 	t.Setenv("PATH", t.TempDir())
 	var posts int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -158,8 +175,11 @@ func TestUnauthorizedReviewDegrades(t *testing.T) {
 	}
 }
 
+// TestClosedEndpointDegradesTheReview proves that an unreachable provider degrades the review: Nightshift
+// is named as failed, "unreachable", and the review still returns.
 // Mutated field: the listening socket. The endpoint is closed before the review.
 func TestClosedEndpointDegradesTheReview(t *testing.T) {
+	// An empty PATH finds no container runtime, so the Prover is off and only the generator is measured.
 	t.Setenv("PATH", t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("the closed endpoint accepted a call")
@@ -178,6 +198,7 @@ func TestClosedEndpointDegradesTheReview(t *testing.T) {
 	}
 }
 
+// reviewAt runs one live review against a generator at base and fails the test on a partial result.
 func reviewAt(t *testing.T, base string, extra map[string]string) review.Result {
 	t.Helper()
 	rev, err := review.Open(review.Options{
@@ -200,6 +221,8 @@ func reviewAt(t *testing.T, base string, extra map[string]string) review.Result 
 	return res
 }
 
+// liveEnv is the live environment of these tests: the generator at base, Zetaris at an address that
+// answers nothing, and the guardrail off. extra overrides any key.
 func liveEnv(base string, extra map[string]string) func(string) string {
 	m := map[string]string{
 		"METERLESS_RUNTIME_TOKEN":         "test-token",
@@ -221,6 +244,8 @@ func liveEnv(base string, extra map[string]string) func(string) string {
 	return func(k string) string { return m[k] }
 }
 
+// answerSSE is one streamed answer in Nightshift's form: one chunk carrying content and the meterless
+// routed model and receipt, then [DONE].
 func answerSSE(content, model, receipt string) string {
 	chunk := map[string]any{
 		"model": "meterless/auto",

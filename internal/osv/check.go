@@ -1,3 +1,16 @@
+// Package osv is the dependency check of the review. It takes the packages
+// a change added or raised (package manifest), queries the OSV package table
+// through the query adapter once per package, and compares the version in
+// Go, not in SQL. It runs with no model. A matching range is a candidate whose
+// evidence is the query and the rows it returned (ADR-0002), and the Judge
+// keeps or drops it like any other finding. A version outside every range is
+// a trace line, never a finding.
+//
+// The package also defines the OSV table itself: its columns, the setting
+// that names it (PROVEN_OSV_TABLE, ADR-0013), and the converter behind
+// cmd/osv-to-csv that flattens OSV advisories into its rows. OSV by package
+// cannot be a Zetaris REST table (ADR-0023), so the table is a file an
+// administrator puts in Zetaris's storage. docs/OSV_TABLE.md is the contract.
 package osv
 
 import (
@@ -19,6 +32,8 @@ const RuleID = "osv-affected-package"
 // KEVView is the known-exploited view an advisory alias is looked up in.
 const KEVView = "px_evidence.px_kev_vulns"
 
+// cveID matches a CVE id, the only alias the KEV view is keyed by. Because
+// an id must match it, kevSQL can place the id in the SQL with no escaping.
 var cveID = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
 
 // Outcome is what one dependency check found. Notes are the trace lines for
@@ -39,9 +54,12 @@ type Outcome struct {
 // A matching range becomes a candidate whose evidence is the query, its rows
 // and the comparison. A CVE alias is also looked up in the KEV view.
 func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (Outcome, error) {
+	// An empty name means the default, as the setting documents.
 	if table == "" {
 		table = DefaultTable
 	}
+	// The name is written into the SQL as it is, so it is checked here too,
+	// not only when the setting is loaded.
 	if !ValidTable(table) {
 		return Outcome{}, fmt.Errorf("osv: table name %q is not allowed", table)
 	}
@@ -49,6 +67,8 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 	if err != nil {
 		return Outcome{}, err
 	}
+	// Each ecosystem has a manifest reader and a lock reader. Collect pairs
+	// them, so a package both name is queried once, at the lock file's version.
 	hits, notes, err := manifest.Collect(files, []manifest.Reader{
 		manifest.Go(), manifest.GoSum(),
 		manifest.NPM(), manifest.NPMLock(),
@@ -59,10 +79,13 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 	}
 	var out Outcome
 	out.Notes = append(out.Notes, notes...)
+	// No dependency edit, no query: the trace still says why nothing was checked.
 	if len(hits) == 0 {
 		out.Notes = append(out.Notes, "no dependency added or raised")
 		return out, nil
 	}
+	// With no query engine nothing can be evidence. The check names the
+	// service as down instead of reporting a clean result.
 	if q == nil {
 		out.Down = &service.Down{Service: "query", Reason: "no query engine"}
 		out.Notes = append(out.Notes, "osv check did not run: query: no query engine")
@@ -80,6 +103,8 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 			out.Candidates = append(out.Candidates, *next)
 		}
 		if err != nil {
+			// A service that went down ends the check but not the review: the
+			// candidates already proved are kept, and the review names the service.
 			if d, ok := service.As(err); ok {
 				out.Down = d
 				return out, nil
@@ -90,6 +115,9 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 	return out, nil
 }
 
+// oneModule runs the OSV query for one package and compares its version with
+// every row. It returns a candidate when at least one row matches, and
+// otherwise a trace note that says why.
 func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit manifest.Hit) (*candidate.Candidate, string, error) {
 	sqlText, err := moduleSQL(table, hit.Ecosystem, hit.Package)
 	if err != nil {
@@ -106,8 +134,12 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	if err != nil {
 		return nil, "", err
 	}
+	// No row is not proof that the package is safe. The note says the query
+	// returned nothing and carries the SQL, so a reader can run it again.
 	if len(rows) == 0 {
 		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; SQL: %s", hit.Package, hit.Version, sqlText)
+		// A version that could not be compared at all is a second reason,
+		// and the note names it too.
 		if why := Uncompared(hit.Ecosystem, hit.Version); why != "" {
 			note += "; " + why
 		}
@@ -127,6 +159,8 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	if len(matched) == 0 {
 		return nil, missNote(hit, sqlText, missed), nil
 	}
+	// The row's severity is not mapped: sources write it in different forms,
+	// so every match is reported at one level.
 	c := candidate.Candidate{
 		Risk: candidate.Risk{
 			ID:        "osv:" + hit.Package,
@@ -139,7 +173,12 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 			EndLine:   hit.Line,
 		},
 	}
+	// ADR-0002: the evidence is the query and every row it returned, the rows
+	// that missed included, so a reader can redo the comparison.
 	c.Evidence = append(c.Evidence, queryEvidence(res, snapshot))
+	// ADR-0004: a CVE alias of a matching advisory is also looked up in CISA
+	// KEV, once per id. A missing KEV row does not drop the finding; the
+	// message only says so.
 	seen := map[string]struct{}{}
 	var kevNotes []string
 	for _, item := range matched {
@@ -152,6 +191,8 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 			if kerr != nil {
 				if d, ok := service.As(kerr); ok {
 					kevNotes = append(kevNotes, "alias "+id+" was not looked up in KEV: "+d.Error())
+					// The OSV match is already evidence, so the candidate is kept and the
+					// KEV service is named as down.
 					addNotes(&c, kevNotes)
 					return &c, strings.Join(kevNotes, "; "), d
 				}
@@ -169,6 +210,7 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	return &c, "", nil
 }
 
+// addNotes appends the KEV sentences to the finding's message.
 func addNotes(c *candidate.Candidate, notes []string) {
 	if len(notes) == 0 {
 		return
@@ -176,11 +218,14 @@ func addNotes(c *candidate.Candidate, notes []string) {
 	c.Message += " " + strings.Join(notes, " ")
 }
 
+// compared is one OSV row and the sentence of its comparison.
 type compared struct {
 	row      Row
 	sentence string
 }
 
+// missNote is the trace line for a package whose rows all missed. It names
+// each row and why it missed.
 func missNote(hit manifest.Hit, sqlText string, missed []compared) string {
 	parts := make([]string, 0, len(missed))
 	for _, item := range missed {
@@ -189,6 +234,8 @@ func missNote(hit manifest.Hit, sqlText string, missed []compared) string {
 	return fmt.Sprintf("%s %s: no affected row; SQL: %s; %s", hit.Package, hit.Version, sqlText, strings.Join(parts, "; "))
 }
 
+// findingMessage names every row that matched and every row that did not,
+// so the review shows the whole comparison, not only the hit.
 func findingMessage(hit manifest.Hit, matched, missed []compared) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s matches %s: %s.", hit.Package, hit.Version, matched[0].row.ID, matched[0].sentence)
@@ -205,6 +252,8 @@ func findingMessage(hit manifest.Hit, matched, missed []compared) string {
 	return b.String()
 }
 
+// queryEvidence copies a query result into evidence. The engine's own
+// snapshot wins; the review's snapshot is used when the engine gives none.
 func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 	snap := res.Snapshot
 	if snap == "" {
@@ -220,6 +269,9 @@ func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 	}
 }
 
+// readRows maps the result by column name, not by position, so a table
+// whose columns come in another order still reads. A missing column
+// refuses the result: a row read without it could match by mistake.
 func readRows(res query.Result) ([]Row, error) {
 	idx := map[string]int{}
 	for i, c := range res.Columns {
@@ -248,6 +300,8 @@ func readRows(res query.Result) ([]Row, error) {
 	return out, nil
 }
 
+// moduleSQL builds the one query per package. The ecosystem and the package
+// are quoted literals. The table name cannot be quoted, so it is checked.
 func moduleSQL(table, ecosystem, pkg string) (string, error) {
 	if !ValidTable(table) {
 		return "", fmt.Errorf("osv: table name %q is not allowed", table)
@@ -263,10 +317,14 @@ func moduleSQL(table, ecosystem, pkg string) (string, error) {
 	return "SELECT " + strings.Join(Columns, ", ") + " FROM " + table + " WHERE ecosystem = " + eco + " AND package = " + mod, nil
 }
 
+// kevSQL builds the KEV lookup for one CVE. id has matched cveID, so it holds
+// no quote and needs no escaping.
 func kevSQL(id string) string {
 	return "SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM " + KEVView + " WHERE cve_id = '" + id + "'"
 }
 
+// quoteLiteral makes a SQL string literal by doubling single quotes. A line
+// break or a NUL is refused outright; no package name needs one.
 func quoteLiteral(s string) (string, error) {
 	if strings.ContainsAny(s, "\r\n\x00") {
 		return "", fmt.Errorf("osv: value %q cannot be a SQL literal", s)
@@ -274,6 +332,7 @@ func quoteLiteral(s string) (string, error) {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'", nil
 }
 
+// cveAliases picks the CVE ids out of the space-separated aliases column.
 func cveAliases(aliases string) []string {
 	var out []string
 	for _, part := range strings.Fields(aliases) {
@@ -285,6 +344,8 @@ func cveAliases(aliases string) []string {
 	return out
 }
 
+// copyRows copies the rows so the evidence does not share memory with the
+// adapter's result. nil becomes an empty list, so evidence always carries one.
 func copyRows(rows [][]string) [][]string {
 	if rows == nil {
 		return [][]string{}

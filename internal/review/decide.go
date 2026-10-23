@@ -1,5 +1,9 @@
 package review
 
+// This file decides what a review states about itself: its class and the rule that chose it
+// (ADR-0012, ADR-0014), the author models the change names (ADR-0011), and each reviewer model with
+// its family and whether it shares the author's (ADR-0008, ADR-0009). None of it is a model's guess.
+
 import (
 	"bytes"
 	"fmt"
@@ -28,6 +32,8 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 	for i := range authors {
 		authors[i].Family = familyOf(authors[i].Model, cfg.Families)
 	}
+	// ADR-0009: every review uses the default reviewer; a doubled class adds the special model,
+	// even when it is the author's own model (a fresh agent is still a second look).
 	doubled := cfg.Doubled[class]
 	models := []string{cfg.DefaultReviewer}
 	lines := []string{reviewerLine("default", cfg.DefaultReviewer, familyOf(cfg.DefaultReviewer, cfg.Families), authors, unreadable)}
@@ -36,9 +42,11 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 			models = append(models, cfg.SpecialReviewer)
 			lines = append(lines, reviewerLine("special", cfg.SpecialReviewer, familyOf(cfg.SpecialReviewer, cfg.Families), authors, unreadable))
 		} else {
+			// A doubled class with no special model is stated, not hidden: the reader sees one review ran.
 			lines = append(lines, "special-review model: not configured")
 		}
 	}
+	// Never nil, so "no author models" prints as an empty list.
 	if authors == nil {
 		authors = []AuthorModel{}
 	}
@@ -51,6 +59,8 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 	out.ReviewerStatements = lines
 	out.AuthorModels = authors
 	out.AuthorModelStatement = authorStatement(authors, unreadable, cfg.DefaultReviewer)
+	// A change to proven.yaml is named, because the change's own copy of the settings does not
+	// govern this review (see loadSettingsAtBaseline).
 	for _, f := range files {
 		if f == "proven.yaml" {
 			out.SettingsStatement = "the change edits proven.yaml"
@@ -60,6 +70,8 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 	return nil
 }
 
+// changedPaths lists the paths the change touches: the diff from the baseline to the head when
+// there is a baseline, else the working tree's changes.
 func changedPaths(req Request) ([]string, error) {
 	if req.BaselineCommit != "" {
 		return change.Between(req.Target, req.BaselineCommit, req.HeadCommit)
@@ -75,6 +87,9 @@ func changedPaths(req Request) ([]string, error) {
 	return out, nil
 }
 
+// chooseClass returns the review class and the pattern that chose it (ADR-0014). Every rule that
+// matches any changed path is a candidate; the highest-risk class wins (point 3). With no match the
+// class is the configured fallback and the rule is "fallback" (point 4). No heuristic is added (point 8).
 func chooseClass(files []string, rules []pathRule, order []string, fallback string) (string, string) {
 	var matches []pathRule
 	for _, r := range rules {
@@ -102,6 +117,7 @@ func highest(matches []pathRule, order []string) (pathRule, bool) {
 	bestRank := classRank(order, best.Class)
 	for _, m := range matches[1:] {
 		r := classRank(order, m.Class)
+		// Strictly less, so a later rule of the same class never replaces an earlier one.
 		if r < bestRank {
 			best = m
 			bestRank = r
@@ -110,6 +126,8 @@ func highest(matches []pathRule, order []string) (pathRule, bool) {
 	return best, true
 }
 
+// classRank is the class's place in order. A class not in order ranks after every listed one;
+// parseClassOrder makes a configured order list every class, so this is only a guard.
 func classRank(order []string, class string) int {
 	for i, c := range order {
 		if c == class {
@@ -119,6 +137,8 @@ func classRank(order []string, class string) int {
 	return len(order)
 }
 
+// familyOf looks a model up in the configured family table; the first matching row wins.
+// ADR-0011 point 4: a model the table does not know is "family unknown", never guessed.
 func familyOf(model string, table []familyRule) string {
 	for _, r := range table {
 		if matchModel(r.Pattern, model) {
@@ -128,6 +148,8 @@ func familyOf(model string, table []familyRule) string {
 	return "family unknown"
 }
 
+// matchModel matches one family pattern. A pattern with no wildcard is compared exactly, so
+// a model name with a bracket in it is not read as a character class by mistake.
 func matchModel(pattern, model string) bool {
 	if !strings.ContainsAny(pattern, "*?[") {
 		return pattern == model
@@ -136,6 +158,9 @@ func matchModel(pattern, model string) bool {
 	return err == nil && ok
 }
 
+// pathMatches matches a path rule against one changed path, segment by segment, with ** for
+// any number of directories. A pattern with no slash also matches the base name, so go.mod
+// matches a go.mod in any directory.
 func pathMatches(pattern, file string) bool {
 	file = filepath.ToSlash(file)
 	pattern = filepath.ToSlash(pattern)
@@ -148,11 +173,14 @@ func pathMatches(pattern, file string) bool {
 	return false
 }
 
+// matchSegs matches pattern segments against path segments. A ** segment matches zero or more
+// path segments; any other segment matches exactly one, with path.Match. A bad segment fails closed.
 func matchSegs(pat, name []string) bool {
 	if len(pat) == 0 {
 		return len(name) == 0
 	}
 	if pat[0] == "**" {
+		// Collapse a run of ** into one, then try "matches nothing here" before "eats one segment".
 		rest := pat
 		for len(rest) > 0 && rest[0] == "**" {
 			rest = rest[1:]
@@ -175,6 +203,8 @@ func matchSegs(pat, name []string) bool {
 	return matchSegs(pat[1:], name[1:])
 }
 
+// validPattern checks a pattern on load, so a bad pattern is refused with the setting's name
+// (ADR-0013) rather than silently matching nothing during a review.
 func validPattern(pattern string) error {
 	if strings.TrimSpace(pattern) == "" {
 		return fmt.Errorf("empty pattern")
@@ -190,6 +220,10 @@ func validPattern(pattern string) error {
 	return nil
 }
 
+// readAuthors collects the author models the change names, from the sources the settings switch
+// on, in ADR-0011's order: commit trailers, the pull-request description, the record file. It also
+// returns the trailer lines it could not read, so the review can quote them instead of dropping them.
+// ADR-0011 point 7: it only reads; it never writes a trailer.
 func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error) {
 	var found []AuthorModel
 	var unreadable []string
@@ -198,6 +232,8 @@ func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error)
 		found = append(found, authors...)
 		unreadable = append(unreadable, bad...)
 	}
+	// Commits are read only between a baseline and the head; without a baseline there are no
+	// commits of the change to read.
 	if cfg.ReadCommits && req.BaselineCommit != "" {
 		msgs, err := change.Messages(req.Target, req.BaselineCommit, req.HeadCommit)
 		if err != nil {
@@ -220,6 +256,8 @@ func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error)
 	return dedupeAuthors(found), dedupeLines(unreadable), nil
 }
 
+// scanTrailers finds the lines "Key: agent:model" whose key is one of keys, matched without case.
+// A known key with a value that is not agent:model is returned as unreadable.
 func scanTrailers(text string, keys []string, source string) ([]AuthorModel, []string) {
 	want := map[string]struct{}{}
 	for _, k := range keys {
@@ -232,6 +270,7 @@ func scanTrailers(text string, keys []string, source string) ([]AuthorModel, []s
 	var unreadable []string
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimRight(line, "\r")
+		// An indented line is a continuation or quoted text, not a trailer.
 		if line == "" || line[0] == ' ' || line[0] == '\t' {
 			continue
 		}
@@ -253,6 +292,8 @@ func scanTrailers(text string, keys []string, source string) ([]AuthorModel, []s
 	return out, unreadable
 }
 
+// splitAgentModel splits "agent:model" at the first colon, so a model name may itself hold a colon.
+// Both parts must be non-empty.
 func splitAgentModel(val string) (string, string, bool) {
 	i := strings.IndexByte(val, ':')
 	if i <= 0 || i >= len(val)-1 {
@@ -266,6 +307,7 @@ func splitAgentModel(val string) (string, string, bool) {
 	return agent, model, true
 }
 
+// dedupeLines drops repeated lines and keeps the first order.
 func dedupeLines(in []string) []string {
 	if len(in) == 0 {
 		return nil
@@ -282,6 +324,8 @@ func dedupeLines(in []string) []string {
 	return out
 }
 
+// dedupeAuthors keeps the first entry for each model. The same model named in a commit and in
+// the description is one author; the earlier source in ADR-0011's order is the one kept.
 func dedupeAuthors(in []AuthorModel) []AuthorModel {
 	if len(in) == 0 {
 		return nil
@@ -298,6 +342,9 @@ func dedupeAuthors(in []AuthorModel) []AuthorModel {
 	return out
 }
 
+// readRecord reads the author record file or files the setting names, in sorted order so the
+// statement is the same on every run. A record that is configured but missing is refused: the team
+// said where the record is, so its absence is a setting to fix, not "author model not stated".
 func readRecord(target, pattern string) (string, error) {
 	const allowed = "off, or a relative path or pattern inside the review target"
 	matches, err := recordPaths(target, pattern)
@@ -324,6 +371,7 @@ func readRecord(target, pattern string) (string, error) {
 			return "", err
 		}
 		b.Write(body)
+		// End each file with a newline, so the last line of one file never joins the first of the next.
 		if !bytes.HasSuffix(body, []byte("\n")) {
 			b.WriteByte('\n')
 		}
@@ -353,6 +401,7 @@ func recordPaths(target, pattern string) ([]string, error) {
 			return err
 		}
 		if info.IsDir() {
+			// Git's own files are never a record.
 			if info.Name() == ".git" {
 				return filepath.SkipDir
 			}
@@ -366,6 +415,7 @@ func recordPaths(target, pattern string) ([]string, error) {
 		if !pathMatches(pattern, rel) {
 			return nil
 		}
+		// filepath.Walk reports a link with Lstat, so a symlink is seen here before anything follows it.
 		if info.Mode()&os.ModeSymlink != 0 {
 			return recordRefused(rel, "symlink")
 		}
@@ -385,6 +435,8 @@ func recordPaths(target, pattern string) ([]string, error) {
 	return matches, nil
 }
 
+// oneRecordPath checks one exact record path. It returns "" with no error when the file does not
+// exist, so readRecord can refuse it with the setting's name.
 func oneRecordPath(root, p, pattern string) (string, error) {
 	st, err := os.Lstat(p)
 	if err != nil {
@@ -399,6 +451,7 @@ func oneRecordPath(root, p, pattern string) (string, error) {
 	if st.IsDir() {
 		return "", recordRefused(pattern, "path is a directory")
 	}
+	// The file itself is not a link, but a directory on its path may be; resolve and check again.
 	resolved, err := filepath.EvalSymlinks(p)
 	if err != nil {
 		return "", err
@@ -409,6 +462,7 @@ func oneRecordPath(root, p, pattern string) (string, error) {
 	return resolved, nil
 }
 
+// recordRefused is the *ConfigError for a record path that is refused.
 func recordRefused(value, reason string) *ConfigError {
 	return &ConfigError{
 		Field: "author_record", Value: value, Reason: reason,
@@ -416,6 +470,8 @@ func recordRefused(value, reason string) *ConfigError {
 	}
 }
 
+// pathInside reports whether resolved is root or below it. Both are already resolved, so a
+// ".." here can only mean the path left the root.
 func pathInside(root, resolved string) bool {
 	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(resolved))
 	if err != nil {
@@ -424,6 +480,8 @@ func pathInside(root, resolved string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
+// authorStatement is the review's one line about who wrote the change. ADR-0011 point 6: when no
+// source names a model, it says so and names the default reviewer that was used.
 func authorStatement(models []AuthorModel, unreadable []string, defaultReviewer string) string {
 	parts := make([]string, 0, len(models)+len(unreadable))
 	for _, m := range models {
@@ -438,6 +496,8 @@ func authorStatement(models []AuthorModel, unreadable []string, defaultReviewer 
 	return strings.Join(parts, "; ")
 }
 
+// reviewerLine is one reviewer's statement: its model, role and family, and for each author model
+// whether it shares the author's family. ADR-0009 point 5: a reader sees which independence the review had.
 func reviewerLine(role, model, family string, authors []AuthorModel, unreadable []string) string {
 	head := fmt.Sprintf("reviewer %s; role %s; family %s", model, role, family)
 	if len(authors) == 0 && len(unreadable) == 0 {
@@ -453,6 +513,8 @@ func reviewerLine(role, model, family string, authors []AuthorModel, unreadable 
 	return strings.Join(parts, "; ")
 }
 
+// familyRelation answers "is the reviewer in the author's family?". When either family is unknown
+// the answer is "family unknown", never a yes or no.
 func familyRelation(reviewerFamily, authorFamily string) string {
 	if reviewerFamily == "family unknown" || authorFamily == "family unknown" {
 		return "family unknown"

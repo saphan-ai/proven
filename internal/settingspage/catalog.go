@@ -1,5 +1,9 @@
 // Package settingspage lists the environment settings the configuration
 // page is generated from. Each row is declared beside the constant it names.
+//
+// It is the one list ADR-0013 asks for. cmd/settings-doc renders the page's
+// tables from it, and the test in this package fails when the page and the
+// code disagree.
 package settingspage
 
 import (
@@ -26,6 +30,8 @@ const containerAfter = "Each test runs with no network and no secret (ADR-0025).
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_EVIDENCE_VIEW is declared
 // in livecheck. Both are listed on the evidence table.
+// The evidence table joins the rows of four packages: the Zetaris adapter,
+// OSV, EPSS and livecheck.
 func Catalog() []envdoc.Section {
 	evidence := append(append(append(query.Environment(), osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{

@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+// TestPoetryDiffAddedRaisedUnchangedRemoved proves that poetry.lock yields
+// added and raised packages with the line of their version, that keys in
+// sub-tables and [metadata] are not read as a package, and that an unchanged,
+// lowered or removed package yields nothing.
 func TestPoetryDiffAddedRaisedUnchangedRemoved(t *testing.T) {
 	base := []byte(strings.Join([]string{
 		"[[package]]",
@@ -71,6 +75,9 @@ func TestPoetryDiffAddedRaisedUnchangedRemoved(t *testing.T) {
 	}
 }
 
+// TestPoetryMalformed proves that a file that is not a lock, an unclosed
+// string and a package with no version each refuse the file, and that an
+// empty file has no pins.
 func TestPoetryMalformed(t *testing.T) {
 	if _, err := diffPoetry(nil, []byte("this is not a lock\n")); err == nil || !strings.Contains(err.Error(), "line 1: not a package table") {
 		t.Fatal(err)
@@ -89,6 +96,8 @@ func TestPoetryMalformed(t *testing.T) {
 	}
 }
 
+// TestPoetryMatch proves that the poetry.lock reader is a PyPI lock reader
+// whose parse errors are notes, and that it matches only poetry.lock.
 func TestPoetryMatch(t *testing.T) {
 	r := Poetry()
 	if r.Ecosystem != "PyPI" || !r.Lock || !r.NoteErr || !r.Match("poetry.lock") || !r.Match("svc/poetry.lock") {

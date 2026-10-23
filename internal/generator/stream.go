@@ -13,6 +13,8 @@ import (
 // A longer body fails as a bad stream instead of growing without a bound.
 const maxStream = 8 << 20
 
+// streamMeta is what one completion stream carried: the answer text and,
+// from Nightshift's receipt, the model and route that answered.
 type streamMeta struct {
 	text    string
 	model   string
@@ -20,6 +22,8 @@ type streamMeta struct {
 	route   string
 }
 
+// sseChunk is one data event of the stream. Only the fields the review reads
+// are decoded; the rest of the event is ignored.
 type sseChunk struct {
 	Choices []struct {
 		Delta struct {
@@ -40,11 +44,13 @@ type sseChunk struct {
 // meterless object. The chunk's model field is not a receipt.
 func parseStream(r io.Reader) (streamMeta, error) {
 	sc := bufio.NewScanner(io.LimitReader(r, maxStream))
+	// One event line may be up to 1 MiB; a longer line ends the scan with an error.
 	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
 	var text strings.Builder
 	var meta streamMeta
 	for sc.Scan() {
 		line := strings.TrimSpace(strings.TrimRight(sc.Text(), "\r"))
+		// Blank lines, comment lines and non-data fields carry no part of the answer.
 		if line == "" || strings.HasPrefix(line, ":") || !strings.HasPrefix(line, "data:") {
 			continue
 		}
@@ -59,9 +65,13 @@ func parseStream(r io.Reader) (streamMeta, error) {
 		for _, c := range chunk.Choices {
 			text.WriteString(c.Delta.Content)
 		}
+		// ADR-0019: the answering model is read from the receipt, never from the
+		// chunk's own model field, so a chunk without the meterless object adds text only.
 		if chunk.Meterless == nil {
 			continue
 		}
+		// The receipt may arrive across several chunks; a later empty field does not
+		// erase an earlier value.
 		if chunk.Meterless.RoutedModel != "" {
 			meta.model = chunk.Meterless.RoutedModel
 		}

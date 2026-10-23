@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+// TestInRange proves the OSV range rules for semantic versions: introduced
+// and last_affected are inclusive, fixed is exclusive and wins over
+// last_affected, "0" means no lower bound, a pre-release is below its
+// release, and every outcome comes with its sentence.
 func TestInRange(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -39,6 +43,10 @@ func TestInRange(t *testing.T) {
 	}
 }
 
+// TestInRangeEcosystem proves that npm compares semantic versions, that PyPI
+// compares PEP 440 and refuses dev, epoch and local versions with a
+// sentence, that a bound which does not parse is named, and that an
+// unknown ecosystem is not compared.
 func TestInRangeEcosystem(t *testing.T) {
 	cases := []struct {
 		name       string

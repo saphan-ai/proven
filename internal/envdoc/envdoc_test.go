@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// TestSecondSpecKeepsWholeSeconds proves whole seconds are written as 60s,
+// not 1m0s, and a fraction keeps Go's own form.
 func TestSecondSpecKeepsWholeSeconds(t *testing.T) {
 	if got := SecondSpec(60 * time.Second); got != "60s" {
 		t.Fatalf("60s rendered as %s", got)
@@ -18,6 +20,8 @@ func TestSecondSpecKeepsWholeSeconds(t *testing.T) {
 	}
 }
 
+// TestDriftNamesTheExtraSetting proves a row present only in the render is
+// named as the drift.
 func TestDriftNamesTheExtraSetting(t *testing.T) {
 	base := []Section{{
 		Heading: "One",
@@ -35,6 +39,9 @@ func TestDriftNamesTheExtraSetting(t *testing.T) {
 	}
 }
 
+// TestApplyIsIdempotent proves the first Apply on a page without markers
+// replaces the hand-written sections, a second Apply changes nothing, and the
+// prose outside the markers stays.
 func TestApplyIsIdempotent(t *testing.T) {
 	page := "intro\n\n" + startHeading + "\n\nold\n\n" + endHeading + "\nrest\n"
 	rendered := Render([]Section{{
@@ -64,6 +71,8 @@ func TestApplyIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestCheckRejectsAPipe proves a pipe in a cell, which would break the
+// table, is refused with the setting's name.
 func TestCheckRejectsAPipe(t *testing.T) {
 	err := Check([]Section{{
 		Heading: "One",

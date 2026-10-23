@@ -6,6 +6,9 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 )
 
+// TestRequirementsDiffAddsAndRaises proves that requirements.txt yields added
+// and raised pins in PEP 440 order (1.2 equals 1.2.0, a pre-release is below
+// its release), and that each unpinned line becomes a note with its number.
 func TestRequirementsDiffAddsAndRaises(t *testing.T) {
 	base := []byte("flask==1.0\nsame==1.2.0\nlower==2.0\npre==1.0a1\n")
 	change := []byte("flask==1.2.0\nsame==1.2\nlower==1.0\npre==1.0\nnewpkg==1.0a1\nDjango>=3.2\n# comment\n\n-r extra.txt\n")
@@ -41,6 +44,9 @@ func TestRequirementsDiffAddsAndRaises(t *testing.T) {
 	}
 }
 
+// TestRequirementsPinsCommonForms proves that extras, spaces, markers, --hash
+// options and inline comments still read as a pin, while === and a URL
+// requirement are skipped with a note.
 func TestRequirementsPinsCommonForms(t *testing.T) {
 	change := []byte(joinLines(
 		"pkg[extra]==1.4.0",
@@ -84,6 +90,8 @@ func TestRequirementsPinsCommonForms(t *testing.T) {
 	}
 }
 
+// TestRequirementsLastLineWins proves that a name pinned twice takes the later
+// line, as pip does.
 func TestRequirementsLastLineWins(t *testing.T) {
 	got, err := diffRequirements(nil, []byte("pkg==1.0\npkg==2.0\n"))
 	if err != nil {
@@ -94,6 +102,9 @@ func TestRequirementsLastLineWins(t *testing.T) {
 	}
 }
 
+// TestRequirementsUnparsedChangeIsStillReported proves that a version that
+// does not order is still reported as a change, so the OSV check can say why
+// it was not compared instead of dropping it.
 func TestRequirementsUnparsedChangeIsStillReported(t *testing.T) {
 	got, err := diffRequirements([]byte("pkg==1.0\n"), []byte("pkg==latest\n"))
 	if err != nil {
@@ -104,6 +115,8 @@ func TestRequirementsUnparsedChangeIsStillReported(t *testing.T) {
 	}
 }
 
+// TestRequirementsMatch proves that the PyPI reader matches requirements.txt at
+// any depth, with exact case, and no other file name.
 func TestRequirementsMatch(t *testing.T) {
 	r := PyPI()
 	if r.Ecosystem != "PyPI" || !r.Match("requirements.txt") || !r.Match("svc/requirements.txt") {
@@ -114,6 +127,8 @@ func TestRequirementsMatch(t *testing.T) {
 	}
 }
 
+// TestCollectCarriesSkipNotes proves that Collect prefixes each skip note with
+// the path of the file it came from.
 func TestCollectCarriesSkipNotes(t *testing.T) {
 	got, notes, err := Collect([]change.File{{
 		Path:   "app/requirements.txt",
@@ -130,6 +145,7 @@ func TestCollectCarriesSkipNotes(t *testing.T) {
 	}
 }
 
+// joinLines writes each line with its newline, so a fixture reads as a list.
 func joinLines(lines ...string) string {
 	out := ""
 	for _, line := range lines {

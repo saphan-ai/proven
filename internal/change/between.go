@@ -13,6 +13,8 @@ import (
 // repository. An empty head means the working tree, including untracked files.
 // A baseline or a head that does not exist returns an error that names it.
 func Between(target, baseline, head string) ([]string, error) {
+	// Check both commits first, so a wrong name is reported as that name and
+	// not as git's own diff error.
 	if err := ensureCommit(target, baseline, "baseline"); err != nil {
 		return nil, err
 	}
@@ -21,6 +23,9 @@ func Between(target, baseline, head string) ([]string, error) {
 			return nil, err
 		}
 	}
+	// --relative keeps the paths relative to target when it is a subdirectory,
+	// -z keeps unusual file names intact, and --end-of-options stops a
+	// revision that starts with "-" from being read as a flag.
 	args := []string{"-C", target, "diff", "--name-only", "--relative", "-z", "--end-of-options", baseline}
 	if head != "" {
 		args = append(args, head)
@@ -29,6 +34,9 @@ func Between(target, baseline, head string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// git diff does not list untracked files, but a new file in the working
+	// tree is part of the change. ls-files names them from the repository
+	// root, so underTarget keeps only those inside target.
 	if head == "" {
 		extra, err := gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
 		if err != nil {
@@ -50,6 +58,7 @@ func Blob(target, rev, rel string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	rel = filepath.ToSlash(rel)
+	// Refuse a path that could read outside target's tree.
 	if rel == "" || strings.HasPrefix(rel, "/") || strings.Contains(rel, "..") {
 		return nil, false, fmt.Errorf("git: path %q leaves the tree", rel)
 	}
@@ -64,6 +73,8 @@ func Blob(target, rev, rel string) ([]byte, bool, error) {
 		return nil, false, fmt.Errorf("git: %w", err)
 	}
 	msg := strings.TrimSpace(string(ee.Stderr))
+	// These are git's words for a path absent from the commit. That is an
+	// answer, not a failure, so it returns ok false with no error.
 	if strings.Contains(msg, "does not exist") || strings.Contains(msg, "exists on disk, but not in") {
 		return nil, false, nil
 	}
@@ -86,6 +97,8 @@ func Messages(target, baseline, head string) ([]string, error) {
 	} else if err := ensureCommit(target, head, "head"); err != nil {
 		return nil, err
 	}
+	// %x1e ends each message with an ASCII record separator, so a message
+	// with blank lines in it is still split in the right place.
 	cmd := exec.Command("git", "-C", target, "log", "--reverse", "--format=%B%x1e", "--end-of-options", baseline+".."+end)
 	out, err := cmd.Output()
 	if err != nil {
@@ -101,6 +114,8 @@ func Messages(target, baseline, head string) ([]string, error) {
 	return splitMessages(out), nil
 }
 
+// splitMessages splits git log output on the record separator and drops the
+// empty pieces.
 func splitMessages(b []byte) []string {
 	if len(b) == 0 {
 		return nil
@@ -120,6 +135,8 @@ func splitMessages(b []byte) []string {
 	return out
 }
 
+// ensureCommit checks that rev names a commit in target's repository. which is
+// "baseline" or "head", so the error says which input was wrong.
 func ensureCommit(target, rev, which string) error {
 	if rev == "" {
 		return fmt.Errorf("%s commit %q does not exist", which, rev)
@@ -129,12 +146,15 @@ func ensureCommit(target, rev, which string) error {
 	if err == nil {
 		return nil
 	}
+	// git itself could not run: report that, not a missing commit.
 	if _, ok := err.(*exec.Error); ok {
 		return fmt.Errorf("git: %w", err)
 	}
 	return fmt.Errorf("%s commit %q does not exist", which, rev)
 }
 
+// gitZ runs git with args and splits its NUL-separated output into slash
+// paths. A failure carries git's own message.
 func gitZ(args []string) ([]string, error) {
 	cmd := exec.Command("git", args...)
 	out, err := cmd.Output()
@@ -151,6 +171,7 @@ func gitZ(args []string) ([]string, error) {
 	return splitZ(out), nil
 }
 
+// splitZ splits NUL-separated git output into slash paths.
 func splitZ(b []byte) []string {
 	if len(b) == 0 {
 		return nil
@@ -166,6 +187,8 @@ func splitZ(b []byte) []string {
 	return out
 }
 
+// underTarget keeps the repository-root paths that lie inside target and makes
+// them relative to target, to match what git diff --relative returns.
 func underTarget(target string, paths []string) ([]string, error) {
 	topRaw, err := gitZText([]string{"-C", target, "rev-parse", "--show-toplevel"})
 	if err != nil {
@@ -200,6 +223,7 @@ func underTarget(target string, paths []string) ([]string, error) {
 	return out, nil
 }
 
+// gitZText runs git with args and returns its trimmed output as one string.
 func gitZText(args []string) (string, error) {
 	cmd := exec.Command("git", args...)
 	out, err := cmd.Output()
@@ -209,6 +233,8 @@ func gitZText(args []string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// uniqueSorted sorts paths and drops repeats, so each file is listed once and
+// in the same order on every run.
 func uniqueSorted(paths []string) []string {
 	if len(paths) == 0 {
 		return nil

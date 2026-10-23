@@ -2,6 +2,12 @@
 // a release, a pre-release and a post-release.
 // An epoch, a dev release, a local version or any other string is refused.
 // The refusal is a sentence. The version is not rewritten.
+//
+// It is the comparer for the PyPI ecosystem in the dependency check: the
+// requirements.txt and poetry.lock readers (package manifest) order
+// versions with it, and package osv places a version inside or outside an
+// OSV range with it. A refused form gives no finding, and the trace says
+// which form it was (docs/OSV_TABLE.md).
 package pep440
 
 import "strings"
@@ -16,6 +22,7 @@ type Version struct {
 	Post    int
 }
 
+// kind is why classify accepted or refused a string.
 type kind int
 
 const (
@@ -67,6 +74,9 @@ func Reject(s string) string {
 	}
 }
 
+// classify parses s and says which form it is. The refusals are checked
+// first, by their marker, so that 1.0.dev1 is named a dev release and not
+// a syntax error.
 func classify(s string) (Version, kind) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -96,6 +106,8 @@ func classify(s string) (Version, kind) {
 	if rest == "" {
 		return v, kindOK
 	}
+	// A post-release may follow the release directly (1.0.post1, 1.0-1).
+	// Anything else after the release must be a pre-release first.
 	if !looksLikePost(rest) {
 		kindN, num, next, took := takePre(rest)
 		if !took {
@@ -117,6 +129,8 @@ func classify(s string) (Version, kind) {
 	return v, kindOK
 }
 
+// cmp orders two versions. The shorter release is padded with zeros, so
+// 1.0 equals 1.0.0. Then the pre-release, then the post-release.
 func (a Version) cmp(b Version) int {
 	n := len(a.Release)
 	if len(b.Release) > n {
@@ -140,6 +154,9 @@ func (a Version) cmp(b Version) int {
 	return cmpPost(a, b)
 }
 
+// cmpPre orders pre-releases. A version with no pre-release is above every
+// pre-release of its release; then a is below b, b below rc, and the number
+// decides.
 func cmpPre(a, b Version) int {
 	if a.PreKind == 0 && b.PreKind == 0 {
 		return 0
@@ -156,6 +173,8 @@ func cmpPre(a, b Version) int {
 	return sign(a.PreNum - b.PreNum)
 }
 
+// cmpPost orders post-releases. A post-release is above the version
+// without one.
 func cmpPost(a, b Version) int {
 	if !a.HasPost && !b.HasPost {
 		return 0
@@ -169,6 +188,9 @@ func cmpPost(a, b Version) int {
 	return sign(a.Post - b.Post)
 }
 
+// parseRelease reads the dot-separated numbers at the start of s and
+// returns the rest. A dot not followed by a digit ends the release, so
+// 1.0.post1 leaves .post1 for the next step.
 func parseRelease(s string) ([]int, string, bool) {
 	if s == "" || !isDigit(s[0]) {
 		return nil, s, false
@@ -189,6 +211,8 @@ func parseRelease(s string) ([]int, string, bool) {
 	return rel, s, true
 }
 
+// looksLikePost reports whether rest starts with a post-release and not a
+// pre-release. -N is the short spelling of .postN.
 func looksLikePost(rest string) bool {
 	if rest == "" {
 		return false
@@ -203,6 +227,8 @@ func looksLikePost(rest string) bool {
 	return postLabelLen(t) > 0
 }
 
+// takePre reads a pre-release label and its optional number. A missing
+// number is 0, so 1.0a equals 1.0a0.
 func takePre(rest string) (int, int, string, bool) {
 	if rest == "" {
 		return 0, 0, rest, false
@@ -222,6 +248,8 @@ func takePre(rest string) (int, int, string, bool) {
 	return label, num, next, true
 }
 
+// takeNum reads the optional number after a label, with or without a
+// separator.
 func takeNum(s string) (int, string, bool) {
 	if s == "" {
 		return 0, "", true
@@ -238,6 +266,8 @@ func takeNum(s string) (int, string, bool) {
 	return 0, s, false
 }
 
+// parsePost reads a post-release: -N, or a post, rev or r label with an
+// optional separator and number.
 func parsePost(rest string) (int, string, bool) {
 	if rest == "" {
 		return 0, "", false
@@ -272,6 +302,9 @@ func parsePost(rest string) (int, string, bool) {
 	return 0, t, false
 }
 
+// preLabel returns the kind and the length of the pre-release label at the
+// start of t. Longer spellings are tried first, so preview is not read as
+// pre and alpha is not read as a.
 func preLabel(t string) (int, int) {
 	labels := []struct {
 		text string
@@ -294,12 +327,15 @@ func preLabel(t string) (int, int) {
 	return 0, 0
 }
 
+// postLabelLen returns the length of the post-release label at the start
+// of t, or 0 when there is none.
 func postLabelLen(t string) int {
 	switch {
 	case strings.HasPrefix(t, "post") && boundary(t[4:]):
 		return 4
 	case strings.HasPrefix(t, "rev") && boundary(t[3:]):
 		return 3
+	// rc is a pre-release, not the post label r followed by c.
 	case strings.HasPrefix(t, "rc"):
 		return 0
 	case strings.HasPrefix(t, "r") && boundary(t[1:]):
@@ -309,6 +345,8 @@ func postLabelLen(t string) int {
 	}
 }
 
+// boundary reports whether a label ends here, so that a label is never
+// the start of a longer word.
 func boundary(rest string) bool {
 	if rest == "" {
 		return true
@@ -317,6 +355,8 @@ func boundary(rest string) bool {
 	return isDigit(c) || c == '.' || c == '-' || c == '_'
 }
 
+// readInt reads a decimal number. A number too large for int is refused,
+// not wrapped.
 func readInt(s string) (int, string, bool) {
 	if s == "" || !isDigit(s[0]) {
 		return 0, s, false
@@ -334,10 +374,12 @@ func readInt(s string) (int, string, bool) {
 	return n, s[i:], true
 }
 
+// isDigit reports whether c is an ASCII digit.
 func isDigit(c byte) bool {
 	return c >= '0' && c <= '9'
 }
 
+// sign maps a difference to -1, 0 or 1.
 func sign(n int) int {
 	switch {
 	case n < 0:

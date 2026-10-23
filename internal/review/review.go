@@ -1,6 +1,12 @@
 // Package review is the seam between Proven's shell (command line, formats, Action) and its reviewer
 // (Planner, Investigator, Prover, Skeptic, Judge, Writer). Agreed by the masters of both trains on 2026-10-21.
 // Neither side changes this package without the other's agreement.
+//
+// Besides the seam's types, the package holds what the reviewer decides before and after the six agents run:
+// it loads proven.yaml (config.go), chooses the review class from the changed paths (ADR-0012, ADR-0014),
+// reads the author's model from the change (ADR-0011) and names the reviewer models and their independence
+// from the author (ADR-0008, ADR-0009) (decide.go). Open wires the adapters and the pipeline (open.go).
+// The six agents themselves live in internal/agent and run in internal/pipeline.
 package review
 
 import (
@@ -35,6 +41,8 @@ type ConfigError struct {
 	Reason  string
 }
 
+// Error returns one line the shell prints as it is: the refused field and value, the reason,
+// and the allowed values, so a user can fix the setting without reading the code.
 func (e *ConfigError) Error() string {
 	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
 	if e.Reason != "" {
@@ -68,6 +76,7 @@ type Request struct {
 // Severity is INFO, WARNING or ERROR (SARIF note, warning, error).
 type Severity string
 
+// The three severities, lowest first. The planner's severity string is copied into a Finding as one of these.
 const (
 	SeverityInfo    Severity = "INFO"
 	SeverityWarning Severity = "WARNING"
@@ -123,7 +132,7 @@ type Location struct {
 	EndLine   int
 }
 
-// Evidence kinds.
+// Evidence kinds. candidate.KindTest and candidate.KindQuery carry the same strings.
 const (
 	EvidenceTest  = "test"
 	EvidenceQuery = "query"

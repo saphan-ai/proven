@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestLoadNilEnvUsesDefaults proves an empty environment gives exactly the documented defaults.
 func TestLoadNilEnvUsesDefaults(t *testing.T) {
 	cfg, err := Load(nil)
 	if err != nil {
@@ -17,24 +18,30 @@ func TestLoadNilEnvUsesDefaults(t *testing.T) {
 	}
 }
 
+// TestLoadRuntime proves PROVEN_TEST_RUNTIME is read, and a flag-like value is refused by name.
 func TestLoadRuntime(t *testing.T) {
 	testStringSetting(t, EnvRuntime, "docker", "/usr/bin/podman", "-rf")
 }
 
 // Mutated field: PROVEN_TEST_IMAGE. Ignoring that variable turns "other" and
 // "refused" red.
+// It proves PROVEN_TEST_IMAGE is read, and a value with a space is refused by name.
 func TestLoadImage(t *testing.T) {
 	testStringSetting(t, EnvImage, "golang:1.26", "alpine:3", "bad image")
 }
 
+// TestLoadCPUs proves PROVEN_TEST_CPUS is read, and a word is refused by name.
 func TestLoadCPUs(t *testing.T) {
 	testStringSetting(t, EnvCPUs, "1", "2", "one")
 }
 
+// TestLoadMemory proves PROVEN_TEST_MEMORY is read, and a word is refused by name.
 func TestLoadMemory(t *testing.T) {
 	testStringSetting(t, EnvMemory, "512m", "256m", "lots")
 }
 
+// TestLoadTimeout proves PROVEN_TEST_TIMEOUT is read as a duration, and zero
+// or a word is refused by name.
 func TestLoadTimeout(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -67,6 +74,8 @@ func TestLoadTimeout(t *testing.T) {
 	}
 }
 
+// TestLoadMaxWrittenBytes proves PROVEN_TEST_MAX_WRITTEN_BYTES is read, and
+// zero or a word is refused by name.
 func TestLoadMaxWrittenBytes(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -99,6 +108,8 @@ func TestLoadMaxWrittenBytes(t *testing.T) {
 	}
 }
 
+// testStringSetting checks one string setting three ways: unset gives def,
+// set gives other, and bad is refused by the variable's name.
 func testStringSetting(t *testing.T, key, def, other, bad string) {
 	t.Helper()
 	cases := []struct {
@@ -175,6 +186,7 @@ func setSettingValue(cfg *ContainerConfig, key, value string) {
 	}
 }
 
+// assertRefused checks that err is a *ConfigError naming field and value.
 func assertRefused(t *testing.T, err error, field, value string) {
 	t.Helper()
 	var cfg *ConfigError

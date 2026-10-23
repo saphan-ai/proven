@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+// TestReadDirWritesOneRowPerRange proves one row per affected range in file
+// order: a fixed range, an open range, a last_affected range, two ranges in
+// one entry, a versions list as one-version ranges, severity from the most
+// specific place, sorted aliases, a non-JSON file skipped, and the CSV header.
 func TestReadDirWritesOneRowPerRange(t *testing.T) {
 	rows, err := ReadDir(filepath.Join(repoRoot(t), "testdata", "osv"))
 	if err != nil {
@@ -42,6 +46,8 @@ func TestReadDirWritesOneRowPerRange(t *testing.T) {
 	}
 }
 
+// TestReadDirRefusesAnAdvisoryWithNoID proves that an advisory with no id
+// refuses the run and the error names the file.
 func TestReadDirRefusesAnAdvisoryWithNoID(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "bad.json"), []byte(`{"affected":[]}`), 0o644); err != nil {
@@ -53,6 +59,7 @@ func TestReadDirRefusesAnAdvisoryWithNoID(t *testing.T) {
 	}
 }
 
+// repoRoot finds the module root, where testdata/ lives.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

@@ -44,6 +44,9 @@ func TestLiveContainerSettingIsRefused(t *testing.T) {
 	}
 }
 
+// With the test runner unplugged, the Prover is named as off with its reason,
+// a finding that needed a test is not reported as proved, and a finding with
+// query evidence stays.
 func TestUnplugLiveTestRunNamesProverOff(t *testing.T) {
 	p := buildSample(t, t.TempDir(), testrun.Live{})
 	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})
@@ -413,6 +416,7 @@ func TestNegativeControl_RemoveF1RecordedTest(t *testing.T) {
 	}
 }
 
+// dirProbe records the last request it was asked to run.
 type dirProbe struct {
 	req testrun.Request
 }
@@ -422,6 +426,8 @@ func (d *dirProbe) Run(ctx context.Context, req testrun.Request) (testrun.Outcom
 	return testrun.Outcome{}, nil
 }
 
+// checkoutRun fills the base and change directories only when the request left
+// them empty, and keeps the ones the caller set.
 func TestCheckoutRunFillsEmptyDirectories(t *testing.T) {
 	probe := &dirProbe{}
 	a := checkoutRun{inner: probe, base: "/tmp/base", change: "/tmp/change"}
@@ -485,6 +491,9 @@ func TestWrittenLimitFromOptionsRefusesBeforeTheRun(t *testing.T) {
 	}
 }
 
+// A finding whose evidence names a CVE gets that CVE's EPSS row as one more
+// query, a finding with no CVE stays unscored, and the findings come out in
+// the Writer's order.
 func TestKEVFindingGetsItsEPSSRow(t *testing.T) {
 	p := buildSample(t, t.TempDir(), nil)
 	d, err := p.Review(context.Background(), Request{Target: fixturePath(t)})
@@ -592,6 +601,8 @@ func traceContains(t *testing.T, path, id, substr string) bool {
 	return false
 }
 
+// buildSample builds a sample pipeline that fails the test if it reads any
+// setting: sample mode must run with no environment.
 func buildSample(t *testing.T, logDir string, run testrun.Adapter) *Pipeline {
 	t.Helper()
 	p, err := Build(Options{
@@ -698,11 +709,13 @@ func kept(d candidate.Draft, id string) (candidate.Candidate, bool) {
 	return candidate.Candidate{}, false
 }
 
+// fixturePath is the discount sample fixture under the module root.
 func fixturePath(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(repoRoot(t), "testdata", "fixture", "discount")
 }
 
+// repoRoot walks up from the working directory to the proven module root.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -722,6 +735,8 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
+// copyFixture copies the discount fixture to a temporary directory, so a test
+// can change one field of it.
 func copyFixture(t *testing.T) string {
 	t.Helper()
 	src := fixturePath(t)

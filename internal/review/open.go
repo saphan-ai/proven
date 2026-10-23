@@ -1,5 +1,8 @@
 package review
 
+// This file wires the reviewer: Open builds the adapters and the pipeline, and the runner turns
+// one Request into one Result.
+
 import (
 	"context"
 	"errors"
@@ -15,7 +18,11 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
+// open is Open. It refuses a missing LogDir, loads proven.yaml when the shell named one, and in live
+// mode loads every adapter's settings from the environment (ADR-0001, ADR-0013). Any refused setting
+// returns a *ConfigError, so the shell exits 7 before any review starts.
 func open(opts Options) (Reviewer, error) {
+	// The trace is written under LogDir; a review with no trace could not show how a finding was judged.
 	if opts.LogDir == "" {
 		return nil, &ConfigError{
 			Field:   "LogDir",
@@ -26,6 +33,8 @@ func open(opts Options) (Reviewer, error) {
 	}
 	cfg := defaultSettings()
 	explicit := false
+	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
+	// change's baseline (see runner.Review).
 	if opts.ConfigPath != "" {
 		loaded, err := loadConfigFile(opts.ConfigPath)
 		if err != nil {
@@ -39,6 +48,7 @@ func open(opts Options) (Reviewer, error) {
 		LogDir: opts.LogDir,
 		Env:    opts.Env,
 	}
+	// In sample mode the pipeline uses its recorded adapters, so none of the live settings are read.
 	if !opts.Sample {
 		env := opts.Env
 		if env == nil {
@@ -48,11 +58,14 @@ func open(opts Options) (Reviewer, error) {
 		if lerr != nil {
 			return nil, generatorConfig(lerr)
 		}
+		// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
 		popts.SkepticModel = settings.SkepticModel
 		gs, gerr := guardrail.Load(env)
 		if gerr != nil {
 			return nil, guardrailConfig(gerr)
 		}
+		// ADR-0005: the guardrail is on unless a setting turns it off. When off, the pipeline is told
+		// so and the trace records one "no guardrail" line.
 		if gs.Mode == guardrail.ModeOff {
 			popts.GuardOff = true
 		} else {
@@ -83,6 +96,9 @@ func open(opts Options) (Reviewer, error) {
 			return nil, testrunConfig(berr)
 		}
 		popts.MaxWrittenBytes = boxCfg.MaxWrittenBytes
+		// ADR-0025: the Prover runs a test only in a container with no network and no secret.
+		// A missing container runtime is not a refusal: the Prover is off, the reason is named in the
+		// review, and the other agents still run. Any other error stops Open.
 		box, err := testrun.NewContainer(boxCfg, nil)
 		if err != nil {
 			d, ok := service.As(err)
@@ -103,14 +119,19 @@ func open(opts Options) (Reviewer, error) {
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
+// cfg is the explicit configuration when explicit is true; otherwise it is unused and each
+// Review loads the settings of the change it reviews.
 type runner struct {
 	p        *pipeline.Pipeline
 	cfg      fileSettings
 	explicit bool
 }
 
+// Review runs one review: settings, deadline, class, the six agents, then the decision lines.
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	cfg := r.cfg
+	// Settings come from the baseline commit, not from the change, so a change cannot loosen its
+	// own review. With no baseline there is only the working tree to read.
 	if !r.explicit {
 		var loaded fileSettings
 		var err error
@@ -124,6 +145,8 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		}
 		cfg = loaded
 	}
+	// The timeout setting applies only when the shell set no deadline: --timeout wins.
+	// Zero means no deadline from the settings.
 	timeout := cfg.Timeout
 	if timeout > 0 {
 		if _, ok := ctx.Deadline(); !ok {
@@ -132,6 +155,9 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 			defer cancel()
 		}
 	}
+	// ADR-0009: a doubled class runs the agents a second time with the special-review model.
+	// With no special model configured there is nothing to double, so the class is not needed here;
+	// applyDecision still states it and says the special model is not configured.
 	double := false
 	if cfg.SpecialReviewer != "" {
 		files, ferr := changedPaths(req)
@@ -161,6 +187,9 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	return out, nil
 }
 
+// fill copies the writer's draft into the seam's Result. Slices are copied, so the Result shares no
+// memory with the pipeline. Findings and FailedServices are never nil, so an empty review prints
+// an empty list rather than a missing one.
 func fill(d candidate.Draft) Result {
 	out := Result{Partial: d.Partial, TracePath: d.TracePath}
 	for _, c := range d.Findings {
@@ -193,6 +222,7 @@ func fill(d candidate.Draft) Result {
 	return out
 }
 
+// toEvidence copies one piece of evidence across the seam, field by field.
 func toEvidence(e candidate.Evidence) Evidence {
 	out := Evidence{Kind: e.Kind}
 	if e.Test != nil {
@@ -213,8 +243,9 @@ func toEvidence(e candidate.Evidence) Evidence {
 	return out
 }
 
-// generatorConfig is the seam's *ConfigError for a refused generator setting.
-// The shell exits 7 on that type.
+// queryConfig turns a refused Zetaris query setting into the seam's *ConfigError.
+// The shell exits 7 on that type. Any other error passes through unchanged.
+// The five functions below do the same for the other adapters' settings.
 func queryConfig(err error) error {
 	var cfg *query.ConfigError
 	if errors.As(err, &cfg) {
@@ -226,6 +257,7 @@ func queryConfig(err error) error {
 	return err
 }
 
+// guardrailConfig turns a refused guardrail setting into the seam's *ConfigError.
 func guardrailConfig(err error) error {
 	var cfg *guardrail.ConfigError
 	if errors.As(err, &cfg) {
@@ -237,6 +269,7 @@ func guardrailConfig(err error) error {
 	return err
 }
 
+// epssConfig turns a refused EPSS view setting into the seam's *ConfigError.
 func epssConfig(err error) error {
 	var cfg *epss.ConfigError
 	if errors.As(err, &cfg) {
@@ -248,6 +281,7 @@ func epssConfig(err error) error {
 	return err
 }
 
+// osvConfig turns a refused OSV table setting into the seam's *ConfigError.
 func osvConfig(err error) error {
 	var cfg *osv.ConfigError
 	if errors.As(err, &cfg) {
@@ -259,6 +293,7 @@ func osvConfig(err error) error {
 	return err
 }
 
+// testrunConfig turns a refused container setting into the seam's *ConfigError.
 func testrunConfig(err error) error {
 	var cfg *testrun.ConfigError
 	if errors.As(err, &cfg) {
@@ -270,6 +305,7 @@ func testrunConfig(err error) error {
 	return err
 }
 
+// generatorConfig turns a refused Nightshift generator setting into the seam's *ConfigError.
 func generatorConfig(err error) error {
 	var cfg *generator.ConfigError
 	if errors.As(err, &cfg) {
@@ -281,6 +317,7 @@ func generatorConfig(err error) error {
 	return err
 }
 
+// copyRows copies query rows deeply. A nil input stays nil, so "no rows" and "zero rows" stay distinct.
 func copyRows(rows [][]string) [][]string {
 	if rows == nil {
 		return nil

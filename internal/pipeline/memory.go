@@ -48,7 +48,8 @@ func moduleRoot() string {
 	}
 }
 
-// fold reads the trace the review just wrote and applies any new events.
+// fold reads the trace the review just wrote and applies any new events to the
+// World Model, which records each landed refutation in H-MEM.
 // A second pass over the same file changes nothing.
 func (p *Pipeline) fold() error {
 	f, err := os.Open(p.trace.Path())

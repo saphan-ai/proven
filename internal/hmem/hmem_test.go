@@ -12,6 +12,7 @@ import (
 	"github.com/saphan-ai/proven/internal/hmem"
 )
 
+// TestAddRefusesABlankSource proves a memory with a blank source is never stored.
 func TestAddRefusesABlankSource(t *testing.T) {
 	s := openMem(t)
 	if _, err := s.Add(hmem.AddInput{Content: "a fact", Source: "  "}); err == nil {
@@ -19,6 +20,8 @@ func TestAddRefusesABlankSource(t *testing.T) {
 	}
 }
 
+// TestLoadRefusesARecordWithNoSource proves Open refuses a state file that
+// holds a record with no source.
 func TestLoadRefusesARecordWithNoSource(t *testing.T) {
 	dir := t.TempDir()
 	body := []byte(`{"version":1,"seq":1,"records":[{"id":"m1","content":"x","type":"factual","layer":"working","confidence":1,"provenance":{"origin":"manual","learnedAt":1,"label":"x"}}]}` + "\n")
@@ -30,6 +33,7 @@ func TestLoadRefusesARecordWithNoSource(t *testing.T) {
 	}
 }
 
+// TestLoadRefusesABadVersion proves Open refuses a state file of an unknown version.
 func TestLoadRefusesABadVersion(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{"version":9,"seq":0,"records":[]}`+"\n"), 0o644); err != nil {
@@ -40,6 +44,8 @@ func TestLoadRefusesABadVersion(t *testing.T) {
 	}
 }
 
+// TestStateInsideTheRepositoryIsRefused proves memory cannot be kept inside
+// the repository under review.
 func TestStateInsideTheRepositoryIsRefused(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "state")
@@ -49,6 +55,8 @@ func TestStateInsideTheRepositoryIsRefused(t *testing.T) {
 	}
 }
 
+// TestScoreMatchesTheFormula proves the hybrid score of a known record is the
+// hand-computed 0.74, and a superseded record scores lower.
 func TestScoreMatchesTheFormula(t *testing.T) {
 	s := openMem(t)
 	conf := 1.0
@@ -69,6 +77,8 @@ func TestScoreMatchesTheFormula(t *testing.T) {
 	}
 }
 
+// TestMarkSupersededLowersTheRank proves a superseded memory ranks below the
+// one that replaced it, and both are kept.
 func TestMarkSupersededLowersTheRank(t *testing.T) {
 	s := openMem(t)
 	conf := 0.9
@@ -102,6 +112,8 @@ func TestMarkSupersededLowersTheRank(t *testing.T) {
 	}
 }
 
+// TestQueryDropsBelowTheThreshold proves the default threshold drops a
+// memory with zero confidence.
 func TestQueryDropsBelowTheThreshold(t *testing.T) {
 	s := openMem(t)
 	zero := 0.0
@@ -117,6 +129,8 @@ func TestQueryDropsBelowTheThreshold(t *testing.T) {
 	}
 }
 
+// TestFeedbackDeltas proves each feedback kind moves confidence by its fixed
+// delta, helpful counts an access, and wrong tags the memory for review.
 func TestFeedbackDeltas(t *testing.T) {
 	s := openMem(t)
 	start := 0.5
@@ -147,6 +161,8 @@ func TestFeedbackDeltas(t *testing.T) {
 	}
 }
 
+// TestRememberIsIdempotentAndSurvivesReopen proves the same refutation is
+// stored once, is found again after a reopen, and does not match another change.
 func TestRememberIsIdempotentAndSurvivesReopen(t *testing.T) {
 	dir := t.TempDir()
 	logs := t.TempDir()
@@ -176,6 +192,7 @@ func TestRememberIsIdempotentAndSurvivesReopen(t *testing.T) {
 	}
 }
 
+// TestClearDropsTheMatch proves Clear removes a stored refutation, so it no longer matches.
 func TestClearDropsTheMatch(t *testing.T) {
 	s := openMem(t)
 	key := hmem.RefutationKey{ChangeKey: "chg", RuleID: "r", Path: "p.go", Title: "t", Reason: "because", At: fixed}
@@ -190,6 +207,7 @@ func TestClearDropsTheMatch(t *testing.T) {
 	}
 }
 
+// TestAuditIsAppendOnly proves each write adds one audit line naming its record.
 func TestAuditIsAppendOnly(t *testing.T) {
 	dir := t.TempDir()
 	logs := t.TempDir()
@@ -210,6 +228,8 @@ func TestAuditIsAppendOnly(t *testing.T) {
 	}
 }
 
+// TestGeneratorIsNotCalled proves Add and Query never call the injected
+// model (ADR-0018: no model call inside the engine).
 func TestGeneratorIsNotCalled(t *testing.T) {
 	s := openMem(t)
 	g := &boom{}
@@ -225,6 +245,7 @@ func TestGeneratorIsNotCalled(t *testing.T) {
 	}
 }
 
+// boom is a generator that records whether it was called.
 type boom struct{ called bool }
 
 func (b *boom) Complete(context.Context, string, string) (string, error) {
@@ -232,6 +253,7 @@ func (b *boom) Complete(context.Context, string, string) (string, error) {
 	return "", nil
 }
 
+// fixed is a fixed time in Unix milliseconds, so scores do not depend on the clock.
 const fixed = int64(1_700_000_000_000)
 
 func openMem(t *testing.T) *hmem.Store {

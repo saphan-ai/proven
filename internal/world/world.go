@@ -1,6 +1,15 @@
 // Package world is the minimum world model: a store, an ingest of the trace
 // log, and a context builder. The trace log is internal/trace. Memory of a
 // refuted finding is stored in H-MEM.
+//
+// It holds the state of one review (ADR-0003 point 2), built to the Meterless
+// World Model specification (ADR-0018 point 1). After the six agents have
+// written their claims, evidence, refutations and verdicts to the trace, the
+// pipeline folds that trace into this store. Folding is idempotent and
+// resumable (ADR-0018 point 5): an event already applied is skipped, so a run
+// killed halfway and started again reaches the same state. A refutation the
+// Skeptic made with evidence is handed to H-MEM, which backs this store's
+// memory (ADR-0018 point 4).
 package world
 
 import (
@@ -21,9 +30,11 @@ import (
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
+// schemaVersion is the state.json format. Open refuses any other version.
 const schemaVersion = 1
 
-// Provenance is required on every entity write.
+// Provenance is required on every entity write. Kind says how the entity was
+// learned, At when (for an ingested event, the event id), and By which agent.
 type Provenance struct {
 	Kind string `json:"kind"`
 	At   string `json:"at"`
@@ -68,7 +79,9 @@ type Context struct {
 	Memories    []hmem.Record `json:"memories"`
 }
 
-// Report is one ingest pass.
+// Report is one ingest pass. Applied and Skipped count new and already
+// applied events, Stopped says the pass hit its stopAfter limit, and Changed
+// says the folded state differs from before the pass.
 type Report struct {
 	Applied int
 	Skipped int
@@ -77,6 +90,8 @@ type Report struct {
 }
 
 // Options open a store. Dir is durable state. LogDir receives the provenance JSONL.
+// RepoRoot, when set, refuses a Dir inside that tree. Memory is the H-MEM
+// store that keeps refutations; it is required.
 type Options struct {
 	Dir      string
 	LogDir   string
@@ -84,7 +99,8 @@ type Options struct {
 	Memory   *hmem.Store
 }
 
-// Store folds the trace log. The generator is accepted and never called.
+// Store folds the trace log. The generator is accepted and never called
+// (ADR-0018: model calls go through an injected generator, never inside the engine).
 type Store struct {
 	dir       string
 	auditPath string
@@ -95,6 +111,8 @@ type Store struct {
 	entities  map[string]Entity
 }
 
+// disk is the shape of state.json. Applied lists every event id already
+// folded, which is what lets an ingest resume.
 type disk struct {
 	Version  int       `json:"version"`
 	Applied  []string  `json:"applied"`
@@ -156,6 +174,8 @@ func Open(opts Options) (*Store, error) {
 	if file.Version != schemaVersion {
 		return nil, fmt.Errorf("world: state version %d, want %d", file.Version, schemaVersion)
 	}
+	// Every list is checked for empty and duplicate ids: a damaged file is
+	// refused rather than folded into a state that could skip or repeat events.
 	for _, id := range file.Applied {
 		if id == "" {
 			return nil, fmt.Errorf("world: applied list has an empty event id")
@@ -187,6 +207,8 @@ func Open(opts Options) (*Store, error) {
 	return s, nil
 }
 
+// refuseInside refuses a state directory at or below root, so review state
+// never lands in the repository under review.
 func refuseInside(dir, root string) error {
 	if root == "" {
 		return nil
@@ -219,6 +241,7 @@ func (s *Store) UpsertEntity(e Entity) error {
 	if e.ID == "" || e.Type == "" {
 		return fmt.Errorf("world: an entity needs a type and an id")
 	}
+	// An entity written with no state is a live one.
 	if e.State == "" {
 		e.State = "active"
 	}
@@ -227,6 +250,8 @@ func (s *Store) UpsertEntity(e Entity) error {
 	if actor == "" {
 		actor = "system"
 	}
+	// The audit id is built from the entity and its provenance time, so the
+	// same write names the same line.
 	if err := s.audit(trace.Event{
 		EventID:   "upsert:" + e.ID + ":" + e.Source.At,
 		Kind:      "upsert",
@@ -240,6 +265,7 @@ func (s *Store) UpsertEntity(e Entity) error {
 	return s.persist()
 }
 
+// checkProvenance refuses a write that does not say how and when it was learned.
 func checkProvenance(p Provenance) error {
 	if p.Kind == "" || p.At == "" {
 		return fmt.Errorf("world: a write with no provenance is refused")
@@ -253,6 +279,7 @@ func checkProvenance(p Provenance) error {
 func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 	before := s.Canonical()
 	sc := bufio.NewScanner(r)
+	// A trace line can carry a whole query result, so lines up to 4 MiB are read.
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	var rep Report
 	for sc.Scan() {
@@ -268,6 +295,7 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 			sum := sha256.Sum256(line)
 			ev.EventID = hex.EncodeToString(sum[:])[:16]
 		}
+		// ADR-0018 point 5: an event already applied is skipped, never folded twice.
 		if _, ok := s.applied[ev.EventID]; ok {
 			rep.Skipped++
 			continue
@@ -288,6 +316,8 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 	if err := sc.Err(); err != nil {
 		return rep, err
 	}
+	// State is written once per pass. A pass killed before this line leaves
+	// the old state.json, and the next pass applies the same events again.
 	if err := s.persist(); err != nil {
 		return rep, err
 	}
@@ -295,6 +325,8 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 	return rep, nil
 }
 
+// apply folds one event into its finding. Selection and memory events, and
+// events with no finding, are marked applied but change nothing.
 func (s *Store) apply(ev trace.Event) error {
 	if ev.Kind == "selection" || ev.Kind == "memory" || ev.FindingID == "" {
 		return nil
@@ -316,6 +348,10 @@ func (s *Store) apply(ev trace.Event) error {
 			ref.Reason = ev.Refutation.Reason
 		}
 		f.Refutations = append(f.Refutations, ref)
+		// Only a refutation of a finding that had evidence is remembered
+		// (ADR-0006 point 4): refuting a guess teaches the next review nothing.
+		// The time is the event's place in the fold, not the clock, so a
+		// replay stores the same record.
 		if ref.Refuted && ev.HasEvidence {
 			at := int64(len(s.applied) + 1)
 			rec, err := s.mem.RememberRefutation(hmem.RefutationKey{
@@ -334,6 +370,7 @@ func (s *Store) apply(ev trace.Event) error {
 	case "verdict":
 		f.Verdict = ev.Text
 	}
+	// An event that names a rule or a title also records the finding as an entity.
 	if ev.RuleID == "" && ev.Title == "" {
 		return nil
 	}
@@ -352,6 +389,8 @@ func (s *Store) apply(ev trace.Event) error {
 	})
 }
 
+// putEntity stores an entity from an ingested event. Unlike UpsertEntity it
+// writes no audit line or state, because Ingest does both once per event and pass.
 func (s *Store) putEntity(e Entity) error {
 	if err := checkProvenance(e.Source); err != nil {
 		return err
@@ -361,6 +400,8 @@ func (s *Store) putEntity(e Entity) error {
 }
 
 // Context builds the read model for one finding, including a matched memory.
+// The memory is matched by the finding's keys, so a finding refuted in an
+// earlier review shows that refutation here.
 func (s *Store) Context(findingID, changeKey, ruleID, path, title string) Context {
 	out := Context{FindingID: findingID, Claims: []string{}, Evidence: []string{}, Refutations: []Refutation{}, Memories: []hmem.Record{}}
 	if f := s.findings[findingID]; f != nil {
@@ -372,6 +413,7 @@ func (s *Store) Context(findingID, changeKey, ruleID, path, title string) Contex
 	}
 	if rec, ok := s.mem.MatchRefutation(changeKey, ruleID, path, title); ok {
 		out.Memories = []hmem.Record{rec}
+		// The finding's own memory id, set during the fold, wins over the match.
 		if out.MemoryID == "" {
 			out.MemoryID = rec.ID
 		}
@@ -414,6 +456,8 @@ func (s *Store) Canonical() string {
 	return string(b)
 }
 
+// persist writes the canonical state indented, through a temporary file and
+// a rename, so a crash never leaves a half-written state.json.
 func (s *Store) persist() error {
 	var file disk
 	if err := json.Unmarshal([]byte(s.Canonical()), &file); err != nil {
@@ -431,6 +475,8 @@ func (s *Store) persist() error {
 	return os.Rename(tmp, filepath.Join(s.dir, "state.json"))
 }
 
+// audit appends one line to world.jsonl and syncs it (ADR-0018 point 3). The
+// line names the event, its kind and its finding; the full event stays in the trace.
 func (s *Store) audit(ev trace.Event) error {
 	line := map[string]string{
 		"event_id":   ev.EventID,

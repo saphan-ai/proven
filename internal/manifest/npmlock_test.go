@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+// TestNPMLockDiffAddedRaisedUnchangedRemoved proves that package-lock.json
+// yields added and raised packages, a scoped and a nested one included, and
+// nothing for the root entry, a link with no version, or an unchanged, lowered or
+// removed package.
 func TestNPMLockDiffAddedRaisedUnchangedRemoved(t *testing.T) {
 	base := []byte(`{
   "lockfileVersion": 2,
@@ -51,6 +55,8 @@ func TestNPMLockDiffAddedRaisedUnchangedRemoved(t *testing.T) {
 	}
 }
 
+// TestNPMLockReportsEveryNewVersion proves that a package installed at two
+// versions in two places reports both.
 func TestNPMLockReportsEveryNewVersion(t *testing.T) {
 	change := []byte(`{
   "lockfileVersion": 3,
@@ -72,6 +78,9 @@ func TestNPMLockReportsEveryNewVersion(t *testing.T) {
 	}
 }
 
+// TestNPMLockMalformed proves that broken JSON, a non-object, lockfileVersion 1
+// and a missing packages map each refuse the file with a reason, and that an
+// empty file has no pins.
 func TestNPMLockMalformed(t *testing.T) {
 	cases := []struct {
 		name string
@@ -97,6 +106,8 @@ func TestNPMLockMalformed(t *testing.T) {
 	}
 }
 
+// TestNPMLockMatch proves that the package-lock.json reader is an npm lock
+// reader whose parse errors are notes, and that it matches no other lock file.
 func TestNPMLockMatch(t *testing.T) {
 	r := NPMLock()
 	if r.Ecosystem != "npm" || !r.Lock || !r.NoteErr || !r.Match("package-lock.json") || !r.Match("svc/package-lock.json") {

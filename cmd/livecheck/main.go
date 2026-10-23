@@ -1,4 +1,9 @@
 // Command livecheck names each live service a review needs, before a demo.
+//
+// It checks the generator (Meterless Nightshift), the guardrail, Zetaris and
+// the Prover's container runtime. It reads the same settings a live review
+// loads, sends one small call to each service, and prints one line for each.
+// A secret value is never printed.
 package main
 
 import (
@@ -18,11 +23,13 @@ import (
 )
 
 const (
+	// Exit codes, as the help text lists them.
 	exitReady    = 0
 	exitNotReady = 1
 	exitUsage    = 2
 )
 
+// helpText is printed by -h and --help, and after a refused argument.
 const helpText = `livecheck checks every live service a review needs.
 
 One line per service, then a summary.
@@ -49,11 +56,14 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 }
 
+// check is one service's printed line and whether it is ready.
 type check struct {
 	line  string
 	ready bool
 }
 
+// run checks every service and returns the exit code. The environment is
+// passed in, so a test sets it without touching the process.
 func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -66,7 +76,11 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		fmt.Fprintf(stderr, "unknown argument %s\n%s", args[0], helpText)
 		return exitUsage
 	}
+	// The secret values are read once, so every printed line, the summary
+	// included, is redacted.
 	secrets := secretValues(env)
+	// Every service is checked even after one fails, so one run names all that
+	// are missing.
 	checks := []check{
 		checkGenerator(env),
 		checkGuardrail(env),
@@ -89,6 +103,8 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	return exitReady
 }
 
+// checkGenerator sends one short prompt and names the routed model and the
+// receipt id the answer carried.
 func checkGenerator(env func(string) string) check {
 	cfg, err := generator.Load(env)
 	if err != nil {
@@ -112,6 +128,8 @@ func checkGenerator(env func(string) string) check {
 	return readyLine("generator", fmt.Sprintf("model %s, receipt %s", model, receipt))
 }
 
+// checkGuardrail checks one short prompt. Mode off is a setting, not a
+// failure, so it is ready with no call.
 func checkGuardrail(env func(string) string) check {
 	cfg, err := guardrail.Load(env)
 	if err != nil {
@@ -133,6 +151,9 @@ func checkGuardrail(env func(string) string) check {
 	return readyLine("guardrail", fmt.Sprintf("verdict %s, latency %s", v.User, v.Latency.Round(time.Millisecond)))
 }
 
+// checkQuery runs one SELECT on the evidence view and names the row count.
+// A view name that is not a plain identifier is refused before anything is
+// sent, because it is pasted into the SQL.
 func checkQuery(env func(string) string) check {
 	cfg, err := query.Load(env)
 	if err != nil {
@@ -152,6 +173,9 @@ func checkQuery(env func(string) string) check {
 	return readyLine("query", fmt.Sprintf("rows %d", len(res.Rows)))
 }
 
+// checkContainer asks the runtime for its version and inspects the image. It
+// never pulls: a missing image is not ready. Probe bounds itself with the
+// container timeout.
 func checkContainer(env func(string) string) check {
 	cfg, err := testrun.Load(env)
 	if err != nil {
@@ -167,6 +191,7 @@ func checkContainer(env func(string) string) check {
 	return readyLine("container", "")
 }
 
+// readyLine is a ready line with an optional detail.
 func readyLine(name, detail string) check {
 	if detail == "" {
 		return check{line: name + ": ready", ready: true}
@@ -174,10 +199,12 @@ func readyLine(name, detail string) check {
 	return check{line: name + ": ready: " + detail, ready: true}
 }
 
+// notReady is a not-ready line with its reason.
 func notReady(name, reason string) check {
 	return check{line: name + ": not ready: " + reason, ready: false}
 }
 
+// evidenceView reads the evidence view setting. Empty means the default view.
 func evidenceView(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -189,6 +216,8 @@ func evidenceView(raw string) (string, error) {
 	return raw, nil
 }
 
+// validView accepts a view or schema.view of letters, digits and
+// underscores, at most 128 characters.
 func validView(s string) bool {
 	if len(s) > 128 {
 		return false
@@ -205,6 +234,7 @@ func validView(s string) bool {
 	return true
 }
 
+// viewPart reports whether s is one identifier.
 func viewPart(s string) bool {
 	if s == "" {
 		return false
@@ -220,6 +250,7 @@ func viewPart(s string) bool {
 	return true
 }
 
+// clip shortens a refused value before it is printed.
 func clip(value string) string {
 	if len(value) > 128 {
 		return value[:128]
@@ -227,6 +258,8 @@ func clip(value string) string {
 	return value
 }
 
+// secretValues lists the values of the three secret settings, longest first,
+// so a secret that contains another is redacted whole.
 func secretValues(env func(string) string) []string {
 	seen := map[string]bool{}
 	var out []string

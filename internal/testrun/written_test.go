@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// TestWrittenTestIsCopiedAndTheCheckoutStaysUntouched proves a written test
+// runs from copies of both checkouts, leaves the caller's trees unchanged,
+// and removes the copies afterwards.
 func TestWrittenTestIsCopiedAndTheCheckoutStaysUntouched(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
@@ -85,6 +88,8 @@ func TestWrittenTestIsCopiedAndTheCheckoutStaysUntouched(t *testing.T) {
 	}
 }
 
+// TestContainerRefusesAWrittenPathBeforeItRuns proves each unsafe written test
+// is refused with its reason and starts no container.
 func TestContainerRefusesAWrittenPathBeforeItRuns(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
 	c.run = func(context.Context, []string) (string, error) {
@@ -137,6 +142,9 @@ func TestContainerRefusesAWrittenPathBeforeItRuns(t *testing.T) {
 	}
 }
 
+// TestWrittenGoTestRunsInTheContainer proves, in a real container, that a
+// written test proves a defect the change brings in, and that neither
+// checkout gets the file. It runs only with PROVEN_TEST_DOCKER=1.
 func TestWrittenGoTestRunsInTheContainer(t *testing.T) {
 	if os.Getenv("PROVEN_TEST_DOCKER") != "1" {
 		t.Skip("PROVEN_TEST_DOCKER=1")

@@ -31,6 +31,10 @@ var exemptBanned = map[string]map[string]string{
 	},
 }
 
+// No production file under internal/ or cmd/ imports a package that dials the
+// network, starts a process or loads code, except the files named in
+// exemptBanned, each with its reason. ADR-0025: only the container runner
+// starts the change's code.
 func TestInternalAndCmdDoNotImportBannedPackages(t *testing.T) {
 	banned := map[string]bool{
 		"net":      true,

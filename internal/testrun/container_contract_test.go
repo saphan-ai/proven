@@ -43,6 +43,7 @@ func main() {
 }
 `
 
+// TestContractW1bT1 proves the run line turns the network off (ADR-0025 point 2).
 func TestContractW1bT1(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
@@ -53,6 +54,8 @@ func TestContractW1bT1(t *testing.T) {
 	}
 }
 
+// TestContractW1bT2 proves no environment variable of Proven reaches the
+// container, even when one holds a secret (ADR-0025 point 3).
 func TestContractW1bT2(t *testing.T) {
 	t.Setenv("METERLESS_RUNTIME_TOKEN", contractW1bSecret)
 	runtime := contractW1bRuntime(t, "exit 0\n")
@@ -67,6 +70,8 @@ func TestContractW1bT2(t *testing.T) {
 	}
 }
 
+// TestContractW1bT3 proves the container mounts the one checkout and no other
+// host path (ADR-0025 point 4).
 func TestContractW1bT3(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
@@ -81,6 +86,8 @@ func TestContractW1bT3(t *testing.T) {
 	}
 }
 
+// TestContractW1bT4 proves the container is removed on exit and carries the
+// configured CPU and memory limits (ADR-0025 point 5).
 func TestContractW1bT4(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	cfg := testrun.DefaultContainerConfig()
@@ -104,6 +111,8 @@ func TestContractW1bT4(t *testing.T) {
 	}
 }
 
+// TestContractW1bT5 proves a missing runtime turns the Prover off and runs
+// nothing on the host (ADR-0025 point 6).
 func TestContractW1bT5(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
 	runtime := contractW1bRuntime(t, "echo ran > "+contractW1bShQuote(t, marker)+"\nexit 0\n")
@@ -123,6 +132,8 @@ func TestContractW1bT5(t *testing.T) {
 	}
 }
 
+// TestContractW1bT6 proves a test that fails on the change and passes on the
+// base is proof, from two runs of the runtime.
 func TestContractW1bT6(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
@@ -140,6 +151,8 @@ func TestContractW1bT6(t *testing.T) {
 	}
 }
 
+// TestContractW1bT7 proves a hung runtime returns within 10 seconds and the
+// timed-out run is not proof.
 func TestContractW1bT7(t *testing.T) {
 	pidfile := filepath.Join(t.TempDir(), "pids")
 	runtime := contractW1bRuntime(t, "echo $$ >> "+contractW1bShQuote(t, pidfile)+"\nexec sleep 30\n")
@@ -169,6 +182,8 @@ func TestContractW1bT7(t *testing.T) {
 	}
 }
 
+// TestContractW1bT8 proves an empty image and a zero time limit are refused
+// by name, and the defaults carry both (ADR-0013).
 func TestContractW1bT8(t *testing.T) {
 	noImage := testrun.DefaultContainerConfig()
 	noImage.Image = ""
@@ -189,6 +204,8 @@ func TestContractW1bT8(t *testing.T) {
 	}
 }
 
+// TestContractW1bT9 proves the base run mounts the base and the change run
+// mounts the change, one checkout each.
 func TestContractW1bT9(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
@@ -212,6 +229,8 @@ func TestContractW1bT9(t *testing.T) {
 	}
 }
 
+// TestContractW1bT10 proves, in a real container, that a dial out fails.
+// It needs a runtime and the image, so it runs only with PROVEN_TEST_DOCKER=1.
 func TestContractW1bT10(t *testing.T) {
 	if os.Getenv("PROVEN_TEST_DOCKER") != "1" {
 		t.Skip("PROVEN_TEST_DOCKER=1")
@@ -275,6 +294,7 @@ func contractW1bRequest(id, name, command, base, change string) testrun.Request 
 	}
 }
 
+// contractW1bRuntime writes a fake runtime script with body and returns its path.
 func contractW1bRuntime(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "fake-runtime")
@@ -292,6 +312,8 @@ func contractW1bShQuote(t *testing.T, s string) string {
 	return "'" + s + "'"
 }
 
+// contractW1bRecordScript is a fake runtime body that saves its argv in
+// recordDir, then runs after.
 func contractW1bRecordScript(t *testing.T, recordDir, after string) string {
 	t.Helper()
 	q := contractW1bShQuote(t, recordDir)
@@ -305,6 +327,8 @@ func contractW1bRecordScript(t *testing.T, recordDir, after string) string {
 		after
 }
 
+// contractW1bExitForCheckouts is a script tail that exits 1 when the change
+// is mounted, 0 when the base is, and 2 when neither is.
 func contractW1bExitForCheckouts(t *testing.T, base, change string) string {
 	t.Helper()
 	return "base=" + contractW1bShQuote(t, base) + "\n" +
@@ -328,6 +352,7 @@ func contractW1bExitForCheckouts(t *testing.T, base, change string) string {
 		"exit 2\n"
 }
 
+// contractW1bRuns reads back the argv of every recorded runtime call, in order.
 func contractW1bRuns(t *testing.T, dir string) [][]string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -390,6 +415,8 @@ func contractW1bNetworkNone(argv []string) bool {
 	return false
 }
 
+// contractW1bEnvLeak returns the first argv element that passes environment
+// to the container or carries the planted secret.
 func contractW1bEnvLeak(argv []string) string {
 	for _, arg := range argv {
 		switch arg {
@@ -406,6 +433,8 @@ func contractW1bEnvLeak(argv []string) string {
 	return ""
 }
 
+// contractW1bMounts counts the mount flags in argv, in every spelling the
+// runtime accepts, and returns their host sources.
 func contractW1bMounts(argv []string) (int, []string) {
 	flags := 0
 	var sources []string
@@ -454,6 +483,8 @@ func contractW1bMountSource(spec string) string {
 	return ""
 }
 
+// contractW1bOtherHostPaths returns host paths in argv other than the
+// allowed checkout and the runtime itself.
 func contractW1bOtherHostPaths(argv []string, allowed, runtime string) []string {
 	allowed = filepath.Clean(allowed)
 	runtime = filepath.Clean(runtime)
@@ -521,6 +552,7 @@ func contractW1bFlagValue(argv, flags []string, value string) bool {
 	return false
 }
 
+// contractW1bNamesTimeLimit reports whether err says the run hit its time limit.
 func contractW1bNamesTimeLimit(err error) bool {
 	if err == nil {
 		return false
@@ -535,6 +567,7 @@ func contractW1bNamesTimeLimit(err error) bool {
 		strings.Contains(msg, "deadline")
 }
 
+// contractW1bKillPids kills the fake runtimes T7 left sleeping.
 func contractW1bKillPids(path string) {
 	body, err := os.ReadFile(path)
 	if err != nil {

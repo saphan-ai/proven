@@ -8,6 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// The live prompt carries the task, the shape, the example and the data, and asks for JSON only.
 func TestInstructAsksForTheJSONOnly(t *testing.T) {
 	got := Instruct(Spec{
 		Task:    "Name the risks.",
@@ -27,6 +28,7 @@ func TestInstructAsksForTheJSONOnly(t *testing.T) {
 	}
 }
 
+// Decode finds the JSON in a fence, in prose, and with a trailing comma.
 func TestDecodeTakesJSONFromAFenceFromProseAndFromATrailingComma(t *testing.T) {
 	type row struct {
 		SQL string `json:"sql"`
@@ -47,6 +49,7 @@ func TestDecodeTakesJSONFromAFenceFromProseAndFromATrailingComma(t *testing.T) {
 	}
 }
 
+// A comma before a bracket inside a string is part of the value and is kept.
 func TestDecodeKeepsACommaInsideAString(t *testing.T) {
 	type row struct {
 		SQL string `json:"sql"`
@@ -60,6 +63,7 @@ func TestDecodeKeepsACommaInsideAString(t *testing.T) {
 	}
 }
 
+// When a reply has a fence, JSON in the prose around it is ignored.
 func TestDecodePrefersTheFencedJSON(t *testing.T) {
 	type row struct {
 		SQL string `json:"sql"`
@@ -74,6 +78,7 @@ func TestDecodePrefersTheFencedJSON(t *testing.T) {
 	}
 }
 
+// A numbered list is not read as a number; the decode error is returned.
 func TestDecodeNumberedProseIsNotJSON(t *testing.T) {
 	var got map[string]any
 	err := Decode("1. this is not json", &got)
@@ -85,6 +90,8 @@ func TestDecodeNumberedProseIsNotJSON(t *testing.T) {
 	}
 }
 
+// A reply that stays unreadable after one repair degrades by the agent's name,
+// and the repair prompt carries the previous answer.
 func TestReadRepairsOnceThenNamesTheAgent(t *testing.T) {
 	g := &script{replies: []string{"1. this is not json", "still prose"}}
 	var got map[string]any
@@ -101,6 +108,7 @@ func TestReadRepairsOnceThenNamesTheAgent(t *testing.T) {
 	}
 }
 
+// A repaired answer is used, and no field from the failed first decode survives.
 func TestReadUsesARepairedAnswer(t *testing.T) {
 	type row struct {
 		SQL string `json:"sql"`
@@ -119,6 +127,7 @@ func TestReadUsesARepairedAnswer(t *testing.T) {
 	}
 }
 
+// A reply that decodes is used at once; no repair call is made.
 func TestReadDoesNotRepairADecodedAnswer(t *testing.T) {
 	g := &script{replies: []string{"Here:\n```json\n{\"sql\":\"SELECT 1\",}\n```\n", "unused"}}
 	var got struct {
@@ -132,6 +141,7 @@ func TestReadDoesNotRepairADecodedAnswer(t *testing.T) {
 	}
 }
 
+// A generator failure is returned as it is, with no repair call.
 func TestReadReturnsAGeneratorFailureUnchanged(t *testing.T) {
 	g := &script{err: &service.Down{Service: "nightshift", Reason: "timeout"}}
 	var got map[string]any
@@ -145,6 +155,7 @@ func TestReadReturnsAGeneratorFailureUnchanged(t *testing.T) {
 	}
 }
 
+// script is a generator that returns its replies in order and records each prompt.
 type script struct {
 	replies []string
 	prompts []string

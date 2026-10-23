@@ -2,6 +2,10 @@ package semver
 
 import "testing"
 
+// TestCompare proves SemVer precedence: an optional v, a release above its
+// pre-release, numeric pre-release identifiers below words, build metadata
+// ignored, Go pseudo-versions ordered by time, and short versions and
+// leading zeros refused.
 func TestCompare(t *testing.T) {
 	cases := []struct {
 		a, b string

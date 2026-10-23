@@ -14,6 +14,9 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// TestLoadRefusesABadSettingAndDoesNotPrintTheKey proves a bad organisation
+// id and a missing key are refused by name, and neither refusal prints the
+// key.
 func TestLoadRefusesABadSettingAndDoesNotPrintTheKey(t *testing.T) {
 	const secret = "super-secret-zetaris-key"
 	// Mutated field: ZETARIS_ORG_ID.
@@ -55,6 +58,9 @@ func TestLoadRefusesABadSettingAndDoesNotPrintTheKey(t *testing.T) {
 	}
 }
 
+// TestLiveSelectReadsRowsFromTheSQLEditor proves the client posts to the
+// SQL-editor route with the bearer key, the organisation id, and a new
+// request id and query id for each call, and turns JSON cells into text.
 func TestLiveSelectReadsRowsFromTheSQLEditor(t *testing.T) {
 	const secret = "live-test-key"
 	var ids []string
@@ -121,6 +127,8 @@ func TestLiveSelectReadsRowsFromTheSQLEditor(t *testing.T) {
 	}
 }
 
+// TestUnauthorizedNamesZetarisAndHidesTheKey proves a 401 is a failed zetaris
+// service, and a body that echoes the key is not printed.
 // Mutated field: the HTTP status, set to 401.
 func TestUnauthorizedNamesZetarisAndHidesTheKey(t *testing.T) {
 	const secret = "super-secret-zetaris-key"
@@ -140,6 +148,8 @@ func TestUnauthorizedNamesZetarisAndHidesTheKey(t *testing.T) {
 	}
 }
 
+// TestClosedEndpointNamesZetarisUnreachable proves a refused connection is
+// named zetaris, unreachable.
 // Mutated field: the listening socket. It is closed before the query.
 func TestClosedEndpointNamesZetarisUnreachable(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -157,6 +167,8 @@ func TestClosedEndpointNamesZetarisUnreachable(t *testing.T) {
 	}
 }
 
+// TestNonSelectIsNotSent proves a statement that is not a SELECT is refused
+// before any request.
 // Mutated field: the SQL verb. It is not a SELECT, so the client does not send it.
 func TestNonSelectIsNotSent(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -171,6 +183,7 @@ func TestNonSelectIsNotSent(t *testing.T) {
 	}
 }
 
+// loadLive builds valid Settings that point at a test server.
 func loadLive(t *testing.T, base, key string) query.Settings {
 	t.Helper()
 	cfg, err := query.Load(func(k string) string {
@@ -191,6 +204,8 @@ func loadLive(t *testing.T, base, key string) query.Settings {
 	return cfg
 }
 
+// asConfig reports whether err is a *query.ConfigError and stores it in
+// target.
 func asConfig(err error, target **query.ConfigError) bool {
 	cfg, ok := err.(*query.ConfigError)
 	if ok {

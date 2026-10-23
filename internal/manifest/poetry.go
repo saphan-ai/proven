@@ -24,6 +24,8 @@ func Poetry() Reader {
 	}
 }
 
+// diffPoetry compares two poetry.lock files with PEP 440 order. The error
+// names the side that did not parse.
 func diffPoetry(base, change []byte) ([]Change, error) {
 	before, err := parsePoetry(base)
 	if err != nil {
@@ -36,6 +38,10 @@ func diffPoetry(base, change []byte) ([]Change, error) {
 	return diffVersions(before, after, pep440.Compare), nil
 }
 
+// parsePoetry reads poetry.lock line by line. It is not a TOML parser: it
+// reads only what a [[package]] table needs, and refuses a line it does
+// not understand outside one, so a file of another kind is not taken for
+// an empty lock.
 func parsePoetry(b []byte) (versions, error) {
 	out := versions{}
 	if len(bytes.TrimSpace(b)) == 0 {
@@ -48,6 +54,8 @@ func parsePoetry(b []byte) (versions, error) {
 	start := 0
 	name, version := "", ""
 	verLine := 0
+	// finish closes the open [[package]] table. A table with no name or no
+	// version refuses the file rather than dropping one package unseen.
 	finish := func() error {
 		if !inHeader {
 			return nil
@@ -69,6 +77,9 @@ func parsePoetry(b []byte) (versions, error) {
 		if trim == "" || strings.HasPrefix(trim, "#") {
 			continue
 		}
+		// Any table header ends the open package, including its own
+		// sub-tables such as [package.dependencies]. A key written there
+		// names a dependency, not this package's name or version.
 		if strings.HasPrefix(trim, "[") {
 			if err := finish(); err != nil {
 				return nil, err
@@ -84,6 +95,7 @@ func parsePoetry(b []byte) (versions, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Outside a [[package]] table only key = value lines are expected.
 		if !inHeader {
 			if !ok && !strings.Contains(trim, "=") {
 				return nil, fmt.Errorf("line %d: not a package table", line)
@@ -113,6 +125,9 @@ func parsePoetry(b []byte) (versions, error) {
 	return out, nil
 }
 
+// poetryAssign reads a line of the form key = "string". The bool is false
+// for any other line, which is not an error: a package table also holds
+// arrays and inline tables this reader does not need.
 func poetryAssign(trim string, line int) (string, string, bool, error) {
 	i := strings.IndexByte(trim, '=')
 	if i < 0 {
@@ -133,6 +148,8 @@ func poetryAssign(trim string, line int) (string, string, bool, error) {
 	return key, val, true, nil
 }
 
+// poetryUnquote reads one quoted TOML string and allows only a comment
+// after it. It knows the escapes a package name or version can need.
 func poetryUnquote(s string, line int) (string, error) {
 	if len(s) < 2 || (s[0] != '"' && s[0] != '\'') {
 		return "", fmt.Errorf("line %d: unclosed string", line)

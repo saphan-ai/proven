@@ -29,8 +29,10 @@ type NVIDIA struct {
 // if it is asked to check: a review with the guardrail off does not call it.
 func New(cfg Settings, httpClient *http.Client) (Adapter, error) {
 	switch cfg.Mode {
+	// ADR-0005 point 3: the switch that turns the guardrail off.
 	case ModeOff:
 		return Off{}, nil
+	// Both backends speak the same request; only the address, model and key differ.
 	case ModeServer, ModeNVIDIA:
 		if cfg.Key == "" || cfg.BaseURL == "" || cfg.Model == "" || cfg.Timeout <= 0 {
 			return nil, Refuse("not configured")
@@ -70,11 +72,14 @@ func (Off) Check(context.Context, string, string) (Verdict, error) {
 	return Verdict{}, Refuse("off")
 }
 
+// client is the HTTP side both backends share.
 type client struct {
 	cfg  Settings
 	http *http.Client
 }
 
+// newClient uses, when httpClient is nil, a client that does not follow
+// redirects, so the key is not sent to another host.
 func newClient(cfg Settings, httpClient *http.Client) *client {
 	if httpClient == nil {
 		httpClient = &http.Client{
@@ -87,6 +92,8 @@ func newClient(cfg Settings, httpClient *http.Client) *client {
 	return &client{cfg: cfg, http: httpClient}
 }
 
+// chatRequest is the measured request of the content-safety model: no
+// sampling, no stream, no thinking, and categories asked for.
 type chatRequest struct {
 	Model       string         `json:"model"`
 	Temperature float64        `json:"temperature"`
@@ -95,16 +102,19 @@ type chatRequest struct {
 	Kwargs      templateKwargs `json:"chat_template_kwargs"`
 }
 
+// chatMessage is one turn of the conversation being judged.
 type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
+// templateKwargs are the model's chat-template switches.
 type templateKwargs struct {
 	EnableThinking    bool   `json:"enable_thinking"`
 	RequestCategories string `json:"request_categories"`
 }
 
+// completion is the part of the response that carries the verdict text.
 type completion struct {
 	Choices []struct {
 		Message struct {
@@ -113,6 +123,8 @@ type completion struct {
 	} `json:"choices"`
 }
 
+// check posts one conversation and parses its verdict. The latency is kept
+// even on failure, because ADR-0005 has the trace show what each check cost.
 func (c *client) check(ctx context.Context, prompt, answer string) (Verdict, error) {
 	if c == nil || c.http == nil || c.cfg.Key == "" || c.cfg.BaseURL == "" || c.cfg.Timeout <= 0 {
 		return Verdict{}, Refuse("not configured")
@@ -125,12 +137,15 @@ func (c *client) check(ctx context.Context, prompt, answer string) (Verdict, err
 	}
 	v, perr := Parse(text, answer != "")
 	v.Latency = lat
+	// A verdict that cannot be read is refused, never treated as safe.
 	if perr != nil {
 		return v, Refuse("bad verdict")
 	}
 	return v, nil
 }
 
+// post sends one request with its own timeout from PROVEN_GUARDRAIL_TIMEOUT and
+// returns the completion text.
 func (c *client) post(parent context.Context, prompt, answer string) (string, error) {
 	if err := parent.Err(); err != nil {
 		return "", err
@@ -159,6 +174,8 @@ func (c *client) post(parent context.Context, prompt, answer string) (string, er
 		return "", classify(parent, ctx, err)
 	}
 	defer resp.Body.Close()
+	// The body is read before the status is checked, so the connection can be
+	// reused; it is not put in any error, because it may echo the request.
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err != nil {
 		if parent.Err() != nil {
@@ -186,6 +203,8 @@ func (c *client) post(parent context.Context, prompt, answer string) (string, er
 	return text, nil
 }
 
+// messages is the conversation to judge: the prompt as the user turn, and the
+// answer as the assistant turn when there is one.
 func messages(prompt, answer string) []chatMessage {
 	out := []chatMessage{{Role: "user", Content: prompt}}
 	if answer != "" {
@@ -194,6 +213,8 @@ func messages(prompt, answer string) []chatMessage {
 	return out
 }
 
+// classify names a failed request: the caller's cancellation, a timeout, or an
+// unreachable guardrail.
 func classify(parent, ctx context.Context, err error) error {
 	if parent.Err() != nil {
 		return parent.Err()
@@ -204,15 +225,18 @@ func classify(parent, ctx context.Context, err error) error {
 	return Refuse("unreachable")
 }
 
+// timedOut reports whether err says it is a timeout, as net errors do.
 func timedOut(err error) bool {
 	var t interface{ Timeout() bool }
 	return errors.As(err, &t) && t.Timeout()
 }
 
+// httpReason names an unexpected HTTP status without the body.
 func httpReason(code int) string {
 	return "http " + strconv.Itoa(code)
 }
 
+// endpoint joins the API root with a method path. A base whose path is /v1 is already the root.
 func endpoint(base, method string) string {
 	b := strings.TrimRight(base, "/")
 	if strings.HasSuffix(b, "/v1") {

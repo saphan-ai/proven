@@ -7,6 +7,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 )
 
+// Nemotron is one family under any prefix; other models take their vendor; an empty name is unknown.
 func TestFamilyNamesNemotronAndTheVendor(t *testing.T) {
 	if got := skeptic.Family(generator.DefaultSkepticModel); got != "nemotron" {
 		t.Fatalf("nemotron %s", got)
@@ -22,6 +23,7 @@ func TestFamilyNamesNemotronAndTheVendor(t *testing.T) {
 	}
 }
 
+// Same families give a sentence naming the family and both models; different or unknown ones give none.
 func TestSameFamilySentenceNamesTheFamily(t *testing.T) {
 	model := generator.DefaultSkepticModel
 	got, ok := skeptic.SameFamilySentence(model, model)

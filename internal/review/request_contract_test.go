@@ -12,9 +12,12 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
-// Request-contract tests. At this base every case fails on behaviour except
-// TestContractW1cT8Defaults, which guards an empty configuration path.
+// Request-contract tests. They hold the shell's side of the seam: Include, Exclude, BaselineCommit and
+// ConfigPath must each change what the reviewer does. They were written before that behaviour existed,
+// when every case failed on behaviour except TestContractW1cT8Defaults, which guards an empty
+// configuration path; they now keep it from coming apart.
 
+// TestContractW1cT1Exclude proves that Exclude is honoured: excluding every path leaves no finding.
 func TestContractW1cT1Exclude(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
@@ -29,6 +32,8 @@ func TestContractW1cT1Exclude(t *testing.T) {
 	}
 }
 
+// TestContractW1cT2Include proves that Include is honoured: including only go.mod leaves only go.mod's
+// findings.
 func TestContractW1cT2Include(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
@@ -51,6 +56,7 @@ func TestContractW1cT2Include(t *testing.T) {
 	}
 }
 
+// TestContractW1cT3ExcludeWins proves that Exclude wins over Include when both match a path.
 func TestContractW1cT3ExcludeWins(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
@@ -74,6 +80,8 @@ func TestContractW1cT3ExcludeWins(t *testing.T) {
 	}
 }
 
+// TestContractW1cT4MissingBaseline proves that a baseline commit that does not exist is an error that
+// names it, never a silent review of the whole target.
 func TestContractW1cT4MissingBaseline(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
@@ -88,6 +96,8 @@ func TestContractW1cT4MissingBaseline(t *testing.T) {
 	}
 }
 
+// TestContractW1cT5UnknownKey proves that ConfigPath is read: an unknown key in it is refused with the
+// allowed keys.
 func TestContractW1cT5UnknownKey(t *testing.T) {
 	path := contractW1cWriteConfig(t, "colour: red\n")
 	_, err := review.Open(contractW1cOptions(t, path))
@@ -103,6 +113,7 @@ func TestContractW1cT5UnknownKey(t *testing.T) {
 	}
 }
 
+// TestContractW1cT6BadTimeout proves that the timeout value is parsed, so a bad one is refused.
 func TestContractW1cT6BadTimeout(t *testing.T) {
 	path := contractW1cWriteConfig(t, "timeout: banana\n")
 	_, err := review.Open(contractW1cOptions(t, path))
@@ -112,6 +123,8 @@ func TestContractW1cT6BadTimeout(t *testing.T) {
 	}
 }
 
+// TestContractW1cT7MissingFile proves that a missing configuration file is refused and named, not read as
+// the defaults.
 func TestContractW1cT7MissingFile(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "no-such-config.yaml")
 	_, err := review.Open(contractW1cOptions(t, missing))
@@ -124,6 +137,8 @@ func TestContractW1cT7MissingFile(t *testing.T) {
 	}
 }
 
+// TestContractW1cT8Defaults proves that an empty ConfigPath means the defaults: the sample review finds F1
+// and F2 where they are.
 func TestContractW1cT8Defaults(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{Target: contractW1cFixture(t)})
@@ -138,6 +153,8 @@ func TestContractW1cT8Defaults(t *testing.T) {
 	}
 }
 
+// TestContractW1cT9TimeoutBounds proves that the timeout setting is applied: a 1ns timeout must leave the
+// review partial or with nothing proved.
 func TestContractW1cT9TimeoutBounds(t *testing.T) {
 	path := contractW1cWriteConfig(t, "timeout: 1ns\n")
 	rev := contractW1cOpen(t, path)
@@ -151,6 +168,7 @@ func TestContractW1cT9TimeoutBounds(t *testing.T) {
 	t.Fatalf("config timeout never applied: Partial=false and %d findings proved (%s)", contractW1cProvedCount(res), contractW1cLocations(res))
 }
 
+// contractW1cOpen opens a sample reviewer with configPath, failing the test on a refusal.
 func contractW1cOpen(t *testing.T, configPath string) review.Reviewer {
 	t.Helper()
 	rev, err := review.Open(contractW1cOptions(t, configPath))
@@ -160,6 +178,7 @@ func contractW1cOpen(t *testing.T, configPath string) review.Reviewer {
 	return rev
 }
 
+// contractW1cOptions is the sample Options with configPath and a fresh log directory.
 func contractW1cOptions(t *testing.T, configPath string) review.Options {
 	t.Helper()
 	return review.Options{
@@ -170,6 +189,7 @@ func contractW1cOptions(t *testing.T, configPath string) review.Options {
 	}
 }
 
+// contractW1cWriteConfig writes body to a proven.yaml in a temporary directory and returns its path.
 func contractW1cWriteConfig(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "proven.yaml")
@@ -179,11 +199,13 @@ func contractW1cWriteConfig(t *testing.T, body string) string {
 	return path
 }
 
+// contractW1cFixture returns the discount fixture.
 func contractW1cFixture(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(contractW1cRepoRoot(t), "testdata", "fixture", "discount")
 }
 
+// contractW1cRepoRoot walks up from the test's directory to the module root.
 func contractW1cRepoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -203,6 +225,7 @@ func contractW1cRepoRoot(t *testing.T) string {
 	}
 }
 
+// contractW1cAsConfig returns err's *review.ConfigError, or nil.
 func contractW1cAsConfig(err error) *review.ConfigError {
 	var cfg *review.ConfigError
 	if !errors.As(err, &cfg) {
@@ -211,6 +234,7 @@ func contractW1cAsConfig(err error) *review.ConfigError {
 	return cfg
 }
 
+// contractW1cField returns cfg's field, or "" for a nil cfg, for failure messages.
 func contractW1cField(cfg *review.ConfigError) string {
 	if cfg == nil {
 		return ""
@@ -218,6 +242,7 @@ func contractW1cField(cfg *review.ConfigError) string {
 	return cfg.Field
 }
 
+// contractW1cContains reports whether values holds want.
 func contractW1cContains(values []string, want string) bool {
 	for _, v := range values {
 		if v == want {
@@ -227,6 +252,7 @@ func contractW1cContains(values []string, want string) bool {
 	return false
 }
 
+// contractW1cHasPath reports whether any finding is at path.
 func contractW1cHasPath(res review.Result, path string) bool {
 	for _, f := range res.Findings {
 		if f.Location.Path == path {
@@ -236,6 +262,7 @@ func contractW1cHasPath(res review.Result, path string) bool {
 	return false
 }
 
+// contractW1cHasIDAt reports whether finding id is at path.
 func contractW1cHasIDAt(res review.Result, id, path string) bool {
 	for _, f := range res.Findings {
 		if f.ID == id && f.Location.Path == path {
@@ -245,6 +272,7 @@ func contractW1cHasIDAt(res review.Result, id, path string) bool {
 	return false
 }
 
+// contractW1cLocations lists the findings as id@path, for failure messages.
 func contractW1cLocations(res review.Result) string {
 	parts := make([]string, 0, len(res.Findings))
 	for _, f := range res.Findings {
@@ -253,6 +281,7 @@ func contractW1cLocations(res review.Result) string {
 	return strings.Join(parts, ", ")
 }
 
+// contractW1cProvedCount counts the findings that are settled and carry evidence.
 func contractW1cProvedCount(res review.Result) int {
 	n := 0
 	for _, f := range res.Findings {

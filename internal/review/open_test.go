@@ -14,6 +14,10 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+// TestOpenSampleReviewKeepsF1AndF2 proves the sample review end to end through the seam: F1 is kept on a
+// test that fails on the change and passes on the base, F2 and F4 on query rows with their EPSS rows,
+// F3 is dropped for no evidence with its full trail (claim, evidence, refutation, verdict) in the trace,
+// and no model is named as if from a receipt, because the sample has none.
 func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	res, err := rev.Review(context.Background(), review.Request{Target: fixturePath(t)})
@@ -90,6 +94,8 @@ func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 	}
 }
 
+// TestSampleReviewDoesNotReadTheEnvironment proves that a sample review reads no environment variable, so
+// it needs no key and reaches no service (ADR-0001).
 func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 	rev, err := review.Open(review.Options{
 		Sample: true,
@@ -107,6 +113,8 @@ func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 	}
 }
 
+// TestCancelledContextIsPartial proves the seam's deadline contract: a context that has already ended
+// gives a Partial result and a nil error, not a failure.
 func TestCancelledContextIsPartial(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	ctx, cancel := context.WithCancel(context.Background())
@@ -120,7 +128,11 @@ func TestCancelledContextIsPartial(t *testing.T) {
 	}
 }
 
+// TestLiveModeWithoutRuntimeNamesProverOff proves ADR-0025's fallback: with no container runtime the
+// Prover is named off in the failed services, the review still returns, and no finding claims a test
+// that ran.
 func TestLiveModeWithoutRuntimeNamesProverOff(t *testing.T) {
+	// An empty PATH finds no container runtime: the case this test is about.
 	t.Setenv("PATH", t.TempDir())
 	// The endpoint is closed so this test cannot reach a real Nightshift.
 	// Mutated field: the listening socket. It is closed before Open returns.
@@ -161,6 +173,8 @@ func TestLiveModeWithoutRuntimeNamesProverOff(t *testing.T) {
 	}
 }
 
+// TestLiveModeRefusesABadContainerSetting proves that a bad container setting is a refusal, not a Prover
+// that is quietly off: Open returns a *ConfigError that names the field and the allowed values.
 // Mutated field: PROVEN_TEST_MEMORY. A value Validate refuses stops Open.
 func TestLiveModeRefusesABadContainerSetting(t *testing.T) {
 	_, err := review.Open(review.Options{
@@ -177,6 +191,7 @@ func TestLiveModeRefusesABadContainerSetting(t *testing.T) {
 	}
 }
 
+// TestEmptyLogDirIsRefused proves that Open refuses an empty LogDir, since the review must write its trace.
 func TestEmptyLogDirIsRefused(t *testing.T) {
 	_, err := review.Open(review.Options{Sample: true, Env: os.Getenv})
 	var cfg *review.ConfigError
@@ -185,6 +200,7 @@ func TestEmptyLogDirIsRefused(t *testing.T) {
 	}
 }
 
+// openSample opens a sample reviewer with the default settings and logs under logDir.
 func openSample(t *testing.T, logDir string) review.Reviewer {
 	t.Helper()
 	rev, err := review.Open(review.Options{Sample: true, LogDir: logDir, Env: os.Getenv})
@@ -194,6 +210,7 @@ func openSample(t *testing.T, logDir string) review.Reviewer {
 	return rev
 }
 
+// find returns the finding with id.
 func find(res review.Result, id string) (review.Finding, bool) {
 	for _, f := range res.Findings {
 		if f.ID == id {
@@ -203,12 +220,14 @@ func find(res review.Result, id string) (review.Finding, bool) {
 	return review.Finding{}, false
 }
 
+// traceEvent is the part of one trace line these tests read.
 type traceEvent struct {
 	FindingID string `json:"finding_id"`
 	Kind      string `json:"kind"`
 	Text      string `json:"text"`
 }
 
+// traceEvents returns, in order, the trace lines about finding id.
 func traceEvents(t *testing.T, path, id string) []traceEvent {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -231,11 +250,13 @@ func traceEvents(t *testing.T, path, id string) []traceEvent {
 	return out
 }
 
+// fixturePath returns the discount fixture, the change every sample review reads.
 func fixturePath(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(repoRoot(t), "testdata", "fixture", "discount")
 }
 
+// repoRoot walks up from the test's directory to the module root.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -255,6 +276,7 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
+// errorAs finds a *review.ConfigError in err's chain of single wraps.
 func errorAs(err error, target **review.ConfigError) bool {
 	if err == nil {
 		return false

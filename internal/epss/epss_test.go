@@ -11,6 +11,9 @@ import (
 	"github.com/saphan-ai/proven/internal/query"
 )
 
+// TestPhraseUsesTheStoredScoreAndAnOrdinalPercentile proves the phrase keeps
+// the score as stored, writes the percentile as an English ordinal, and
+// falls back to the raw text when the percentile is not a number.
 func TestPhraseUsesTheStoredScoreAndAnOrdinalPercentile(t *testing.T) {
 	if got := Phrase("0.97", "0.99", "2026-10-20"); got != "EPSS 0.97 (99th percentile, 2026-10-20)" {
 		t.Fatalf("%s", got)
@@ -36,6 +39,9 @@ func TestPhraseUsesTheStoredScoreAndAnOrdinalPercentile(t *testing.T) {
 	}
 }
 
+// TestLoadViewEmptyIsTheDefaultAndABadNameIsRefused proves an empty or blank
+// value takes the default, and a name that is not a view is refused with
+// what is allowed.
 func TestLoadViewEmptyIsTheDefaultAndABadNameIsRefused(t *testing.T) {
 	got, err := LoadView(nil)
 	if err != nil || got != DefaultView {
@@ -65,6 +71,7 @@ func TestLoadViewEmptyIsTheDefaultAndABadNameIsRefused(t *testing.T) {
 	}
 }
 
+// asConfig reports whether err is a *ConfigError and stores it in dst.
 func asConfig(err error, dst **ConfigError) bool {
 	c, ok := err.(*ConfigError)
 	if ok {
@@ -73,6 +80,10 @@ func asConfig(err error, dst **ConfigError) bool {
 	return ok
 }
 
+// TestAttachReadsTheSampleRowAndSkipsAMissingCVE proves, on the sample
+// tables, that a CVE with a row gains the score as query evidence with the
+// exact SQL, a CVE with no row gains only a trace note, and a finding with
+// no CVE gains nothing.
 func TestAttachReadsTheSampleRowAndSkipsAMissingCVE(t *testing.T) {
 	q, err := query.OpenSample(filepath.Join(repoRoot(t), "testdata", "fixture", "discount", "tables.sql"))
 	if err != nil {
@@ -127,6 +138,8 @@ func TestAttachReadsTheSampleRowAndSkipsAMissingCVE(t *testing.T) {
 	}
 }
 
+// TestAttachReadsAnAliasListOnceEach proves a cell that lists several CVE
+// ids is split, and each id is queried once.
 func TestAttachReadsAnAliasListOnceEach(t *testing.T) {
 	q := &memQuery{rows: map[string][]string{
 		"CVE-2026-0001":  {"CVE-2026-0001", "0.50000", "0.90000", "2026-10-20"},
@@ -151,6 +164,8 @@ func TestAttachReadsAnAliasListOnceEach(t *testing.T) {
 	}
 }
 
+// TestAttachDoesNotQueryADroppedFinding proves a dropped finding is left as
+// it is. The engine is nil, so any query would fail the test.
 func TestAttachDoesNotQueryADroppedFinding(t *testing.T) {
 	c := kev("F3", "CVE-2026-0001")
 	c.Dropped = true
@@ -163,6 +178,8 @@ func TestAttachDoesNotQueryADroppedFinding(t *testing.T) {
 	}
 }
 
+// TestAttachIgnoresACellThatIsNotACVE proves a cell that is not exactly a
+// CVE id, such as CVE-2026-1, sends no query.
 func TestAttachIgnoresACellThatIsNotACVE(t *testing.T) {
 	q := &memQuery{}
 	c := candidate.Candidate{
@@ -184,6 +201,7 @@ func TestAttachIgnoresACellThatIsNotACVE(t *testing.T) {
 	}
 }
 
+// kev is a kept finding whose KEV evidence names one CVE.
 func kev(id, cve string) candidate.Candidate {
 	return candidate.Candidate{
 		Risk: candidate.Risk{ID: id, Severity: "ERROR", Title: cve},
@@ -197,6 +215,8 @@ func kev(id, cve string) candidate.Candidate {
 	}
 }
 
+// memQuery is an Adapter that records each SQL it is sent and answers a
+// score row for a CVE it knows.
 type memQuery struct {
 	calls []string
 	rows  map[string][]string
@@ -220,6 +240,7 @@ func (m *memQuery) Query(_ context.Context, sql string) (query.Result, error) {
 	}, nil
 }
 
+// repoRoot finds the module root, where the sample fixtures live.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

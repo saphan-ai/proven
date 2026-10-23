@@ -1,5 +1,9 @@
 package review
 
+// This file reads proven.yaml, the reviewer's own settings (ADR-0013): the timeout, the two reviewer
+// models (ADR-0009, ADR-0010), the family table and author sources (ADR-0011), and the class rules
+// (ADR-0014). Every key is closed: an unknown key or value is refused with the values allowed.
+
 import (
 	"bytes"
 	"os"
@@ -11,6 +15,7 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 )
 
+// configKeyTimeout is the timeout key, named once because the refusal text is keyed on it too.
 const configKeyTimeout = "timeout"
 
 // allowedTimeout is the value list a refused timeout names.
@@ -51,20 +56,28 @@ type fileSettings struct {
 	RaiseClass      bool
 }
 
+// familyRule maps a model-name pattern to a family, one row of the families table (ADR-0011 point 4).
 type familyRule struct {
 	Pattern string
 	Family  string
 }
 
+// pathRule maps a changed-path pattern to a review class (ADR-0014 point 2).
 type pathRule struct {
 	Pattern string
 	Class   string
 }
 
+// classNames is the closed list of review classes (ADR-0014 point 7), in the default order of risk,
+// highest first. It is a function, not a variable, so no caller can change the shared list.
 func classNames() []string {
 	return []string{"security", "backend", "mobile", "user interface", "docs"}
 }
 
+// defaultSettings is what Proven uses with no proven.yaml. Each value can be replaced by a named
+// key (ADR-0013): NVIDIA reviews by default (ADR-0008 point 3), security is doubled
+// (ADR-0009), backend is the fallback class (ADR-0014 point 4), and Assisted-by is the trailer key
+// (ADR-0011 point 1). The timeout is zero: no deadline unless the shell or the file sets one.
 func defaultSettings() fileSettings {
 	return fileSettings{
 		DefaultReviewer: "NVIDIA",
@@ -192,11 +205,13 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 	return parseConfig(b)
 }
 
-// parseConfig reads one flat YAML mapping. Lists are comma-separated scalars.
+// parseConfig reads one flat YAML mapping. It is a small reader of its own, not a YAML library,
+// because the file is one flat mapping and anything richer must be refused, not interpreted. Lists are comma-separated scalars.
 // An empty file is the defaults. Comments, quotes and one document are read.
 // A nested value is refused. An unknown key is refused.
 func parseConfig(b []byte) (fileSettings, error) {
 	cfg := defaultSettings()
+	// An editor may save a UTF-8 byte order mark; it is not part of the first key.
 	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
 	if len(bytes.TrimSpace(b)) == 0 {
 		return cfg, nil
@@ -216,6 +231,7 @@ func parseConfig(b []byte) (fileSettings, error) {
 			seenDoc = true
 			continue
 		}
+		// "..." ends a YAML document; with one document allowed, nothing follows that matters.
 		if trimmed == "..." {
 			continue
 		}
@@ -235,6 +251,7 @@ func parseConfig(b []byte) (fileSettings, error) {
 				Allowed: append([]string(nil), configKeys...),
 			}
 		}
+		// A key set twice is refused, so a reader of the file never has to guess which line wins.
 		if seen[key] {
 			return fileSettings{}, configRefused(key, val, "duplicate key", allowedText(key))
 		}
@@ -246,6 +263,7 @@ func parseConfig(b []byte) (fileSettings, error) {
 	return cfg, nil
 }
 
+// knownKey reports whether key is in the closed key set.
 func knownKey(key string) bool {
 	for _, k := range configKeys {
 		if k == key {
@@ -255,6 +273,7 @@ func knownKey(key string) bool {
 	return false
 }
 
+// allowedText is the allowed-values text a refusal of key names (ADR-0013).
 func allowedText(key string) string {
 	switch key {
 	case configKeyTimeout:
@@ -276,9 +295,12 @@ func allowedText(key string) string {
 	}
 }
 
+// applyKey checks one value and sets it on cfg. A key that is set replaces the default; lists are
+// never merged with the default list, so the file says the whole setting.
 func applyKey(cfg *fileSettings, key, val string) error {
 	switch key {
 	case configKeyTimeout:
+		// An empty timeout means no deadline from the file, the same as 0s.
 		if val == "" {
 			cfg.Timeout = 0
 			return nil
@@ -290,12 +312,14 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		cfg.Timeout = d
 		return nil
 	case "default_reviewer":
+		// Every review uses the default reviewer (ADR-0009 point 2), so it may not be empty.
 		if val == "" {
 			return configRefused(key, val, "missing value", "a model name, for example NVIDIA")
 		}
 		cfg.DefaultReviewer = val
 		return nil
 	case "special_reviewer":
+		// Empty is allowed: no special model, and a doubled class says so in the review.
 		cfg.SpecialReviewer = val
 		return nil
 	case "families":
@@ -326,6 +350,7 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		cfg.Fallback = val
 		return nil
 	case "doubled_classes":
+		// "off" doubles no class; an empty list would be refused, so off is the way to say none.
 		if val == "off" {
 			cfg.Doubled = map[string]bool{}
 			return nil
@@ -373,6 +398,7 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		if err != nil {
 			return err
 		}
+		// ADR-0014 point 9: the setting is checked and kept, but no model raises a class yet.
 		cfg.RaiseClass = on
 		return nil
 	default:
@@ -380,6 +406,8 @@ func applyKey(cfg *fileSettings, key, val string) error {
 	}
 }
 
+// parseOnOff reads a switch. Only "on" and "off" are accepted, not YAML's yes, true or 1, so a
+// switch reads one way in every file.
 func parseOnOff(field, value string) (bool, error) {
 	switch value {
 	case "on":
@@ -391,6 +419,8 @@ func parseOnOff(field, value string) (bool, error) {
 	}
 }
 
+// parseFamilies reads "pattern=family, ..." into the family table, in the file's order: the first
+// matching row wins in familyOf.
 func parseFamilies(value string) ([]familyRule, error) {
 	pairs, err := parsePairs("families", value)
 	if err != nil {
@@ -406,6 +436,8 @@ func parseFamilies(value string) ([]familyRule, error) {
 	return out, nil
 }
 
+// parsePathRules reads "pattern=class, ...". ADR-0014 point 7: a rule that names a class not on
+// the closed list is refused when the file is loaded.
 func parsePathRules(value string) ([]pathRule, error) {
 	pairs, err := parsePairs("path_rules", value)
 	if err != nil {
@@ -424,6 +456,8 @@ func parsePathRules(value string) ([]pathRule, error) {
 	return out, nil
 }
 
+// parsePairs splits a comma list of pattern=value items, at the first "=". A pattern given twice
+// is refused, because only one of its values could ever apply.
 func parsePairs(field, value string) ([][2]string, error) {
 	items, err := splitCSV(field, value)
 	if err != nil {
@@ -450,6 +484,8 @@ func parsePairs(field, value string) ([][2]string, error) {
 	return out, nil
 }
 
+// parseClassOrder reads the order of risk, highest first. ADR-0014 point 7: an order that leaves a
+// class out is refused, and the refusal names the classes it left out.
 func parseClassOrder(value string) ([]string, error) {
 	parts, err := parseClassTokens("class_order", value)
 	if err != nil {
@@ -475,6 +511,7 @@ func parseClassOrder(value string) ([]string, error) {
 	return parts, nil
 }
 
+// parseClassTokens reads a comma list of class names; each must be a known class, named once.
 func parseClassTokens(field, value string) ([]string, error) {
 	parts, err := splitCSV(field, value)
 	if err != nil {
@@ -493,6 +530,8 @@ func parseClassTokens(field, value string) ([]string, error) {
 	return parts, nil
 }
 
+// parseTrailerKeys reads the trailer keys that name an author model (ADR-0011 point 3). A trailing
+// colon is dropped, so "Assisted-by:" and "Assisted-by" are the same key; keys compare without case.
 func parseTrailerKeys(value string) ([]string, error) {
 	parts, err := splitCSV("author_trailer_keys", value)
 	if err != nil {
@@ -515,6 +554,8 @@ func parseTrailerKeys(value string) ([]string, error) {
 	return out, nil
 }
 
+// parseRecord checks the author record setting on load. The record must lie inside the review
+// target: an absolute path or a ".." step is refused here, and recordPaths checks links when it reads.
 func parseRecord(value string) (string, error) {
 	const allowed = "off, or a relative path or pattern inside the review target"
 	if value == "" || value == "off" {
@@ -534,6 +575,8 @@ func parseRecord(value string) (string, error) {
 	return value, nil
 }
 
+// splitCSV splits a comma list and trims each item. An empty list or an empty item is refused,
+// so a stray comma never becomes a rule that matches nothing.
 func splitCSV(field, value string) ([]string, error) {
 	if strings.TrimSpace(value) == "" {
 		return nil, configRefused(field, value, "missing value", "a comma-separated list")
@@ -550,6 +593,7 @@ func splitCSV(field, value string) ([]string, error) {
 	return out, nil
 }
 
+// knownClass reports whether name is on the closed class list.
 func knownClass(name string) bool {
 	for _, c := range classNames() {
 		if c == name {
@@ -559,10 +603,12 @@ func knownClass(name string) bool {
 	return false
 }
 
+// configRefused is the *ConfigError with one allowed-values text.
 func configRefused(field, value, reason, allowed string) *ConfigError {
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}
 }
 
+// splitField splits one "key: value" line into the key and the unquoted value.
 func splitField(line string) (string, string, error) {
 	key, rest, err := takeKey(line)
 	if err != nil {
@@ -582,6 +628,7 @@ func splitField(line string) (string, string, error) {
 	return key, val, nil
 }
 
+// takeKey reads the key, plain or quoted, and returns the rest of the line from the colon on.
 func takeKey(line string) (string, string, error) {
 	if line == "" {
 		return "", "", configRefused("proven.yaml", line, "empty key", strings.Join(configKeys, ", "))
@@ -600,6 +647,8 @@ func takeKey(line string) (string, string, error) {
 	return strings.TrimSpace(line[:i]), line[i:], nil
 }
 
+// takeValue reads one scalar value. YAML's null spellings read as empty. A flow list, a flow map
+// or a block scalar is refused as nested. An unquoted value ends at " #", where a comment starts.
 func takeValue(s string) (string, error) {
 	if s == "" || s == "~" || s == "null" || s == "Null" || s == "NULL" {
 		return "", nil
@@ -627,6 +676,9 @@ func takeValue(s string) (string, error) {
 	return s, nil
 }
 
+// unquote reads one quoted scalar and returns it with the text after the closing quote. Inside
+// double quotes it reads only the escapes \\, \", \n and \t; any other escape is refused rather than
+// guessed. Single quotes take every character as it is.
 func unquote(s string) (string, string, error) {
 	if s == "" {
 		return "", "", configRefused("proven.yaml", s, "empty quote", "a quoted scalar")

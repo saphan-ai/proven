@@ -8,6 +8,7 @@ import (
 	"testing"
 )
 
+// Between two commits lists only the files the second commit changed.
 func TestBetweenTwoCommits(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")
@@ -29,6 +30,8 @@ func TestBetweenTwoCommits(t *testing.T) {
 	}
 }
 
+// An empty head means the working tree: both an edited tracked file and a new
+// untracked file are in the change.
 func TestBetweenWorkingTreeIncludesEditsAndUntracked(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")
@@ -48,6 +51,7 @@ func TestBetweenWorkingTreeIncludesEditsAndUntracked(t *testing.T) {
 	}
 }
 
+// A baseline that does not exist is an error that names it.
 func TestBetweenMissingBaselineNamesTheCommit(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")
@@ -61,6 +65,7 @@ func TestBetweenMissingBaselineNamesTheCommit(t *testing.T) {
 	}
 }
 
+// A head that does not exist is an error that names it.
 func TestBetweenMissingHeadNamesTheCommit(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")
@@ -75,6 +80,8 @@ func TestBetweenMissingHeadNamesTheCommit(t *testing.T) {
 	}
 }
 
+// An exclude pattern wins over an include pattern, and a pattern matches a
+// file by its base name as well as by its full path.
 func TestSelectExcludeWinsAndMatchesBaseName(t *testing.T) {
 	files := []string{"billing/discount.go", "go.mod"}
 	selected, out, err := Select(files, []string{"*"}, []string{"go.mod"})
@@ -97,6 +104,7 @@ func TestSelectExcludeWinsAndMatchesBaseName(t *testing.T) {
 	}
 }
 
+// A malformed glob is an error that names the pattern, not a silent miss.
 func TestSelectBadGlob(t *testing.T) {
 	_, _, err := Select([]string{"a.go"}, []string{"["}, nil)
 	if err == nil || !strings.Contains(err.Error(), "[") {
@@ -104,6 +112,8 @@ func TestSelectBadGlob(t *testing.T) {
 	}
 }
 
+// git runs git in dir with a fixed test identity and no signing, so the test
+// does not depend on the user's git configuration.
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	full := append([]string{
@@ -120,11 +130,13 @@ func git(t *testing.T, dir string, args ...string) {
 	}
 }
 
+// rev returns the commit id of HEAD in dir.
 func rev(t *testing.T, dir string) string {
 	t.Helper()
 	return strings.TrimSpace(string(runGit(t, dir, "rev-parse", "HEAD")))
 }
 
+// runGit runs git in dir and returns its output, failing the test on error.
 func runGit(t *testing.T, dir string, args ...string) []byte {
 	t.Helper()
 	cmd := exec.Command("git", args...)
@@ -136,6 +148,7 @@ func runGit(t *testing.T, dir string, args ...string) []byte {
 	return out
 }
 
+// write writes body to path, failing the test on error.
 func write(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
@@ -143,6 +156,8 @@ func write(t *testing.T, path, body string) {
 	}
 }
 
+// Messages returns the commits after the baseline only: the baseline's own
+// message is not read, so its trailers cannot name the change's model.
 func TestMessagesExcludesTheBaselineCommit(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")
@@ -167,6 +182,8 @@ func TestMessagesExcludesTheBaselineCommit(t *testing.T) {
 	}
 }
 
+// With a subdirectory as target, an untracked file inside it is in the change
+// with a path relative to target, and one outside it is not.
 func TestBetweenWorkingTreeInSubdirectoryKeepsUntracked(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")

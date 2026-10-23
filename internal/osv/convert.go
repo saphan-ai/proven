@@ -12,12 +12,14 @@ import (
 	"strings"
 )
 
-// Columns is the CSV header, one flat row per affected range.
+// Columns is the CSV header, one flat row per affected range. It is also
+// the column list the dependency check selects and reads by name.
+// docs/OSV_TABLE.md says what each column holds.
 var Columns = []string{
 	"id", "aliases", "ecosystem", "package", "introduced", "fixed", "last_affected", "severity", "published",
 }
 
-// Row is one affected range.
+// Row is one affected range of one advisory: one row of the OSV table.
 type Row struct {
 	ID           string
 	Aliases      string
@@ -79,6 +81,7 @@ func ReadDir(dir string) ([]Row, error) {
 	return out, nil
 }
 
+// advisory is the part of an OSV JSON record this converter reads.
 type advisory struct {
 	ID        string     `json:"id"`
 	Aliases   []string   `json:"aliases"`
@@ -87,10 +90,12 @@ type advisory struct {
 	Affected  []affected `json:"affected"`
 }
 
+// sevScore is one entry of an advisory's severity list.
 type sevScore struct {
 	Score string `json:"score"`
 }
 
+// affected is one package an advisory covers, with its ranges or versions.
 type affected struct {
 	Package struct {
 		Ecosystem string `json:"ecosystem"`
@@ -104,12 +109,16 @@ type affected struct {
 	DatabaseSpecific  json.RawMessage `json:"database_specific"`
 }
 
+// event is one point of an OSV range. Exactly one field is set.
 type event struct {
 	Introduced   string `json:"introduced"`
 	Fixed        string `json:"fixed"`
 	LastAffected string `json:"last_affected"`
 }
 
+// readFile turns one advisory into rows. An advisory with no id, or an
+// affected entry with no package, refuses the whole run, so a broken file
+// does not quietly lose ranges from the table.
 func readFile(path string) ([]Row, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -135,6 +144,8 @@ func readFile(path string) ([]Row, error) {
 		if name == "" || eco == "" {
 			return nil, fmt.Errorf("osv: %s: affected entry %d has no package", filepath.Base(path), i)
 		}
+		// The most specific severity wins: the database's own for this package,
+		// then the ecosystem's, then the advisory's first score.
 		sev := specificSeverity(aff.DatabaseSpecific)
 		if sev == "" {
 			sev = specificSeverity(aff.EcosystemSpecific)
@@ -146,6 +157,8 @@ func readFile(path string) ([]Row, error) {
 		for _, rg := range aff.Ranges {
 			ranges = append(ranges, eventsToSpans(rg.Events)...)
 		}
+		// An entry with only a versions list becomes one row per version, each a
+		// range of one version: introduced and last_affected are that version.
 		if len(ranges) == 0 {
 			for _, v := range aff.Versions {
 				v = strings.TrimSpace(v)
@@ -166,12 +179,17 @@ func readFile(path string) ([]Row, error) {
 	return out, nil
 }
 
+// span is one affected range before it becomes a Row.
 type span struct {
 	Introduced   string
 	Fixed        string
 	LastAffected string
 }
 
+// eventsToSpans turns the events of one OSV range into spans, in order. An
+// introduced opens a span; a fixed or a last_affected closes it. A span
+// still open when the next introduced comes, or at the end, has no upper
+// bound: every version from introduced on is affected.
 func eventsToSpans(events []event) []span {
 	var out []span
 	var cur *span
@@ -207,6 +225,9 @@ func eventsToSpans(events []event) []span {
 	return out
 }
 
+// specificSeverity reads a "severity" string from a database_specific or
+// ecosystem_specific object. Any other shape gives none, not an error,
+// because those objects have no fixed schema.
 func specificSeverity(raw json.RawMessage) string {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return ""
@@ -219,6 +240,8 @@ func specificSeverity(raw json.RawMessage) string {
 	return strings.TrimSpace(s)
 }
 
+// joinAliases trims, de-duplicates and sorts the aliases, so the column is
+// the same however the source ordered them.
 func joinAliases(in []string) string {
 	seen := map[string]struct{}{}
 	var out []string
