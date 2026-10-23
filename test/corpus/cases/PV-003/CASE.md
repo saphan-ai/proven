@@ -91,8 +91,8 @@ Run the check on base and on change and record each line of its output.
 - run date: 2026-10-22 (UTC). The time of day was not recorded: the seat's permission class denies the `date` program.
 - toolchain: `go version go1.26.5 linux/amd64`; standard library only; no network, no model.
 - layout: `base/gate.go`, `change/gate.go`, `check/main.go` and `check/reference.go` (the reference gate), `check.sh`.
-- `gofmt -l tests/corpus/cases/PV-003`: no output. `go vet ./tests/corpus/cases/PV-003/...`: no output.
-- command, from the repository root: `bash tests/corpus/cases/PV-003/check.sh` (runs `go run ./tests/corpus/cases/PV-003/check`).
+- `gofmt -l test/corpus/cases/PV-003`: no output. `go vet ./test/corpus/cases/PV-003/...`: no output.
+- command, from the repository root: `bash test/corpus/cases/PV-003/check.sh` (runs `go run ./test/corpus/cases/PV-003/check`).
 - exit code: 0.
 
 Output, in full:
@@ -114,7 +114,7 @@ Build choices the contract left open: a run that does not use up the quota clear
 never advanced; an unassigned slot is asked about with no tenant on it.
 
 Round 2 recheck: 2026-10-23 08:43 UTC, on Linux with `go version go1.26.5 linux/amd64`. From the repository root,
-`bash tests/corpus/cases/PV-003/check.sh` exited 0 and printed, in full:
+`bash test/corpus/cases/PV-003/check.sh` exited 0 and printed, in full:
 
 ```
 own-case-cooled-slot | base=allowed | change=refused(A) | reference=refused(A)

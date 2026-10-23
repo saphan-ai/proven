@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/saphan-ai/proven/tests/corpus/cases/PV-003/base"
-	"github.com/saphan-ai/proven/tests/corpus/cases/PV-003/change"
+	"github.com/saphan-ai/proven/test/corpus/cases/PV-003/base"
+	"github.com/saphan-ai/proven/test/corpus/cases/PV-003/change"
 )
 
 type gate interface {
