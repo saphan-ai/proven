@@ -12,16 +12,18 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/planner"
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 // Fixture is one sample change.
 type Fixture struct {
-	Root     string
-	Snapshot string
-	Answers  []generator.Response
-	Tests    []testrun.Recorded
-	Tables   string
+	Root      string
+	Snapshot  string
+	Answers   []generator.Response
+	Tests     []testrun.Recorded
+	Tables    string
+	Guardrail []guardrail.Record // empty means the sample review answers safe
 }
 
 type file struct {
@@ -42,6 +44,16 @@ type file struct {
 		FailsOnChange bool   `json:"fails_on_change"`
 		PassesOnBase  bool   `json:"passes_on_base"`
 	} `json:"recorded_tests"`
+	// Guardrail is optional. agent "planner" with an empty prompt binds the
+	// planner prompt of these trees. A fixture with no records answers safe.
+	Guardrail []struct {
+		Agent      string   `json:"agent"`
+		Prompt     string   `json:"prompt"`
+		Answer     string   `json:"answer"`
+		User       string   `json:"user"`
+		Response   string   `json:"response"`
+		Categories []string `json:"categories"`
+	} `json:"guardrail"`
 }
 
 // Load reads fixture.json and checks the planner prompt still matches the trees.
@@ -61,8 +73,8 @@ func Load(root string) (*Fixture, error) {
 	if err != nil {
 		return nil, err
 	}
-	prompt := planner.Prompt(files)
-	sum := sha256.Sum256([]byte(prompt))
+	plannerPrompt := planner.Prompt(files)
+	sum := sha256.Sum256([]byte(plannerPrompt))
 	got := hex.EncodeToString(sum[:])
 	if got != f.PlannerPromptSHA256 {
 		return nil, fmt.Errorf("fixture: planner prompt sha256 is %s", got)
@@ -71,7 +83,7 @@ func Load(root string) (*Fixture, error) {
 		return nil, fmt.Errorf("fixture: planner response is empty")
 	}
 	answers := []generator.Response{{
-		Agent: "planner", Prompt: prompt, Response: string(f.PlannerResponse),
+		Agent: "planner", Prompt: plannerPrompt, Response: string(f.PlannerResponse),
 	}}
 	for _, r := range f.Responses {
 		answers = append(answers, generator.Response{Agent: r.Agent, Prompt: r.Prompt, Response: r.Response})
@@ -87,5 +99,21 @@ func Load(root string) (*Fixture, error) {
 	if _, err := os.Stat(tables); err != nil {
 		return nil, err
 	}
-	return &Fixture{Root: root, Snapshot: f.Snapshot, Answers: answers, Tests: tests, Tables: tables}, nil
+	rails := make([]guardrail.Record, 0, len(f.Guardrail))
+	for _, row := range f.Guardrail {
+		text := row.Prompt
+		if text == "" && row.Agent == "planner" {
+			text = plannerPrompt
+		}
+		if text == "" {
+			return nil, fmt.Errorf("fixture: a guardrail record has no prompt")
+		}
+		rails = append(rails, guardrail.Record{
+			Prompt: text, Answer: row.Answer, User: row.User, Response: row.Response,
+			Categories: append([]string(nil), row.Categories...),
+		})
+	}
+	return &Fixture{
+		Root: root, Snapshot: f.Snapshot, Answers: answers, Tests: tests, Tables: tables, Guardrail: rails,
+	}, nil
 }
