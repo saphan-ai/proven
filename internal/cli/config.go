@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -431,12 +432,20 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	return cfg, nil
 }
 
-// refuseCollidingOutputs refuses two outputs that resolve to one file, at
-// load (ADR-0013). The files are written one after another, so the last
-// write would silently replace the others and the run would still exit 0
-// (ADR-0020 §1). Paths are compared after filepath.Abs and filepath.Clean,
-// so "a/../r" and "r" are one file. Symbolic links are not followed: a
-// link to a file named by another flag is not caught, and no I/O happens here.
+// refuseCollidingOutputs refuses two outputs that are one file, at load
+// (ADR-0013). The files are written one after another, so the last write would
+// silently replace the others and the run would still exit 0 (ADR-0020 §1).
+//
+// What counts as one file: the same path after filepath.Abs, filepath.Clean and
+// the resolution of every symbolic link in the part of the path that exists
+// (outputIdentity), or two existing files for which os.SameFile is true (a
+// hard link, or a link to the file itself). Links are resolved because a
+// directory link such as link -> real makes "link/r.json" and "real/r.json" the
+// same file under two spellings, and a check that compared spellings would let
+// the second write replace the first. Only stat calls happen here; nothing is
+// created. Two spellings of a file that does not exist yet and differs only in
+// letter case on a case-insensitive volume are not caught: no I/O can tell them
+// apart before the file is made.
 func refuseCollidingOutputs(cfg config) error {
 	named := []struct{ flag, path string }{
 		{"-o", cfg.output},
@@ -444,23 +453,57 @@ func refuseCollidingOutputs(cfg config) error {
 		{"--json-output", cfg.jsonOutput},
 		{"--sarif-output", cfg.sarifOutput},
 	}
-	seen := map[string]string{} // resolved path -> the flag that named it first
+	type seenOutput struct {
+		flag string
+		info os.FileInfo
+	}
+	byIdentity := map[string]string{} // identity -> the flag that named it first
+	var existing []seenOutput         // outputs whose file exists, for os.SameFile
 	for _, n := range named {
 		if n.path == "" {
 			continue
 		}
-		abs, err := filepath.Abs(n.path)
+		identity := outputIdentity(n.path)
+		if first, ok := byIdentity[identity]; ok {
+			return refuse(n.flag, identity, "same file as "+first+"; each output needs its own path", nil)
+		}
+		byIdentity[identity] = n.flag
+		info, err := os.Stat(n.path)
 		if err != nil {
-			// Abs fails only when the working directory is unreadable; the
-			// cleaned path is still a usable key for the comparison.
-			abs = filepath.Clean(n.path)
+			continue
 		}
-		if first, ok := seen[abs]; ok {
-			return refuse(n.flag, abs, "same file as "+first+"; each output needs its own path", nil)
+		for _, other := range existing {
+			if os.SameFile(info, other.info) {
+				return refuse(n.flag, identity, "same file as "+other.flag+"; each output needs its own path", nil)
+			}
 		}
-		seen[abs] = n.flag
+		existing = append(existing, seenOutput{flag: n.flag, info: info})
 	}
 	return nil
+}
+
+// outputIdentity is the path the file would have with every symbolic link in
+// its existing prefix resolved: EvalSymlinks runs on the longest prefix that
+// exists, and the not-yet-existing tail is joined on unchanged.
+func outputIdentity(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		// Abs fails only when the working directory is unreadable; the
+		// cleaned path is still a usable key for the comparison.
+		abs = filepath.Clean(path)
+	}
+	prefix, tail := abs, ""
+	for {
+		if resolved, err := filepath.EvalSymlinks(prefix); err == nil {
+			return filepath.Join(resolved, tail)
+		}
+		parent := filepath.Dir(prefix)
+		if parent == prefix {
+			return abs
+		}
+		tail = filepath.Join(filepath.Base(prefix), tail)
+		prefix = parent
+	}
 }
 
 // refuseExclusive refuses pairs that cannot both hold: two output formats,

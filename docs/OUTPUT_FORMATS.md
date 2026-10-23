@@ -2,7 +2,7 @@
 
 JSON and SARIF are two writings of one review result (ADR-0020 §1). The chosen format goes to standard output, or to `-o`. Each `--text-output`, `--json-output` and `--sarif-output` file is also written in that same run. Empty lists are `[]`, not null.
 
-Two outputs of one run must be two files. If `-o` and any `--*-output`, or two `--*-output` flags, name the same file, the run is refused at load with exit 7. The refusal names both flags and the path, and nothing is written. Paths are compared after they are made absolute and cleaned; a symbolic link to a named file is not followed.
+Two outputs of one run must be two files. If `-o` and any `--*-output`, or two `--*-output` flags, name the same file, the run is refused at load with exit 7. The refusal names both flags and the path, and nothing is written. Paths are compared after they are made absolute and cleaned and after every symbolic link in the part of the path that exists is resolved, so `-o real/r.json` with `--sarif-output link/r.json` (where `link` points to `real`) is refused. Two existing files that are the same file (a hard link) are refused too. Two spellings of a file that does not exist yet and differ only in letter case, on a case-insensitive volume, are not caught.
 
 ## JSON
 
