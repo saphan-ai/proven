@@ -342,6 +342,35 @@ INSERT INTO px_osvfile.px_osv_pkg VALUES ('PYSEC-1', '', 'PyPI', 'leftpad', '1.0
 	}
 }
 
+// TestCheckPyPIQueriesTheNormalisedName proves that a pin written as Requests
+// is queried as requests. The OSV table keys PyPI packages by the PEP 503 name,
+// so the spelling in the file would miss the row.
+func TestCheckPyPIQueriesTheNormalisedName(t *testing.T) {
+	root := t.TempDir()
+	writePair(t, root, "requirements.txt", "", "Requests==1.2.3\n")
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('PYSEC-1', '', 'PyPI', 'requests', '1.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "requirements.txt" || !strings.Contains(c.Message, "requests 1.2.3") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if c.Evidence[0].Query == nil || !strings.Contains(c.Evidence[0].Query.SQL, "ecosystem = 'PyPI' AND package = 'requests'") {
+		t.Fatalf("sql %#v", c.Evidence[0].Query)
+	}
+	if strings.Contains(c.Evidence[0].Query.SQL, "Requests") {
+		t.Fatal(c.Evidence[0].Query.SQL)
+	}
+}
+
 // TestCheckMalformedLockIsANote proves that lock files that do not parse are
 // trace notes, and that go.mod beside them is still checked and found.
 func TestCheckMalformedLockIsANote(t *testing.T) {

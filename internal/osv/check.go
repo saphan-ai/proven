@@ -22,6 +22,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/manifest"
+	"github.com/saphan-ai/proven/internal/pep503"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/service"
 )
@@ -309,6 +310,11 @@ func moduleSQL(table, ecosystem, pkg string) (string, error) {
 	eco, err := quoteLiteral(ecosystem)
 	if err != nil {
 		return "", err
+	}
+	// The OSV table keys a PyPI package by its PEP 503 name. A query for the
+	// spelling in the file would miss the row.
+	if ecosystem == "PyPI" {
+		pkg = pep503.Normalise(pkg)
 	}
 	mod, err := quoteLiteral(pkg)
 	if err != nil {

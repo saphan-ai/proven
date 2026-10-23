@@ -19,11 +19,14 @@ import (
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/pep503"
 	"github.com/saphan-ai/proven/internal/semver"
 )
 
 // Change is one module the change added or raised.
-// Package is the module path or the package name, as the file writes it.
+// Package is the module path or the package name. Go and npm keep the
+// spelling in the file. A PyPI name is the PEP 503 form, which is the name
+// the comparison, the lock pairing and the OSV query share.
 // Version is the version on the change side, as written. It is not
 // rewritten, so the trace shows what the author wrote.
 // Line is the 1-based line on the change side that the finding points at.
@@ -133,7 +136,7 @@ func Collect(files []change.File, readers []Reader) ([]Hit, []string, error) {
 
 // preferLock drops a manifest hit when a lock file in the same directory
 // already names that package. The lock hit carries the exact version.
-// PyPI names match without regard to case. Go and npm names do not.
+// PyPI names match after PEP 503 normalisation. Go and npm names do not.
 func preferLock(hits []Hit) []Hit {
 	type key struct {
 		dir string
@@ -172,12 +175,13 @@ func dirOf(path string) string {
 	return ""
 }
 
-// foldName gives the name preferLock compares. PyPI names are not case
-// sensitive, so Flask in requirements.txt and flask in poetry.lock are one
-// package. Go module paths and npm names are case sensitive.
+// foldName gives the name preferLock compares. A PyPI name is the PEP 503
+// form, so Flask and flask are one package, and zope_interface and
+// zope.interface are one package. Go module paths and npm names are compared
+// as written: case folding would merge modules that are not the same.
 func foldName(ecosystem, pkg string) string {
 	if ecosystem == "PyPI" {
-		return strings.ToLower(pkg)
+		return pep503.Normalise(pkg)
 	}
 	return pkg
 }

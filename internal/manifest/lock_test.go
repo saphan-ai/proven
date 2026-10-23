@@ -52,6 +52,35 @@ func TestLockVersionWinsOverTheManifest(t *testing.T) {
 	}
 }
 
+// TestPyPILockPairsNamesAfterPEP503 proves that requirements.txt and poetry.lock
+// in one directory are the same package when the spellings differ only by PEP
+// 503. The lock file's version is kept. A package only the manifest names is kept.
+func TestPyPILockPairsNamesAfterPEP503(t *testing.T) {
+	got, notes, err := Collect([]change.File{
+		{Path: "requirements.txt", Change: []byte("zope_interface==5.0.0\nRequests==2.28.0\nonlyreq==1.0\n")},
+		{Path: "poetry.lock", Change: []byte("[[package]]\nname = \"zope.interface\"\nversion = \"5.4.0\"\n\n[[package]]\nname = \"requests\"\nversion = \"2.31.0\"\n")},
+	}, []Reader{PyPI(), Poetry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 0 {
+		t.Fatalf("notes %#v", notes)
+	}
+	want := []Hit{
+		{Ecosystem: "PyPI", File: "poetry.lock", Lock: true, Change: Change{Package: "requests", Version: "2.31.0", Line: 7, Added: true}},
+		{Ecosystem: "PyPI", File: "poetry.lock", Lock: true, Change: Change{Package: "zope-interface", Version: "5.4.0", Line: 3, Added: true}},
+		{Ecosystem: "PyPI", File: "requirements.txt", Lock: false, Change: Change{Package: "onlyreq", Version: "1.0", Line: 3, Added: true}},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("%#v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %#v want %#v", got[i], want[i])
+		}
+	}
+}
+
 // TestLockInAnotherDirectoryDoesNotWin proves that a lock file pairs only with
 // the manifest in its own directory: a go.sum at the root does not hide a
 // require in svc/go.mod.
