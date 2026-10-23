@@ -56,9 +56,9 @@ func run(input string) ([]string, string, error) {
 	var page page
 	var request request
 	switch input {
-	case "control", "extra-sync", "control-no-registry":
+	case "control", "extra-sync", "control-no-registry", "control-wrong-ownership":
 		page = forTeam(store, "ours")
-		if input == "extra-sync" {
+		if input == "extra-sync" || input == "control-wrong-ownership" {
 			store.sync("ours")
 		}
 	case "vacuity":

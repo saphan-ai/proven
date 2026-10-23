@@ -75,9 +75,9 @@ func run(input string) ([]string, string, string, error) {
 	var request request
 	control := "not-applicable"
 	switch input {
-	case "control", "extra-sync", "control-no-registry":
+	case "control", "extra-sync", "control-no-registry", "control-wrong-ownership":
 		page = forTeam(store, "ours")
-		if input == "extra-sync" {
+		if input == "extra-sync" || input == "control-wrong-ownership" {
 			store.sync("ours")
 		}
 		if input == "control-no-registry" {
@@ -98,7 +98,7 @@ func run(input string) ([]string, string, string, error) {
 		return nil, "", "", fmt.Errorf("unknown input %q", input)
 	}
 	ids, scope := page.list(request)
-	if ((input == "control" || input == "control-no-registry") && (len(ids) != 1 || ids[0] != "ours-1")) || (input == "vacuity" && len(ids) != 5) {
+	if ((input == "control" || input == "control-no-registry" || input == "control-wrong-ownership") && (len(ids) != 1 || ids[0] != "ours-1")) || (input == "vacuity" && len(ids) != 5) {
 		control = "FAIL"
 	}
 	return ids, scope, control, nil

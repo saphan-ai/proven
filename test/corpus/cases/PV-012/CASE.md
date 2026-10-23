@@ -71,6 +71,9 @@ production never filters; and a sync step that re-stamps ownership with whoever 
 The two versions of the page, the store, the sync operation, the change's control, and a readable diff between them. The
 reviewer under evaluation receives only those and the description of the change in §1 — never the check, the reference
 or `expected/`.
+Within each `main.go`, the review target ends before `run()`; the evaluator also supplies the `control` and `vacuity`
+branches of `run()` as the change's control, but withholds the other input branches, the `registryFilter` mutation,
+`main()`, and `check.sh` as the test driver.
 
 ## 6. The two claims and their evidence (as preserved in the record)
 
@@ -95,10 +98,16 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Toolchain: `go version go1.26.5 linux/amd64` (local Go; module declares `go 1.26`).
-Run at 2026-10-22 15:53:42 UTC from the repository root: `bash tests/corpus/cases/PV-012/check.sh`.
-The script builds both versions with `go build` and checks each input against the two pages and the independent
-seeded-ownership reference. Output, including the script's exit code:
+Toolchain: `go version go1.26.5 linux/amd64` (local Go; module declares `go 1.26`). The check requires a locally
+installed Go 1.26 or newer and sets `GOTOOLCHAIN=local`, so an older host fails instead of downloading a toolchain.
+Baseline at 2026-10-23 01:34:31 UTC and final run at 2026-10-23 01:36:04 UTC from the repository root:
+`bash tests/corpus/cases/PV-012/check.sh` (both exit 0; the baseline printed the first seven lines below).
+The script builds both versions with `go build` and prints each input's results from the two pages beside the independent
+seeded-ownership reference. The request's team changes only the scope sentence; narrowing uses the team supplied when
+the page is built, so `scope-with-team` still serves all five foreign events. The ownership negative control re-stamps
+the foreign items as "ours" after their creation, then verifies that the change's control reports FAIL with four foreign
+events served. The script prints counts and does not compare them to the reference; exit 0 means builds and runs
+succeeded, not that every count matches. Final output, including the script's exit code:
 
 ```text
 control | base: 5 (Activity for all teams; control=not-present) | change: 0 (Activity scoped to ours; control=PASS) | reference: 0
@@ -108,6 +117,7 @@ scope-no-team | base: 5 (Activity for all teams; control=not-present) | change: 
 scope-with-team | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity for all teams (request team: ours); control=not-applicable) | reference: 0
 extra-sync | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=not-applicable) | reference: 0
 control-no-registry | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=FAIL) | reference: 0
+control-wrong-ownership | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=FAIL) | reference: 0
 exit=0
 ```
 
