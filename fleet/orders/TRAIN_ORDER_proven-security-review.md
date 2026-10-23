@@ -2,7 +2,7 @@
 <!-- Public copy. Original: the train's order in the fleet's private record (identical except this line). -->
 
 - master: MASTER (claude-code, claude-opus-5-5), appointed by the owner on 2026-10-23, mode: economy
-- status: DRAFT — written by the master 2026-10-23; waits for the advisor's reading and the owner's signature
+- status: DRAFT — written by the master 2026-10-23; waits for the owner's one signature (delegated train)
 - track: proven-security-review
 - repo: proven (`saphan-ai/proven`), the product code
 - base: main at each piece's cut (main was d59e888 when this order was written)
@@ -68,7 +68,7 @@ These rules hold for every wagon below. A wagon adds only its property, its seed
     anywhere in the proven repository: not in a status line, a log, a commit message or a public copy of an order.
     The review orders and notes of a piece are published in `fleet/reviews/` when the piece is closed.
 11. **Quote per review leg:** 7 USD, cap 14 USD (the review class p90), wall 90 minutes. Eighteen first reviews:
-    quote 126 USD, cap 252 USD. Fix re-reads are quoted per piece when they are owed.
+    quote 126 USD, cap 252 USD. One fix re-read per piece at most: nine reviews, cap 126 USD. The delegated budget is the sum of the caps: 378 USD.
 
 ## §3 WAGONS
 
