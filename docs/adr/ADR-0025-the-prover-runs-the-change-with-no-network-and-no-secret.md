@@ -22,7 +22,10 @@ and no secret. The owner (translated from Polish): *"R2 — OK."*
    Proven's own process or on the host directly.
 2. **The container has no network.** A test that needs one fails, and the review says the test could not run and why.
 3. **The container holds no secret.** No environment variable, file or mount of Proven's own carries a token, a key or a
-   credential into it.
+   credential into it. Amended 2026-10-24 (the master, with the container lock-down): the container receives exactly two
+   environment values, both fixed constants in Proven's code and never read from Proven's environment: `HOME=/tmp` and
+   `GOCACHE=/tmp/go-build`, so a Go test can build on the bounded scratch under a read-only root. Nothing else is passed
+   with `-e`, and the container runtime and git run with a minimal environment of their own.
 4. **The container sees only the checkout it needs**, and nothing it writes leaves it except the test results Proven
    reads back.
 5. **Its image, time limit and resource limits are settings**, with documented defaults, validated on load
