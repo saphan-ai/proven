@@ -1,7 +1,7 @@
 # ADR-0029: A security piece is reviewed at one commit of `main`, and only once its code is on `main`
 
-**Status:** proposed · **Date:** 2026-10-23
-**Decided by:** the owner, when he signs the train order `proven-security-review` · **Written by:** the master of
+**Status:** accepted · **Date:** 2026-10-23
+**Decided by:** the owner, by signing the train order `proven-security-review` on 2026-10-23 · **Written by:** the master of
 proven-security-review, 2026-10-23
 **Follows:** [ADR-0028](ADR-0028-proven-is-security-reviewed-as-a-whole-in-pieces.md) (the review in pieces),
 [ADR-0026](ADR-0026-one-makefile-builds-proven-and-runs-the-judges-lab.md) (the Makefile, the images, Docker Scout)
