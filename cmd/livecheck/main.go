@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/livecheck"
@@ -210,44 +211,12 @@ func evidenceView(raw string) (string, error) {
 	if raw == "" {
 		raw = livecheck.DefaultEvidenceView
 	}
-	if !validView(raw) {
-		return "", fmt.Errorf("configuration refused: %s=%q: not an evidence view; allowed: a schema.table of letters, digits and underscores, at most 128 characters", livecheck.EnvEvidenceView, clip(raw))
+	// The view is pasted into SQL. epss.ValidView is the one check for that
+	// shape, so this command cannot grow a second length limit of its own.
+	if !epss.ValidView(raw) {
+		return "", fmt.Errorf("configuration refused: %s=%q: not an evidence view; allowed: a view or schema.view of letters, digits and underscores; empty means %s", livecheck.EnvEvidenceView, clip(raw), livecheck.DefaultEvidenceView)
 	}
 	return raw, nil
-}
-
-// validView accepts a view or schema.view of letters, digits and
-// underscores, at most 128 characters.
-func validView(s string) bool {
-	if len(s) > 128 {
-		return false
-	}
-	parts := strings.Split(s, ".")
-	if len(parts) != 1 && len(parts) != 2 {
-		return false
-	}
-	for _, p := range parts {
-		if !viewPart(p) {
-			return false
-		}
-	}
-	return true
-}
-
-// viewPart reports whether s is one identifier.
-func viewPart(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i, r := range s {
-		switch {
-		case r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z':
-		case i > 0 && r >= '0' && r <= '9':
-		default:
-			return false
-		}
-	}
-	return true
 }
 
 // clip shortens a refused value before it is printed.
