@@ -184,14 +184,31 @@ func TestLiveKeepsANonNVIDIAAnswerForAnAgentThatIsNotListed(t *testing.T) {
 	}
 }
 
-// Without the receipt the model is reported as unknown; no other field stands in for it.
+// ADR-0019 point 4: with NVIDIA required, an answer without a receipt is
+// refused, and the trace still names the model as unknown.
 // Mutated field: the top-level meterless object, removed.
+func TestLiveRefusesAnAnswerWithoutAReceipt(t *testing.T) {
+	body := withoutMeterless(t, streamFixture(t))
+	srv := httptest.NewServer(replay(body))
+	defer srv.Close()
+	live := liveAt(t, srv.URL, nil)
+	if _, err := live.Complete(context.Background(), "planner", "prompt"); err == nil || !strings.Contains(err.Error(), "no receipt") {
+		t.Fatalf("err %v, want a refusal that names the missing receipt", err)
+	}
+	u, ok := live.LastUse()
+	if !ok || u.Model != "unknown" || u.FromReceipt {
+		t.Fatalf("use %#v ok %v", u, ok)
+	}
+}
+
+// Without the receipt the model is reported as unknown; no other field stands in for it.
+// Mutated field: the top-level meterless object, removed, with the NVIDIA requirement off.
 // The chunk model field and meterless_deliberation.receipt_id stay, and neither is the receipt.
 func TestLiveReportsModelUnknownWhenMeterlessIsRemoved(t *testing.T) {
 	body := withoutMeterless(t, streamFixture(t))
 	srv := httptest.NewServer(replay(body))
 	defer srv.Close()
-	live := liveAt(t, srv.URL, nil)
+	live := liveAt(t, srv.URL, map[string]string{generator.EnvRequireNVIDIA: "none"})
 	text, err := live.Complete(context.Background(), "planner", "prompt")
 	if err != nil {
 		t.Fatal(err)

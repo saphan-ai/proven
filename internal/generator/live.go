@@ -156,7 +156,16 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	// The use is recorded before the check, so a refused answer still names its model in the trace.
 	l.last = use
 	l.has = true
-	if use.FromReceipt && l.cfg.requiresNVIDIA(agent) && !nvidiaModel(use.Model) {
+	if !l.cfg.requiresNVIDIA(agent) {
+		return text, nil
+	}
+	// ADR-0019 point 4: an answer must name its model from the signed receipt.
+	// With no receipt the model cannot be shown to be NVIDIA's, so it is refused
+	// the same way as a non-NVIDIA model.
+	if !use.FromReceipt {
+		return "", down("answer carries no receipt, refused: the model cannot be shown to be NVIDIA's")
+	}
+	if !nvidiaModel(use.Model) {
 		return "", down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
 	return text, nil
