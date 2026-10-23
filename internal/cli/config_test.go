@@ -620,10 +620,13 @@ func TestSecretIsNotAFlag(t *testing.T) {
 }
 
 func TestBadValuesAreRefused(t *testing.T) {
+	// flag, when set, is a boolean flag. The mutated field is that flag's
+	// value. A bad value exits 7 and names true, false, the same as the variable.
 	cases := []struct {
 		name string
 		args []string
 		env  map[string]string
+		flag string
 	}{
 		{name: "format", args: []string{"scan"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}},
 		{name: "error", args: []string{"scan"}, env: map[string]string{"PROVEN_ERROR": "maybe"}},
@@ -631,10 +634,26 @@ func TestBadValuesAreRefused(t *testing.T) {
 		{name: "timeout word", args: []string{"scan", "--timeout=soon"}},
 		{name: "sample", args: []string{"scan"}, env: map[string]string{"SAMPLE_MODE": "yes"}},
 		{name: "severity flag", args: []string{"scan", "--severity=CRITICAL"}},
+		{name: "--text", args: []string{"scan", "--text=maybe"}, flag: "--text"},
+		{name: "--json", args: []string{"scan", "--json=maybe"}, flag: "--json"},
+		{name: "--sarif", args: []string{"scan", "--sarif=maybe"}, flag: "--sarif"},
+		{name: "--error", args: []string{"scan", "--error=maybe"}, flag: "--error"},
+		{name: "--no-error", args: []string{"scan", "--no-error=maybe"}, flag: "--no-error"},
+		{name: "--sample", args: []string{"scan", "--sample=maybe"}, flag: "--sample"},
+		{name: "--quiet", args: []string{"scan", "--quiet=maybe"}, flag: "--quiet"},
+		{name: "--verbose", args: []string{"scan", "--verbose=maybe"}, flag: "--verbose"},
+		{name: "--help", args: []string{"scan", "--help=maybe"}, flag: "--help"},
+		{name: "--version", args: []string{"scan", "--version=maybe"}, flag: "--version"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			mustRefuse(t, tt.args, envOf(tt.env), nil, exitConfig)
+			msg := mustRefuse(t, tt.args, envOf(tt.env), nil, exitConfig)
+			if tt.flag == "" {
+				return
+			}
+			if !strings.Contains(msg, tt.flag) || !strings.Contains(msg, "true, false") {
+				t.Fatalf("message %q", msg)
+			}
 		})
 	}
 }

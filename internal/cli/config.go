@@ -86,8 +86,13 @@ type cliError struct {
 func (e *cliError) Error() string { return e.msg }
 
 type boolPresence struct {
-	set bool
-	v   bool
+	name string
+	set  bool
+	v    bool
+	// bad is the value Set refused. The flag package reports that as a
+	// usage error, which would exit 2 and spell the flag with one dash.
+	// resolve turns bad into the same exit-7 refusal as the variable.
+	bad string
 }
 
 func (b *boolPresence) String() string {
@@ -100,6 +105,7 @@ func (b *boolPresence) String() string {
 func (b *boolPresence) Set(s string) error {
 	v, err := strconv.ParseBool(s)
 	if err != nil {
+		b.bad = s
 		return err
 	}
 	b.set = true
@@ -178,6 +184,18 @@ func knownFlagNames() []string {
 
 func defineFlags() (*flag.FlagSet, *holders) {
 	h := &holders{}
+	// Set is not told which flag it is setting. The name is the spelling
+	// the refusal prints; the flag package's own error uses one dash.
+	h.text.name = "--text"
+	h.asJSON.name = "--json"
+	h.sarif.name = "--sarif"
+	h.errorOn.name = "--error"
+	h.noError.name = "--no-error"
+	h.sample.name = "--sample"
+	h.quiet.name = "--quiet"
+	h.verbose.name = "--verbose"
+	h.help.name = "--help"
+	h.ver.name = "--version"
 	fs := flag.NewFlagSet("proven", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() {}
@@ -203,6 +221,19 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	fs.Var(&h.help, "help", "show help")
 	fs.Var(&h.ver, "version", "show the version")
 	return fs, h
+}
+
+func refusedBoolFlag(h *holders) (string, string, bool) {
+	flags := []*boolPresence{
+		&h.text, &h.asJSON, &h.sarif, &h.errorOn, &h.noError,
+		&h.sample, &h.quiet, &h.verbose, &h.help, &h.ver,
+	}
+	for _, b := range flags {
+		if b.bad != "" {
+			return b.name, b.bad, true
+		}
+	}
+	return "", "", false
 }
 
 func isValueFlag(name string) bool {
@@ -268,6 +299,11 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	if err := fs.Parse(flagArgs); err != nil {
 		if strings.Contains(err.Error(), "not defined") {
 			return config{}, &cliError{code: exitFatal, msg: err.Error() + "\nknown flags: " + strings.Join(knownFlagNames(), ", ")}
+		}
+		// ADR-0020 §2: a value that is not true or false is a configuration
+		// refused at load, the same whether it came from the flag or the variable.
+		if name, value, ok := refusedBoolFlag(h); ok {
+			return config{}, refuse(name, value, "value must be true or false", []string{"true", "false"})
 		}
 		return config{}, &cliError{code: exitFatal, msg: err.Error()}
 	}
