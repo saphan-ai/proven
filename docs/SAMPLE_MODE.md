@@ -3,8 +3,8 @@
 Sample mode runs a whole Proven review with **no network and no keys**. Every model answer, every test outcome and every
 query row comes from a recorded fixture, so anyone can run it on a laptop and get the same result every time.
 
-Every command and every output on this page was run on 22 October 2026 on a clean clone of `main` at `39225b0`, with
-Go 1.26.8 on macOS. Long output is shortened where marked.
+Every command and every output on this page was run on 23 October 2026 with Go 1.26.8 on macOS, on `main` at `26343c2`
+with this page's four new scenarios added. Long output is shortened where marked.
 
 ## What sample mode exercises, and what it does not
 
@@ -33,26 +33,37 @@ mkdir -p /tmp/proven-run && cd /tmp/proven-run
 Output (exit code 0):
 
 ```text
-finding F1 ERROR Discount is applied twice
-  billing/discount.go:5-5
-  Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.
-  evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true
-  command: go test ./billing -run TestDiscounted
-  output: base: PASS
-change: FAIL got 60 want 80
+review class: security
+review rule: go.mod
+author model not stated; default reviewer NVIDIA
+reviewer NVIDIA; role default; family NVIDIA; author model not stated
+special-review model: not configured
 finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list
+  EPSS 0.50000 (90th percentile, 2026-10-20)
   go.mod:5-5
   The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.
   evidence query local-sample snapshot=sample-2026-10-22
   SQL: SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'
   columns: package, version, cve, kev
   row: evil.example/leftpad | 1.2.3 | CVE-2026-0001 | true
+  evidence query local-sample snapshot=sample-2026-10-22
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-0001 | 0.50000 | 0.90000 | 2026-10-20
 finding F4 ERROR CVE-2026-0001 for leftpad v1.2.3 is on the KEV list
+  EPSS 0.50000 (90th percentile, 2026-10-20)
   go.mod:5-5
-  (shortened)
+  The change requires evil.example/leftpad v1.2.3. The sample KEV view has CVE-2026-0001 for that advisory.
+  evidence query local-sample snapshot=sample-2026-10-22
   SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
+  columns: cve_id, vendor_project, product, date_added, known_ransomware
   row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known
+  evidence query local-sample snapshot=sample-2026-10-22
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-0001 | 0.50000 | 0.90000 | 2026-10-20
 finding osv:evil.example/leftpad ERROR Dependency evil.example/leftpad v1.2.3 is in an OSV affected range
+  EPSS 0.50000 (90th percentile, 2026-10-20)
   go.mod:5-5
   evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 <= v1.2.3 < fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 < introduced 2.0.0. alias CVE-2026-0001 is on the KEV list
   evidence query local-sample snapshot=sample-2026-10-22
@@ -64,11 +75,23 @@ finding osv:evil.example/leftpad ERROR Dependency evil.example/leftpad v1.2.3 is
   SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
   columns: cve_id, vendor_project, product, date_added, known_ransomware
   row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known
+  evidence query local-sample snapshot=sample-2026-10-22
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-0001 | 0.50000 | 0.90000 | 2026-10-20
+finding F1 ERROR Discount is applied twice
+  billing/discount.go:5-5
+  Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.
+  evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true
+  command: go test ./billing -run TestDiscounted
+  output: base: PASS
+change: FAIL got 60 want 80
 failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
-The OSV finding was printed on 22 October 2026. The trace path above is the illustration path from the earlier run; a scan writes `logs/trace.jsonl` in the directory it starts from.
+Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `logs/trace.jsonl`
+in the directory it starts from.
 
 Run from inside the repository, it refuses (exit code 2):
 
@@ -111,10 +134,9 @@ F3 is the point of the scenario: a plausible risk with no evidence never reaches
 
 ## Read the trace
 
-`logs/trace.jsonl` holds one JSON line per event. A sample run before this check wrote 56 lines: 4 `claim`, 4 `evidence`,
-4 `refutation`, 4 `verdict`, 13 `model` (one per model call, with its route, model and Nightshift receipt id when live),
-26 `guardrail` (each prompt and each answer checked) and 1 `selection`. The dependency check adds one claim, one evidence
-line and one verdict. It does not call a model, so the model and guardrail counts stay. F3's last line:
+`logs/trace.jsonl` holds one JSON line per event. The run above wrote 62 lines: 5 `claim`, 8 `evidence` (with the
+EPSS rows), 4 `refutation`, 5 `verdict`, 13 `model` (one per model call, with its route, model and Nightshift receipt id
+when live), 26 `guardrail` (each prompt and each answer checked) and 1 `selection`. F3's last line:
 
 ```json
 {"finding_id":"F3","kind":"verdict","agent":"judge","text":"dropped: no evidence", …}
@@ -137,9 +159,7 @@ Run the same command a second time in the same directory: the findings are the s
    A fixture with no `guardrail` list answers `safe`.
 4. Run `proven scan --sample testdata/fixture/<name>` from outside the repository, as above.
 
-The four scenarios below were run on 23 October 2026 with Go 1.26.8. The `proven` binary cannot be executed by this
-role, so each output is the scan function, called from a scratch directory outside the repository. A scan writes
-`logs/trace.jsonl` in the directory it starts from. The absolute trace path from each run is under REDACTED.
+The four scenarios below run the same way: from `/tmp/proven-run`, with the repository in `$OLDPWD` as in "Run it".
 
 ## The scenario: `testdata/fixture/refuted`
 
@@ -148,7 +168,7 @@ verdict is `dropped: refuted: test TestTotal passes on the change`. F1 is not pr
 the finding: with the refutation's path, name, command and sql emptied, the same test prints F1 and fails.
 
 ```bash
-proven scan --sample testdata/fixture/refuted
+/tmp/proven scan --sample "$OLDPWD/testdata/fixture/refuted"
 ```
 
 Output (exit code 0):
@@ -160,7 +180,7 @@ author model not stated; default reviewer NVIDIA
 reviewer NVIDIA; role default; family NVIDIA; author model not stated
 special-review model: not configured
 failed services: none
-trace: ██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
 The verdict line in that trace:
@@ -175,7 +195,7 @@ The fixture records one guardrail verdict: the planner prompt is `unsafe`, categ
 and `Other`. That step stops. No finding is printed.
 
 ```bash
-proven scan --sample testdata/fixture/unsafe-prompt
+/tmp/proven scan --sample "$OLDPWD/testdata/fixture/unsafe-prompt"
 ```
 
 Output (exit code 0):
@@ -187,7 +207,7 @@ author model not stated; default reviewer NVIDIA
 reviewer NVIDIA; role default; family NVIDIA; author model not stated
 special-review model: not configured
 failed service: guardrail: unsafe: Criminal Planning/Confessions, Other
-trace: ███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
 The guardrail line in that trace:
@@ -202,7 +222,7 @@ The guardrail line in that trace:
 The alias `CVE-2026-4242` has an EPSS row. The row for `example.com/other` is not returned.
 
 ```bash
-proven scan --sample testdata/fixture/osv-go-module
+/tmp/proven scan --sample "$OLDPWD/testdata/fixture/osv-go-module"
 ```
 
 Output (exit code 0):
@@ -231,7 +251,7 @@ finding osv:example.com/widget ERROR Dependency example.com/widget v1.4.0 is in 
   columns: cve_id, epss, percentile, score_date
   row: CVE-2026-4242 | 0.42000 | 0.91000 | 2026-10-21
 failed services: none
-trace: ███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
 ## The scenario: `testdata/fixture/unknown-author`
@@ -241,7 +261,7 @@ trees, not a git history. The sample request's description is empty, and an empt
 The review says which default it used.
 
 ```bash
-proven scan --sample testdata/fixture/unknown-author
+/tmp/proven scan --sample "$OLDPWD/testdata/fixture/unknown-author"
 ```
 
 Output (exit code 0):
@@ -253,11 +273,5 @@ author model not stated; default reviewer NVIDIA
 reviewer NVIDIA; role default; family NVIDIA; author model not stated
 special-review model: not configured
 failed services: none
-trace: ███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+trace: /tmp/proven-run/logs/trace.jsonl
 ```
-
-## REDACTED
-
-- absolute path: 4. Each is the `trace:` line of one scenario above (`refuted`, `unsafe-prompt`, `osv-go-module`,
-  `unknown-author`), the scratch directory's `logs/trace.jsonl`.
-
