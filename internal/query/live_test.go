@@ -234,3 +234,31 @@ func asConfig(err error, target **query.ConfigError) bool {
 	}
 	return ok
 }
+
+// TestEmptyURLOrOrgIDMeansZetarisIsDown proves ADR-0013 point 4a for the two
+// Zetaris settings that are not secrets: an empty base URL or an empty
+// organisation id makes Zetaris a down service named by the variable, and a set
+// but wrong value is still refused even when another setting is empty.
+func TestEmptyURLOrOrgIDMeansZetarisIsDown(t *testing.T) {
+	env := func(set map[string]string) func(string) string {
+		return func(k string) string { return set[k] }
+	}
+	// Mutated field: every Zetaris setting empty, as in `env -i`.
+	_, err := query.Load(env(nil))
+	d, ok := service.As(err)
+	if !ok || d.Service != "zetaris" || !strings.Contains(d.Reason, query.EnvRESTURL) {
+		t.Fatalf("empty environment: %v", err)
+	}
+	// Mutated field: ZETARIS_ORG_ID empty, the rest set.
+	_, err = query.Load(env(map[string]string{query.EnvRESTURL: "http://127.0.0.1:9/api/v1.0", query.EnvAPIKey: "k"}))
+	d, ok = service.As(err)
+	if !ok || d.Service != "zetaris" || !strings.Contains(d.Reason, query.EnvOrgID) {
+		t.Fatalf("empty org id: %v", err)
+	}
+	// Mutated field: ZETARIS_REST_URL set wrong while the key is empty: refused.
+	_, err = query.Load(env(map[string]string{query.EnvRESTURL: "ftp://x", query.EnvOrgID: "1"}))
+	var cfg *query.ConfigError
+	if err == nil || !asConfig(err, &cfg) || cfg.Field != query.EnvRESTURL {
+		t.Fatalf("a wrong URL must still be refused: %v", err)
+	}
+}
