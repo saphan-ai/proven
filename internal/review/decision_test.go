@@ -273,7 +273,8 @@ func TestChangeCannotChooseItsOwnStrictness(t *testing.T) {
 }
 
 // TestSymlinkedRecordOutsideTheTargetIsRefused proves that a record file that is a symlink to a file
-// outside the target is never read; a refusal must name the link.
+// outside the target is refused by name and is never read.
+// Mutated field: the symlink refusal. Letting the link be read returns no error and this test goes red.
 func TestSymlinkedRecordOutsideTheTargetIsRefused(t *testing.T) {
 	dir := copyFixtureTree(t)
 	outside := filepath.Join(t.TempDir(), "outside.txt")
@@ -290,15 +291,12 @@ func TestSymlinkedRecordOutsideTheTargetIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	res, err := rev.Review(context.Background(), review.Request{Target: dir})
-	if err == nil {
-		if strings.Contains(res.AuthorModelStatement, "outside-model") || strings.Contains(res.AuthorModelStatement, "from record") {
-			t.Fatalf("symlink was read: %s", res.AuthorModelStatement)
-		}
-		return
-	}
 	var cfg *review.ConfigError
-	if !errors.As(err, &cfg) || cfg.Field != "author_record" || !strings.Contains(cfg.Reason, "symlink") {
-		t.Fatal(err)
+	if err == nil || !errors.As(err, &cfg) || cfg.Field != "author_record" || !strings.Contains(cfg.Reason, "symlink") {
+		t.Fatalf("want a symlink refusal, got %v statement %q", err, res.AuthorModelStatement)
+	}
+	if strings.Contains(err.Error(), "outside-model") || strings.Contains(res.AuthorModelStatement, "outside-model") {
+		t.Fatalf("symlink was read: %s", err)
 	}
 	if !strings.Contains(cfg.Error(), "MODEL.txt") {
 		t.Fatalf("refusal does not name the link: %s", cfg.Error())
@@ -306,7 +304,8 @@ func TestSymlinkedRecordOutsideTheTargetIsRefused(t *testing.T) {
 }
 
 // TestSymlinkedRecordGlobIsRefused proves the same for a record pattern: a symlink the pattern matches
-// is never read.
+// is refused by name and is never read.
+// Mutated field: the symlink refusal. Letting the link be read returns no error and this test goes red.
 func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
 	dir := copyFixtureTree(t)
 	outside := filepath.Join(t.TempDir(), "outside.txt")
@@ -322,15 +321,15 @@ func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	res, err := rev.Review(context.Background(), review.Request{Target: dir})
-	if err == nil {
-		if strings.Contains(res.AuthorModelStatement, "outside-model") || strings.Contains(res.AuthorModelStatement, "from record") {
-			t.Fatalf("symlink was read: %s", res.AuthorModelStatement)
-		}
-		return
-	}
 	var cfg *review.ConfigError
-	if !errors.As(err, &cfg) || cfg.Field != "author_record" || !strings.Contains(cfg.Reason, "symlink") {
-		t.Fatal(err)
+	if err == nil || !errors.As(err, &cfg) || cfg.Field != "author_record" || !strings.Contains(cfg.Reason, "symlink") {
+		t.Fatalf("want a symlink refusal, got %v statement %q", err, res.AuthorModelStatement)
+	}
+	if strings.Contains(err.Error(), "outside-model") || strings.Contains(res.AuthorModelStatement, "outside-model") {
+		t.Fatalf("symlink was read: %s", err)
+	}
+	if !strings.Contains(cfg.Error(), "MODEL.txt") {
+		t.Fatalf("refusal does not name the link: %s", cfg.Error())
 	}
 }
 
