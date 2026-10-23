@@ -89,10 +89,14 @@ type boolPresence struct {
 	name string
 	set  bool
 	v    bool
-	// bad is the value Set refused. The flag package reports that as a
-	// usage error, which would exit 2 and spell the flag with one dash.
-	// resolve turns bad into the same exit-7 refusal as the variable.
-	bad string
+	// bad is the text Set refused. The flag package would report that as a
+	// usage error, which exits 2 and spells the flag with one dash.
+	// refused is a separate bit because the text can be empty: Set("")
+	// fails ParseBool, and an empty bad is also how a flag that was never
+	// set looks. resolve turns a refusal into the same exit-7 answer as
+	// the variable.
+	bad     string
+	refused bool
 }
 
 func (b *boolPresence) String() string {
@@ -106,10 +110,13 @@ func (b *boolPresence) Set(s string) error {
 	v, err := strconv.ParseBool(s)
 	if err != nil {
 		b.bad = s
+		b.refused = true
 		return err
 	}
 	b.set = true
 	b.v = v
+	b.bad = ""
+	b.refused = false
 	return nil
 }
 
@@ -229,7 +236,8 @@ func refusedBoolFlag(h *holders) (string, string, bool) {
 		&h.sample, &h.quiet, &h.verbose, &h.help, &h.ver,
 	}
 	for _, b := range flags {
-		if b.bad != "" {
+		// An empty refusal must still count. bad == "" is also an unset flag.
+		if b.refused {
 			return b.name, b.bad, true
 		}
 	}

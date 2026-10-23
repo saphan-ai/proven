@@ -619,6 +619,27 @@ func TestSecretIsNotAFlag(t *testing.T) {
 	}
 }
 
+// TestRefusedBoolFlagEmptyValue proves Set("") is a refusal. The value
+// string is empty, which is also how a flag that was never set looks, so
+// the value alone cannot be the signal.
+func TestRefusedBoolFlagEmptyValue(t *testing.T) {
+	h := &holders{}
+	h.sample.name = "--sample"
+	if err := h.sample.Set(""); err == nil {
+		t.Fatal("Set accepted an empty value")
+	}
+	name, value, ok := refusedBoolFlag(h)
+	if !ok || name != "--sample" || value != "" {
+		t.Fatalf("refusedBoolFlag() = %q, %q, %v", name, value, ok)
+	}
+	if err := h.sample.Set("true"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := refusedBoolFlag(h); ok {
+		t.Fatal("a parsed value is still a refusal")
+	}
+}
+
 func TestBadValuesAreRefused(t *testing.T) {
 	// flag, when set, is a boolean flag. The mutated field is that flag's
 	// value. A bad value exits 7 and names true, false, the same as the variable.
@@ -644,6 +665,18 @@ func TestBadValuesAreRefused(t *testing.T) {
 		{name: "--verbose", args: []string{"scan", "--verbose=maybe"}, flag: "--verbose"},
 		{name: "--help", args: []string{"scan", "--help=maybe"}, flag: "--help"},
 		{name: "--version", args: []string{"scan", "--version=maybe"}, flag: "--version"},
+		// An empty value is still a value. Set("") used to leave the
+		// refusal indistinguishable from a flag that was never set.
+		{name: "--text=", args: []string{"scan", "--text="}, flag: "--text"},
+		{name: "--json=", args: []string{"scan", "--json="}, flag: "--json"},
+		{name: "--sarif=", args: []string{"scan", "--sarif="}, flag: "--sarif"},
+		{name: "--error=", args: []string{"scan", "--error="}, flag: "--error"},
+		{name: "--no-error=", args: []string{"scan", "--no-error="}, flag: "--no-error"},
+		{name: "--sample=", args: []string{"scan", "--sample="}, flag: "--sample"},
+		{name: "--quiet=", args: []string{"scan", "--quiet="}, flag: "--quiet"},
+		{name: "--verbose=", args: []string{"scan", "--verbose="}, flag: "--verbose"},
+		{name: "--help=", args: []string{"scan", "--help="}, flag: "--help"},
+		{name: "--version=", args: []string{"scan", "--version="}, flag: "--version"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
