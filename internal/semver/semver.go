@@ -4,7 +4,8 @@
 // outside an OSV range.
 //
 // A version is MAJOR.MINOR.PATCH, an optional leading v, an optional
-// pre-release, and optional build metadata that is ignored. Anything else,
+// pre-release, and optional build metadata that is ignored. A numeric
+// field that does not fit in int is not a version. Anything else,
 // an npm range such as ^1.2.3 included, is not a version: Compare says so
 // and the caller writes the reason into the trace instead of guessing.
 package semver
@@ -125,7 +126,9 @@ func (a Version) cmp(b Version) int {
 }
 
 // number reads a numeric field. A leading zero is refused, as SemVer
-// refuses it.
+// refuses it. A value past MaxInt is refused, not wrapped: wrapping it
+// would compare a larger field as a smaller one. The bound check is the
+// one pep440's readInt uses, so both parsers stop at the same limit.
 func number(s string) (int, bool) {
 	if s == "" || (len(s) > 1 && s[0] == '0') {
 		return 0, false
@@ -135,13 +138,18 @@ func number(s string) (int, bool) {
 		if c < '0' || c > '9' {
 			return 0, false
 		}
-		n = n*10 + int(c-'0')
+		d := int(c - '0')
+		if n > (int(^uint(0)>>1)-d)/10 {
+			return 0, false
+		}
+		n = n*10 + d
 	}
 	return n, true
 }
 
 // identifier reports whether s is a valid pre-release identifier: ASCII
-// letters, digits and hyphens, with no leading zero when it is all digits.
+// letters, digits and hyphens. An all-digit identifier is a numeric field,
+// so number must accept it: no leading zero, and it must fit in int.
 func identifier(s string) bool {
 	if s == "" {
 		return false
@@ -156,8 +164,10 @@ func identifier(s string) bool {
 			return false
 		}
 	}
-	if digits && len(s) > 1 && s[0] == '0' {
-		return false
+	if digits {
+		if _, ok := number(s); !ok {
+			return false
+		}
 	}
 	return true
 }

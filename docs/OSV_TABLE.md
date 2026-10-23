@@ -16,7 +16,7 @@ Proven defines this table. One row is one affected range of one advisory. The fi
 | `severity` | a short severity when the advisory has one, otherwise the first score string |
 | `published` | the advisory's published time, as the source wrote it |
 
-`cmd/osv-to-csv` writes this header. It reads a directory of OSV JSON files, one advisory per file, and does not walk subdirectories. A file that does not end in `.json` is skipped. A `versions` list with no ranges becomes one row per version, with `introduced` and `last_affected` set to that version.
+`cmd/osv-to-csv` writes this header. It reads a directory of OSV JSON files, one advisory per file, and does not walk subdirectories. A file that does not end in `.json` is skipped. A `versions` list becomes one row per version, with `introduced` and `last_affected` set to that version, when the entry has no SEMVER or ECOSYSTEM range. A GIT range names commits, not versions, and is not a row.
 
 ```bash
 go run ./cmd/osv-to-csv <advisory-dir> <out.csv>

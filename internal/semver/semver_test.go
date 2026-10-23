@@ -1,6 +1,10 @@
 package semver
 
-import "testing"
+import (
+	"math"
+	"strconv"
+	"testing"
+)
 
 // TestCompare proves SemVer precedence: an optional v, a release above its
 // pre-release, numeric pre-release identifiers below words, build metadata
@@ -35,5 +39,30 @@ func TestCompare(t *testing.T) {
 	}
 	if _, ok := Parse("1.2.3-01"); ok {
 		t.Fatal("pre-release leading zero parsed")
+	}
+}
+
+// TestParseRefusesANumberThatDoesNotFit proves a numeric field wider than
+// int is not a version. Wrapping it would order a larger field as a smaller one.
+func TestParseRefusesANumberThatDoesNotFit(t *testing.T) {
+	cases := []string{
+		"99999999999999999999.0.0",
+		"1.99999999999999999999.0",
+		"1.0.99999999999999999999",
+		"1.2.3-99999999999999999999",
+	}
+	for _, s := range cases {
+		if v, ok := Parse(s); ok {
+			t.Fatalf("Parse(%s) = %#v, true; want refused", s, v)
+		}
+	}
+	// MaxInt still fits. One past it does not, on this architecture's int.
+	fit := strconv.Itoa(math.MaxInt) + ".0.0"
+	if _, ok := Parse(fit); !ok {
+		t.Fatalf("Parse(%s) refused; MaxInt fits", fit)
+	}
+	over := strconv.FormatUint(uint64(math.MaxInt)+1, 10) + ".0.0"
+	if v, ok := Parse(over); ok {
+		t.Fatalf("Parse(%s) = %#v, true; want refused", over, v)
 	}
 }
