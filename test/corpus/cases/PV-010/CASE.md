@@ -110,7 +110,7 @@ Run 2026-10-22T15:46Z (UTC). Toolchain: `go version go1.26.8 darwin/arm64`, stan
 `.saphan/work/corpus-pv-010/change-edited/` as a copy of `change/` with only the line `const statedMaxGap = 48` replaced
 by `const statedMaxGap = 256`.
 
-Command, from the repository root: `bash tests/corpus/cases/PV-010/check.sh` — exit code 0. Full output:
+Command, from the repository root: `bash test/corpus/cases/PV-010/check.sh` — exit code 0. Full output:
 
 ```
 toolchain: go version go1.26.8 darwin/arm64
@@ -129,7 +129,7 @@ same pattern). The check's exit code reports that it ran, not a verdict on the g
 
 Run 2026-10-23T09:53:51Z (UTC) on Linux at commit `457031534a09d291251572cb9e4f87577070fcb0`.
 Toolchain: `go version go1.26.5 linux/amd64`. Command, from the repository root:
-`bash tests/corpus/cases/PV-010/check.sh` — exit code 0. Full output:
+`bash test/corpus/cases/PV-010/check.sh` — exit code 0. Full output:
 
 ```
 toolchain: go version go1.26.5 linux/amd64

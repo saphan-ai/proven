@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # PV-010 check: runs every input against base, change and the reference and
 # prints one line per input. Run from the repository root:
-#   bash tests/corpus/cases/PV-010/check.sh
+#   bash test/corpus/cases/PV-010/check.sh
 # No network, no model. Standard-library Go only.
 set -u
 export GOTOOLCHAIN=local
 
 root=$(cd "$(dirname "$0")/../../../.." && pwd)
-case_dir="$root/tests/corpus/cases/PV-010"
+case_dir="$root/test/corpus/cases/PV-010"
 work="$root/.saphan/work/corpus-pv-010"
 pinned=42
 
