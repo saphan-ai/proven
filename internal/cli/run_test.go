@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -527,14 +526,19 @@ func TestOutputFlagReplacesStdout(t *testing.T) {
 	}
 }
 
+// TestHelpAndVersion proves --help names the ways ci exits 2, including a
+// missing head, and --version prints the version line.
 func TestHelpAndVersion(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"--help"}, emptyEnv, &stdout, &stderr, nil)
 	if code != exitOK {
 		t.Fatalf("help exit %d", code)
 	}
-	if !strings.Contains(stdout.String(), "--severity") || !strings.Contains(stdout.String(), "configuration was refused") {
-		t.Fatalf("help %q", stdout.String())
+	help := stdout.String()
+	for _, want := range []string{"--severity", "configuration was refused", "no head commit", "GITHUB_SHA", "GITHUB_EVENT_PATH"} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("help missing %q\n%s", want, help)
+		}
 	}
 	stdout.Reset()
 	code = Run([]string{"--version"}, emptyEnv, &stdout, &stderr, nil)
@@ -668,34 +672,16 @@ func TestInvalidVariableAloneExits7(t *testing.T) {
 	}
 }
 
-// recordingTransport counts uses of http.DefaultTransport. A sample run
-// that dials through the default client increments n.
-type recordingTransport struct {
-	t *testing.T
-	n int
-}
-
-func (r *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	r.n++
-	r.t.Errorf("sample mode sent %s %s", req.Method, req.URL)
-	return nil, fmt.Errorf("network refused")
-}
-
 // TestSampleModeReadsNoAdapterSecret proves a --sample run does not read an
 // adapter secret. The getenv answers the variables ADR-0020 §1 documents
 // (KnownCLIEnv) and holds a decoy for each secret this test chose:
 // METERLESS_RUNTIME_TOKEN, ZETARIS_API_KEY, ZETARIS_ORG_ID (named in that
 // section) and PROVEN_GUARDRAIL_KEY (the guardrail adapter's secret).
-// A RoundTrip on http.DefaultTransport fails the test. Zero calls means this
-// run did not use the default HTTP client. A dial on a Transport of its own
-// would not be counted.
+// Connections are not this test's instrument. TestSampleModeOpensNoConnection
+// counts the connect syscall, which a RoundTrip on http.DefaultTransport does not.
 func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
 	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
 	t.Chdir(t.TempDir())
-	prev := http.DefaultTransport
-	trip := &recordingTransport{t: t}
-	http.DefaultTransport = trip
-	t.Cleanup(func() { http.DefaultTransport = prev })
 
 	decoys := []string{
 		"METERLESS_RUNTIME_TOKEN",
@@ -725,9 +711,6 @@ func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
 		if asked[name] != 0 {
 			t.Errorf("%s was read %d times", name, asked[name])
 		}
-	}
-	if trip.n != 0 {
-		t.Errorf("default HTTP client calls: %d", trip.n)
 	}
 }
 
