@@ -291,6 +291,7 @@ func shellEnv(t *testing.T) func(string) string {
 		"SEMGREP_BASELINE_COMMIT": {},
 		"SEMGREP_BASELINE_REF":    {},
 		"PROVEN_CONFIG":           {},
+		"PROVEN_POLICY":           {},
 		"PROVEN_INCLUDE":          {},
 		"PROVEN_EXCLUDE":          {},
 		"PROVEN_SEVERITY":         {},

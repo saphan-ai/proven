@@ -31,7 +31,7 @@ const (
 // documents for the command line. The table names PROVEN_OUTPUT_FORMAT,
 // PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT, SEMGREP_BASELINE_COMMIT,
 // SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE, PROVEN_EXCLUDE,
-// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE. That section's ci paragraph
+// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY. That section's ci paragraph
 // names GITHUB_EVENT_PATH, GITHUB_BASE_REF and GITHUB_SHA. GITHUB_WORKSPACE is
 // not in the section. Adapter secrets are not in this set.
 func KnownCLIEnv(name string) bool {
@@ -46,6 +46,7 @@ func KnownCLIEnv(name string) bool {
 		"PROVEN_INCLUDE",
 		"PROVEN_OUTPUT",
 		"PROVEN_OUTPUT_FORMAT",
+		"PROVEN_POLICY",
 		"PROVEN_SEVERITY",
 		"PROVEN_TIMEOUT",
 		"SAMPLE_MODE",
@@ -69,6 +70,7 @@ type config struct {
 	errorOnFindings bool
 	baseline        string
 	configPath      string
+	policyPath      string
 	include         []string
 	exclude         []string
 	severity        review.Severity
@@ -402,6 +404,8 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		return config{}, err
 	}
 	cfg.configPath = configPath
+	// ADR-0036: the organisation policy is named by a variable only; the reviewer reads and checks it.
+	cfg.policyPath = strings.TrimSpace(getenv("PROVEN_POLICY"))
 	if h.include.set {
 		cfg.include = append([]string{}, h.include.v...)
 	} else {

@@ -181,6 +181,7 @@ func openReviewer(cfg config, getenv func(string) string, open opener) (review.R
 	}
 	opts := review.Options{
 		ConfigPath: cfg.configPath,
+		PolicyPath: cfg.policyPath,
 		Sample:     cfg.sample,
 		LogDir:     filepath.Join(wd, "logs"),
 		Env:        getenv,
@@ -436,6 +437,10 @@ flags:
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
   --help, --version
+
+environment only:
+  PROVEN_POLICY
+        a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
 exit codes:
   0  review done; no findings, or findings without --error
