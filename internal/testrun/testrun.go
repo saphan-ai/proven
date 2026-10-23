@@ -15,12 +15,12 @@ import "context"
 // Content is the full text of a test file the prover wrote. Empty means the
 // test already exists and the runner executes nothing it was not already going to run.
 // FindingID ties the run to the finding it is meant to prove. Path and Name
-// name the test file and the test. Command is the shell line run in each checkout.
+// name the test file and the test; they are all a model decides about the run.
+// The command that runs the test is built from them by Proven (TestArgv).
 type Request struct {
 	FindingID string
 	Path      string
 	Name      string
-	Command   string
 	Content   string
 	BaseDir   string // checkout of the base; the container mounts it alone for the base run
 	ChangeDir string // checkout of the change; the container mounts it alone for the change run
@@ -33,7 +33,7 @@ type Outcome struct {
 	Found         bool
 	Path          string
 	Name          string
-	Command       string
+	Command       string // the line Proven built, shown to the reader of the trace
 	Output        string
 	FailsOnChange bool
 	PassesOnBase  bool

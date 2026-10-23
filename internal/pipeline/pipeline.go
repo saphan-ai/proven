@@ -675,7 +675,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 	r := &c.Refutation
 	if r.TestName != "" {
 		out, err := prover.Execute(ctx, run, testrun.Request{
-			FindingID: c.ID, Path: r.TestPath, Name: r.TestName, Command: r.Command,
+			FindingID: c.ID, Path: r.TestPath, Name: r.TestName,
 		})
 		if err != nil {
 			// A deadline is not a test that cannot run; it is passed up as is.

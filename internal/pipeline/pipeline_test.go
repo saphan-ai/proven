@@ -431,13 +431,13 @@ func (d *dirProbe) Run(ctx context.Context, req testrun.Request) (testrun.Outcom
 func TestCheckoutRunFillsEmptyDirectories(t *testing.T) {
 	probe := &dirProbe{}
 	a := checkoutRun{inner: probe, base: "/tmp/base", change: "/tmp/change"}
-	if _, err := a.Run(context.Background(), testrun.Request{Command: "go test ./billing"}); err != nil {
+	if _, err := a.Run(context.Background(), testrun.Request{Path: "billing/discount_test.go", Name: "TestDiscounted"}); err != nil {
 		t.Fatal(err)
 	}
 	if probe.req.BaseDir != "/tmp/base" || probe.req.ChangeDir != "/tmp/change" {
 		t.Fatalf("%#v", probe.req)
 	}
-	if _, err := a.Run(context.Background(), testrun.Request{Command: "go test", BaseDir: "/already", ChangeDir: "/set"}); err != nil {
+	if _, err := a.Run(context.Background(), testrun.Request{Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: "/already", ChangeDir: "/set"}); err != nil {
 		t.Fatal(err)
 	}
 	if probe.req.BaseDir != "/already" || probe.req.ChangeDir != "/set" {
@@ -458,7 +458,6 @@ func TestWrittenLimitFromOptionsRefusesBeforeTheRun(t *testing.T) {
 	body := "package billing\n\nimport \"testing\"\n\nfunc TestExtra(t *testing.T) {\n\tif Discounted(100, 20) != 80 {\n\t\tt.Fatal(Discounted(100, 20))\n\t}\n}\n"
 	raw, err := json.Marshal(map[string]string{
 		"path": "billing/extra_test.go", "content": body, "name": "TestExtra",
-		"command": "go test ./billing -run TestExtra",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -634,7 +633,6 @@ func TestWrittenTestThatPassesOnBothIsNamedInTheTrace(t *testing.T) {
 	body := "package billing\n\nimport \"testing\"\n\nfunc TestExtra(t *testing.T) {\n\tif Discounted(100, 20) != 80 {\n\t\tt.Fatal(Discounted(100, 20))\n\t}\n}\n"
 	raw, err := json.Marshal(map[string]string{
 		"path": "billing/extra_test.go", "content": body, "name": "TestExtra",
-		"command": "go test ./billing -run TestExtra",
 	})
 	if err != nil {
 		t.Fatal(err)

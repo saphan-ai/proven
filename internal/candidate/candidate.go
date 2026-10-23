@@ -72,7 +72,6 @@ type Refutation struct {
 	Reason            string
 	TestPath          string
 	TestName          string
-	Command           string
 	SQL               string
 	TestFound         bool
 	TestFailsOnChange bool

@@ -83,7 +83,7 @@ finding F1 ERROR Discount is applied twice
   billing/discount.go:5-5
   Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.
   evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true
-  command: go test ./billing -run TestDiscounted
+  command: go test -run '^TestDiscounted$' ./billing
   output: base: PASS
 change: FAIL got 60 want 80
 failed services: none
@@ -150,7 +150,9 @@ Run the same command a second time in the same directory: the findings are the s
 2. Write `tables.sql` with the rows your queries need, in the shapes above.
 3. Write `fixture.json`: the Planner's answer (`planner_response`, a list of findings with `id`, `rule_id`, `title`,
    `message`, `severity`, `path`, `start_line`, `end_line`), each agent's recorded answer (`responses`) and each test's
-   outcome (`recorded_tests`: `path`, `name`, `command`, `fails_on_change`, `passes_on_base`, `output`). Copy
+   outcome (`recorded_tests`: `path`, `name`, `command`, `fails_on_change`, `passes_on_base`, `output`). A recorded
+   answer names a test by `path` and `name` only: an answer that carries a `command` is refused. The `command` of a
+   recorded test is the line Proven builds from them, `go test -run '^<name>$' ./<directory of path>`. Copy
    `discount/fixture.json` and change it; the Planner's prompt hash (`planner_prompt_sha256`) must match the new trees,
    and a run with a stale hash stops and prints the hash it computed
    (`fixture: planner prompt sha256 is <hash>`); put that hash in the file.
@@ -165,7 +167,7 @@ The four scenarios below run the same way: from `/tmp/proven-run`, with the repo
 
 The Skeptic's recorded answer names `TestTotal`. The recorded outcome passes on the change, so F1 is dropped. The trace
 verdict is `dropped: refuted: test TestTotal passes on the change`. F1 is not printed. The query row would have kept
-the finding: with the refutation's path, name, command and sql emptied, the same test prints F1 and fails.
+the finding: with the refutation's path, name and sql emptied, the same test prints F1 and fails.
 
 ```bash
 /tmp/proven scan --sample "$OLDPWD/testdata/fixture/refuted"
