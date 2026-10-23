@@ -14,6 +14,7 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/store"
@@ -47,6 +48,9 @@ const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the
 // evidenceAfter follows the evidence table. It is not a setting.
 const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these."
 
+// networkAfter follows the network table. It is not a setting.
+const networkAfter = "In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds."
+
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
 // beside PROVEN_OSV_TABLE. PROVEN_EVIDENCE_VIEW is declared in livecheck.
@@ -58,6 +62,11 @@ func Catalog() []envdoc.Section {
 	evidence := append(store.Environment(), query.Environment()...)
 	evidence = append(append(append(evidence, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
+		{
+			Heading: "The network mode: air-gapped",
+			Rows:    network.Environment(),
+			After:   networkAfter,
+		},
 		{
 			Heading: "The model generator: Meterless Nightshift or NVIDIA's hosted API",
 			Rows:    generator.Environment(),
