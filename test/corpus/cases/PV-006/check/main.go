@@ -35,6 +35,16 @@ func verdict(pass bool, raw []string) string {
 	return "fail(" + strings.Join(raw, ",") + ")"
 }
 
+// rawTokenEvidence requires the actual rendered notice to carry the raw token.
+// A reference mismatch alone cannot establish which text reached the visitor.
+func rawTokenEvidence(notice string) (string, error) {
+	const token = "$wait"
+	if !strings.Contains(notice, token) {
+		return "", fmt.Errorf("rendered notice does not contain %q", token)
+	}
+	return token, nil
+}
+
 func main() {
 	texts := []textInput{
 		{"well-formed", entry},
@@ -49,16 +59,25 @@ func main() {
 
 	for _, in := range texts {
 		notice, _ := product.Render(in.entry, 30)
+		evidence := ""
+		if in.name == "dollar-token" {
+			token, err := rawTokenEvidence(notice)
+			if err != nil {
+				panic(err)
+			}
+			evidence = " raw=" + token
+		}
 		bp, braw := base.CheckText(notice)
 		cp, craw := change.CheckText(notice)
 		rp := reference.CheckText(in.name, notice)
-		fmt.Printf("%s base=%s change=%s reference=%s\n",
-			in.name, verdict(bp, braw), verdict(cp, craw), verdict(rp, nil))
+		fmt.Printf("%s base=%s change=%s reference=%s%s\n",
+			in.name, verdict(bp, braw), verdict(cp, craw), verdict(rp, nil), evidence)
 	}
 	for _, in := range durations {
-		fmt.Printf("%s base=%s change=%s reference=%s\n", in.name,
+		fmt.Printf("%s base=%s change=%s reference=%s shown=%d retry-after=%d\n", in.name,
 			verdict(base.CheckDuration(in.shown, in.retryAfter), nil),
 			verdict(change.CheckDuration(in.shown, in.retryAfter), nil),
-			verdict(reference.CheckDuration(in.shown, in.retryAfter), nil))
+			verdict(reference.CheckDuration(in.shown, in.retryAfter), nil),
+			in.shown, in.retryAfter)
 	}
 }
