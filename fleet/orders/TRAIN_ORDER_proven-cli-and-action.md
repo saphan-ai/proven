@@ -70,6 +70,14 @@ hold (law #9).
   panics → exit 2; a reviewer that reports a failed service → exit 0 or 1, never 2, and the service is named.
 - **master-was-wrong:** —
 
+### W1b `cli-over-the-sample-reviewer`
+- **what:** W1's command line carried over the reviewer train's seam: `proven scan` and `proven ci` call the reviewer only
+  through `internal/review` (`review.Open`), sample mode through the sample reviewer, the shell in `internal/cli` with a thin
+  `cmd/proven` main. Split from W1 on 2026-10-21 when the reviewer seam landed.
+- **dod:** W1's DoD over the seam; every round carries main's own `cmd/proven` behaviour into `internal/cli`; two
+  parallel reviews of the final round (owner's interim rule, 2026-10-22).
+- **master-was-wrong:** —
+
 ### W2 `three-formats`
 - **what:** text, JSON and SARIF 2.1.0 from the same result; `-o` and the three `--*-output=` files at once.
 - **dod:** the SARIF validates against the official 2.1.0 schema in the test; severity maps to `note`/`warning`/`error`;
