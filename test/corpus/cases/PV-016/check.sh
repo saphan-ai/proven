@@ -2,11 +2,14 @@
 # PV-016 check. Run from the repository root: bash tests/corpus/cases/PV-016/check.sh
 # For base and for change it builds the tool, then prints one line per code-facing claim in claims.tsv:
 #   claim, what the pages say (the quoted sentence, when the version has that page), what the code did.
-# It judges nothing. Exit 0 when every line was printed; non-zero when a build or a run failed.
+# Exit non-zero on a build or run failure, or when a change-side quote is missing.
 set -u
 case_dir=tests/corpus/cases/PV-016
-work=.saphan/work/corpus-pv-016
-mkdir -p "$work"
+work_root="$PWD/.saphan/work/corpus-pv-016"
+mkdir -p "$work_root" || exit 1
+work=$(mktemp -d "$work_root/check.XXXXXX") || exit 1
+trap 'rm -rf "$work"; rmdir "$work_root" "$PWD/.saphan/work" "$PWD/.saphan" 2>/dev/null || :' EXIT
+trap 'exit 1' HUP INT TERM
 
 # Base and change must hold the same code.
 for f in go.mod alerts.go main.go; do
@@ -19,7 +22,7 @@ done
 status=0
 for version in base change; do
   bin="$work/tool-$version"
-  if ! go -C "$case_dir/$version" build -o "$PWD/$bin" . ; then
+  if ! go -C "$case_dir/$version" build -o "$bin" . ; then
     echo "check: build of $version failed" >&2
     exit 1
   fi
@@ -31,6 +34,10 @@ for version in base change; do
     else
       says="(no such page)"
       has_page=0
+      if [ "$version" = change ]; then
+        echo "check: change $id: quote not found in $page" >&2
+        status=1
+      fi
     fi
     case "$kind" in
       dest)

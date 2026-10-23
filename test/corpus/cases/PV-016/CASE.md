@@ -2,7 +2,7 @@
 
 - incident: I13 (one incident; this case is its first round)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-23 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -91,7 +91,7 @@ In `expected/EXPECTED.md`.
 ## 8. Reproduction plan
 
 Run the check on change and record each line of its output; compare a review's findings with the reference list.
-Run 2026-10-22T15:57:44Z (UTC). Toolchain: `go version go1.26.5 linux/amd64`, standard library only, no network.
+Run 2026-10-23T01:51:37Z (UTC). Toolchain: `go version go1.26.5 linux/amd64`, standard library only, no network.
 Base and change hold the same three code files (`go.mod`, `alerts.go`, `main.go`; the check refuses to run if they
 differ); change adds `docs/alerts/` with the four pages. The hand-written claim list is `claims.tsv`; the hand-written
 reference, with the four page-internal pairs, is `reference.md`.
@@ -130,6 +130,12 @@ change | F-restore_done | pages say: "`restore_done` carries: job, host, time. I
 change | F-storage_low | pages say: "`storage_low` carries: volume, percent_free, threshold, time." (what-goes-out.md) | code did: alert storage_low: present=percent_free,time,volume; claimed-but-absent=threshold
 change | F-delivery_failed | pages say: "`delivery_failed` carries: destination, reason, time." (what-goes-out.md) | code did: alert delivery_failed: present=destination,reason,time; claimed-but-absent=none
 ```
+
+Negative control: changed one quote in the existing change-side `chat-setup.md` page, then ran the same command.
+It printed `check: change D-setup: quote not found in chat-setup.md` and exited 1. The original page was restored;
+the output above is the restored run. The same mutation exited 0 before the check was fixed.
+
+Not run: macOS with Go 1.26. This run used Linux; cross-platform execution remains unverified.
 
 ## 9. Limits
 
