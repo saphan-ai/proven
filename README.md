@@ -48,7 +48,7 @@ What else came in today:
 - **We reshaped the repository, because Proven is no longer a toy**: the product at the top, laid out the way a Go project is, and the build's record in [`hackathon/`](hackathon/), so that after the hackathon what is left is a product. Eleven design decisions were written today ([ADR-0026 to ADR-0036](docs/adr/)).
 - **Two more agent masters joined**, one for the command line and one for the security review, because one master was carrying four streams of work.
 
-**See it run:** [what shipped today, step by step in a terminal](hackathon/SHIPPED_DAY_2.md).
+**See it run:** [what shipped on day two, step by step in a terminal](hackathon/SHIPPED_DAY_2.md).
 
 ### What works today with the sponsors' technology
 
