@@ -28,6 +28,11 @@ wrong and how Proven knew.
    all their evidence; the separate findings stay separate in JSON and SARIF.
 6. **The dropped findings are shown**, one line each, with the reason, because a dropped claim is the point of Proven.
 7. **The last line** names the reviewing models, whether the guardrail checked every call, and the trace's path.
+8. **Two formats for people, two for machines** (the owner, the same day). For people: the text output above;
+   **Markdown** (`--md`, `--md-output`) in the same shape as the pull-request comment, to paste into an issue, a wiki or
+   a chat; and **HTML** (`--html`, `--html-output`), one self-contained report file with no external resources: the
+   summary, one card per problem with *How we know*, the evidence (SQL, rows, test output) folded open on demand, and
+   the dropped claims. For machines: **JSON** and **SARIF**, complete and unchanged.
 
 ## Consequences
 
