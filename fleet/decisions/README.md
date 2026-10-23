@@ -41,6 +41,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0025](ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md) | the Prover runs the change's code in a container with no network and no secret; with no container runtime it runs no code | accepted, 2026-10-21 |
 | [0026](ADR-0026-one-makefile-builds-proven-and-runs-the-judges-lab.md) | one Makefile: help by default; builds natively, through a Go image, or prints how to install Go; minimal images scanned by Docker Scout before a push; builds and pushes `saphan/proven:latest`; starts, checks, logs and stops the Gitea lab (Docker in Docker); `make e2e` is the judge's rehearsal | accepted, 2026-10-23 |
 | [0027](ADR-0027-the-code-is-written-to-be-read-by-the-judges.md) | the code is written to be read by the judges: package and doc comments, why-comments, the ADR a step carries out, what each test proves; the masters comment the code already written themselves | accepted, 2026-10-23 |
+| [0028](ADR-0028-proven-is-security-reviewed-as-a-whole-in-pieces.md) | the code is security-reviewed as a whole in nine pieces, each a trust boundary; two reviews per piece; a weakness becomes a fix with a failing test and is published only after it is merged; SECURITY.md and SECURITY_REVIEW.md at the root | accepted, 2026-10-23 |
 
 **Rules for an ADR**
 
