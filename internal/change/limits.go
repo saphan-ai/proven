@@ -99,6 +99,10 @@ func (e *LimitError) Error() string {
 // LoadLimits reads the four bounds from env. An empty value is the default. A
 // value that is set and is not a positive number of bytes is refused and is
 // never replaced by the default (ADR-0013).
+// maxLimitBytes is the largest bound a setting may name: 1 TiB, far above any
+// repository read and far below the int64 maximum, so limit+1 never overflows.
+const maxLimitBytes int64 = 1 << 40
+
 func LoadLimits(env func(string) string) (Limits, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -122,6 +126,15 @@ func LoadLimits(env func(string) string) (Limits, error) {
 			return Limits{}, &LimitError{
 				Field: f.name, Value: clipValue(raw), Reason: "not a positive number of bytes",
 				Allowed: []string{"a positive integer; empty means the default"},
+			}
+		}
+		// Every reader reads limit+1 bytes to tell "at the bound" from "over it",
+		// so a bound near the int64 maximum would overflow and read nothing. A
+		// bound above maxLimitBytes is refused rather than clipped (ADR-0013).
+		if n > maxLimitBytes {
+			return Limits{}, &LimitError{
+				Field: f.name, Value: clipValue(raw), Reason: "more than the largest bound Proven reads",
+				Allowed: []string{"a positive integer up to " + strconv.FormatInt(maxLimitBytes, 10) + "; empty means the default"},
 			}
 		}
 		*f.dst = n

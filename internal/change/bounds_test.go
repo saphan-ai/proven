@@ -139,3 +139,37 @@ func TestBlobAndMessagesRefuseOutputOverTheFileBound(t *testing.T) {
 		t.Fatal("Messages returned a log over the file bound")
 	}
 }
+
+// TestLimitAboveTheLargestBoundIsRefused proves a size bound cannot overflow the
+// readers' limit+1: the largest accepted bound still reads a file whole, and a
+// bound above it (the int64 maximum included) is refused, never read as empty.
+func TestLimitAboveTheLargestBoundIsRefused(t *testing.T) {
+	for _, raw := range []string{"9223372036854775807", "1099511627777"} {
+		if _, err := LoadLimits(func(k string) string {
+			if k == EnvMaxFileBytes {
+				return raw
+			}
+			return ""
+		}); err == nil {
+			t.Fatalf("bound %s was accepted", raw)
+		}
+	}
+	l, err := LoadLimits(func(k string) string {
+		if k == EnvMaxFileBytes {
+			return "1099511627776"
+		}
+		return ""
+	})
+	if err != nil || l.File != 1<<40 {
+		t.Fatalf("largest bound refused: %v %d", err, l.File)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	if err := os.WriteFile(path, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	b, err := ReadBounded(path, l.File, "the file f.txt", EnvMaxFileBytes)
+	if err != nil || string(b) != "content" {
+		t.Fatalf("read at the largest bound: %q %v", b, err)
+	}
+}
