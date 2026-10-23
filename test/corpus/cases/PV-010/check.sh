@@ -4,6 +4,7 @@
 #   bash tests/corpus/cases/PV-010/check.sh
 # No network, no model. Standard-library Go only.
 set -u
+export GOTOOLCHAIN=local
 
 root=$(cd "$(dirname "$0")/../../../.." && pwd)
 case_dir="$root/tests/corpus/cases/PV-010"
