@@ -154,3 +154,17 @@ and a reader can rerun every executable case and challenge every expected outcom
 - Proven's reviewer, orchestration, adapters and product test harness (they are built in the window, not here).
 - Calling the corpus a benchmark or a blind test: product development will see these examples.
 - Correcting the video and social posts (the owner's).
+
+## CODE IS WRITTEN TO BE READ (ADR-0027, owner 2026-10-23; amended in place, law #21)
+Judges will read proven's code. Every executor order of this train carries these six points, and every review order checks
+them:
+1. Every package has a package comment: what it is for and where it sits in the review (which of the six agents, or
+   which adapter, uses it).
+2. Every exported name has a doc comment beginning with the name (go doc form).
+3. Every step a reader would stop at carries a comment saying WHY — a guard, an order that matters, a value from a
+   setting, a refusal. Never a comment that restates the code.
+4. Code that carries out a decision names it (e.g. `ADR-0025: the test runs with no network`).
+5. Every test says which property it proves.
+6. English, plain. No AI attribution, no internal host names, paths or credential names, no commented-out code.
+Shell scripts follow the same rule in their own comment form.
+
