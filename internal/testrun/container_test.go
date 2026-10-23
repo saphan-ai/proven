@@ -63,7 +63,7 @@ func TestValidateNamesTheRefusedSetting(t *testing.T) {
 			cfg := base
 			tc.edit(&cfg)
 			err := cfg.Validate()
-			var se *SettingError
+			var se *ConfigError
 			if !errors.As(err, &se) || se.Field != tc.field {
 				t.Fatalf("%v", err)
 			}

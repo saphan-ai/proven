@@ -281,6 +281,201 @@ func hasTag(tags []string, want string) bool {
 	return false
 }
 
+// TestFailedWriteLeavesMemoryAsItWas proves a failed audit or persist does not
+// keep the new record: the call returns an error and the in-memory store
+// matches the state file (F28).
+func TestFailedWriteLeavesMemoryAsItWas(t *testing.T) {
+	t.Run("add audit", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		blockAudit(t, logs)
+		if _, err := s.Add(hmem.AddInput{Content: "should not stick", Source: "test", At: fixed}); err == nil {
+			t.Fatal("add succeeded while the audit could not be written")
+		}
+		if len(s.All()) != 0 {
+			t.Fatalf("memory kept %d records after a failed audit", len(s.All()))
+		}
+		if len(openAt(t, dir, logs).All()) != 0 {
+			t.Fatal("the state file kept a record the call rejected")
+		}
+	})
+	t.Run("add persist", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		blockPersist(t, dir)
+		if _, err := s.Add(hmem.AddInput{Content: "should not stick", Source: "test", At: fixed}); err == nil {
+			t.Fatal("add succeeded while the state file could not be written")
+		}
+		if len(s.All()) != 0 {
+			t.Fatalf("memory kept %d records after a failed persist", len(s.All()))
+		}
+	})
+	t.Run("refutation", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		blockAudit(t, logs)
+		key := hmem.RefutationKey{ChangeKey: "chg", RuleID: "r", Path: "p.go", Title: "t", Reason: "because", At: fixed}
+		if _, err := s.RememberRefutation(key); err == nil {
+			t.Fatal("refutation succeeded while the audit could not be written")
+		}
+		if _, ok := s.MatchRefutation(key.ChangeKey, key.RuleID, key.Path, key.Title); ok {
+			t.Fatal("memory kept a refutation after a failed audit")
+		}
+	})
+	t.Run("feedback", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		rec, err := s.Add(hmem.AddInput{Content: "one fact here", Source: "test", At: fixed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		blockAudit(t, logs)
+		if err := s.Feedback(rec.ID, "helpful"); err == nil {
+			t.Fatal("feedback succeeded while the audit could not be written")
+		}
+		got, _ := s.Get(rec.ID)
+		if got.AccessCount != 0 || got.Confidence != 0.7 {
+			t.Fatalf("memory changed after a failed feedback: count %d confidence %v", got.AccessCount, got.Confidence)
+		}
+	})
+	t.Run("clear", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		if _, err := s.Add(hmem.AddInput{Content: "one fact here", Source: "test", At: fixed}); err != nil {
+			t.Fatal(err)
+		}
+		blockPersist(t, dir)
+		if err := s.Clear(); err == nil {
+			t.Fatal("clear succeeded while the state file could not be written")
+		}
+		if len(s.All()) != 1 {
+			t.Fatalf("memory has %d records after a failed clear, want the original one", len(s.All()))
+		}
+	})
+	t.Run("supersede", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		fresh, err := s.Add(hmem.AddInput{Content: "the new fact about deploys", Source: "owner", At: fixed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		old, err := s.Add(hmem.AddInput{Content: "the old fact about deploys", Source: "owner", At: fixed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		blockPersist(t, dir)
+		if err := s.MarkSuperseded(old.ID, fresh.ID); err == nil {
+			t.Fatal("supersede succeeded while the state file could not be written")
+		}
+		gotOld, _ := s.Get(old.ID)
+		gotNew, _ := s.Get(fresh.ID)
+		if gotOld.SupersededBy != "" || gotNew.Supersedes != "" {
+			t.Fatalf("old supersededBy %q new supersedes %q", gotOld.SupersededBy, gotNew.Supersedes)
+		}
+	})
+	t.Run("query", func(t *testing.T) {
+		dir, logs := t.TempDir(), t.TempDir()
+		s := openAt(t, dir, logs)
+		rec, err := s.Add(hmem.AddInput{Content: "alpha beta", Source: "test", At: fixed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		blockPersist(t, dir)
+		if _, err := s.Query("alpha beta", 5, 0); err == nil {
+			t.Fatal("query succeeded while the state file could not be written")
+		}
+		got, _ := s.Get(rec.ID)
+		if got.AccessCount != 0 {
+			t.Fatalf("access count %d after a failed query", got.AccessCount)
+		}
+	})
+}
+
+// TestClearAuditsAndResetsSeq proves Clear writes an audit line and the next
+// id after a reopen is mem-1 again (F28).
+func TestClearAuditsAndResetsSeq(t *testing.T) {
+	dir, logs := t.TempDir(), t.TempDir()
+	s := openAt(t, dir, logs)
+	if _, err := s.Add(hmem.AddInput{Content: "one fact here", Source: "test", At: fixed}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(logs, "hmem.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"action":"clear"`) {
+		t.Fatalf("audit has no clear line: %s", b)
+	}
+	next, err := openAt(t, dir, logs).Add(hmem.AddInput{Content: "after clear", Source: "test", At: fixed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.ID != "mem-1" {
+		t.Fatalf("id %s, want mem-1 after clear reset the sequence", next.ID)
+	}
+}
+
+// TestMarkSupersededSetsBothSides proves the replaced record names its
+// replacement, the replacement names what it replaced, and the audit actor
+// is that replacement rather than the retrieval role (F29).
+func TestMarkSupersededSetsBothSides(t *testing.T) {
+	dir, logs := t.TempDir(), t.TempDir()
+	s := openAt(t, dir, logs)
+	fresh, err := s.Add(hmem.AddInput{Content: "the new fact about deploys", Source: "owner", At: fixed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := s.Add(hmem.AddInput{Content: "the old fact about deploys", Source: "owner", At: fixed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkSuperseded(old.ID, fresh.ID); err != nil {
+		t.Fatal(err)
+	}
+	gotOld, _ := s.Get(old.ID)
+	gotNew, _ := s.Get(fresh.ID)
+	if gotOld.SupersededBy != fresh.ID {
+		t.Fatalf("supersededBy %q", gotOld.SupersededBy)
+	}
+	if gotNew.Supersedes != old.ID {
+		t.Fatalf("supersedes %q, want %s", gotNew.Supersedes, old.ID)
+	}
+	b, err := os.ReadFile(filepath.Join(logs, "hmem.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"actor":"`+fresh.ID+`"`) {
+		t.Fatalf("audit does not name %s: %s", fresh.ID, b)
+	}
+	if strings.Contains(string(b), `"actor":"retrieval"`) {
+		t.Fatalf("actor is still retrieval: %s", b)
+	}
+}
+
+// blockAudit replaces hmem.jsonl with a directory, so the next audit open fails.
+func blockAudit(t *testing.T, logs string) {
+	t.Helper()
+	path := filepath.Join(logs, "hmem.jsonl")
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// blockPersist puts a directory where the state file's temporary name goes,
+// so the next persist cannot write it.
+func blockPersist(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Mkdir(filepath.Join(dir, "state.json.tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestStateNamedWithTwoDotsInsideIsRefused proves a state directory inside the
 // repository whose name starts with ".." (here "..state") is still refused:
 // only a path that leaves the repository is outside it.

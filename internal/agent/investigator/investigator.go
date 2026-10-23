@@ -53,6 +53,11 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	if got.SQL == "" {
 		return c, nil
 	}
+	// The same refusal as Execute. A nil adapter panics on Query, and the
+	// review would lose the finding instead of naming the query engine down.
+	if q == nil {
+		return c, &service.Down{Service: "query", Reason: "no query engine"}
+	}
 	res, err := q.Query(ctx, got.SQL)
 	if err != nil {
 		return c, err

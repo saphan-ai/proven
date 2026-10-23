@@ -2,6 +2,7 @@ package testrun_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/service"
@@ -55,5 +56,14 @@ func TestLiveNamesProverOff(t *testing.T) {
 	}
 	if d.Service != "prover" || d.Reason != testrun.ProverOffReason {
 		t.Fatalf("%s %s", d.Service, d.Reason)
+	}
+}
+
+// TestProverOffReasonIsTrue proves Live's reason does not say the container
+// runner is still missing: that runner exists, and Live is the adapter that
+// runs no container (F30).
+func TestProverOffReasonIsTrue(t *testing.T) {
+	if strings.Contains(testrun.ProverOffReason, "no container runner yet") {
+		t.Fatalf("reason is stale: %s", testrun.ProverOffReason)
 	}
 }

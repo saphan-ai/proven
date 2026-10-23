@@ -8,6 +8,8 @@
 // same change matches it so the refuted finding does not come back
 // (ADR-0006 point 4, ADR-0018 point 6). The store is a JSON file outside the
 // repository, with an append-only audit log in the run's logs directory.
+// A failed audit or persist leaves the in-memory records and the id sequence
+// as they were, so memory and the state file agree.
 package hmem
 
 import (
@@ -125,7 +127,8 @@ type Store struct {
 	records   map[string]Record
 }
 
-// disk is the shape of state.json. Seq is kept so Add never reuses an id after a reopen.
+// disk is the shape of state.json. Seq is kept so Add never reuses an id after
+// a reopen. Clear sets it back to zero and writes that, so the next id starts again.
 type disk struct {
 	Version int      `json:"version"`
 	Seq     int      `json:"seq"`
@@ -286,6 +289,7 @@ func (s *Store) Add(in AddInput) (Record, error) {
 	if label == "" {
 		label = in.Source
 	}
+	prevSeq := s.seq
 	s.seq++
 	rec := Record{
 		ID:           fmt.Sprintf("mem-%d", s.seq),
@@ -307,14 +311,11 @@ func (s *Store) Add(in AddInput) (Record, error) {
 	rec.Namespace = namespace(rec.Domain, rec.Type)
 	// A refused record gives its sequence number back, so ids stay dense.
 	if err := validate(rec); err != nil {
-		s.seq--
+		s.seq = prevSeq
 		return Record{}, err
 	}
 	s.records[rec.ID] = rec
-	if err := s.audit("create", rec.ID, in.Source); err != nil {
-		return Record{}, err
-	}
-	if err := s.persist(); err != nil {
+	if err := s.publish("create", rec.ID, in.Source, prevSeq, nil, []string{rec.ID}); err != nil {
 		return Record{}, err
 	}
 	return rec, nil
@@ -372,10 +373,7 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 		return Record{}, err
 	}
 	s.records[id] = rec
-	if err := s.audit("create", id, "skeptic"); err != nil {
-		return Record{}, err
-	}
-	if err := s.persist(); err != nil {
+	if err := s.publish("create", id, "skeptic", s.seq, nil, []string{id}); err != nil {
 		return Record{}, err
 	}
 	return rec, nil
@@ -403,16 +401,27 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 	return found, ok
 }
 
-// Clear drops every record and writes the empty store. The audit log is left in place.
+// Clear drops every record, writes one clear audit line, resets the id
+// sequence, and writes the empty store. Earlier audit lines stay.
+// A failed audit or persist leaves the records and the sequence as they were.
 func (s *Store) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	prev := s.records
+	prevSeq := s.seq
 	s.records = map[string]Record{}
-	return s.persist()
+	s.seq = 0
+	// Clear has no caller name, so the actor is the store itself.
+	if err := s.publish("clear", "all", "store", prevSeq, prev, nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MarkSuperseded records that id was replaced by by.
-// Both records stay. Query ranks the superseded one lower.
+// Both records stay. id's SupersededBy and by's Supersedes are both set,
+// so either side names the other. Query ranks the superseded one lower.
+// The audit actor is by: the record that superseded, not the retrieval role.
 func (s *Store) MarkSuperseded(id, by string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -420,15 +429,25 @@ func (s *Store) MarkSuperseded(id, by string) error {
 	if !ok {
 		return fmt.Errorf("hmem: unknown memory %s", id)
 	}
-	if _, ok := s.records[by]; !ok {
+	repl, ok := s.records[by]
+	if !ok {
 		return fmt.Errorf("hmem: unknown memory %s", by)
 	}
+	prev := map[string]Record{id: rec, by: repl}
 	rec.SupersededBy = by
-	s.records[id] = rec
-	if err := s.audit("update", id, "retrieval"); err != nil {
+	repl.Supersedes = id
+	// One record replacing itself keeps both links on that one value.
+	if id == by {
+		rec.Supersedes = id
+		s.records[id] = rec
+	} else {
+		s.records[id] = rec
+		s.records[by] = repl
+	}
+	if err := s.publish("update", id, by, s.seq, prev, nil); err != nil {
 		return err
 	}
-	return s.persist()
+	return nil
 }
 
 // Get returns one record.
@@ -462,6 +481,30 @@ func (s *Store) now() int64 {
 		return s.clock().UnixMilli()
 	}
 	return time.Now().UnixMilli()
+}
+
+// publish writes the audit line and then the state file. On either failure it
+// puts seq and saved records back and drops the new ids, so a refused write
+// leaves memory equal to the state file.
+func (s *Store) publish(action, id, actor string, seq int, saved map[string]Record, dropped []string) error {
+	err := s.audit(action, id, actor)
+	if err == nil {
+		err = s.persist()
+	}
+	if err == nil {
+		return nil
+	}
+	// Clear installed a fresh map; copying the saved records back into it
+	// restores the old ones. Other callers pass the map they mutated, and
+	// the saved values overwrite those entries.
+	s.seq = seq
+	for rid, rec := range saved {
+		s.records[rid] = rec
+	}
+	for _, rid := range dropped {
+		delete(s.records, rid)
+	}
+	return err
 }
 
 // persist writes the whole store. Sorted records make the file the same for the same state.

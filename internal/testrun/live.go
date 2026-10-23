@@ -7,9 +7,9 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// ProverOffReason is the reason Live reports. It was the live answer before
-// the container adapter existed; Live keeps it so a test can name the Prover off.
-const ProverOffReason = "Prover off: no container runner yet"
+// ProverOffReason is the reason Live reports. Live runs no container.
+// review.Open uses the container adapter when a runtime is on the path.
+const ProverOffReason = "Prover off: this adapter runs no container"
 
 // Live runs no code. review.Open uses the container adapter instead.
 // A test can still inject Live to name the Prover off. It never runs on the host.
