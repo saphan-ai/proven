@@ -124,7 +124,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 |---|---|---|
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
 | `LAB_BIND` | `127.0.0.1` | Address the published ports bind to |
-| `GOLANG_IMAGE` | `golang:1.26.8` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
+| `GOLANG_IMAGE` | `golang:1.26.10` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
 | `RUNTIME_IMAGE` | `alpine:3.22` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
 | `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
