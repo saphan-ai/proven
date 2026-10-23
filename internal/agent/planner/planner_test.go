@@ -11,6 +11,7 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// The Planner reads its risks from a fenced list wrapped in prose with a trailing comma.
 func TestPlannerReadsAFencedListWithProseAndATrailingComma(t *testing.T) {
 	raw := "Risks follow.\n```json\n" +
 		`[{"id":"F9","rule_id":"r","title":"t","message":"m","severity":"ERROR","path":"billing/discount.go","start_line":1,"end_line":1,},]` +
@@ -28,6 +29,7 @@ func TestPlannerReadsAFencedListWithProseAndATrailingComma(t *testing.T) {
 	}
 }
 
+// Two unreadable replies degrade the Planner by name after exactly two calls.
 func TestPlannerProseTwiceDegradesByName(t *testing.T) {
 	g := &script{replies: []string{"1. this is not json", "1. still not json"}}
 	_, err := planner.Plan(context.Background(), discount(t), g)
@@ -40,6 +42,7 @@ func TestPlannerProseTwiceDegradesByName(t *testing.T) {
 	}
 }
 
+// script is a generator that returns its replies in order and records each prompt.
 type script struct {
 	replies []string
 	prompts []string
@@ -55,6 +58,7 @@ func (s *script) Complete(ctx context.Context, agent, prompt string) (string, er
 	return text, nil
 }
 
+// discount is the path of the discount fixture change in the module's test data.
 func discount(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

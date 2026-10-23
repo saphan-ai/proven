@@ -11,6 +11,8 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+// TestUnknownConfigKeyIsRefused proves that a key outside the closed set is refused on Open,
+// and that the refusal lists every allowed key in order (ADR-0013).
 func TestUnknownConfigKeyIsRefused(t *testing.T) {
 	path := writeConfig(t, "colour: red\n")
 	_, err := review.Open(review.Options{
@@ -31,6 +33,7 @@ func TestUnknownConfigKeyIsRefused(t *testing.T) {
 	}
 }
 
+// TestBadTimeoutIsRefused proves that a timeout that is not a Go duration is refused, naming the field and the value.
 func TestBadTimeoutIsRefused(t *testing.T) {
 	path := writeConfig(t, "timeout: tomorrow\n")
 	_, err := review.Open(review.Options{
@@ -45,6 +48,7 @@ func TestBadTimeoutIsRefused(t *testing.T) {
 	}
 }
 
+// TestNegativeTimeoutIsRefused proves that a negative duration is refused rather than read as "no deadline".
 func TestNegativeTimeoutIsRefused(t *testing.T) {
 	path := writeConfig(t, "timeout: -1s\n")
 	_, err := review.Open(review.Options{
@@ -59,6 +63,8 @@ func TestNegativeTimeoutIsRefused(t *testing.T) {
 	}
 }
 
+// TestMissingConfigFileIsRefused proves that an explicit --config path that does not exist is refused,
+// not replaced by the defaults.
 func TestMissingConfigFileIsRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "no-such.yaml")
 	_, err := review.Open(review.Options{
@@ -73,6 +79,8 @@ func TestMissingConfigFileIsRefused(t *testing.T) {
 	}
 }
 
+// TestTimeoutBoundsAReviewWithNoDeadline proves that the timeout setting bounds a review when the shell set
+// no deadline: the review comes back Partial, not as an error.
 func TestTimeoutBoundsAReviewWithNoDeadline(t *testing.T) {
 	path := writeConfig(t, "timeout: 1ns\n")
 	rev, err := review.Open(review.Options{
@@ -93,6 +101,8 @@ func TestTimeoutBoundsAReviewWithNoDeadline(t *testing.T) {
 	}
 }
 
+// TestParentDeadlineWinsOverConfigTimeout proves that the shell's deadline wins over the timeout setting:
+// a 1ns setting does not cut short a review the shell gave an hour.
 func TestParentDeadlineWinsOverConfigTimeout(t *testing.T) {
 	path := writeConfig(t, "timeout: 1ns\n")
 	rev, err := review.Open(review.Options{
@@ -118,6 +128,8 @@ func TestParentDeadlineWinsOverConfigTimeout(t *testing.T) {
 	}
 }
 
+// TestProvenYAMLInTargetIsRefusedOnReview proves that, with no --config, a bad proven.yaml in the review
+// target is refused when Review reads it.
 func TestProvenYAMLInTargetIsRefusedOnReview(t *testing.T) {
 	dir := copyFixtureTree(t)
 	if err := os.WriteFile(filepath.Join(dir, "proven.yaml"), []byte("colour: red\n"), 0o644); err != nil {
@@ -134,6 +146,8 @@ func TestProvenYAMLInTargetIsRefusedOnReview(t *testing.T) {
 	}
 }
 
+// TestExplicitConfigIgnoresTargetFile proves that an explicit --config replaces the target's proven.yaml:
+// the target's bad file is never read.
 func TestExplicitConfigIgnoresTargetFile(t *testing.T) {
 	dir := copyFixtureTree(t)
 	if err := os.WriteFile(filepath.Join(dir, "proven.yaml"), []byte("colour: red\n"), 0o644); err != nil {
@@ -158,6 +172,7 @@ func TestExplicitConfigIgnoresTargetFile(t *testing.T) {
 	}
 }
 
+// TestZeroTimeoutLeavesTheReviewUnbounded proves that a 0s timeout adds no deadline.
 func TestZeroTimeoutLeavesTheReviewUnbounded(t *testing.T) {
 	path := writeConfig(t, "timeout: 0s\n")
 	rev, err := review.Open(review.Options{
@@ -181,6 +196,8 @@ func TestZeroTimeoutLeavesTheReviewUnbounded(t *testing.T) {
 	}
 }
 
+// TestQuotedTimeoutWithCommentBoundsTheReview proves that a quoted value with a trailing comment, after a
+// comment line, is read as its value and applied.
 func TestQuotedTimeoutWithCommentBoundsTheReview(t *testing.T) {
 	path := writeConfig(t, "# review bound\ntimeout: \"1ns\" # soon\n")
 	rev, err := review.Open(review.Options{
@@ -201,6 +218,7 @@ func TestQuotedTimeoutWithCommentBoundsTheReview(t *testing.T) {
 	}
 }
 
+// TestDuplicateTimeoutIsRefused proves that a key set twice is refused rather than the last line winning.
 func TestDuplicateTimeoutIsRefused(t *testing.T) {
 	path := writeConfig(t, "timeout: 1h\ntimeout: 1ns\n")
 	_, err := review.Open(review.Options{
@@ -215,6 +233,7 @@ func TestDuplicateTimeoutIsRefused(t *testing.T) {
 	}
 }
 
+// TestNestedConfigIsRefused proves that a nested mapping is refused: proven.yaml is one flat mapping.
 func TestNestedConfigIsRefused(t *testing.T) {
 	path := writeConfig(t, "timeout:\n  seconds: 1\n")
 	_, err := review.Open(review.Options{
@@ -229,6 +248,7 @@ func TestNestedConfigIsRefused(t *testing.T) {
 	}
 }
 
+// writeConfig writes body to a proven.yaml in a fresh temporary directory and returns its path.
 func writeConfig(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "proven.yaml")

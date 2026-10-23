@@ -8,6 +8,8 @@ import (
 )
 
 // Response is one recorded answer, keyed by agent and prompt.
+// ADR-0001: the sample generator is the adapter a judge runs without our keys;
+// it runs the same agent logic as a live run.
 type Response struct {
 	Agent    string
 	Prompt   string
@@ -34,6 +36,8 @@ func NewSample(rows []Response) (*Sample, error) {
 
 // Complete returns the recorded response for this agent and prompt.
 func (s *Sample) Complete(ctx context.Context, agent, prompt string) (string, error) {
+	// The sample keeps the same time bound as a live call, so a cancelled review
+	// stops here as it would live.
 	ctx, cancel := limit.Bound(ctx)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
@@ -46,6 +50,8 @@ func (s *Sample) Complete(ctx context.Context, agent, prompt string) (string, er
 	return text, nil
 }
 
+// key joins agent and prompt with a NUL byte, which neither contains, so two
+// different pairs can never make the same key.
 func key(agent, prompt string) string {
 	return agent + "\x00" + prompt
 }
@@ -56,6 +62,7 @@ type Missing struct {
 	Prompt string
 }
 
+// Error names the agent only. The prompt can be long and holds the change's code.
 func (m *Missing) Error() string {
 	return fmt.Sprintf("generator: no recorded response for agent %q", m.Agent)
 }

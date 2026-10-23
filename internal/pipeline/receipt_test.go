@@ -12,6 +12,8 @@ import (
 )
 
 // receipted names a fixed route, model and receipt id for every call.
+// receipted answers like the sample generator and reports a fixed receipt for
+// every call.
 type receipted struct {
 	inner generator.Generator
 }
@@ -24,6 +26,9 @@ func (g *receipted) LastUse() (generator.Use, bool) {
 	return generator.Use{Route: "nvidia", Model: "nvidia/test-model", ReceiptID: "rcpt-0001", FromReceipt: true}, true
 }
 
+// Every model call writes one "model" event to the trace carrying the route,
+// the model and the receipt id, so a reader can match the trace to the
+// provider's receipts.
 func TestEveryModelCallWritesItsReceiptIDToTheTrace(t *testing.T) {
 	fx := loadDiscount(t)
 	inner, err := generator.NewSample(fx.Answers)

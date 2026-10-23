@@ -53,6 +53,8 @@ func Uncompared(ecosystem, version string) string {
 	}
 }
 
+// explainSemver says why value is not a semantic version. kind names the
+// bound the value came from, and is empty for the package's own version.
 func explainSemver(kind, value string) (string, bool) {
 	if _, ok := semver.Parse(value); ok {
 		return "", true
@@ -63,6 +65,7 @@ func explainSemver(kind, value string) (string, bool) {
 	return kind + " " + value + " is not a semantic version", false
 }
 
+// explainPyPI says why value is not a PEP 440 form this check compares.
 func explainPyPI(kind, value string) (string, bool) {
 	if _, ok := pep440.Parse(value); ok {
 		return "", true
@@ -74,6 +77,9 @@ func explainPyPI(kind, value string) (string, bool) {
 	return kind + " " + why, false
 }
 
+// inRange is the comparison behind InRange and InRangeEcosystem. Each value
+// is checked before it is compared, so a value that does not parse gives a
+// sentence and no match, never a guess.
 func inRange(version, introduced, fixed, last string, explain func(kind, value string) (string, bool), cmp func(a, b string) (int, bool)) (bool, string) {
 	version = strings.TrimSpace(version)
 	introduced = strings.TrimSpace(introduced)
@@ -82,16 +88,19 @@ func inRange(version, introduced, fixed, last string, explain func(kind, value s
 	if why, ok := explain("", version); !ok {
 		return false, why
 	}
+	// OSV writes "0" for a range that starts at the first version.
 	unbounded := introduced == "" || introduced == "0"
 	if !unbounded {
 		if why, ok := explain("introduced", introduced); !ok {
 			return false, why
 		}
+		// Both values passed explain, so the pair orders.
 		c, _ := cmp(version, introduced)
 		if c < 0 {
 			return false, version + " < introduced " + introduced
 		}
 	}
+	// fixed is exclusive and wins over last_affected (docs/OSV_TABLE.md).
 	if fixed != "" {
 		if why, ok := explain("fixed", fixed); !ok {
 			return false, why

@@ -12,24 +12,33 @@
 #   ZETARIS_LOCAL    the local port to open (default 3000)
 #
 # Usage: zetaris_console.sh up | down | status
+#
+# Exit codes: 0 done (up: the console answered 200); 1 the tunnel did not open, or the console did not answer 200;
+# 2 a setting is missing, the local port is taken, or the command is unknown; 3 status found the tunnel down.
 set -u
 CONF="${ZETARIS_CONSOLE_CONF:-$HOME/.config/proven/zetaris-console.env}"
 [ -f "$CONF" ] && . "$CONF"
 LOCAL="${ZETARIS_LOCAL:-3000}"
+# One ssh control socket per local port: it lets `status` and `down` find the tunnel this script opened, and only that one.
 SOCK="${TMPDIR:-/tmp}/zetaris-console-$LOCAL.sock"
 
+# need refuses by name before any ssh call when a setting is missing, so the failure says what to set.
 need() { [ -n "${ZETARIS_SSH:-}" ] && [ -n "${ZETARIS_UI:-}" ] || { echo "set ZETARIS_SSH and ZETARIS_UI (or write them to $CONF)"; exit 2; }; }
+# up_now asks the control socket's own ssh master whether it is alive; no new connection is made.
 up_now() { ssh -S "$SOCK" -O check "${ZETARIS_SSH:-x}" >/dev/null 2>&1; }
+# answers returns the HTTP code of the console's config endpoint, the first call its sign-in page makes.
 answers() { curl -s -o /dev/null -m 5 -w '%{http_code}' "http://localhost:$LOCAL/api/config"; }
 
 case "${1:-}" in
   up)
     need
     if up_now; then echo "already up: http://localhost:$LOCAL"; exit 0; fi
+    # A port taken by another program would make ssh's forward fail later and less clearly; refuse here and show the holder.
     if lsof -nP -iTCP:"$LOCAL" -sTCP:LISTEN >/dev/null 2>&1; then echo "port $LOCAL is taken on this machine:"; lsof -nP -iTCP:"$LOCAL" -sTCP:LISTEN; exit 2; fi
     # nohup: the tunnel survives closing the terminal; -f puts ssh in the background after it connects.
     nohup ssh -M -S "$SOCK" -f -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
       -L "127.0.0.1:$LOCAL:$ZETARIS_UI" "$ZETARIS_SSH" >/dev/null 2>&1 </dev/null || { echo "the tunnel did not open"; exit 1; }
+    # The forward needs a moment after ssh goes to the background before the first request can pass.
     sleep 1
     code=$(answers); echo "up: http://localhost:$LOCAL  (console answers $code)"; [ "$code" = 200 ]
     ;;

@@ -8,6 +8,9 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
+// TestSampleReturnsTheRecordedTest proves the sample adapter replays the
+// recorded outcome by finding and test name, and runs no code even when the
+// request carries a written test.
 func TestSampleReturnsTheRecordedTest(t *testing.T) {
 	s := testrun.NewSample([]testrun.Recorded{{
 		FindingID:     "F1",
@@ -43,6 +46,7 @@ func TestSampleReturnsTheRecordedTest(t *testing.T) {
 	}
 }
 
+// TestLiveNamesProverOff proves Live reports the Prover off by name and runs nothing.
 func TestLiveNamesProverOff(t *testing.T) {
 	_, err := testrun.Live{}.Run(context.Background(), testrun.Request{FindingID: "F1", Name: "TestDiscounted"})
 	d, ok := service.As(err)

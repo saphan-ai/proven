@@ -11,6 +11,9 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/skeptic"
 )
 
+// The recorded answers of the Investigator, Prover and Skeptic are keyed by
+// exactly the prompts those agents build today, so a change to an agent's
+// prompt shows up here and not as a missing answer in sample mode.
 func TestRecordedPromptsFollowTheAgents(t *testing.T) {
 	f, err := Load(discount(t))
 	if err != nil {
@@ -47,6 +50,8 @@ func TestRecordedPromptsFollowTheAgents(t *testing.T) {
 	}
 }
 
+// discount returns the path of the discount sample fixture, found from the
+// module root so the test runs from any directory.
 func discount(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

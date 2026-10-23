@@ -190,3 +190,17 @@ you build on it. Where you find the advisor wrong, write it in the wagon's `mast
 | private repository names | 1 | our infrastructure repository (blacked out on 2026-10-21; an earlier copy showed it) |
 
 macm5, macmini and runner-cursor stay visible by the owner's rule of 2026-10-17 (the Cursor executors work there).
+
+## CODE IS WRITTEN TO BE READ (ADR-0027, owner 2026-10-23; amended in place, law #21)
+Judges will read proven's code. Every executor order of this train carries these six points, and every review order checks
+them:
+1. Every package has a package comment: what it is for and where it sits in the review (which of the six agents, or
+   which adapter, uses it).
+2. Every exported name has a doc comment beginning with the name (go doc form).
+3. Every step a reader would stop at carries a comment saying WHY — a guard, an order that matters, a value from a
+   setting, a refusal. Never a comment that restates the code.
+4. Code that carries out a decision names it (e.g. `ADR-0025: the test runs with no network`).
+5. Every test says which property it proves.
+6. English, plain. No AI attribution, no internal host names, paths or credential names, no commented-out code.
+Shell scripts follow the same rule in their own comment form.
+

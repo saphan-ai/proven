@@ -1,4 +1,10 @@
 // Package prover asks the test-run adapter for a test that fails on the change and passes on the base.
+//
+// The Prover gets each risk from the Planner and asks the model for a test that
+// proves it: one that fails on the change and passes on the base (ADR-0002).
+// The test asserts correct behaviour and never attacks anything (ADR-0007). The
+// test-run adapter runs it once on each checkout, with no network and no secret
+// (ADR-0025). Only that outcome, never the model's word, becomes evidence.
 package prover
 
 import (
@@ -22,6 +28,7 @@ var testSpec = answer.Spec{
 	Example: `{"path":"pkg/file_test.go","content":"package pkg\n\nimport \"testing\"\n\nfunc TestExample(t *testing.T) {\n\tif Got() != 1 {\n\t\tt.Fatal(Got())\n\t}\n}\n","name":"TestExample","command":"go test ./pkg -run TestExample"}`,
 }
 
+// Prover notes say why a written test gave no evidence. The trace and the review show them.
 const (
 	notePassedOnChange = "written test passed on the change"
 	noteFailedOnBase   = "written test failed on the base"
@@ -32,6 +39,7 @@ func Prompt(id, title string) string {
 	return answer.Instruct(testSpec, "id: "+id+"\ntitle: "+title+"\n")
 }
 
+// row is the test as the model returns it.
 type row struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
@@ -64,12 +72,16 @@ func Prove(ctx context.Context, c candidate.Candidate, gen generator.Generator, 
 	if err := answer.Read(ctx, gen, "prover", Prompt(c.ID, c.Title), testSpec, &got); err != nil {
 		return c, err
 	}
+	// No content names a test that already exists; content is a new test file.
 	if strings.TrimSpace(got.Content) == "" {
 		return proveNamed(ctx, c, run, got)
 	}
 	return proveWritten(ctx, c, run, got, opts)
 }
 
+// proveNamed runs a test that already exists in the repository. Only a test
+// that is found, fails on the change and passes on the base is evidence;
+// anything else leaves the candidate as it was.
 func proveNamed(ctx context.Context, c candidate.Candidate, run testrun.Adapter, got row) (candidate.Candidate, error) {
 	if got.Name == "" {
 		return c, nil
@@ -87,7 +99,12 @@ func proveNamed(ctx context.Context, c candidate.Candidate, run testrun.Adapter,
 	return c, nil
 }
 
+// proveWritten runs a test the model wrote. The file is checked before anything
+// runs, and every outcome that is not evidence leaves a note saying why.
 func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapter, got row, opts Options) (candidate.Candidate, error) {
+	// A path outside the repository, a file that is not a test, an overwrite of
+	// code, an empty command or a file over the size limit is refused before the
+	// runner is called.
 	if reason := testrun.RefuseWritten(got.Path, got.Content, got.Command, opts.BaseDir, opts.ChangeDir, opts.MaxWrittenBytes); reason != "" {
 		c.ProverNote = "refused: " + reason
 		return c, nil
@@ -99,6 +116,7 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 	if err != nil {
 		return c, err
 	}
+	// The runner itself may refuse; its refusal line becomes the note.
 	if line := refusedLine(out.Output); line != "" {
 		c.ProverNote = line
 		return c, nil
@@ -126,6 +144,8 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 	return c, nil
 }
 
+// testEvidence is the test evidence the Judge reads: the test, its command,
+// its output and its two outcomes.
 func testEvidence(out testrun.Outcome) candidate.Evidence {
 	return candidate.Evidence{
 		Kind: candidate.KindTest,
@@ -137,6 +157,7 @@ func testEvidence(out testrun.Outcome) candidate.Evidence {
 	}
 }
 
+// refusedLine returns the first "refused:" line of the runner's output.
 func refusedLine(output string) string {
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
@@ -147,6 +168,8 @@ func refusedLine(output string) string {
 	return ""
 }
 
+// couldNotRun reports a test that was not found or that the runner says did not
+// run, so its outcome cannot count either way.
 func couldNotRun(out testrun.Outcome) bool {
 	if !out.Found {
 		return true

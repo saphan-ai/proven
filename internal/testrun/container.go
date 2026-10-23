@@ -25,6 +25,8 @@ import (
 // That manual does not document a flag that stops a missing image from
 // being pulled on the host before the container starts.
 
+// The documented defaults of the container settings (ADR-0013, ADR-0025
+// point 5). checkoutDir is where the one checkout is mounted inside.
 const (
 	defaultRuntime = "docker"
 	defaultImage   = "golang:1.26"
@@ -33,6 +35,7 @@ const (
 	checkoutDir    = "/checkout"
 )
 
+// defaultTimeout is the default limit for one side of a test run.
 const defaultTimeout = 2 * time.Minute
 
 // cleanupMargin is the longest one side (base or change) may run past
@@ -56,6 +59,8 @@ type ContainerConfig struct {
 	MaxWrittenBytes int           // size limit for a test file the prover writes
 }
 
+// cpuPattern and memPattern accept only the plain forms docker-run(1)
+// documents, so a value can never smuggle in another flag.
 var (
 	cpuPattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`)
 	memPattern = regexp.MustCompile(`^([0-9]+)([bkmg])?$`)
@@ -70,6 +75,7 @@ type SettingError struct {
 	Reason  string
 }
 
+// Error names the field, the refused value, the reason and the allowed values.
 func (e *SettingError) Error() string {
 	if e == nil {
 		return "configuration refused"
@@ -98,6 +104,7 @@ func DefaultContainerConfig() ContainerConfig {
 
 // Validate refuses a setting by name with the allowed values (ADR-0013).
 func (c ContainerConfig) Validate() error {
+	// Runtime and image become argv words; a leading dash would read as a flag.
 	if !validToken(c.Runtime) {
 		return &SettingError{
 			Field: "Runtime", Value: c.Runtime,
@@ -119,6 +126,8 @@ func (c ContainerConfig) Validate() error {
 			Allowed: []string{defaultTimeout.String()},
 		}
 	}
+	// 0 means no limit to the runtime, so a zero CPU or memory limit is refused:
+	// a setting must not be able to lift the container's bounds.
 	if !validCPUs(c.CPUs) {
 		return &SettingError{
 			Field: "CPUs", Value: c.CPUs,
@@ -143,6 +152,7 @@ func (c ContainerConfig) Validate() error {
 	return nil
 }
 
+// validToken accepts one non-empty word that does not start with a dash.
 func validToken(s string) bool {
 	if s == "" || strings.HasPrefix(s, "-") {
 		return false
@@ -150,6 +160,7 @@ func validToken(s string) bool {
 	return !strings.ContainsAny(s, " \t\n\r")
 }
 
+// validCPUs accepts a positive decimal number.
 func validCPUs(s string) bool {
 	if !cpuPattern.MatchString(s) {
 		return false
@@ -158,6 +169,7 @@ func validCPUs(s string) bool {
 	return err == nil && f > 0
 }
 
+// validMemory accepts a positive whole number with an optional b, k, m or g suffix.
 func validMemory(s string) bool {
 	m := memPattern.FindStringSubmatch(s)
 	if m == nil {
@@ -167,7 +179,9 @@ func validMemory(s string) bool {
 	return err == nil && n > 0
 }
 
-// Container is the live test-run adapter.
+// Container is the live test-run adapter. It runs each side of a test in a
+// fresh container with no network, no environment and one read-only
+// checkout (ADR-0025 points 1 to 4). review.Open builds it from Load.
 type Container struct {
 	runtime string
 	cfg     ContainerConfig
@@ -182,6 +196,7 @@ func NewContainer(cfg ContainerConfig, lookPath func(string) (string, error)) (*
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	// Refuse a bad setting before looking for the runtime, so the refusal names the setting.
 	if lookPath == nil {
 		lookPath = exec.LookPath
 	}
@@ -198,7 +213,8 @@ func NewContainer(cfg ContainerConfig, lookPath func(string) (string, error)) (*
 	return &Container{runtime: path, cfg: cfg}, nil
 }
 
-// Off runs no code. Reason is why the Prover is off.
+// Off runs no code. Reason is why the Prover is off. review.Open uses it when
+// NewContainer reports the runtime missing (ADR-0025 point 6).
 type Off struct{ Reason string }
 
 // Run reports the Prover down and starts nothing.
@@ -216,10 +232,14 @@ func (c *Container) Argv(dir, command string) []string {
 	return c.argv(dir, command, "")
 }
 
+// argv builds the run line. Each flag below carries out ADR-0025: --rm and
+// --network none, CPU and memory limits from the settings, and the checkout
+// mounted read-only as the only volume. No -e or --env flag is ever added.
 func (c *Container) argv(dir, command, name string) []string {
 	if c == nil {
 		return nil
 	}
+	// The runtime needs an absolute host path for a bind mount.
 	host := dir
 	if abs, err := filepath.Abs(dir); err == nil && abs != "" {
 		host = abs
@@ -241,6 +261,8 @@ func (c *Container) argv(dir, command, name string) []string {
 	return args
 }
 
+// runKind is how one side of a test run ended. Only kindPass and kindFail
+// are test results; the others mean the side proves nothing.
 type runKind int
 
 const (
@@ -263,11 +285,16 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 		return Outcome{}, err
 	}
 	out := Outcome{Path: req.Path, Name: req.Name, Command: req.Command}
+	// A test the Prover wrote is checked before anything is copied or started.
+	// A refusal is an outcome with Found false, not an error: the review goes on
+	// and the trace says why the test did not run.
 	if req.Content != "" {
 		if reason := RefuseWritten(req.Path, req.Content, req.Command, req.BaseDir, req.ChangeDir, c.cfg.MaxWrittenBytes); reason != "" {
 			out.Output = "refused: " + reason
 			return out, nil
 		}
+		// The written test goes into a copy of each checkout, so the caller's
+		// trees are never changed and both sides run the same test text.
 		changeCopy, err := stageWritten(req.ChangeDir, req.Path, req.Content)
 		if err != nil {
 			return out, err
@@ -286,6 +313,8 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 		return out, nil
 	}
 	out.Found = true
+	// The change runs first; a cancelled side stops the run and returns the
+	// cancellation, with any container that may remain named in the error.
 	changeText, changeKind := c.side(ctx, req.ChangeDir, req.Command)
 	if changeKind == kindCancelled {
 		return Outcome{}, withRemoval(ctx.Err(), changeText)
@@ -300,19 +329,25 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	return out, nil
 }
 
+// side runs command in one checkout and classifies how it ended.
 func (c *Container) side(ctx context.Context, dir, command string) (string, runKind) {
 	if err := ctx.Err(); err != nil {
 		return "", kindCancelled
 	}
 	host, err := filepath.Abs(dir)
+	// A colon would split the -v host:container:ro value into the wrong parts.
 	if err != nil || strings.Contains(host, ":") {
 		return "the test could not run: the checkout path cannot be one mount", kindNotRun
 	}
+	// A unique name lets remove find the container after a timeout or a cancel.
 	name := containerName()
 	argv := c.argv(dir, command, name)
 	runCtx, cancel := context.WithTimeout(ctx, c.cfg.Timeout)
 	defer cancel()
 	text, err := c.invoke(runCtx, argv)
+	// The caller's context is checked before the run's own limit: a cancelled
+	// review is not reported as a timeout. Either way the container is removed,
+	// because killing the CLI does not stop the container it started.
 	if ctx.Err() != nil {
 		return joinRemoval(text, c.remove(name)), kindCancelled
 	}
@@ -331,6 +366,7 @@ func (c *Container) side(ctx context.Context, dir, command string) (string, runK
 			return text, kindFail
 		}
 	}
+	// No exit status at all: the runtime could not be started, so the test did not run.
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
@@ -352,17 +388,20 @@ func (c *Container) remove(name string) string {
 	return fmt.Sprintf("container %s may remain: removal failed: %s", name, err.Error())
 }
 
+// joinRemoval puts a failed removal's note in front of the side's output.
 func joinRemoval(text, removal string) string {
 	if removal == "" {
 		return text
 	}
-	// The removal note goes first: the outcome keeps only the first 8192 bytes of output.
+	// The removal note goes first: trimOutput keeps only the first 8192 bytes of a side's output.
 	if text == "" {
 		return removal
 	}
 	return removal + "\n" + text
 }
 
+// withRemoval adds a "may remain" note to a cancellation error, so a
+// cancelled review still says that a container may be left on the host.
 func withRemoval(err error, text string) error {
 	if err == nil {
 		err = context.Canceled
@@ -373,6 +412,8 @@ func withRemoval(err error, text string) error {
 	return fmt.Errorf("%w\n%s", err, strings.TrimSpace(text))
 }
 
+// invoke runs one runtime command. Tests set c.run to record the argv
+// without a runtime.
 func (c *Container) invoke(ctx context.Context, argv []string) (string, error) {
 	if c.run != nil {
 		return c.run(ctx, argv)
@@ -380,6 +421,7 @@ func (c *Container) invoke(ctx context.Context, argv []string) (string, error) {
 	return commandOutput(ctx, argv)
 }
 
+// commandOutput runs argv and returns stdout and stderr together, in the order printed.
 func commandOutput(ctx context.Context, argv []string) (string, error) {
 	if len(argv) == 0 {
 		return "", errors.New("testrun: empty argv")
@@ -395,12 +437,16 @@ func commandOutput(ctx context.Context, argv []string) (string, error) {
 	return buf.String(), err
 }
 
+// nameSeq numbers the containers of this process, so concurrent runs never share a name.
 var nameSeq atomic.Uint64
 
+// containerName returns a name unique to this process and run.
 func containerName() string {
 	return fmt.Sprintf("proven-%d-%d", os.Getpid(), nameSeq.Add(1))
 }
 
+// formatSides writes both sides into Outcome.Output, and says so when a side
+// timed out or could not run, so the trace never shows such a run as proof.
 func formatSides(changeText string, changeKind runKind, baseText string, baseKind runKind) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "change: %s\n%s\nbase: %s\n%s", sideWord(changeKind), trimOutput(changeText), sideWord(baseKind), trimOutput(baseText))
@@ -413,6 +459,7 @@ func formatSides(changeText string, changeKind runKind, baseText string, baseKin
 	return strings.TrimSpace(b.String())
 }
 
+// sideWord is how a side's end reads in the output.
 func sideWord(k runKind) string {
 	switch k {
 	case kindPass:
@@ -428,6 +475,7 @@ func sideWord(k runKind) string {
 	}
 }
 
+// trimOutput bounds a side's output, so a noisy test cannot fill the trace.
 func trimOutput(s string) string {
 	s = strings.TrimSpace(s)
 	const max = 8192

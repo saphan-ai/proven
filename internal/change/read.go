@@ -1,4 +1,16 @@
-// Package change reads a fixture's base and change trees.
+// Package change reads the change under review, before any agent sees it.
+//
+// It has two sources. A sample fixture is two plain trees, base/ and change/,
+// read by Read. A real repository is two commits, read through git by Between,
+// Blob and Messages, or written out as those same two trees by ExportCommit
+// and ExportWorktree so the Planner and the Prover can read them. Select then
+// narrows the changed files with the include and exclude patterns of the review
+// request.
+//
+// The Planner reads the files this package returns and names the risks; the
+// pipeline uses the file list to decide what the review covers; the review
+// shell reads proven.yaml at the baseline with Blob and the commit messages
+// with Messages, where a change names its model (ADR-0011).
 package change
 
 import (
@@ -16,6 +28,7 @@ type File struct {
 }
 
 // Read walks base/ and change/ under root. Paths are slash-separated and sorted.
+// A symlink in either tree is refused, and the error names it.
 func Read(root string) ([]File, error) {
 	base := map[string][]byte{}
 	chg := map[string][]byte{}
@@ -32,6 +45,8 @@ func Read(root string) ([]File, error) {
 	for n := range chg {
 		names[n] = struct{}{}
 	}
+	// Sorted, so the planner prompt built from these files is the same on every
+	// run; a fixture pins that prompt by its hash.
 	order := make([]string, 0, len(names))
 	for n := range names {
 		order = append(order, n)
@@ -44,6 +59,8 @@ func Read(root string) ([]File, error) {
 	return out, nil
 }
 
+// walk reads every regular file under root into dst, keyed by its slash path
+// relative to root.
 func walk(root string, dst map[string][]byte) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

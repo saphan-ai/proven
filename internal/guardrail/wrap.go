@@ -21,12 +21,15 @@ func Wrap(inner generator.Generator, rail Adapter, observe Observe) (generator.G
 	return &guarded{inner: inner, rail: rail, observe: observe}, nil
 }
 
+// guarded is the Generator Wrap returns.
 type guarded struct {
 	inner   generator.Generator
 	rail    Adapter
 	observe Observe
 }
 
+// Complete checks the prompt, calls the model, then checks the prompt and
+// answer together. The order matters: an unsafe prompt never reaches the model.
 func (g *guarded) Complete(ctx context.Context, agent, prompt string) (string, error) {
 	if err := g.side(ctx, agent, "prompt", prompt, ""); err != nil {
 		return "", err
@@ -41,9 +44,13 @@ func (g *guarded) Complete(ctx context.Context, agent, prompt string) (string, e
 	return text, nil
 }
 
+// side runs one check and reports it to observe, so the trace has a line for
+// every check, refused ones included. An error from observe stops the step:
+// a check that cannot be traced is not passed.
 func (g *guarded) side(ctx context.Context, agent, side, prompt, answer string) error {
 	v, err := g.rail.Check(ctx, prompt, answer)
 	if err != nil {
+		// A cancelled review is a cancellation, not a guardrail failure.
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -66,6 +73,8 @@ func (g *guarded) side(ctx context.Context, agent, side, prompt, answer string) 
 	return nil
 }
 
+// asDown turns any check error into a named guardrail refusal, so a failed
+// check is never mistaken for a safe one.
 func asDown(err error) *service.Down {
 	var d *service.Down
 	if errors.As(err, &d) && d != nil && d.Service == Service {

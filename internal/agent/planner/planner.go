@@ -1,4 +1,9 @@
 // Package planner reads a change and names the risks.
+//
+// The Planner is the first agent of the review. It reads each changed file's
+// base and change, asks the model for candidate risks, and hands them on to
+// the Investigator and the Prover. A risk it names is not a finding: only
+// evidence makes one (ADR-0002).
 package planner
 
 import (
@@ -24,6 +29,8 @@ func Prompt(files []change.File) string {
 	return answer.Instruct(riskSpec, filesText(files))
 }
 
+// filesText lays out each file as its path, its base and its change. Each part
+// ends with a line break, so the next marker always starts its own line.
 func filesText(files []change.File) string {
 	var b strings.Builder
 	for _, f := range files {
@@ -43,6 +50,7 @@ func filesText(files []change.File) string {
 	return b.String()
 }
 
+// row is one risk as the model returns it.
 type row struct {
 	ID        string `json:"id"`
 	RuleID    string `json:"rule_id"`
@@ -60,6 +68,7 @@ func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidat
 	if err != nil {
 		return nil, err
 	}
+	// An empty change has nothing to review; it is refused rather than reported clean.
 	if len(files) == 0 {
 		return nil, fmt.Errorf("planner: the change has no files")
 	}
@@ -70,6 +79,8 @@ func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidat
 	seen := map[string]bool{}
 	out := make([]candidate.Risk, 0, len(rows))
 	for _, r := range rows {
+		// Later steps and the trace key every finding on its id, so a missing or
+		// repeated id is refused rather than merged.
 		if r.ID == "" {
 			return nil, fmt.Errorf("planner: a risk has no id")
 		}

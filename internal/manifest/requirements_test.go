@@ -6,6 +6,9 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 )
 
+// TestRequirementsDiffAddsAndRaises proves that requirements.txt yields added
+// and raised pins in PEP 440 order (1.2 equals 1.2.0, a pre-release is below
+// its release), and that each unpinned line becomes a note with its number.
 func TestRequirementsDiffAddsAndRaises(t *testing.T) {
 	base := []byte("flask==1.0\nsame==1.2.0\nlower==2.0\npre==1.0a1\n")
 	change := []byte("flask==1.2.0\nsame==1.2\nlower==1.0\npre==1.0\nnewpkg==1.0a1\nDjango>=3.2\n# comment\n\n-r extra.txt\n")
@@ -41,6 +44,9 @@ func TestRequirementsDiffAddsAndRaises(t *testing.T) {
 	}
 }
 
+// TestRequirementsPinsCommonForms proves that extras, spaces, markers, --hash
+// options and inline comments still read as a pin, while === and a URL
+// requirement are skipped with a note. The reported name is the PEP 503 form.
 func TestRequirementsPinsCommonForms(t *testing.T) {
 	change := []byte(joinLines(
 		"pkg[extra]==1.4.0",
@@ -57,8 +63,8 @@ func TestRequirementsPinsCommonForms(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Change{
-		{Package: "Flask", Version: "2.0.1", Line: 7, Added: true},
 		{Package: "commented", Version: "1.0", Line: 5, Added: true},
+		{Package: "flask", Version: "2.0.1", Line: 7, Added: true},
 		{Package: "hashed", Version: "1.0", Line: 4, Added: true},
 		{Package: "marked", Version: "1.2.3", Line: 3, Added: true},
 		{Package: "pkg", Version: "1.4.0", Line: 1, Added: true},
@@ -84,6 +90,8 @@ func TestRequirementsPinsCommonForms(t *testing.T) {
 	}
 }
 
+// TestRequirementsLastLineWins proves that a name pinned twice takes the later
+// line, as pip does.
 func TestRequirementsLastLineWins(t *testing.T) {
 	got, err := diffRequirements(nil, []byte("pkg==1.0\npkg==2.0\n"))
 	if err != nil {
@@ -94,6 +102,9 @@ func TestRequirementsLastLineWins(t *testing.T) {
 	}
 }
 
+// TestRequirementsUnparsedChangeIsStillReported proves that a version that
+// does not order is still reported as a change, so the OSV check can say why
+// it was not compared instead of dropping it.
 func TestRequirementsUnparsedChangeIsStillReported(t *testing.T) {
 	got, err := diffRequirements([]byte("pkg==1.0\n"), []byte("pkg==latest\n"))
 	if err != nil {
@@ -104,6 +115,32 @@ func TestRequirementsUnparsedChangeIsStillReported(t *testing.T) {
 	}
 }
 
+// TestRequirementsPEP503NamesAreTheSamePackage proves that Requests and
+// requests are one package, and that zope_interface and zope.interface are
+// one package. The same version is not a change. A higher version is a raise,
+// not an added package.
+func TestRequirementsPEP503NamesAreTheSamePackage(t *testing.T) {
+	base := []byte("Requests==2.31.0\nzope_interface==5.0.0\n")
+	change := []byte("requests==2.31.0\nzope.interface==6.0.0\n")
+	got, err := diffRequirements(base, change)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Change{
+		{Package: "zope-interface", Version: "6.0.0", Line: 2, Added: false},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("%#v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %#v want %#v", got[i], want[i])
+		}
+	}
+}
+
+// TestRequirementsMatch proves that the PyPI reader matches requirements.txt at
+// any depth, with exact case, and no other file name.
 func TestRequirementsMatch(t *testing.T) {
 	r := PyPI()
 	if r.Ecosystem != "PyPI" || !r.Match("requirements.txt") || !r.Match("svc/requirements.txt") {
@@ -114,6 +151,8 @@ func TestRequirementsMatch(t *testing.T) {
 	}
 }
 
+// TestCollectCarriesSkipNotes proves that Collect prefixes each skip note with
+// the path of the file it came from.
 func TestCollectCarriesSkipNotes(t *testing.T) {
 	got, notes, err := Collect([]change.File{{
 		Path:   "app/requirements.txt",
@@ -122,7 +161,7 @@ func TestCollectCarriesSkipNotes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Ecosystem != "PyPI" || got[0].Package != "Flask" {
+	if len(got) != 1 || got[0].Ecosystem != "PyPI" || got[0].Package != "flask" {
 		t.Fatalf("%#v", got)
 	}
 	if len(notes) != 1 || notes[0] != `app/requirements.txt: line 2 skipped ("Django>=2"): not a pinned name==version` {
@@ -130,6 +169,7 @@ func TestCollectCarriesSkipNotes(t *testing.T) {
 	}
 }
 
+// joinLines writes each line with its newline, so a fixture reads as a list.
 func joinLines(lines ...string) string {
 	out := ""
 	for _, line := range lines {

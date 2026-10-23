@@ -20,6 +20,8 @@ func (c *Container) Probe(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	// parent is kept apart from the bounded ctx so probeDown can tell the
+	// caller's cancellation from the probe's own time limit.
 	parent := ctx
 	ctx, cancel := context.WithTimeout(parent, c.cfg.Timeout)
 	defer cancel()
@@ -32,6 +34,9 @@ func (c *Container) Probe(ctx context.Context) error {
 	return nil
 }
 
+// probeDown turns a failed probe into the error a review reports. The
+// caller's cancellation wins, then the time limit, then the runtime's own
+// last line of output, so the failed service names a cause a reader can act on.
 func probeDown(parent, ctx context.Context, reason, output string, err error) error {
 	if parent.Err() != nil {
 		return parent.Err()
@@ -50,6 +55,8 @@ func probeDown(parent, ctx context.Context, reason, output string, err error) er
 	return &service.Down{Service: "prover", Reason: msg}
 }
 
+// oneLine keeps the last non-empty line of s, with spaces collapsed and at
+// most 160 bytes: the runtime prints its error last, and a reason must fit one line.
 func oneLine(s string) string {
 	var last string
 	for _, line := range strings.Split(s, "\n") {

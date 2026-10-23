@@ -11,6 +11,10 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// TestCheckKeepsAMatchAndLooksUpTheCVE proves that a Go module inside a range
+// becomes one candidate on its go.mod line, that the message names the row
+// that matched and the row that did not, and that the evidence is the OSV
+// query with only this package's rows plus the KEV query for its CVE alias.
 func TestCheckKeepsAMatchAndLooksUpTheCVE(t *testing.T) {
 	root := t.TempDir()
 	writeMods(t, root,
@@ -58,6 +62,8 @@ INSERT INTO px_evidence.px_kev_vulns VALUES ('CVE-2026-0001', 'example', 'mod', 
 	}
 }
 
+// TestCheckTracesAnUnaffectedVersion proves that a version past every fixed
+// bound is no finding, and that the trace note gives the comparison.
 func TestCheckTracesAnUnaffectedVersion(t *testing.T) {
 	root := t.TempDir()
 	writeMods(t, root, "module m\n\ngo 1.26\n", "module m\n\ngo 1.26\n\nrequire example.com/mod v9.0.0\n")
@@ -77,6 +83,8 @@ INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-1', '', 'Go', 'example.com/mod',
 	}
 }
 
+// TestCheckNamesAMissingPackage proves that a package with no row is no
+// finding, and that the note says the query returned no rows.
 func TestCheckNamesAMissingPackage(t *testing.T) {
 	root := t.TempDir()
 	writeMods(t, root, "module m\n\ngo 1.26\n", "module m\n\ngo 1.26\n\nrequire example.com/mod v1.0.0\n")
@@ -90,6 +98,8 @@ INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-1', '', 'Go', 'example.com/other
 	}
 }
 
+// TestCheckSkipsALoweredModule proves that a lowered module is not checked:
+// no query runs, so even a missing query engine is not needed.
 func TestCheckSkipsALoweredModule(t *testing.T) {
 	root := t.TempDir()
 	writeMods(t, root,
@@ -102,6 +112,9 @@ func TestCheckSkipsALoweredModule(t *testing.T) {
 	}
 }
 
+// TestCheckNamesADownQuery proves that an unreachable query engine is named
+// as a failed service with a trace note, not returned as an error, and
+// gives no finding.
 func TestCheckNamesADownQuery(t *testing.T) {
 	root := t.TempDir()
 	writeMods(t, root, "module m\n\ngo 1.26\n", "module m\n\ngo 1.26\n\nrequire example.com/mod v1.0.0\n")
@@ -117,6 +130,9 @@ func TestCheckNamesADownQuery(t *testing.T) {
 	}
 }
 
+// TestCheckNPMMatchesASemver proves that a pinned npm version in package.json
+// is compared as a semantic version and that the query filters on the npm
+// ecosystem and the package name.
 func TestCheckNPMMatchesASemver(t *testing.T) {
 	root := t.TempDir()
 	writePair(t, root, "package.json", "{}\n", "{\n  \"dependencies\": {\n    \"left-pad\": \"1.2.3\"\n  }\n}\n")
@@ -141,6 +157,8 @@ INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-other', '', 'npm', 'right-pad', 
 	}
 }
 
+// TestCheckPyPIMatchesARelease proves that a pin in requirements.txt is
+// compared with PEP 440 and queried under the PyPI ecosystem.
 func TestCheckPyPIMatchesARelease(t *testing.T) {
 	root := t.TempDir()
 	writePair(t, root, "requirements.txt", "", "leftpad==1.2.3\n")
@@ -164,6 +182,9 @@ INSERT INTO px_osvfile.px_osv_pkg VALUES ('PYSEC-1', '', 'PyPI', 'leftpad', '1.0
 	}
 }
 
+// TestCheckUnparsedVersionIsNotAFinding proves that a version that is not
+// PEP 440 gives no finding even against a range that covers everything,
+// and that the trace says why, with the SQL and the skipped line.
 func TestCheckUnparsedVersionIsNotAFinding(t *testing.T) {
 	root := t.TempDir()
 	writePair(t, root, "requirements.txt", "", "leftpad==latest\nDjango>=1\n")
@@ -190,6 +211,9 @@ INSERT INTO px_osvfile.px_osv_pkg VALUES ('PYSEC-1', '', 'PyPI', 'leftpad', '0',
 	}
 }
 
+// TestCheckNPMRangeIsNotAFinding proves that an npm range is not rewritten
+// into a version: it gives no finding, and the note says it is not a
+// semantic version.
 func TestCheckNPMRangeIsNotAFinding(t *testing.T) {
 	root := t.TempDir()
 	writePair(t, root, "package.json", "{}\n", "{\"dependencies\":{\"left-pad\":\"^1.2.3\"}}\n")
@@ -206,6 +230,9 @@ INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-npm', '', 'npm', 'left-pad', '0'
 	}
 }
 
+// TestCheckEmptyTableStillSaysWhyAVersionWasNotCompared proves that a note
+// for a query with no rows also says when the version could not have been
+// compared.
 func TestCheckEmptyTableStillSaysWhyAVersionWasNotCompared(t *testing.T) {
 	root := t.TempDir()
 	writePair(t, root, "requirements.txt", "", "leftpad==1.0.dev1\n")
@@ -221,6 +248,164 @@ CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, packa
 	}
 }
 
+// TestCheckGoSumFindsATransitive proves that a module only go.sum names, a
+// transitive one, is checked and its finding points at go.sum.
+func TestCheckGoSumFindsATransitive(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/go.mod":   "module m\n\ngo 1.26\n",
+		"change/go.mod": "module m\n\ngo 1.26\n",
+		"change/go.sum": "example.com/trans v1.2.3 h1:abc\nexample.com/trans v1.2.3/go.mod h1:def\n",
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-t', '', 'Go', 'example.com/trans', '1.0.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "go.sum" || !strings.Contains(c.Message, "example.com/trans v1.2.3") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if !strings.Contains(c.Evidence[0].Query.SQL, "ecosystem = 'Go' AND package = 'example.com/trans'") {
+		t.Fatal(c.Evidence[0].Query.SQL)
+	}
+}
+
+// TestCheckLockVersionWins proves that the lock file's exact version is the
+// one compared, and that the manifest's range for the same package is not
+// checked at all.
+func TestCheckLockVersionWins(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/package.json":      "{}\n",
+		"change/package.json":    "{\"dependencies\":{\"left-pad\":\"^9.9.9\"}}\n",
+		"base/package-lock.json": "{\"lockfileVersion\":3,\"packages\":{}}\n",
+		"change/package-lock.json": `{
+  "lockfileVersion": 3,
+  "packages": {
+    "node_modules/left-pad": {"version": "1.2.3"}
+  }
+}
+`,
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-npm', '', 'npm', 'left-pad', '1.0.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "package-lock.json" || !strings.Contains(c.Message, "left-pad 1.2.3") || strings.Contains(c.Message, "^9.9.9") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if strings.Contains(strings.Join(out.Notes, "\n"), "not a semantic version") {
+		t.Fatalf("manifest range was checked: %#v", out.Notes)
+	}
+}
+
+// TestCheckPoetryLockMatches proves that a poetry.lock pin is checked under
+// the PyPI ecosystem and its finding points at poetry.lock.
+func TestCheckPoetryLockMatches(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/keep.txt":      "ok\n",
+		"change/poetry.lock": "[[package]]\nname = \"leftpad\"\nversion = \"1.2.3\"\n",
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('PYSEC-1', '', 'PyPI', 'leftpad', '1.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "poetry.lock" || !strings.Contains(c.Message, "leftpad 1.2.3") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if !strings.Contains(c.Evidence[0].Query.SQL, "ecosystem = 'PyPI' AND package = 'leftpad'") {
+		t.Fatal(c.Evidence[0].Query.SQL)
+	}
+}
+
+// TestCheckPyPIQueriesTheNormalisedName proves that a pin written as Requests
+// is queried as requests. The OSV table keys PyPI packages by the PEP 503 name,
+// so the spelling in the file would miss the row.
+func TestCheckPyPIQueriesTheNormalisedName(t *testing.T) {
+	root := t.TempDir()
+	writePair(t, root, "requirements.txt", "", "Requests==1.2.3\n")
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('PYSEC-1', '', 'PyPI', 'requests', '1.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 {
+		t.Fatalf("%#v", out)
+	}
+	c := out.Candidates[0]
+	if c.Path != "requirements.txt" || !strings.Contains(c.Message, "requests 1.2.3") {
+		t.Fatalf("%s %s", c.Path, c.Message)
+	}
+	if c.Evidence[0].Query == nil || !strings.Contains(c.Evidence[0].Query.SQL, "ecosystem = 'PyPI' AND package = 'requests'") {
+		t.Fatalf("sql %#v", c.Evidence[0].Query)
+	}
+	if strings.Contains(c.Evidence[0].Query.SQL, "Requests") {
+		t.Fatal(c.Evidence[0].Query.SQL)
+	}
+}
+
+// TestCheckMalformedLockIsANote proves that lock files that do not parse are
+// trace notes, and that go.mod beside them is still checked and found.
+func TestCheckMalformedLockIsANote(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"base/go.mod":              "module m\n\ngo 1.26\n",
+		"change/go.mod":            "module m\n\ngo 1.26\n\nrequire example.com/mod v1.2.3\n",
+		"change/go.sum":            "not-a-sum\n",
+		"change/package-lock.json": "{",
+	})
+	q := loadSQL(t, `
+CREATE TABLE px_osvfile.px_osv_pkg (id TEXT, aliases TEXT, ecosystem TEXT, package TEXT, introduced TEXT, fixed TEXT, last_affected TEXT, severity TEXT, published TEXT);
+INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-1', '', 'Go', 'example.com/mod', '1.0.0', '1.2.4', '', 'HIGH', '2026-01-15');
+`)
+	out, err := Check(context.Background(), q, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 1 || out.Candidates[0].Path != "go.mod" {
+		t.Fatalf("%#v", out.Candidates)
+	}
+	body := strings.Join(out.Notes, "\n")
+	for _, want := range []string{
+		"go.sum: change: line 1: not a module version hash",
+		"package-lock.json: change: invalid JSON:",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+}
+
+// TestLoadTableRefusesABadName proves that an empty setting is the default,
+// that a valid name is kept, and that a name carrying SQL is refused with a
+// ConfigError that names the variable on one line.
 func TestLoadTableRefusesABadName(t *testing.T) {
 	if _, err := LoadTable(func(string) string { return "" }); err != nil {
 		t.Fatal(err)
@@ -241,12 +426,14 @@ func TestLoadTableRefusesABadName(t *testing.T) {
 	}
 }
 
+// downQuery is a query adapter whose service is always down.
 type downQuery struct{}
 
 func (downQuery) Query(context.Context, string) (query.Result, error) {
 	return query.Result{}, &service.Down{Service: "query", Reason: "unreachable"}
 }
 
+// asConfig reports whether err is a *ConfigError and stores it in target.
 func asConfig(err error, target **ConfigError) bool {
 	cfg, ok := err.(*ConfigError)
 	if ok {
@@ -255,6 +442,8 @@ func asConfig(err error, target **ConfigError) bool {
 	return ok
 }
 
+// writePair writes one file on the base and the change side. An empty body
+// leaves the file out of that side.
 func writePair(t *testing.T, root, name, base, change string) {
 	t.Helper()
 	for _, side := range []struct{ dir, body string }{{"base", base}, {"change", change}} {
@@ -271,6 +460,22 @@ func writePair(t *testing.T, root, name, base, change string) {
 	}
 }
 
+// writeTree writes files by slash path under root; each path starts with
+// base/ or change/.
+func writeTree(t *testing.T, root string, files map[string]string) {
+	t.Helper()
+	for name, body := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// writeMods writes go.mod on both sides.
 func writeMods(t *testing.T, root, base, change string) {
 	t.Helper()
 	for _, side := range []struct{ name, body string }{{"base", base}, {"change", change}} {
@@ -284,6 +489,8 @@ func writeMods(t *testing.T, root, base, change string) {
 	}
 }
 
+// loadSQL loads the tables into the sample query engine, the one sample
+// mode uses, so the check runs its real SQL with no network.
 func loadSQL(t *testing.T, body string) *query.Sample {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "tables.sql")

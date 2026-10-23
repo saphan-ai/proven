@@ -69,12 +69,15 @@ func (l *Live) LastUse() (Use, bool) {
 	return l.last, true
 }
 
+// chatRequest is the body of one OpenAI-compatible chat completion request.
 type chatRequest struct {
 	Model    string        `json:"model"`
 	Stream   bool          `json:"stream"`
 	Messages []chatMessage `json:"messages"`
 }
 
+// chatMessage is one message of the request. The review sends the whole prompt
+// as a single user message.
 type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -88,6 +91,7 @@ func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, erro
 	if l == nil || l.client == nil || l.cfg.Token == "" || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
 		return "", down("not configured")
 	}
+	// Clear the last use first, so a failed call never reports the model of the call before it.
 	l.has = false
 	l.last = Use{}
 	model := l.cfg.ModelFor(agent)
@@ -95,6 +99,8 @@ func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, erro
 	if err != nil {
 		return "", err
 	}
+	// An empty answer is retried once with the same prompt and model; a second
+	// empty answer is a failure, not an empty review.
 	if strings.TrimSpace(text) == "" {
 		text, meta, err = l.attempt(ctx, prompt, model)
 		if err != nil {
@@ -113,6 +119,7 @@ func (l *Live) Models(ctx context.Context) error {
 	if l == nil || l.client == nil || l.cfg.Token == "" || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
 		return down("not configured")
 	}
+	// parent is kept so a cancellation by the caller is told apart from this call's own timeout.
 	parent := ctx
 	ctx, cancel := context.WithTimeout(parent, l.cfg.Timeout)
 	defer cancel()
@@ -136,25 +143,42 @@ func (l *Live) Models(ctx context.Context) error {
 	return nil
 }
 
+// finish records the model that answered and applies the NVIDIA check.
+// ADR-0019 point 4: the check reads the receipt, because Nightshift does not
+// obey the model a request names. With no receipt the model is "unknown" and
+// the answer is kept here.
 func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	use := Use{Model: "unknown", Route: meta.route, ReceiptID: meta.receipt}
 	if meta.model != "" {
 		use.Model = meta.model
 		use.FromReceipt = true
 	}
+	// The use is recorded before the check, so a refused answer still names its model in the trace.
 	l.last = use
 	l.has = true
-	if use.FromReceipt && l.cfg.requiresNVIDIA(agent) && !nvidiaModel(use.Model) {
+	if !l.cfg.requiresNVIDIA(agent) {
+		return text, nil
+	}
+	// ADR-0019 point 4: an answer must name its model from the signed receipt.
+	// With no receipt the model cannot be shown to be NVIDIA's, so it is refused
+	// the same way as a non-NVIDIA model.
+	if !use.FromReceipt {
+		return "", down("answer carries no receipt, refused: the model cannot be shown to be NVIDIA's")
+	}
+	if !nvidiaModel(use.Model) {
 		return "", down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
 	return text, nil
 }
 
+// nvidiaModel reports whether model is "nvidia/" followed by a name.
 func nvidiaModel(model string) bool {
 	rest, ok := strings.CutPrefix(model, "nvidia/")
 	return ok && rest != ""
 }
 
+// attempt makes one POST and reads the stream. Each attempt gets its own
+// timeout from PROVEN_GENERATOR_TIMEOUT.
 func (l *Live) attempt(parent context.Context, prompt, model string) (string, streamMeta, error) {
 	if err := parent.Err(); err != nil {
 		return "", streamMeta{}, err
@@ -183,6 +207,7 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
 		discard(resp.Body)
+		// A wrong token is not retried: the next call would be refused the same way.
 		return "", streamMeta{}, down("unauthorized")
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -191,6 +216,8 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 	}
 	meta, err := parseStream(resp.Body)
 	if err != nil {
+		// A stream cut by the caller's cancellation returns that cancellation,
+		// not a Nightshift failure.
 		if parent.Err() != nil {
 			return "", streamMeta{}, parent.Err()
 		}
@@ -206,12 +233,16 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 	return meta.text, meta, nil
 }
 
+// authorize sets the headers of Nightshift's app contract: the token, the app
+// name that selects the operator's routing mode, and the user scope.
 func (l *Live) authorize(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+l.cfg.Token)
 	req.Header.Set("meterless-app", l.cfg.App)
 	req.Header.Set("meterless-scope", "user")
 }
 
+// classify names a failed request: the caller's cancellation, a timeout, or an
+// unreachable endpoint.
 func classify(parent, ctx context.Context, err error) error {
 	if parent.Err() != nil {
 		return parent.Err()
@@ -222,11 +253,13 @@ func classify(parent, ctx context.Context, err error) error {
 	return down("unreachable")
 }
 
+// timedOut reports whether err says it is a timeout, as net errors do.
 func timedOut(err error) bool {
 	var t interface{ Timeout() bool }
 	return errors.As(err, &t) && t.Timeout()
 }
 
+// httpReason names an unexpected HTTP status without the body, which may be large or echo the request.
 func httpReason(code int) string {
 	return "http " + strconv.Itoa(code)
 }

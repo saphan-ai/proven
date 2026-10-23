@@ -22,7 +22,10 @@ const (
 	ReasonEmptyCommand = "empty command"
 )
 
-// RefuseWritten reports why a written test must not run.
+// RefuseWritten reports why a written test must not run. It guards the one
+// place where the Prover adds code to the change: the file must be a Go test
+// file inside the repository, must not replace a non-test file, and must stay
+// under the size limit.
 // An empty reason means the request may run. maxBytes <= 0 uses the default.
 // The check looks at the path, the command, the size and the two checkouts.
 // It does not write a file and it does not start a runtime.
@@ -33,7 +36,8 @@ func RefuseWritten(path, content, command, baseDir, changeDir string, maxBytes i
 	if filepath.IsAbs(path) {
 		return ReasonAbsolutePath
 	}
-	// Negative control (b): delete this branch. The ../ refusal test turns red.
+	// A ".." segment could write outside the checkout copy. The ../ refusal
+	// test fails if this branch is removed.
 	if pathLeaves(path) {
 		return ReasonLeavesRepo
 	}
@@ -43,6 +47,8 @@ func RefuseWritten(path, content, command, baseDir, changeDir string, maxBytes i
 	if len(content) > maxBytes {
 		return ReasonTooLarge
 	}
+	// Both checkouts are checked: a written test must not replace a non-test
+	// file on either side, or the base run would no longer test the base.
 	if nonTestAt(baseDir, path) || nonTestAt(changeDir, path) {
 		return ReasonOverwrites
 	}
@@ -52,6 +58,7 @@ func RefuseWritten(path, content, command, baseDir, changeDir string, maxBytes i
 	return ""
 }
 
+// pathLeaves reports whether path has a ".." segment or cleans to a path above the root.
 func pathLeaves(path string) bool {
 	if path == "" {
 		return false
@@ -66,6 +73,7 @@ func pathLeaves(path string) bool {
 	return clean == ".." || strings.HasPrefix(clean, "../")
 }
 
+// isGoTestFile reports whether path names a file ending in _test.go.
 func isGoTestFile(path string) bool {
 	base := filepath.Base(filepath.ToSlash(path))
 	if base == "." || base == ".." || base == string(filepath.Separator) {
@@ -74,6 +82,9 @@ func isGoTestFile(path string) bool {
 	return strings.HasSuffix(base, "_test.go")
 }
 
+// nonTestAt reports whether rel in dir already holds something a written test
+// must not replace: a non-test file, or anything that is not a regular file,
+// such as a symlink or a directory. A path that does not exist is free.
 func nonTestAt(dir, rel string) bool {
 	if dir == "" || rel == "" || filepath.IsAbs(rel) || pathLeaves(rel) {
 		return false
@@ -111,6 +122,9 @@ func stageWritten(src, rel, content string) (string, error) {
 	return dst, nil
 }
 
+// copyTree copies the regular files and directories of src into dst.
+// Symlinks and other special files are skipped, so the copy cannot point
+// the container at anything outside the checkout.
 func copyTree(src, dst string) error {
 	info, err := os.Lstat(src)
 	if err != nil {
@@ -138,6 +152,7 @@ func copyTree(src, dst string) error {
 	})
 }
 
+// copyFile copies one file and reports the close error, which can carry a failed write.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -159,6 +174,8 @@ func copyFile(src, dst string) error {
 	return closeErr
 }
 
+// writeInside writes content at rel under root. It checks the path again,
+// after cleaning, so it is safe even when called without RefuseWritten.
 func writeInside(root, rel, content string) error {
 	rel = filepath.Clean(filepath.FromSlash(rel))
 	if rel == "." || pathLeaves(rel) || filepath.IsAbs(rel) {

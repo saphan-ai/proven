@@ -11,6 +11,9 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+// TestNoTrailerSaysAuthorModelNotStated proves, end to end on the sample fixture, that a change naming no
+// model is reviewed by the default reviewer, says "author model not stated", gets the security class
+// from go.mod, and states that the special model is not configured.
 func TestNoTrailerSaysAuthorModelNotStated(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	res, err := rev.Review(context.Background(), review.Request{Target: fixturePath(t)})
@@ -41,6 +44,8 @@ func TestNoTrailerSaysAuthorModelNotStated(t *testing.T) {
 	}
 }
 
+// TestDescriptionNamesTheAuthorModel proves that the pull-request description is read for author models
+// (ADR-0011 point 2), and that each reviewer line says whether it shares each author's family.
 func TestDescriptionNamesTheAuthorModel(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	res, err := rev.Review(context.Background(), review.Request{
@@ -62,6 +67,8 @@ func TestDescriptionNamesTheAuthorModel(t *testing.T) {
 	}
 }
 
+// TestUnreadableDescriptionIsNotCalledUnstated proves that an author line Proven cannot read is quoted,
+// not turned into "author model not stated".
 func TestUnreadableDescriptionIsNotCalledUnstated(t *testing.T) {
 	rev := openSample(t, t.TempDir())
 	res, err := rev.Review(context.Background(), review.Request{
@@ -83,6 +90,8 @@ func TestUnreadableDescriptionIsNotCalledUnstated(t *testing.T) {
 	}
 }
 
+// TestDescriptionOffIgnoresThePullRequest proves that author_description: off stops the description from
+// being read.
 func TestDescriptionOffIgnoresThePullRequest(t *testing.T) {
 	path := writeConfig(t, "author_description: off\n")
 	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
@@ -101,6 +110,8 @@ func TestDescriptionOffIgnoresThePullRequest(t *testing.T) {
 	}
 }
 
+// TestRecordFileOffByDefault proves that the record file is not read by default (ADR-0011 point 2), and
+// is read once author_record names it.
 func TestRecordFileOffByDefault(t *testing.T) {
 	dir := copyFixtureTree(t)
 	if err := os.WriteFile(filepath.Join(dir, "MODEL.txt"), []byte("Assisted-by: Qwen:qwen2.5\n"), 0o644); err != nil {
@@ -128,6 +139,9 @@ func TestRecordFileOffByDefault(t *testing.T) {
 	}
 }
 
+// TestCommitTrailerUsesTheConfiguredKey proves that only the configured trailer keys count (ADR-0011
+// point 3): a custom trailer is ignored by default and read once configured. It also proves that a
+// baseline review classes only the paths the commits touched.
 func TestCommitTrailerUsesTheConfiguredKey(t *testing.T) {
 	dir := copyFixtureTree(t)
 	gitRun(t, dir, "init")
@@ -177,6 +191,8 @@ func TestCommitTrailerUsesTheConfiguredKey(t *testing.T) {
 	}
 }
 
+// TestSpecialReviewerIsAddedForSecurityOnly proves that a configured special model joins a security
+// review, and that it does not join when the configured rules make the class backend.
 func TestSpecialReviewerIsAddedForSecurityOnly(t *testing.T) {
 	path := writeConfig(t, "special_reviewer: qwen-special\n")
 	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
@@ -212,6 +228,9 @@ func TestSpecialReviewerIsAddedForSecurityOnly(t *testing.T) {
 	}
 }
 
+// TestChangeCannotChooseItsOwnStrictness proves that a review reads proven.yaml from the baseline: a
+// change that rewrites the settings to lower its own class and turn off doubling is still reviewed
+// under the baseline's settings, and the review says the change edits proven.yaml.
 func TestChangeCannotChooseItsOwnStrictness(t *testing.T) {
 	dir := copyFixtureTree(t)
 	gitRun(t, dir, "init")
@@ -253,6 +272,8 @@ func TestChangeCannotChooseItsOwnStrictness(t *testing.T) {
 	}
 }
 
+// TestSymlinkedRecordOutsideTheTargetIsRefused proves that a record file that is a symlink to a file
+// outside the target is never read; a refusal must name the link.
 func TestSymlinkedRecordOutsideTheTargetIsRefused(t *testing.T) {
 	dir := copyFixtureTree(t)
 	outside := filepath.Join(t.TempDir(), "outside.txt")
@@ -284,6 +305,8 @@ func TestSymlinkedRecordOutsideTheTargetIsRefused(t *testing.T) {
 	}
 }
 
+// TestSymlinkedRecordGlobIsRefused proves the same for a record pattern: a symlink the pattern matches
+// is never read.
 func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
 	dir := copyFixtureTree(t)
 	outside := filepath.Join(t.TempDir(), "outside.txt")
@@ -311,6 +334,8 @@ func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
 	}
 }
 
+// TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused proves, through Open, that a new family name is
+// accepted and used, while a malformed families item and a path rule naming an unknown class are refused.
 func TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused(t *testing.T) {
 	path := writeConfig(t, "families: gemini-*=Google, NVIDIA=NVIDIA\n")
 	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})

@@ -12,6 +12,8 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
+// TestZetarisSettingsAreRefusedOnOpen proves that a bad Zetaris setting is refused on Open as a
+// *ConfigError naming the variable, and that the refusal never prints the API key.
 // Mutated field: ZETARIS_ORG_ID.
 func TestZetarisSettingsAreRefusedOnOpen(t *testing.T) {
 	const secret = "super-secret-zetaris-key"
@@ -32,8 +34,12 @@ func TestZetarisSettingsAreRefusedOnOpen(t *testing.T) {
 	}
 }
 
+// TestZetarisUnauthorizedReviewCompletes proves that a refused Zetaris key degrades the review instead
+// of failing it: Zetaris is named once as "unauthorized", the review completes, and the key that
+// Zetaris echoed back never reaches the failure reason.
 // Mutated field: the HTTP status of the Zetaris response, set to 401.
 func TestZetarisUnauthorizedReviewCompletes(t *testing.T) {
+	// An empty PATH finds no container runtime, so the Prover is off and only Zetaris is measured.
 	t.Setenv("PATH", t.TempDir())
 	const secret = "super-secret-zetaris-key"
 	var calls int
@@ -79,8 +85,11 @@ func TestZetarisUnauthorizedReviewCompletes(t *testing.T) {
 	}
 }
 
+// TestZetarisClosedEndpointDegradesTheReview proves that an unreachable Zetaris degrades the review: it
+// is named as failed and the review still completes within its deadline.
 // Mutated field: the listening socket of the fake Zetaris. It is closed before the review.
 func TestZetarisClosedEndpointDegradesTheReview(t *testing.T) {
+	// An empty PATH finds no container runtime, so the Prover is off and only Zetaris is measured.
 	t.Setenv("PATH", t.TempDir())
 	zetaris := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("the closed endpoint accepted a call")
@@ -111,6 +120,7 @@ func TestZetarisClosedEndpointDegradesTheReview(t *testing.T) {
 	}
 }
 
+// reviewLive runs one live review with the generator at base and an 8s deadline.
 func reviewLive(t *testing.T, base string, extra map[string]string) review.Result {
 	t.Helper()
 	rev, err := review.Open(review.Options{
@@ -130,6 +140,8 @@ func reviewLive(t *testing.T, base string, extra map[string]string) review.Resul
 	return res
 }
 
+// agentJSON answers each agent's prompt, told apart by its instruction line: one known-exploited risk,
+// its KEV query, no test, and no refutation. The answer then needs Zetaris to become a finding.
 func agentJSON(prompt string) string {
 	switch {
 	case strings.Contains(prompt, "Name the risks"):

@@ -21,6 +21,8 @@ type ConfigError struct {
 	Reason  string
 }
 
+// Error says which setting was refused, why, and what is allowed, on one
+// line (ADR-0013, point 4a).
 func (e *ConfigError) Error() string {
 	if e == nil {
 		return "configuration refused"
@@ -35,11 +37,14 @@ func (e *ConfigError) Error() string {
 	return msg
 }
 
+// quote shows the value in double quotes, so an empty or padded value is visible.
 func quote(s string) string {
 	return `"` + s + `"`
 }
 
 // LoadTable reads EnvTable. An empty value is DefaultTable.
+// ADR-0013: the table name is a setting with a documented default. A value
+// that is set and wrong refuses the run; it never falls back to the default.
 func LoadTable(env func(string) string) (string, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -59,6 +64,8 @@ func LoadTable(env func(string) string) (string, error) {
 
 // ValidTable reports whether name can be placed in a FROM clause.
 // One identifier, or schema.table. Nothing else.
+// The name goes into the SQL unquoted, so this check is what keeps a setting
+// from carrying SQL of its own.
 func ValidTable(name string) bool {
 	parts := strings.Split(name, ".")
 	if len(parts) < 1 || len(parts) > 2 {
@@ -72,6 +79,8 @@ func ValidTable(name string) bool {
 	return true
 }
 
+// ident reports whether s is one SQL identifier: a letter or underscore,
+// then letters, digits and underscores.
 func ident(s string) bool {
 	if s == "" {
 		return false

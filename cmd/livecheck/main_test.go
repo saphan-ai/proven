@@ -19,11 +19,14 @@ import (
 )
 
 const (
+	// Fake secrets. A test fails if any of them is printed.
 	fakeToken = "fake-token-9f3c7e"
 	fakeKey   = "fake-guardrail-key-44aa"
 	fakeZKey  = "fake-zetaris-key-88bb"
 )
 
+// TestHelpNamesTheExitCodes proves --help prints the three exit codes and
+// exits 0.
 func TestHelpNamesTheExitCodes(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"--help"}, &stdout, &stderr, emptyEnv)
@@ -41,6 +44,8 @@ func TestHelpNamesTheExitCodes(t *testing.T) {
 	}
 }
 
+// TestUnknownArgumentIsRefused proves an unknown argument exits 2 and names
+// the argument.
 func TestUnknownArgumentIsRefused(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"--pull"}, &stdout, &stderr, emptyEnv)
@@ -52,6 +57,8 @@ func TestUnknownArgumentIsRefused(t *testing.T) {
 	}
 }
 
+// TestNoSettingsNamesEveryServiceNotReady proves that with no settings and no
+// runtime on PATH every service is named not ready, and the exit code is 1.
 func TestNoSettingsNamesEveryServiceNotReady(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	var stdout, stderr bytes.Buffer
@@ -73,6 +80,9 @@ func TestNoSettingsNamesEveryServiceNotReady(t *testing.T) {
 	}
 }
 
+// TestAllServicesReady proves that when every service answers, each line is
+// ready, each service gets one call, the default view is queried, and the
+// image is not pulled.
 func TestAllServicesReady(t *testing.T) {
 	w := newWorld(t, "ready")
 	w.receipt = "rcpt-livecheck"
@@ -104,6 +114,8 @@ func TestAllServicesReady(t *testing.T) {
 	assertNoSecrets(t, body)
 }
 
+// TestGeneratorErrorIsNotReady proves one failing service makes the run not
+// ready while the other three are still checked and named ready.
 // Mutated field: the generator's HTTP status. One service answers an error.
 func TestGeneratorErrorIsNotReady(t *testing.T) {
 	w := newWorld(t, "ready")
@@ -127,6 +139,8 @@ func TestGeneratorErrorIsNotReady(t *testing.T) {
 	}
 }
 
+// TestSecretFromTheEnvironmentIsNotPrinted proves a secret echoed back by a
+// service is redacted from the printed line.
 // The routed model contains the runtime token. Mutated field: redaction of
 // the printed line. Removing it makes this test red.
 func TestSecretFromTheEnvironmentIsNotPrinted(t *testing.T) {
@@ -147,6 +161,8 @@ func TestSecretFromTheEnvironmentIsNotPrinted(t *testing.T) {
 	}
 }
 
+// TestGuardrailOffBySettingDoesNotCall proves guardrail mode off is ready and
+// sends no call.
 func TestGuardrailOffBySettingDoesNotCall(t *testing.T) {
 	w := newWorld(t, "ready")
 	var stdout, stderr bytes.Buffer
@@ -164,6 +180,8 @@ func TestGuardrailOffBySettingDoesNotCall(t *testing.T) {
 	assertNoSecrets(t, body)
 }
 
+// TestBadEvidenceViewIsNotSent proves a bad evidence view is refused before
+// any query is sent.
 // Mutated field: PROVEN_EVIDENCE_VIEW. A value that is not one view name is
 // not sent.
 func TestBadEvidenceViewIsNotSent(t *testing.T) {
@@ -182,6 +200,8 @@ func TestBadEvidenceViewIsNotSent(t *testing.T) {
 	}
 }
 
+// TestQueryUsesTheConfiguredView proves the query check uses the configured
+// evidence view in place of the default.
 func TestQueryUsesTheConfiguredView(t *testing.T) {
 	w := newWorld(t, "ready")
 	var stdout, stderr bytes.Buffer
@@ -198,6 +218,8 @@ func TestQueryUsesTheConfiguredView(t *testing.T) {
 	}
 }
 
+// TestMissingImageIsNotReadyAndDoesNotPull proves a missing image is named
+// not ready, and the check never pulls it.
 // Mutated field: image inspect's exit status, through a runtime binary on PATH.
 func TestMissingImageIsNotReadyAndDoesNotPull(t *testing.T) {
 	w := newWorld(t, "missing-image")
@@ -219,6 +241,8 @@ func TestMissingImageIsNotReadyAndDoesNotPull(t *testing.T) {
 	}
 }
 
+// TestContainerChecksTheConfiguredImage proves the container check inspects
+// the configured image, not the default.
 // Mutated field: PROVEN_TEST_IMAGE. The inspect argument is that image.
 func TestContainerChecksTheConfiguredImage(t *testing.T) {
 	w := newWorld(t, "missing-image")
@@ -240,6 +264,8 @@ func TestContainerChecksTheConfiguredImage(t *testing.T) {
 	}
 }
 
+// TestBadContainerMemoryIsRefusedByName proves a bad memory setting is
+// refused by name, with what is allowed, before any runtime starts.
 // Mutated field: PROVEN_TEST_MEMORY. The container line names it and does not start a runtime.
 func TestBadContainerMemoryIsRefusedByName(t *testing.T) {
 	w := newWorld(t, "ready")
@@ -257,8 +283,11 @@ func TestBadContainerMemoryIsRefusedByName(t *testing.T) {
 	}
 }
 
+// emptyEnv is an environment with nothing set.
 func emptyEnv(string) string { return "" }
 
+// world is a set of fake services: the generator, the guardrail, Zetaris and
+// a container runtime script. It counts the calls each one gets.
 type world struct {
 	genURL     string
 	railURL    string
@@ -273,6 +302,8 @@ type world struct {
 	sql        string
 }
 
+// newWorld starts the fake services and puts a fake runtime on PATH in the
+// given mode.
 func newWorld(t *testing.T, runtime string) *world {
 	t.Helper()
 	w := &world{model: "nvidia/livecheck-test", receipt: "rcpt-livecheck"}
@@ -326,10 +357,12 @@ func newWorld(t *testing.T, runtime string) *world {
 	return w
 }
 
+// env is the environment that points every setting at the fakes.
 func (w *world) env() func(string) string {
 	return w.envWith(nil)
 }
 
+// envWith is env with some settings replaced.
 func (w *world) envWith(extra map[string]string) func(string) string {
 	m := map[string]string{
 		generator.EnvToken:   fakeToken,
@@ -350,12 +383,15 @@ func (w *world) envWith(extra map[string]string) func(string) string {
 	return func(k string) string { return m[k] }
 }
 
+// sse is a streamed generator answer that carries the routed model and the
+// receipt id.
 func sse(model, receipt string) string {
 	return "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n" +
 		"data: {\"choices\":[{\"delta\":{}}],\"meterless\":{\"routed_model\":\"" + model + "\",\"receipt_id\":\"" + receipt + "\"}}\n\n" +
 		"data: [DONE]\n"
 }
 
+// verdictJSON is a guardrail answer whose message is text.
 func verdictJSON(text string) string {
 	raw, err := json.Marshal(map[string]any{
 		"choices": []any{
@@ -368,10 +404,15 @@ func verdictJSON(text string) string {
 	return string(raw)
 }
 
+// installRuntime writes a docker script that records its arguments and puts
+// it alone on PATH. Mode ready answers every call; mode missing-image
+// answers only the version call.
 func installRuntime(t *testing.T, mode string) string {
 	t.Helper()
 	dir := t.TempDir()
 	record := filepath.Join(dir, "record")
+	// The path is written into the shell script unquoted, so it must hold no
+	// space and no quote.
 	if strings.ContainsAny(record, " \t\n'\"\\") {
 		t.Fatalf("record path %q", record)
 	}
@@ -391,6 +432,8 @@ func installRuntime(t *testing.T, mode string) string {
 	return record
 }
 
+// assertNoPull fails if the runtime was asked to pull, and requires the
+// version and inspect calls.
 func assertNoPull(t *testing.T, record string) {
 	t.Helper()
 	body := readRecord(t, record)
@@ -402,6 +445,7 @@ func assertNoPull(t *testing.T, record string) {
 	}
 }
 
+// readRecord reads the runtime's argument record.
 func readRecord(t *testing.T, record string) string {
 	t.Helper()
 	b, err := os.ReadFile(record)
@@ -411,6 +455,7 @@ func readRecord(t *testing.T, record string) string {
 	return string(b)
 }
 
+// assertNoSecrets fails if any fake secret is in body.
 func assertNoSecrets(t *testing.T, body string) {
 	t.Helper()
 	for _, secret := range []string{fakeToken, fakeKey, fakeZKey} {

@@ -6,7 +6,8 @@ import (
 	"github.com/saphan-ai/proven/internal/limit"
 )
 
-// Recorded is one test outcome stored in the fixture.
+// Recorded is one test outcome stored in the fixture. FindingID is the key
+// the Prover looks it up by; the other fields are copied into the Outcome.
 type Recorded struct {
 	FindingID     string
 	Path          string
@@ -33,12 +34,15 @@ func NewSample(rows []Recorded) *Sample {
 
 // Run returns the recorded outcome for this finding and test name.
 func (s *Sample) Run(ctx context.Context, req Request) (Outcome, error) {
+	// The sample keeps the live deadline behaviour, so a sample review times out the same way.
 	ctx, cancel := limit.Bound(ctx)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
 		return Outcome{}, err
 	}
 	rec, ok := s.byID[req.FindingID]
+	// The test name must match too: a recording for another test of the same
+	// finding is not evidence for the test the Prover asked about.
 	if !ok || rec.Name != req.Name {
 		return Outcome{Found: false}, nil
 	}

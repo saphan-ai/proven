@@ -10,6 +10,9 @@ import (
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
+// A deadline that ends the review at any stage before the Judge gives a partial
+// review with no findings: a finding the Judge has not judged is never reported,
+// and the trace says "not judged: deadline" for each one.
 func TestDeadlineOmitsUnjudgedFindings(t *testing.T) {
 	stages := []string{"planned", "investigated", "proved", "refuted"}
 	for _, stage := range stages {
@@ -51,6 +54,7 @@ func TestDeadlineOmitsUnjudgedFindings(t *testing.T) {
 	}
 }
 
+// readTrace decodes every line of the trace at path.
 func readTrace(t *testing.T, path string) []trace.Event {
 	t.Helper()
 	f, err := os.Open(path)

@@ -16,6 +16,8 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
+// The server backend posts the measured request with the key and no
+// Nightshift headers, and reads the verdict it gets back.
 func TestServerPostsTheMeasuredRequest(t *testing.T) {
 	const key = "test-key"
 	var raw []byte
@@ -73,6 +75,7 @@ func TestServerPostsTheMeasuredRequest(t *testing.T) {
 	}
 }
 
+// An answer check sends the answer as the assistant turn after the prompt.
 func TestServerSendsTheAnswerAsAnAssistantTurn(t *testing.T) {
 	var raw []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +100,7 @@ func TestServerSendsTheAnswerAsAnAssistantTurn(t *testing.T) {
 	}
 }
 
+// The nvidia mode builds the NVIDIA backend and sends the hosted model id.
 func TestNVIDIAUsesItsModel(t *testing.T) {
 	var model string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -122,6 +126,7 @@ func TestNVIDIAUsesItsModel(t *testing.T) {
 	}
 }
 
+// A guardrail that cannot be reached refuses the step as unreachable.
 // Mutated field: the listening socket. The server is closed before the check.
 func TestClosedServerIsRefusedByName(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -140,6 +145,7 @@ func TestClosedServerIsRefusedByName(t *testing.T) {
 	}
 }
 
+// A guardrail that never answers is named as a timeout within its limit.
 // Mutated field: the server, which accepts the connection and sends no reply.
 func TestSilentServerIsATimeout(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -177,6 +183,7 @@ func TestSilentServerIsATimeout(t *testing.T) {
 	}
 }
 
+// A 401 is named as unauthorized, and the key appears in no error text.
 // Mutated field: the HTTP status, set to 401.
 func TestUnauthorizedDoesNotPrintTheKey(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +201,7 @@ func TestUnauthorizedDoesNotPrintTheKey(t *testing.T) {
 	}
 }
 
+// An answer that is not the verdict lines is refused, not read as safe.
 // Mutated field: the completion body, which is not the verdict lines.
 func TestABadVerdictIsRefused(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -208,6 +216,7 @@ func TestABadVerdictIsRefused(t *testing.T) {
 	}
 }
 
+// A redirect is not followed, so the key is not sent on to another address.
 func TestRedirectIsNotFollowed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/chat/completions" {
@@ -225,6 +234,7 @@ func TestRedirectIsNotFollowed(t *testing.T) {
 	}
 }
 
+// liveAt builds a live adapter through Load and New, as a review does.
 func liveAt(t *testing.T, mode, base, key string, extra map[string]string) guardrail.Adapter {
 	t.Helper()
 	s, err := guardrail.Load(func(k string) string {
@@ -252,6 +262,7 @@ func liveAt(t *testing.T, mode, base, key string, extra map[string]string) guard
 	return rail
 }
 
+// verdictJSON wraps verdict text in a chat completion body.
 func verdictJSON(text string) string {
 	raw, err := json.Marshal(map[string]any{
 		"choices": []any{

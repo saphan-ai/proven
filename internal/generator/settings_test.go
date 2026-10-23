@@ -8,6 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 )
 
+// With only the token set, every other setting takes its documented default.
 func TestLoadUsesDefaults(t *testing.T) {
 	s, err := generator.Load(func(k string) string {
 		if k == generator.EnvToken {
@@ -35,6 +36,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	}
 }
 
+// A timeout that is not a Go duration is refused by name.
 // Mutated field: PROVEN_GENERATOR_TIMEOUT.
 func TestLoadRefusesABadTimeout(t *testing.T) {
 	_, err := generator.Load(envWith(generator.EnvTimeout, "nope"))
@@ -47,6 +49,7 @@ func TestLoadRefusesABadTimeout(t *testing.T) {
 	}
 }
 
+// A zero timeout is refused: a call must have a bound.
 // Mutated field: PROVEN_GENERATOR_TIMEOUT, set to zero.
 func TestLoadRefusesAZeroTimeout(t *testing.T) {
 	_, err := generator.Load(envWith(generator.EnvTimeout, "0s"))
@@ -56,6 +59,7 @@ func TestLoadRefusesAZeroTimeout(t *testing.T) {
 	}
 }
 
+// A live generator without a token is refused, and the refusal prints no value.
 // Mutated field: METERLESS_RUNTIME_TOKEN. Empty, so the error must not invent one.
 func TestLoadRefusesAMissingToken(t *testing.T) {
 	_, err := generator.Load(func(string) string { return "" })
@@ -65,6 +69,7 @@ func TestLoadRefusesAMissingToken(t *testing.T) {
 	}
 }
 
+// A base that is not an http or https URL is refused.
 // Mutated field: PROVEN_GENERATOR_BASE_URL.
 func TestLoadRefusesABadBaseURL(t *testing.T) {
 	_, err := generator.Load(envWith(generator.EnvBaseURL, "not a url"))
@@ -74,6 +79,7 @@ func TestLoadRefusesABadBaseURL(t *testing.T) {
 	}
 }
 
+// A base with a path other than /v1 is refused.
 // Mutated field: PROVEN_GENERATOR_BASE_URL, a path other than empty or /v1.
 func TestLoadRefusesABaseURLWithAPath(t *testing.T) {
 	_, err := generator.Load(envWith(generator.EnvBaseURL, "http://127.0.0.1:8088/nightshift"))
@@ -83,6 +89,7 @@ func TestLoadRefusesABaseURLWithAPath(t *testing.T) {
 	}
 }
 
+// An unknown agent in the require-NVIDIA list is refused, not ignored.
 // Mutated field: PROVEN_GENERATOR_REQUIRE_NVIDIA.
 func TestLoadRefusesAnUnknownAgent(t *testing.T) {
 	_, err := generator.Load(envWith(generator.EnvRequireNVIDIA, "planner,bob"))
@@ -92,6 +99,7 @@ func TestLoadRefusesAnUnknownAgent(t *testing.T) {
 	}
 }
 
+// The Skeptic's model can be set to another family's model.
 func TestLoadAcceptsAnotherSkepticModel(t *testing.T) {
 	s, err := generator.Load(envWith(generator.EnvSkepticModel, "anthropic/claude-opus"))
 	if err != nil {
@@ -102,6 +110,7 @@ func TestLoadAcceptsAnotherSkepticModel(t *testing.T) {
 	}
 }
 
+// A Skeptic model with a space is refused.
 func TestLoadRefusesASkepticModelWithASpace(t *testing.T) {
 	_, err := generator.Load(envWith(generator.EnvSkepticModel, "not a model"))
 	cfg := configErr(t, err)
@@ -110,6 +119,7 @@ func TestLoadRefusesASkepticModelWithASpace(t *testing.T) {
 	}
 }
 
+// A base URL ending in /v1 is accepted and kept as given.
 func TestLoadAcceptsAnAPIRoot(t *testing.T) {
 	s, err := generator.Load(envWith(generator.EnvBaseURL, "http://127.0.0.1:8088/v1"))
 	if err != nil {
@@ -120,6 +130,7 @@ func TestLoadAcceptsAnAPIRoot(t *testing.T) {
 	}
 }
 
+// envWith is an environment with a token and one other setting.
 func envWith(key, value string) func(string) string {
 	return func(k string) string {
 		if k == generator.EnvToken {
@@ -132,6 +143,7 @@ func envWith(key, value string) func(string) string {
 	}
 }
 
+// configErr fails the test unless err is a ConfigError.
 func configErr(t *testing.T, err error) *generator.ConfigError {
 	t.Helper()
 	cfg, ok := err.(*generator.ConfigError)

@@ -31,6 +31,7 @@ func TestOrderWithinSeverity(t *testing.T) {
 	}
 }
 
+// Findings with equal EPSS scores keep the order they came in.
 func TestEqualScoresKeepTheirOrder(t *testing.T) {
 	in := []candidate.Candidate{
 		plain("F1", "ERROR"),
@@ -43,6 +44,7 @@ func TestEqualScoresKeepTheirOrder(t *testing.T) {
 	}
 }
 
+// A finding the Judge dropped does not reach the draft.
 func TestDroppedFindingsAreNotOrderedIn(t *testing.T) {
 	in := []candidate.Candidate{
 		scored("F2", "ERROR", "0.2"),
@@ -54,6 +56,7 @@ func TestDroppedFindingsAreNotOrderedIn(t *testing.T) {
 	}
 }
 
+// scored is a finding with query rows that carry an EPSS score.
 func scored(id, sev, score string) candidate.Candidate {
 	return candidate.Candidate{
 		Risk: candidate.Risk{ID: id, Severity: sev},
@@ -67,10 +70,12 @@ func scored(id, sev, score string) candidate.Candidate {
 	}
 }
 
+// plain is a finding with no EPSS score.
 func plain(id, sev string) candidate.Candidate {
 	return candidate.Candidate{Risk: candidate.Risk{ID: id, Severity: sev}}
 }
 
+// ids lists the findings' ids in order.
 func ids(in []candidate.Candidate) string {
 	parts := make([]string, len(in))
 	for i, c := range in {

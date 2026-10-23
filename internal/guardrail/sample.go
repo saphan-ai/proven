@@ -90,6 +90,8 @@ func NewSample(rows []Record) (*Sample, error) {
 // Check returns the recorded verdict. A missing record is a named refusal.
 func (s *Sample) Check(ctx context.Context, prompt, answer string) (Verdict, error) {
 	start := time.Now()
+	// The sample keeps the same time bound as a live check, so a cancelled
+	// review stops here too.
 	ctx, cancel := limit.Bound(ctx)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
@@ -103,10 +105,12 @@ func (s *Sample) Check(ctx context.Context, prompt, answer string) (Verdict, err
 		return Verdict{}, Refuse("no recorded verdict")
 	}
 	v.Latency = time.Since(start)
+	// A copy, so a caller cannot change the recorded verdict.
 	v.Categories = append([]string(nil), v.Categories...)
 	return v, nil
 }
 
+// recordKey joins prompt and answer with a NUL byte, so two different pairs never share a key.
 func recordKey(prompt, answer string) string {
 	return prompt + "\x00" + answer
 }

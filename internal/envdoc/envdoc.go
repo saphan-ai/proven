@@ -1,5 +1,11 @@
 // Package envdoc turns setting declarations into the environment tables
 // of docs/CONFIGURATION.md.
+//
+// ADR-0013 asks for every setting and its default in one place. Each package
+// declares its settings in Go, beside the constants that name them;
+// cmd/settings-doc renders them into the page, and a test in settingspage
+// fails when the page drifts from the code. No agent of the review uses this
+// package: it serves the documentation.
 package envdoc
 
 import (
@@ -15,6 +21,9 @@ const (
 	MarkerEnd = "<!-- end generated -->"
 )
 
+// startHeading and endHeading bound the hand-written environment sections of
+// a page that has no markers yet. Apply replaces what lies between them once;
+// from then on the markers are used.
 const (
 	startHeading = "## The model generator: Meterless Nightshift"
 	endHeading   = "## The Prover's container"
@@ -22,6 +31,8 @@ const (
 
 // Setting is one environment variable, declared beside the constant that
 // names it. Default and Description are markdown for one table cell each.
+// Secret marks a value that is never printed; its description says so, and a
+// test checks that the two agree.
 type Setting struct {
 	Name        string
 	Default     string
@@ -78,6 +89,8 @@ func Check(sections []Section) error {
 }
 
 // Render writes the environment sections. The result ends with a newline.
+// Name is written as code. Default and Description are written as given, so
+// they carry their own markdown.
 func Render(sections []Section) string {
 	var b strings.Builder
 	for i, sec := range sections {
@@ -136,6 +149,7 @@ func Apply(file, rendered string) (string, error) {
 	block := MarkerBegin + "\n" + rendered + MarkerEnd + "\n"
 	if i := strings.Index(file, MarkerBegin); i >= 0 {
 		j := strings.Index(file, MarkerEnd)
+		// An end marker before the begin marker is refused rather than guessed at.
 		if j < 0 || j < i {
 			return "", fmt.Errorf("has %s without %s", MarkerBegin, MarkerEnd)
 		}
@@ -145,6 +159,7 @@ func Apply(file, rendered string) (string, error) {
 		}
 		return file[:i] + block + after, nil
 	}
+	// No markers yet: replace the hand-written sections once.
 	start := strings.Index(file, startHeading)
 	end := strings.Index(file, endHeading)
 	if start < 0 || end < 0 || end < start {
@@ -175,6 +190,8 @@ func DriftSetting(page, rendered string) string {
 		}
 		return ""
 	}
+	// One side is longer. The first setting row among its extra lines is the
+	// drift.
 	extra := rl[n:]
 	if len(pl) > len(rl) {
 		extra = pl[n:]
@@ -187,6 +204,7 @@ func DriftSetting(page, rendered string) string {
 	return ""
 }
 
+// rowName reads the variable name from a table row that starts with | `NAME`.
 func rowName(line string) string {
 	line = strings.TrimSpace(line)
 	if !strings.HasPrefix(line, "| `") {

@@ -1,6 +1,13 @@
-// Package semver compares Go module versions.
+// Package semver compares semantic versions for the dependency check.
+// The manifest readers use it to tell a raised Go or npm version from a
+// lowered one, and package osv uses it to place a version inside or
+// outside an OSV range.
+//
 // A version is MAJOR.MINOR.PATCH, an optional leading v, an optional
-// pre-release, and optional build metadata that is ignored.
+// pre-release, and optional build metadata that is ignored. A numeric
+// field that does not fit in int is not a version. Anything else,
+// an npm range such as ^1.2.3 included, is not a version: Compare says so
+// and the caller writes the reason into the trace instead of guessing.
 package semver
 
 import "strings"
@@ -20,9 +27,11 @@ func Parse(s string) (Version, bool) {
 	if s == "" {
 		return Version{}, false
 	}
+	// Go writes a leading v and npm does not; both forms are one version.
 	if s[0] == 'v' || s[0] == 'V' {
 		s = s[1:]
 	}
+	// Build metadata has no precedence, so v1.2.3+incompatible equals v1.2.3.
 	if i := strings.IndexByte(s, '+'); i >= 0 {
 		s = s[:i]
 	}
@@ -66,6 +75,11 @@ func Compare(a, b string) (int, bool) {
 	return av.cmp(bv), true
 }
 
+// cmp orders two versions by SemVer precedence: the numbers first, then a
+// release above any of its pre-releases, then the pre-release identifiers
+// one by one. A numeric identifier is below a word; numbers compare as
+// numbers and words as text. When every shared identifier is equal, the
+// longer list is higher.
 func (a Version) cmp(b Version) int {
 	if a.Major != b.Major {
 		return sign(a.Major - b.Major)
@@ -111,6 +125,10 @@ func (a Version) cmp(b Version) int {
 	return sign(len(a.Pre) - len(b.Pre))
 }
 
+// number reads a numeric field. A leading zero is refused, as SemVer
+// refuses it. A value past MaxInt is refused, not wrapped: wrapping it
+// would compare a larger field as a smaller one. The bound check is the
+// one pep440's readInt uses, so both parsers stop at the same limit.
 func number(s string) (int, bool) {
 	if s == "" || (len(s) > 1 && s[0] == '0') {
 		return 0, false
@@ -120,11 +138,18 @@ func number(s string) (int, bool) {
 		if c < '0' || c > '9' {
 			return 0, false
 		}
-		n = n*10 + int(c-'0')
+		d := int(c - '0')
+		if n > (int(^uint(0)>>1)-d)/10 {
+			return 0, false
+		}
+		n = n*10 + d
 	}
 	return n, true
 }
 
+// identifier reports whether s is a valid pre-release identifier: ASCII
+// letters, digits and hyphens. An all-digit identifier is a numeric field,
+// so number must accept it: no leading zero, and it must fit in int.
 func identifier(s string) bool {
 	if s == "" {
 		return false
@@ -139,12 +164,15 @@ func identifier(s string) bool {
 			return false
 		}
 	}
-	if digits && len(s) > 1 && s[0] == '0' {
-		return false
+	if digits {
+		if _, ok := number(s); !ok {
+			return false
+		}
 	}
 	return true
 }
 
+// sign maps a difference to -1, 0 or 1.
 func sign(n int) int {
 	switch {
 	case n < 0:

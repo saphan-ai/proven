@@ -1,4 +1,10 @@
 // Package judge keeps a finding only when the evidence settles it.
+//
+// The Judge is the last step before the Writer. It reads each candidate's
+// evidence and the Skeptic's refutation and decides with no model: a test that
+// fails on the change and passes on the base, or a query whose rows name the
+// finding (ADR-0002). A disagreement is settled by evidence, never by a vote
+// (ADR-0006 point 3).
 package judge
 
 import (
@@ -14,6 +20,8 @@ import (
 // instrument the skeptic named could not run. It never votes and it never
 // reads a confidence.
 func Decide(c candidate.Candidate) candidate.Candidate {
+	// A refutation backed by evidence wins over the finding's own evidence
+	// (ADR-0006 point 4), so it is checked first.
 	if why := refuteWhy(c); why != "" {
 		c.Dropped = true
 		c.Unresolved = false
@@ -21,6 +29,7 @@ func Decide(c candidate.Candidate) candidate.Candidate {
 		c.DropReason = "dropped: refuted: " + why
 		return c
 	}
+	// Evidence the Skeptic could not test is kept but marked, so the review says it is open.
 	if unsettled(c) {
 		c.Dropped = false
 		c.Unresolved = true
@@ -39,6 +48,7 @@ func Decide(c candidate.Candidate) candidate.Candidate {
 	}
 	c.Dropped = true
 	c.Unresolved = false
+	// ADR-0002 point 2: a finding with no evidence is dropped, not softened.
 	c.DropReason = "dropped: no evidence"
 	return c
 }
@@ -48,6 +58,8 @@ func Evidenced(c candidate.Candidate) bool {
 	return counts(c)
 }
 
+// counts reports whether the candidate has evidence of its own: a test with
+// both outcomes right, or query rows that name the finding.
 func counts(c candidate.Candidate) bool {
 	for _, e := range c.Evidence {
 		if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
@@ -60,6 +72,7 @@ func counts(c candidate.Candidate) bool {
 	return false
 }
 
+// unsettled reports evidence whose refuting test or query could not run.
 func unsettled(c candidate.Candidate) bool {
 	if !counts(c) {
 		return false
@@ -67,9 +80,12 @@ func unsettled(c candidate.Candidate) bool {
 	return c.Refutation.TestCannotRun || c.Refutation.QueryCannotRun
 }
 
+// refuteWhy is the reason a refutation holds, or empty when it does not.
+// A refuting test holds when it was found and does not fail on the change.
 func refuteWhy(c candidate.Candidate) string {
 	r := c.Refutation
 	if r.TestFound && !r.TestFailsOnChange {
+		// Keep a reason that already says this, so the trace does not repeat itself.
 		if strings.Contains(r.Reason, "passes on the change") {
 			return r.Reason
 		}
@@ -101,6 +117,9 @@ func QueryContradicts(c candidate.Candidate, rows [][]string) bool {
 	return false
 }
 
+// queryRelates reports whether any cell names the finding: the whole cell, or
+// one of its words, appears in the finding's id, rule, title, message or path.
+// Short cells and words are skipped, so "1" or "id" matches nothing by chance.
 func queryRelates(c candidate.Candidate, rows [][]string) bool {
 	if len(rows) == 0 {
 		return false
@@ -129,6 +148,7 @@ func queryRelates(c candidate.Candidate, rows [][]string) bool {
 	return false
 }
 
+// denial reports a cell that says no.
 func denial(cell string) bool {
 	switch strings.ToLower(strings.TrimSpace(cell)) {
 	case "false", "no", "absent", "clean", "pass", "passed":
@@ -138,6 +158,7 @@ func denial(cell string) bool {
 	}
 }
 
+// tokens splits s into words of letters and digits.
 func tokens(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)

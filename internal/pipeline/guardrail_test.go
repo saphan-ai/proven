@@ -17,6 +17,7 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 )
 
+// callCount counts the calls that reach the model and keeps the last answer.
 type callCount struct {
 	inner generator.Generator
 	calls int
@@ -30,6 +31,8 @@ func (g *callCount) Complete(ctx context.Context, agent, prompt string) (string,
 	return text, err
 }
 
+// ADR-0005: a live pipeline with the guardrail on and no guardrail adapter is
+// refused at Build.
 func TestLivePipelineWithoutAGuardrailIsRefused(t *testing.T) {
 	_, err := Build(Options{LogDir: t.TempDir()})
 	if err == nil {
@@ -37,6 +40,8 @@ func TestLivePipelineWithoutAGuardrailIsRefused(t *testing.T) {
 	}
 }
 
+// ADR-0005: a prompt the guardrail marks unsafe never reaches the model, and the
+// review names the step and the categories.
 func TestUnsafePromptStopsTheStepAndNamesCategories(t *testing.T) {
 	fx := loadFixture(t)
 	prompt := fx.Answers[0].Prompt
@@ -68,6 +73,8 @@ func TestUnsafePromptStopsTheStepAndNamesCategories(t *testing.T) {
 	assertGuardrail(t, d, "unsafe: Criminal Planning/Confessions, Other", "Criminal Planning/Confessions", "Other")
 }
 
+// ADR-0005: an answer the guardrail marks unsafe is not used, is not stored in
+// the trace, and the review names its categories.
 func TestUnsafeAnswerIsNotUsed(t *testing.T) {
 	fx := loadFixture(t)
 	var posts int
@@ -164,6 +171,8 @@ func TestClosedGuardrailRefusesTheStepByName(t *testing.T) {
 	}
 }
 
+// The recorded sample guardrail stops the step for the prompt it has on record
+// as unsafe, the same way the live guardrail does.
 func TestRecordedFixturePromptStopsTheStep(t *testing.T) {
 	fx := loadFixture(t)
 	rec := guardrail.RecordedUnsafePrompt()
@@ -179,6 +188,8 @@ func TestRecordedFixturePromptStopsTheStep(t *testing.T) {
 	assertGuardrail(t, d, "unsafe: Criminal Planning/Confessions, Other", "Criminal Planning/Confessions")
 }
 
+// With a guardrail that answers safe, the sample review keeps the same findings
+// as without one, and no service is named as failed.
 func TestSafeGuardrailKeepsTheSampleFindings(t *testing.T) {
 	fx := loadFixture(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -207,6 +218,8 @@ func TestSafeGuardrailKeepsTheSampleFindings(t *testing.T) {
 	}
 }
 
+// modelFinding returns the first finding that came from the model-calling
+// agents, not from the OSV check, or "" when there is none.
 func modelFinding(d candidate.Draft) string {
 	for _, f := range d.Findings {
 		if !strings.HasPrefix(f.ID, "osv:") {
@@ -216,6 +229,8 @@ func modelFinding(d candidate.Draft) string {
 	return ""
 }
 
+// reviewWithRail runs a sample review through rail, or with the guardrail off,
+// and fails the test if sample mode reads any setting.
 func reviewWithRail(t *testing.T, fx *fixture.Fixture, rail guardrail.Adapter, off bool) (candidate.Draft, *callCount) {
 	t.Helper()
 	inner, err := generator.NewSample(fx.Answers)

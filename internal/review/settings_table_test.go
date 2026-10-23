@@ -13,6 +13,8 @@ import (
 // TestEachSettingAtDefaultAndOneOtherValue is one subtest per proven.yaml key.
 // Each subtest checks the default and one other value. The other value is one
 // the review uses, or a refusal for a value the key does not allow.
+// The property it proves: every key of ADR-0013's closed set has a working default and really
+// changes the review when set.
 func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		if defaultSettings().Timeout != 0 {
@@ -139,7 +141,7 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 		dir, base, head := commitWithTrailer(t)
 		req := Request{Target: dir, BaselineCommit: base, HeadCommit: head}
 		def := decideOn(t, defaultSettings(), req)
-		if !strings.Contains(def.AuthorModelStatement, "author Ada:model-a family family unknown from commit") {
+		if !strings.Contains(def.AuthorModelStatement, "author Ada:model-a family unknown from commit") {
 			t.Fatal(def.AuthorModelStatement)
 		}
 		off := decideOn(t, mustParse(t, "author_commit_trailers: off\n"), req)
@@ -174,10 +176,10 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 			t.Fatal(def.AuthorModelStatement)
 		}
 		glob := decideOn(t, mustParse(t, "author_record: MODEL*.txt\n"), Request{Target: dir})
-		if !strings.Contains(glob.AuthorModelStatement, "author Ada:model-a family family unknown from record") {
+		if !strings.Contains(glob.AuthorModelStatement, "author Ada:model-a family unknown from record") {
 			t.Fatal(glob.AuthorModelStatement)
 		}
-		if !strings.Contains(glob.AuthorModelStatement, "author Bea:model-b family family unknown from record") {
+		if !strings.Contains(glob.AuthorModelStatement, "author Bea:model-b family unknown from record") {
 			t.Fatal(glob.AuthorModelStatement)
 		}
 		mustRefuse(t, "author_record: /etc/passwd\n", "author_record", "absolute path")
@@ -217,6 +219,7 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	})
 }
 
+// mustParse parses body as proven.yaml and fails the test on a refusal.
 func mustParse(t *testing.T, body string) fileSettings {
 	t.Helper()
 	cfg, err := parseConfig([]byte(body))
@@ -226,6 +229,7 @@ func mustParse(t *testing.T, body string) fileSettings {
 	return cfg
 }
 
+// mustRefuse checks that body is refused on field, with reason and a non-empty allowed list.
 func mustRefuse(t *testing.T, body, field, reason string) {
 	t.Helper()
 	_, err := parseConfig([]byte(body))
@@ -235,6 +239,8 @@ func mustRefuse(t *testing.T, body, field, reason string) {
 	}
 }
 
+// reviewSample runs one sample review of the discount fixture under root, with body as an explicit
+// proven.yaml, or the defaults when body is empty.
 func reviewSample(t *testing.T, body, root string) Result {
 	t.Helper()
 	opts := Options{Sample: true, LogDir: t.TempDir(), Env: os.Getenv}
@@ -256,6 +262,7 @@ func reviewSample(t *testing.T, body, root string) Result {
 	return res
 }
 
+// moduleRoot walks up from the test's directory to the module root.
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -275,6 +282,8 @@ func moduleRoot(t *testing.T) string {
 	}
 }
 
+// commitWithTrailer makes a two-commit repository whose head commit carries the trailer
+// "Assisted-by: Ada:model-a", and returns the directory and both commits.
 func commitWithTrailer(t *testing.T) (dir, base, head string) {
 	t.Helper()
 	dir = t.TempDir()
@@ -297,6 +306,7 @@ func commitWithTrailer(t *testing.T) (dir, base, head string) {
 	return dir, base, head
 }
 
+// gitAt runs git in dir with a fixed identity, no signing and a fixed default branch.
 func gitAt(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	full := append([]string{
