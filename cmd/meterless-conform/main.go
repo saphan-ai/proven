@@ -2,7 +2,7 @@
 // One JSON request per line, one JSON answer per line. No network.
 //
 // It lets Meterless's own conformance suites test the Go engines through the
-// TypeScript bridge in conformance/meterless (ADR-0003, point 4; ADR-0018,
+// TypeScript bridge in test/conformance/meterless (ADR-0003, point 4; ADR-0018,
 // point 7). The bridge starts one process per request, so a session is a
 // directory under the temp dir, and the next process opens the same store.
 package main

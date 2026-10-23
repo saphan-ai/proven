@@ -77,7 +77,7 @@ func TestTraceCarriesEvidenceAndRefutation(t *testing.T) {
 	}
 	te := f1.Test
 	if te.Path != "billing/discount_test.go" || te.Name != "TestDiscounted" ||
-		te.Command != "go test ./billing -run TestDiscounted" ||
+		te.Command != "go test -run '^TestDiscounted$' ./billing" ||
 		!te.FailsOnChange || !te.PassesOnBase ||
 		te.Output != "base: PASS\nchange: FAIL got 60 want 80" {
 		t.Fatalf("F1 test %#v", te)
@@ -88,16 +88,18 @@ func TestTraceCarriesEvidenceAndRefutation(t *testing.T) {
 		t.Fatalf("F2 evidence %#v", f2)
 	}
 	q := f2.Query
-	if q.SQL != "SELECT package, version, cve, kev FROM advisories WHERE package = 'evil.example/leftpad' AND version = '1.2.3'" ||
+	// ADR-0032: the Investigator named the osv-by-package template; the SQL is
+	// the text Proven built from it.
+	if q.SQL != "SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'" ||
 		q.Engine != "local-sample" || q.Snapshot != "sample-2026-10-22" {
 		t.Fatalf("F2 query %#v", q)
 	}
-	if len(q.Columns) != 4 || q.Columns[0] != "package" || q.Columns[1] != "version" || q.Columns[2] != "cve" || q.Columns[3] != "kev" {
+	if len(q.Columns) != 9 || q.Columns[0] != "id" || q.Columns[3] != "package" || q.Columns[8] != "published" {
 		t.Fatalf("columns %#v", q.Columns)
 	}
-	if len(q.Rows) != 1 || len(q.Rows[0]) != 4 ||
-		q.Rows[0][0] != "evil.example/leftpad" || q.Rows[0][1] != "1.2.3" ||
-		q.Rows[0][2] != "CVE-2026-0001" || q.Rows[0][3] != "true" {
+	if len(q.Rows) != 2 || len(q.Rows[0]) != 9 ||
+		q.Rows[0][0] != "GHSA-px-sample-0001" || q.Rows[0][1] != "CVE-2026-0001" ||
+		q.Rows[0][3] != "evil.example/leftpad" || q.Rows[0][5] != "1.2.4" {
 		t.Fatalf("rows %#v", q.Rows)
 	}
 

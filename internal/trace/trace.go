@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/saphan-ai/proven/internal/redact"
 )
 
 // Event is one claim, piece of evidence, refutation, verdict or guardrail check.
@@ -107,11 +109,14 @@ type Refutation struct {
 // Writer appends events to logs/trace.jsonl.
 // One Open is one run: every event carries that run id. A mutex serialises
 // Append, so concurrent agents never interleave two lines.
+// A Writer with a Redactor replaces every configured secret in an event
+// before the event is hashed and written.
 type Writer struct {
-	path  string
-	f     *os.File
-	runID string
-	mu    sync.Mutex
+	path     string
+	f        *os.File
+	runID    string
+	redactor *redact.Redactor
+	mu       sync.Mutex
 }
 
 // Open creates the logs directory and opens the trace for appending.
@@ -144,6 +149,15 @@ func newRunID() (string, error) {
 // Path is the JSONL file.
 func (w *Writer) Path() string { return w.path }
 
+// SetRedactor sets the Redactor Append applies to every event from now on.
+// The pipeline sets it once, before any agent writes, from the values the
+// review's settings loaded.
+func (w *Writer) SetRedactor(r *redact.Redactor) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.redactor = r
+}
+
 // Append writes one event and flushes it. It does not rewrite earlier lines.
 // An empty run id and an empty time are filled: the run id from Open, the
 // time as UTC in RFC 3339.
@@ -153,6 +167,9 @@ func (w *Writer) Append(e Event) error {
 	if w.f == nil {
 		return fmt.Errorf("trace: closed")
 	}
+	// ADR-0005, ADR-0013 point 4: a secret never reaches the trace. The event is redacted before its id is
+	// computed, so the id names the text that is written and not the text that was refused.
+	e = redactEvent(e, w.redactor)
 	if e.RunID == "" {
 		e.RunID = w.runID
 	}

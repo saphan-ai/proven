@@ -20,35 +20,36 @@ import (
 // No argv element may carry it.
 const contractW1bSecret = "s3cret-T2"
 
-// contractW1bDialSource dials 1.1.1.1:53 and prints which way it went.
-// T10 copies it into each checkout and runs it with the working directory
-// set to that checkout.
-const contractW1bDialSource = `package main
+// contractW1bDialSource is a test that dials 1.1.1.1:53 and fails either way,
+// naming which way it went, so the outcome's output shows it. T10 writes it
+// into each checkout as dial_test.go, beside contractW1bDialModule.
+const contractW1bDialSource = `package dial
 
 import (
-	"fmt"
 	"net"
-	"os"
+	"testing"
 	"time"
 )
 
-func main() {
+func TestDial(t *testing.T) {
 	conn, err := net.DialTimeout("tcp", "1.1.1.1:53", 5*time.Second)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "dial-failed: %v\n", err)
-		os.Exit(1)
+		t.Fatalf("dial-failed: %v", err)
 	}
 	conn.Close()
-	fmt.Println("dial-ok")
+	t.Fatal("dial-ok")
 }
 `
+
+// contractW1bDialModule is the module file the dial test needs to run with go test.
+const contractW1bDialModule = "module dial\n\ngo 1.22\n"
 
 // TestContractW1bT1 proves the run line turns the network off (ADR-0025 point 2).
 func TestContractW1bT1(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
 	why := "T1: argv must carry --network none or --network=none"
-	argv := contractW1bArgv(t, testrun.DefaultContainerConfig(), runtime, dir, "go test . -count=1", why)
+	argv := contractW1bArgv(t, testrun.DefaultContainerConfig(), runtime, dir, why)
 	if !contractW1bNetworkNone(argv) {
 		t.Fatalf("%s; got %q", why, argv)
 	}
@@ -62,7 +63,7 @@ func TestContractW1bT2(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
 	why := "T2: argv must pass no Proven environment (no -e, --env, or --env-file, and no element contains " + contractW1bSecret + ")"
-	argv := contractW1bArgv(t, testrun.DefaultContainerConfig(), runtime, dir, "go test . -count=1", why)
+	argv := contractW1bArgv(t, testrun.DefaultContainerConfig(), runtime, dir, why)
 	if len(argv) == 0 {
 		t.Fatalf("%s; argv is empty", why)
 	}
@@ -77,7 +78,7 @@ func TestContractW1bT3(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
 	why := "T3: argv must mount exactly the given dir and no other host path"
-	argv := contractW1bArgv(t, testrun.DefaultContainerConfig(), runtime, dir, "go test . -count=1", why)
+	argv := contractW1bArgv(t, testrun.DefaultContainerConfig(), runtime, dir, why)
 	flags, sources := contractW1bMounts(argv)
 	if flags != 1 || len(sources) != 1 || filepath.Clean(sources[0]) != filepath.Clean(dir) {
 		t.Fatalf("%s; mounts=%d sources=%q argv=%q", why, flags, sources, argv)
@@ -96,7 +97,7 @@ func TestContractW1bT4(t *testing.T) {
 	cfg.Memory = "512m"
 	dir := t.TempDir()
 	why := "T4: argv must carry --rm, the CPU limit 1 and the memory limit 512m"
-	argv := contractW1bArgv(t, cfg, runtime, dir, "go test . -count=1", why)
+	argv := contractW1bArgv(t, cfg, runtime, dir, why)
 	var missing []string
 	if !contractW1bHasArg(argv, "--rm") {
 		missing = append(missing, "--rm")
@@ -143,9 +144,9 @@ func TestContractW1bT6(t *testing.T) {
 	}
 	record := t.TempDir()
 	runtime := contractW1bRuntime(t, contractW1bRecordScript(t, record, contractW1bExitForCheckouts(t, base, change)))
-	why := "T6: a command that fails on the change and passes on the base is proved, and the runtime runs twice"
+	why := "T6: a test that fails on the change and passes on the base is proved, and the runtime runs twice"
 	c := contractW1bContainer(t, testrun.DefaultContainerConfig(), runtime, why)
-	out, err := c.Run(context.Background(), contractW1bRequest("F-T6", "TestProved", "go test . -run TestProved", base, change))
+	out, err := c.Run(context.Background(), contractW1bRequest("F-T6", "TestProved", base, change))
 	runs := contractW1bRuns(t, record)
 	if err != nil || !out.Found || !out.FailsOnChange || !out.PassesOnBase || len(runs) != 2 {
 		t.Fatalf("%s; err=%v outcome=%+v runs=%d", why, err, out, len(runs))
@@ -171,7 +172,7 @@ func TestContractW1bT7(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		out, err = c.Run(context.Background(), contractW1bRequest("F-T7", "TestHung", "sleep 30", base, change))
+		out, err = c.Run(context.Background(), contractW1bRequest("F-T7", "TestHung", base, change))
 	}()
 	select {
 	case <-done:
@@ -214,7 +215,7 @@ func TestContractW1bT9(t *testing.T) {
 	runtime := contractW1bRuntime(t, contractW1bRecordScript(t, record, "exit 0\n"))
 	why := "T9: the two runs mount BaseDir and ChangeDir, one each"
 	c := contractW1bContainer(t, testrun.DefaultContainerConfig(), runtime, why)
-	_, err := c.Run(context.Background(), contractW1bRequest("F-T9", "TestCheckout", "go test . -count=1", base, change))
+	_, err := c.Run(context.Background(), contractW1bRequest("F-T9", "TestCheckout", base, change))
 	runs := contractW1bRuns(t, record)
 	var sources []string
 	for _, argv := range runs {
@@ -243,15 +244,18 @@ func TestContractW1bT10(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
 	for _, dir := range []string{base, change} {
-		if writeErr := os.WriteFile(filepath.Join(dir, "dial.go"), []byte(contractW1bDialSource), 0o644); writeErr != nil {
-			t.Fatalf("T10: write dial.go: %v", writeErr)
+		if writeErr := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(contractW1bDialModule), 0o644); writeErr != nil {
+			t.Fatalf("T10: write go.mod: %v", writeErr)
+		}
+		if writeErr := os.WriteFile(filepath.Join(dir, "dial_test.go"), []byte(contractW1bDialSource), 0o644); writeErr != nil {
+			t.Fatalf("T10: write dial_test.go: %v", writeErr)
 		}
 	}
 	var out testrun.Outcome
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		out, err = c.Run(context.Background(), contractW1bRequest("F-T10", "TestDial", "go run dial.go", base, change))
+		out, err = c.Run(context.Background(), contractW1bRequest("F-T10", "TestDial", base, change))
 	}()
 	select {
 	case <-done:
@@ -272,10 +276,10 @@ func contractW1bContainer(t *testing.T, cfg testrun.ContainerConfig, runtime, wh
 	return c
 }
 
-func contractW1bArgv(t *testing.T, cfg testrun.ContainerConfig, runtime, dir, command, why string) []string {
+func contractW1bArgv(t *testing.T, cfg testrun.ContainerConfig, runtime, dir, why string) []string {
 	t.Helper()
 	c := contractW1bContainer(t, cfg, runtime, why)
-	return c.Argv(dir, command)
+	return c.Argv(dir, []string{"go", "test", "-run", "^TestOne$", "./pkg"})
 }
 
 func contractW1bFound(runtime string) func(string) (string, error) {
@@ -284,12 +288,11 @@ func contractW1bFound(runtime string) func(string) (string, error) {
 	}
 }
 
-func contractW1bRequest(id, name, command, base, change string) testrun.Request {
+func contractW1bRequest(id, name, base, change string) testrun.Request {
 	return testrun.Request{
 		FindingID: id,
 		Path:      "contract_test.go",
 		Name:      name,
-		Command:   command,
 		BaseDir:   base,
 		ChangeDir: change,
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // With only the token set, every other setting takes its documented default.
@@ -59,12 +60,50 @@ func TestLoadRefusesAZeroTimeout(t *testing.T) {
 	}
 }
 
-// A live generator without a token is refused, and the refusal prints no value.
-// Mutated field: METERLESS_RUNTIME_TOKEN. Empty, so the error must not invent one.
-func TestLoadRefusesAMissingToken(t *testing.T) {
+// An empty token names Nightshift down. It is not a configuration refusal,
+// and the error does not invent a value.
+// Mutated field: METERLESS_RUNTIME_TOKEN, set to empty.
+func TestLoadNamesAnEmptyTokenDown(t *testing.T) {
 	_, err := generator.Load(func(string) string { return "" })
+	d, ok := service.As(err)
+	if !ok || d.Service != "nightshift" || !strings.Contains(d.Reason, generator.EnvToken) {
+		t.Fatalf("%v", err)
+	}
+	if _, isCfg := err.(*generator.ConfigError); isCfg {
+		t.Fatal("an empty token was refused as configuration")
+	}
+}
+
+// A token that contains a line break is still refused, and the refusal prints
+// no value. Mutated field: METERLESS_RUNTIME_TOKEN, set to a non-empty value
+// with a line break.
+func TestLoadRefusesATokenWithALineBreak(t *testing.T) {
+	_, err := generator.Load(func(k string) string {
+		if k == generator.EnvToken {
+			return "not-a-secret\n"
+		}
+		return ""
+	})
 	cfg := configErr(t, err)
 	if cfg.Field != generator.EnvToken || cfg.Value != "" {
+		t.Fatalf("%#v", cfg)
+	}
+	if strings.Contains(err.Error(), "not-a-secret") {
+		t.Fatal("the refusal printed the token")
+	}
+}
+
+// A bad base URL is still refused when the token is empty.
+// Mutated field: PROVEN_GENERATOR_BASE_URL. The empty token must not hide it.
+func TestLoadRefusesABadBaseWhenTheTokenIsEmpty(t *testing.T) {
+	_, err := generator.Load(func(k string) string {
+		if k == generator.EnvBaseURL {
+			return "not a url"
+		}
+		return ""
+	})
+	cfg := configErr(t, err)
+	if cfg.Field != generator.EnvBaseURL {
 		t.Fatalf("%#v", cfg)
 	}
 }

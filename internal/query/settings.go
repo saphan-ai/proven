@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Environment variables of the live Zetaris adapter. The set is closed.
@@ -45,7 +46,7 @@ func Environment() []envdoc.Setting {
 			Name:        EnvAPIKey,
 			Default:     "none (required live)",
 			Secret:      true,
-			Description: "Proven's Zetaris key. Secret: never printed",
+			Description: "Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it",
 		},
 		{
 			Name:        EnvOrgID,
@@ -66,7 +67,8 @@ func Environment() []envdoc.Setting {
 }
 
 // ConfigError names a refused Zetaris setting and the values that are allowed.
-// The API key's Value is always empty: a refusal does not print the secret.
+// The Value of the API key and of the organisation id is always empty: a
+// refusal names the variable and the rule, and does not print either.
 type ConfigError struct {
 	Field   string
 	Value   string
@@ -107,24 +109,38 @@ func Load(env func(string) string) (Settings, error) {
 	if env == nil {
 		env = func(string) string { return "" }
 	}
+	// ADR-0013 point 4a: an empty URL, key or organisation id means Zetaris is
+	// down, not that the review is refused. A value that is set but wrong is
+	// still refused. The first empty one is named after every set value has
+	// been checked, so a bad value is never hidden behind an empty one.
+	var missing string
 	base := strings.TrimSpace(env(EnvRESTURL))
 	if base == "" {
-		return Settings{}, refuse(EnvRESTURL, "", "the live query adapter needs a base URL", "an absolute http or https URL with no user info, query or fragment")
+		missing = EnvRESTURL
+	} else {
+		var err error
+		base, err = checkBase(base)
+		if err != nil {
+			return Settings{}, err
+		}
 	}
-	base, err := checkBase(base)
-	if err != nil {
-		return Settings{}, err
-	}
-	// The key is checked for presence, length and line breaks only. A line break
-	// would split the Authorization header.
+	// A line break or an over-long key is a wrong value, refused before any
+	// review. The value is not echoed: it is a secret. An empty key is a down
+	// service, decided after the other settings so a bad URL is still refused.
 	key := env(EnvAPIKey)
-	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
+	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
 		return Settings{}, refuse(EnvAPIKey, "", "the live query adapter needs an API key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
 	// ADR-0023, point 6: the organisation id is the numeric id Zetaris issues.
 	org := strings.TrimSpace(env(EnvOrgID))
-	if !orgID(org) {
-		return Settings{}, refuse(EnvOrgID, clip(org), "not an organisation id", "a non-empty string of digits, at most 18 characters")
+	if org == "" {
+		if missing == "" {
+			missing = EnvOrgID
+		}
+	} else if !orgID(org) {
+		// ADR-0013 point 4: the id identifies Proven's account, so a refusal names the variable and
+		// the rule and says the value is withheld, as it does for the key.
+		return Settings{}, refuse(EnvOrgID, "", "not an organisation id; the value is not printed", "a non-empty string of digits, at most 18 characters")
 	}
 	// The row limit is bounded, so one query cannot pull a whole source into the
 	// review.
@@ -144,13 +160,21 @@ func Load(env func(string) string) (Settings, error) {
 		}
 		timeout = d
 	}
+	// ADR-0013 point 4a: an empty key means Zetaris is down. The review goes
+	// on and names it. The reason names the variable and not the value.
+	if missing == "" && strings.TrimSpace(key) == "" {
+		missing = EnvAPIKey
+	}
+	if missing != "" {
+		return Settings{}, &service.Down{Service: "zetaris", Reason: missing + " is empty"}
+	}
 	return Settings{BaseURL: base, APIKey: key, OrgID: org, RowLimit: limit, Timeout: timeout}, nil
 }
 
-// refuse builds a ConfigError. The key's value is blanked here, in one place,
-// so no caller can print it.
+// refuse builds a ConfigError. The value of the key and of the organisation id
+// is blanked here, in one place, so no caller can print it.
 func refuse(field, value, reason, allowed string) *ConfigError {
-	if field == EnvAPIKey {
+	if field == EnvAPIKey || field == EnvOrgID {
 		value = ""
 	}
 	return &ConfigError{Field: field, Value: value, Reason: reason, Allowed: []string{allowed}}

@@ -11,10 +11,19 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/service"
 )
+
+// liveBuilt counts live clients NewLive has constructed in this process.
+var liveBuilt atomic.Int64
+
+// LiveBuilt is how many live clients NewLive has constructed.
+// A sample review leaves it unchanged.
+func LiveBuilt() int64 { return liveBuilt.Load() }
 
 // Live runs one SELECT on Zetaris over the SQL-editor route the 2026-10-21
 // measurement proved: POST {base}/sql-editor/sqls/run. ADR-0015, point 4 asks
@@ -32,6 +41,7 @@ type Live struct {
 // follow redirects, so the API key is not sent to another host.
 // The timeout of that client is the query timeout from Settings.
 func NewLive(cfg Settings, client *http.Client) *Live {
+	liveBuilt.Add(1)
 	if client == nil {
 		client = &http.Client{
 			Timeout: cfg.Timeout,
@@ -172,15 +182,43 @@ func (l *Live) Query(ctx context.Context, sql string) (Result, error) {
 	}, nil
 }
 
-// oneSelect reports whether sql is exactly one statement that starts with
-// SELECT. It splits on semicolons outside strings, so a second statement
-// cannot ride behind the first.
+// oneSelect reports whether sql is one statement that starts with SELECT, read
+// strictly enough that no dialect's comment or escape rule can hide a second
+// statement. ADR-0032: this is the second check. The first is that Proven
+// builds every query from a template (internal/querytpl), and a built query
+// passes this gate by construction; the gate holds for a statement from any
+// other caller, such as the liveness probe.
+//
+// A text is refused when it holds a backslash or a control byte anywhere,
+// invalid UTF-8, a quote that never closes, or, outside a string literal, a
+// semicolon or the start of a comment. Refusing the backslash outright, rather
+// than reading it as an escape in one dialect and a plain byte in another,
+// means the engine and this gate cannot disagree on where a literal ends.
 func oneSelect(sql string) bool {
-	stmts := splitStatements(sql)
-	if len(stmts) != 1 {
+	if !utf8.ValidString(sql) {
 		return false
 	}
-	fields := strings.Fields(stmts[0])
+	inLiteral := false
+	for i := 0; i < len(sql); i++ {
+		c := sql[i]
+		if c == '\\' || c < 0x20 && c != '\n' && c != '\r' && c != '\t' || c == 0x7f {
+			return false
+		}
+		if c == '\'' {
+			inLiteral = !inLiteral
+			continue
+		}
+		if inLiteral {
+			continue
+		}
+		if c == ';' || strings.HasPrefix(sql[i:], "--") || strings.HasPrefix(sql[i:], "/*") {
+			return false
+		}
+	}
+	if inLiteral {
+		return false
+	}
+	fields := strings.Fields(sql)
 	return len(fields) > 0 && strings.EqualFold(fields[0], "SELECT")
 }
 

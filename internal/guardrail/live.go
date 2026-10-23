@@ -9,8 +9,17 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
+
+// liveBuilt counts live clients New has constructed in this process.
+// Mode off does not construct one.
+var liveBuilt atomic.Int64
+
+// LiveBuilt is how many live guardrail clients New has constructed.
+// A sample review leaves it unchanged.
+func LiveBuilt() int64 { return liveBuilt.Load() }
 
 // maxBody is the most of one guardrail completion this adapter will read.
 const maxBody = 1 << 20
@@ -37,6 +46,7 @@ func New(cfg Settings, httpClient *http.Client) (Adapter, error) {
 		if cfg.Key == "" || cfg.BaseURL == "" || cfg.Model == "" || cfg.Timeout <= 0 {
 			return nil, Refuse("not configured")
 		}
+		liveBuilt.Add(1)
 		c := newClient(cfg, httpClient)
 		if cfg.Mode == ModeNVIDIA {
 			return &NVIDIA{c: c}, nil

@@ -16,6 +16,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -24,6 +25,7 @@ func TestLiveContainerSettingIsRefused(t *testing.T) {
 	p, err := Build(Options{
 		LogDir:   t.TempDir(),
 		GuardOff: true,
+		Redactor: redact.New(nil),
 		Env: func(k string) string {
 			if k == testrun.EnvMemory {
 				return "lots"
@@ -73,8 +75,8 @@ func TestUnplugLiveTestRunNamesProverOff(t *testing.T) {
 	}
 }
 
-// Mutated fixture field: tables.sql. An INSERT is added for package billing/note,
-// the row F3's recorded query selects.
+// Mutated fixture field: tables.sql. An OSV row is added for package billing/note,
+// the package F3's recorded template request names.
 func TestNegativeControl_F3RecordedQueryRow(t *testing.T) {
 	dir := copyFixture(t)
 	sql := filepath.Join(dir, "tables.sql")
@@ -82,7 +84,7 @@ func TestNegativeControl_F3RecordedQueryRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteString("INSERT INTO advisories VALUES ('billing/note', 'change', 'CVE-2026-0099', 'false');\n"); err != nil {
+	if _, err := f.WriteString("INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-px-note-0001', 'CVE-2026-0099', 'Go', 'billing/note', '0', '1.0.0', '', 'LOW', '2026-04-01');\n"); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.Close(); err != nil {
@@ -107,7 +109,7 @@ func TestNegativeControl_F3RecordedQueryRow(t *testing.T) {
 	if len(f3.Evidence) != 1 || f3.Evidence[0].Query == nil || len(f3.Evidence[0].Query.Rows) != 1 {
 		t.Fatalf("%#v", f3.Evidence)
 	}
-	if f3.Evidence[0].Query.Rows[0][0] != "billing/note" {
+	if f3.Evidence[0].Query.Rows[0][3] != "billing/note" {
 		t.Fatalf("row %#v", f3.Evidence[0].Query.Rows)
 	}
 }
@@ -213,20 +215,21 @@ func traceSays(t *testing.T, path, id, kind, text string) bool {
 	return false
 }
 
-// Mutated field: the version column of the advisories sample row.
-// It changes from 1.2.3, the version the advisory covers, to 9.9.9.
-func TestNegativeControl_VersionTheAdvisoryDoesNotCover(t *testing.T) {
+// Mutated field: the package column of the OSV sample rows for leftpad. It
+// changes to a package the change does not require, so F2's template request
+// (osv-by-package for evil.example/leftpad) returns no row.
+func TestNegativeControl_PackageTheAdvisoryDoesNotName(t *testing.T) {
 	dir := copyFixture(t)
 	path := filepath.Join(dir, "tables.sql")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	const covered = "'1.2.3'"
-	if bytes.Count(b, []byte(covered)) != 1 {
-		t.Fatalf("version occurrences %d", bytes.Count(b, []byte(covered)))
+	const named = "'Go', 'evil.example/leftpad'"
+	if bytes.Count(b, []byte(named)) != 2 {
+		t.Fatalf("package occurrences %d", bytes.Count(b, []byte(named)))
 	}
-	next := bytes.Replace(b, []byte(covered), []byte("'9.9.9'"), 1)
+	next := bytes.ReplaceAll(b, []byte(named), []byte("'Go', 'evil.example/other'"))
 	if err := os.WriteFile(path, next, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +239,7 @@ func TestNegativeControl_VersionTheAdvisoryDoesNotCover(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := kept(d, "F2"); ok {
-		t.Fatal("F2 must be absent when the advisory does not cover version 1.2.3")
+		t.Fatal("F2 must be absent when the OSV table has no row for its package")
 	}
 	if _, ok := kept(d, "F1"); !ok {
 		t.Fatal("F1 must stay")
@@ -246,13 +249,14 @@ func TestNegativeControl_VersionTheAdvisoryDoesNotCover(t *testing.T) {
 	}
 }
 
-// Mutated field: cve_id on the EPSS sample row that was CVE-2026-0001.
-// After the change the CVE is absent from the EPSS side of the inner join.
-func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) {
+// Mutated field: cve_id on the KEV sample row that was CVE-2026-0001. After the
+// change the CVE is absent from the KEV view that F5's kev-by-cve template
+// request reads, and the review must not read that as "not exploited".
+func TestNegativeControl_CVEAbsentFromKEVIsNotCalledNotExploited(t *testing.T) {
 	dir := copyFixture(t)
-	const title = "Join of KEV and EPSS for CVE-2026-0001"
-	const sqlText = "SELECT k.cve_id, k.vendor_project, k.product, k.date_added, e.epss, e.percentile FROM px_evidence.px_kev_vulns k JOIN px_evidence.px_epss_cve_rows e ON k.cve_id = e.cve_id WHERE k.cve_id = 'CVE-2026-0001'"
-	if err := addJoinFinding(dir, title, sqlText); err != nil {
+	const title = "KEV entry for CVE-2026-0001"
+	const answer = `{"template":"kev-by-cve","params":{"cve_id":"CVE-2026-0001"}}`
+	if err := addQueryFinding(dir, title, answer); err != nil {
 		t.Fatal(err)
 	}
 	p := buildSample(t, t.TempDir(), nil)
@@ -262,7 +266,7 @@ func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) 
 	}
 	f5, ok := kept(before, "F5")
 	if !ok || len(f5.Evidence) != 2 || f5.Evidence[0].Query == nil || len(f5.Evidence[0].Query.Rows) != 1 {
-		t.Fatal("the join must keep F5 while the CVE is on both sides")
+		t.Fatal("the KEV row must keep F5 while the CVE is in the KEV view")
 	}
 	if f5.Evidence[1].Query == nil || len(f5.Evidence[1].Query.Rows) != 1 || f5.Evidence[1].Query.Rows[0][1] != "0.50000" {
 		t.Fatalf("EPSS row %#v", f5.Evidence[1])
@@ -275,10 +279,10 @@ func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	from := []byte("INSERT INTO px_evidence.px_epss_cve_rows VALUES ('CVE-2026-0001'")
-	to := []byte("INSERT INTO px_evidence.px_epss_cve_rows VALUES ('CVE-0000-0000'")
+	from := []byte("INSERT INTO px_evidence.px_kev_vulns VALUES ('CVE-2026-0001'")
+	to := []byte("INSERT INTO px_evidence.px_kev_vulns VALUES ('CVE-0000-0000'")
 	if bytes.Count(b, from) != 1 {
-		t.Fatal("the EPSS row for CVE-2026-0001 was not found once")
+		t.Fatal("the KEV row for CVE-2026-0001 was not found once")
 	}
 	if err := os.WriteFile(tables, bytes.Replace(b, from, to, 1), 0o644); err != nil {
 		t.Fatal(err)
@@ -289,7 +293,7 @@ func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) 
 		t.Fatal(err)
 	}
 	if _, ok := kept(after, "F5"); ok {
-		t.Fatal("F5 must be absent when the CVE is missing from EPSS")
+		t.Fatal("F5 must be absent when the CVE is missing from the KEV view")
 	}
 	if !traceSays(t, after.TracePath, "F5", "verdict", "dropped: no evidence") {
 		t.Fatal("F5 was not dropped for lack of evidence")
@@ -299,7 +303,7 @@ func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) 
 		t.Fatal(err)
 	}
 	if bytes.Contains(bytes.ToLower(raw), []byte("not exploited")) {
-		t.Fatal("the review read a missing join row as not exploited")
+		t.Fatal("the review read a missing KEV row as not exploited")
 	}
 	for _, c := range after.Findings {
 		if strings.Contains(strings.ToLower(c.Message), "not exploited") || strings.Contains(strings.ToLower(c.Title), "not exploited") {
@@ -308,7 +312,9 @@ func TestNegativeControl_CVEAbsentFromEPSSIsNotCalledNotExploited(t *testing.T) 
 	}
 }
 
-func addJoinFinding(dir, title, sqlText string) error {
+// addQueryFinding adds a finding F5 to the fixture in dir, with the recorded
+// Investigator answer given as JSON (a template and its values).
+func addQueryFinding(dir, title, answer string) error {
 	path := filepath.Join(dir, "fixture.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -334,7 +340,7 @@ func addJoinFinding(dir, title, sqlText string) error {
 	}
 	risks = append(risks, map[string]any{
 		"id": "F5", "rule_id": "kev-epss-join", "title": title,
-		"message":    "The inner join returned a row for the CVE.",
+		"message":    "The KEV view returned a row for the CVE.",
 		"severity":   "ERROR",
 		"path":       "go.mod",
 		"start_line": 5,
@@ -350,7 +356,7 @@ func addJoinFinding(dir, title, sqlText string) error {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
 			Response string `json:"response"`
-		}{Agent: "investigator", Prompt: investigator.Prompt("F5", title, "go.mod"), Response: `{"sql":"` + sqlText + `"}`},
+		}{Agent: "investigator", Prompt: investigator.Prompt("F5", title, "go.mod"), Response: answer},
 		struct {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
@@ -431,13 +437,13 @@ func (d *dirProbe) Run(ctx context.Context, req testrun.Request) (testrun.Outcom
 func TestCheckoutRunFillsEmptyDirectories(t *testing.T) {
 	probe := &dirProbe{}
 	a := checkoutRun{inner: probe, base: "/tmp/base", change: "/tmp/change"}
-	if _, err := a.Run(context.Background(), testrun.Request{Command: "go test ./billing"}); err != nil {
+	if _, err := a.Run(context.Background(), testrun.Request{Path: "billing/discount_test.go", Name: "TestDiscounted"}); err != nil {
 		t.Fatal(err)
 	}
 	if probe.req.BaseDir != "/tmp/base" || probe.req.ChangeDir != "/tmp/change" {
 		t.Fatalf("%#v", probe.req)
 	}
-	if _, err := a.Run(context.Background(), testrun.Request{Command: "go test", BaseDir: "/already", ChangeDir: "/set"}); err != nil {
+	if _, err := a.Run(context.Background(), testrun.Request{Path: "billing/discount_test.go", Name: "TestDiscounted", BaseDir: "/already", ChangeDir: "/set"}); err != nil {
 		t.Fatal(err)
 	}
 	if probe.req.BaseDir != "/already" || probe.req.ChangeDir != "/set" {
@@ -458,7 +464,6 @@ func TestWrittenLimitFromOptionsRefusesBeforeTheRun(t *testing.T) {
 	body := "package billing\n\nimport \"testing\"\n\nfunc TestExtra(t *testing.T) {\n\tif Discounted(100, 20) != 80 {\n\t\tt.Fatal(Discounted(100, 20))\n\t}\n}\n"
 	raw, err := json.Marshal(map[string]string{
 		"path": "billing/extra_test.go", "content": body, "name": "TestExtra",
-		"command": "go test ./billing -run TestExtra",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -529,7 +534,7 @@ func TestKEVFindingGetsItsEPSSRow(t *testing.T) {
 	}
 }
 
-// Mutated field: the advisories row F3's query selects. Its CVE is not in
+// Mutated field: the OSV row F3's template request selects. Its CVE is not in
 // the EPSS view, so the finding stays and no score is attached.
 func TestCVEWithNoEPSSRowAttachesNothing(t *testing.T) {
 	dir := copyFixture(t)
@@ -538,7 +543,7 @@ func TestCVEWithNoEPSSRowAttachesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteString("INSERT INTO advisories VALUES ('billing/note', 'change', 'CVE-2026-0099', 'false');\n"); err != nil {
+	if _, err := f.WriteString("INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-px-note-0001', 'CVE-2026-0099', 'Go', 'billing/note', '0', '1.0.0', '', 'LOW', '2026-04-01');\n"); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.Close(); err != nil {
@@ -634,7 +639,6 @@ func TestWrittenTestThatPassesOnBothIsNamedInTheTrace(t *testing.T) {
 	body := "package billing\n\nimport \"testing\"\n\nfunc TestExtra(t *testing.T) {\n\tif Discounted(100, 20) != 80 {\n\t\tt.Fatal(Discounted(100, 20))\n\t}\n}\n"
 	raw, err := json.Marshal(map[string]string{
 		"path": "billing/extra_test.go", "content": body, "name": "TestExtra",
-		"command": "go test ./billing -run TestExtra",
 	})
 	if err != nil {
 		t.Fatal(err)

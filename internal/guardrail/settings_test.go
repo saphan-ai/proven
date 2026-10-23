@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // With only the key set, the guardrail is on with the server backend and its defaults.
@@ -115,13 +116,35 @@ func TestLoadRefusesAZeroTimeout(t *testing.T) {
 	}
 }
 
-// A guardrail that is on without a key is refused, and the refusal prints no value.
-// Mutated field: PROVEN_GUARDRAIL_KEY. Empty, so the error must not invent one.
-func TestLoadRefusesAMissingKey(t *testing.T) {
+// An empty key names the guardrail down. It is not mode off, and it is not a
+// configuration refusal. Mutated field: PROVEN_GUARDRAIL_KEY, set to empty.
+func TestLoadNamesAnEmptyKeyDown(t *testing.T) {
 	_, err := guardrail.Load(func(string) string { return "" })
+	d, ok := service.As(err)
+	if !ok || d.Service != guardrail.Service || !strings.Contains(d.Reason, guardrail.EnvKey) {
+		t.Fatalf("%v", err)
+	}
+	if _, isCfg := err.(*guardrail.ConfigError); isCfg {
+		t.Fatal("an empty key was refused as configuration")
+	}
+}
+
+// A key that contains a line break is still refused, and the refusal prints
+// no value. Mutated field: PROVEN_GUARDRAIL_KEY, set to a non-empty value
+// with a line break.
+func TestLoadRefusesAKeyWithALineBreak(t *testing.T) {
+	_, err := guardrail.Load(func(k string) string {
+		if k == guardrail.EnvKey {
+			return "not-a-secret\n"
+		}
+		return ""
+	})
 	cfg := configErr(t, err)
 	if cfg.Field != guardrail.EnvKey || cfg.Value != "" {
 		t.Fatalf("%#v", cfg)
+	}
+	if strings.Contains(err.Error(), "not-a-secret") {
+		t.Fatal("the refusal printed the key")
 	}
 }
 

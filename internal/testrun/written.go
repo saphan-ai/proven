@@ -19,7 +19,6 @@ const (
 	ReasonNotATestFile = "not a test file"
 	ReasonOverwrites   = "overwrites a non-test file"
 	ReasonTooLarge     = "content over the size limit"
-	ReasonEmptyCommand = "empty command"
 )
 
 // RefuseWritten reports why a written test must not run. It guards the one
@@ -27,11 +26,11 @@ const (
 // file inside the repository, must not replace a non-test file, and must stay
 // under the size limit.
 // An empty reason means the request may run. maxBytes <= 0 uses the default.
-// The check looks at the path, the command, the size and the two checkouts.
+// The check looks at the name, the path, the size and the two checkouts.
 // It does not write a file and it does not start a runtime.
-func RefuseWritten(path, content, command, baseDir, changeDir string, maxBytes int) string {
-	if strings.TrimSpace(command) == "" {
-		return ReasonEmptyCommand
+func RefuseWritten(path, content, name, baseDir, changeDir string, maxBytes int) string {
+	if !namePattern.MatchString(name) {
+		return ReasonBadName
 	}
 	if filepath.IsAbs(path) {
 		return ReasonAbsolutePath
@@ -55,7 +54,8 @@ func RefuseWritten(path, content, command, baseDir, changeDir string, maxBytes i
 	if !isGoTestFile(path) {
 		return ReasonNotATestFile
 	}
-	return ""
+	// The directory of the file becomes an argument of go test (TestArgv).
+	return refusePackage(path)
 }
 
 // pathLeaves reports whether path has a ".." segment or cleans to a path above the root.
