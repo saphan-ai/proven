@@ -57,12 +57,15 @@ func TestUnknownArgumentIsRefused(t *testing.T) {
 	}
 }
 
-// TestNoSettingsNamesEveryServiceNotReady proves that with no settings and no
-// runtime on PATH every service is named not ready, and the exit code is 1.
+// TestNoSettingsNamesEveryServiceNotReady proves that with no usable service
+// and no runtime on PATH every service is named not ready, and that a secret
+// set in the environment is absent from every printed line.
+// Mutated field: the printed text. Printing one of the secrets makes this red.
+// An empty environment cannot: the secret strings are not there to print.
 func TestNoSettingsNamesEveryServiceNotReady(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	var stdout, stderr bytes.Buffer
-	code := run(nil, &stdout, &stderr, emptyEnv)
+	code := run(nil, &stdout, &stderr, envWithSecrets)
 	if code != 1 {
 		t.Fatalf("exit %d\n%s", code, stdout.String())
 	}
@@ -285,6 +288,25 @@ func TestBadContainerMemoryIsRefusedByName(t *testing.T) {
 
 // emptyEnv is an environment with nothing set.
 func emptyEnv(string) string { return "" }
+
+// envWithSecrets sets the three secrets and base URLs that Load refuses, so
+// each service stops before a dial and a printed secret can fail the test.
+func envWithSecrets(k string) string {
+	switch k {
+	case generator.EnvToken:
+		return fakeToken
+	case generator.EnvBaseURL:
+		return "not-a-url"
+	case guardrail.EnvKey:
+		return fakeKey
+	case guardrail.EnvBaseURL:
+		return "not-a-url"
+	case query.EnvAPIKey:
+		return fakeZKey
+	default:
+		return ""
+	}
+}
 
 // world is a set of fake services: the generator, the guardrail, Zetaris and
 // a container runtime script. It counts the calls each one gets.

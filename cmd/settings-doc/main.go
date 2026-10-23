@@ -1,5 +1,6 @@
 // Command settings-doc writes the environment tables of docs/CONFIGURATION.md
-// from the settings the packages declare.
+// from the settings the packages declare. A table envdoc.Check rejects is
+// refused, and the page is not written.
 //
 // Run it, or go generate in internal/settingspage, after a setting changes.
 // ADR-0013: every setting and its default are listed in one place.
@@ -36,7 +37,7 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	next, err := envdoc.Apply(string(body), envdoc.Render(settingspage.Catalog()))
+	next, err := applyCatalog(settingspage.Catalog(), string(body))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -57,6 +58,16 @@ func run(args []string) int {
 	}
 	fmt.Println(path)
 	return 0
+}
+
+// applyCatalog renders sections into body. Check runs first: a pipe or a
+// newline in a cell would otherwise be written, and only a later test would
+// notice. A refused catalog does not change the page.
+func applyCatalog(sections []envdoc.Section, body string) (string, error) {
+	if err := envdoc.Check(sections); err != nil {
+		return "", err
+	}
+	return envdoc.Apply(body, envdoc.Render(sections))
 }
 
 // moduleRoot walks up from the working directory to go.mod, so the command
