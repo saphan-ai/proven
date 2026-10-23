@@ -1,6 +1,6 @@
-// Package cli is Proven's command-line shell.
 // This file writes one review result as a SARIF 2.1.0 log (ADR-0020 §1).
 // Where each field sits is the contract in docs/OUTPUT_FORMATS.md.
+
 package cli
 
 import (
@@ -96,6 +96,8 @@ func sarifFrom(result review.Result) sarifLog {
 	// to the run: they are the review's own gaps, not a finding.
 	// results and failed_services are empty arrays when nothing is there.
 	// A nil slice would marshal as null, and the contract says [].
+	// The lines the text output prints beside the findings ride in the run's
+	// properties too, so a SARIF-only consumer loses none of them.
 	return sarifLog{
 		Schema:  sarifSchemaURI,
 		Version: "2.1.0",
@@ -107,6 +109,12 @@ func sarifFrom(result review.Result) sarifLog {
 				"class_rule":      result.ClassRule,
 				"partial":         result.Partial,
 				"failed_services": services,
+
+				"settings_statement":     result.SettingsStatement,
+				"author_model_statement": result.AuthorModelStatement,
+				"reviewer_statements":    stringSlice(result.ReviewerStatements),
+				"trace_path":             result.TracePath,
+				"family_sentence":        familySentence(result.TracePath),
 			},
 		}},
 	}
@@ -192,6 +200,8 @@ func sarifMessageText(finding review.Finding) string {
 
 // artifactURI makes a SARIF artifact URI from a path.
 // Each segment is escaped on its own so "/" stays the separator.
+// A ":" in the first segment is escaped too: url.PathEscape leaves it, and
+// "a:b/c" would read as a URI with scheme "a" (RFC 3986 §4.2).
 // An empty path returns empty, and the result then has no location:
 // there is no artifact to point at.
 func artifactURI(path string) string {
@@ -203,5 +213,6 @@ func artifactURI(path string) string {
 	for i, part := range parts {
 		parts[i] = url.PathEscape(part)
 	}
+	parts[0] = strings.ReplaceAll(parts[0], ":", "%3A")
 	return strings.Join(parts, "/")
 }

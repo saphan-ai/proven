@@ -1,7 +1,7 @@
-// Package cli is Proven's command-line shell.
 // This file is the JSON writer of ADR-0020 §1. The field names are the
 // contract in docs/OUTPUT_FORMATS.md. A later step reads the same document
 // from json-file.
+
 package cli
 
 import (
@@ -44,6 +44,7 @@ type jsonDocument struct {
 	SpecialReviewer      string            `json:"special_reviewer"`
 	ReviewerModels       []string          `json:"reviewer_models"`
 	TracePath            string            `json:"trace_path"`
+	FamilySentence       string            `json:"family_sentence"`
 	Models               []jsonModelUse    `json:"models"`
 	FailedServices       []jsonService     `json:"failed_services"`
 	Findings             []jsonFinding     `json:"findings"`
@@ -151,6 +152,7 @@ func documentFrom(result review.Result) jsonDocument {
 		SpecialReviewer:      result.SpecialReviewer,
 		ReviewerModels:       stringSlice(result.ReviewerModels),
 		TracePath:            result.TracePath,
+		FamilySentence:       familySentence(result.TracePath),
 		Models:               uses,
 		FailedServices:       services,
 		Findings:             findings,
