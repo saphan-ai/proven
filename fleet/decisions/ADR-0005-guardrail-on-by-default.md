@@ -23,6 +23,11 @@ NVIDIA also serves the model on its hosted API, on the same endpoint as the Skep
 2. **One guardrail adapter, two backends:** our own model server, and NVIDIA's hosted API. Our runs use either; a judge with an NVIDIA key uses the hosted one.
 3. **A setting turns the guardrail off**, for anyone with neither. The trace says that the run had no guardrail.
 4. **An `unsafe` verdict stops that step** and is written to the trace with its categories. It is never silently dropped.
+5. **A guardrail that is down never lets a model call through unchecked** (the owner, 2026-10-23). In live mode, when
+   the guardrail's key is empty or its server cannot be reached, every model call is refused and the trace says why;
+   the review names the guardrail in its failed services. Only the setting `PROVEN_GUARDRAIL_MODE=off` turns the
+   guardrail off, on purpose, and the trace then says the run had no guardrail (point 3). A missing key is never read as
+   "off".
 
 ## Consequences
 
