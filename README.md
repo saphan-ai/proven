@@ -20,7 +20,11 @@ That work led to patent applications, filed in the U.S. and Europe and still pen
 
 Now that fleet takes on something new. At the hackathon it will build **Proven**, an open-source tool for checking code of the kind it writes itself.
 
-## Where things stand: end of day 2, 23 October 2026
+## Where things stand
+
+Updated every evening. The newest day comes first.
+
+### Day two, 23 October
 
 Day two of six is behind us. **Eighteen more changes were merged** (35 in two days), each written by an agent, checked again by its master on a clean checkout, and approved by Marcin; the larger ones were also reviewed by two models other than the one that wrote them.
 
