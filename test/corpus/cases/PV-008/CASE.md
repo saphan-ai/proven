@@ -89,9 +89,9 @@ In `expected/EXPECTED.md`.
 Run the check on base and on change and record each line of its output.
 
 - run: 2026-10-23, 09:14 UTC, on Linux. A macOS run is not available on this seat.
-- toolchain: `go version go1.26.5 linux/amd64`, standard library only; Go module `pv008` in `tests/corpus/cases/PV-008/`
+- toolchain: `go version go1.26.5 linux/amd64`, standard library only; Go module `pv008` in `test/corpus/cases/PV-008/`
   with packages `base`, `change`, `reference` and `check`. Node is not on this host's path and was not needed.
-- command, from the repository root: `bash tests/corpus/cases/PV-008/check.sh` (runs `go run ./check`).
+- command, from the repository root: `bash test/corpus/cases/PV-008/check.sh` (runs `go run ./check`).
 - wait limit per observation: 1 s, including entry into stop, subscription, state read, frame read and second close. The reference bounds the stop at 100 ms.
 - output (columns: input | base | change | reference):
 
@@ -103,8 +103,8 @@ wedged-stop-then-second-close | returned | blocked | returned
 ```
 
 - exit code: 0.
-- negative controls: `go -C tests/corpus/cases/PV-008 test -count=1 ./check` and
-  `go -C tests/corpus/cases/PV-008 test -race -count=1 ./check` both exited 0 on Linux.
+- negative controls: `go -C test/corpus/cases/PV-008 test -count=1 ./check` and
+  `go -C test/corpus/cases/PV-008 test -race -count=1 ./check` both exited 0 on Linux.
   The held-lock control returns `subscribe:blocked`, a blocked state observation and a blocked second close.
   A close that never enters stop returns `stop-not-entered`. These are named failures, not values in the four-line run.
 - reach: `no-frame` and `blocked` mean no result within 1 s. The output alone cannot distinguish an unbounded stop
