@@ -141,6 +141,24 @@ Every public push is tagged, so you can see exactly what existed before the buil
 
 **Found a vulnerability?** Please report it privately: [Report a vulnerability](https://github.com/saphan-ai/proven/security/advisories/new) on this repository's Security tab (GitHub's private vulnerability reporting is on). Not in a public issue. See [SECURITY.md](SECURITY.md).
 
+## Repository layout
+
+The repository holds two things: **the product**, and **the record of how it was built in the hackathon week**. On
+25 October the record moves into one folder, `hackathon/`, so that after the hackathon the product stands on its own
+([ADR-0030](fleet/decisions/ADR-0030-the-product-and-the-hackathon-live-apart.md)).
+
+| Today | What it is | From 25 October |
+|---|---|---|
+| `cmd/`, `internal/` | Proven's code: the command line and the reviewer | unchanged |
+| `docs/` | how to install, run and configure Proven | unchanged, plus `docs/adr/` and `docs/security/` |
+| `fleet/decisions/` | the design decisions (ADRs) | `docs/adr/` |
+| `SECURITY.md`, `SECURITY_REVIEW.md` | what Proven protects, and how its code is reviewed for security | `SECURITY.md` stays; the review moves to `docs/security/` |
+| `tests/`, `conformance/` | the test corpus and the Meterless conformance runner | `test/corpus/`, `test/conformance/` |
+| `testdata/`, `demo/`, `assets/` | sample scenarios, the live demo, images | unchanged |
+| `fleet/` (orders, status, reviews, messages, infra, ledger) | the build week's record: every change's order, report, review and cost | `hackathon/fleet/` |
+| `planning/`, `SAPHAN.md`, `DESIGN.md` | how the topic was chosen, the daily conversations, the fleet, the plan of 20 October | `hackathon/` |
+| `metadata.json`, `metadata.schema.json` | the hackathon's submission metadata | stay at the root until the hackathon ends |
+
 ## For technical readers
 
 | | |
