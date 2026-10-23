@@ -309,8 +309,10 @@ usage:
 TARGET defaults to ".". proven ci reads GITHUB_EVENT_PATH, GITHUB_SHA and
 GITHUB_BASE_REF. When no baseline flag or variable is set, the baseline is
 the merge base of the pull request base and the head. With no baseline
-commit, no event base SHA and no GITHUB_BASE_REF, ci exits 2. A base that
-cannot be resolved is exit 2: Proven could not review.
+commit, no event base SHA and no GITHUB_BASE_REF, ci exits 2.
+With no head commit, ci exits 2: set GITHUB_SHA, or GITHUB_EVENT_PATH
+with a head SHA. A base that cannot be resolved is exit 2: Proven could
+not review.
 
 flags:
   --text, --json, --sarif
