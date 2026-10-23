@@ -20,7 +20,7 @@ const secretMarker = "hardening-marker-5b1e"
 // turns the capability assertion red.
 func TestArgvHardensTheContainer(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
-	argv := c.Argv(t.TempDir(), "go test ./...")
+	argv := c.Argv(t.TempDir(), []string{"go", "test", "./..."})
 	assertPair(t, argv, "--user", "65534:65534")
 	assertPair(t, argv, "--pids-limit", "256")
 	assertPair(t, argv, "--cap-drop", "ALL")
@@ -36,7 +36,7 @@ func TestArgvHardensTheContainer(t *testing.T) {
 // turns this red.
 func TestArgvScratchIsBoundedTmpfs(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
-	argv := c.Argv(t.TempDir(), "go test ./...")
+	argv := c.Argv(t.TempDir(), []string{"go", "test", "./..."})
 	mounts := 0
 	for i, a := range argv {
 		if a != "--tmpfs" {
@@ -73,7 +73,7 @@ func TestArgvPassesOnlyTheFixedEnvironment(t *testing.T) {
 	t.Setenv("METERLESS_RUNTIME_TOKEN", secretMarker)
 	t.Setenv("GOCACHE", "/elsewhere")
 	c := mustContainer(t, DefaultContainerConfig())
-	argv := c.Argv(t.TempDir(), "go test ./...")
+	argv := c.Argv(t.TempDir(), []string{"go", "test", "./..."})
 	forbidEnv(t, argv)
 	for _, a := range argv {
 		if strings.Contains(a, secretMarker) || strings.Contains(a, "/elsewhere") {
