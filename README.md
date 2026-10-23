@@ -74,6 +74,9 @@ Each day, what lands moves from this list to the day's summary.
 - **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
 - **Features for compliance audits**: a signed record of every review that an auditor can check ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)).
 - **One security policy for a whole organisation**, and accepted risks that expire ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
+- **A fix you can trust**: for a problem proved by a test, Proven proposes a fix, and the same test proves the fix works ([ADR-0042](docs/adr/ADR-0042-a-proposed-fix-is-proved-by-the-same-test.md)).
+- **Is the vulnerable code actually called?** For Go, each vulnerable dependency says whether your code reaches the vulnerable function ([ADR-0043](docs/adr/ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md)).
+- **How far to trust each finding, in one word**: proved by a test, by a tool, by data, or only agreed by two models ([ADR-0044](docs/adr/ADR-0044-every-finding-names-its-level-of-proof.md)).
 - **NVIDIA's model joins our security review** as a third reviewer.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 
@@ -162,6 +165,19 @@ How one review is meant to run, and where each sponsor's technology does the wor
 ```
 
 The technical design, including the sponsors' technology (Zetaris, Meterless, NVIDIA, Cursor), is in **[DESIGN.md](hackathon/DESIGN.md)**.
+
+## How Proven differs
+
+Large vendors are moving the same way: a security finding should be proved, not only reported. Proven takes that idea
+somewhere they do not:
+
+- **Open source, and it runs where your code is**: on GitHub, on your own Gitea, on your own servers, or fully
+  air-gapped. It reviews every pull request, not a nightly scan.
+- **More than one model, in the open.** Proven names the models that reviewed each change. Connect a second reviewer
+  and you see both verdicts, and exactly where they disagree.
+- **Proof anyone can rerun**: a test that passes on the old code and fails on the new, or a query and the rows it
+  returned. No exploit code is written or kept.
+- **A fix is proved too**: the same test that showed the problem shows the fix works.
 
 ## Who builds it
 
