@@ -51,6 +51,21 @@ func TestLiveSettingsAreRefusedOnOpen(t *testing.T) {
 	}
 }
 
+func TestEPSSViewNameIsRefusedOnOpen(t *testing.T) {
+	// Mutated field: PROVEN_EPSS_VIEW.
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_EPSS_VIEW": "px_evidence.bad;drop",
+		}),
+	})
+	var cfg *review.ConfigError
+	if err == nil || !errorAs(err, &cfg) || cfg.Field != "PROVEN_EPSS_VIEW" || cfg.Value != "px_evidence.bad;drop" {
+		t.Fatal(err)
+	}
+}
+
 func TestOSVTableNameIsRefusedOnOpen(t *testing.T) {
 	// Mutated field: PROVEN_OSV_TABLE.
 	_, err := review.Open(review.Options{

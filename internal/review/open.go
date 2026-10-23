@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/osv"
@@ -72,6 +73,11 @@ func open(opts Options) (Reviewer, error) {
 			return nil, osvConfig(terr)
 		}
 		popts.OSVTable = table
+		view, verr := epss.LoadView(env)
+		if verr != nil {
+			return nil, epssConfig(verr)
+		}
+		popts.EPSSView = view
 		boxCfg, berr := testrun.Load(env)
 		if berr != nil {
 			return nil, testrunConfig(berr)
@@ -222,6 +228,17 @@ func queryConfig(err error) error {
 
 func guardrailConfig(err error) error {
 	var cfg *guardrail.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+func epssConfig(err error) error {
+	var cfg *epss.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

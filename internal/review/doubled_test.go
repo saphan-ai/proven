@@ -55,7 +55,7 @@ func TestDoubledSecurityRunsBothGenerators(t *testing.T) {
 	if !ok || !same(b1.Models, []string{"NVIDIA", "qwen-special"}) {
 		t.Fatalf("B1 %#v", b1.Models)
 	}
-	if len(b1.Evidence) != 1 || b1.Evidence[0].Query == nil || len(b1.Evidence[0].Query.Rows) != 1 {
+	if len(b1.Evidence) != 2 || b1.Evidence[0].Query == nil || len(b1.Evidence[0].Query.Rows) != 1 || b1.Evidence[0].Query.SQL != rowSQL {
 		t.Fatalf("B1 evidence %#v", b1.Evidence)
 	}
 	d1, ok := finding(res, "D1")

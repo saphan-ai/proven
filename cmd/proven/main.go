@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -108,6 +109,14 @@ func printResult(w io.Writer, res review.Result) {
 	}
 	for _, f := range res.Findings {
 		fmt.Fprintf(w, "finding %s %s %s\n", f.ID, f.Severity, f.Title)
+		for _, e := range f.Evidence {
+			if e.Kind != review.EvidenceQuery || e.Query == nil {
+				continue
+			}
+			for _, line := range epss.Phrases(e.Query.Columns, e.Query.Rows) {
+				fmt.Fprintf(w, "  %s\n", line)
+			}
+		}
 		if f.Unresolved {
 			fmt.Fprintln(w, "  unresolved")
 		}
