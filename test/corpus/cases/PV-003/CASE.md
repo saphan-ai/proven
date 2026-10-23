@@ -113,6 +113,21 @@ Build choices the contract left open: a run that does not use up the quota clear
 (node for base, (node, slot) for change, tenant for the reference); the cooldown is one minute on a fake clock that is
 never advanced; an unassigned slot is asked about with no tenant on it.
 
+Round 2 recheck: 2026-10-23 08:43 UTC, on Linux with `go version go1.26.5 linux/amd64`. From the repository root,
+`bash tests/corpus/cases/PV-003/check.sh` exited 0 and printed, in full:
+
+```
+own-case-cooled-slot | base=allowed | change=refused(A) | reference=refused(A)
+own-case-other-slot | base=allowed | change=allowed | reference=allowed
+move-moved-tenant | base=refused(X) | change=allowed | reference=refused(X)
+vacated-slot | base=refused(X) | change=refused(X) | reference=allowed
+control-no-cooldown | base=allowed | change=allowed | reference=allowed
+```
+
+Not run: native macOS check. This seat runs Linux and has no macOS runner. The script uses Bash and Go only;
+source inspection found no GNU-only flag. Linux output does not establish the macOS result, so the review's
+cross-platform verification condition remains open.
+
 ## 9. Limits
 
 - It shows one keying error on one legal transition; it does not show that every location-keyed limit is wrong.
