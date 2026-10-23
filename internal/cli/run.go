@@ -366,7 +366,6 @@ not review.
 flags:
   --text, --json, --sarif
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-        This build writes text. --json and --sarif stop with exit 2 until their writers land.
   --text-output, --json-output, --sarif-output
         also write that format to a file
   -o, --output
