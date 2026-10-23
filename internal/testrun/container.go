@@ -66,30 +66,6 @@ var (
 	memPattern = regexp.MustCompile(`^([0-9]+)([bkmg])?$`)
 )
 
-// SettingError is a refused container setting (ADR-0013). There is no
-// setting that gives the container a network or a secret.
-type SettingError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the field, the refused value, the reason and the allowed values.
-func (e *SettingError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
-
 // DefaultContainerConfig returns the documented defaults.
 func DefaultContainerConfig() ContainerConfig {
 	return ContainerConfig{
@@ -106,21 +82,21 @@ func DefaultContainerConfig() ContainerConfig {
 func (c ContainerConfig) Validate() error {
 	// Runtime and image become argv words; a leading dash would read as a flag.
 	if !validToken(c.Runtime) {
-		return &SettingError{
+		return &ConfigError{
 			Field: "Runtime", Value: c.Runtime,
 			Reason:  "the runtime is a CLI name or path, with no spaces and no leading dash",
 			Allowed: []string{defaultRuntime},
 		}
 	}
 	if !validToken(c.Image) {
-		return &SettingError{
+		return &ConfigError{
 			Field: "Image", Value: c.Image,
 			Reason:  "the image is a reference, with no spaces and no leading dash",
 			Allowed: []string{defaultImage},
 		}
 	}
 	if c.Timeout <= 0 {
-		return &SettingError{
+		return &ConfigError{
 			Field: "Timeout", Value: c.Timeout.String(),
 			Reason:  "the time limit is a positive duration; a run past it is not proof",
 			Allowed: []string{defaultTimeout.String()},
@@ -129,21 +105,21 @@ func (c ContainerConfig) Validate() error {
 	// 0 means no limit to the runtime, so a zero CPU or memory limit is refused:
 	// a setting must not be able to lift the container's bounds.
 	if !validCPUs(c.CPUs) {
-		return &SettingError{
+		return &ConfigError{
 			Field: "CPUs", Value: c.CPUs,
 			Reason:  "the CPU limit is a positive number; 0 means no limit and is refused",
 			Allowed: []string{defaultCPUs, "0.5"},
 		}
 	}
 	if !validMemory(c.Memory) {
-		return &SettingError{
+		return &ConfigError{
 			Field: "Memory", Value: c.Memory,
 			Reason:  "the memory limit is a positive size with suffix b, k, m or g; 0 is refused",
 			Allowed: []string{defaultMemory},
 		}
 	}
 	if c.MaxWrittenBytes <= 0 {
-		return &SettingError{
+		return &ConfigError{
 			Field: "MaxWrittenBytes", Value: strconv.Itoa(c.MaxWrittenBytes),
 			Reason:  "the written test size limit is a positive number of bytes",
 			Allowed: []string{strconv.Itoa(DefaultMaxWrittenBytes)},
