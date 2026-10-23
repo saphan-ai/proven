@@ -49,9 +49,16 @@ With nothing configured it names every service that is not ready, and why, and e
 ```text
 generator: not ready: nightshift: METERLESS_RUNTIME_TOKEN is empty
 guardrail: not ready: guardrail: PROVEN_GUARDRAIL_KEY is empty
-query: not ready: configuration refused: ZETARIS_REST_URL="": the live query adapter needs a base URL; …
+query: not ready: zetaris: ZETARIS_REST_URL is empty
 container: not ready: prover: Prover off: container runtime "docker" not found: …
 summary: 0 ready, 4 not ready
+```
+
+The Prover needs the test image on the host before a review; it never pulls one during a review. When livecheck says
+the image is not present, its line ends with the act to run, for example:
+
+```bash
+docker pull golang:1.26
 ```
 
 Each setting it names, with its default: [CONFIGURATION.md](CONFIGURATION.md). A live review a judge can rerun, with one

@@ -3,6 +3,7 @@ package testrun
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/service"
@@ -29,7 +30,14 @@ func (c *Container) Probe(ctx context.Context) error {
 		return probeDown(parent, ctx, "runtime did not answer", out, err)
 	}
 	if out, err := c.invoke(ctx, []string{c.runtime, "image", "inspect", c.cfg.Image}); err != nil {
-		return probeDown(parent, ctx, "image "+c.cfg.Image+" is not present", out, err)
+		// The Prover never pulls during a review: a missing image is the
+		// service down, and the reason names the act that fixes it.
+		down := probeDown(parent, ctx, "image "+c.cfg.Image+" is not present", out, err)
+		if d, ok := service.As(down); ok && d.Reason != "timeout" {
+			d.Reason += "; next: " + filepath.Base(c.runtime) + " pull " + c.cfg.Image
+			return d
+		}
+		return down
 	}
 	return nil
 }
