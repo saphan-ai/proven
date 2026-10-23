@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/query"
@@ -62,9 +63,13 @@ func (e *ConfigError) Error() string {
 // Options are what the shell passes to Open.
 type Options struct {
 	ConfigPath string              // --config / PROVEN_CONFIG; "" means the defaults
+	PolicyPath string              // PROVEN_POLICY, read by the shell; "" means no organisation policy (ADR-0036)
 	Sample     bool                // --sample / SAMPLE_MODE=true: every adapter is its sample implementation (ADR-0001)
 	LogDir     string              // the run's logs/ directory; the reviewer writes its JSONL trace here (ADR-0018)
 	Env        func(string) string // environment lookup; keys come from the environment only (ADR-0001)
+	// Now is the review's clock, compared with an exception's expiry date (ADR-0036). nil means time.Now;
+	// a test sets it so an exception expires on a day the test chose.
+	Now func() time.Time
 	// gen, when set, replaces the live generator. A review leaves it unset.
 	// Tests set it so a live review makes no network call.
 	gen generator.Generator
@@ -127,6 +132,14 @@ type Result struct {
 	// evidence proves (ADR-0041). They are not Findings, they are not in
 	// ProofCounts, and they do not change the exit code. Empty when none.
 	Opinions []Opinion
+	// PolicyStatement names the organisation policy file the review ran under (ADR-0036); empty with none.
+	PolicyStatement string
+	// Accepted holds the findings an unexpired exception covers. They are shown with the exception's
+	// reason, owner and expiry and are not in Findings, so they do not count toward failure.
+	Accepted []AcceptedFinding
+	// Expired names each exception that covers a finding in Findings but has expired: the finding counts
+	// again and the review says the exception expired.
+	Expired []ExpiredException
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
@@ -247,6 +260,27 @@ func ProofLevelOf(ev []Evidence) (ProofLevel, error) {
 		return "", errors.New("review: a finding has no evidence of a known kind, so it has no level of proof")
 	}
 	return level, nil
+}
+
+// AcceptedFinding is a finding an exception of the organisation policy accepts until its expiry date
+// (ADR-0036 point 2). The four fields the policy names are carried with it, never dropped.
+type AcceptedFinding struct {
+	Finding     Finding
+	ExceptionID string // the exception's id in the policy file
+	Reason      string
+	Owner       string
+	Expires     string // YYYY-MM-DD, the last day the exception holds
+}
+
+// ExpiredException is an exception past its expiry date that covers a finding of this review.
+type ExpiredException struct {
+	ExceptionID string
+	Finding     string // the finding's name: its id, else its rule
+	Rule        string
+	Location    string // the location as the policy wrote it
+	Reason      string
+	Owner       string
+	Expires     string // YYYY-MM-DD
 }
 
 // AuthorModel is one model the change named (ADR-0011).
