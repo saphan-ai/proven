@@ -30,6 +30,12 @@ and no secret. The owner (translated from Polish): *"R2 — OK."*
 6. **Where no container runtime is available, the Prover does not run code.** The finding then has a query as its
    evidence or is reported as unresolved, and the review says that the Prover was off and why. It never falls back to
    running the code outside a container.
+7. **Proven builds the command the container runs; a model never does** (the master, 2026-10-23, merged with the wagon
+   `the-prover-runs-only-its-test`). The Prover's model names a test by its file and its name and nothing that is
+   executed. Proven builds the argument list from a fixed template per language (Go: `go test -run '^<Name>$'` in the
+   test's package), with the name and the path checked against strict patterns that keep them inside the checkout, and
+   runs it with no shell. An answer that carries a command, or a name or path that fails the checks, is refused with a
+   named reason and no container starts. Proof: `TestArgvIsTheTemplateWithNoShell` and the Prover's refusal tests.
 
 ## Consequences
 
