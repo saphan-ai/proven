@@ -24,6 +24,36 @@ const (
 	exitConfig   = 7
 )
 
+// KnownCLIEnv reports whether name is an environment variable ADR-0020 §1
+// documents for the command line. The table names PROVEN_OUTPUT_FORMAT,
+// PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT, SEMGREP_BASELINE_COMMIT,
+// SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE, PROVEN_EXCLUDE,
+// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE. That section's ci paragraph
+// names GITHUB_EVENT_PATH, GITHUB_BASE_REF and GITHUB_SHA. GITHUB_WORKSPACE is
+// not in the section. Adapter secrets are not in this set.
+func KnownCLIEnv(name string) bool {
+	switch name {
+	case "GITHUB_BASE_REF",
+		"GITHUB_EVENT_PATH",
+		"GITHUB_SHA",
+		"PROVEN_BASELINE_COMMIT",
+		"PROVEN_CONFIG",
+		"PROVEN_ERROR",
+		"PROVEN_EXCLUDE",
+		"PROVEN_INCLUDE",
+		"PROVEN_OUTPUT",
+		"PROVEN_OUTPUT_FORMAT",
+		"PROVEN_SEVERITY",
+		"PROVEN_TIMEOUT",
+		"SAMPLE_MODE",
+		"SEMGREP_BASELINE_COMMIT",
+		"SEMGREP_BASELINE_REF":
+		return true
+	default:
+		return false
+	}
+}
+
 // config is one resolved invocation. Flag wins over variable, variable over default.
 type config struct {
 	command         string
