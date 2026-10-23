@@ -16,6 +16,7 @@ import (
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
@@ -76,6 +77,9 @@ func open(opts Options) (Reviewer, error) {
 			// so the review does not dial. A review leaves gen unset.
 			popts.Generator = opts.gen
 		}
+		// ADR-0005, ADR-0013 point 4: the redactor holds the value of every secret this review loads, so no key
+		// a service echoes back reaches the trace or the result.
+		popts.Redactor = redact.FromEnv(env)
 		gs, gerr := guardrail.Load(env)
 		if d, ok := service.As(gerr); ok {
 			// ADR-0005 point 5: an empty key is not off. Every model call is

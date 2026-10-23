@@ -16,6 +16,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -24,6 +25,7 @@ func TestLiveContainerSettingIsRefused(t *testing.T) {
 	p, err := Build(Options{
 		LogDir:   t.TempDir(),
 		GuardOff: true,
+		Redactor: redact.New(nil),
 		Env: func(k string) string {
 			if k == testrun.EnvMemory {
 				return "lots"

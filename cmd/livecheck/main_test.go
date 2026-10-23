@@ -159,7 +159,7 @@ func TestSecretFromTheEnvironmentIsNotPrinted(t *testing.T) {
 	if strings.Contains(body, fakeToken) || strings.Contains(body, fakeKey) || strings.Contains(body, fakeZKey) {
 		t.Fatalf("secret leaked\n%s", body)
 	}
-	if !strings.Contains(body, "model nvidia/redacted, receipt rcpt-livecheck") {
+	if !strings.Contains(body, "model nvidia/[redacted: METERLESS_RUNTIME_TOKEN], receipt rcpt-livecheck") {
 		t.Fatalf("model line\n%s", body)
 	}
 }
