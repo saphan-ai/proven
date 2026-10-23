@@ -26,6 +26,11 @@ var exemptBanned = map[string]map[string]string{
 	"internal/cli/run.go": {
 		"os/exec": "git merge-base names the fork point and does not run the change",
 	},
+	"internal/network/network.go": {
+		"net":      "the air-gapped dial check reads each address and opens the connection it allows",
+		"net/http": "the air-gapped policy builds the HTTP client whose dialer refuses an address off the network",
+		"syscall":  "the dial check reads the address the resolver chose for localhost before the connection opens",
+	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",
 	},
