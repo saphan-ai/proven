@@ -36,6 +36,28 @@ Pieces 0, 1 and 2 go first: they guard the machine and the keys. The others foll
    goes through the same two reviews as any other change.
 4. **The piece is closed** when both reviews say the property holds, or every weakness they found is fixed and merged.
 
+## Why one model is not enough here
+
+Proven's code was written by one model (Grok, on Cursor). Each of its changes was reviewed by two others. For the
+security pieces that is the minimum, not a luxury, for three reasons:
+
+- **A model reviewing code tends to share the blind spots of the code it reads.** A second model from another family
+  has been trained differently, reads in a different order, and stops at different lines. What one finds acceptable,
+  the other may refuse.
+- **In a security piece the cost of the two errors is not equal.** A false *holds* ships a weakness to every user; a
+  false *reject* costs one more round of review. Two independent verdicts, where either can refuse, trade a little
+  time for the error that matters.
+- **Disagreement is information, not noise.** When one review accepts and the other rejects the same commit, the
+  difference shows exactly where the property is in doubt, and the fix is aimed there.
+
+The same rule holds for every change of Proven: two reviews from different model families, neither seeing the other
+([ADR-0009](fleet/decisions/ADR-0009-two-reviewer-models-and-the-same-model-fallback.md)). For each closed piece, the
+table below gives both verdicts side by side, on the same commit.
+
+| Piece | Commit | claude-code | codex | Agreed? |
+|---|---|---|---|---|
+| filled in as each piece closes | | | | |
+
 ## What is published, and when
 
 - This page's status column is updated as each piece moves: *not started*, *in review*, *fixes in progress*, *holds*.
