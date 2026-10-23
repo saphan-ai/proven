@@ -92,8 +92,8 @@ Run the check on base and on change and record each line of its output.
 - run: 2026-10-22, in the leg started at 16:05 UTC (the run directory's stamp is `20261022-160539`; the seat's
   command allow-list refused `date`, so no finer clock reading was taken).
 - commands, from the repository root:
-  - `bash tests/corpus/cases/PV-019/check.sh` — exit code 0 on 2026-10-22 and on the round 2 run
-  - `go -C tests/corpus/cases/PV-019 test ./change` — the shipped content test on the shipped table: `ok  	pv019/change`
+  - `bash test/corpus/cases/PV-019/check.sh` — exit code 0 on 2026-10-22 and on the round 2 run
+  - `go -C test/corpus/cases/PV-019 test ./change` — the shipped content test on the shipped table: `ok  	pv019/change`
 - output of `check.sh`, unedited:
 
 ```
