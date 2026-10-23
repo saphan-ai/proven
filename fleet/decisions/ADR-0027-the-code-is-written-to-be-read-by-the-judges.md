@@ -24,11 +24,12 @@ which decision it carries out.
 6. **Comments are in English and plain.** They carry no AI attribution, no internal host names, paths or credential
    names, and no commented-out code.
 7. **Every train order of Proven carries this as a standing rule for its executors**, and each review checks it.
-8. **The code already written gets the same comments** in one comment-only wagon per train: no behaviour changes, so
-   the build, `go vet` and the tests give the same result before and after, and the diff changes comment lines only.
+8. **The code already written gets the same comments from the masters themselves**, now, with no executor (the owner,
+   23 October): no behaviour changes, so the build, `go vet` and the tests give the same result before and after, and
+   the diff changes comment lines only. New code gets its comments from the executors who write it.
 
 ## Consequences
 
 - A judge can follow a review through the code from the comments alone.
-- The comment-only wagons cost a few hours of executor time during the build week and change no behaviour.
+- The masters spend part of a build day on comments in place of orchestration; no executor seat is taken by it.
 - A comment can go stale when the code under it changes; the review of each change reads both.
