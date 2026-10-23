@@ -387,6 +387,9 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	} else {
 		cfg.output = getenv("PROVEN_OUTPUT")
 	}
+	if err := refuseCollidingOutputs(cfg); err != nil {
+		return config{}, err
+	}
 	errorOn, err := resolveError(cmd, getenv, h)
 	if err != nil {
 		return config{}, err
@@ -426,6 +429,38 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.quiet = h.quiet.set && h.quiet.v
 	cfg.verbose = h.verbose.set && h.verbose.v
 	return cfg, nil
+}
+
+// refuseCollidingOutputs refuses two outputs that resolve to one file, at
+// load (ADR-0013). The files are written one after another, so the last
+// write would silently replace the others and the run would still exit 0
+// (ADR-0020 §1). Paths are compared after filepath.Abs and filepath.Clean,
+// so "a/../r" and "r" are one file. Symbolic links are not followed: a
+// link to a file named by another flag is not caught, and no I/O happens here.
+func refuseCollidingOutputs(cfg config) error {
+	named := []struct{ flag, path string }{
+		{"-o", cfg.output},
+		{"--text-output", cfg.textOutput},
+		{"--json-output", cfg.jsonOutput},
+		{"--sarif-output", cfg.sarifOutput},
+	}
+	seen := map[string]string{} // resolved path -> the flag that named it first
+	for _, n := range named {
+		if n.path == "" {
+			continue
+		}
+		abs, err := filepath.Abs(n.path)
+		if err != nil {
+			// Abs fails only when the working directory is unreadable; the
+			// cleaned path is still a usable key for the comparison.
+			abs = filepath.Clean(n.path)
+		}
+		if first, ok := seen[abs]; ok {
+			return refuse(n.flag, abs, "same file as "+first+"; each output needs its own path", nil)
+		}
+		seen[abs] = n.flag
+	}
+	return nil
 }
 
 // refuseExclusive refuses pairs that cannot both hold: two output formats,
