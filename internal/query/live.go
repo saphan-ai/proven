@@ -189,11 +189,15 @@ func (l *Live) Query(ctx context.Context, sql string) (Result, error) {
 // passes this gate by construction; the gate holds for a statement from any
 // other caller, such as the liveness probe.
 //
-// A text is refused when it holds a backslash or a control byte anywhere,
-// invalid UTF-8, a quote that never closes, or, outside a string literal, a
-// semicolon or the start of a comment. Refusing the backslash outright, rather
-// than reading it as an escape in one dialect and a plain byte in another,
-// means the engine and this gate cannot disagree on where a literal ends.
+// A text is refused when it holds a backslash, a double quote, a backtick or a
+// control byte anywhere, invalid UTF-8, a single quote that never closes, or,
+// outside a single-quoted literal, a semicolon or the start of a comment. The
+// gate reads only the single quote as a quote. A dialect may read the double
+// quote or the backtick as one too, and a single quote inside such a quote
+// would flip the gate's state and hide a second statement, so those two are
+// refused outright. Refusing the backslash the same way, rather than reading it
+// as an escape in one dialect and a plain byte in another, means the engine and
+// this gate cannot disagree on where a literal ends.
 func oneSelect(sql string) bool {
 	if !utf8.ValidString(sql) {
 		return false
@@ -201,7 +205,7 @@ func oneSelect(sql string) bool {
 	inLiteral := false
 	for i := 0; i < len(sql); i++ {
 		c := sql[i]
-		if c == '\\' || c < 0x20 && c != '\n' && c != '\r' && c != '\t' || c == 0x7f {
+		if c == '\\' || c == '"' || c == '`' || c < 0x20 && c != '\n' && c != '\r' && c != '\t' || c == 0x7f {
 			return false
 		}
 		if c == '\'' {
