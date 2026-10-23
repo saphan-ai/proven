@@ -66,42 +66,42 @@
     },
     {
       "agent": "prover",
-      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F1\ntitle: Discount is applied twice\n",
-      "response": "{\"path\":\"billing/discount_test.go\",\"name\":\"TestDiscounted\",\"command\":\"go test ./billing -run TestDiscounted\"}"
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string) and name (string). Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\"}\n\nid: F1\ntitle: Discount is applied twice\n",
+      "response": "{\"path\":\"billing/discount_test.go\",\"name\":\"TestDiscounted\"}"
     },
     {
       "agent": "prover",
-      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
-      "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string) and name (string). Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
+      "response": "{\"path\":\"\",\"name\":\"\"}"
     },
     {
       "agent": "prover",
-      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F3\ntitle: note may include a payment token\n",
-      "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string) and name (string). Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\"}\n\nid: F3\ntitle: note may include a payment token\n",
+      "response": "{\"path\":\"\",\"name\":\"\"}"
     },
     {
       "agent": "prover",
-      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string), name (string) and command (string).\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\",\"command\":\"go test ./pkg -run TestExample\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
-      "response": "{\"path\":\"\",\"name\":\"\",\"command\":\"\"}"
+      "prompt": "Task: Write one test that fails on the change and passes on the base. The test asserts the correct behaviour and fails because the change breaks it. It does not attack anything. Leave content empty to name one test that already exists.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has path (string), content (string) and name (string). Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"path\":\"pkg/file_test.go\",\"content\":\"package pkg\\n\\nimport \\\"testing\\\"\\n\\nfunc TestExample(t *testing.T) {\\n\\tif Got() != 1 {\\n\\t\\tt.Fatal(Got())\\n\\t}\\n}\\n\",\"name\":\"TestExample\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
+      "response": "{\"path\":\"\",\"name\":\"\"}"
     },
     {
       "agent": "skeptic",
-      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string), command (string) and sql (string). Empty path, name, command and sql mean there is no refuting test and no refuting query.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"command\":\"\",\"sql\":\"\"}\n\nid: F1\ntitle: Discount is applied twice\n",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string) and sql (string). Empty path, name and sql mean there is no refuting test and no refuting query. Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"sql\":\"\"}\n\nid: F1\ntitle: Discount is applied twice\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     },
     {
       "agent": "skeptic",
-      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string), command (string) and sql (string). Empty path, name, command and sql mean there is no refuting test and no refuting query.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"command\":\"\",\"sql\":\"\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string) and sql (string). Empty path, name and sql mean there is no refuting test and no refuting query. Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"sql\":\"\"}\n\nid: F2\ntitle: Dependency leftpad v1.2.3 is on the known-exploited list\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     },
     {
       "agent": "skeptic",
-      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string), command (string) and sql (string). Empty path, name, command and sql mean there is no refuting test and no refuting query.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"command\":\"\",\"sql\":\"\"}\n\nid: F3\ntitle: note may include a payment token\n",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string) and sql (string). Empty path, name and sql mean there is no refuting test and no refuting query. Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"sql\":\"\"}\n\nid: F3\ntitle: note may include a payment token\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     },
     {
       "agent": "skeptic",
-      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string), command (string) and sql (string). Empty path, name, command and sql mean there is no refuting test and no refuting query.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"command\":\"\",\"sql\":\"\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
+      "prompt": "Task: Make one attempt to refute this finding.\n\nReply with JSON only.\n\nThe JSON is one JSON object. It has refuted (boolean), reason (string), path (string), name (string) and sql (string). Empty path, name and sql mean there is no refuting test and no refuting query. Do not add a command: Proven builds the command that runs the test.\n\nExample:\n{\"refuted\":false,\"reason\":\"no refutation\",\"path\":\"\",\"name\":\"\",\"sql\":\"\"}\n\nid: F4\ntitle: CVE-2026-0001 for leftpad v1.2.3 is on the KEV list\n",
       "response": "{\"refuted\":false,\"reason\":\"no refutation\"}"
     }
   ],
@@ -110,7 +110,7 @@
       "finding_id": "F1",
       "path": "billing/discount_test.go",
       "name": "TestDiscounted",
-      "command": "go test ./billing -run TestDiscounted",
+      "command": "go test -run '^TestDiscounted$' ./billing",
       "fails_on_change": true,
       "passes_on_base": true,
       "output": "base: PASS\nchange: FAIL got 60 want 80"

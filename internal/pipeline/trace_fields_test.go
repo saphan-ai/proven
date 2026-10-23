@@ -77,7 +77,7 @@ func TestTraceCarriesEvidenceAndRefutation(t *testing.T) {
 	}
 	te := f1.Test
 	if te.Path != "billing/discount_test.go" || te.Name != "TestDiscounted" ||
-		te.Command != "go test ./billing -run TestDiscounted" ||
+		te.Command != "go test -run '^TestDiscounted$' ./billing" ||
 		!te.FailsOnChange || !te.PassesOnBase ||
 		te.Output != "base: PASS\nchange: FAIL got 60 want 80" {
 		t.Fatalf("F1 test %#v", te)

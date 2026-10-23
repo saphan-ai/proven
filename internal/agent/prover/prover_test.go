@@ -25,10 +25,10 @@ func TestWrittenTestThatFailsOnChangeIsEvidence(t *testing.T) {
 		}
 		return testrun.Outcome{
 			Found: true, FailsOnChange: true, PassesOnBase: true,
-			Path: req.Path, Name: req.Name, Command: req.Command, Output: "change: FAIL\nbase: ok",
+			Path: req.Path, Name: req.Name, Command: "go test -run '^TestExtra$' ./billing", Output: "change: FAIL\nbase: ok",
 		}
 	}
-	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "go test ./billing -run TestExtra", Options{})
+	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "", Options{})
 	if run.calls != 1 {
 		t.Fatalf("calls %d", run.calls)
 	}
@@ -50,7 +50,7 @@ func TestWrittenTestThatFailsOnChangeIsEvidence(t *testing.T) {
 // A written test that passes on both checkouts is not evidence and leaves a note.
 func TestPassesOnBothWritesNoEvidence(t *testing.T) {
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: false, PassesOnBase: true}}
-	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "go test ./billing -run TestExtra", Options{})
+	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "", Options{})
 	if len(got.Evidence) != 0 {
 		t.Fatalf("evidence %#v", got.Evidence)
 	}
@@ -65,7 +65,7 @@ func TestPassesOnBothWritesNoEvidence(t *testing.T) {
 // A written test that fails on the base is not evidence and leaves a note.
 func TestWrittenTestThatFailsOnTheBaseWritesNoEvidence(t *testing.T) {
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: true, PassesOnBase: false}}
-	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "go test ./billing -run TestExtra", Options{})
+	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "", Options{})
 	if len(got.Evidence) != 0 {
 		t.Fatalf("evidence %#v", got.Evidence)
 	}
@@ -78,11 +78,11 @@ func TestWrittenTestThatFailsOnTheBaseWritesNoEvidence(t *testing.T) {
 func TestNamedTestWithoutContentStaysTheFallback(t *testing.T) {
 	run := &fakeRun{out: testrun.Outcome{
 		Found: true, FailsOnChange: true, PassesOnBase: true,
-		Path: "billing/discount_test.go", Name: "TestDiscounted", Command: "go test ./billing -run TestDiscounted",
+		Path: "billing/discount_test.go", Name: "TestDiscounted", Command: "go test -run '^TestDiscounted$' ./billing",
 	}}
 	got, err := Prove(context.Background(), candidate.Candidate{
 		Risk: candidate.Risk{ID: "F1", Title: "Discount is applied twice"},
-	}, scriptGen{text: `{"path":"billing/discount_test.go","name":"TestDiscounted","command":"go test ./billing -run TestDiscounted"}`}, run, Options{})
+	}, scriptGen{text: `{"path":"billing/discount_test.go","name":"TestDiscounted"}`}, run, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,17 +110,17 @@ func TestEmptyAnswerProposesNoTest(t *testing.T) {
 
 // A written test at an absolute path is refused before the runner.
 func TestRefusesAbsolutePath(t *testing.T) {
-	assertRefused(t, "/tmp/extra_test.go", writtenBody, "go test", Options{}, "refused: "+testrun.ReasonAbsolutePath)
+	assertRefused(t, "/tmp/extra_test.go", writtenBody, "", Options{}, "refused: "+testrun.ReasonAbsolutePath)
 }
 
 // A written test whose path leaves the repository is refused.
 func TestRefusesPathThatLeavesTheRepository(t *testing.T) {
-	assertRefused(t, "../extra_test.go", writtenBody, "go test", Options{}, "refused: "+testrun.ReasonLeavesRepo)
+	assertRefused(t, "../extra_test.go", writtenBody, "", Options{}, "refused: "+testrun.ReasonLeavesRepo)
 }
 
 // A written file that is not a test file is refused.
 func TestRefusesAPathThatIsNotATestFile(t *testing.T) {
-	assertRefused(t, "billing/discount.go", writtenBody, "go test", Options{}, "refused: "+testrun.ReasonNotATestFile)
+	assertRefused(t, "billing/discount.go", writtenBody, "", Options{}, "refused: "+testrun.ReasonNotATestFile)
 }
 
 // A written test may not overwrite a non-test file of the checkout.
@@ -133,28 +133,32 @@ func TestRefusesOverwritingANonTestFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(base, "billing", "discount.go"), []byte("package billing\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	assertRefused(t, "billing/discount.go", writtenBody, "go test", Options{BaseDir: base, ChangeDir: change}, "refused: "+testrun.ReasonOverwrites)
+	assertRefused(t, "billing/discount.go", writtenBody, "", Options{BaseDir: base, ChangeDir: change}, "refused: "+testrun.ReasonOverwrites)
 }
 
 // Content over the size limit is refused.
 func TestRefusesContentOverTheSizeLimit(t *testing.T) {
 	opts := Options{MaxWrittenBytes: 8}
-	assertRefused(t, "billing/extra_test.go", "package p\n", "go test", opts, "refused: "+testrun.ReasonTooLarge)
+	assertRefused(t, "billing/extra_test.go", "package p\n", "", opts, "refused: "+testrun.ReasonTooLarge)
 }
 
 // Content exactly at the size limit runs: the limit is inclusive.
 func TestContentAtTheSizeLimitRuns(t *testing.T) {
 	body := "12345678"
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: true, PassesOnBase: true, Name: "TestExtra"}}
-	got := proveWrittenCase(t, run, "billing/extra_test.go", body, "TestExtra", "go test", Options{MaxWrittenBytes: len(body)})
+	got := proveWrittenCase(t, run, "billing/extra_test.go", body, "TestExtra", "", Options{MaxWrittenBytes: len(body)})
 	if run.calls != 1 || len(got.Evidence) != 1 {
 		t.Fatalf("calls %d evidence %#v note %q", run.calls, got.Evidence, got.ProverNote)
 	}
 }
 
-// A blank command is refused.
-func TestRefusesEmptyCommand(t *testing.T) {
-	assertRefused(t, "billing/extra_test.go", writtenBody, "   ", Options{}, "refused: "+testrun.ReasonEmptyCommand)
+// A name that is not a test name is refused before the runner is called.
+func TestRefusesAWrittenNameThatIsNotATestName(t *testing.T) {
+	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: true, PassesOnBase: true}}
+	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra; id", "", Options{})
+	if run.calls != 0 || len(got.Evidence) != 0 || got.ProverNote != "refused: "+testrun.ReasonBadName {
+		t.Fatalf("calls %d evidence %#v note %q", run.calls, got.Evidence, got.ProverNote)
+	}
 }
 
 // A written test may replace an existing test file.
@@ -165,7 +169,7 @@ func TestAllowsReplacingATestFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	run := &fakeRun{out: testrun.Outcome{Found: true, FailsOnChange: true, PassesOnBase: true, Name: "TestExtra"}}
-	got := proveWrittenCase(t, run, "extra_test.go", writtenBody, "TestExtra", "go test", Options{BaseDir: base, ChangeDir: change})
+	got := proveWrittenCase(t, run, "extra_test.go", writtenBody, "TestExtra", "", Options{BaseDir: base, ChangeDir: change})
 	if run.calls != 1 || len(got.Evidence) != 1 || got.ProverNote != "" {
 		t.Fatalf("calls %d evidence %#v note %q", run.calls, got.Evidence, got.ProverNote)
 	}
@@ -188,11 +192,14 @@ func assertRefused(t *testing.T, path, content, command string, opts Options, no
 }
 
 // proveWrittenCase runs Prove with a model reply that writes this test.
+// A non-empty command is added to the reply, as a model that disobeys the prompt would.
 func proveWrittenCase(t *testing.T, run *fakeRun, path, content, name, command string, opts Options) candidate.Candidate {
 	t.Helper()
-	raw, err := json.Marshal(map[string]string{
-		"path": path, "content": content, "name": name, "command": command,
-	})
+	fields := map[string]string{"path": path, "content": content, "name": name}
+	if command != "" {
+		fields["command"] = command
+	}
+	raw, err := json.Marshal(fields)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,9 +240,6 @@ func (f *fakeRun) Run(_ context.Context, req testrun.Request) (testrun.Outcome, 
 	if out.Name == "" {
 		out.Name = req.Name
 	}
-	if out.Command == "" {
-		out.Command = req.Command
-	}
 	return out, nil
 }
 
@@ -245,12 +249,12 @@ func TestNilRunnerIsANamedRefusal(t *testing.T) {
 	t.Run("named", func(t *testing.T) {
 		_, err := Prove(context.Background(), candidate.Candidate{
 			Risk: candidate.Risk{ID: "F1", Title: "Discount is applied twice"},
-		}, scriptGen{text: `{"path":"billing/discount_test.go","name":"TestDiscounted","command":"go test"}`}, nil, Options{})
+		}, scriptGen{text: `{"path":"billing/discount_test.go","name":"TestDiscounted"}`}, nil, Options{})
 		assertProverDown(t, err)
 	})
 	t.Run("written", func(t *testing.T) {
 		raw, err := json.Marshal(map[string]string{
-			"path": "billing/extra_test.go", "content": writtenBody, "name": "TestExtra", "command": "go test",
+			"path": "billing/extra_test.go", "content": writtenBody, "name": "TestExtra",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -276,7 +280,7 @@ func assertProverDown(t *testing.T, err error) {
 // on the base (F4).
 func TestWrittenTestNotFoundSaysNotFound(t *testing.T) {
 	run := &fakeRun{out: testrun.Outcome{Found: false, PassesOnBase: true}}
-	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "go test ./billing -run TestExtra", Options{})
+	got := proveWrittenCase(t, run, "billing/extra_test.go", writtenBody, "TestExtra", "", Options{})
 	if len(got.Evidence) != 0 {
 		t.Fatalf("evidence %#v", got.Evidence)
 	}
