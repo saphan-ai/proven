@@ -8,7 +8,7 @@
   },
   "track": "The Agent That Can Explain Why",
   "team": {
-    "name": "Proven",
+    "name": "Saphan.ai",
     "solo": true,
     "builders": [
       { "name": "Marcin \"Wato\" Marzec", "role": "owner: decides and merges; writes no code" }
@@ -94,7 +94,7 @@
     {
       "name": "Test corpus",
       "what": "21 test-case contracts from 28 real review disagreements, prior art written before 22 October; the code of the cases is written inside the build window, from 22 October.",
-      "where": ["tests/"],
+      "where": ["test/corpus/"],
       "since": "2026-10-19"
     }
   ],
