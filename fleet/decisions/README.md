@@ -39,6 +39,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0023](ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) | evidence sources are Zetaris REST tables an administrator registers and Proven's own key reads live; OSV by package needs another path | accepted, 2026-10-21 |
 | [0024](ADR-0024-every-cursor-coding-session-is-recorded-and-published.md) | every coding session of a Cursor agent on Proven is recorded, and the recording is published here, blacked out | accepted, 2026-10-21 |
 | [0025](ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md) | the Prover runs the change's code in a container with no network and no secret; with no container runtime it runs no code | accepted, 2026-10-21 |
+| [0026](ADR-0026-one-makefile-builds-proven-and-runs-the-judges-lab.md) | one Makefile: help by default; builds natively, through a Go image, or prints how to install Go; builds and pushes `saphan/proven:latest`; starts, checks, logs and stops the Gitea lab (Docker in Docker); `make e2e` is the judge's rehearsal | accepted, 2026-10-23 |
 
 **Rules for an ADR**
 
