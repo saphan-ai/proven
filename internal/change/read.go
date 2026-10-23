@@ -3,9 +3,10 @@
 // It has two sources. A sample fixture is two plain trees, base/ and change/,
 // read by Read. A real repository is two commits, read through git by Between,
 // Blob and Messages, or written out as those same two trees by ExportCommit
-// and ExportWorktree so the Planner and the Prover can read them. Select then
-// narrows the changed files with the include and exclude patterns of the review
-// request.
+// and ExportWorktree so the Planner and the Prover can read them. A tracked
+// symlink is not written into those trees and is not followed. Read still
+// refuses a symlink in a tree it was given. Select then narrows the changed
+// files with the include and exclude patterns of the review request.
 //
 // The Planner reads the files this package returns and names the risks; the
 // pipeline uses the file list to decide what the review covers; the review

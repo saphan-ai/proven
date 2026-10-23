@@ -129,4 +129,7 @@ type Draft struct {
 	Models    []ModelUse
 	Partial   bool
 	TracePath string
+	// SkippedPaths lists tracked paths a live review did not copy because they
+	// are symlinks, slash-separated and sorted. Empty when none were skipped.
+	SkippedPaths []string
 }
