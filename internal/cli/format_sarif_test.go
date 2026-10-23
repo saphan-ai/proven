@@ -105,8 +105,8 @@ func TestSARIFLevelFollowsSeverity(t *testing.T) {
 }
 
 // sarifShape is one edge of the writer's input. The same table drives the
-// structure check here and the schema check in format_schema_test.go, so a
-// shape is added once and proven both ways.
+// structure check here; the schema check in internal/cli/sarifschema keeps a
+// copy of the inputs, so a shape added here is added there too.
 type sarifShape struct {
 	name   string
 	result review.Result
