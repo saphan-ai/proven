@@ -70,7 +70,19 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-To be recorded by the fixture round. **Not run**: the case code is not built yet.
+Recorded 2026-10-24T16:07Z on Linux. Toolchain: POSIX `sh` (here `dash`) with `grep`, `cut`, `sed`, `tail` and `mktemp`. No other tool. macOS was not run: no macOS host was available.
+
+The stand-in API is `api.sh`, a local program that keeps its users in a file; nothing leaves the machine. It answers create `201` for a new user, `422 user exists` for a user it holds, and `422 email refused` for any address at `blocked.example`; it answers team `204` when the user exists and `404` when not. Each script prints `ok` or the failing step (`create` or `team`) and traces the steps it reaches on stderr. In the output below, "base" and "change" are that word; "last step" is the last step the change script reached. The reference labels are literals in `check.sh`; no script reads them. The check writes under `.saphan/work/corpus-ho-004/` inside the checkout and removes it on exit.
+
+Command, from the repository root:
+
+    sh test/corpus/held-out/HO-004/check.sh
+
+Exit code: 0
+
+    new-user-good-email base ok change ok last step team reference should succeed
+    user-exists base create change ok last step team reference should succeed
+    new-user-refused-email base create change team last step team reference should fail at create
 
 ## 9. Limits
 
