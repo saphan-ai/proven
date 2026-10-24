@@ -141,6 +141,9 @@ type Pipeline struct {
 	workDir string
 	// redactor replaces the configured secrets in text a service returned.
 	redactor *redact.Redactor
+	// logDir and stateDir are where Review opens the trace and the stores,
+	// once it knows the reviewed target.
+	logDir, stateDir string
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -163,16 +166,11 @@ func Build(opts Options) (*Pipeline, error) {
 	if !opts.Sample && opts.Redactor == nil {
 		return nil, fmt.Errorf("pipeline: a live pipeline needs a redactor and none was set")
 	}
-	tw, err := trace.Open(opts.LogDir)
-	if err != nil {
-		return nil, err
-	}
 	// ADR-0005, ADR-0013 point 4: one redactor, built by review.Open from the values the live settings
 	// loaded, stands at every place a service's text becomes trace or result text.
 	// Build does not read the environment to make it, so sample mode reads no
 	// setting; with none given, nothing is redacted.
 	rd := opts.Redactor
-	tw.SetRedactor(rd)
 	stateDir := opts.StateDir
 	if stateDir == "" {
 		var derr error
@@ -181,32 +179,20 @@ func Build(opts Options) (*Pipeline, error) {
 			return nil, derr
 		}
 	}
-	// The stores refuse a state directory inside the proven module, so they are
-	// told where the module is.
-	root := moduleRoot()
-	mem, err := hmem.Open(hmem.Options{
-		Dir: filepath.Join(stateDir, "hmem"), LogDir: opts.LogDir, RepoRoot: root,
-	})
-	if err != nil {
-		return nil, err
-	}
-	wm, err := world.Open(world.Options{
-		Dir: filepath.Join(stateDir, "world"), LogDir: opts.LogDir, RepoRoot: root, Memory: mem,
-	})
-	if err != nil {
-		return nil, err
-	}
 	area, aerr := workArea(opts.LogDir)
 	if aerr != nil {
 		return nil, aerr
 	}
+	// Nothing is written here. The reviewed target is not known until Review, and
+	// the trace, the state and the work area must stay outside it, so Review
+	// opens them (see begin) after it has compared them with the target.
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
-		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
+		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
-		down: append([]service.Down(nil), opts.Down...), mem: mem, world: wm,
-		workDir: area, redactor: rd,
+		down:    append([]service.Down(nil), opts.Down...),
+		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -266,9 +252,15 @@ type Request struct {
 // judged findings. After a review with no error the trace is folded into the World
 // Model and H-MEM; if that fails, the review fails.
 func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
-	if p.trace != nil {
-		defer p.trace.Close()
+	// The trace, the state and the work area are compared with the reviewed
+	// target before anything is written, so none of them lands inside it.
+	if err := p.begin(req.Target); err != nil {
+		if p.trace != nil {
+			p.trace.Close()
+		}
+		return candidate.Draft{}, err
 	}
+	defer p.trace.Close()
 	// Fold only a review that ended without an error. This defer runs before
 	// the trace is closed, and reads what the review wrote.
 	defer func() {
