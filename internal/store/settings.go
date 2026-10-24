@@ -22,10 +22,8 @@ const (
 	NameCouchDB = "couchdb"
 )
 
-// defaultFile is the one file used when the store is local and
-// PROVEN_EVIDENCE_FILE is empty. It is a relative path, so it sits in the
-// process's working directory.
-const defaultFile = "proven-evidence.sql"
+// fileAllowed names what PROVEN_EVIDENCE_FILE may be.
+const fileAllowed = "a file path of at most 4096 bytes, with no control character"
 
 // Environment lists the store settings in the order the page shows.
 func Environment() []envdoc.Setting {
@@ -37,8 +35,8 @@ func Environment() []envdoc.Setting {
 		},
 		{
 			Name:        EnvFile,
-			Default:     envdoc.Tick(defaultFile),
-			Description: "the one file of the local store, read only when the store is `local`. Empty means `proven-evidence.sql`. The file holds tables and no server is started",
+			Default:     "none (required when the store is `local`)",
+			Description: "the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started",
 		},
 	}
 }
@@ -106,7 +104,10 @@ func Load(env func(string) string) (Choice, error) {
 		}
 		file := strings.TrimSpace(raw)
 		if file == "" {
-			file = defaultFile
+			// ADR-0013, ADR-0047: there is no default file. A default would
+			// be a relative path in the working directory, which is the
+			// tree under review, so the operator names the file.
+			return Choice{}, refuse(EnvFile, "", "required when the store is local", fileAllowed)
 		}
 		return Choice{Name: name, File: file}, nil
 	default:
@@ -122,13 +123,12 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 // An absolute path and a relative path are both accepted: the operator
 // names the file.
 func checkFile(path string) error {
-	allowed := "a file path of at most 4096 bytes, with no control character"
 	if path == "" || len(path) > 4096 || !utf8.ValidString(path) {
-		return refuse(EnvFile, clip(path), "not a file path", allowed)
+		return refuse(EnvFile, clip(path), "not a file path", fileAllowed)
 	}
 	for i := 0; i < len(path); i++ {
 		if path[i] < 0x20 || path[i] == 0x7f {
-			return refuse(EnvFile, clip(path), "not a file path", allowed)
+			return refuse(EnvFile, clip(path), "not a file path", fileAllowed)
 		}
 	}
 	return nil

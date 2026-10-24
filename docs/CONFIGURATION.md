@@ -44,7 +44,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | Environment variable | Default | What it changes |
 |---|---|---|
 | `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris` or `local`. `couchdb` is refused by name because it is not built yet. Empty means `zetaris`. Sample mode uses the local store and does not read this variable |
-| `PROVEN_EVIDENCE_FILE` | `proven-evidence.sql` | the one file of the local store, read only when the store is `local`. Empty means `proven-evidence.sql`. The file holds tables and no server is started |
+| `PROVEN_EVIDENCE_FILE` | none (required when the store is `local`) | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
 | `ZETARIS_REST_URL` | none (required live) | Zetaris's REST address; an absolute `http` or `https` URL with no user info, query or fragment |
 | `ZETARIS_API_KEY` | none (required live) | Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it |
 | `ZETARIS_ORG_ID` | none (required live) | the organisation id sent with each query |

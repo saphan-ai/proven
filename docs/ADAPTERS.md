@@ -109,7 +109,7 @@ Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four
 
 ## The evidence store
 
-[ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md). A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it. The default is `zetaris`. `local` is one file and no server, and it opens no network. `couchdb` is refused by name until it is built. The file of the local store is `PROVEN_EVIDENCE_FILE`; empty means `proven-evidence.sql`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
+[ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md). A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it. The default is `zetaris`. `local` is one file and no server, and it opens no network. `couchdb` is refused by name until it is built. The file of the local store is `PROVEN_EVIDENCE_FILE`. It is required when the store is `local`: an empty value is refused by name, because a default would sit in the repository under review. A path that resolves inside that repository, links included, is refused by name too. A table the file does not hold is a down source named `local`, as a missing view on Zetaris is a down source named `zetaris`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
 
 A source registers a table on the configured store, then runs a query Proven built from a template. Zetaris keeps the rule that Proven's key only reads: registering a table there is the administrator's act, and Proven records the name and sends no statement. The local store writes the table into its file.
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
@@ -71,6 +72,7 @@ func open(opts Options) (Reviewer, error) {
 	}
 	var kevView string
 	var adapterLimit time.Duration
+	var localFile string
 	// In sample mode the pipeline uses its recorded adapters, so none of the live settings are read.
 	if !opts.Sample {
 		env := opts.Env
@@ -124,11 +126,11 @@ func open(opts Options) (Reviewer, error) {
 			return nil, storeConfig(serr)
 		}
 		if choice.Name == store.NameLocal {
-			loc, oerr := store.OpenLocal(choice.File)
-			if oerr != nil {
-				return nil, oerr
-			}
-			popts.LiveQuery = loc
+			// ADR-0047: the file is opened on the first query, after Review has
+			// checked it is not inside the target. Opening creates it, and the
+			// target is not known until a review starts.
+			localFile = choice.File
+			popts.LiveQuery = &lazyLocal{path: choice.File}
 		} else {
 			zset, zerr := query.Load(env)
 			if d, ok := service.As(zerr); ok {
@@ -197,7 +199,46 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile}, nil
+}
+
+// lazyLocal opens the local store on its first query, so nothing is written
+// before the review has checked where the file is.
+type lazyLocal struct {
+	path string
+	once sync.Once
+	loc  *store.Local
+	err  error
+}
+
+// Query opens the store once and runs the SQL on it.
+func (l *lazyLocal) Query(ctx context.Context, sql string) (query.Result, error) {
+	l.once.Do(func() { l.loc, l.err = store.OpenLocal(l.path) })
+	if l.err != nil {
+		return query.Result{}, l.err
+	}
+	return l.loc.Query(ctx, sql)
+}
+
+// checkLocalFile refuses a local evidence file that resolves inside the
+// review's target (ADR-0047). The refusal names the setting.
+func checkLocalFile(file, target string) error {
+	if file == "" {
+		return nil
+	}
+	inside, err := store.Within(file, target)
+	if err != nil {
+		return err
+	}
+	if inside {
+		return &ConfigError{
+			Field:   store.EnvFile,
+			Value:   file,
+			Reason:  "the file is inside the repository under review",
+			Allowed: []string{"a path outside the review target"},
+		}
+	}
+	return nil
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
@@ -209,10 +250,16 @@ type runner struct {
 	explicit     bool
 	kevView      string
 	adapterLimit time.Duration
+	localFile    string
 }
 
 // Review runs one review: settings, deadline, class, the six agents, then the decision lines.
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
+	// ADR-0047: before anything reads or writes, the local evidence file must
+	// be outside the tree under review.
+	if err := checkLocalFile(r.localFile, req.Target); err != nil {
+		return Result{}, err
+	}
 	cfg := r.cfg
 	// Settings come from the baseline commit, not from the change, so a change cannot loosen its
 	// own review. With no baseline there is only the working tree to read.

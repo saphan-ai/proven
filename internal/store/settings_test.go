@@ -38,19 +38,28 @@ func TestLoadDefaultsToZetaris(t *testing.T) {
 }
 
 // TestLoadLocalReadsTheFileAndRefusesABrokenPath proves the file applies
-// only to the local store, an empty path takes the default, and a path
-// with a newline is refused by name. The mutated field is PROVEN_EVIDENCE_FILE.
+// only to the local store, an empty path is refused by name (there is no
+// default), and a path with a newline is refused by name. The mutated field
+// is PROVEN_EVIDENCE_FILE; negative control: restoring a default turns the
+// empty case red.
 func TestLoadLocalReadsTheFileAndRefusesABrokenPath(t *testing.T) {
-	got, err := Load(func(k string) string {
-		if k == EnvStore {
-			return NameLocal
+	// ADR-0047: there is no default file; empty and blank are refused by name.
+	for _, blank := range []string{"", "  "} {
+		_, err := Load(func(k string) string {
+			switch k {
+			case EnvStore:
+				return NameLocal
+			case EnvFile:
+				return blank
+			}
+			return ""
+		})
+		var refused *ConfigError
+		if err == nil || !asConfig(err, &refused) || refused.Field != EnvFile || !strings.Contains(err.Error(), "required") {
+			t.Fatalf("%q: %v", blank, err)
 		}
-		return ""
-	})
-	if err != nil || got.Name != NameLocal || got.File != defaultFile {
-		t.Fatalf("%#v %v", got, err)
 	}
-	got, err = Load(func(k string) string {
+	got, err := Load(func(k string) string {
 		switch k {
 		case EnvStore:
 			return NameLocal
