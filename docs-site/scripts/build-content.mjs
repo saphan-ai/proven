@@ -100,7 +100,11 @@ for (const [file, slug] of generatedPages) {
   const raw = fs.readFileSync(path.join(freshDir, file), 'utf8');
   const fm = /^---\ntitle: (.*)\ndescription: (.*)\n---\n/.exec(raw);
   if (!fm) throw new Error(`build-content: ${file} has no frontmatter`);
-  const body = outsideFences(raw.slice(fm[0].length), plainHtml);
+  // A generated page's links are written as docs/ writes them (settings-doc
+  // copies rows from docs/CONFIGURATION.md), so they resolve from docs/.
+  const body = outsideFences(outsideFences(raw.slice(fm[0].length), plainHtml), (chunk) =>
+    chunk.replace(/(!?\[[^\]]*\]\()\s*<?([^)\s>]+)>?((?:\s+"[^"]*")?\s*\))/g,
+      (all, open, target, close) => open + rewriteLink(target, `docs/${file}`, sourceToSlug, copied) + close));
   write(slug, fm[1], `${fm[2]}\n\n${body.replace(/^\s+/, '')}`);
   if (slug.startsWith('reference/adapters/')) adapters.push({ slug, title: fm[1], description: fm[2] });
 }

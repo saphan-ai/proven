@@ -6,7 +6,7 @@
   "scripts": {
     "content": "node scripts/build-content.mjs",
     "guards": "node scripts/guards.mjs",
-    "test": "node --test scripts/",
+    "test": "node --test scripts/*.test.mjs",
     "build": "npm run content && npm run guards && next build",
     "dev": "npm run content && next dev",
     "start": "node .next/standalone/server.js",
