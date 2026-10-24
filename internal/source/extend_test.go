@@ -2,8 +2,8 @@ package source_test
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
@@ -35,22 +35,18 @@ func (bannedPackage) Templates() []source.Spec {
 			Params: []source.Param{{
 				Name:   "package",
 				Format: "a package name of letters, digits, dots, underscores and hyphens",
+				Match:  regexp.MustCompile(`^[A-Za-z0-9._-]{1,200}$`),
 			}},
 		},
-		// The value sits between quotes. A quote, a space or a semicolon is
-		// refused so it cannot end the literal (ADR-0032). The table name is
-		// the adapter's own, not a review setting.
+		// The value sits between quotes. Proven has already held it to the
+		// format above and to the byte floor, so it cannot end the literal
+		// (ADR-0032). The builder may still refuse for its own reasons, and
+		// it refuses with a *querytpl.Refusal. The table name is the
+		// adapter's own, not a review setting.
 		Build: func(params map[string]string, _ source.Rel) (string, error) {
 			pkg := params["package"]
-			for _, c := range pkg {
-				switch {
-				case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '.', c == '_', c == '-':
-				default:
-					return "", fmt.Errorf("banned-by-package: package is outside its format")
-				}
-			}
-			if pkg == "" {
-				return "", fmt.Errorf("banned-by-package: package is outside its format")
+			if pkg == "." || pkg == ".." {
+				return "", &querytpl.Refusal{Reason: querytpl.ReasonBadValue, Detail: "banned-by-package package"}
 			}
 			return "SELECT name, reason FROM banned_pkg WHERE name = '" + pkg + "'", nil
 		},

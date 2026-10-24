@@ -13,6 +13,11 @@
 // import goes the other way.
 package source
 
+import (
+	"regexp"
+	"strings"
+)
+
 // Load is how a source is loaded into the evidence store (ADR-0046).
 type Load struct {
 	// Origin is where the data comes from.
@@ -43,8 +48,78 @@ type Template struct {
 type Param struct {
 	// Name is the parameter's name, for example "cve_id".
 	Name string
-	// Format is the format a prompt shows. The builder refuses a value outside it.
+	// Format is the format a prompt shows, in words.
 	Format string
+	// Match is the same format as a machine check. Proven holds every value to
+	// it, and to the byte floor of CheckValue, before a builder runs. Register
+	// refuses a parameter that has none. Anchor it: an unanchored pattern
+	// admits a value that only contains the format.
+	Match *regexp.Regexp
+}
+
+// CheckValue reports whether a parameter value is one a builder may place in
+// a query: it matches the parameter's format, and holds no quote, no
+// backslash, no control byte and no byte outside printable ASCII. The floor
+// does not depend on the adapter's pattern, so a loose pattern cannot admit
+// a byte that ends a string literal (ADR-0032 point 3).
+func CheckValue(p Param, value string) bool {
+	if p.Match == nil || !p.Match.MatchString(value) {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if c := value[i]; c < 0x20 || c > 0x7e || c == '\'' || c == '\\' {
+			return false
+		}
+	}
+	return true
+}
+
+// ValueError is a parameter value Build refused because it is outside the
+// parameter's format. It names the template and the parameter and never the
+// value, which may hold bytes a terminal or a log would act on.
+type ValueError struct {
+	Template string
+	Param    string
+}
+
+// Error names the template and the parameter.
+func (e *ValueError) Error() string {
+	return "query parameter value is outside its format: " + e.Template + " " + e.Param
+}
+
+// ValidRelation reports whether name can be placed in a FROM clause: one
+// identifier, or schema.name, of letters, digits and underscores. A table or
+// view name goes into a query unquoted, so this check is what keeps a name
+// from carrying SQL of its own. querytpl.ValidRelation is this function.
+func ValidRelation(name string) bool {
+	parts := strings.Split(name, ".")
+	if len(parts) > 2 {
+		return false
+	}
+	for _, p := range parts {
+		if !identifier(p) {
+			return false
+		}
+	}
+	return true
+}
+
+// identifier reports whether s is a letter or underscore followed by letters,
+// digits and underscores.
+func identifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c == '_':
+		case i > 0 && c >= '0' && c <= '9':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // Spec is one template and the builder that writes its query.
@@ -53,10 +128,12 @@ type Spec struct {
 	// Template is the question. It is a querytpl.Template.
 	Template Template
 	// Build writes the query.
-	// params are the template's parameter values. rel carries the review's
-	// table and view names (ADR-0013). A value outside its format is refused
-	// and never escaped. An organisation's adapter may ignore rel and use
-	// Load.Table when the table name is the adapter's own.
+	// params are the template's parameter values; Proven has already held each
+	// one to its Param.Match and to the byte floor, so none is escaped here.
+	// rel carries the review's table and view names (ADR-0013). An
+	// organisation's adapter may ignore rel and use Load.Table when the table
+	// name is the adapter's own; Register has checked it is a plain name.
+	// A refusal the builder returns reaches the review as a query note.
 	Build func(params map[string]string, rel Rel) (string, error)
 }
 

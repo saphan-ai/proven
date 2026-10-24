@@ -114,6 +114,13 @@ func Build(name string, params map[string]string, rel Rel) (string, bool, error)
 	if spec.Build == nil {
 		return "", true, fmt.Errorf("source: template %s has no builder", name)
 	}
+	// The same check querytpl.Build runs, so a caller that comes here directly
+	// does not reach a builder with a value Proven has not held to its format.
+	for _, p := range spec.Template.Params {
+		if !CheckValue(p, params[p.Name]) {
+			return "", true, &ValueError{Template: name, Param: p.Name}
+		}
+	}
 	sql, err := spec.Build(params, rel)
 	return sql, true, err
 }
@@ -152,6 +159,9 @@ func checkNew(have, list []Adapter) error {
 		if load.Origin == "" || load.Refresh == "" || load.Table == "" {
 			return fmt.Errorf("source: adapter %s needs an origin, a refresh and a table", a.ID())
 		}
+		if !ValidRelation(load.Table) {
+			return fmt.Errorf("source: adapter %s has a table that is not a plain name", a.ID())
+		}
 		specs := a.Templates()
 		if len(specs) == 0 {
 			return fmt.Errorf("source: adapter %s has no template", a.ID())
@@ -165,6 +175,11 @@ func checkNew(have, list []Adapter) error {
 			}
 			if spec.Build == nil {
 				return fmt.Errorf("source: template %s has no builder", spec.Template.Name)
+			}
+			for _, p := range spec.Template.Params {
+				if p.Match == nil {
+					return fmt.Errorf("source: template %s parameter %s has no machine format", spec.Template.Name, p.Name)
+				}
 			}
 			names[spec.Template.Name] = struct{}{}
 		}

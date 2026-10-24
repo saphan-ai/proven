@@ -218,6 +218,10 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 		if errors.As(err, &refusal) {
 			return nil, fmt.Sprintf("%q %q: osv query refused: %s", hit.Package, hit.Version, refusal.Error()), nil
 		}
+		var bad *source.ValueError
+		if errors.As(err, &bad) {
+			return nil, fmt.Sprintf("%q %q: osv query refused: %s", hit.Package, hit.Version, bad.Error()), nil
+		}
 		return nil, "", err
 	}
 	res, err := q.Query(ctx, sqlText)

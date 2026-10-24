@@ -39,8 +39,8 @@ func (osvAdapter) Templates() []source.Spec {
 				Name:   OSVByPackage,
 				Answer: "the OSV advisory rows of one package",
 				Params: []source.Param{
-					{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io"},
-					{Name: ParamPackage, Format: "a package name in the ecosystem's own spelling"},
+					{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io", Match: ecosystemFormat},
+					{Name: ParamPackage, Format: "a package name in the ecosystem's own spelling", Match: anyPackageFormat},
 				},
 			},
 			Build: func(params map[string]string, rel source.Rel) (string, error) {
@@ -52,7 +52,7 @@ func (osvAdapter) Templates() []source.Spec {
 				Name:   OSVByAdvisory,
 				Answer: "the OSV advisory with one advisory id",
 				Params: []source.Param{
-					{Name: ParamAdvisoryID, Format: "an advisory id such as GHSA-xxxx-xxxx-xxxx or GO-2021-0113"},
+					{Name: ParamAdvisoryID, Format: "an advisory id such as GHSA-xxxx-xxxx-xxxx or GO-2021-0113", Match: advisoryFormat},
 				},
 			},
 			Build: func(params map[string]string, rel source.Rel) (string, error) {
@@ -95,7 +95,7 @@ func (kevAdapter) Templates() []source.Spec {
 			Name:   KEVByCVE,
 			Answer: "the CISA known-exploited entry of one CVE",
 			Params: []source.Param{
-				{Name: ParamCVEID, Format: "a CVE id such as CVE-2021-44228"},
+				{Name: ParamCVEID, Format: "a CVE id such as CVE-2021-44228", Match: cveFormat},
 			},
 		},
 		Build: func(params map[string]string, rel source.Rel) (string, error) {
@@ -132,7 +132,7 @@ func (epssAdapter) Templates() []source.Spec {
 			Name:   EPSSByCVE,
 			Answer: "the EPSS score of one CVE",
 			Params: []source.Param{
-				{Name: ParamCVEID, Format: "a CVE id such as CVE-2021-44228"},
+				{Name: ParamCVEID, Format: "a CVE id such as CVE-2021-44228", Match: cveFormat},
 			},
 		},
 		Build: func(params map[string]string, rel source.Rel) (string, error) {

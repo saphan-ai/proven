@@ -16,6 +16,7 @@
 package querytpl
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -64,6 +65,7 @@ const (
 	ReasonUnknownParam    = "query template parameter is not one the template takes"
 	ReasonBadValue        = "query parameter value is outside its format"
 	ReasonBadRelation     = "table or view name is not a plain name"
+	ReasonBuilder         = "query template builder refused the values"
 	ReasonModelSQL        = "a model's answer carries SQL text"
 )
 
@@ -169,12 +171,17 @@ func Describe() string {
 // in RE2 the dollar sign matches the end of the text only, so a trailing line
 // break is not admitted.
 var (
-	cveFormat       = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,12}$`)
-	advisoryFormat  = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,15}(-[A-Za-z0-9]{1,40}){1,6}$`)
-	goFormat        = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
-	npmFormat       = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._~-]{0,213}/)?[A-Za-z0-9][A-Za-z0-9._~-]{0,213}$`)
-	pypiFormat      = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._-]{0,212}[A-Za-z0-9])?$`)
-	packagistFormat = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?/[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?$`)
+	ecosystemFormat = regexp.MustCompile(`^(Go|npm|PyPI|Packagist|crates\.io)$`)
+	// anyPackageFormat admits every ecosystem's package spelling and nothing
+	// more. It is the gate Proven applies to the parameter; the builder then
+	// holds the name to its own ecosystem's format.
+	anyPackageFormat = regexp.MustCompile(`^@?[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
+	cveFormat        = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,12}$`)
+	advisoryFormat   = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,15}(-[A-Za-z0-9]{1,40}){1,6}$`)
+	goFormat         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
+	npmFormat        = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._~-]{0,213}/)?[A-Za-z0-9][A-Za-z0-9._~-]{0,213}$`)
+	pypiFormat       = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._-]{0,212}[A-Za-z0-9])?$`)
+	packagistFormat  = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?/[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?$`)
 	// A crate name is 1 to 64 characters, starts with an ASCII letter, and
 	// otherwise contains ASCII letters, digits, '_' or '-'. The spelling is
 	// kept: crates.io does not fold case or turn '_' into '-'.
@@ -188,36 +195,7 @@ func ValidCVE(s string) bool { return cveFormat.MatchString(s) }
 // identifier, or schema.name, of letters, digits and underscores. The name
 // goes into the SQL unquoted, so this check is what keeps a setting from
 // carrying SQL of its own.
-func ValidRelation(name string) bool {
-	parts := strings.Split(name, ".")
-	if len(parts) > 2 {
-		return false
-	}
-	for _, p := range parts {
-		if !identifier(p) {
-			return false
-		}
-	}
-	return true
-}
-
-// identifier reports whether s is a letter or underscore followed by letters,
-// digits and underscores.
-func identifier(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c == '_':
-		case i > 0 && c >= '0' && c <= '9':
-		default:
-			return false
-		}
-	}
-	return true
-}
+func ValidRelation(name string) bool { return source.ValidRelation(name) }
 
 // literal is the one builder of a SQL string literal. It does not escape: a
 // value outside its format is refused, so the text between the two quotes is
@@ -274,12 +252,32 @@ func Build(req Request, rel Relations) (string, error) {
 	if spec.Build == nil {
 		return "", fmt.Errorf("querytpl: template %s has no builder", spec.Template.Name)
 	}
-	return spec.Build(req.Params, source.Rel{
+	// Proven holds every value to its parameter's format and to the byte
+	// floor before any builder runs, built-in or registered: the adapter's
+	// builder is never the only guard (ADR-0032 points 1 and 3).
+	for _, p := range spec.Template.Params {
+		if !source.CheckValue(p, req.Params[p.Name]) {
+			return "", &Refusal{Reason: ReasonBadValue, Detail: spec.Template.Name + " " + p.Name}
+		}
+	}
+	sql, err := spec.Build(req.Params, source.Rel{
 		OSVTable:  rel.OSVTable,
 		KEVView:   rel.KEVView,
 		EPSSView:  rel.EPSSView,
 		OSVIDView: rel.OSVIDView,
 	})
+	if err != nil {
+		// A registered builder returns what it likes. Whatever it returns
+		// reaches the Investigator as a refusal, so one refused value is a
+		// query note and never a failed review. The builder's text is not
+		// repeated: it may echo the value.
+		var refusal *Refusal
+		if errors.As(err, &refusal) {
+			return "", err
+		}
+		return "", &Refusal{Reason: ReasonBuilder, Detail: spec.Template.Name}
+	}
+	return sql, nil
 }
 
 // Validate checks a request without building a query: the Skeptic uses it to
