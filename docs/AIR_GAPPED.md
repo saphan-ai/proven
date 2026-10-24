@@ -12,7 +12,8 @@ Proven calls four services. Each has a local form; the mode needs all four to be
 |---|---|---|
 | The models | Meterless Nightshift, on a machine of yours | `PROVEN_GENERATOR_BASE_URL`, `METERLESS_RUNTIME_TOKEN` |
 | The safety model | Your own model server serving the content-safety model (guardrail mode `server`) | `PROVEN_GUARDRAIL_BASE_URL`, `PROVEN_GUARDRAIL_KEY` |
-| The evidence | Zetaris, on a machine of yours | `ZETARIS_REST_URL`, `ZETARIS_API_KEY`, `ZETARIS_ORG_ID` |
+| The evidence | Zetaris, or CouchDB (`PROVEN_EVIDENCE_STORE=couchdb`), on a machine of yours | `ZETARIS_REST_URL`, `ZETARIS_API_KEY`, `ZETARIS_ORG_ID`; or `PROVEN_COUCHDB_URL`, `PROVEN_COUCHDB_USER`, `PROVEN_COUCHDB_PASSWORD` |
+| The telemetry (optional) | An OTLP/HTTP collector on your network. Telemetry is off unless one of these is set | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` |
 | The Prover | A container runtime on the machine that runs Proven, with the test image already on it | `PROVEN_TEST_RUNTIME`, `PROVEN_TEST_IMAGE` |
 
 The forge is yours too: Gitea on premises is an equal scenario (ADR-0022), and the lab of ADR-0017 is the reference
@@ -65,10 +66,14 @@ Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
    configuration refused: PROVEN_GENERATOR_BASE_URL="https://nightshift.example.com/v1": host nightshift.example.com is outside the organisation's network (PROVEN_NETWORK=local); allowed: a loopback or private address, localhost, or a host listed in PROVEN_NETWORK_ALLOW
    ```
 
-   The settings checked are `PROVEN_GENERATOR_BASE_URL`, `PROVEN_GUARDRAIL_BASE_URL`, `ZETARIS_REST_URL` and, when a
-   second reviewer is set (ADR-0037), `PROVEN_SECOND_REVIEWER_BASE_URL`, with or without its key. A
+   The settings checked are `PROVEN_GENERATOR_BASE_URL`, `PROVEN_GUARDRAIL_BASE_URL`, `ZETARIS_REST_URL`,
+   `PROVEN_COUCHDB_URL`, the three OTLP endpoint variables (`OTEL_EXPORTER_OTLP_ENDPOINT`,
+   `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`) and, when a
+   second reviewer is set (ADR-0037), `PROVEN_SECOND_REVIEWER_BASE_URL`, with or without its key. The OTLP endpoints
+   are checked in sample mode too, because sample mode reads them. A
    guardrail address is checked even when the guardrail is `off`, so a hosted address cannot wait there to be switched on.
-2. **At dial.** Each live client opens its connections through a dialer that refuses an address off your network.
+2. **At dial.** Each live client, the CouchDB store's and both OTLP exporters' included, opens its connections
+   through a dialer that refuses an address off your network.
    It holds when a setting was built some other way, and a redirect is never followed. A refused dial is a failed
    service in the review, named like any other.
 3. **In the container.** The Prover's image is run with `--pull never` and `--network none`. If the image is not on
@@ -86,7 +91,7 @@ Each is named here with what Proven enforces on it and what you do.
 
 | Path | What Proven enforces in `local` mode | Your act |
 |---|---|---|
-| **The container daemon.** The runtime (`docker`, `podman`) talks to a daemon, and where that daemon is comes from `DOCKER_HOST`, `CONTAINER_HOST`, `DOCKER_CONTEXT`, the context named in `~/.docker/config.json`, or, for podman, the service destinations of its `containers.conf` files and `podman-connections.json` under `HOME`. | Only `docker` and `podman` are run in `local` mode: any other `PROVEN_TEST_RUNTIME` is refused by name, because Proven cannot tell where its daemon is. For podman every configured destination is checked, not only the active one. The address is checked when the settings load. A local socket (`unix://`, `npipe://`, `fd://`) passes. A `tcp://` or `ssh://` address passes only when its host is on your network, by the rule above. Any other address is refused by name, and no container starts. A docker context that cannot be read is refused by name as well. | Use a local daemon socket. A remote daemon on your own network is allowed when its host is a private address or is on `PROVEN_NETWORK_ALLOW`. The daemon's own registry access is yours to close: Proven runs the image with `--pull never`, and the image must already be on the daemon's host. |
+| **The container daemon.** The runtime (`docker`, `podman`) talks to a daemon, and where that daemon is comes from `DOCKER_HOST`, `CONTAINER_HOST`, `DOCKER_CONTEXT`, the context named in `~/.docker/config.json`, or, for podman, the service destinations of its `containers.conf` files and `podman-connections.json` under `HOME`. | Only `docker` and `podman` are run in `local` mode: any other `PROVEN_TEST_RUNTIME` is refused by name, because Proven cannot tell where its daemon is. For podman every configured destination is checked, not only the active one. The address is checked when the settings load. A local socket (`unix://`, `npipe://`, `fd://`) passes. A `tcp://` or `ssh://` address passes only when its host is an IP address on your network (loopback, private or link-local). A host **name** is refused, listed or not: the runtime, or ssh under it, would resolve the name with its own resolver, through the name servers of the host's configuration and to an answer Proven never judged, and Proven hands the runtime no name. The same holds for every podman destination. Any other address is refused by name, and no container starts. A docker context that cannot be read is refused by name as well. | Use a local daemon socket. A remote daemon on your own network is allowed when it is given as its private IP address (`tcp://10.0.0.7:2376`, `ssh://builder@10.0.0.7`); a name, even one on `PROVEN_NETWORK_ALLOW`, is refused. The daemon's own registry access is yours to close: Proven runs the image with `--pull never`, and the image must already be on the daemon's host. |
 | **Git.** In a partial clone, git fetches a missing object from the remote on demand when a command needs it. | Every git command Proven runs has `GIT_NO_LAZY_FETCH=1`, `-c protocol.allow=never` and one `-c protocol.<name>.allow=never` for `file`, `git`, `http`, `https`, `ssh` and `ext`, so a per-protocol policy in `.git/config` or `~/.gitconfig` cannot reopen a transport, and no terminal prompt. Both switches stop the fetch (measured on git 2.43). A failed read of a partial clone (a repository with a promisor remote) is named, whatever words git uses: the review fails with a message naming `PROVEN_NETWORK=local` and the partial clone. Proven never runs `git fetch` or `git clone`. | Review a full clone, or fetch the objects yourself on a connected host before you go off the network. |
 | **DNS.** A name on `PROVEN_NETWORK_ALLOW` is resolved when Proven dials it. The query is itself a connection, to a name server, and the answer is an address Proven will connect to. | Only a name on the list, or an IP literal, reaches a resolver at all. `localhost` is never looked up. Proven's own resolver connects only to a name server inside the allowed set, and refuses an outside server by name and address. An answer outside the allowed set is refused before any dial. | List at least one name server in `/etc/resolv.conf` that is on loopback, a private range or your allow list, and make it answer the listed names with addresses on your network. A name server that then forwards to the internet is yours to close, as with a forwarding service. |
 | **A local resolver daemon.** `nscd` (glibc's name-service cache) and `systemd-resolved` answer on a unix socket (`/var/run/nscd/socket`, `/run/systemd/resolve/io.systemd.Resolve`), and may resolve a host name for a process by asking DNS on its behalf. A process that only looks up a user or a group (git does) also connects to the `nscd` socket. That connect is local IPC, but the daemon behind it is a DNS path. | Proven starts no child that asks a host name off the list. Git runs with `-c protocol.allow=never`, so it refuses a remote URL before it resolves the name. The container client dials only the checked daemon address. Measured on the test seat, git asked about `git://` and `https://` names off the list made no connect at all with the switch on, and made a connect to a DNS server on port 53 with it off. | Run a local resolver that knows only the names on `PROVEN_NETWORK_ALLOW`, or run neither daemon, or stop them on a host that must not resolve. Proven cannot see what a daemon on the host does with a name it was asked. |
@@ -126,6 +131,15 @@ Each is named here with what Proven enforces on it and what you do.
      passes when the dial refuses it, naming the host and the address, with no connection.
    - `TestLocalResolverDialsOnlyAnAllowedNameServer` passes when a public name server is refused by name and address
      and a loopback, private or listed one is dialled.
+   - `TestLocalRefusesAPublicCouchDBAddress`, `TestLoadCouchLocalRefusesAnOutsideAddress`,
+     `TestLocalRefusesAPublicTelemetryEndpoint` (each of the three variables), `TestLocalRefusesAPublicTelemetryEndpointInSampleMode`
+     and `TestSetupLocalRefusesAnOutsideEndpoint` pass when an outside CouchDB or OTLP address is refused at load, by
+     name. `TestSetupLocalDialsBothExportersThroughThePolicy` passes when both exporters dial through the policy.
+     The witness above also reviews through CouchDB and an OTLP collector on loopback, and a public address given to
+     the store by hand reaches no connect.
+   - `TestLocalDaemonNameIsNotResolvedByTheRuntime` passes when a daemon address given as a listed name is refused.
+   - `TestAbsoluteNameEndsWithADot` and `TestLocalAsksAListedNameOnceAsItself` pass when a listed name is asked as the
+     absolute name, once, with no search suffix.
    - `TestLocalRefusesAPublicDaemonAddressAtLoad` and `TestLocalRefusesADockerContextWhoseDaemonIsPublic` pass when a
      public container daemon is refused at load.
    - `TestLocalRefusesAPublicAddressInEachAddressSetting` passes when each of the three address settings refuses a
