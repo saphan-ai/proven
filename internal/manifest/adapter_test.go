@@ -17,6 +17,7 @@ func TestReadersCarryTheComparison(t *testing.T) {
 		{"npm", "1.2.3", "1.2.3", 0},
 		{"PyPI", "1.2.0", "1.2", 0},
 		{"Packagist", "1.0.0-RC1", "1.0.0", -1},
+		{"crates.io", "1.2.4", "1.2.3", 1},
 	}
 	for _, tc := range cases {
 		r, ok := ByEcosystem(tc.eco)
