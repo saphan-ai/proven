@@ -8,7 +8,7 @@ import (
 )
 
 // goTest is the command words TestArgv builds for the test used across these tests.
-var goTest = []string{"go", "test", "-run", "^TestDiscounted$", "./billing"}
+var goTest = []string{"go", "test", "-json", "-run", "^TestDiscounted$", "./billing"}
 
 // TestArgvIsTheTemplateWithNoShell proves a valid test name and path give
 // exactly the fixed per-language command, as separate words with no shell.
@@ -18,8 +18,8 @@ func TestArgvIsTheTemplateWithNoShell(t *testing.T) {
 		want       []string
 	}{
 		{"billing/discount_test.go", "TestDiscounted", goTest},
-		{"add_test.go", "TestAdd", []string{"go", "test", "-run", "^TestAdd$", "."}},
-		{"a/b/c_test.go", "Test_x1", []string{"go", "test", "-run", "^Test_x1$", "./a/b"}},
+		{"add_test.go", "TestAdd", []string{"go", "test", "-json", "-run", "^TestAdd$", "."}},
+		{"a/b/c_test.go", "Test_x1", []string{"go", "test", "-json", "-run", "^Test_x1$", "./a/b"}},
 	}
 	for _, tc := range cases {
 		got, reason := TestArgv(tc.path, tc.name)
@@ -37,7 +37,7 @@ func TestArgvIsTheTemplateWithNoShell(t *testing.T) {
 // TestDisplayCommandIsTheReadableTemplate proves the trace shows the template
 // with the pattern quoted, and that it is only text.
 func TestDisplayCommandIsTheReadableTemplate(t *testing.T) {
-	if got, want := displayCommand(goTest), "go test -run '^TestDiscounted$' ./billing"; got != want {
+	if got, want := displayCommand(goTest), "go test -json -run '^TestDiscounted$' ./billing"; got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
@@ -125,7 +125,7 @@ func TestRunnerRunsExactlyTheTemplate(t *testing.T) {
 			t.Errorf("the run line ends %q", tail)
 		}
 	}
-	if out.Command != "go test -run '^TestDiscounted$' ./billing" {
+	if out.Command != "go test -json -run '^TestDiscounted$' ./billing" {
 		t.Errorf("outcome command %q", out.Command)
 	}
 }

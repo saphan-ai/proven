@@ -40,6 +40,24 @@ A dependency the change adds or raises is not named by those agents. Proven read
 decides: a matching range is evidence, and a version outside every range is a trace line, not a finding. See
 [OSV_TABLE.md](OSV_TABLE.md).
 
+## Proposed fixes (ADR-0042)
+
+After the Judge, a **Fixer** step asks the model for a patch for each kept finding that a test proved, and proves the
+patch with the same test. The patch is a list of edits, applied to a scratch copy of the change and never to the change
+itself. The test-run adapter then runs, in the Prover's container, the proving test three times: on the base (it must
+pass), on the change (it must fail) and on the change with the patch applied (it must pass), and then the other tests of
+the package on the patched change (they must pass). Only a patch that passes all four is shown as a fix; `Fix.Runs`
+records each run with its command and exit code, so a reader can run them again.
+
+A patch that fails is tried again by the same model with the failed run in hand, up to `fix_attempts` times (default 2).
+After the last attempt the review says "fix not proved" and shows no patch. A patch may not edit a test file: the fix is
+proved by the test that showed the problem, so a patch that could rewrite it would prove nothing. The patch is a
+suggestion for a person to apply. `fixes: off` in `proven.yaml` turns proposed fixes off.
+
+A dependency finding gets the smallest fixed version that leaves every affected range of the advisory rows the query
+returned, with the row that shows it. It is compared in Go, from the same `osv-by-package` rows, and no test proves it,
+so it is never marked proved.
+
 ## What is kept, and where
 
 - **The trace** (`logs/trace.jsonl`): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
@@ -75,4 +93,4 @@ Each finding carries one named level of proof, `review.Finding.ProofLevel`. The 
 
 `review.Result.ProofCounts` counts the findings by level, with every level present as a key and 0 when none, so the counts add up to the findings. `review.ProofLevels` lists the levels in this order.
 
-**For the shell train (output formats):** render `Finding.ProofLevel` first in the text, Markdown, HTML and pull-request comment, as a field in JSON and SARIF, and render `Result.ProofCounts` as the totals by level. A proposed fix's own level (ADR-0042) is not in this field and arrives with that work.
+**For the shell train (output formats):** render `Finding.ProofLevel` first in the text, Markdown, HTML and pull-request comment, as a field in JSON and SARIF, and render `Result.ProofCounts` as the totals by level. A proposed fix (ADR-0042) is not a level of proof. It is `Finding.Fix`, with `Proved`, the edits, the explanation and the runs; render it under the finding it belongs to, and render a fix that was not proved as "fix not proved" with `Fix.Note`, never as a patch. The text output does this today; the other formats carry the same fields when they are built.

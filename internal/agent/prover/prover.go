@@ -159,7 +159,11 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 		return c, nil
 	}
 	if out.FailsOnChange && out.PassesOnBase {
-		c.Evidence = append(c.Evidence, testEvidence(out))
+		ev := testEvidence(out)
+		// ADR-0042: the Fixer runs this same test again on a patched change, so the
+		// evidence keeps the file the model wrote.
+		ev.Test.Content = got.Content
+		c.Evidence = append(c.Evidence, ev)
 		return c, nil
 	}
 	// The passes-on-base check. A written test that passed on the base did not
