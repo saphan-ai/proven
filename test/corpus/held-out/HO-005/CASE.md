@@ -73,7 +73,20 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-To be recorded by the fixture round. **Not run**: the case code is not built yet.
+Recorded 2026-10-24T16:09Z on Linux. Toolchain: POSIX `sh` (here `dash`) with `grep`, `cut` and `mktemp`. No other tool. macOS was not run: no macOS host was available.
+
+The stand-in service is `service.sh`, a local program with a fixed table: it lists `model-a` and `model-b` and has one distinct answer text for each. The default model of the change is `model-a`. `wrapper.sh` is one file, used for both versions. The check reads the model that really served each job from the answer text, using the stand-in's table; neither the tool nor the wrapper computes it. The reference labels are literals in `check.sh`. The check writes under `.saphan/work/corpus-ho-005/` inside the checkout and removes it on exit. Each line below names the version, the job, the model asked for, the tool's exit code, the model the wrapper logged (`-` when it logged none), the model that really served, and the reference label.
+
+Command, from the repository root:
+
+    sh test/corpus/held-out/HO-005/check.sh
+
+Exit code: 0
+
+    base job-1 asked model-b exit 0 logged model-b served model-b reference should serve model-b
+    base job-2 asked model-z exit 2 logged - served none reference should not be served
+    change job-1 asked model-b exit 0 logged model-b served model-b reference should serve model-b
+    change job-2 asked model-z exit 0 logged model-z served model-a reference should not be served
 
 ## 9. Limits
 
