@@ -61,6 +61,8 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0045](ADR-0045-a-review-is-observable-through-opentelemetry.md) | a review is observable through OpenTelemetry (standard `OTEL_*`, off unless set), plugs into any monitoring; the lab shows it live on a provisioned Grafana dashboard | accepted, 2026-10-23 |
 | [0046](ADR-0046-a-data-source-is-one-adapter.md) | a data source is one adapter: it loads into Zetaris, offers query templates and a rule that turns a row into a finding; an organisation adds its own sources the same way | accepted, 2026-10-24 |
 | [0047](ADR-0047-the-evidence-store-is-an-adapter.md) | the evidence store is an adapter: Zetaris or a local one-file store, chosen by one setting; the same templates return the same rows on both | accepted, 2026-10-24 |
+| [0048](ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md) | a large change is reviewed in bounded steps with Meterless's Markovian engine; kept only if it holds the findings and cuts the cost | accepted, 2026-10-24 |
+| [0049](ADR-0049-scout-intent-plans-each-review.md) | Meterless's Scout Intent plans each review before a model runs; never lowers a configured rule; kept only if measured worth it | accepted, 2026-10-24 |
 
 **Rules for an ADR**
 
