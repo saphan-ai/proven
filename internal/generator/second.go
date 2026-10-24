@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -51,6 +52,8 @@ type SecondSettings struct {
 	Key     string
 	Model   string
 	Timeout time.Duration
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network *network.Policy
 }
 
 // LoadSecond reads the second reviewer's settings. The bool is false when no key is set: the
@@ -78,6 +81,17 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 			return SecondSettings{}, false, err
 		}
 	}
+	// ADR-0034: in the air-gapped mode a second reviewer's address off the organisation's network is
+	// refused here, by name, even without a key, so a hosted address cannot wait there to be switched on.
+	policy, err := network.Load(env)
+	if err != nil {
+		return SecondSettings{}, false, fromNetwork(err)
+	}
+	if base != "" {
+		if err := policy.CheckURL(EnvSecondBaseURL, base); err != nil {
+			return SecondSettings{}, false, fromNetwork(err)
+		}
+	}
 	model := env(EnvSecondModel)
 	if model == "" {
 		if connected {
@@ -97,7 +111,7 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 	if !connected {
 		return SecondSettings{}, false, nil
 	}
-	return SecondSettings{BaseURL: base, Key: key, Model: model, Timeout: timeout}, true, nil
+	return SecondSettings{BaseURL: base, Key: key, Model: model, Timeout: timeout, Network: policy}, true, nil
 }
 
 // Second is the generator of the second reviewer: any OpenAI-compatible chat API, behind the same

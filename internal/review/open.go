@@ -119,6 +119,7 @@ func open(opts Options) (Reviewer, error) {
 			return nil, generatorConfig(serr)
 		}
 		if connected {
+			sec.Network = sec.Network.WithDial(opts.dial)
 			popts.Special = generator.NewSecond(sec, nil)
 			secondModel = sec.Model
 		}
