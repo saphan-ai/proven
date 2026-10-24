@@ -254,6 +254,9 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		DoubleRun:      double,
 		DefaultModel:   cfg.DefaultReviewer,
 		SpecialModel:   cfg.SpecialReviewer,
+		// ADR-0042: the settings that turn proposed fixes off and bound their attempts.
+		FixesOff:    !cfg.Fixes,
+		FixAttempts: cfg.FixAttempts,
 	})
 	if err != nil {
 		return Result{}, err
@@ -275,7 +278,11 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 // ADR-0044: fill sets each finding's ProofLevel from its strongest evidence and counts the findings by
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
-	out := Result{Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{}}
+	out := Result{
+		Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{},
+		// A guardrail that was off is named in the result, not only in the trace.
+		GuardrailStatement: d.GuardrailStatement,
+	}
 	for _, l := range ProofLevels {
 		out.ProofCounts[l] = 0
 	}
@@ -290,6 +297,7 @@ func fill(d candidate.Draft) (Result, error) {
 		for _, e := range c.Evidence {
 			f.Evidence = append(f.Evidence, toEvidence(e))
 		}
+		f.Fix = toFix(c.Fix)
 		level, err := ProofLevelOf(f.Evidence)
 		if err != nil {
 			return Result{}, fmt.Errorf("finding %s: %w", c.ID, err)
@@ -316,6 +324,32 @@ func fill(d candidate.Draft) (Result, error) {
 		out.FailedServices = []ServiceFailure{}
 	}
 	return out, nil
+}
+
+// toFix copies a proposed fix across the seam, field by field. A nil fix stays nil.
+func toFix(f *candidate.Fix) *Fix {
+	if f == nil {
+		return nil
+	}
+	out := &Fix{
+		Kind: f.Kind, Proved: f.Proved, Attempts: f.Attempts,
+		What: f.What, Why: f.Why, Note: f.Note,
+	}
+	for _, e := range f.Edits {
+		out.Edits = append(out.Edits, FixEdit{Path: e.Path, Old: e.Old, New: e.New})
+	}
+	for _, r := range f.Runs {
+		out.Runs = append(out.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+	}
+	if d := f.Dependency; d != nil {
+		out.Dependency = &DependencyFix{
+			Ecosystem: d.Ecosystem, Package: d.Package, From: d.From, To: d.To,
+			AdvisoryID:      d.AdvisoryID,
+			AdvisoryColumns: append([]string(nil), d.AdvisoryColumns...),
+			AdvisoryRow:     append([]string(nil), d.AdvisoryRow...),
+		}
+	}
+	return out
 }
 
 // toEvidence copies one piece of evidence across the seam, field by field.

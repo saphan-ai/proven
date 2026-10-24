@@ -198,7 +198,7 @@ func sampleLog(t *testing.T, withEvidence bool) []byte {
 		{EventID: "e3", FindingID: "F1", Kind: "refutation", Agent: "skeptic", Text: "the helper applies it once",
 			ChangeKey: "chg", RuleID: "discount-applied-twice", Path: "billing/discount.go", Title: "Discount is applied twice",
 			HasEvidence: withEvidence,
-			Refutation:  &trace.Refutation{Attempted: true, Refuted: true, Reason: "the helper applies it once"}},
+			Refutation:  &trace.Refutation{Attempted: true, Refuted: true, Reason: "the helper applies it once", Evidenced: withEvidence}},
 		{EventID: "e4", FindingID: "F1", Kind: "verdict", Agent: "judge", Text: "kept",
 			ChangeKey: "chg", RuleID: "discount-applied-twice", Path: "billing/discount.go", Title: "Discount is applied twice"},
 	}

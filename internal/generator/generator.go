@@ -1,6 +1,6 @@
 // Package generator is the one model interface. Agents call it; they do not call a model.
 //
-// The model-calling agents (Planner, Investigator, Prover and Skeptic) send
+// The model-calling agents (Planner, Investigator, Prover, Fixer and Skeptic) send
 // their prompts through a Generator; the Judge and the Writer call no model. Live speaks to Meterless Nightshift (ADR-0019) and reads the
 // answering model from its receipt, or, in nvidia mode, to NVIDIA's hosted API
 // (ADR-0031) and reads it from the response's model field with "no receipt";
