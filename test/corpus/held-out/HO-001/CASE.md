@@ -75,7 +75,20 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-To be recorded by the fixture round. **Not run**: the case code is not built yet.
+Recorded 2026-10-24T16:04Z on Linux. Toolchain: POSIX `sh` (here `dash`) with `grep`, `cut`, `tail` and `mktemp`. No other tool. macOS was not run: no macOS host was available.
+
+The check writes its four recorded states under `.saphan/work/corpus-ho-001/` inside the checkout and removes them on exit. The reference labels are literals in `check.sh`; neither gate reads them.
+
+Command, from the repository root:
+
+    sh test/corpus/held-out/HO-001/check.sh
+
+Exit code: 0
+
+    one-run-success base pass change pass reference should pass
+    one-run-failure base fail change fail reference should fail
+    success-then-failure base fail change pass reference should fail
+    failure-then-success base pass change pass reference should pass
 
 ## 9. Limits
 
