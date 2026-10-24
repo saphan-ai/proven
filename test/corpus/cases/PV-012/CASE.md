@@ -2,7 +2,7 @@
 
 - incident: I09 (one incident; this case is a later round of it, and the round after it settled the finding)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -71,6 +71,9 @@ production never filters; and a sync step that re-stamps ownership with whoever 
 The two versions of the page, the store, the sync operation, the change's control, and a readable diff between them. The
 reviewer under evaluation receives only those and the description of the change in §1 — never the check, the reference
 or `expected/`.
+Within each `main.go`, the review target ends before `run()`; the evaluator also supplies the `control` and `vacuity`
+branches of `run()` as the change's control, but withholds the other input branches, the `registryFilter` mutation,
+`main()`, and `check.sh` as the test driver.
 
 ## 6. The two claims and their evidence (as preserved in the record)
 
@@ -95,8 +98,28 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Toolchain: `go version go1.26.5 linux/amd64` (local Go; module declares `go 1.26`). The check requires a locally
+installed Go 1.26 or newer and sets `GOTOOLCHAIN=local`, so an older host fails instead of downloading a toolchain.
+Baseline at 2026-10-23 01:34:31 UTC and final run at 2026-10-23 01:36:04 UTC from the repository root:
+`bash test/corpus/cases/PV-012/check.sh` (both exit 0; the baseline printed the first seven lines below).
+The script builds both versions with `go build` and prints each input's results from the two pages beside the independent
+seeded-ownership reference. The request's team changes only the scope sentence; narrowing uses the team supplied when
+the page is built, so `scope-with-team` still serves all five foreign events. The ownership negative control re-stamps
+the foreign items as "ours" after their creation, then verifies that the change's control reports FAIL with four foreign
+events served. The script prints counts and does not compare them to the reference; exit 0 means builds and runs
+succeeded, not that every count matches. Final output, including the script's exit code:
+
+```text
+control | base: 5 (Activity for all teams; control=not-present) | change: 0 (Activity scoped to ours; control=PASS) | reference: 0
+vacuity | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity scoped to theirs; control=PASS) | reference: 5
+application | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity for all teams; control=not-applicable) | reference: 0
+scope-no-team | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity for all teams; control=not-applicable) | reference: 0
+scope-with-team | base: 5 (Activity for all teams; control=not-present) | change: 5 (Activity for all teams (request team: ours); control=not-applicable) | reference: 0
+extra-sync | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=not-applicable) | reference: 0
+control-no-registry | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=FAIL) | reference: 0
+control-wrong-ownership | base: 5 (Activity for all teams; control=not-present) | change: 4 (Activity scoped to ours; control=FAIL) | reference: 0
+exit=0
+```
 
 ## 9. Limits
 
