@@ -14,19 +14,24 @@ import (
 )
 
 // Formatter writes one review result in one format.
-// Text is implemented. JSON and SARIF use this same seam and refuse until they are built.
+// text, JSON and SARIF each have a writer in this build (ADR-0020 §1).
 type Formatter interface {
 	Write(w io.Writer, result review.Result) error
 }
 
 // FormatterFor returns the writer for format, one of text, json or sarif.
+// ADR-0020 §1: the same three names are the standard-output format and the --*-output files.
 func FormatterFor(format string) (Formatter, error) {
 	switch format {
 	case "text":
 		return textFormatter{}, nil
-	case "json", "sarif":
-		return nil, fmt.Errorf("format %q has no writer in this build", format)
+	case "json":
+		return jsonFormatter{}, nil
+	case "sarif":
+		return sarifFormatter{}, nil
 	default:
+		// A name the flag parser did not offer still has to refuse, or a caller
+		// inside this package could write an empty file under an unknown format.
 		return nil, fmt.Errorf("format %q has no writer in this build", format)
 	}
 }
@@ -85,6 +90,11 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			return err
 		}
 	}
+	// ADR-0041: the opinion section is its own block, after the findings, so a
+	// line that starts with "finding " is never an opinion.
+	if err := writeOpinions(w, result); err != nil {
+		return err
+	}
 	if len(result.FailedServices) == 0 {
 		if _, err := fmt.Fprintln(w, "failed services: none"); err != nil {
 			return err
@@ -142,6 +152,35 @@ func familySentence(path string) string {
 		}
 	}
 	return ""
+}
+
+// writeOpinions prints the section "Agreed by two models, not proven" (ADR-0041).
+// The section is always there. With one reviewer it says why it is empty: a
+// claim only one model makes stays dropped. Each opinion prints both reviewers'
+// reasons as they wrote them. The lines are indented, so they are not findings.
+func writeOpinions(w io.Writer, result review.Result) error {
+	if _, err := fmt.Fprintln(w, "Agreed by two models, not proven"); err != nil {
+		return err
+	}
+	if len(result.Opinions) == 0 {
+		if len(result.Reviewers) < 2 {
+			_, err := fmt.Fprintln(w, "  none: one reviewer; a claim only one model makes stays dropped")
+			return err
+		}
+		_, err := fmt.Fprintln(w, "  none")
+		return err
+	}
+	for _, op := range result.Opinions {
+		if _, err := fmt.Fprintf(w, "  opinion %s %s:%d-%d\n", visible(op.ID), visible(op.Location.Path), op.Location.StartLine, op.Location.EndLine); err != nil {
+			return err
+		}
+		for _, reason := range op.Reasons {
+			if _, err := fmt.Fprintf(w, "  %s %s: %s\n", visible(reason.Role), visible(reason.Model), visible(reason.Reason)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // writeFinding prints one finding: its name, severity and title, its EPSS

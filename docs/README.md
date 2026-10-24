@@ -11,6 +11,7 @@ Read in this order.
 | [ADAPTERS.md](ADAPTERS.md) | how a deterministic tool plugs in, with the Go race detector as the worked example | first version |
 | [CONFIGURATION.md](CONFIGURATION.md) | every setting the reviewer reads, its default and what it changes, including every `proven.yaml` key | first version; the shell's flags are added by the shell's track |
 | [QUERIES.md](QUERIES.md) | every question Proven asks Zetaris: the query templates, each parameter's format, and what a refusal does | first version |
+| [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md) | JSON and SARIF, two writings of one review result | first version |
 | [OSV_TABLE.md](OSV_TABLE.md) | the OSV package table, the CSV converter, and how an administrator loads and refreshes it | first version |
 <<<<<<< main
 | [LAB.md](LAB.md) | the keys a live review needs, per generator mode, and where to get them | first version |

@@ -13,7 +13,8 @@
 // and answer (ADR-0005), the record of every model call, the doubled review
 // with a second model (ADR-0009, ADR-0012), the partial review a deadline
 // leaves behind, and the redaction of every configured secret from the trace,
-// the recorded models, a failure's reason and every finding, because a service
+// the recorded models, a failure's reason, every finding and every agreed
+// opinion, because a service
 // can echo a value it was sent (ADR-0005, ADR-0013 point 4).
 //
 // Live mode reads a directory that already has base/ and change/, or a git
@@ -266,6 +267,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	// ADR-0005, ADR-0013 point 4: the draft is the last place model and service text
 	// can reach the result, so it is redacted once here, after every agent has run.
 	d.Findings = p.redactFindings(d.Findings)
+	// An opinion's reasons are the reviewers' own words, so they are redacted
+	// with the findings (ADR-0041, ADR-0005).
+	d.Opinions = p.redactOpinions(d.Opinions)
 	// A review run without the guardrail says so in its result, not only in its
 	// trace: a reader of the result alone must not take it for a guarded review.
 	if p.guardOff {
@@ -434,6 +438,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	keep := func(d candidate.Draft) candidate.Draft {
 		d.Findings = keepFindings(d.Findings, allow)
+		d.Opinions = keepOpinions(d.Opinions, allow)
 		return d
 	}
 
@@ -1286,6 +1291,7 @@ func (p *Pipeline) cut(st *state, cands []candidate.Candidate, allow map[string]
 		return candidate.Draft{}, err
 	}
 	d.Findings = keepFindings(d.Findings, allow)
+	d.Opinions = keepOpinions(d.Opinions, allow)
 	return d, nil
 }
 
@@ -1458,6 +1464,41 @@ func selectionText(dropped []string) string {
 	cp := append([]string(nil), dropped...)
 	sort.Strings(cp)
 	return "selected out: " + strings.Join(cp, ", ")
+}
+
+// keepOpinions keeps the opinions whose path is one of the selected files.
+// An opinion outside the selection is not shown, for the same reason a finding
+// outside it is not (ADR-0041).
+func keepOpinions(in []candidate.Opinion, allow map[string]struct{}) []candidate.Opinion {
+	var out []candidate.Opinion
+	for _, o := range in {
+		if _, ok := allow[o.Path]; ok {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+// redactOpinions returns a copy of in with the configured secrets replaced in
+// every string a reviewer wrote. A nil redactor leaves the text as it is.
+func (p *Pipeline) redactOpinions(in []candidate.Opinion) []candidate.Opinion {
+	if in == nil {
+		return nil
+	}
+	rd := p.redactor
+	out := make([]candidate.Opinion, len(in))
+	for i, o := range in {
+		o.ID, o.Title, o.Path = rd.Text(o.ID), rd.Text(o.Title), rd.Text(o.Path)
+		if o.Reasons != nil {
+			rs := make([]candidate.Verdict, len(o.Reasons))
+			for j, v := range o.Reasons {
+				rs[j] = candidate.Verdict{Run: v.Run, Model: rd.Text(v.Model), Verdict: v.Verdict, Reason: rd.Text(v.Reason)}
+			}
+			o.Reasons = rs
+		}
+		out[i] = o
+	}
+	return out
 }
 
 // keepFindings keeps the findings whose path is one of the selected files.
