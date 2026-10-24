@@ -95,6 +95,21 @@ func TestLocalRefusesTheHostedGuardrailByName(t *testing.T) {
 	}
 }
 
+// TestLocalRefusesTheHostedGeneratorByName proves ADR-0034 for the generator: PROVEN_GENERATOR_MODE=nvidia
+// is refused in local mode even with a local address, and the refusal names the setting and the value.
+// Mutated field: the refusal of PROVEN_GENERATOR_MODE in generator.Load.
+func TestLocalRefusesTheHostedGeneratorByName(t *testing.T) {
+	env := map[string]string{
+		"PROVEN_NETWORK": "local", "PROVEN_GENERATOR_MODE": "nvidia",
+		"PROVEN_GENERATOR_KEY": "k", "PROVEN_NVIDIA_BASE_URL": "https://127.0.0.1:8443",
+	}
+	_, err := generator.Load(func(k string) string { return env[k] })
+	field, text := refusedField(t, err)
+	if field != "PROVEN_GENERATOR_MODE" || !strings.Contains(text, "nvidia") {
+		t.Fatalf("refusal %q", text)
+	}
+}
+
 // TestLocalNamesAWrongNetworkModeFromEveryLoader proves a wrong PROVEN_NETWORK is refused by name
 // wherever it is read, so no loader runs in a mode nobody chose.
 func TestLocalNamesAWrongNetworkModeFromEveryLoader(t *testing.T) {

@@ -245,9 +245,16 @@ func Load(env func(string) string) (Settings, error) {
 		return Settings{}, err
 	}
 	// ADR-0034: in the air-gapped mode a hosted address is refused here, by name.
+	// The hosted generator mode is refused by name even when its address is local,
+	// the same way the guardrail's nvidia mode is.
 	policy, err := network.Load(env)
 	if err != nil {
 		return Settings{}, fromNetwork(err)
+	}
+	if mode == ModeNVIDIA {
+		if err := policy.Refuse(EnvMode, mode, "the hosted generator is outside the organisation's network"); err != nil {
+			return Settings{}, fromNetwork(err)
+		}
 	}
 	if err := policy.CheckURL(baseEnv, base); err != nil {
 		return Settings{}, fromNetwork(err)
