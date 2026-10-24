@@ -2,6 +2,7 @@
 # Build the images, start the lab, create the admin when it is missing, seed the demo, start the runner.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
+require_loopback_bind
 need_docker
 
 if [ -z "${GITEA_RUN_USER:-}" ]; then
