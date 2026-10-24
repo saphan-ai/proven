@@ -34,12 +34,13 @@ RUN npm ci --ignore-scripts
 FROM ${NODE_IMAGE} AS build
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /repo
-COPY README.md ./README.md
-COPY docs ./docs
-COPY assets ./assets
-# examples/ is rendered when it exists and is not required.
+# The whole repository, not only docs/: a page links to files across it (ADRs to
+# hackathon/, docs to lab/ and test/), and the link guard can only tell a real
+# file from a broken link when the file is here. docs-site/Dockerfile.dockerignore
+# replaces the root .dockerignore for this build, so those directories are in the
+# context; build output and secrets stay out.
 RUN --mount=type=bind,target=/ctx \
-    if [ -d /ctx/examples ]; then cp -R /ctx/examples /repo/examples; fi
+    cd /ctx && tar --exclude=./docs-site -cf - . | tar -xf - -C /repo
 COPY --from=deps /repo/docs-site/node_modules ./docs-site/node_modules
 COPY docs-site ./docs-site
 COPY --from=generate /gen /gen

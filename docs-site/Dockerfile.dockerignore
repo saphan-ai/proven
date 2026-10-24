@@ -1,0 +1,14 @@
+# Used instead of the root .dockerignore when building docs-site/Dockerfile
+# (BuildKit reads <Dockerfile>.dockerignore). The site links to files across the
+# repository, so only build output, VCS data and secrets are left out.
+.git
+**/node_modules
+**/.next
+docs-site/content
+docs-site/public
+docs-site/.source
+bin
+dist
+**/.env
+**/.env.*
+**/.DS_Store
