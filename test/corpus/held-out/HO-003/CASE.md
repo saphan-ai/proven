@@ -71,7 +71,26 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-To be recorded by the fixture round. **Not run**: the case code is not built yet.
+Recorded 2026-10-24T16:05Z on Linux. Toolchain: `go version go1.26.10 linux/amd64`; `base/go.mod` and `change/go.mod` declare `go 1.26`. Standard library only. The check needs Bash and Go 1.26 or later. macOS was not run: no macOS host was available.
+
+The way to run a process under a chosen umask: the check builds each copy as a program (`cmd/snapcopy`), then starts it as its own subshell with `umask 022` or `umask 002`. The source tree is made by the check, with explicit `chmod` calls (files `0600` and `0640`, directories `0700`). The reference modes are literals in `check.sh`; neither copy reads them. The `snapcopy` program prints the mode of every entry of the copy, root first. The change's own test runs last under each umask, with `-count=1` because Go's test cache does not key on the umask. The check writes under `.saphan/work/corpus-ho-003/` inside the checkout and removes it on exit.
+
+Command, from the repository root:
+
+    bash test/corpus/held-out/HO-003/check.sh
+
+Exit code: 0
+
+    . umask 022 base 0755 change 0755 reference 0755
+    a.txt umask 022 base 0644 change 0644 reference 0644
+    sub umask 022 base 0755 change 0755 reference 0755
+    sub/b.txt umask 022 base 0644 change 0644 reference 0644
+    . umask 002 base 0755 change 0775 reference 0755
+    a.txt umask 002 base 0644 change 0664 reference 0644
+    sub umask 002 base 0755 change 0775 reference 0755
+    sub/b.txt umask 002 base 0644 change 0664 reference 0644
+    change test umask 022 ok
+    change test umask 002 FAIL (4 entries with a wrong mode)
 
 ## 9. Limits
 
