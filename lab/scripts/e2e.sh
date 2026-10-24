@@ -3,7 +3,8 @@
 # commit to have a workflow run, and require that run to have succeeded and to
 # have posted proven's review. An older review comment, left on a kept volume,
 # is not proof: the comment's marker must name this run's number and this head
-# commit, and the comment must be by the account the workflow posts as.
+# commit, and the comment must be by the workflow's own account (LAB_BOT_USER), never the admin
+# a judge signs in with: a person's comment cannot pass for the workflow's.
 # If the lab is up and the runner is not, exit 1 and say so. Do not start the runner then.
 #
 # Gitea 1.22.6 (lab/versions.env) has no Actions runs, tasks, jobs or workflows
@@ -72,12 +73,12 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
           ;;
         success)
           comments=$(gitea_curl "$base/issues/$num/comments" 2>/dev/null || true)
-          if notes=$(review_for "$comments" "$run_no" "$sha" "$LAB_ADMIN_USER"); then
+          if notes=$(review_for "$comments" "$run_no" "$sha" "$LAB_BOT_USER"); then
             echo "e2e: proven review is on the pull request (workflow run #$run_no succeeded; head commit $sha)"
             printf '%s\n' "$comments"
             exit 0
           fi
-          last="workflow run #$run_no succeeded, but no proven review by $LAB_ADMIN_USER names run #$run_no and head commit $sha"
+          last="workflow run #$run_no succeeded, but no proven review by $LAB_BOT_USER names run #$run_no and head commit $sha"
           if [ -n "$notes" ]; then
             last="$last ($(printf '%s' "$notes" | tr '\n' ';'))"
           fi

@@ -175,6 +175,8 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `RUNNER_LABEL` | `ubuntu-latest` | Label the lab's jobs use. The workflow file's `runs-on` matches this default |
 | `LAB_ADMIN_USER` | `proven` | Admin user. `make up` creates it when the account is missing, including on a volume that already holds the password |
 | `LAB_ADMIN_EMAIL` | `proven@localhost` | That user's email |
+| `LAB_BOT_USER` | `proven-bot` | The account the workflow posts its review as. Not an admin; a collaborator on the demo repository. The seed makes it, keeps its generated password in the lab's state volume and stores its token only as the repository's `PROVEN_TOKEN` secret. `make e2e` accepts a review only from this account |
+| `LAB_BOT_EMAIL` | `proven-bot@localhost` | That account's email |
 | `LAB_DEMO_REPO` | `discount` | Demo repository name |
 | `LAB_DEMO_BASE` | `main` | Base branch |
 | `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |

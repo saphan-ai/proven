@@ -1,5 +1,5 @@
 #!/bin/sh
-# Create the demo repository, the workflow, the runner token and the pull request.
+# Create the demo repository, the workflow, the workflow's own account, the runner token and the pull request.
 # The admin user already exists. The password arrives in LAB_ADMIN_PASSWORD.
 set -eu
 
@@ -13,6 +13,8 @@ fi
 : "${GITEA_INTERNAL_URL:?}"
 : "${LAB_ADMIN_USER:?}"
 : "${LAB_ADMIN_PASSWORD:?}"
+: "${LAB_BOT_USER:?}"
+: "${LAB_BOT_EMAIL:?}"
 : "${LAB_DEMO_REPO:?}"
 : "${LAB_DEMO_BASE:?}"
 : "${LAB_DEMO_HEAD:?}"
@@ -160,9 +162,58 @@ ensure_workflow() {
   fi
 }
 
+# The workflow posts as its own account, so a review the workflow wrote and a
+# comment a person wrote (the admin signs in to the lab) are told apart by
+# author. The account is not an admin. Its password stays in /state and is
+# never printed; its token goes only into the repository's Actions secret.
+ensure_bot() {
+  if [ ! -s /state/bot-password ]; then
+    head -c 36 /dev/urandom | base64 | tr -d '/+=\n' >/state/bot-password
+    chmod 600 /state/bot-password
+  fi
+  bot_pass=$(cat /state/bot-password)
+  code=$(api POST "$GITEA_INTERNAL_URL/api/v1/admin/users" /tmp/bot.json \
+    -d "{\"username\":\"$LAB_BOT_USER\",\"email\":\"$LAB_BOT_EMAIL\",\"password\":\"$bot_pass\",\"must_change_password\":false,\"send_notify\":false}")
+  if [ "$code" != "201" ] && [ "$code" != "422" ]; then
+    echo "seed: could not create the workflow's account (HTTP $code)" >&2
+    exit 1
+  fi
+  # A kept Gitea volume may hold the account with another password.
+  code=$(api PATCH "$GITEA_INTERNAL_URL/api/v1/admin/users/$LAB_BOT_USER" /tmp/bot.json \
+    -d "{\"login_name\":\"$LAB_BOT_USER\",\"source_id\":0,\"password\":\"$bot_pass\",\"must_change_password\":false,\"admin\":false}")
+  if [ "$code" != "200" ]; then
+    echo "seed: could not set the workflow account's password (HTTP $code)" >&2
+    exit 1
+  fi
+  code=$(api PUT "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/collaborators/$LAB_BOT_USER" /tmp/bot.json \
+    -d '{"permission":"write"}')
+  if [ "$code" != "204" ] && [ "$code" != "200" ]; then
+    echo "seed: could not make the workflow's account a collaborator (HTTP $code)" >&2
+    exit 1
+  fi
+  # A token is shown once, so mint a fresh one on every run. The same name
+  # cannot be made twice: delete the old one first (404 when there is none).
+  tokens="$GITEA_INTERNAL_URL/api/v1/users/$LAB_BOT_USER/tokens"
+  curl -sS --max-time 30 -o /dev/null -X DELETE -u "$LAB_BOT_USER:$bot_pass" "$tokens/lab-workflow" || true
+  code=$(curl -sS --max-time 30 -o /tmp/bot-token.json -w '%{http_code}' \
+    -u "$LAB_BOT_USER:$bot_pass" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"lab-workflow","scopes":["write:issue","write:repository"]}' \
+    "$tokens")
+  BOT_TOKEN=$(json_string sha1 /tmp/bot-token.json)
+  if [ -z "$BOT_TOKEN" ]; then
+    BOT_TOKEN=$(json_string token /tmp/bot-token.json)
+  fi
+  rm -f /tmp/bot-token.json
+  if [ -z "$BOT_TOKEN" ]; then
+    echo "seed: could not create the workflow account's token (HTTP $code)" >&2
+    exit 1
+  fi
+}
+
 ensure_secret() {
   code=$(api PUT "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/actions/secrets/PROVEN_TOKEN" /tmp/secret.json \
-    -d "{\"data\":\"$API_TOKEN\"}")
+    -d "{\"data\":\"$BOT_TOKEN\"}")
   if [ "$code" != "201" ] && [ "$code" != "204" ] && [ "$code" != "200" ]; then
     echo "seed: could not store the actions secret (HTTP $code)" >&2
     exit 1
@@ -263,6 +314,7 @@ ensure_token
 ensure_repo
 ensure_actions_unit
 ensure_workflow
+ensure_bot
 ensure_secret
 ensure_runner_token
 ensure_branch

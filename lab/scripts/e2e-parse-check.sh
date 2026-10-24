@@ -37,34 +37,40 @@ mk() { # mk ID LOGIN MARKER-TEXT TIME
 good="<!-- proven-review run=3 sha=$sha -->"
 
 # accept: run 3, this head, posted by the workflow's account.
-c=$(mk 1 proven "$good" 2026-10-24T04:31:02Z)
-review_for "[$c]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the run's own review was refused" >&2; fail=1; }
-c=$(mk 1 proven "\\u003c!-- proven-review run=3 sha=$sha --\\u003e" 2026-10-24T04:31:02Z)
-review_for "[$c]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the review with an escaped marker was refused" >&2; fail=1; }
+c=$(mk 1 proven-bot "$good" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the run's own review was refused" >&2; fail=1; }
+c=$(mk 1 proven-bot "\\u003c!-- proven-review run=3 sha=$sha --\\u003e" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the review with an escaped marker was refused" >&2; fail=1; }
 
 # refuse: a marker by another account, with run and commit right.
 c=$(mk 1 unrelated "$good" 2026-10-24T04:31:02Z)
-out=$(review_for "[$c]" 3 "$sha" proven) && { echo "e2e-parse-check: FAIL: an unrelated account's marker was accepted" >&2; fail=1; }
-case $out in *"by unrelated, not by proven"*) ;; *) echo "e2e-parse-check: FAIL: the ignored author was not named: '$out'" >&2; fail=1 ;; esac
+out=$(review_for "[$c]" 3 "$sha" proven-bot) && { echo "e2e-parse-check: FAIL: an unrelated account's marker was accepted" >&2; fail=1; }
+case $out in *"by unrelated, not by proven-bot"*) ;; *) echo "e2e-parse-check: FAIL: the ignored author was not named: '$out'" >&2; fail=1 ;; esac
+
+# refuse: the lab admin (the account a judge signs in with) posts the exact
+# marker after a successful run that posted nothing. Same run, same commit.
+c=$(mk 1 proven "$good" 2026-10-24T04:31:02Z)
+out=$(review_for "[$c]" 3 "$sha" proven-bot) && { echo "e2e-parse-check: FAIL: the admin's exact marker was accepted as the workflow's review" >&2; fail=1; }
+case $out in *"by proven, not by proven-bot"*) ;; *) echo "e2e-parse-check: FAIL: the ignored admin was not named: '$out'" >&2; fail=1 ;; esac
 
 # refuse: a successful run that posted nothing (no comments, or only a human's).
-review_for '[]' 3 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: no comment was accepted" >&2; fail=1; }
-c=$(mk 1 proven "looks good to me" 2026-10-24T04:31:02Z)
-review_for "[$c]" 3 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: a comment without the marker was accepted" >&2; fail=1; }
+review_for '[]' 3 "$sha" proven-bot >/dev/null && { echo "e2e-parse-check: FAIL: no comment was accepted" >&2; fail=1; }
+c=$(mk 1 proven-bot "looks good to me" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven-bot >/dev/null && { echo "e2e-parse-check: FAIL: a comment without the marker was accepted" >&2; fail=1; }
 
 # refuse: an older run's review, posted in the same second as run 4's first status.
-c=$(mk 1 proven "<!-- proven-review run=3 sha=$sha -->" 2026-10-24T04:31:01Z)
-review_for "[$c]" 4 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: an older run's review from the same second was accepted" >&2; fail=1; }
+c=$(mk 1 proven-bot "<!-- proven-review run=3 sha=$sha -->" 2026-10-24T04:31:01Z)
+review_for "[$c]" 4 "$sha" proven-bot >/dev/null && { echo "e2e-parse-check: FAIL: an older run's review from the same second was accepted" >&2; fail=1; }
 
 # refuse: a review of another head commit, by the right account and run.
-c=$(mk 1 proven "<!-- proven-review run=3 sha=$other -->" 2026-10-24T04:31:02Z)
-review_for "[$c]" 3 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: a review of another head commit was accepted" >&2; fail=1; }
+c=$(mk 1 proven-bot "<!-- proven-review run=3 sha=$other -->" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven-bot >/dev/null && { echo "e2e-parse-check: FAIL: a review of another head commit was accepted" >&2; fail=1; }
 
 # a refused marker does not hide a later good one; the author is read per comment.
 c1=$(mk 1 unrelated "$good" 2026-10-24T04:31:02Z)
-c2=$(mk 2 proven "$good" 2026-10-24T04:31:03Z)
-review_for "[$c1,$c2]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the run's review after an unrelated one was refused" >&2; fail=1; }
-review_for "[$c2,$c1]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the run's review before an unrelated one was refused" >&2; fail=1; }
+c2=$(mk 2 proven-bot "$good" 2026-10-24T04:31:03Z)
+review_for "[$c1,$c2]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the run's review after an unrelated one was refused" >&2; fail=1; }
+review_for "[$c2,$c1]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the run's review before an unrelated one was refused" >&2; fail=1; }
 
 [ "$fail" -eq 0 ] && echo "e2e-parse-check: ok"
 exit "$fail"
