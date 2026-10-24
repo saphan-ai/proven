@@ -7,6 +7,10 @@
 // Sample replays outcomes recorded in a fixture and runs no code; Off and Live
 // report the Prover off, so a review without a container runtime never runs
 // the change's code on the host (ADR-0025 point 6).
+//
+// The same adapters also prove a proposed fix (ADR-0042): FixRunner runs the
+// proving test on the base, on the change and on the change with a patch applied,
+// then the package's other tests, and records every run with its command and exit code.
 package testrun
 
 import "context"

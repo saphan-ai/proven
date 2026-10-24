@@ -18,18 +18,58 @@ type Recorded struct {
 	PassesOnBase  bool
 }
 
-// Sample returns recorded outcomes. It executes no code.
-type Sample struct {
-	byID map[string]Recorded
+// RecordedFix is the recorded runs of one attempt to prove a fix (ADR-0042).
+// FindingID and Attempt are the key the sample looks it up by.
+type RecordedFix struct {
+	FindingID string
+	Attempt   int
+	Runs      []FixRun
 }
 
-// NewSample indexes recorded tests by finding id.
-func NewSample(rows []Recorded) *Sample {
-	s := &Sample{byID: make(map[string]Recorded, len(rows))}
+// Sample returns recorded outcomes. It executes no code.
+type Sample struct {
+	byID  map[string]Recorded
+	fixes map[fixKey]RecordedFix
+}
+
+// fixKey names one attempt at one finding.
+type fixKey struct {
+	id      string
+	attempt int
+}
+
+// NewSample indexes recorded tests by finding id. Recorded fix attempts, when
+// given, are indexed by finding id and attempt number.
+func NewSample(rows []Recorded, fixes ...RecordedFix) *Sample {
+	s := &Sample{byID: make(map[string]Recorded, len(rows)), fixes: make(map[fixKey]RecordedFix, len(fixes))}
 	for _, row := range rows {
 		s.byID[row.FindingID] = row
 	}
+	for _, f := range fixes {
+		s.fixes[fixKey{f.FindingID, f.Attempt}] = f
+	}
 	return s
+}
+
+// RunFix returns the recorded runs of this attempt. It executes no code, but it
+// does check the patch against the real change tree: a recorded answer whose edits
+// do not apply to the trees is refused as it would be live, so a stale fixture
+// cannot show a fix that no longer applies (ADR-0042).
+func (s *Sample) RunFix(ctx context.Context, req FixRequest) (FixOutcome, error) {
+	ctx, cancel := limit.Bound(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return FixOutcome{}, err
+	}
+	if reason := RefuseEdits(req.ChangeDir, req.Edits, 0); reason != "" {
+		return FixOutcome{Refused: reason}, nil
+	}
+	rec, ok := s.fixes[fixKey{req.FindingID, req.Attempt}]
+	if !ok {
+		// No recording is not a failed fix: nothing was run, so nothing is claimed.
+		return FixOutcome{Refused: "the sample records no run of this attempt"}, nil
+	}
+	return FixOutcome{Runs: append([]FixRun(nil), rec.Runs...)}, nil
 }
 
 // Run returns the recorded outcome for this finding and test name.

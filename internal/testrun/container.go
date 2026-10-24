@@ -309,6 +309,14 @@ func (o Off) Run(ctx context.Context, _ Request) (Outcome, error) {
 	return Outcome{}, &service.Down{Service: "prover", Reason: o.Reason}
 }
 
+// RunFix reports the Prover down and starts nothing, as Run does.
+func (o Off) RunFix(ctx context.Context, _ FixRequest) (FixOutcome, error) {
+	if err := ctx.Err(); err != nil {
+		return FixOutcome{}, err
+	}
+	return FixOutcome{}, &service.Down{Service: "prover", Reason: o.Reason}
+}
+
 // Argv is the runtime's argument list for running the test command words in
 // dir: the whole sentence handed to the runtime, so a test can read every
 // property of the run. Run adds a unique --name so a timed-out container can
