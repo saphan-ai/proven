@@ -56,6 +56,13 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return errorCode(err)
 	}
+	// After the same-file checks: a final symlink that is not already the
+	// same file as another output, or as standard output, is refused here.
+	// Those checks name both sides. This one names the flag and the path.
+	if err := refuseSymlinkOutputs(cfg); err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return errorCode(err)
+	}
 	// Every requested format must have a writer before the review runs: a
 	// review that cannot be written is time spent for an exit 2 anyway.
 	if err := writable(cfg); err != nil {
@@ -269,7 +276,7 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 				}
 			}
 		}
-		if err := os.WriteFile(one.path, one.body, 0o644); err != nil {
+		if err := writeOutputFile(one.flag, one.path, one.body); err != nil {
 			return err
 		}
 		info, err := os.Stat(one.path)
@@ -279,6 +286,22 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		written = append(written, writtenOutput{one.flag, info})
 	}
 	return nil
+}
+
+// writeOutputFile writes body to path.
+// WHY a final symbolic link is not followed: os.WriteFile replaces the file
+// the link names. In proven ci the working directory is the checkout, so a
+// link the change committed would steer the report onto that other file.
+// The link is left in place and the write fails. A regular file is not a
+// link, and os.WriteFile overwrites it as before. A link that is only a
+// directory on the way to the file is not the final component, so Lstat
+// does not see it as a link and the file is created inside the target.
+func writeOutputFile(flag, path string, body []byte) error {
+	info, err := os.Lstat(path)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s %s: final component is a symbolic link; the file it names is not written", flag, path)
+	}
+	return os.WriteFile(path, body, 0o644)
 }
 
 // writtenOutput is a file this run has written, kept for os.SameFile.

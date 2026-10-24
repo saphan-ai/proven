@@ -5,7 +5,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"io"
 
 	"github.com/saphan-ai/proven/internal/review"
@@ -15,14 +14,9 @@ import (
 type jsonFormatter struct{}
 
 // Write encodes one review as one JSON document.
-// The indent is two spaces so a person can read the file. HTML escaping stays
-// off: evidence and messages are text, and the default encoder would turn "<"
-// into an escape a person would have to undo.
+// DEL and C1 are escaped after encoding; see writeEncoded.
 func (jsonFormatter) Write(w io.Writer, result review.Result) error {
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	return enc.Encode(documentFrom(result))
+	return writeEncoded(w, documentFrom(result))
 }
 
 // jsonDocument is one review result.

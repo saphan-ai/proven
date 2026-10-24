@@ -395,9 +395,9 @@ const continuationPrefix = "    | "
 //
 // Every text the writer prints that can come from the change goes through it,
 // so the change cannot move the cursor, recolour or rewrite the reader's
-// terminal. This is the text writer's contract only: encoding/json escapes C0
-// but leaves DEL and C1 bytes raw, so a JSON or SARIF writer must not assume
-// its encoder covers this range.
+// terminal. This is the text writer's contract. encoding/json escapes C0 and
+// leaves DEL and C1 raw, so the JSON and SARIF writers escape that range
+// after encoding (writeEncoded).
 func visible(s string) string {
 	return escapeControls(s, false)
 }
@@ -431,6 +431,43 @@ func escapeControls(s string, keepNewline bool) string {
 
 func isControl(r rune) bool {
 	return r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f)
+}
+
+// writeEncoded writes v as one indented JSON document, then escapes DEL and C1.
+// HTML escaping stays off: evidence and messages are text, and the default
+// encoder would turn "<" into an escape a person would have to undo.
+// The indent is two spaces, so a person can read the file.
+func writeEncoded(w io.Writer, v any) error {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		return err
+	}
+	_, err := w.Write(escapeDELAndC1(buf.Bytes()))
+	return err
+}
+
+// escapeDELAndC1 rewrites U+007F and U+0080 to U+009F as \u00XX.
+// WHY after the encoder: encoding/json escapes C0 (U+0000 to U+001F) and writes
+// this range as raw UTF-8. A terminal that prints the file treats C1 as a
+// control sequence (U+009B starts one). The escape is still JSON and decodes
+// to the same rune. A document with none of these runes is unchanged.
+func escapeDELAndC1(b []byte) []byte {
+	var out bytes.Buffer
+	out.Grow(len(b))
+	for i := 0; i < len(b); {
+		r, size := utf8.DecodeRune(b[i:])
+		if r == 0x7f || (r >= 0x80 && r <= 0x9f) {
+			fmt.Fprintf(&out, `\u%04x`, r)
+			i += size
+			continue
+		}
+		out.Write(b[i : i+size])
+		i += size
+	}
+	return out.Bytes()
 }
 
 // filterFindings keeps the findings at or above min.

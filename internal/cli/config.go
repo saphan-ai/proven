@@ -484,6 +484,37 @@ func refuseCollidingOutputs(cfg config) error {
 	return nil
 }
 
+// refuseSymlinkOutputs refuses an output whose final component is a symbolic
+// link, before the review and before any file is written (exit 7).
+// WHY the link is not followed: os.WriteFile would replace the file the link
+// names. Run calls this after refuseCollidingOutputs and
+// refuseStdoutOnAnOutput, so a link that is the same file as another output,
+// or as standard output, is still refused as that same file, with both sides
+// named. A regular file is not a link and is overwritten at the write. A
+// symbolic link earlier in the path is a directory on the way and is still
+// resolved by that same-file check.
+func refuseSymlinkOutputs(cfg config) error {
+	named := []struct{ flag, path string }{
+		{"-o", cfg.output},
+		{"--text-output", cfg.textOutput},
+		{"--json-output", cfg.jsonOutput},
+		{"--sarif-output", cfg.sarifOutput},
+	}
+	for _, n := range named {
+		if n.path == "" {
+			continue
+		}
+		info, err := os.Lstat(n.path)
+		if err != nil {
+			continue
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return refuse(n.flag, n.path, "final component is a symbolic link; the file it names is not written", nil)
+		}
+	}
+	return nil
+}
+
 // regularFileInfo is the FileInfo of w when w is an *os.File on a regular
 // file, and nil for a terminal, a pipe, a buffer or anything that cannot be
 // compared with an output path.

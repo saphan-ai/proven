@@ -4,6 +4,10 @@ JSON and SARIF are two writings of one review result (ADR-0020 §1). The chosen 
 
 Two outputs of one run must be two files. If `-o` and any `--*-output`, or two `--*-output` flags, name the same file, the run is refused at load with exit 7. The refusal names both flags and the path, and nothing is written. Each path is resolved the way the filesystem resolves it: component by component, each symbolic link followed as it is met and only then any `..` applied, never cleaned first (cleaning `link/..` first could name the wrong file); a path that passes through a directory that does not exist cannot be written and is left to fail at the write with exit 2. So `-o real/r.json` with `--sarif-output link/r.json` (where `link` points to `real`) is refused. Two existing files that are the same file (a hard link) are refused too. Two spellings of a file that does not exist yet and differ only in letter case, on a case-insensitive volume, are not refused at load: the second write finds the file the first one made, the run stops with exit 2 and names both flags, and the first output is left as it was written.
 
+An output path whose final component is a symbolic link is refused at load with exit 7. The refusal names the flag and the path, and nothing is written. The link is not followed: the file it names is left as it was. If that link appears after the load check, the write refuses it the same way and still does not follow it. A regular file at the path is overwritten as before. A symbolic link that is only a directory on the way to the file is still resolved when two outputs are checked for being one file.
+
+DEL (U+007F) and C1 (U+0080 to U+009F) in JSON and SARIF are written as `\u007f` and `\u0080` to `\u009f`. The file stays valid JSON and decodes to the same text. The JSON encoder leaves those runes raw, so both writers escape them after encoding.
+
 ## JSON
 
 One object. Every key below is always present.
@@ -43,6 +47,8 @@ Of one evidence entry, only the object named by its `kind` is present.
 ## SARIF 2.1.0
 
 One log, `version` `2.1.0`, one run. The tool driver `name` is `proven`. One result per finding. `level` is `INFO`→`note`, `WARNING`→`warning`, `ERROR`→`error`; any other severity is `note`. `ruleId` is `rule_id`, or `id` when the finding has no rule. The message is the finding's message, then its title, then its id. A finding with no path has no location; a start line below 1 gives no region; an end line before the start line is left out.
+
+The artifact `uri` is a relative path inside the repository: no leading `/`, no authority, and no `..` segment. The path is cleaned first, so `dir/../a.go` is `a.go`. A path that is absolute, names an authority such as `//example.invalid/a.go`, or still climbs out after cleaning, is omitted. The finding is kept with no location. This log does not set `uriBaseId`.
 
 Each result's `properties` carries `id`, `rule_id`, `title`, `severity`, `unresolved` and `evidence`. `evidence` is the same array as in the JSON.
 
