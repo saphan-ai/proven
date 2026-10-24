@@ -46,6 +46,10 @@ func Catalog() []envdoc.Section {
 			Rows:    generator.Environment(),
 		},
 		{
+			Heading: "The second reviewer: any OpenAI-compatible model",
+			Rows:    generator.SecondEnvironment(),
+		},
+		{
 			Heading: "The guardrail: NVIDIA Nemotron content safety",
 			Rows:    guardrail.Environment(),
 			After:   guardrailAfter,

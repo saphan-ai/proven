@@ -49,6 +49,9 @@ type fileSettings struct {
 	ClassOrder      []string
 	Fallback        string
 	Doubled         map[string]bool
+	// DoubledSet is true when proven.yaml named doubled_classes. With a second reviewer connected,
+	// an unset list means every class is doubled, and a set one narrows it (ADR-0037 point 3).
+	DoubledSet      bool
 	ReadCommits     bool
 	ReadDescription bool
 	Record          string
@@ -366,6 +369,7 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		return nil
 	case "doubled_classes":
 		// "off" doubles no class; an empty list would be refused, so off is the way to say none.
+		cfg.DoubledSet = true
 		if val == "off" {
 			cfg.Doubled = map[string]bool{}
 			return nil

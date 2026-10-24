@@ -100,24 +100,63 @@ type Result struct {
 	Findings []Finding // only findings with evidence (ADR-0002); unresolved ones are marked and counted
 	// ProofCounts counts Findings by ProofLevel (ADR-0044 point 3). Every level is a key, with 0
 	// when none; the counts add up to len(Findings). Findings, unresolved ones included, keep their meaning.
-	ProofCounts          map[ProofLevel]int
-	FailedServices       []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
-	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
-	Partial              bool             // the deadline was reached
-	TracePath            string           // the JSONL trace in LogDir
-	Class                string           // review class the path rules chose (ADR-0012, ADR-0014)
-	ClassRule            string           // path pattern that chose Class, or "fallback"
-	Doubled              bool             // Class is one of the doubled classes
-	DefaultReviewer      string           // configured default reviewer
-	SpecialReviewer      string           // configured special-review model; empty means not configured
-	ReviewerModels       []string         // models this review uses, the default reviewer first
-	ReviewerStatements   []string         // one line per reviewer, plus a line when the special model is not configured
-	AuthorModels         []AuthorModel    // models the change named; empty means none were stated
-	AuthorModelStatement string           // "author model not stated" when the change names no model
-	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
+	ProofCounts        map[ProofLevel]int
+	FailedServices     []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
+	Models             []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
+	Partial            bool             // the deadline was reached
+	TracePath          string           // the JSONL trace in LogDir
+	Class              string           // review class the path rules chose (ADR-0012, ADR-0014)
+	ClassRule          string           // path pattern that chose Class, or "fallback"
+	Doubled            bool             // Class is one of the doubled classes
+	DefaultReviewer    string           // configured default reviewer
+	SpecialReviewer    string           // configured special-review model; empty means not configured
+	ReviewerModels     []string         // models this review uses, the default reviewer first
+	ReviewerStatements []string         // one line per reviewer, plus a line when the special model is not configured
+	// Reviewers names each reviewer that took part, the default one first, with whether it is the
+	// author's own model (ADR-0037 point 5). The shell renders from it, not from the statements.
+	Reviewers []ReviewerInfo
+	// Disagreements counts the findings whose Disagree is true (ADR-0037 point 4).
+	Disagreements        int
+	AuthorModels         []AuthorModel // models the change named; empty means none were stated
+	AuthorModelStatement string        // "author model not stated" when the change names no model
+	SettingsStatement    string        // set when the change edits proven.yaml; empty otherwise
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+}
+
+// The roles a reviewer takes in a review. The special role is the second reviewer of ADR-0037.
+const (
+	RoleDefault = "default"
+	RoleSpecial = "special"
+)
+
+// ReviewerInfo is one reviewer of one review (ADR-0037 point 5).
+type ReviewerInfo struct {
+	Role   string // RoleDefault or RoleSpecial
+	Model  string // the name the review gives it
+	Family string // a configured family, or "family unknown"
+	// IsAuthorModel is "yes" when the change named this model or a model of its family as its author,
+	// "no" when it named authors and none match, and "unknown" when the change named none or a
+	// family is unknown. It is never a guess: unknown stays unknown.
+	IsAuthorModel string
+}
+
+// The verdicts one reviewer can give on a finding (ADR-0037 point 4). The strings are carried by
+// JSON and SARIF, so a value never changes once released.
+const (
+	VerdictReported    = "reported"
+	VerdictNotReported = "not reported"
+	VerdictRefuted     = "refuted"
+	VerdictNoAnswer    = "no answer"
+)
+
+// ReviewerVerdict is one reviewer's word on one finding: the verdict and the reviewer's own reason.
+type ReviewerVerdict struct {
+	Role    string // RoleDefault or RoleSpecial
+	Model   string
+	Verdict string // one of the Verdict constants
+	Reason  string
 }
 
 // ProofLevel names how far a reader may trust one finding (ADR-0044). The string is what the
@@ -202,6 +241,12 @@ type Finding struct {
 	// Models names the reviewer models that reported this finding.
 	// One name when one run found it. Both names, the default reviewer first, when both did.
 	Models []string
+	// Verdicts holds each reviewer's verdict and reason, the default reviewer first. It is empty when
+	// one reviewer ran. The verdicts are never combined (ADR-0037 point 4).
+	Verdicts []ReviewerVerdict
+	// Disagree is true when the reviewers who answered gave different verdicts. A reviewer that did not
+	// answer (VerdictNoAnswer) is not a disagreement.
+	Disagree bool
 }
 
 // Location is where a finding is.

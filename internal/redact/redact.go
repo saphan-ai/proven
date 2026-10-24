@@ -21,9 +21,9 @@ import (
 	"github.com/saphan-ai/proven/internal/query"
 )
 
-// Names lists every variable whose value Proven must never write: the three
-// keys it sends, and the organisation id it identifies itself with.
-var Names = []string{generator.EnvToken, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID}
+// Names lists every variable whose value Proven must never write: the four
+// keys it sends (the second reviewer's is ADR-0037), and the organisation id it identifies itself with.
+var Names = []string{generator.EnvToken, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID}
 
 // MinLength is the shortest value that is redacted as a substring.
 // A value shorter than this would be found inside ordinary words, numbers and

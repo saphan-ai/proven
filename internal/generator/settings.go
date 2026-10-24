@@ -119,6 +119,7 @@ type Settings struct {
 	Token         string
 	Timeout       time.Duration
 	SkepticModel  string
+	plain         bool
 	requireAll    bool
 	requireNone   bool
 	requireNVIDIA map[string]bool
@@ -226,20 +227,26 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 // credential in the URL, and a query or fragment would change every endpoint
 // built from it. The result has no trailing slash.
 func checkBase(raw string) (string, error) {
+	return checkBaseFor(EnvBaseURL, raw)
+}
+
+// checkBaseFor is checkBase for the setting named field, so the second reviewer's address is
+// refused under its own name and never under Nightshift's.
+func checkBaseFor(field, raw string) (string, error) {
 	allowed := "an absolute http or https URL with no user info, query or fragment, and a path of empty or /v1"
 	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") {
-		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(field, clip(raw), "not a base URL", allowed)
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
-		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(field, clip(raw), "not a base URL", allowed)
 	}
 	if u.RawQuery != "" || u.Fragment != "" {
-		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(field, clip(raw), "not a base URL", allowed)
 	}
 	path := strings.TrimRight(u.Path, "/")
 	if path != "" && path != "/v1" {
-		return "", refuse(EnvBaseURL, clip(raw), "the path is not empty or /v1", allowed)
+		return "", refuse(field, clip(raw), "the path is not empty or /v1", allowed)
 	}
 	u.Path = path
 	return strings.TrimRight(u.String(), "/"), nil
