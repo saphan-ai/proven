@@ -31,7 +31,7 @@ An empty `baseline` means the whole target was reviewed. An empty `head` means t
 
 | setting | meaning |
 |---|---|
-| `PROVEN_PACK_KEY` | path to the PEM file of the organisation's Ed25519 private key (PKCS #8). Required with `--evidence-pack`. A missing or unreadable file is named and the review does not start (exit 7) |
+| `PROVEN_PACK_KEY` | path to the PEM file of the organisation's Ed25519 private key (PKCS #8). Required with `--evidence-pack`. A missing or unreadable file, or one that group or others can reach (fix: `chmod 600`), is named and the review does not start (exit 7) |
 | `PROVEN_PACK_PUBLIC_KEY` | path to the PEM file of the Ed25519 public key (PKIX). `proven verify` reads it unless `--public-key` is given |
 
 Both settings hold a path. A refusal names the setting and the path, and never prints a byte of a key. The rows are also in [CONFIGURATION.md](CONFIGURATION.md).
@@ -45,17 +45,21 @@ openssl pkey -in pack.key -pubout -out pack.pub
 
 Keep `pack.key` where only the people and the jobs that sign may read it. Hand `pack.pub` to every auditor.
 
+**A readable key is refused.** A private key file with any group or other permission bit set is refused, the same as a missing one: the review does not start, the refusal names the setting, the path and the mode, and the run exits 7. To fix it, run `chmod 600 pack.key`, then run again. Mode `0600` and `0400` are accepted. The check does not apply on Windows, where file modes do not say who may read. The public key is not secret and is not checked.
+
 ## How an auditor verifies
 
 `proven verify <pack>` checks, in this order, and stops at the first failure:
 
-1. **Format.** The file is a tar of plain files: no folder, no link, no repeated name.
+1. **Format.** The file is a tar of plain files: no folder, no link, no repeated name. It is also the exact archive the writer makes from those files. A changed header byte, changed padding or any trailing byte is refused, so the file as a whole is tamper-evident and a stored digest of it stays true. The signature file must be the base64 and one newline, with no other whitespace.
 2. **Signature.** `MANIFEST.sig` is a valid Ed25519 signature over `MANIFEST.json` under the public key you hold, and the manifest names that key.
 3. **Hash of every file.** Each listed file's SHA-256 is the manifest's.
 4. **No file missing, none extra.** The pack holds the listed files and the manifest and signature, and nothing else.
 5. **Receipts.** `receipts.json` is the manifest's own model list. Each model use that says it came from a receipt has a receipt id and a model, and the trace holds a model event with that id and that model.
 
-It then prints what was reviewed, when, the models with their receipt ids, and the evidence: findings by level of proof, test and tool runs, queries and trace events. Exit code 0 means the pack verified. A refusal names the check and the file, for example `evidence pack refused: hash check failed on findings.json`, and exits 2. A key setting that cannot be used exits 7.
+It then prints what was reviewed, when, the models with their receipt ids, and the evidence: findings by level of proof, test and tool runs, queries and trace events. Exit code 0 means the pack verified. A refusal names the check and the file, for example `evidence pack refused: hash check failed on findings.json`, and exits 2. Every text that comes from the pack or from its path is shown with control characters, bidirectional marks and invalid bytes written as `\xNN` or `\uNNNN`, so a pack cannot move the cursor or recolour your terminal.
+
+`proven scan --evidence-pack` verifies the pack it has just built before it writes the file. A secret the redactor catches is blacked out in `MANIFEST.json` as in every other file, and a pack that would not verify is not written. A key setting that cannot be used exits 7.
 
 **What verify does not check**, and says every time: the provider's own signature on each receipt, because the pack keeps the receipt id, the route and the model, not the signed body; and whether the review was right. A pack proves what was recorded and that it has not been changed since it was signed. It does not prove the findings are true.
 

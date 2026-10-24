@@ -83,7 +83,8 @@ func TestSampleReviewWritesAPackThatVerifies(t *testing.T) {
 		t.Fatalf("verify by setting: exit %d\n%s", code, stderr.String())
 	}
 
-	// One byte changed anywhere in the pack is refused, with a non-zero exit.
+	// A changed byte is refused, with a non-zero exit. That it holds for every
+	// byte of the pack is pinned by TestEveryChangedByteOfThePackIsRefused.
 	body[len(body)/2] ^= 0x01
 	bad := filepath.Join(t.TempDir(), "bad.pack")
 	if err := os.WriteFile(bad, body, 0o600); err != nil {

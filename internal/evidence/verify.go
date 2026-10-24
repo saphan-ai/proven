@@ -15,6 +15,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // maxEntry bounds one file read from a pack, so a pack that claims a huge
@@ -38,12 +39,44 @@ type Refusal struct {
 	Detail string
 }
 
+// Error is one line a terminal can show. The file name comes from the pack,
+// which nobody has signed yet when a refusal is made, so it is escaped.
 func (r *Refusal) Error() string {
 	msg := "evidence pack refused: " + r.Check + " check failed"
 	if r.File != "" {
-		msg += " on " + r.File
+		msg += " on " + Visible(r.File)
 	}
-	return msg + ": " + r.Detail
+	return msg + ": " + Visible(r.Detail)
+}
+
+// Visible returns s with every character that could act on a terminal shown
+// as a visible escape: C0, DEL and C1 controls as \xNN, bidirectional
+// controls and invisible marks as \uNNNN, and a byte that is not valid UTF-8
+// as \xNN of that byte. Everything else is written unchanged.
+func Visible(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, `\x%02x`, s[i])
+		case r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f):
+			fmt.Fprintf(&b, `\x%02x`, r)
+		case IsBidi(r):
+			fmt.Fprintf(&b, `\u%04x`, r)
+		default:
+			b.WriteString(s[i : i+size])
+		}
+		i += size
+	}
+	return b.String()
+}
+
+// IsBidi reports a bidirectional control or an invisible mark that can
+// reorder or hide the text around it: U+061C, U+200B to U+200F, U+2028 to
+// U+202E, U+2060 to U+2069 and U+FEFF.
+func IsBidi(r rune) bool {
+	return r == 0x061c || (r >= 0x200b && r <= 0x200f) || (r >= 0x2028 && r <= 0x202e) || (r >= 0x2060 && r <= 0x2069) || r == 0xfeff
 }
 
 func refuse(check, file, format string, args ...any) *Refusal {
@@ -92,6 +125,16 @@ func Verify(pack []byte, pub ed25519.PublicKey) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The pack is one byte string: the archive the writer would make from these
+	// files, and nothing else. Header metadata, padding and trailing bytes lie
+	// outside every hash, so they are held to the canonical form here.
+	canonical, err := archive(files)
+	if err != nil {
+		return nil, refuse(CheckFormat, "", "the archive cannot be rebuilt: %v", err)
+	}
+	if !bytes.Equal(canonical, pack) {
+		return nil, refuse(CheckFormat, "", "the archive is not the one the writer makes from its files (header metadata, padding or trailing bytes differ)")
+	}
 	manifestBytes, ok := files[ManifestName]
 	if !ok {
 		return nil, refuse(CheckMissing, ManifestName, "the pack has no manifest")
@@ -102,8 +145,10 @@ func Verify(pack []byte, pub ed25519.PublicKey) (*Report, error) {
 	}
 	// The signature comes first: every later check reads the manifest, and a
 	// manifest nobody signed proves nothing about the files it lists.
-	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sigBytes)))
-	if err != nil || len(sig) != ed25519.SignatureSize {
+	// The signature file is the base64 and one newline, byte for byte: no
+	// hash covers it, so no whitespace is trimmed from it.
+	sig, err := base64.StdEncoding.DecodeString(string(bytes.TrimSuffix(sigBytes, []byte("\n"))))
+	if err != nil || len(sig) != ed25519.SignatureSize || string(sigBytes) != base64.StdEncoding.EncodeToString(sig)+"\n" {
 		return nil, refuse(CheckSignature, SignatureName, "not an Ed25519 signature")
 	}
 	if len(pub) != ed25519.PublicKeySize || !ed25519.Verify(pub, manifestBytes, sig) {

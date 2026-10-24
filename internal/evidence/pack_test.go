@@ -195,16 +195,20 @@ func TestAWrongKeyIsRefusedBySignature(t *testing.T) {
 func TestAReceiptThePackCannotShowIsRefused(t *testing.T) {
 	in, pub := sampleInput(t)
 	in.Trace = []byte(`{"run_id":"r","time":"t","kind":"claim","agent":"planner","text":"x"}` + "\n")
-	pack, err := Build(in)
+	pack, err := build(in)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = Verify(pack, pub)
 	wantRefusal(t, err, CheckReceipt, TraceName)
+	// Build refuses to hand back a pack its own verification refuses.
+	if _, err := Build(in); err == nil {
+		t.Fatal("Build returned a pack that does not verify")
+	}
 
 	in, pub = sampleInput(t)
 	in.Result.Models[0].ReceiptID = ""
-	pack, err = Build(in)
+	pack, err = build(in)
 	if err != nil {
 		t.Fatal(err)
 	}

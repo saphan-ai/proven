@@ -111,14 +111,35 @@ func KeyID(pub ed25519.PublicKey) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// Build returns the archive's bytes. It refuses an Input with no key.
+// Build returns the archive's bytes. It refuses an Input with no key, and it
+// refuses a pack that its own verification does not accept: a pack no
+// auditor could verify is not handed back with exit 0.
 func Build(in Input) ([]byte, error) {
+	pack, err := build(in)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := Verify(pack, in.Key.Public().(ed25519.PublicKey)); err != nil {
+		return nil, fmt.Errorf("evidence pack: the pack just built does not verify: %w", err)
+	}
+	return pack, nil
+}
+
+// build makes the pack without verifying it. Tests use it to make a pack
+// that Verify must refuse.
+func build(in Input) ([]byte, error) {
 	if len(in.Key) != ed25519.PrivateKeySize {
 		return nil, errors.New("evidence pack: no signing key")
 	}
 	files, err := collect(in)
 	if err != nil {
 		return nil, err
+	}
+	// The manifest's model list is read back from the redacted receipts.json,
+	// so the two cannot differ and no secret reaches the signed manifest.
+	var redactedModels []Model
+	if err := json.Unmarshal(files[ReceiptsName], &redactedModels); err != nil {
+		return nil, fmt.Errorf("evidence pack: %s after redaction: %w", ReceiptsName, err)
 	}
 	m := Manifest{
 		Version: FormatVersion,
@@ -131,7 +152,7 @@ func Build(in Input) ([]byte, error) {
 			Head:             in.Redactor.Text(in.Commits.Head),
 			HeadResolved:     in.Commits.HeadResolved,
 		},
-		Models: models(in.Result),
+		Models: redactedModels,
 	}
 	names := make([]string, 0, len(files))
 	for name := range files {

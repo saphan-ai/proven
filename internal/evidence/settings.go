@@ -11,7 +11,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvPackKey,
 			Default:     "none (required with `--evidence-pack`)",
-			Description: "path to the PEM file of the organisation's Ed25519 private key (PKCS #8) that signs a pack. A missing or unreadable file is named and the review does not start",
+			Description: "path to the PEM file of the organisation's Ed25519 private key (PKCS #8) that signs a pack. A missing or unreadable file, or one that group or others can reach (fix: `chmod 600`), is named and the review does not start",
 		},
 		{
 			Name:        EnvPackPublicKey,

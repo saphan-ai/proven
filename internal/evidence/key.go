@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"runtime"
 )
 
 // The settings that name the organisation's keys. Each holds a file path, never a key.
@@ -32,9 +33,13 @@ func (e *KeyError) Error() string {
 }
 
 // LoadPrivateKey reads a PKCS #8 PEM Ed25519 private key from the file the
-// setting names. An unset setting, an unreadable file and a file that is not
-// such a key are each named.
+// setting names. An unset setting, an unreadable file, a file that group or
+// others can reach (any bit of mode 0077) and a file that is not such a key
+// are each named.
 func LoadPrivateKey(setting, path string) (ed25519.PrivateKey, error) {
+	if err := ownerOnly(setting, path); err != nil {
+		return nil, err
+	}
 	der, err := readPEM(setting, path, "PRIVATE KEY")
 	if err != nil {
 		return nil, err
@@ -48,6 +53,22 @@ func LoadPrivateKey(setting, path string) (ed25519.PrivateKey, error) {
 		return nil, &KeyError{Setting: setting, Path: path, Reason: "not an Ed25519 key"}
 	}
 	return key, nil
+}
+
+// ownerOnly refuses a private key file that group or others can reach. A file
+// that cannot be examined is left to readPEM, which names it.
+func ownerOnly(setting, path string) error {
+	if path == "" || runtime.GOOS == "windows" {
+		return nil
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	if mode := st.Mode().Perm(); mode&0o077 != 0 {
+		return &KeyError{Setting: setting, Path: path, Reason: fmt.Sprintf("the file has mode %04o, and group or others can reach it; run chmod 600 on it", mode)}
+	}
+	return nil
 }
 
 // LoadPublicKey reads a PKIX PEM Ed25519 public key from the file the setting names.

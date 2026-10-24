@@ -176,7 +176,7 @@ func runVerify(args []string, getenv func(string) string, stdout, stderr io.Writ
 	}
 	rep, err := evidence.VerifyFile(pos[0], pub)
 	if err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		fmt.Fprintln(stderr, visible(err.Error()))
 		return exitFatal
 	}
 	fmt.Fprint(stdout, renderReport(pos[0], rep))
@@ -184,15 +184,17 @@ func runVerify(args []string, getenv func(string) string, stdout, stderr io.Writ
 }
 
 // renderReport is the text `proven verify` prints for a pack it accepted.
+// Every string that comes from the pack, or from its path, goes through
+// visible: a signed pack is the signer's text, not the reader's.
 func renderReport(path string, rep *evidence.Report) string {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "evidence pack verified: %s\n", path)
-	fmt.Fprintf(&b, "signed with key: %s\n", rep.KeyID)
-	fmt.Fprintf(&b, "created: %s\n", rep.Created)
+	fmt.Fprintf(&b, "evidence pack verified: %s\n", visible(path))
+	fmt.Fprintf(&b, "signed with key: %s\n", visible(rep.KeyID))
+	fmt.Fprintf(&b, "created: %s\n", visible(rep.Created))
 	fmt.Fprintf(&b, "reviewed: %s\n", describeCommits(rep.Commits))
 	fmt.Fprintf(&b, "models: %d use(s), %d with a provider receipt found in the trace, %d without\n", len(rep.Models), rep.Receipted, rep.Unreceipted)
 	for _, m := range rep.Models {
-		fmt.Fprintf(&b, "  %s: %s via %s, receipt %s\n", m.Agent, orNone(m.Model), orNone(m.Route), orNone(m.ReceiptID))
+		fmt.Fprintf(&b, "  %s: %s via %s, receipt %s\n", visible(m.Agent), visible(orNone(m.Model)), visible(orNone(m.Route)), visible(orNone(m.ReceiptID)))
 	}
 	fmt.Fprintf(&b, "evidence: %d finding(s), %d test or tool run(s), %d query(ies), %d trace event(s)\n", rep.Findings, rep.Tests, rep.Queries, rep.TraceEvents)
 	levels := make([]string, 0, len(rep.ProofCounts))
@@ -201,10 +203,10 @@ func renderReport(path string, rep *evidence.Report) string {
 	}
 	sort.Strings(levels)
 	for _, level := range levels {
-		fmt.Fprintf(&b, "  %s: %d\n", level, rep.ProofCounts[level])
+		fmt.Fprintf(&b, "  %s: %d\n", visible(level), rep.ProofCounts[level])
 	}
 	if len(rep.FailedSvcs) > 0 {
-		fmt.Fprintf(&b, "degraded: %s did not answer\n", strings.Join(rep.FailedSvcs, ", "))
+		fmt.Fprintf(&b, "degraded: %s did not answer\n", visible(strings.Join(rep.FailedSvcs, ", ")))
 	}
 	fmt.Fprintf(&b, "checked: %s (%d files)\n", strings.Join(rep.ChecksPassed, "; "), len(rep.Files))
 	for _, n := range rep.NotChecked {
@@ -214,17 +216,17 @@ func renderReport(path string, rep *evidence.Report) string {
 }
 
 func describeCommits(c evidence.Commits) string {
-	base := orNone(c.Baseline)
+	base := visible(orNone(c.Baseline))
 	if c.BaselineResolved != "" {
-		base += " (" + c.BaselineResolved + ")"
+		base += " (" + visible(c.BaselineResolved) + ")"
 	}
-	head := c.Head
-	if head == "" {
+	head := visible(c.Head)
+	if c.Head == "" {
 		head = "the working tree"
 	} else if c.HeadResolved != "" {
-		head += " (" + c.HeadResolved + ")"
+		head += " (" + visible(c.HeadResolved) + ")"
 	}
-	return fmt.Sprintf("%s, baseline %s, head %s", c.Target, base, head)
+	return fmt.Sprintf("%s, baseline %s, head %s", visible(c.Target), base, head)
 }
 
 func orNone(s string) string {
