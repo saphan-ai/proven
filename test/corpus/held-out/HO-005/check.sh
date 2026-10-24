@@ -41,6 +41,6 @@ for version in base change; do
     logged=$(grep "^$job " "$work/$version-log.txt" | cut -d ' ' -f 2)
     printf '%s %s asked %s exit %s logged %s served %s reference %s\n' \
       "$version" "$job" "$model" "$code" "${logged:--}" "$(really_served "$answer")" \
-      "$(case "$job" in job-1) echo "should serve model-b" ;; *) echo "should not be served" ;; esac)"
+      "$(case "$job" in (job-1) echo "should serve model-b" ;; (*) echo "should not be served" ;; esac)"
   done < "$work/jobs.txt"
 done
