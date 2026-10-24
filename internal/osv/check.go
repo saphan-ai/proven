@@ -222,6 +222,10 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	// ADR-0002: the evidence is the query and every row it returned, the rows
 	// that missed included, so a reader can redo the comparison.
 	c.Evidence = append(c.Evidence, queryEvidence(res, snapshot))
+	// ADR-0042 point 5: the fix is the smallest version that leaves the affected range,
+	// named with the advisory row that shows it. No test proves a version bump, so the
+	// fix is never marked proved.
+	c.Fix = dependencyFix(hit, rows)
 	// ADR-0004: a CVE alias of a matching advisory is also looked up in CISA
 	// KEV, once per id. A missing KEV row does not drop the finding; the
 	// message only says so.
