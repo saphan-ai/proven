@@ -469,14 +469,19 @@ func TestTimeoutDurationBound(t *testing.T) {
 	}
 }
 
-func TestJSONFormatHasNoWriter(t *testing.T) {
+// TestJSONScanWritesADocument proves --json writes a document. An empty
+// buffer is a failure: a writer that writes nothing turns this red.
+func TestJSONScanWritesADocument(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan", "--json"}, emptyEnv, &stdout, &stderr, openCapture(&captureReviewer{}))
-	if code != exitFatal {
+	if code != exitOK {
 		t.Fatalf("exit %d stderr %s", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "json") {
-		t.Fatalf("stderr %q", stderr.String())
+	if stdout.Len() == 0 {
+		t.Fatal("json writer wrote nothing")
+	}
+	if !strings.Contains(stdout.String(), `"findings"`) || !strings.Contains(stdout.String(), `"failed_services"`) {
+		t.Fatalf("stdout %s", stdout.String())
 	}
 }
 
@@ -618,8 +623,8 @@ func TestValidFlagBeatsInvalidVariable(t *testing.T) {
 		finding  bool
 	}{
 		{name: "text", args: []string{"scan", "--text"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitOK},
-		{name: "json", args: []string{"scan", "--json"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitFatal},
-		{name: "sarif", args: []string{"scan", "--sarif"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitFatal},
+		{name: "json", args: []string{"scan", "--json"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitOK},
+		{name: "sarif", args: []string{"scan", "--sarif"}, env: map[string]string{"PROVEN_OUTPUT_FORMAT": "xml"}, want: exitOK},
 		{name: "error", args: []string{"scan", "--error"}, env: map[string]string{"PROVEN_ERROR": "maybe"}, want: exitFindings, finding: true},
 		{name: "no-error", args: []string{"scan", "--no-error"}, env: map[string]string{"PROVEN_ERROR": "maybe"}, want: exitOK, finding: true},
 		{name: "severity", args: []string{"scan", "--severity=INFO"}, env: map[string]string{"PROVEN_SEVERITY": "invalid"}, want: exitOK},
@@ -644,6 +649,9 @@ func TestValidFlagBeatsInvalidVariable(t *testing.T) {
 			}
 			if tt.deadline && !rev.hasDeadline {
 				t.Fatal("no deadline")
+			}
+			if (tt.name == "json" || tt.name == "sarif") && stdout.Len() == 0 {
+				t.Fatal("writer wrote nothing")
 			}
 		})
 	}

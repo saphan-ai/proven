@@ -2,10 +2,10 @@
 //
 // It turns `proven scan [TARGET]` and `proven ci` into one review.Request,
 // hands it to the reviewer through internal/review, and turns the
-// review.Result into output and an exit code (text today; JSON and SARIF
-// use the same Formatter seam). The text form also prints the section
-// "Agreed by two models, not proven" apart from the findings (ADR-0041).
-// It does no reviewing of its own: the six agents (Planner, Investigator, Prover,
+// review.Result into output and an exit code. text, JSON and SARIF each
+// have a writer on the same Formatter seam (ADR-0020 §1). The text form also
+// prints the section "Agreed by two models, not proven" apart from the
+// findings (ADR-0041). It does no reviewing of its own: the six agents (Planner, Investigator, Prover,
 // Skeptic, Judge and Writer) live behind review.Open, and this package
 // never reaches past that seam.
 //

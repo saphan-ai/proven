@@ -14,23 +14,24 @@ import (
 )
 
 // Formatter writes one review result in one format.
-// Text is implemented. JSON and SARIF use this same seam and refuse until they are built.
+// text, JSON and SARIF each have a writer in this build (ADR-0020 §1).
 type Formatter interface {
 	Write(w io.Writer, result review.Result) error
 }
 
 // FormatterFor returns the writer for format, one of text, json or sarif.
+// ADR-0020 §1: the same three names are the standard-output format and the --*-output files.
 func FormatterFor(format string) (Formatter, error) {
 	switch format {
 	case "text":
 		return textFormatter{}, nil
-	case "json", "sarif":
-		// ADR-0041: an opinion's level is review.OpinionLevel ("note"), not a
-		// finding and not a proof level. These writers are not in this build,
-		// so the text section is what a reader gets. A writer that lands here
-		// copies Opinion.Level and does not put the opinion among the findings.
-		return nil, fmt.Errorf("format %q has no writer in this build", format)
+	case "json":
+		return jsonFormatter{}, nil
+	case "sarif":
+		return sarifFormatter{}, nil
 	default:
+		// A name the flag parser did not offer still has to refuse, or a caller
+		// inside this package could write an empty file under an unknown format.
 		return nil, fmt.Errorf("format %q has no writer in this build", format)
 	}
 }
