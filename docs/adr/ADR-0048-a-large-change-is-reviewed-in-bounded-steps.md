@@ -12,6 +12,10 @@ fit at all. Meterless's **Markovian** engine solves exactly that: long work cut 
 carried from one step to the next, so the context and the cost per step stay flat however long the work is. We use it where
 Proven has that problem, and nowhere else.
 
+Saphan Studio has its own implementation of bounded state for agent sessions (U.S. patent pending). For the hackathon,
+Proven uses Meterless's Markovian engine instead, so anyone can rebuild it from the published specification and check it
+with Meterless's own tests.
+
 ## Decision
 
 1. **A change above a size set in the settings is reviewed in bounded steps**: file by file (or hunk by hunk), each step seeing
