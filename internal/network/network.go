@@ -158,7 +158,8 @@ func (p *Policy) CheckURL(setting, raw string) error {
 
 // CheckDaemon refuses, in local mode, the address of a container daemon that is
 // not on the organisation's network. A local socket (unix, npipe, fd) is always
-// inside it; any other scheme is judged by its host like a setting address.
+// inside it; any other scheme is judged by its host like a setting address, and
+// its host must be an IP literal, never a name.
 // setting names where the address came from, so the refusal says what to fix.
 func (p *Policy) CheckDaemon(setting, raw string) error {
 	if !p.Local() {
@@ -170,7 +171,19 @@ func (p *Policy) CheckDaemon(setting, raw string) error {
 			return nil
 		}
 	}
-	return p.CheckURL(setting, raw)
+	if err := p.CheckURL(setting, raw); err != nil {
+		return err
+	}
+	// The runtime, or ssh under it, resolves a host name with its own resolver:
+	// the name servers of the host's configuration, its search list, and whatever
+	// address comes back. Proven judges none of that, so a name is not handed to
+	// it, listed or not. An IP literal has nothing to resolve.
+	u, _ := url.Parse(raw)
+	bare, _, _ := strings.Cut(u.Hostname(), "%")
+	if _, err := netip.ParseAddr(bare); err != nil {
+		return refuse(setting, clip(raw), "host "+u.Hostname()+" is a name, and the container runtime would resolve it with its own resolver (PROVEN_NETWORK=local)", "a local socket, or the IP address of the daemon on the organisation's network")
+	}
+	return nil
 }
 
 // Refuse names a setting that PROVEN_NETWORK=local forbids as a value, such as
@@ -202,6 +215,16 @@ func (p *Policy) NewClient(timeout time.Duration) *http.Client {
 	return c
 }
 
+// LocalClient returns NewClient's client in local mode and nil in public mode,
+// for a caller that has its own default client in public mode and must not
+// change it (the OTLP exporters).
+func (p *Policy) LocalClient(timeout time.Duration) *http.Client {
+	if !p.Local() {
+		return nil
+	}
+	return p.NewClient(timeout)
+}
+
 // DialContext opens a connection to addr only when its host is on the
 // organisation's network. The check reads the address as written and comes
 // before any lookup: a name off the list is never sent to a resolver. A name on
@@ -227,12 +250,8 @@ func (p *Policy) DialContext(ctx context.Context, network, addr string) (net.Con
 	}
 	var last error
 	for _, ip := range ips {
-		// Lookup has judged every answer already. The address is judged again
-		// here, at the last step before the socket, so no other path to this
-		// loop can carry an outside address into a connection.
-		if !p.allowedHost(ip.String()) {
-			return nil, outsideAnswer(host, ip)
-		}
+		// Lookup has judged every answer already, and ips comes from nowhere
+		// else, so the loop holds no second check.
 		conn, derr := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 		if derr == nil {
 			return conn, nil
@@ -267,9 +286,7 @@ func (p *Policy) Lookup(ctx context.Context, host string) ([]netip.Addr, error) 
 	if !p.Local() {
 		return r.LookupNetIP(ctx, "ip", name)
 	}
-	// A trailing dot makes the name absolute, so the resolver's search list is
-	// not appended and no other name is queried.
-	ips, err := r.LookupNetIP(ctx, "ip", name+".")
+	ips, err := r.LookupNetIP(ctx, "ip", absoluteName(name))
 	if err != nil {
 		return nil, err
 	}
@@ -283,6 +300,11 @@ func (p *Policy) Lookup(ctx context.Context, host string) ([]netip.Addr, error) 
 	}
 	return ips, nil
 }
+
+// absoluteName returns name with a trailing dot. The dot makes the name
+// absolute, so the resolver's search list is not appended and no other name is
+// queried: a listed name is asked once, as itself.
+func absoluteName(name string) string { return name + "." }
 
 // outsideAnswer names the host and the address a DNS answer asked Proven to
 // connect to.

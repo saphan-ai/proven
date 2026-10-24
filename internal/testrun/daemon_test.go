@@ -38,9 +38,16 @@ func TestLocalRefusesAPublicDaemonAddressAtLoad(t *testing.T) {
 				t.Errorf("public mode refused %s=%s: %v", name, bad, err)
 			}
 		}
-		for _, good := range []string{"unix:///var/run/docker.sock", "npipe:////./pipe/docker_engine", "tcp://127.0.0.1:2375", "tcp://10.0.0.7:2376", "tcp://docker.corp.example:2376", "ssh://builder@docker.corp.example"} {
+		for _, good := range []string{"unix:///var/run/docker.sock", "npipe:////./pipe/docker_engine", "tcp://127.0.0.1:2375", "tcp://10.0.0.7:2376", "ssh://builder@10.0.0.7"} {
 			if _, err := Load(localEnv(map[string]string{name: good})); err != nil {
 				t.Errorf("%s=%s refused: %v", name, good, err)
+			}
+		}
+		// A listed name is refused too: the runtime would resolve it itself
+		// (see daemon_name_test.go), so the address must be an IP literal.
+		for _, named := range []string{"tcp://docker.corp.example:2376", "ssh://builder@docker.corp.example"} {
+			if _, err := Load(localEnv(map[string]string{name: named})); err == nil {
+				t.Errorf("%s=%s accepted: the runtime resolves a name itself", name, named)
 			}
 		}
 	}
