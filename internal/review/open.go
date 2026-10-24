@@ -336,6 +336,15 @@ func toEvidence(e candidate.Evidence) Evidence {
 			Rows:    copyRows(q.Rows),
 		}
 	}
+	if e.Tool != nil {
+		// ADR-0040: the tool, its version, the command and both sides cross the seam together.
+		t := *e.Tool
+		out.Tool = &ToolEvidence{
+			Tool: t.Tool, Version: t.Version, Command: t.Command,
+			Output: t.Output, BaseOutput: t.BaseOutput,
+			PresentOnChange: t.PresentOnChange, PresentOnBase: t.PresentOnBase,
+		}
+	}
 	return out
 }
 

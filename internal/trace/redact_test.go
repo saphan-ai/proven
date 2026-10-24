@@ -28,6 +28,7 @@ func TestAppendRedactsEveryTextFieldAndLeavesTheCallersEventAlone(t *testing.T) 
 				SQL: secret, Engine: secret, Snapshot: secret,
 				Columns: []string{secret}, Rows: [][]string{{secret, "plain"}},
 			}},
+			{Kind: "tool", Tool: &ToolEvidence{Tool: secret, Version: secret, Command: secret, Output: secret, BaseOutput: secret}},
 		},
 		Refutation: &Refutation{Reason: secret},
 		Guardrail:  &Check{Side: secret, Verdict: secret, Categories: []string{secret}},
@@ -49,7 +50,7 @@ func TestAppendRedactsEveryTextFieldAndLeavesTheCallersEventAlone(t *testing.T) 
 	if !strings.Contains(string(b), "[redacted: A_KEY]") {
 		t.Errorf("the trace does not name the variable:\n%s", b)
 	}
-	if e.Text != "t "+secret || e.Evidence[1].Query.Rows[0][0] != secret || e.Guardrail.Categories[0] != secret {
+	if e.Text != "t "+secret || e.Evidence[1].Query.Rows[0][0] != secret || e.Evidence[2].Tool.Output != secret || e.Guardrail.Categories[0] != secret {
 		t.Error("the caller's event was changed")
 	}
 }

@@ -2,8 +2,9 @@
 //
 // The Judge is the last step before the Writer. It reads each candidate's
 // evidence and the Skeptic's refutation and decides with no model: a test that
-// fails on the change and passes on the base, or a query whose rows name the
-// finding (ADR-0002). A disagreement is settled by evidence, never by a vote
+// fails on the change and passes on the base, a query whose rows name the
+// finding (ADR-0002), or a tool that reports a result on the change and not
+// on the base (ADR-0040). A disagreement is settled by evidence, never by a vote
 // (ADR-0006 point 3).
 package judge
 
@@ -59,13 +60,18 @@ func Evidenced(c candidate.Candidate) bool {
 }
 
 // counts reports whether the candidate has evidence of its own: a test with
-// both outcomes right, or query rows that name the finding.
+// both outcomes right, query rows that name the finding, or a tool result
+// the base did not already have (ADR-0040).
 func counts(c candidate.Candidate) bool {
 	for _, e := range c.Evidence {
 		if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
 			return true
 		}
 		if e.Kind == candidate.KindQuery && e.Query != nil && queryRelates(c, e.Query.Rows) {
+			return true
+		}
+		// A result on both sides is the base, not the change, so it is not evidence.
+		if e.Kind == candidate.KindTool && e.Tool != nil && e.Tool.PresentOnChange && !e.Tool.PresentOnBase {
 			return true
 		}
 	}

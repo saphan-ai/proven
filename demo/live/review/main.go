@@ -98,6 +98,14 @@ func printResult(w io.Writer, res review.Result) {
 				for _, row := range e.Query.Rows {
 					fmt.Fprintf(w, "  row: %s\n", strings.Join(row, " | "))
 				}
+			case review.EvidenceTool:
+				if e.Tool == nil {
+					continue
+				}
+				fmt.Fprintf(w, "  evidence tool %s version=%s present_on_change=%t present_on_base=%t\n", e.Tool.Tool, e.Tool.Version, e.Tool.PresentOnChange, e.Tool.PresentOnBase)
+				fmt.Fprintf(w, "  command: %s\n", e.Tool.Command)
+				fmt.Fprintf(w, "  change: %s\n", strings.TrimSpace(e.Tool.Output))
+				fmt.Fprintf(w, "  base: %s\n", strings.TrimSpace(e.Tool.BaseOutput))
 			}
 		}
 	}
