@@ -76,9 +76,9 @@ Sample mode does not start a Prover container. A later live run on this runner w
 
 ## Rehearse
 
-`make e2e` starts the lab when Gitea is not running and waits up to `E2E_WAIT_SECONDS`. It then asks Gitea (1.22.6, `GET /repos/{owner}/{repo}/actions/tasks`) for the workflow run of the pull request's current head commit. It exits 0 only when that run succeeded and a `proven-review` comment was created at or after the run started. It prints the API's answer. A review comment left by an older run, or by anyone else, does not count: a lab volume kept by `make down` keeps its comments.
+`make e2e` starts the lab when Gitea is not running and waits up to `E2E_WAIT_SECONDS`. Gitea 1.22.6 has no Actions runs, tasks, jobs or workflows route (HTTP 404), so e2e reads the statuses of the pull request's current head commit (`GET /repos/{owner}/{repo}/commits/{sha}/statuses`). It keeps the statuses of the workflow's job (`proven / review (pull_request)`, read from `lab/workflow/proven.yml`) and takes the highest run number in their `target_url`, because the seed may start more than one run on one head. It exits 0 only when that run's newest status is `success` and a `proven-review` comment was created at or after the run's first status. A run still `pending`, or no status yet, is waited for. `make check-e2e-parse` checks the parsers offline against statuses a live lab served. It prints the API's answer. A review comment left by an older run, or by anyone else, does not count: a lab volume kept by `make down` keeps its comments.
 
-It exits 1 when that run finished as `failure`, `cancelled` or `skipped`, and names the run and its status:
+It exits 1 when that run finished as `failure` or `error`, and names the run and its status:
 
 ```text
 e2e: workflow run #2 for pull request #1 (head commit <sha>) finished with status failure

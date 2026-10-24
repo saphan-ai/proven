@@ -5,13 +5,18 @@
 # is not proof: it must be created at or after the run's start.
 # If the lab is up and the runner is not, exit 1 and say so. Do not start the runner then.
 #
-# Gitea 1.22.6 (lab/versions.env) serves GET /repos/{owner}/{repo}/actions/tasks.
-# Each entry is one workflow run: head_sha, run_number, status, run_started_at.
-# Gitea 1.22.6 has no /actions/runs endpoint; that one arrives in a later release.
+# Gitea 1.22.6 (lab/versions.env) has no Actions runs, tasks, jobs or workflows
+# route (measured: HTTP 404). It serves the head commit's statuses:
+# GET /repos/{o}/{r}/commits/{sha}/statuses. The workflow's job posts one status
+# per change, with the run number in target_url (/actions/runs/N/). The seed can
+# start more than one run on one head, so the run is the highest N, not the
+# newest id. The parsers are in e2e-parse.sh and are checked offline by
+# make check-e2e-parse.
 set -eu
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 . "$here/gitea-api.sh"
+. "$here/e2e-parse.sh"
 need_docker
 
 if ! service_running gitea; then
@@ -31,58 +36,12 @@ fi
 gitea_login
 base=$(gitea_repo_api)
 
-# newest_run TASKS_JSON SHA — print "run_number<TAB>status<TAB>started_at" of the
-# run with the highest run_number among those whose head_sha is SHA.
-newest_run() {
-  printf '%s' "$1" | awk -v sha="$2" '
-    function str(obj, key) {
-      if (match(obj, "\"" key "\":\"[^\"]*\"")) {
-        return substr(obj, RSTART + length(key) + 4, RLENGTH - length(key) - 5)
-      }
-      return ""
-    }
-    function num(obj, key) {
-      if (match(obj, "\"" key "\":[0-9]+")) {
-        return substr(obj, RSTART + length(key) + 3, RLENGTH - length(key) - 3) + 0
-      }
-      return -1
-    }
-    { buf = buf $0 }
-    END {
-      n = split(buf, objs, /\},\{/)
-      best = -1
-      for (i = 1; i <= n; i++) {
-        if (str(objs[i], "head_sha") != sha) continue
-        r = num(objs[i], "run_number")
-        if (r > best) {
-          best = r
-          status = str(objs[i], "status")
-          started = str(objs[i], "run_started_at")
-          # A run that has not started carries the zero time. Its creation time is the bound then.
-          if (started == "" || substr(started, 1, 4) == "0001") started = str(objs[i], "created_at")
-        }
-      }
-      if (best >= 0) printf "%d\t%s\t%s\n", best, status, started
-    }'
-}
-
-# review_since COMMENTS_JSON SINCE — exit 0 when a comment that starts with
-# proven's marker was created at or after SINCE. The marker may be JSON-escaped.
-review_since() {
-  printf '%s' "$1" | awk -v since="$2" '
-    { buf = buf $0 }
-    END {
-      rest = buf
-      while (match(rest, /"body":"(<|\\u003c)!-- proven-review --/)) {
-        rest = substr(rest, RSTART + RLENGTH)
-        if (match(rest, /"created_at":"[^"]*"/)) {
-          ts = substr(rest, RSTART + 14, RLENGTH - 15)
-          if ((ts "") >= (since "")) exit 0
-        }
-      }
-      exit 1
-    }'
-}
+# The context Gitea gives the statuses of the workflow's job, read from the
+# workflow the lab seeds, not typed a second time.
+context=$(workflow_context "$ROOT/lab/workflow/proven.yml")
+if [ -z "$context" ]; then
+  die "e2e: could not read the workflow name and job from lab/workflow/proven.yml"
+fi
 
 utc() {
   case $1 in
@@ -102,15 +61,17 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     sha=$(printf '%s' "$pr" | sed -n 's/.*"head":{[^}]*"sha":"\([0-9a-f]\{40\}\)".*/\1/p' | head -n 1)
   fi
   if [ -n "$sha" ]; then
-    tasks=$(gitea_curl "$base/actions/tasks?limit=50" 2>/dev/null || true)
-    run=$(newest_run "$tasks" "$sha")
-    if [ -n "$run" ]; then
+    statuses=$(gitea_curl "$base/commits/$sha/statuses?limit=50" 2>/dev/null || true)
+    run=$(newest_run "$statuses" "$context")
+    if [ -z "$run" ]; then
+      last="no status '$context' on head commit $sha yet"
+    else
       run_no=$(printf '%s' "$run" | cut -f 1)
       status=$(printf '%s' "$run" | cut -f 2)
       started=$(printf '%s' "$run" | cut -f 3)
       last="workflow run #$run_no for head commit $sha is $status"
       case $status in
-        failure | cancelled | skipped)
+        failure | error)
           echo "e2e: workflow run #$run_no for pull request #$num (head commit $sha) finished with status $status" >&2
           echo "e2e: an older proven review comment, if one is there, is not a review of this commit" >&2
           echo "e2e: read the run in the lab's Actions tab, or run: make logs SERVICE=runner" >&2
