@@ -22,6 +22,9 @@ else
 fi
 if service_running gitea; then
   printf 'lab: http://%s:%s/\n' "$LAB_BIND" "$GITEA_HTTP_PORT"
+  if service_running lgtm; then
+    printf 'dashboard: http://%s:%s/d/%s\n' "$LAB_BIND" "$LGTM_GRAFANA_PORT" "$LGTM_DASHBOARD_UID"
+  fi
 else
   printf '%s\n' 'lab: not running'
 fi

@@ -38,6 +38,7 @@ trap 'rm -f "$raw"' EXIT
   for image in \
     "gitea/gitea:$GITEA_VERSION" \
     "gitea/act_runner:$ACT_RUNNER_VERSION" \
+    "$LGTM_IMAGE:$LGTM_VERSION" \
     "docker:$DOCKER_VERSION-dind" \
     "docker:$DOCKER_VERSION-cli"; do
     echo "### $image"

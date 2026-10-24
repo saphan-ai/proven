@@ -46,6 +46,26 @@ services:
     networks:
       - lab
 
+  # Grafana's OpenTelemetry stack (ADR-0045). Proven sends its review here as
+  # OTLP; Grafana shows it on the provisioned dashboard. Both ports bind to LAB_BIND.
+  lgtm:
+    image: ${LGTM_IMAGE}:${LGTM_VERSION}
+    environment:
+      # Open on the dashboard, not on Grafana's empty home page.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /proven-dashboards/proven-review.json
+      # No sign-in: the lab binds to LAB_BIND (127.0.0.1). `make trace` also reads through this.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    ports:
+      - "${LAB_BIND}:${LGTM_GRAFANA_PORT}:${LGTM_GRAFANA_CONTAINER_PORT}"
+      - "${LAB_BIND}:${LGTM_OTLP_PORT}:${LGTM_OTLP_CONTAINER_PORT}"
+    volumes:
+      - ./grafana/proven-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/proven.yaml:ro
+      - ./grafana/dashboards:/proven-dashboards:ro
+    networks:
+      - lab
+
   runner:
     image: gitea/act_runner:${ACT_RUNNER_VERSION}
     environment:
@@ -83,6 +103,11 @@ services:
       PROVEN_IMAGE: ${PROVEN_IMAGE}
       RUNNER_LABEL: ${RUNNER_LABEL}
       LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}
+      # ADR-0045: the seeded workflow exports its review to the lgtm service.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://${LGTM_INTERNAL_HOST}:${LGTM_OTLP_CONTAINER_PORT}
+      OTEL_SERVICE_NAME: ${LAB_OTEL_SERVICE_NAME}
+      OTEL_METRIC_EXPORT_INTERVAL: ${LAB_OTEL_METRIC_EXPORT_INTERVAL}
+      LAB_SPECIAL_REVIEWER: ${LAB_SPECIAL_REVIEWER:-}
     volumes:
       - seed-state:/state
       - runner-reg:/reg
