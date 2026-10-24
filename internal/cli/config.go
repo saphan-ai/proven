@@ -484,6 +484,49 @@ func refuseCollidingOutputs(cfg config) error {
 	return nil
 }
 
+// regularFileInfo is the FileInfo of w when w is an *os.File on a regular
+// file, and nil for a terminal, a pipe, a buffer or anything that cannot be
+// compared with an output path.
+func regularFileInfo(w io.Writer) os.FileInfo {
+	f, ok := w.(*os.File)
+	if !ok {
+		return nil
+	}
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil
+	}
+	return info
+}
+
+// refuseStdoutOnAnOutput refuses an output file that is the file standard
+// output is already redirected onto (ADR-0013), at load, before the review
+// runs. The shell creates the redirect target before Proven starts, so an
+// output that is that file exists under some spelling and os.Stat, which
+// follows links, finds it; os.SameFile then compares the two. A terminal or a
+// pipe on standard output is not a regular file and is never a collision.
+func refuseStdoutOnAnOutput(cfg config, stdout io.Writer) error {
+	std := regularFileInfo(stdout)
+	if std == nil {
+		return nil
+	}
+	named := []struct{ flag, path string }{
+		{"-o", cfg.output},
+		{"--text-output", cfg.textOutput},
+		{"--json-output", cfg.jsonOutput},
+		{"--sarif-output", cfg.sarifOutput},
+	}
+	for _, n := range named {
+		if n.path == "" {
+			continue
+		}
+		if info, err := os.Stat(n.path); err == nil && os.SameFile(info, std) {
+			return refuse(n.flag, n.path, "same file as standard output; each output needs its own path", nil)
+		}
+	}
+	return nil
+}
+
 // maxOutputLinkHops bounds the symbolic links followed from one output path.
 // The kernel stops at 40 as well; a longer chain or a loop is refused at load
 // instead of being left to fail at the write.

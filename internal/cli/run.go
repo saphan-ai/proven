@@ -49,6 +49,12 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return errorCode(err)
 	}
+	// Standard output is compared with the output files here, not in resolve,
+	// because only Run holds the writer it is open on.
+	if err := refuseStdoutOnAnOutput(cfg, stdout); err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return errorCode(err)
+	}
 	// Every requested format must have a writer before the review runs: a
 	// review that cannot be written is time spent for an exit 2 anyway.
 	if err := writable(cfg); err != nil {
@@ -241,6 +247,13 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 	// with the files already written in this run before it is written, and the
 	// run stops with the first output intact.
 	var written []writtenOutput
+	if cfg.output == "" {
+		// Standard output was written above; when it is a regular file it is
+		// the first file of the run.
+		if info := regularFileInfo(stdout); info != nil {
+			written = append(written, writtenOutput{"standard output", info})
+		}
+	}
 	for _, one := range files {
 		if info, err := os.Stat(one.path); err == nil {
 			for _, w := range written {
