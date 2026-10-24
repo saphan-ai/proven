@@ -85,7 +85,7 @@ func Catalog() []envdoc.Section {
 		{
 			Heading: "The trace",
 			Rows:    cli.Environment(),
-			After:   "The default is the user cache directory, with proven/logs under it, created so only that user can read it. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. Sample mode reads this setting.",
+			After:   "The default is the user cache directory, with proven/logs under it, created so only that user can read it. An existing configured directory is narrowed to 0700. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. Sample mode reads this setting.",
 		},
 	}
 }
