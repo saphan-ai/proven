@@ -165,13 +165,13 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | Setting | Default | What it changes |
 |---|---|---|
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
-| `LAB_BIND` | `127.0.0.1` | Address the published ports bind to |
+| `LAB_BIND` | `127.0.0.1` | Address the published ports bind to. Only a loopback address is accepted (`127.0.0.0/8` or `[::1]`); `make up` refuses any other value, an empty one included, names it, and starts no container. The environment overrides the file, and the refusal covers both |
 | `GOLANG_IMAGE` | `golang:1.26.10` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
 | `RUNTIME_IMAGE` | `alpine:3.22` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
 | `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
-| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` refuse when the `docker scout` plugin is installed and a fix is available. `make push` does not run Scout |
+| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run; `make push` scans before it publishes |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
 | `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. This is the only published port |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |

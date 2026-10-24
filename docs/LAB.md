@@ -1,6 +1,6 @@
 # The judges' lab
 
-One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. The only published port is the web UI.
+One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address: `make up` refuses a `LAB_BIND` that is not a loopback address (`127.0.0.0/8` or `[::1]`), names the value, and starts no container. The lab does not serve SSH. The only published port is the web UI.
 
 You need GNU make and Docker. Docker Compose v2 is the `docker compose` command. Windows is not a target. On macOS the `make` from Homebrew is GNU make; the make that ships with the system is not.
 
@@ -117,7 +117,7 @@ proven scan --sample /opt/proven/fixture/discount
 
 That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no network, no keys and no Docker. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
 
-The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that. Docker Scout for that image is read on Docker Hub after the push. This repository does not push it for you.
+The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that, and only after Docker Scout has passed on the image. This repository does not push it for you.
 
 ### Which account posts the review
 
@@ -144,11 +144,11 @@ The seeded copy replaces `saphan/proven` with `PROVEN_IMAGE` when that setting i
 
 `make image` builds Proven's image for this machine and loads it. The load is one platform, this machine's own. A local engine cannot load a manifest list, so this target does not build both platforms. `make seed-image`, which `make up` uses, is the same kind of load: one platform, because the lab has to start the image. The image is the static `proven` and `livecheck` binaries, `git`, and the `docker` client, on `RUNTIME_IMAGE`, and it runs as a user that is not root. Local tags: `latest` and the `git describe` value. OCI labels `created`, `revision` and `version` come from the date, `git rev-parse` and `git describe`.
 
-`make push` builds Proven's image and the seed image for `PUSH_PLATFORMS` (`linux/amd64` and `linux/arm64`) and pushes each tag as one manifest list that carries both platforms. Proven's tags are `latest` and the `git describe` value, on `PROVEN_REGISTRY/PROVEN_IMAGE`. The seed's only tag is `SEED_IMAGE_TAG`, on `PROVEN_REGISTRY/SEED_IMAGE`. The build asks for provenance (`--provenance=mode=max`) and an SBOM (`--sbom=true`). `make push` does not run Docker Scout and does not need the `docker scout` plugin.
+`make push` builds Proven's image and the seed image for `PUSH_PLATFORMS` (`linux/amd64` and `linux/arm64`) and pushes each tag as one manifest list that carries both platforms. Proven's tags are `latest` and the `git describe` value, on `PROVEN_REGISTRY/PROVEN_IMAGE`. The seed's only tag is `SEED_IMAGE_TAG`, on `PROVEN_REGISTRY/SEED_IMAGE`. The build asks for provenance (`--provenance=mode=max`) and an SBOM (`--sbom=true`). `make push` scans before it publishes: it builds each image for this machine, runs Docker Scout on it (the same scan as `make scan`, below), and only then builds and pushes the manifest lists. It refuses, exits non-zero and names the image when the `docker scout` plugin is missing, when a scan cannot run, or when Scout reports a critical or high finding that has a fix. Nothing is pushed in any of those cases.
 
-`make scan` runs Docker Scout when that plugin is installed. It refuses when Scout reports a critical or high finding that has a fix, on the images this repository builds. The severities are `SCOUT_REFUSE_SEVERITIES`. It also scans the pinned third-party images and writes that output between the markers at the bottom of this page. When the plugin is not installed, `make scan` exits 0 and names where to read the result: on Docker Hub, after `make push`.
+`make scan` runs Docker Scout on the images this repository builds, Proven (`saphan/proven`, tag `latest`) and the seed (`saphan/proven-lab-seed`, tag `1`, unless `SEED_IMAGE` or `SEED_IMAGE_TAG` was overridden). It fails closed: it exits non-zero and names the image when the `docker scout` plugin is missing, when a scan cannot run, or when Scout reports a critical or high finding that has a fix. The severities are `SCOUT_REFUSE_SEVERITIES`. When the images pass, it also scans the pinned third-party images (`gitea/gitea`, `gitea/act_runner`, `docker`) and writes that output between the markers at the bottom of this page.
 
-Read that result on the image's page on Docker Hub, for the tag `make push` wrote. Proven is `saphan/proven`, tags `latest` and the `git describe` value. The seed is `saphan/proven-lab-seed`, tag `1`, unless `SEED_IMAGE` or `SEED_IMAGE_TAG` was overridden. Docker Hub shows Docker Scout for a tag after the push. No host measured on 2026-10-23 had the local plugin. The third-party pins (`gitea/gitea`, `gitea/act_runner`, `docker`) are on their own Docker Hub pages the same way. The block at the bottom of this page is filled only when `make scan` has the plugin.
+`make check-lab-gates` checks both gates offline, with a stub `docker` on `PATH`: `make up` refuses a `LAB_BIND` that is not a loopback address before any container starts, and `make scan` and `make push` refuse without a green scan, with `make push` never reaching the push.
 
 ## The runner and Docker
 

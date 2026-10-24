@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image seed-image scan push up down status logs sample livecheck e2e e2e-failed-run check-e2e-parse check-links clean
+.PHONY: help build build-all image seed-image scan push up down status logs sample livecheck e2e e2e-failed-run check-e2e-parse check-lab-gates check-links clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -24,10 +24,10 @@ image: ## Build Proven's image for this machine and load it (one platform; a loc
 seed-image: ## Build the lab seed for this machine and load it (one platform; make push publishes both)
 	@sh $(ROOT)/lab/scripts/seed-image.sh
 
-scan: ## Scout images when the plugin is present; otherwise name Docker Hub after make push
+scan: ## Scan our images with Docker Scout; refuses when Scout is missing, fails, or finds a fixable critical or high
 	@sh $(ROOT)/lab/scripts/scan.sh
 
-push: ## Push linux/amd64 and linux/arm64 as one tag per image, with provenance and an SBOM
+push: ## Scan first (refuses on a Scout failure), then push linux/amd64 and linux/arm64, one tag per image, with provenance and an SBOM
 	@sh $(ROOT)/lab/scripts/push.sh
 
 up: ## Start the judges' lab
@@ -56,6 +56,9 @@ e2e-failed-run: ## Negative control: with an old review comment present and the 
 
 check-e2e-parse: ## Check e2e's parsers offline against statuses a live Gitea served
 	@sh $(ROOT)/lab/scripts/e2e-parse-check.sh
+
+check-lab-gates: ## Check offline, with a stub docker, that make up refuses a non-loopback bind and make push refuses without a green scan
+	@sh $(ROOT)/lab/scripts/check-lab-gates.sh
 
 check-links: ## Check that every relative Markdown link and metadata.json path resolves
 	@cd $(ROOT) && sh scripts/check-links.sh
