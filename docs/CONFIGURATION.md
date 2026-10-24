@@ -27,6 +27,14 @@ settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MOD
 
 Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these.
 
+## The second reviewer: any OpenAI-compatible model
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_SECOND_REVIEWER_KEY` | none (empty: no second reviewer) | the API key of the second reviewer. Secret: never printed. Empty: not connected, and the review has one reviewer |
+| `PROVEN_SECOND_REVIEWER_BASE_URL` | none (required with the key) | the address of any OpenAI-compatible chat API, for example `https://api.openai.com/v1` or a local server |
+| `PROVEN_SECOND_REVIEWER_MODEL` | none (required with the key) | the model asked for; the review names it as the second reviewer |
+
 ## The guardrail: NVIDIA Nemotron content safety
 
 | Environment variable | Default | What it changes |
