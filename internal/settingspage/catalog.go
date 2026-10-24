@@ -55,8 +55,8 @@ const packAfter = "The pack holds source excerpts and query rows, so keep it whe
 // The evidence table joins the store choice, the Zetaris adapter, OSV, EPSS
 // and livecheck.
 func Catalog() []envdoc.Section {
-	evidence := append(store.Environment(), query.Environment()...)
-	evidence = append(append(append(evidence, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
+	evidenceRows := append(store.Environment(), query.Environment()...)
+	evidenceRows = append(append(append(evidenceRows, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
 		{
 			Heading: "The model generator: Meterless Nightshift or NVIDIA's hosted API",
@@ -74,7 +74,7 @@ func Catalog() []envdoc.Section {
 		},
 		{
 			Heading: "Evidence: the store, and Zetaris over REST",
-			Rows:    evidence,
+			Rows:    evidenceRows,
 			After:   evidenceAfter,
 		},
 		{
