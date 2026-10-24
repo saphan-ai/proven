@@ -178,6 +178,13 @@ ensure_bot() {
     echo "seed: could not create the workflow's account (HTTP $code)" >&2
     exit 1
   fi
+  # 422 means "already exists" only if the account is there: Gitea also answers 422 for an email it will not take
+  # (proven-bot@localhost was refused, measured on Gitea 1.22.6), and then the account was never made.
+  code=$(api GET "$GITEA_INTERNAL_URL/api/v1/users/$LAB_BOT_USER" /tmp/bot-get.json)
+  if [ "$code" != "200" ]; then
+    echo "seed: the workflow's account $LAB_BOT_USER does not exist after creating it (HTTP $code); check LAB_BOT_EMAIL in lab/versions.env" >&2
+    exit 1
+  fi
   # A kept Gitea volume may hold the account with another password.
   code=$(api PATCH "$GITEA_INTERNAL_URL/api/v1/admin/users/$LAB_BOT_USER" /tmp/bot.json \
     -d "{\"login_name\":\"$LAB_BOT_USER\",\"source_id\":0,\"password\":\"$bot_pass\",\"must_change_password\":false,\"admin\":false}")
