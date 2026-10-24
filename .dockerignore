@@ -1,16 +1,15 @@
-.git
-.github
-.gitea
-bin
-dist
-lab
-fleet
-planning
-docs
-assets
-tests
-conformance
-demo
+# Allow-list: the build context carries only what the Dockerfile copies and
+# builds. Everything else (the repository's history, agent and fleet files,
+# documents, local state, secrets) is not sent to the builder.
+*
+
+!go.mod
+!go.sum
+!cmd
+!internal
+!testdata/fixture/discount
+
+# Inside an allowed directory, still never send these.
 **/.env
 **/.env.*
 **/.DS_Store
