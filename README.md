@@ -78,6 +78,7 @@ Each day, what lands moves from this list to the day's summary.
 - **Is the vulnerable code actually called?** For Go, each vulnerable dependency says whether your code reaches the vulnerable function ([ADR-0043](docs/adr/ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md)).
 - **How far to trust each finding, in one word**: proved by a test, by a tool, by data, or only agreed by two models ([ADR-0044](docs/adr/ADR-0044-every-finding-names-its-level-of-proof.md)).
 - **Watch a review live**: a dashboard of the agents and the two reviewers working side by side, their verdicts and where they disagree; the numbers go to any monitoring you already use, through OpenTelemetry ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
+- **Large pull requests at a flat cost**: the review goes file by file and carries only what it has established, using Meterless's Markovian engine. Saphan Studio has its own, patent pending; for the hackathon we use Meterless's. We keep it only if it finds the same problems for less ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md)).
 - **NVIDIA's model joins our security review** as a third reviewer.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 
@@ -250,4 +251,5 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 
 Before publication Marcin reviews every document. Credentials, internal host names and private infrastructure details are blacked out, and each document says where.
 
-**Licence:** Apache-2.0. See [LICENSE](LICENSE).
+**Licence:** the code is Apache-2.0 ([LICENSE](LICENSE)); the documentation and the build record (the Markdown pages,
+`docs/` and `hackathon/`) are CC BY 4.0 ([LICENSE-docs](LICENSE-docs)).

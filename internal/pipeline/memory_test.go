@@ -12,18 +12,19 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
-// The skeptic refutes F1, which has test evidence, on the first review.
-// The second review of the same fixture does not report F1, and the trace
-// names the H-MEM record. F2 is not refuted and stays.
+// The skeptic refutes F1 with evidence: a refuting test that passes on the
+// change. The first review drops F1 as refuted. The second review of the same
+// fixture does not report F1 either, and the trace names the H-MEM record that
+// suppressed it. F2 is not refuted and stays.
 func TestRefutedFindingIsAbsentOnTheNextReview(t *testing.T) {
 	root := t.TempDir()
 	state := filepath.Join(root, "state")
-	gen := refuteGenerator(t, "F1")
-	first := reviewWith(t, filepath.Join(root, "logs1"), state, gen)
-	if _, ok := kept(first, "F1"); !ok {
-		t.Fatal("F1 must be reported on the review that refutes it")
+	first := reviewWithRefutingTest(t, filepath.Join(root, "logs1"), state)
+	if _, ok := kept(first, "F1"); ok {
+		t.Fatal("F1 must be dropped on the review whose refutation carries evidence")
 	}
 	if _, ok := kept(first, "F2"); !ok {
 		t.Fatal("F2 must stay")
@@ -32,7 +33,7 @@ func TestRefutedFindingIsAbsentOnTheNextReview(t *testing.T) {
 		t.Fatalf("the first review suppressed F1 as %s", id)
 	}
 
-	second := reviewWith(t, filepath.Join(root, "logs2"), state, gen)
+	second := reviewWithRefutingTest(t, filepath.Join(root, "logs2"), state)
 	if _, ok := kept(second, "F1"); ok {
 		t.Fatal("F1 returned without the store being cleared")
 	}
@@ -46,13 +47,15 @@ func TestRefutedFindingIsAbsentOnTheNextReview(t *testing.T) {
 }
 
 // Mutated field: the H-MEM state file. The world log and the skeptic's answer
-// stay as they were. Clearing the store brings F1 back.
+// (a refuting test that passes on the change) stay as they were. With the
+// store cleared the third review drops F1 on its own judgement and no memory
+// record suppresses it.
 func TestNegativeControl_ClearHMEMStore(t *testing.T) {
 	root := t.TempDir()
 	state := filepath.Join(root, "state")
-	gen := refuteGenerator(t, "F1")
-	if _, ok := kept(reviewWith(t, filepath.Join(root, "logs1"), state, gen), "F1"); !ok {
-		t.Fatal("F1 must be reported on the first review")
+	first := reviewWithRefutingTest(t, filepath.Join(root, "logs1"), state)
+	if _, ok := kept(first, "F1"); ok {
+		t.Fatal("F1 must be dropped on the first review")
 	}
 	path := filepath.Join(state, "hmem", "state.json")
 	before, err := os.ReadFile(path)
@@ -62,7 +65,7 @@ func TestNegativeControl_ClearHMEMStore(t *testing.T) {
 	if !strings.Contains(string(before), "mem_") {
 		t.Fatalf("store did not hold a refutation: %s", before)
 	}
-	empty := []byte("{\"version\":1,\"seq\":0,\"records\":[]}\n")
+	empty := []byte("{\"version\":2,\"seq\":0,\"records\":[]}\n")
 	if err := os.WriteFile(path, empty, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -71,9 +74,12 @@ func TestNegativeControl_ClearHMEMStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	third := reviewWith(t, filepath.Join(root, "logs2"), state, gen)
-	if _, ok := kept(third, "F1"); !ok {
-		t.Fatal("F1 must return after the H-MEM store is cleared")
+	third := reviewWithRefutingTest(t, filepath.Join(root, "logs2"), state)
+	if id := memoryID(t, third.TracePath, "F1"); id != "" {
+		t.Fatalf("a cleared store still suppressed F1 as %s", id)
+	}
+	if !traceSays(t, third.TracePath, "F1", "verdict", "dropped: refuted: test TestRefute passes on the change") {
+		t.Fatal("after the store is cleared, F1 must be judged again on its own evidence")
 	}
 	worldAfter, err := os.ReadFile(worldPath)
 	if err != nil {
@@ -106,6 +112,42 @@ func reviewWith(t *testing.T, logDir, state string, gen generator.Generator) can
 	return d
 }
 
+// findingMarker is the text of an agent prompt that names one finding by id.
+func findingMarker(id string) string { return `{"id":"` + id + `",` }
+
+// reviewWithRefutingTest runs a sample review whose Skeptic refutes F1 with a
+// test that passes on the change, so the refutation carries evidence.
+func reviewWithRefutingTest(t *testing.T, logDir, state string) candidate.Draft {
+	t.Helper()
+	fx := loadDiscount(t)
+	inner, err := generator.NewSample(fx.Answers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := Build(Options{
+		Sample:   true,
+		LogDir:   logDir,
+		StateDir: state,
+		Generator: &answerFor{
+			inner: inner, agent: "skeptic", match: findingMarker("F1"),
+			body: `{"refuted":true,"reason":"the test passes","path":"billing/discount_test.go","name":"TestRefute"}`,
+		},
+		TestRun: &scriptedRun{inner: testrun.NewSample(fx.Tests), pass: "TestRefute"},
+		Env: func(k string) string {
+			t.Fatalf("sample mode read %s", k)
+			return ""
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := p.Review(context.Background(), Request{Target: fx.Root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
 func refuteGenerator(t *testing.T, id string) generator.Generator {
 	t.Helper()
 	fx, err := fixture.Load(fixturePath(t))
@@ -130,7 +172,7 @@ type refuteOne struct {
 }
 
 func (g *refuteOne) Complete(ctx context.Context, agent, prompt string) (string, error) {
-	if agent == "skeptic" && strings.Contains(prompt, "id: "+g.id+"\n") {
+	if agent == "skeptic" && strings.Contains(prompt, findingMarker(g.id)) {
 		return g.body, nil
 	}
 	return g.inner.Complete(ctx, agent, prompt)

@@ -26,3 +26,13 @@ func (Live) Run(ctx context.Context, req Request) (Outcome, error) {
 	// ADR-0025 point 6: with no container the Prover runs no code, and says why.
 	return Outcome{}, &service.Down{Service: "prover", Reason: ProverOffReason}
 }
+
+// RunFix reports the Prover as off, for the same reason Run does.
+func (Live) RunFix(ctx context.Context, _ FixRequest) (FixOutcome, error) {
+	ctx, cancel := limit.Bound(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return FixOutcome{}, err
+	}
+	return FixOutcome{}, &service.Down{Service: "prover", Reason: ProverOffReason}
+}

@@ -22,9 +22,11 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// Names lists every variable whose value Proven must never write: the three
-// keys it sends, and the organisation id it identifies itself with.
-var Names = []string{generator.EnvToken, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID}
+// Names lists every variable whose value Proven must never write: the keys it
+// sends (the generator's two, the second reviewer's (ADR-0037), the guardrail's and
+// Zetaris's), and the organisation id it identifies itself with. The generator's NVIDIA
+// key is here so a hosted answer that echoes it never reaches the trace (ADR-0031 point 3).
+var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID}
 
 // Redactor replaces configured values in text. The zero value and a nil
 // *Redactor leave text unchanged.

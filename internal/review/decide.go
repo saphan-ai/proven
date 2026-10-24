@@ -46,6 +46,12 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 			lines = append(lines, "special-review model: not configured")
 		}
 	}
+	// ADR-0037 point 5: each reviewer is named, with whether it is the author's model.
+	reviewers := []ReviewerInfo{reviewerOf(RoleDefault, cfg.DefaultReviewer, cfg.Families, authors, unreadable)}
+	if doubled && cfg.SpecialReviewer != "" {
+		reviewers = append(reviewers, reviewerOf(RoleSpecial, cfg.SpecialReviewer, cfg.Families, authors, unreadable))
+	}
+	out.Reviewers = reviewers
 	// Never nil, so "no author models" prints as an empty list.
 	if authors == nil {
 		authors = []AuthorModel{}
@@ -527,6 +533,42 @@ func reviewerLine(role, model, family string, authors []AuthorModel, unreadable 
 		parts = append(parts, "author statement unreadable: "+line)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// reviewerOf is the structured form of reviewerLine: the reviewer, its family, and whether it is the
+// author's model. A reviewer is the author's model when the change names that exact model, or a
+// model of the same family (ADR-0008); with no author named, or an unknown family, the answer is
+// "unknown", never a guess.
+func reviewerOf(role, model string, families []familyRule, authors []AuthorModel, unreadable []string) ReviewerInfo {
+	family := familyOf(model, families)
+	r := ReviewerInfo{Role: role, Model: model, Family: family, IsAuthorModel: "unknown"}
+	if len(authors) == 0 {
+		return r
+	}
+	if len(unreadable) > 0 {
+		// An author statement the review could not read may name this very model.
+		return r
+	}
+	answer := "no"
+	for _, a := range authors {
+		if a.Model == model {
+			answer = "yes"
+			break
+		}
+		switch familyRelation(family, a.Family) {
+		case "yes":
+			answer = "yes"
+		case "family unknown":
+			if answer == "no" {
+				answer = "unknown"
+			}
+		}
+		if answer == "yes" {
+			break
+		}
+	}
+	r.IsAuthorModel = answer
+	return r
 }
 
 // familyRelation answers "is the reviewer in the author's family?". When either family is unknown

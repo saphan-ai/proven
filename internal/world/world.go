@@ -370,16 +370,19 @@ func (s *Store) apply(ev trace.Event) error {
 		f.Evidence = append(f.Evidence, ev.Text)
 	case "refutation":
 		ref := Refutation{Text: ev.Text}
+		evidenced := false
 		if ev.Refutation != nil {
 			ref.Refuted = ev.Refutation.Refuted
 			ref.Reason = ev.Refutation.Reason
+			evidenced = ev.Refutation.Evidenced
 		}
 		f.Refutations = append(f.Refutations, ref)
-		// Only a refutation of a finding that had evidence is remembered
-		// (ADR-0006 point 4): refuting a guess teaches the next review nothing.
-		// The time is the event's place in the fold, not the clock, so a
-		// replay stores the same record.
-		if ref.Refuted && ev.HasEvidence {
+		// Only a refutation of a finding that had evidence, and that carries
+		// evidence of its own, is remembered (ADR-0006 point 4): refuting a guess
+		// teaches the next review nothing, and the Skeptic's word alone is not a
+		// refutation. The time is the event's place in the fold, not the clock,
+		// so a replay stores the same record.
+		if ref.Refuted && ev.HasEvidence && evidenced {
 			at := int64(len(s.applied) + 1)
 			rec, err := s.mem.RememberRefutation(hmem.RefutationKey{
 				ChangeKey: ev.ChangeKey,

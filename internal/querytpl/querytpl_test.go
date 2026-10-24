@@ -80,6 +80,18 @@ func TestPackageFormatsFollowTheEcosystem(t *testing.T) {
 		{"PyPI", "Django_REST.framework", true},
 		{"PyPI", "-leading", false},
 		{"PyPI", "a/b", false},
+		{"Packagist", "monolog/monolog", true},
+		{"Packagist", "Monolog/monolog", true},
+		{"Packagist", "monolog", false},
+		{"Packagist", "-bad/name", false},
+		{"crates.io", "serde", true},
+		{"crates.io", "serde_json", true},
+		{"crates.io", "Serde", true},
+		{"crates.io", "a", true},
+		{"crates.io", "a.b", false},
+		{"crates.io", "1serde", false},
+		{"crates.io", "-serde", false},
+		{"crates.io", "serde/extra", false},
 		{"Go", "", false},
 		{"Cargo", "serde", false},
 		{"", "serde", false},
@@ -124,6 +136,49 @@ func TestPyPINameIsBuiltInItsPEP503Form(t *testing.T) {
 	got, err := OSVPackageSQL(DefaultOSVTable, "PyPI", "Django_REST.framework")
 	if err != nil || !strings.HasSuffix(got, "package = 'django-rest-framework'") {
 		t.Errorf("got %q, %v", got, err)
+	}
+}
+
+// TestCrateNameIsKeptAsWritten proves a crates.io package is looked up
+// under the spelling in the file: case is not folded, and '_' is not turned
+// into '-'.
+func TestCrateNameIsKeptAsWritten(t *testing.T) {
+	got, err := OSVPackageSQL(DefaultOSVTable, "crates.io", "serde_json")
+	if err != nil || !strings.HasSuffix(got, "package = 'serde_json'") {
+		t.Errorf("got %q, %v", got, err)
+	}
+	if !strings.Contains(got, "ecosystem = 'crates.io'") {
+		t.Errorf("got %q", got)
+	}
+	long := "a" + strings.Repeat("b", 63)
+	if _, err := OSVPackageSQL(DefaultOSVTable, "crates.io", long); err != nil {
+		t.Errorf("a 64-character crate name was refused: %v", err)
+	}
+	tooLong := "a" + strings.Repeat("b", 64)
+	if err := refusedAs(mustErr(t, tooLong)); err != ReasonBadValue {
+		t.Errorf("a 65-character crate name: %v", err)
+	}
+}
+
+// mustErr builds a crates.io query that is expected to fail.
+func mustErr(t *testing.T, pkg string) error {
+	t.Helper()
+	_, err := OSVPackageSQL(DefaultOSVTable, "crates.io", pkg)
+	if err == nil {
+		t.Fatalf("%s was accepted", pkg)
+	}
+	return err
+}
+
+// TestPackagistNameIsBuiltInLowerCase proves a Packagist package is looked
+// up by the lower-case vendor/name form the OSV table is keyed by.
+func TestPackagistNameIsBuiltInLowerCase(t *testing.T) {
+	got, err := OSVPackageSQL(DefaultOSVTable, "Packagist", "Monolog/monolog")
+	if err != nil || !strings.HasSuffix(got, "package = 'monolog/monolog'") {
+		t.Errorf("got %q, %v", got, err)
+	}
+	if !strings.Contains(got, "ecosystem = 'Packagist'") {
+		t.Errorf("got %q", got)
 	}
 }
 

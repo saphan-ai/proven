@@ -30,8 +30,10 @@ import (
 )
 
 // schemaVersion is the state.json format. Open refuses any other version
-// rather than guess at a file it does not know.
-const schemaVersion = 1
+// rather than guess at a file it does not know. Version 2 stores a refutation
+// only with its evidence, so a version 1 file, whose records were not held to
+// that rule, is refused rather than trusted.
+const schemaVersion = 2
 
 // Layers and types are the closed sets from the memory record.
 const (
@@ -191,7 +193,7 @@ func Open(opts Options) (*Store, error) {
 		return nil, fmt.Errorf("hmem: state.json is not valid JSON: %w", err)
 	}
 	if file.Version != schemaVersion {
-		return nil, fmt.Errorf("hmem: state version %d, want %d", file.Version, schemaVersion)
+		return nil, fmt.Errorf("hmem: state version %d, want %d; remove %s to start a new memory", file.Version, schemaVersion, dir)
 	}
 	for _, rec := range file.Records {
 		if err := validate(rec); err != nil {
