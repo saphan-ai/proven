@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,11 +57,23 @@ func TestDefaultLogDirIsOutsideTheTargetAndPrivate(t *testing.T) {
 	if insideTarget(t, want, target) {
 		t.Fatalf("default log dir %s is inside the target %s", want, target)
 	}
-	// The real reviewer follows the directory the command chose. A sample scan
-	// of this target must not create logs inside it.
+	// The real reviewer follows the directory the command chose. A sample
+	// review of the fixture must exit 0, write trace.jsonl in that directory,
+	// and must not create logs inside the fixture.
+	fixture := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
 	stdout.Reset()
 	stderr.Reset()
-	Run([]string{"scan", "--sample", "."}, emptyEnv, &stdout, &stderr, nil)
+	code = Run([]string{"scan", "--sample", fixture}, emptyEnv, &stdout, &stderr, nil)
+	if code != exitOK {
+		t.Fatalf("sample review exit %d\n%s", code, stderr.String())
+	}
+	tracePath := filepath.Join(want, "trace.jsonl")
+	if _, err := os.Stat(tracePath); err != nil {
+		t.Fatalf("trace file %s: %v", tracePath, err)
+	}
+	if info, err := os.Stat(filepath.Join(fixture, "logs")); err == nil {
+		t.Fatalf("sample scan created logs inside %s mode %o\nstderr: %s", fixture, info.Mode().Perm(), stderr.String())
+	}
 	if info, err := os.Stat(inside); err == nil {
 		t.Fatalf("sample scan created logs inside %s mode %o\nstderr: %s", inside, info.Mode().Perm(), stderr.String())
 	}
@@ -138,6 +151,124 @@ func TestConfiguredLogDirInsideTheTargetIsRefused(t *testing.T) {
 		dir := filepath.Join(target, "logs")
 		refuseLogDir(t, alias, dir)
 	})
+	t.Run("..", func(t *testing.T) {
+		// Join would clean "..". The value the command sees still contains it.
+		base := filepath.Base(target)
+		dir := target + string(filepath.Separator) + ".." + string(filepath.Separator) + base + string(filepath.Separator) + "logs"
+		refuseLogDir(t, target, dir)
+	})
+}
+
+// TestTraceFileSymlinkIntoTheTargetIsRefused proves a trace.jsonl symlink
+// in a directory outside the target is refused when the link lands inside
+// the target. The directory check alone follows that link on open.
+// Mutated field: trace.jsonl in PROVEN_LOG_DIR.
+func TestTraceFileSymlinkIntoTheTargetIsRefused(t *testing.T) {
+	target := t.TempDir()
+	copyTree(t, filepath.Join(moduleRoot(t), "testdata", "fixture", "discount"), target)
+	outside := t.TempDir()
+	victim := filepath.Join(target, "trace.jsonl")
+	if err := os.Symlink(victim, filepath.Join(outside, "trace.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sample", target}, envOf(map[string]string{EnvLogDir: outside}), &stdout, &stderr, nil)
+	if code != exitConfig {
+		_, statErr := os.Lstat(victim)
+		t.Fatalf("exit %d target trace exists=%v stderr %s", code, statErr == nil, stderr.String())
+	}
+	if _, err := os.Lstat(victim); !os.IsNotExist(err) {
+		body, _ := os.ReadFile(victim)
+		t.Fatalf("trace file inside the target: err %v body %q", err, body)
+	}
+	root, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := stderr.String()
+	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, root) {
+		t.Fatalf("stderr %q", msg)
+	}
+}
+
+// TestLogDirCaseAliasInsideTheTargetIsRefused proves a log directory that
+// differs from the target only by letter case is refused. The skip runs
+// only after a probe of this temp filesystem.
+// Mutated field: letter case of PROVEN_LOG_DIR.
+func TestLogDirCaseAliasInsideTheTargetIsRefused(t *testing.T) {
+	folds, detail := tempFilesystemFoldsCase(t)
+	if !folds {
+		t.Skip("measured case-sensitive temp filesystem: " + detail)
+	}
+	parent := t.TempDir()
+	target := filepath.Join(parent, "Repo")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(parent, "REPO", "logs")
+	refuseLogDir(t, target, alias)
+	if _, err := os.Stat(filepath.Join(target, "logs")); err == nil {
+		t.Fatal("letter-case alias created logs inside the target")
+	}
+}
+
+// tempFilesystemFoldsCase probes the temp filesystem. It creates a directory
+// named Repo and stats REPO. The same file means letter case is not distinct.
+func copyTree(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		out := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(out, 0o755)
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		f, err := os.OpenFile(out, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(f, in)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func tempFilesystemFoldsCase(t *testing.T) (bool, string) {
+	t.Helper()
+	dir := t.TempDir()
+	upper := filepath.Join(dir, "Repo")
+	if err := os.Mkdir(upper, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lower := filepath.Join(dir, "REPO")
+	lowerInfo, err := os.Stat(lower)
+	if os.IsNotExist(err) {
+		return false, "Stat(REPO) after Mkdir(Repo): not exist"
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	upperInfo, err := os.Stat(upper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(upperInfo, lowerInfo) {
+		return true, "Stat(REPO) and Stat(Repo) are the same file"
+	}
+	return false, "Stat(REPO) exists and is a different file"
 }
 
 // TestLogDirThatIsNotADirectoryIsRefused proves a PROVEN_LOG_DIR that is a

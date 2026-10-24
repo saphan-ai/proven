@@ -60,6 +60,16 @@ func resolveLogDir(getenv func(string) string, target string) (string, error) {
 		// target would put the review's record in the repository it reviews.
 		return "", refuse(EnvLogDir, raw, "log directory resolves inside the review target "+root, logDirAllowed)
 	}
+	// The directory can sit outside the target while trace.jsonl is a symlink
+	// into it. Opening the trace follows that final link, so the file is
+	// checked before anything is written.
+	fileInside, err := traceFileInsideTarget(resolved, root)
+	if err != nil {
+		return "", refuse(EnvLogDir, raw, "trace file cannot be resolved", logDirAllowed)
+	}
+	if fileInside {
+		return "", refuse(EnvLogDir, raw, "trace file resolves inside the review target "+root, logDirAllowed)
+	}
 	if err := privateLogDir(resolved); err != nil {
 		return "", refuse(EnvLogDir, raw, err.Error(), logDirAllowed)
 	}
@@ -116,9 +126,106 @@ func resolvePath(path string) (string, error) {
 	}
 }
 
+// traceFile is the name trace.Open appends to. A symlink at this name is
+// followed by that open.
+const traceFile = "trace.jsonl"
+
+// traceFileInsideTarget reports whether trace.jsonl is a symlink whose
+// destination resolves inside the review target. A missing file is outside:
+// the open would create it in logDir, which was already checked.
+func traceFileInsideTarget(logDir, root string) (bool, error) {
+	path := filepath.Join(logDir, traceFile)
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return false, nil
+	}
+	landing, err := symlinkLanding(path)
+	if err != nil {
+		return false, err
+	}
+	return pathInside(landing, root)
+}
+
+// symlinkLanding returns the path a symlink chain names, including a final
+// component that does not exist yet. The open would create that component.
+func symlinkLanding(path string) (string, error) {
+	const maxLinks = 64
+	cur := path
+	seen := make(map[string]struct{})
+	for i := 0; i < maxLinks; i++ {
+		abs, err := filepath.Abs(cur)
+		if err != nil {
+			return "", err
+		}
+		abs = filepath.Clean(abs)
+		if _, ok := seen[abs]; ok {
+			return "", fmt.Errorf("trace file symlink loop")
+		}
+		seen[abs] = struct{}{}
+		info, err := os.Lstat(abs)
+		if os.IsNotExist(err) {
+			return resolvePath(abs)
+		}
+		if err != nil {
+			return "", err
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			return resolvePath(abs)
+		}
+		dest, err := os.Readlink(abs)
+		if err != nil {
+			return "", err
+		}
+		if !filepath.IsAbs(dest) {
+			dest = filepath.Join(filepath.Dir(abs), dest)
+		}
+		cur = dest
+	}
+	return "", fmt.Errorf("trace file symlink loop")
+}
+
 // pathInside reports whether dir is root or a path below root.
-// Both arguments are already absolute and symlink-resolved.
+// When root exists, it walks dir and compares each existing ancestor with
+// root by os.SameFile. A string comparison treats a letter-case alias, or
+// another name for the same directory, as a different path. A root that
+// does not exist has no inode, so the comparison is lexical.
 func pathInside(dir, root string) (bool, error) {
+	rootInfo, err := os.Stat(root)
+	if os.IsNotExist(err) {
+		return lexicalInside(dir, root)
+	}
+	if err != nil {
+		return false, err
+	}
+	cur, err := filepath.Abs(dir)
+	if err != nil {
+		return false, err
+	}
+	cur = filepath.Clean(cur)
+	for {
+		info, err := os.Stat(cur)
+		if err == nil {
+			if os.SameFile(info, rootInfo) {
+				return true, nil
+			}
+		} else if !os.IsNotExist(err) {
+			return false, err
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return false, nil
+		}
+		cur = parent
+	}
+}
+
+func lexicalInside(dir, root string) (bool, error) {
 	rel, err := filepath.Rel(root, dir)
 	if err != nil {
 		return false, err
