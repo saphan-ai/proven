@@ -136,7 +136,7 @@ func Catalogue() []Template {
 			Name:   OSVByPackage,
 			Answer: "the OSV advisory rows of one package",
 			Params: []Param{
-				{ParamEcosystem, "one of Go, npm, PyPI, Packagist"},
+				{ParamEcosystem, "one of Go, npm, PyPI, Packagist, crates.io"},
 				{ParamPackage, "a package name in the ecosystem's own spelling"},
 			},
 		},
@@ -190,6 +190,10 @@ var (
 	npmFormat       = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._~-]{0,213}/)?[A-Za-z0-9][A-Za-z0-9._~-]{0,213}$`)
 	pypiFormat      = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._-]{0,212}[A-Za-z0-9])?$`)
 	packagistFormat = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?/[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?$`)
+	// A crate name is 1 to 64 characters, starts with an ASCII letter, and
+	// otherwise contains ASCII letters, digits, '_' or '-'. The spelling is
+	// kept: crates.io does not fold case or turn '_' into '-'.
+	crateFormat = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
 )
 
 // ValidCVE reports whether s is a CVE id and nothing else.
@@ -257,6 +261,8 @@ func packageFormat(ecosystem string) *regexp.Regexp {
 		return npmFormat
 	case "Packagist":
 		return packagistFormat
+	case "crates.io":
+		return crateFormat
 	default:
 		return pypiFormat
 	}
@@ -341,6 +347,7 @@ func checkParams(tpl Template, params map[string]string) error {
 // name is put in its PEP 503 form first, because the table is keyed by it.
 // A Packagist name is put in lower case first, because Packagist names are
 // not case-sensitive and the table is keyed by the lower-case form.
+// A crates.io name is kept as written.
 // The dependency check calls it with names from the change's manifests.
 func OSVPackageSQL(table, ecosystem, pkg string) (string, error) {
 	return osvByPackage(table, ecosystem, pkg)
@@ -352,7 +359,7 @@ func osvByPackage(table, ecosystem, pkg string) (string, error) {
 		return "", &Refusal{Reason: ReasonBadRelation, Detail: OSVByPackage}
 	}
 	switch ecosystem {
-	case "Go", "npm", "PyPI", "Packagist":
+	case "Go", "npm", "PyPI", "Packagist", "crates.io":
 	default:
 		return "", &Refusal{Reason: ReasonBadValue, Detail: OSVByPackage + " " + ParamEcosystem}
 	}

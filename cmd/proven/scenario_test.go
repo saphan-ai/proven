@@ -95,6 +95,35 @@ func TestOSVPHPComposerReportsTheDependency(t *testing.T) {
 	}
 }
 
+// TestOSVRustCargoReportsTheDependency proves the crates.io adapter reports
+// the raised Cargo package from Cargo.lock, inside one sample range and
+// outside the other. The manifest writes a constraint; the lock file's
+// version is the one reported. Dropping Cargo and CargoLock from
+// manifest.Readers is what turns this test red.
+func TestOSVRustCargoReportsTheDependency(t *testing.T) {
+	body, _ := scanScenario(t, "osv-rust-cargo")
+	for _, want := range []string{
+		"review class: security",
+		"review rule: Cargo.toml",
+		"finding osv:regex ERROR Dependency regex 1.9.1 is in an OSV affected range",
+		"EPSS 0.33000 (91st percentile, 2026-10-24)",
+		"Cargo.lock:15-15",
+		"introduced 1.7.0 <= 1.9.1 < fixed 1.10.0",
+		"GHSA-rs-sample-0002 does not match: 1.9.1 < introduced 1.11.0",
+		"alias CVE-2026-9191 is on the KEV list",
+		"ecosystem = 'crates.io' AND package = 'regex'",
+		"fix named from the advisory table, not run by a test: raise regex 1.9.1 to 1.10.0",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "unused_crate") || strings.Contains(body, "Dependency libc") {
+		t.Fatalf("a package that was not raised was queried\n%s", body)
+	}
+}
+
 func TestUnknownAuthorSaysTheDefaultReviewer(t *testing.T) {
 	body, _ := scanScenario(t, "unknown-author")
 	for _, want := range []string{

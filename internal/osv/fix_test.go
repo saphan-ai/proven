@@ -86,6 +86,20 @@ func TestSmallestFixComparesPyPIAndNpmByTheirOwnOrder(t *testing.T) {
 	}
 }
 
+// TestSmallestFixUsesTheCargoOrder proves crates.io uses the adapter's order.
+// 1.10.0 is above 1.9.1 and outside the later range, so it is the smallest way out.
+func TestSmallestFixUsesTheCargoOrder(t *testing.T) {
+	hit := manifest.Hit{Ecosystem: "crates.io", File: "Cargo.lock", Change: manifest.Change{Package: "regex", Version: "1.9.1", Line: 15}}
+	rows := []Row{
+		{ID: "GHSA-rs-sample-0002", Ecosystem: "crates.io", Package: "regex", Introduced: "1.11.0", Fixed: "1.12.0"},
+		{ID: "GHSA-rs-sample-0001", Ecosystem: "crates.io", Package: "regex", Introduced: "1.7.0", Fixed: "1.10.0"},
+	}
+	got := SmallestFix(hit, rows)
+	if got == nil || got.To != "1.10.0" || got.AdvisoryID != "GHSA-rs-sample-0001" || got.From != "1.9.1" {
+		t.Fatalf("%#v", got)
+	}
+}
+
 // TestSmallestFixRefusesAnEcosystemItCannotOrder proves a version is never ranked in an ecosystem
 // the check has no order for.
 func TestSmallestFixRefusesAnEcosystemItCannotOrder(t *testing.T) {

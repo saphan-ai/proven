@@ -9,6 +9,8 @@ One language is one adapter ([ADR-0038](adr/ADR-0038-a-language-is-one-small-ada
 
 The type is `Adapter` in `internal/manifest`. It is the same type as `Reader`. The dependency check runs `Readers()`. A version lands in a range through `InRangeEcosystem`, which calls the adapter's `Compare` and `Explain`.
 
+The languages are Go, JavaScript, Python, PHP and Rust.
+
 ### What you add
 
 1. A comparer for the ecosystem's versions, with tests for equal, lower, higher, and for a string the comparer refuses. Put the refusal in a sentence. Do not guess a version for a string you refuse.
