@@ -16,6 +16,7 @@ func Readers() []Reader {
 		Go(), GoSum(),
 		NPM(), NPMLock(),
 		PyPI(), Poetry(),
+		Composer(), ComposerLock(),
 	}
 }
 

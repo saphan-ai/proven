@@ -264,6 +264,39 @@ failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
+## The scenario: `testdata/fixture/osv-php-composer`
+
+`composer.json` and `composer.lock` raise `monolog/monolog` from 2.0.0 to 2.9.1. 2.9.1 is inside one sample OSV range and outside another. The lock file's version is the one reported. The alias `CVE-2026-9090` has an EPSS row. The row for `other/unused` is not returned.
+
+The lines below are the stdout of `scan --sample testdata/fixture/osv-php-composer`, captured on 24 October 2026 with Go 1.26.8 by the scenario test, which runs that command. The trace path is the directory the scan starts from, so it is not copied here.
+
+```text
+review class: security
+review rule: composer.json
+author model not stated; default reviewer NVIDIA
+reviewer NVIDIA; role default; family NVIDIA; author model not stated
+special-review model: not configured
+finding osv:monolog/monolog ERROR Dependency monolog/monolog 2.9.1 is in an OSV affected range
+  EPSS 0.25000 (91st percentile, 2026-10-24)
+  composer.lock:5-5
+  monolog/monolog 2.9.1 matches GHSA-php-sample-0001: introduced 2.4.0 <= 2.9.1 < fixed 2.10.0. GHSA-php-sample-0002 does not match: 2.9.1 < introduced 3.0.0. alias CVE-2026-9090 is on the KEV list
+  rule osv-affected-package
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Packagist' AND package = 'monolog/monolog'
+  columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  row: GHSA-php-sample-0001 | CVE-2026-9090 | Packagist | monolog/monolog | 2.4.0 | 2.10.0 |  | HIGH | 2026-10-01
+  row: GHSA-php-sample-0002 |  | Packagist | monolog/monolog | 3.0.0 | 3.1.0 |  | LOW | 2026-10-02
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-9090'
+  columns: cve_id, vendor_project, product, date_added, known_ransomware
+  row: CVE-2026-9090 | example.com | monolog | 2026-10-24 | Unknown
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-9090'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-9090 | 0.25000 | 0.91000 | 2026-10-24
+failed services: none
+```
+
 ## The scenario: `testdata/fixture/unknown-author`
 
 Sample mode does not read commit history on this command: the scan sets no baseline commit, and the fixture is two

@@ -1,9 +1,10 @@
 // Package manifest reads dependency manifests and lock files and names the
 // packages a change added or raised. Go (go.mod and go.sum), npm
-// (package.json and package-lock.json) and PyPI (requirements.txt and
-// poetry.lock) each have a manifest reader and a lock reader. Each reader
-// is an Adapter: the files, the diff, the OSV ecosystem name, and the
-// version comparison (ADR-0038).
+// (package.json and package-lock.json), PyPI (requirements.txt and
+// poetry.lock) and Packagist (composer.json and composer.lock) each have
+// a manifest reader and a lock reader. Each reader is an Adapter: the
+// files, the diff, the OSV ecosystem name, and the version comparison
+// (ADR-0038).
 //
 // It feeds the dependency check of the review, which runs with no model:
 // osv.Check calls Collect, queries the OSV table once per package it gets
