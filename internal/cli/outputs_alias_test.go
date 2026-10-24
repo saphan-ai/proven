@@ -142,3 +142,70 @@ func TestAliasTableIsCaughtByTheLoadCheckNotTheWriteGuard(t *testing.T) {
 		})
 	}
 }
+
+// TestMissingDirectoryThenDotDotIsUnwritable proves that report.json and
+// missing/../report.json are not one file while the directory missing is
+// absent. The kernel cannot traverse that directory, so the second path is
+// unwritable: exit 2, and the error names the path. The mutated field is
+// that directory. The absent subtest leaves it absent. Collapsing ".."
+// lexically after the missing component makes this subtest exit 7.
+//
+// The present subtest changes only that directory into one that exists.
+// missing/../report.json is then report.json, so the load check refuses
+// with exit 7 and writes nothing.
+func TestMissingDirectoryThenDotDotIsUnwritable(t *testing.T) {
+	const (
+		jsonPath  = "report.json"
+		sarifPath = "missing/../report.json"
+	)
+	args := []string{"scan", "--json-output", jsonPath, "--sarif-output", sarifPath}
+
+	t.Run("absent", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		if _, err := os.Stat(filepath.Join(dir, "missing")); !os.IsNotExist(err) {
+			t.Fatalf("missing is present: %v", err)
+		}
+		rev := &captureReviewer{}
+		var stdout, stderr bytes.Buffer
+		code := Run(args, emptyEnv, &stdout, &stderr, openCapture(rev))
+		if code != exitFatal {
+			t.Fatalf("exit %d, want %d; stderr %s", code, exitFatal, stderr.String())
+		}
+		if strings.Contains(stderr.String(), "same file") {
+			t.Fatalf("the load check refused a path the filesystem cannot reach: %s", stderr.String())
+		}
+		if !strings.Contains(stderr.String(), sarifPath) {
+			t.Fatalf("error does not name the unwritable path: %s", stderr.String())
+		}
+		if rev.req.Target == "" {
+			t.Fatal("the review did not run")
+		}
+		if _, err := os.Stat(filepath.Join(dir, jsonPath)); err != nil {
+			t.Fatalf("the reachable output was not written: %v", err)
+		}
+	})
+
+	t.Run("present", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		mkdir(t, filepath.Join(dir, "missing"))
+		rev := &captureReviewer{}
+		var stdout, stderr bytes.Buffer
+		code := Run(args, emptyEnv, &stdout, &stderr, openCapture(rev))
+		if code != exitConfig {
+			t.Fatalf("exit %d, want %d; stderr %s", code, exitConfig, stderr.String())
+		}
+		for _, want := range []string{"--json-output", "--sarif-output"} {
+			if !strings.Contains(stderr.String(), want) {
+				t.Errorf("refusal does not name %q: %s", want, stderr.String())
+			}
+		}
+		if rev.req.Target != "" {
+			t.Error("the review ran despite the refusal")
+		}
+		if _, err := os.Stat(filepath.Join(dir, jsonPath)); err == nil {
+			t.Error("a file was written despite the refusal")
+		}
+	})
+}

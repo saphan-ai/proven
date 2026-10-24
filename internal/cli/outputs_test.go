@@ -27,15 +27,18 @@ var outputFlags = []outputFlag{
 // TestCollidingOutputPathsAreRefused proves that two outputs naming one file
 // are refused at load with exit 7, naming both flags and the path (ADR-0013),
 // and that the review never runs. Every pair of the four flags is tried, and
-// the second flag spells the path unclean, so filepath.Clean and filepath.Abs
-// must make the two equal. The mutated field is the path of the second flag.
-// With the collision check removed every row returns 0, so every row is red.
+// the second flag spells the path with a ".." through a directory that
+// exists, so the two name one file. The mutated field is the path of the
+// second flag. With the collision check removed every row returns 0.
 func TestCollidingOutputPathsAreRefused(t *testing.T) {
 	for i := range outputFlags {
 		for j := i + 1; j < len(outputFlags); j++ {
 			first, second := outputFlags[i], outputFlags[j]
 			t.Run(first.name+" with "+second.name, func(t *testing.T) {
 				dir := t.TempDir()
+				if err := os.Mkdir(filepath.Join(dir, "sub"), 0o755); err != nil {
+					t.Fatal(err)
+				}
 				path := filepath.Join(dir, "report")
 				alias := dir + string(filepath.Separator) + "sub" + string(filepath.Separator) + ".." + string(filepath.Separator) + "report"
 				rev := &captureReviewer{}

@@ -532,6 +532,14 @@ func refuseStdoutOnAnOutput(cfg config, stdout io.Writer) error {
 // instead of being left to fail at the write.
 const maxOutputLinkHops = 40
 
+// unreachableOutputPrefix marks a path the kernel cannot name: a ".."
+// follows a component that does not exist, so the walk cannot reach the
+// parent a lexical collapse would invent. An identity resolved with a
+// readable working directory is absolute, so it does not start with this
+// prefix, and the marked spelling is not that file. The write of the raw
+// path fails later.
+const unreachableOutputPrefix = "unreachable:"
+
 // outputIdentity is the path the file would have if the filesystem resolved
 // the raw path, whether or not the file exists.
 //
@@ -545,7 +553,10 @@ const maxOutputLinkHops = 40
 // link is read, and name a different file. A relative link target is taken
 // against the directory that holds the link, and at most maxOutputLinkHops
 // links are followed. At the first component that does not exist the rest is
-// appended as written (a ".." there only drops the component before it).
+// appended as written, until a "..". The kernel cannot traverse the missing
+// component, so that ".." does not name the parent a lexical collapse would
+// reach. The path is unwritable. Its identity is the raw spelling under
+// unreachableOutputPrefix, and the write fails.
 //
 // WHY a dangling final link is followed: os.WriteFile on alias.json ->
 // actual.json creates actual.json, so a not-yet-existing target is the same
@@ -568,7 +579,7 @@ func outputIdentity(path string) (string, error) {
 	}
 	pending := splitComponents(rest)
 	resolved := root
-	missing := false // true once a component did not exist: the rest is lexical
+	missing := false // true once a component did not exist. A later ".." is unreachable.
 	for hops := 0; len(pending) > 0; {
 		name := pending[0]
 		pending = pending[1:]
@@ -576,6 +587,9 @@ func outputIdentity(path string) (string, error) {
 		case ".":
 			continue
 		case "..":
+			if missing {
+				return unreachableOutputPrefix + path, nil
+			}
 			if resolved != root {
 				resolved = filepath.Dir(resolved)
 			}
