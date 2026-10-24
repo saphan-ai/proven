@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,12 +14,13 @@ import (
 // TestDefaultLogDirIsOutsideTheTargetAndPrivate proves the default trace
 // directory is the user cache's proven/logs, outside the review target, and
 // that the directory is created with mode 0700.
-// Mutated field: the log directory path, then its mode.
+// Mutated field: the cache root the default log directory is built from,
+// then the directory mode.
 func TestDefaultLogDirIsOutsideTheTargetAndPrivate(t *testing.T) {
 	target := t.TempDir()
 	t.Chdir(target)
 	cache := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", cache)
+	xdg, home := setCacheRoot(t, cache)
 
 	var got string
 	var stdout, stderr bytes.Buffer
@@ -62,6 +64,7 @@ func TestDefaultLogDirIsOutsideTheTargetAndPrivate(t *testing.T) {
 	if info, err := os.Stat(inside); err == nil {
 		t.Fatalf("sample scan created logs inside %s mode %o\nstderr: %s", inside, info.Mode().Perm(), stderr.String())
 	}
+	assertOSCacheUntouched(t, xdg, home)
 }
 
 // TestConfiguredLogDirOutsideTheTargetIsUsed proves PROVEN_LOG_DIR replaces
@@ -165,14 +168,14 @@ func TestLogDirThatIsNotADirectoryIsRefused(t *testing.T) {
 
 // TestDefaultLogDirInsideTheTargetIsRefused proves the default cache path is
 // held to the same rule as a configured directory.
-// Mutated field: the default log directory (XDG_CACHE_HOME inside the target).
+// Mutated field: the cache root, placed inside the review target.
 func TestDefaultLogDirInsideTheTargetIsRefused(t *testing.T) {
 	target := t.TempDir()
 	cache := filepath.Join(target, "cache")
 	if err := os.Mkdir(cache, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CACHE_HOME", cache)
+	xdg, home := setCacheRoot(t, cache)
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan", target}, emptyEnv, &stdout, &stderr, func(review.Options) (review.Reviewer, error) {
 		t.Fatal("reviewer opened")
@@ -191,6 +194,7 @@ func TestDefaultLogDirInsideTheTargetIsRefused(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(cache, "proven", "logs")); err == nil {
 		t.Fatal("default log dir was created inside the target")
 	}
+	assertOSCacheUntouched(t, xdg, home)
 }
 
 func refuseLogDir(t *testing.T, target, logDir string) {
@@ -224,6 +228,48 @@ func refuseLogDir(t *testing.T, target, logDir string) {
 			t.Fatalf("refused log dir was created: %s", logDir)
 		}
 	}
+}
+
+// setCacheRoot points the default trace directory at dir.
+// HOME and XDG_CACHE_HOME point elsewhere. Darwin's os.UserCacheDir
+// reads the first and Unix reads the second. Neither is dir, so a
+// default that calls os.UserCacheDir fails on every OS, and the write
+// stays in a temporary directory.
+func setCacheRoot(t *testing.T, dir string) (xdg, home string) {
+	t.Helper()
+	prev := userCacheDir
+	userCacheDir = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { userCacheDir = prev })
+	home = t.TempDir()
+	xdg = t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", xdg)
+	return xdg, home
+}
+
+// assertOSCacheUntouched proves the run did not follow either host rule
+// for the user cache. XDG_CACHE_HOME is the Unix rule. HOME/Library/Caches
+// is the Darwin rule.
+func assertOSCacheUntouched(t *testing.T, xdg, home string) {
+	t.Helper()
+	if err := absentDir(filepath.Join(xdg, "proven", "logs")); err != nil {
+		t.Fatalf("default log dir followed XDG_CACHE_HOME: %v", err)
+	}
+	darwin := filepath.Join(home, "Library", "Caches", "proven", "logs")
+	if err := absentDir(darwin); err != nil {
+		t.Fatalf("default log dir followed HOME/Library/Caches: %v", err)
+	}
+}
+
+func absentDir(path string) error {
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("directory exists: %s", path)
 }
 
 func insideTarget(t *testing.T, dir, root string) bool {

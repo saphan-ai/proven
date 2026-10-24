@@ -66,11 +66,19 @@ func resolveLogDir(getenv func(string) string, target string) (string, error) {
 	return resolved, nil
 }
 
+// userCacheDir is the cache root for the default trace directory.
+// Production leaves it as os.UserCacheDir. A test replaces it with a
+// temporary directory. os.UserCacheDir reads $XDG_CACHE_HOME on Unix and
+// $HOME/Library/Caches on Darwin, so a test that sets only the Unix
+// variable does not name the directory Darwin uses, and it must not
+// create a directory in the real user cache.
+var userCacheDir = os.UserCacheDir
+
 // defaultLogDir is the trace directory when PROVEN_LOG_DIR is unset.
 // It sits in the user cache, outside any repository, so a scan started in
 // the checkout does not write its trace into that checkout.
 func defaultLogDir() (string, error) {
-	cache, err := os.UserCacheDir()
+	cache, err := userCacheDir()
 	if err != nil {
 		return "", refuse(EnvLogDir, "", "the user cache directory is not available: "+err.Error(), logDirAllowed)
 	}
