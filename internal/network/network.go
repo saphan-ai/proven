@@ -17,7 +17,6 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
@@ -86,6 +85,8 @@ type Policy struct {
 	allow map[string]bool
 	// dial opens the connection once the address is allowed. Nil means net.Dialer.
 	dial DialFunc
+	// resolver answers the lookup of an allowed name. Nil means net.DefaultResolver.
+	resolver *net.Resolver
 }
 
 // Load reads PROVEN_NETWORK and PROVEN_NETWORK_ALLOW. A wrong value is refused
@@ -126,6 +127,17 @@ func (p *Policy) WithDial(dial DialFunc) *Policy {
 	return &cp
 }
 
+// WithResolver returns a copy of the policy whose allowed names are looked up
+// by r. Tests use it to see every query a lookup would send.
+func (p *Policy) WithResolver(r *net.Resolver) *Policy {
+	if p == nil {
+		return nil
+	}
+	cp := *p
+	cp.resolver = r
+	return &cp
+}
+
 // CheckURL refuses, in local mode, a configured address whose host is not on
 // the organisation's network. setting names the variable the address came
 // from, so the refusal says which one to fix. The host is judged by its text:
@@ -142,6 +154,23 @@ func (p *Policy) CheckURL(setting, raw string) error {
 		return refuse(setting, clip(raw), "host "+u.Hostname()+" is outside the organisation's network (PROVEN_NETWORK=local)", allowedForms())
 	}
 	return nil
+}
+
+// CheckDaemon refuses, in local mode, the address of a container daemon that is
+// not on the organisation's network. A local socket (unix, npipe, fd) is always
+// inside it; any other scheme is judged by its host like a setting address.
+// setting names where the address came from, so the refusal says what to fix.
+func (p *Policy) CheckDaemon(setting, raw string) error {
+	if !p.Local() {
+		return nil
+	}
+	if u, err := url.Parse(raw); err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "unix", "npipe", "fd":
+			return nil
+		}
+	}
+	return p.CheckURL(setting, raw)
 }
 
 // Refuse names a setting that PROVEN_NETWORK=local forbids as a value, such as
@@ -174,10 +203,11 @@ func (p *Policy) NewClient(timeout time.Duration) *http.Client {
 }
 
 // DialContext opens a connection to addr only when its host is on the
-// organisation's network. The check reads the address as written; a name on
-// the allow list is dialled as it is, and "localhost" must resolve to loopback.
+// organisation's network. The check reads the address as written and comes
+// before any lookup: a name off the list is never sent to a resolver. A name on
+// the allow list is looked up by Lookup, and "localhost" is not looked up at all.
 func (p *Policy) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	host, _, err := net.SplitHostPort(addr)
+	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, fmt.Errorf("network: dial %q refused: not host:port", addr)
 	}
@@ -188,18 +218,44 @@ func (p *Policy) DialContext(ctx context.Context, network, addr string) (net.Con
 		return p.dial(ctx, network, addr)
 	}
 	d := net.Dialer{}
-	// localhost is allowed by name, so what it resolves to is checked once the
-	// connection is about to open.
-	if p.Local() && strings.EqualFold(host, "localhost") {
-		d.Control = func(_, address string, _ syscall.RawConn) error {
-			ip, _, serr := net.SplitHostPort(address)
-			if a, perr := netip.ParseAddr(ip); serr != nil || perr != nil || !a.IsLoopback() {
-				return fmt.Errorf("network: dial %q refused: localhost resolved to %s, which is not loopback", addr, address)
-			}
-			return nil
-		}
+	if !p.Local() {
+		return d.DialContext(ctx, network, addr)
 	}
-	return d.DialContext(ctx, network, addr)
+	ips, err := p.Lookup(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	var last error
+	for _, ip := range ips {
+		conn, derr := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		if derr == nil {
+			return conn, nil
+		}
+		last = derr
+	}
+	return nil, last
+}
+
+// Lookup returns the addresses of host. In local mode the name is judged first:
+// one that is not on the organisation's network is refused before any query is
+// sent. An IP literal is returned as it is, and "localhost" is answered with
+// the loopback addresses without a query, so no resolver is asked for it.
+func (p *Policy) Lookup(ctx context.Context, host string) ([]netip.Addr, error) {
+	if p.Local() && !p.allowedHost(host) {
+		return nil, fmt.Errorf("network: lookup of %q refused: host is outside the organisation's network (%s=%s)", host, EnvNetwork, ModeLocal)
+	}
+	name := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if a, err := netip.ParseAddr(name); err == nil {
+		return []netip.Addr{a}, nil
+	}
+	if name == "localhost" && p.Local() {
+		return []netip.Addr{netip.MustParseAddr("127.0.0.1"), netip.MustParseAddr("::1")}, nil
+	}
+	r := net.DefaultResolver
+	if p != nil && p.resolver != nil {
+		r = p.resolver
+	}
+	return r.LookupNetIP(ctx, "ip", name)
 }
 
 // allowedHost reports whether host is on the organisation's network: an IP
