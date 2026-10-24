@@ -40,14 +40,39 @@ which has doubled_classes="security, backend": it stops doubling backend; allowe
 
 | Key | Stricter means | A weaker value, refused |
 |---|---|---|
-| `path_rules` | the repository's list keeps every rule of the policy at the same class or a higher one; extra rules are allowed | a rule of the policy left out, or its pattern in a lower class |
+| `path_rules` | the repository's list keeps every rule of the policy at the same class or a higher one; an extra rule is allowed only at or above the policy's fallback class (see *The effective class*) | a rule of the policy left out, its pattern in a lower class, or an extra rule below the policy's fallback |
 | `class_order` | the same order as the policy's. A policy that sets `class_order`, `path_rules` or `fallback_class` fixes the order, because the order ranks the classes those keys name | any other order |
-| `fallback_class` | the same class or a higher one in the order | a lower class |
+| `fallback_class` | the same class or a higher one in the order than the policy's fallback, which is `backend` when the policy sets a class key but not this one | a lower class |
 | `doubled_classes` | a superset of the policy's classes (`off` is the empty set) | a class of the policy no longer doubled |
 | `author_commit_trailers` | `on` when the policy says `on` | `off` |
 | `author_description` | `on` when the policy says `on` | `off` |
 | `author_trailer_keys` | a superset of the policy's keys, compared without case | a key of the policy dropped |
 | `raise_class` | `on` when the policy says `on` | `off` |
+
+### The effective class
+
+The three keys that decide the class of a path (`path_rules`, `class_order`, `fallback_class`) are not compared one by
+one. When the policy sets any of them, a repository may not give **any path** a lower class than the policy gives it.
+A path takes the highest class of the rules that match it, else the fallback, so:
+
+- the repository keeps every rule of the policy (or of the defaults, when the policy sets only the fallback or the order)
+  at the same class or a higher one;
+- a rule of the repository that is not one of the policy's must sit at or above the policy's fallback class. Below it,
+  the rule could give an unmatched path a lower class than the fallback gives it. A pattern cannot be shown to match
+  only paths a policy rule already covers, so the refusal takes the stricter reading;
+- the repository's own fallback must sit at or above the policy's.
+
+Example. The policy says `fallback_class: security`. A repository says `path_rules: **=docs`. Each value passes when it
+is read alone against its own key, but every path that no policy rule covers would be reviewed as `docs`, not
+`security`. It is refused, and the refusal names the key, the rule and both classes:
+
+```
+configuration refused: path_rules="**=docs": weaker than the organisation policy /etc/proven/policy.yaml, which has
+path_rules="(not set; the policy's rules still apply)": its rule **=docs gives paths docs where the policy's fallback
+gives security, below it; allowed: a value as strict as the policy's, or stricter
+```
+
+A policy that sets none of the three keys says nothing about the class of a path, and a repository's rules are its own.
 
 Not policy keys, because their values have no order: `timeout`, `default_reviewer`, `special_reviewer`, `families`,
 `author_record`. The shell's own settings (`--severity`, `--error`, `--include`) are not `proven.yaml` keys and a policy
