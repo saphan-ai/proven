@@ -199,7 +199,9 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 // is checked against it. A response that names no model cannot be shown to be
 // NVIDIA's and is refused where NVIDIA is required.
 func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error) {
-	use := Use{Model: "unknown", ReceiptID: NoReceipt}
+	// Route carries the host the answer came from, so the trace's model event
+	// names where the trusted model field was read.
+	use := Use{Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt}
 	if meta.chunkModel != "" {
 		use.Model = meta.chunkModel
 	}
@@ -268,6 +270,9 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 		if parent.Err() != nil {
 			return "", streamMeta{}, parent.Err()
 		}
+		// The deadline is checked before the stream's own fault on purpose: a body
+		// cut by this call's deadline can end on a half event, and the cause worth
+		// naming is the timeout, not the fragment it left.
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return "", streamMeta{}, l.down("timeout")
 		}

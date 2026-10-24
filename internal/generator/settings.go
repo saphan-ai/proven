@@ -20,6 +20,7 @@ const (
 	EnvKey           = "PROVEN_GENERATOR_KEY"
 	EnvToken         = "METERLESS_RUNTIME_TOKEN"
 	EnvBaseURL       = "PROVEN_GENERATOR_BASE_URL"
+	EnvNVIDIABaseURL = "PROVEN_NVIDIA_BASE_URL"
 	EnvApp           = "PROVEN_GENERATOR_APP"
 	EnvModel         = "PROVEN_GENERATOR_MODEL"
 	EnvTimeout       = "PROVEN_GENERATOR_TIMEOUT"
@@ -81,8 +82,13 @@ func Environment() []envdoc.Setting {
 		},
 		{
 			Name:        EnvBaseURL,
-			Default:     envdoc.Tick(defaultBaseURL) + " for `nightshift`; " + envdoc.Tick(defaultNVIDIABase) + " for `nvidia`",
-			Description: "the generator's address",
+			Default:     envdoc.Tick(defaultBaseURL),
+			Description: "Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it",
+		},
+		{
+			Name:        EnvNVIDIABaseURL,
+			Default:     envdoc.Tick(defaultNVIDIABase),
+			Description: "the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031)",
 		},
 		{
 			Name:        EnvApp,
@@ -166,6 +172,16 @@ func (s Settings) ModelFor(agent string) string {
 	return s.Model
 }
 
+// BaseHost is the host (and port, if any) of the address this generator calls.
+// It names where an answer came from, without the path.
+func (s Settings) BaseHost() string {
+	u, err := url.Parse(s.BaseURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
 // requiresNVIDIA reports whether this agent's answer must be an nvidia/* model.
 func (s Settings) requiresNVIDIA(agent string) bool {
 	if s.requireNone {
@@ -206,11 +222,19 @@ func Load(env func(string) string) (Settings, error) {
 	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 {
 		return Settings{}, refuse(secretEnv, "", "the live generator needs a secret", "a non-empty secret in the environment, at most 4096 characters, with no line break")
 	}
-	base := env(EnvBaseURL)
+	// ADR-0031 point 3: each mode reads its own address, as it reads its own secret.
+	// The key must never follow a base meant for Nightshift, because in nvidia mode
+	// the answer's own model field is trusted as the answering model. A base left
+	// set for Nightshift is therefore not read here.
+	baseEnv, needHTTPS := EnvBaseURL, false
+	if mode == ModeNVIDIA {
+		baseEnv, needHTTPS = EnvNVIDIABaseURL, true
+	}
+	base := env(baseEnv)
 	if base == "" {
 		base = baseDefault
 	}
-	base, err := checkBase(base)
+	base, err := checkBase(baseEnv, base, needHTTPS)
 	if err != nil {
 		return Settings{}, err
 	}
@@ -278,22 +302,30 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 
 // checkBase accepts only a plain http or https root. User info would carry a
 // credential in the URL, and a query or fragment would change every endpoint
-// built from it. The result has no trailing slash.
-func checkBase(raw string) (string, error) {
+// built from it. The result has no trailing slash. field names the setting in a
+// refusal. httpsOnly is set for the NVIDIA key's address: a key must not travel
+// over plain http.
+func checkBase(field, raw string, httpsOnly bool) (string, error) {
 	allowed := "an absolute http or https URL with no user info, query or fragment, and a path of empty or /v1"
+	if httpsOnly {
+		allowed = "an absolute https URL with no user info, query or fragment, and a path of empty or /v1"
+	}
 	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") {
-		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(field, clip(raw), "not a base URL", allowed)
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
-		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(field, clip(raw), "not a base URL", allowed)
+	}
+	if httpsOnly && u.Scheme != "https" {
+		return "", refuse(field, clip(raw), "the NVIDIA key is not sent over plain http", allowed)
 	}
 	if u.RawQuery != "" || u.Fragment != "" {
-		return "", refuse(EnvBaseURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(field, clip(raw), "not a base URL", allowed)
 	}
 	path := strings.TrimRight(u.Path, "/")
 	if path != "" && path != "/v1" {
-		return "", refuse(EnvBaseURL, clip(raw), "the path is not empty or /v1", allowed)
+		return "", refuse(field, clip(raw), "the path is not empty or /v1", allowed)
 	}
 	u.Path = path
 	return strings.TrimRight(u.String(), "/"), nil

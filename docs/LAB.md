@@ -22,14 +22,16 @@ A free NVIDIA API key is enough to see Proven's agents work on live models.
 
 4. Check it before a review with `livecheck`. Its generator line names the mode, and a missing or rejected key.
 
-The address and the models have defaults, so nothing else is needed. The hosted API signs no receipt, so the trace says
+The address and the models have defaults, so nothing else is needed. In this mode the address is `PROVEN_NVIDIA_BASE_URL`
+(`https://` only; any other value is refused by name). `PROVEN_GENERATOR_BASE_URL` is not read here, so a Nightshift
+address left in the environment never receives the key. `livecheck` names the host the answer came from. The hosted API signs no receipt, so the trace says
 *no receipt* for each call, and the requirement that an agent be answered by an `nvidia/*` model is checked against the
 `model` field of the answer. A free key is rate limited; a review that meets the limit names it as a failed service.
 
 ## With Meterless Nightshift (the default)
 
 Set `METERLESS_RUNTIME_TOKEN` to the runtime token of the Nightshift you run, and `PROVEN_GENERATOR_BASE_URL` to its
-address. `PROVEN_GENERATOR_MODE` is left empty or set to `nightshift`. Nightshift is the team's own service: a judge
+address (this variable is read in `nightshift` mode only). `PROVEN_GENERATOR_MODE` is left empty or set to `nightshift`. Nightshift is the team's own service: a judge
 without one uses the NVIDIA key above.
 
 ## Keys of the other services

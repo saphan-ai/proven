@@ -254,8 +254,25 @@ func TestLoadRefusesAWrongModeAndDefaultsToNightshift(t *testing.T) {
 	}
 }
 
-// Proves nvidia mode's defaults: the hosted address and a nvidia/* model, and
-// that a base set by the user wins over them.
+// Proves nvidia mode sends the key only to NVIDIA's hosted address: a base set
+// for Nightshift (the variable the lab page tells a Nightshift user to set) is
+// not read in nvidia mode, so the key and the request never go there
+// (ADR-0031 point 3). Mutated field: PROVEN_GENERATOR_BASE_URL, set to a router.
+func TestNVIDIAModeIgnoresTheNightshiftBase(t *testing.T) {
+	var host string
+	live := hostedAt(t, func(r *http.Request) *http.Response {
+		host = r.URL.Host
+		return answer(http.StatusOK, hostedStream("nvidia/llama-3.3-nemotron-super-49b-v1.5"))
+	}, map[string]string{generator.EnvBaseURL: "http://127.0.0.1:8088"})
+	if _, err := live.Complete(context.Background(), "planner", "prompt"); err != nil {
+		t.Fatal(err)
+	}
+	if host != "integrate.api.nvidia.com" {
+		t.Fatalf("request went to %q, want the hosted address", host)
+	}
+}
+
+// Proves nvidia mode's defaults: the hosted address and a nvidia/* model.
 func TestLoadNVIDIAModeDefaults(t *testing.T) {
 	cfg, err := generator.Load(func(k string) string {
 		return map[string]string{generator.EnvMode: "nvidia", generator.EnvKey: hostedKey}[k]
@@ -265,11 +282,5 @@ func TestLoadNVIDIAModeDefaults(t *testing.T) {
 	}
 	if cfg.BaseURL != "https://integrate.api.nvidia.com/v1" || !strings.HasPrefix(cfg.Model, "nvidia/") || cfg.Mode != generator.ModeNVIDIA {
 		t.Fatalf("settings %+v", cfg)
-	}
-	cfg, err = generator.Load(func(k string) string {
-		return map[string]string{generator.EnvMode: "nvidia", generator.EnvKey: hostedKey, generator.EnvBaseURL: "https://example.test/v1"}[k]
-	})
-	if err != nil || cfg.BaseURL != "https://example.test/v1" {
-		t.Fatalf("base %q err %v", cfg.BaseURL, err)
 	}
 }

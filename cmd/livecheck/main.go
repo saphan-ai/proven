@@ -37,7 +37,8 @@ const helpText = `livecheck checks every live service a review needs.
 One line per service, then a summary.
 A line is "ready" or "not ready: <reason>".
 The generator line names the mode (` + generator.EnvMode + `: nightshift or nvidia), the
-model and the receipt id, or "none"; in nvidia mode the receipt is "no receipt".
+model and the receipt id, or "none"; in nvidia mode the receipt is "no receipt" and
+the line names the host the answer came from.
 A missing or rejected key is named on that line.
 The guardrail line names the verdict and the latency.
 Mode off is ready and prints "off by setting".
@@ -59,6 +60,12 @@ A secret value is never printed.
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 }
+
+// newLive builds the generator the check calls. The command uses the generator's
+// own client; a test replaces this to serve a recorded answer without a port,
+// because nvidia mode accepts only an https address. This file keeps off
+// net/http on purpose: only the adapters dial.
+var newLive = func(cfg generator.Settings) *generator.Live { return generator.NewLive(cfg, nil) }
 
 // check is one service's printed line and whether it is ready.
 type check struct {
@@ -117,7 +124,7 @@ func checkGenerator(env func(string) string) check {
 	if err != nil {
 		return notReady("generator", err.Error())
 	}
-	live := generator.NewLive(cfg, nil)
+	live := newLive(cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
 	if _, err := live.Complete(ctx, "planner", "hello"); err != nil {
@@ -132,7 +139,13 @@ func checkGenerator(env func(string) string) check {
 			receipt = use.ReceiptID
 		}
 	}
-	return readyLine("generator", fmt.Sprintf("mode %s, model %s, receipt %s", cfg.Mode, model, receipt))
+	detail := fmt.Sprintf("mode %s, model %s, receipt %s", cfg.Mode, model, receipt)
+	// ADR-0031 point 3: in nvidia mode the model field of the answer is the only
+	// statement of who answered, so the line names the host it was read from.
+	if cfg.Mode == generator.ModeNVIDIA {
+		detail += ", host " + cfg.BaseHost()
+	}
+	return readyLine("generator", detail)
 }
 
 // checkGuardrail checks one short prompt. Mode off is a setting, not a
