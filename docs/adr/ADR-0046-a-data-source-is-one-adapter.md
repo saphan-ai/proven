@@ -1,4 +1,4 @@
-# ADR-0046: A data source is one adapter: it loads into Zetaris and plugs into the decision with its own rule
+# ADR-0046: A data source is one adapter: it loads into the evidence store and plugs into the decision with its own rule
 
 **Status:** accepted · **Date:** 2026-10-24
 **Decided by:** the owner · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-24
@@ -8,7 +8,8 @@
 ## Decision
 
 1. **A third public adapter interface, for data sources**, beside languages and tools. A source adapter declares:
-   - **how it loads**: where the data comes from, how often it is refreshed, and the Zetaris table it is registered as,
+   - **how it loads**: where the data comes from, how often it is refreshed, and the table it is registered as in the
+     configured evidence store (Zetaris, or a local store: [ADR-0047](ADR-0047-the-evidence-store-is-an-adapter.md), amended 2026-10-24),
      with the date of each snapshot;
    - **its query templates**, which the Investigator may pick (ADR-0032); a model never writes the SQL;
    - **its rule**: what a returned row means for a change (a banned package, a critical service, a disallowed licence),

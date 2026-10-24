@@ -31,7 +31,8 @@ flowchart LR
 | Judge | keeps a finding only on evidence: a test that fails on the change and passes on the base, or a query and its rows | settles by vote or confidence |
 | Writer | writes the review from what the Judge kept | adds a finding |
 
-The model-calling agents (Planner, Investigator, Prover, Skeptic) speak to Meterless Nightshift. Every prompt and every
+The model-calling agents (Planner, Investigator, Prover, Skeptic) speak to Meterless Nightshift, or, when
+`PROVEN_GENERATOR_MODE=nvidia`, to NVIDIA's hosted API (ADR-0031). Every prompt and every
 answer passes the NVIDIA content-safety guardrail first.
 
 A dependency the change adds or raises is not named by those agents. Proven reads `go.mod`, `package.json` and
