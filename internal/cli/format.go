@@ -244,7 +244,9 @@ const continuationPrefix = "    | "
 //
 // Every text the writer prints that can come from the change goes through it,
 // so the change cannot move the cursor, recolour or rewrite the reader's
-// terminal. JSON and SARIF need no such step: their encoders already escape.
+// terminal. This is the text writer's contract only: encoding/json escapes C0
+// but leaves DEL and C1 bytes raw, so a JSON or SARIF writer must not assume
+// its encoder covers this range.
 func visible(s string) string {
 	return escapeControls(s, false)
 }
