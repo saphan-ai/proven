@@ -3,6 +3,7 @@ package generator
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 
@@ -13,18 +14,27 @@ import (
 // A longer body fails as a bad stream instead of growing without a bound.
 const maxStream = 8 << 20
 
+// errBadStream is a stream with an event that is not JSON. Complete names it
+// for the provider it was reading.
+var errBadStream = errors.New("bad stream")
+
 // streamMeta is what one completion stream carried: the answer text and,
-// from Nightshift's receipt, the model and route that answered.
+// from Nightshift's receipt, the model and route that answered. chunkModel is
+// the model field of the chunks themselves, which only nvidia mode reads.
 type streamMeta struct {
-	text    string
-	model   string
-	receipt string
-	route   string
+	text       string
+	model      string
+	receipt    string
+	route      string
+	chunkModel string
 }
 
 // sseChunk is one data event of the stream. Only the fields the review reads
 // are decoded; the rest of the event is ignored.
 type sseChunk struct {
+	// Model is the chunk's own model field. Nightshift's is not a receipt
+	// (ADR-0019); the hosted API's is the only statement of who answered.
+	Model   string `json:"model"`
 	Choices []struct {
 		Delta struct {
 			Content string `json:"content"`
@@ -60,12 +70,16 @@ func parseStream(r io.Reader) (streamMeta, error) {
 		}
 		var chunk sseChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			return streamMeta{}, down("bad stream")
+			return streamMeta{}, errBadStream
 		}
 		for _, c := range chunk.Choices {
 			text.WriteString(c.Delta.Content)
 		}
-		// ADR-0019: the answering model is read from the receipt, never from the
+		// The first chunk that names a model wins: a later one cannot change who answered.
+		if meta.chunkModel == "" {
+			meta.chunkModel = chunk.Model
+		}
+		// ADR-0019: in nightshift mode the answering model is read from the receipt, never from the
 		// chunk's own model field, so a chunk without the meterless object adds text only.
 		if chunk.Meterless == nil {
 			continue
@@ -94,7 +108,8 @@ func discard(r io.Reader) {
 	_, _ = io.Copy(io.Discard, io.LimitReader(r, 4096))
 }
 
-// down is a named Nightshift failure. The review degrades and continues.
-func down(reason string) *service.Down {
-	return &service.Down{Service: "nightshift", Reason: reason}
+// down is a named failure of the provider these settings choose. The review
+// degrades and continues.
+func (l *Live) down(reason string) *service.Down {
+	return &service.Down{Service: l.cfg.serviceName(), Reason: reason}
 }

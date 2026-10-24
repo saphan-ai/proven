@@ -80,7 +80,7 @@ func open(opts Options) (Reviewer, error) {
 		if d, ok := service.As(lerr); ok {
 			// ADR-0013 point 4a: an empty token does not build a live client.
 			popts.Down = append(popts.Down, *d)
-			popts.Generator = generator.Absent{Reason: d.Reason}
+			popts.Generator = generator.Absent{Service: d.Service, Reason: d.Reason}
 		} else if lerr != nil {
 			return nil, generatorConfig(lerr)
 		} else {
@@ -334,6 +334,15 @@ func toEvidence(e candidate.Evidence) Evidence {
 			SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
 			Rows:    copyRows(q.Rows),
+		}
+	}
+	if e.Tool != nil {
+		// ADR-0040: the tool, its version, the command and both sides cross the seam together.
+		t := *e.Tool
+		out.Tool = &ToolEvidence{
+			Tool: t.Tool, Version: t.Version, Command: t.Command,
+			Output: t.Output, BaseOutput: t.BaseOutput,
+			PresentOnChange: t.PresentOnChange, PresentOnBase: t.PresentOnBase,
 		}
 	}
 	return out
