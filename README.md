@@ -32,6 +32,22 @@ Now that fleet takes on something new. At the hackathon it will build **Proven**
 
 Updated every evening. The newest day comes first.
 
+### Day three, extra time: three model families, one commit
+
+Just after midnight UTC, NVIDIA's Nemotron returned its first review in the fleet. The change was the held-out test set:
+six new cases, frozen before Proven ever runs on them. Three reviewers from three model families read the same commit,
+each from a fresh context, none seeing the others' verdict:
+
+| reviewer | verdict | what it found |
+|---|---|---|
+| OpenAI (Codex) | reject | one case's frozen answer key contradicts its own frozen contract |
+| Anthropic (Claude) | accept with BLOCKING conditions | the same answer-key problem, and in two more cases the check's label contradicts the answer key |
+| NVIDIA (Nemotron) | accept with conditions | one of those two label mismatches, judged non-blocking; it also re-ran one case's Go test live and confirmed it fails exactly as the case says |
+
+Three problems in all. Claude found all three; Codex found one and Nemotron another, each also found by Claude. Codex
+alone or Nemotron alone would have let two of the three through; the three verdicts did not even agree on whether the
+change could ship. The reviews are published with the change's decision.
+
 ### Day three, 24 October
 
 Day three of six, published late. **Thirty-three more changes were merged since the last update**, 68 in three days. The fleet has grown to five agent
