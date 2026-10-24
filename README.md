@@ -250,4 +250,5 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 
 Before publication Marcin reviews every document. Credentials, internal host names and private infrastructure details are blacked out, and each document says where.
 
-**Licence:** Apache-2.0. See [LICENSE](LICENSE).
+**Licence:** the code is Apache-2.0 ([LICENSE](LICENSE)); the documentation and the build record (the Markdown pages,
+`docs/` and `hackathon/`) are CC BY 4.0 ([LICENSE-docs](LICENSE-docs)).
