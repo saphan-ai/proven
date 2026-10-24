@@ -78,7 +78,7 @@ Each day, what lands moves from this list to the day's summary.
 - **Is the vulnerable code actually called?** For Go, each vulnerable dependency says whether your code reaches the vulnerable function ([ADR-0043](docs/adr/ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md)).
 - **How far to trust each finding, in one word**: proved by a test, by a tool, by data, or only agreed by two models ([ADR-0044](docs/adr/ADR-0044-every-finding-names-its-level-of-proof.md)).
 - **Watch a review live**: a dashboard of the agents and the two reviewers working side by side, their verdicts and where they disagree; the numbers go to any monitoring you already use, through OpenTelemetry ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
-- **Large pull requests at a flat cost**: the review goes file by file and carries only what it has established, using Meterless's Markovian engine. Saphan Studio has its own implementation of this (U.S. patent pending); for the hackathon we use Meterless's, so anyone can rebuild and check it. We keep it only if it finds the same problems for less ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md)).
+- **Large pull requests at a flat cost**: the review goes file by file and carries only what it has established, using Meterless's Markovian engine. Saphan Studio has its own, patent pending; for the hackathon we use Meterless's. We keep it only if it finds the same problems for less ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md)).
 - **NVIDIA's model joins our security review** as a third reviewer.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 
