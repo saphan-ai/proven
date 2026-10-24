@@ -19,6 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Names lists every variable whose value Proven must never write: the three
@@ -94,11 +95,22 @@ func spellings(v string) []string {
 
 // FromEnv builds a Redactor from the variables in Names, read through env.
 // A nil env reads nothing.
+//
+// The three credentials are always handed to the redactor: a short one is
+// refused by the settings loaders, so none reaches here. The organisation id is
+// an identifier, not a credential, and the loaders accept a short numeric one;
+// handed over as it is, an id of one digit would replace that digit in every
+// commit id and line number. So an id shorter than service.MinSecretBytes is
+// left out here, and New still redacts any value it is given directly.
 func FromEnv(env func(string) string) *Redactor {
 	values := map[string]string{}
 	if env != nil {
 		for _, name := range Names {
-			values[name] = env(name)
+			v := env(name)
+			if name == query.EnvOrgID && service.TooShortSecret(v) {
+				continue
+			}
+			values[name] = v
 		}
 	}
 	return New(values)

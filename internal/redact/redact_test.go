@@ -73,6 +73,25 @@ func TestTheMarkerDoesNotDependOnMapOrder(t *testing.T) {
 
 // TestFromEnvReadsEveryNamedVariable proves that FromEnv covers each name in
 // Names, and that a nil environment redacts nothing.
+// TestFromEnvKeepsAShortOrganisationIdOutOfTheRedactor proves the one
+// exception to "every configured value is redacted": an organisation id shorter
+// than the minimum secret length is an identifier, and redacting a single digit
+// would damage every number in the text. A short credential is not excepted.
+func TestFromEnvKeepsAShortOrganisationIdOutOfTheRedactor(t *testing.T) {
+	r := FromEnv(func(k string) string {
+		switch k {
+		case "ZETARIS_ORG_ID":
+			return "1"
+		case "ZETARIS_API_KEY":
+			return "abc"
+		}
+		return ""
+	})
+	if got := r.Text("commit 1f2e, key abc"); got != "commit 1f2e, key [redacted: ZETARIS_API_KEY]" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestFromEnvReadsEveryNamedVariable(t *testing.T) {
 	values := map[string]string{}
 	for _, name := range Names {
