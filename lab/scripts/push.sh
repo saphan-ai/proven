@@ -1,9 +1,12 @@
 #!/bin/sh
 # Push every image we build. Each tag is one manifest list of PUSH_PLATFORMS.
-# Docker Scout is not run here. Read it on Docker Hub after this push.
+# Nothing is published until Docker Scout has scanned every image: scout-images.sh
+# runs first and a refusal stops this script before any builder or push.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker
+
+sh "$ROOT/lab/scripts/scout-images.sh" || die "push: refusing to publish: the Docker Scout scan did not pass (see the image named above)"
 
 if ! docker buildx version >/dev/null 2>&1; then
   die "docker buildx is not available"
@@ -21,7 +24,7 @@ seed="$PROVEN_REGISTRY/$SEED_IMAGE:$SEED_IMAGE_TAG"
 
 echo "push: $name:latest and $name:$version, one tag each, platforms $PUSH_PLATFORMS."
 echo "push: $seed, one tag, platforms $PUSH_PLATFORMS."
-echo "push: Docker Scout is not run here. The scan is read on Docker Hub after this push."
+echo "push: Docker Scout passed for the local build of each image."
 
 docker buildx build \
   --builder proven-builder \

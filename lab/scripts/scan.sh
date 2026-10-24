@@ -1,33 +1,15 @@
 #!/bin/sh
-# Scout the images we build when the plugin is installed, then record
-# third-party images in docs/LAB.md. A critical or high finding with a fix
-# available refuses the images we build. make push does not call this script.
-# With no plugin, the scan is read on Docker Hub after make push.
+# Scan the images we build with Docker Scout (scout-images.sh), then record the
+# third-party images in docs/LAB.md. Fails closed: Docker Scout missing, a scan
+# that cannot run, or a critical or high finding with a fix refuses the images
+# we build, and this script exits non-zero naming the image. make push runs
+# scout-images.sh before it publishes.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker
 
-if ! docker scout version >/dev/null 2>&1; then
-  echo "scan: docker scout is not installed. The scan is read on Docker Hub after make push."
-  echo "scan: Proven is ${PROVEN_IMAGE}, tags latest and the git describe value."
-  echo "scan: the seed is ${SEED_IMAGE}:${SEED_IMAGE_TAG}."
-  exit 0
-fi
-
-sh "$ROOT/lab/scripts/image.sh"
-sh "$ROOT/lab/scripts/seed-image.sh"
-
-refuse=0
-for image in "$PROVEN_IMAGE:latest" "$SEED_IMAGE:$SEED_IMAGE_TAG"; do
-  echo "scan: $image"
-  if ! docker scout cves "$image" \
-    --only-severity "$SCOUT_REFUSE_SEVERITIES" \
-    --only-fixed \
-    --exit-code; then
-    echo "scan: refusing $image: a $SCOUT_REFUSE_SEVERITIES finding has a fix" >&2
-    refuse=1
-  fi
-done
+# With Scout missing there is nothing to record for the third-party images.
+sh "$ROOT/lab/scripts/scout-images.sh" || exit 1
 
 doc=$ROOT/docs/LAB.md
 raw=$(mktemp)
@@ -72,7 +54,3 @@ awk -v section="$raw.section" '
 ' "$doc" >"$doc.tmp"
 mv "$doc.tmp" "$doc"
 rm -f "$raw.section"
-
-if [ "$refuse" -ne 0 ]; then
-  exit 1
-fi
