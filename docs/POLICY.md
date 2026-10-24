@@ -13,7 +13,9 @@ owner and an expiry date ([ADR-0036](adr/ADR-0036-an-organisation-policy-and-exc
 - A path that is missing, a directory, unreadable, or larger than `PROVEN_MAX_CONFIG_BYTES` is refused on load: proven
   exits 7 and the refusal names `PROVEN_POLICY` and the path.
 - A path **inside the repository under review** is refused, after links are resolved, because the change under review
-  could edit it. Keep the policy in another repository or on the runner. A policy read from a repository is not
+  could edit it. The repository is the target and, when the target lies in a git working tree, the whole tree from its
+  top level: a target may be one directory of a larger repository, and a policy file elsewhere in that repository is
+  refused as well. Keep the policy in another repository or on the runner. A policy read from a repository is not
   built yet; this version takes a local path only.
 - Sample mode reads the policy too.
 
@@ -40,9 +42,9 @@ which has doubled_classes="security, backend": it stops doubling backend; allowe
 
 | Key | Stricter means | A weaker value, refused |
 |---|---|---|
-| `path_rules` | the repository's list keeps every rule of the policy at the same class or a higher one; an extra rule is allowed only at or above the policy's fallback class (see *The effective class*) | a rule of the policy left out, its pattern in a lower class, or an extra rule below the policy's fallback |
-| `class_order` | the same order as the policy's. A policy that sets `class_order`, `path_rules` or `fallback_class` fixes the order, because the order ranks the classes those keys name | any other order |
-| `fallback_class` | the same class or a higher one in the order than the policy's fallback, which is `backend` when the policy sets a class key but not this one | a lower class |
+| `path_rules` | the repository's list keeps every rule of the policy at the same class or a higher one; an extra rule is allowed only at or above the policy's fallback class, and, when the policy doubles classes, only in a class the repository doubles if the rule is above a class the policy doubles (see *The effective class*) | a rule of the policy left out, its pattern in a lower class, an extra rule below the policy's fallback, or an extra rule that may take a doubled path to a class that is not doubled |
+| `class_order` | the same order as the policy's. A policy that sets `class_order`, `path_rules`, `fallback_class` or `doubled_classes` fixes the order, because the order ranks the classes those keys name | any other order |
+| `fallback_class` | the same class or a higher one in the order than the policy's fallback, which is `backend` when the policy sets a class key but not this one; a higher one must be a class the repository doubles when the policy doubles a class below it | a lower class, or a higher one that is not doubled |
 | `doubled_classes` | a superset of the policy's classes (`off` is the empty set) | a class of the policy no longer doubled |
 | `author_commit_trailers` | `on` when the policy says `on` | `off` |
 | `author_description` | `on` when the policy says `on` | `off` |
@@ -72,7 +74,29 @@ path_rules="(not set; the policy's rules still apply)": its rule **=docs gives p
 gives security, below it; allowed: a value as strict as the policy's, or stricter
 ```
 
-A policy that sets none of the three keys says nothing about the class of a path, and a repository's rules are its own.
+A policy that sets none of the three keys, and names no `doubled_classes`, says nothing about the class of a path, and a
+repository's rules are its own.
+
+### A doubled path stays doubled
+
+A class that is doubled is reviewed twice. `doubled_classes` therefore says which paths are doubled, and it counts as a
+fourth key that decides the class of a path: when the policy sets it, the policy's classification (its rules or the
+defaults, its fallback and its order) is the floor above, even if the policy sets no other class key. With a second
+reviewer connected, security is doubled even under `doubled_classes: off`, so the floor holds for `off` as well.
+
+The rule is one sentence: **for every path, a path the policy doubles is doubled under the repository's settings.** A
+repository can fail it in two ways, and both are refused:
+
+- it doubles fewer classes than the policy (`it stops doubling backend`);
+- it moves a path to a **higher class that it does not double**. The policy `fallback_class: backend`,
+  `doubled_classes: backend` doubles `main.go`; a repository with `fallback_class: security` reviews it as security,
+  once. The same holds for an extra rule above a class the policy doubles. A pattern cannot be shown to match only
+  paths that are not doubled, so the refusal takes the stricter reading: a repository that raises a class above a
+  doubled one doubles the raised class too (`doubled_classes: security, backend`).
+
+Example. The policy says `doubled_classes: security`. A repository says `path_rules: **=docs`, `fallback_class: docs`.
+`go.mod` is security, and doubled, under the policy and would be docs, once, under the repository. It is refused on
+`path_rules`, and the refusal names the rule `**=docs`, which gives paths docs where the policy's fallback gives backend.
 
 Not policy keys, because their values have no order: `timeout`, `default_reviewer`, `special_reviewer`, `families`,
 `author_record`. The shell's own settings (`--severity`, `--error`, `--include`) are not `proven.yaml` keys and a policy
