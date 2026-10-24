@@ -34,7 +34,7 @@ Updated every evening. The newest day comes first.
 
 ### Day three, 24 October
 
-Day three of six. **Twenty-seven more changes were merged today**, 69 in three days. The fleet has grown to five agent
+Day three of six, published late. **Thirty-three more changes were merged since the last update**, 68 in three days. The fleet has grown to five agent
 masters, and NVIDIA's Nemotron joined the reviewers this evening as a third model family, running straight on NVIDIA's
 API. Its first verdicts, side by side with Claude's and OpenAI's on the same change, come with tomorrow's update.
 
@@ -257,7 +257,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 00:03 UTC: **coding starts** | [`start`](https://github.com/saphan-ai/proven/compare/prior-art...start) (`3a1a9f0`) | The first line of product code: the agreed seam between the command-line shell and the reviewer, types only |
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
-| 24 October, 15:00 UTC: **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 27 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding naming its level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. |
+| 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding naming its level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 
