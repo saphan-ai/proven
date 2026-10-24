@@ -63,8 +63,8 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 		env = func(string) string { return "" }
 	}
 	key := env(EnvSecondKey)
-	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
-		return SecondSettings{}, false, refuse(EnvSecondKey, "", "not a usable key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
+	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 || service.TooShortSecret(key) {
+		return SecondSettings{}, false, refuse(EnvSecondKey, "", "not a usable key", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
 	connected := strings.TrimSpace(key) != ""
 	base := env(EnvSecondBaseURL)

@@ -26,10 +26,10 @@ func TestALongerValueContainingAShorterOneIsReplacedWhole(t *testing.T) {
 	}
 }
 
-// TestShortAndEmptyValuesAreNotRedacted proves the MinLength rule: an empty
-// value or one shorter than MinLength leaves the text unchanged.
-func TestShortAndEmptyValuesAreNotRedacted(t *testing.T) {
-	for name, v := range map[string]string{"EMPTY": "", "BLANK": "   ", "SHORT": "12345"} {
+// TestEmptyValuesAreNotRedacted proves an empty or blank value leaves the text
+// unchanged: there is nothing configured to find.
+func TestEmptyValuesAreNotRedacted(t *testing.T) {
+	for name, v := range map[string]string{"EMPTY": "", "BLANK": "   "} {
 		r := New(map[string]string{name: v})
 		in := "line 12345 of 123456 files, ok"
 		if got := r.Text(in); got != in {
@@ -38,12 +38,16 @@ func TestShortAndEmptyValuesAreNotRedacted(t *testing.T) {
 	}
 }
 
-// TestValueAtTheMinimumLengthIsRedacted proves the boundary of the rule: a
-// value of exactly MinLength bytes is redacted.
-func TestValueAtTheMinimumLengthIsRedacted(t *testing.T) {
-	r := New(map[string]string{"K": strings.Repeat("x", MinLength)})
-	if got := r.Text("a " + strings.Repeat("x", MinLength)); got != "a [redacted: K]" {
-		t.Fatalf("got %q", got)
+// TestAConfiguredValueIsRedactedWhateverItsLength proves the redactor has no
+// length floor: every non-empty value it is given is replaced, down to one
+// byte. The loaders refuse a short secret before it gets here.
+func TestAConfiguredValueIsRedactedWhateverItsLength(t *testing.T) {
+	for n := 1; n <= 8; n++ {
+		v := strings.Repeat("x", n)
+		r := New(map[string]string{"K": v})
+		if got := r.Text("a " + v); got != "a [redacted: K]" {
+			t.Errorf("%d bytes: got %q", n, got)
+		}
 	}
 }
 
@@ -69,6 +73,25 @@ func TestTheMarkerDoesNotDependOnMapOrder(t *testing.T) {
 
 // TestFromEnvReadsEveryNamedVariable proves that FromEnv covers each name in
 // Names, and that a nil environment redacts nothing.
+// TestFromEnvKeepsAShortOrganisationIdOutOfTheRedactor proves the one
+// exception to "every configured value is redacted": an organisation id shorter
+// than the minimum secret length is an identifier, and redacting a single digit
+// would damage every number in the text. A short credential is not excepted.
+func TestFromEnvKeepsAShortOrganisationIdOutOfTheRedactor(t *testing.T) {
+	r := FromEnv(func(k string) string {
+		switch k {
+		case "ZETARIS_ORG_ID":
+			return "1"
+		case "ZETARIS_API_KEY":
+			return "abc"
+		}
+		return ""
+	})
+	if got := r.Text("commit 1f2e, key abc"); got != "commit 1f2e, key [redacted: ZETARIS_API_KEY]" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestFromEnvReadsEveryNamedVariable(t *testing.T) {
 	values := map[string]string{}
 	for _, name := range Names {
