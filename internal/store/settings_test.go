@@ -108,6 +108,11 @@ func TestLoadCouchEmptyIsADownStoreAndWrongIsRefused(t *testing.T) {
 	if err == nil || !asConfig(err, &cfg) || cfg.Field != EnvCouchURL {
 		t.Fatalf("user info in the address: %v", err)
 	}
+	// Property: a refused address never carries the user info it was given
+	// (ADR-0013). The mutated field is PROVEN_COUCHDB_URL.
+	if strings.Contains(err.Error(), "u:p") || strings.Contains(err.Error(), "p@") || strings.Contains(cfg.Value, "p@") {
+		t.Fatalf("the refusal printed the user info: %v", err)
+	}
 }
 
 // TestEnvironmentListsEveryCouchSetting proves the settings page rows hold

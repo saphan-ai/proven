@@ -166,12 +166,22 @@ func LoadCouch(env func(string) string) (CouchSettings, error) {
 // slash are refused or removed, so the paths the store builds are exact.
 func checkCouchBase(raw string) (string, error) {
 	allowed := "an absolute http or https URL with no user info, query or fragment"
+	// ADR-0013: an address that may carry user info is never echoed. The
+	// redactor knows the password setting only, not a password typed into
+	// the address, so the refusal shows no value for such an address.
+	shown := clip(raw)
+	if strings.Contains(raw, "@") {
+		shown = ""
+	}
 	if len(raw) > 2048 || strings.ContainsAny(raw, "\r\n\t ") {
-		return "", refuse(EnvCouchURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(EnvCouchURL, shown, "not a base URL", allowed)
 	}
 	u, err := url.Parse(raw)
+	if err != nil {
+		shown = ""
+	}
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Contains(raw, "?") || strings.Contains(raw, "#") {
-		return "", refuse(EnvCouchURL, clip(raw), "not a base URL", allowed)
+		return "", refuse(EnvCouchURL, shown, "not a base URL", allowed)
 	}
 	return strings.TrimRight(raw, "/"), nil
 }
