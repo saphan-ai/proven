@@ -47,7 +47,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvAllow,
 			Default:     "none",
-			Description: "in `local` mode, host names that count as inside the network, comma-separated, for example `nightshift.corp.example`. A host name is never resolved to be judged: it is allowed by this list or it is refused",
+			Description: "in `local` mode, host names that count as inside the network, comma-separated, for example `nightshift.corp.example`. A host name is never resolved to be judged: it is allowed by this list or it is refused. A listed name is resolved only through a name server inside the network, and an answer outside it is refused",
 		},
 	}
 }

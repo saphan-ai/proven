@@ -43,6 +43,18 @@ address.
 A name is looked up only when it is on the list. `localhost` is answered with the loopback addresses and an IP
 literal answers itself; neither sends a query. Any other name is refused before a DNS query is sent.
 
+A name on the list is not trusted for its answer. Every address the lookup returns is judged by the same rule as an
+address you write down: a loopback, private or link-local address, or one you listed. If any answer is outside, the
+whole lookup is refused, naming the host and the address, and no connection is made. The dial judges the address again
+before it opens the socket.
+
+Proven looks a name up with its own resolver, not the C library's, and asks for the absolute name, so the host's
+search domains add no other name. The resolver reads its name servers from the host (`/etc/resolv.conf`; on a platform
+with no such file, Go's default of the loopback addresses). Each connection to a name server goes through the same
+address check: a server outside the allowed set is refused by name and address before one byte is sent. If every
+server in `/etc/resolv.conf` is outside, the lookup fails and the review says which server was refused. Name servers
+on loopback (including `systemd-resolved`'s `127.0.0.53`), a private range or your allow list are used.
+
 Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
 
 ### What is refused, and when
@@ -76,7 +88,7 @@ Each is named here with what Proven enforces on it and what you do.
 |---|---|---|
 | **The container daemon.** The runtime (`docker`, `podman`) talks to a daemon, and where that daemon is comes from `DOCKER_HOST`, `CONTAINER_HOST`, `DOCKER_CONTEXT`, the context named in `~/.docker/config.json`, or, for podman, the service destinations of its `containers.conf` files and `podman-connections.json` under `HOME`. | Only `docker` and `podman` are run in `local` mode: any other `PROVEN_TEST_RUNTIME` is refused by name, because Proven cannot tell where its daemon is. For podman every configured destination is checked, not only the active one. The address is checked when the settings load. A local socket (`unix://`, `npipe://`, `fd://`) passes. A `tcp://` or `ssh://` address passes only when its host is on your network, by the rule above. Any other address is refused by name, and no container starts. A docker context that cannot be read is refused by name as well. | Use a local daemon socket. A remote daemon on your own network is allowed when its host is a private address or is on `PROVEN_NETWORK_ALLOW`. The daemon's own registry access is yours to close: Proven runs the image with `--pull never`, and the image must already be on the daemon's host. |
 | **Git.** In a partial clone, git fetches a missing object from the remote on demand when a command needs it. | Every git command Proven runs has `GIT_NO_LAZY_FETCH=1`, `-c protocol.allow=never` and one `-c protocol.<name>.allow=never` for `file`, `git`, `http`, `https`, `ssh` and `ext`, so a per-protocol policy in `.git/config` or `~/.gitconfig` cannot reopen a transport, and no terminal prompt. Both switches stop the fetch (measured on git 2.43). A failed read of a partial clone (a repository with a promisor remote) is named, whatever words git uses: the review fails with a message naming `PROVEN_NETWORK=local` and the partial clone. Proven never runs `git fetch` or `git clone`. | Review a full clone, or fetch the objects yourself on a connected host before you go off the network. |
-| **DNS.** A name on `PROVEN_NETWORK_ALLOW` is resolved by your host's resolver when Proven dials it. That query is itself a connection, to whatever resolver the host is set to use. | Only a name on the list, or an IP literal, reaches a resolver at all. `localhost` is never looked up. | Point the host's resolver at one on your network, or put the name in `/etc/hosts` or use an address. Proven cannot see where the host's resolver sends the query. |
+| **DNS.** A name on `PROVEN_NETWORK_ALLOW` is resolved when Proven dials it. The query is itself a connection, to a name server, and the answer is an address Proven will connect to. | Only a name on the list, or an IP literal, reaches a resolver at all. `localhost` is never looked up. Proven's own resolver connects only to a name server inside the allowed set, and refuses an outside server by name and address. An answer outside the allowed set is refused before any dial. | List at least one name server in `/etc/resolv.conf` that is on loopback, a private range or your allow list, and make it answer the listed names with addresses on your network. A name server that then forwards to the internet is yours to close, as with a forwarding service. |
 | **A local resolver daemon.** `nscd` (glibc's name-service cache) and `systemd-resolved` answer on a unix socket (`/var/run/nscd/socket`, `/run/systemd/resolve/io.systemd.Resolve`), and may resolve a host name for a process by asking DNS on its behalf. A process that only looks up a user or a group (git does) also connects to the `nscd` socket. That connect is local IPC, but the daemon behind it is a DNS path. | Proven starts no child that asks a host name off the list. Git runs with `-c protocol.allow=never`, so it refuses a remote URL before it resolves the name. The container client dials only the checked daemon address. Measured on the test seat, git asked about `git://` and `https://` names off the list made no connect at all with the switch on, and made a connect to a DNS server on port 53 with it off. | Run a local resolver that knows only the names on `PROVEN_NETWORK_ALLOW`, or run neither daemon, or stop them on a host that must not resolve. Proven cannot see what a daemon on the host does with a name it was asked. |
 
 ## How to check the mode holds
@@ -109,6 +121,11 @@ Each is named here with what Proven enforces on it and what you do.
      a DNS connect and fails the test. It runs on linux/amd64 and skips elsewhere, saying why.
    - `TestConnectKindTellsIPCFromTheNetwork` passes when IPC, a resolver socket and a network address are told apart.
    - `TestLocalNeverQueriesDNSForAPublicName` passes when no DNS query is attempted for a name off the list.
+   - `TestLocalAllowedNameRejectsOutsideDNSAnswer` passes when a listed name whose DNS answer is a public address is
+     refused by `Lookup`, with the same resolver shown to return that address. `TestLocalDialRefusesAnOutsideAnswerByNameAndAddress`
+     passes when the dial refuses it, naming the host and the address, with no connection.
+   - `TestLocalResolverDialsOnlyAnAllowedNameServer` passes when a public name server is refused by name and address
+     and a loopback, private or listed one is dialled.
    - `TestLocalRefusesAPublicDaemonAddressAtLoad` and `TestLocalRefusesADockerContextWhoseDaemonIsPublic` pass when a
      public container daemon is refused at load.
    - `TestLocalRefusesAPublicAddressInEachAddressSetting` passes when each of the three address settings refuses a
@@ -121,6 +138,6 @@ Each is named here with what Proven enforces on it and what you do.
 - It does not make a service you run local: if `PROVEN_NETWORK_ALLOW` names a host that forwards to the internet,
   Proven allows the name, and the forward is yours to close.
 - A proxy set in the environment is not used by Proven's live clients in the air-gapped mode.
-- It does not see where your host's resolver, or a container daemon on your network, sends a query or a pull of its
-  own. Proven checks the address it is given, not what the service at that address does next.
+- It does not see where a name server on your network, or a container daemon on your network, sends a query or a pull
+  of its own. Proven checks the address it is given, not what the service at that address does next.
 - The Prover's container runs with no network at all (ADR-0025), in either mode.

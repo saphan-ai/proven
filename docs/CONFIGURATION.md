@@ -15,7 +15,7 @@ settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MOD
 | Environment variable | Default | What it changes |
 |---|---|---|
 | `PROVEN_NETWORK` | `public` | `public` or `local`. `local` is the air-gapped mode: a setting that names an address outside the organisation's network is refused at load, and every connection to such an address is refused when it is made |
-| `PROVEN_NETWORK_ALLOW` | none | in `local` mode, host names that count as inside the network, comma-separated, for example `nightshift.corp.example`. A host name is never resolved to be judged: it is allowed by this list or it is refused |
+| `PROVEN_NETWORK_ALLOW` | none | in `local` mode, host names that count as inside the network, comma-separated, for example `nightshift.corp.example`. A host name is never resolved to be judged: it is allowed by this list or it is refused. A listed name is resolved only through a name server inside the network, and an answer outside it is refused |
 
 In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds.
 
