@@ -122,7 +122,7 @@ func TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts(t *testing
 		t.Fatalf("review: partial %v err %v", res.Partial, err)
 	}
 	for _, s := range res.FailedServices {
-		if s.Service == "nightshift" || s.Service == "guardrail" {
+		if s.Service == "nightshift" || s.Service == "guardrail" || s.Service == "zetaris" {
 			t.Fatalf("a local service failed: %#v (dialed %v refused %v)", res.FailedServices, rec.dialed, rec.refused)
 		}
 	}
@@ -133,7 +133,7 @@ func TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts(t *testing
 	if len(dialed) == 0 {
 		t.Fatal("the review made no call at all, so the probe measured nothing")
 	}
-	sawGenerator, sawGuardrail := false, false
+	sawGenerator, sawGuardrail, sawZetaris := false, false, false
 	for _, addr := range dialed {
 		host, _, _ := net.SplitHostPort(addr)
 		if !rec.allowed[host] {
@@ -141,9 +141,10 @@ func TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts(t *testing
 		}
 		sawGenerator = sawGenerator || addr == "nightshift.corp.example:8088"
 		sawGuardrail = sawGuardrail || addr == "127.0.0.1:8081"
+		sawZetaris = sawZetaris || addr == "127.0.0.1:9"
 	}
-	if !sawGenerator || !sawGuardrail {
-		t.Errorf("the review did not reach the generator and the guardrail: %v", dialed)
+	if !sawGenerator || !sawGuardrail || !sawZetaris {
+		t.Errorf("the review did not reach the generator, the guardrail and Zetaris: %v", dialed)
 	}
 	if len(refused) != 0 {
 		t.Errorf("the recording dialer refused %v: something asked for a host off the network", refused)
