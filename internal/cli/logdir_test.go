@@ -2,11 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/review"
@@ -180,6 +182,71 @@ func TestTraceFileSymlinkIntoTheTargetIsRefused(t *testing.T) {
 	if _, err := os.Lstat(victim); !os.IsNotExist(err) {
 		body, _ := os.ReadFile(victim)
 		t.Fatalf("trace file inside the target: err %v body %q", err, body)
+	}
+	root, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := stderr.String()
+	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, root) {
+		t.Fatalf("stderr %q", msg)
+	}
+}
+
+// TestTraceFileHardLinkIntoTheTargetIsRefused proves a regular trace.jsonl
+// outside the target is refused when that file is a hard link to a file
+// inside the target. The two names are one file, so an append through the
+// outside name writes the target. The open does not follow a path it can
+// be compared with; the link count is what shows the second name.
+// Unplug: the link-count check in traceFileInsideTarget. The load exits 0
+// and the target file's bytes change.
+// Mutated field: the link count of trace.jsonl in PROVEN_LOG_DIR.
+func TestTraceFileHardLinkIntoTheTargetIsRefused(t *testing.T) {
+	// One parent, then two directories. A hard link has to share a filesystem.
+	parent := t.TempDir()
+	target := filepath.Join(parent, "target")
+	copyTree(t, filepath.Join(moduleRoot(t), "testdata", "fixture", "discount"), target)
+	victim := filepath.Join(target, "kept.txt")
+	// Empty, so an append is the whole change. A first line that is not
+	// JSON makes the run fail for that line instead of for the link.
+	before := []byte{}
+	if err := os.WriteFile(victim, before, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(parent, "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tracePath := filepath.Join(outside, "trace.jsonl")
+	linked := victim
+	if cross := os.Link(victim, tracePath); cross != nil {
+		if !errors.Is(cross, syscall.EXDEV) {
+			t.Fatal(cross)
+		}
+		// The OS refused a link whose names are in different directories.
+		// The second name is created in the log directory instead.
+		// The load reads the link count and not the other path.
+		linked = filepath.Join(outside, "kept.txt")
+		if err := os.WriteFile(linked, before, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Link(linked, tracePath); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("measured cross-directory link: %v", cross)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sample", target}, envOf(map[string]string{EnvLogDir: outside}), &stdout, &stderr, nil)
+	if code != exitConfig {
+		after, readErr := os.ReadFile(linked)
+		t.Fatalf("exit %d linked bytes changed=%v read %v stderr %s", code, readErr == nil && !bytes.Equal(before, after), readErr, stderr.String())
+	}
+	after, err := os.ReadFile(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("linked file was written: before %q after %q", before, after)
 	}
 	root, err := filepath.EvalSymlinks(target)
 	if err != nil {
