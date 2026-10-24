@@ -32,6 +32,37 @@ Now that fleet takes on something new. At the hackathon it will build **Proven**
 
 Updated every evening. The newest day comes first.
 
+### Day three, 24 October
+
+Day three of six, published late. **Thirty-three more changes were merged since the last update**, 68 in three days. The fleet has grown to five agent
+masters, and NVIDIA's Nemotron joined the reviewers this evening as a third model family, running straight on NVIDIA's
+API. Its first verdicts, side by side with Claude's and OpenAI's on the same change, come with tomorrow's update.
+
+**The day's theme: Proven became something you can extend.** A new language, a new tool or a new evidence source is
+one small adapter, not a change to the reviewer:
+- **Two new languages through one adapter each**: PHP (Composer) and Rust (Cargo), each with a sample scenario.
+- **A tool's run is evidence**, like a test or a query: the Go race detector, and `govulncheck`, which says whether a
+  vulnerable function is actually reached from your code, only imported, or not measured.
+- **One interface for where the evidence lives**: Zetaris or a local store, with one conformance test that
+  fails when two stores answer differently.
+
+What else came in today:
+- **Every finding names its level of proof**: proved by a test, proved by a query, or only an opinion. When both
+  reviewers name the same place without evidence, Proven shows it apart as an agreed opinion and never counts it.
+- **A proposed fix is proved by the same test** that proved the finding: it must pass on the base, fail on the change,
+  and pass on the change with the fix, without breaking any other test. It stays a suggestion, never a commit.
+- **The second reviewer can be any model**, and the generator can call NVIDIA's hosted API directly as well as through
+  Nightshift.
+- **JSON and SARIF output**, so a review can feed GitHub's code scanning or any pipeline.
+- **A lab for judges**: one Makefile builds Proven and runs it against a local Gitea, on your own machine.
+- **Security review, round two**: the fixes for the model-facing piece and the data-on-disk piece are merged, each
+  proved by the reviewers' failing tests. What was fixed: [SECURITY.md](SECURITY.md).
+- **The test corpus is built**: the code for the cases Proven is measured on. Tomorrow it gets a score, and a second,
+  held-out set of cases, frozen before Proven ever sees them, so the score cannot be tuned to the test.
+
+**Privacy, in one sentence:** every prompt and every answer is checked by NVIDIA's safety model, which can run on your
+own machine, so that check need not send your code anywhere.
+
 ### Day two, 23 October
 
 Day two of six is behind us. **Eighteen more changes were merged** (35 in two days), each written by an agent, checked again by its master on a clean checkout, and approved by Marcin; the larger ones were also reviewed by two models other than the one that wrote them.
@@ -185,8 +216,12 @@ somewhere they do not:
   air-gapped. It reviews every pull request, not a nightly scan.
 - **More than one model, in the open.** Proven names the models that reviewed each change. Connect a second reviewer
   and you see both verdicts, and exactly where they disagree.
-- **Proof anyone can rerun**: a test that passes on the old code and fails on the new, or a query and the rows it
-  returned. No exploit code is written or kept.
+- **An agent is not trusted, even when it is not malicious.** A model's answer is treated as untrusted input: the
+  change's code runs only in a container with no network and no secret, and the command run there is built by Proven,
+  never taken from a model.
+- **Proof anyone can rerun, and the test fails first**: a test that passes on the old code and fails on the new, or a
+  query and the rows it returned. A finding whose test does not fail on the change is not proved. No exploit code is
+  written or kept.
 - **A fix is proved too**: the same test that showed the problem shows the fix works.
 
 ## Who builds it
@@ -198,7 +233,7 @@ Two different groups of AI agents appear in this project. Do not mix them up:
 | **The fleet that builds Proven** | coding agents run by Saphan Studio, with Marcin | plan each change, write the code, test it independently, review it, and hand Marcin a decision |
 | **The agents inside Proven** | Proven's own reviewers, once built | review someone else's pull request: plan, gather evidence, try to refute, judge, write the report |
 
-In the fleet, four Cursor agents write the product code. Other agents plan the work, write tests separately from the code, and review each change without having written it. Marcin sets the goals, rules on scope, settles disputes the evidence cannot settle, and approves every merge. An agent can recommend; only he can approve. How the fleet is organized is explained in **[SAPHAN.md](hackathon/SAPHAN.md)**.
+In the fleet, four Cursor agents write the product code. Other agents plan the work, write tests separately from the code, and review each change without having written it. Marcin sets the goals, rules on scope, settles disputes the evidence cannot settle, and approves every merge. An agent can recommend; only he can approve. No agent ever pushes: each change is built in its own copy of the repository, and only Marcin merges and pushes. How the fleet is organized is explained in **[SAPHAN.md](hackathon/SAPHAN.md)**.
 
 ## Follow the work
 
@@ -206,11 +241,9 @@ In the fleet, four Cursor agents write the product code. Other agents plan the w
 - **[The diary](hackathon/planning/CONVERSATIONS.md)**: every conversation between Marcin and the fleet, day by day.
 - **[Watch it being built, slice by slice](hackathon/fleet/)**: from 22 October, each change arrives with the request that asked for it, the builder's report, the independent review and Marcin's decision.
 - **[Design decisions](docs/adr/)**: what was decided, and why.
-- **[What it costs](hackathon/fleet/LEDGER.md)**: the recorded cost of every change, by model.
+- **[How each change went](hackathon/fleet/LEDGER.md)**: every change's rounds, the conditions its reviews raised, and its outcome.
 - **[Security](SECURITY.md)**: what Proven treats as untrusted, what it protects and how, and **[how its code is reviewed for security as a whole](docs/security/SECURITY_REVIEW.md)**, piece by piece.
 - **[How to code with Saphan Studio, step by step](https://github.com/saphan-ai/quake-watch-server)**: published alongside Proven, a sample app built as a series. First the server, an earthquake alert service on the USGS public feed; the mobile clients follow in their own repositories. Every step is recorded as it is built: the order, the agents' work, the review and the owner's decision.
-
-Every agent run records its model and the cost Saphan Studio measured for it. Where a cost was not measured, such as interactive planning sessions, or a share of a subscription the tools cannot read yet, the document says so and why. These figures are what the AI models cost; machines and human time are not included.
 
 **Updates:** once a day at **15:00 UTC** (22:00 in Bangkok; 17:00 in Warsaw until 25 October, 16:00 after). The last push comes before submissions close on 27 October, 23:45 UTC.
 
@@ -224,6 +257,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 00:03 UTC: **coding starts** | [`start`](https://github.com/saphan-ai/proven/compare/prior-art...start) (`3a1a9f0`) | The first line of product code: the agreed seam between the command-line shell and the reviewer, types only |
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
+| 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding naming its level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 
@@ -241,7 +275,7 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 | `SECURITY.md` | what Proven protects, and how to report a vulnerability |
 | `test/` | the test corpus (`test/corpus/`) and the Meterless conformance runner (`test/conformance/`) |
 | `testdata/`, `demo/`, `assets/` | sample scenarios, the live demo, images |
-| `hackathon/` | the build week's record: `fleet/` (every change's order, report, review and cost), `planning/` (the topic, the daily conversations), `SAPHAN.md`, `DESIGN.md` |
+| `hackathon/` | the build week's record: `fleet/` (every change's order, report, review and decision), `planning/` (the topic, the daily conversations), `SAPHAN.md`, `DESIGN.md` |
 | `metadata.json`, `metadata.schema.json` | the hackathon's submission metadata, at the root until the hackathon ends |
 
 ## For technical readers
@@ -253,7 +287,7 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 | [SAPHAN.md](hackathon/SAPHAN.md) | the platform that runs the fleet, its roles and vocabulary |
 | [AGENTS.md](AGENTS.md) | the rules every agent follows in this repository |
 | [planning/](hackathon/planning/) | how the topic was chosen, and the fleet's answers |
-| [fleet/](hackathon/fleet/) | orders, reports, reviews, decisions and the cost ledger, with their templates |
+| [fleet/](hackathon/fleet/) | orders, reports, reviews, decisions and the ledger of every change, with their templates |
 
 **Pre-existing components:** [Saphan Studio](https://saphan.ai/) runs the fleet; it is not part of this submission and not in this repository. The [Meterless engine specifications](https://github.com/Meterless/Meterless) (Apache-2.0) are open source; we build to them and do not copy their reference code. Model providers, tools and data sources are listed as they are used.
 

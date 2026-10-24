@@ -23,6 +23,8 @@ These are product capabilities as the documentation describes them on 19 October
 | **Secrets by reference** | An agent gets a reference to a credential when it needs it; the value is not written into a request, a log or the record. | [secrets](https://docs.saphan.ai/docs/security/9-secrets) |
 | **Guardrails** | A checkpoint on the conversation between an agent and its model, with a plugin for NVIDIA NeMo Guardrails. | [guardrails](https://docs.saphan.ai/docs/security/guardrails) |
 | **Command line and web console** | Everything can be driven and read from the command line or the web console. | [the console](https://docs.saphan.ai/docs/console) |
+| **Forges without webhooks** | Pull requests on a Gitea forge are read by polling, so the forge needs no public endpoint pointing back at the platform. | [pull requests and forges](https://docs.saphan.ai/docs/working-with-git/pull-requests-and-forges) |
+| **Read-only MCP server** | An assistant or an agent can read the record over MCP, so nobody has to relay fleet state by hand. It answers questions and takes no action. | [MCP server](https://docs.saphan.ai/docs/mcp-server) |
 
 What the product does not cover yet is listed chapter by chapter in the **[documented limits](https://docs.saphan.ai/docs/security/11-documented-limits)**.
 
