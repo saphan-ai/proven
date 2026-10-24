@@ -63,6 +63,12 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			return err
 		}
 	}
+	// A review run without the guardrail says so before any finding.
+	if result.GuardrailStatement != "" {
+		if _, err := fmt.Fprintln(w, result.GuardrailStatement); err != nil {
+			return err
+		}
+	}
 	if result.AuthorModelStatement != "" {
 		if _, err := fmt.Fprintln(w, result.AuthorModelStatement); err != nil {
 			return err

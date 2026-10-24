@@ -157,4 +157,12 @@ type Draft struct {
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+	// GuardrailStatement is set when the review ran with the guardrail
+	// switched off, so the result says so and not only the trace
+	// (ADR-0005). Empty when the guardrail was on.
+	GuardrailStatement string
 }
+
+// GuardrailOffStatement is the sentence a review carries when its guardrail
+// was switched off. The trace line, the draft and every format use this one text.
+const GuardrailOffStatement = "no guardrail: this review ran with the guardrail switched off"

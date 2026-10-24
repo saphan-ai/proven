@@ -268,6 +268,11 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	// ADR-0005, ADR-0013 point 4: the draft is the last place model and service text
 	// can reach the result, so it is redacted once here, after every agent has run.
 	d.Findings = p.redactFindings(d.Findings)
+	// A review run without the guardrail says so in its result, not only in its
+	// trace: a reader of the result alone must not take it for a guarded review.
+	if p.guardOff {
+		d.GuardrailStatement = candidate.GuardrailOffStatement
+	}
 	return d, nil
 }
 
