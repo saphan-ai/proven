@@ -65,7 +65,7 @@ func TestNegativeControl_ClearHMEMStore(t *testing.T) {
 	if !strings.Contains(string(before), "mem_") {
 		t.Fatalf("store did not hold a refutation: %s", before)
 	}
-	empty := []byte("{\"version\":1,\"seq\":0,\"records\":[]}\n")
+	empty := []byte("{\"version\":2,\"seq\":0,\"records\":[]}\n")
 	if err := os.WriteFile(path, empty, 0o644); err != nil {
 		t.Fatal(err)
 	}
