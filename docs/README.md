@@ -14,11 +14,8 @@ Read in this order.
 | [QUERIES.md](QUERIES.md) | every question Proven asks Zetaris: the query templates, each parameter's format, and what a refusal does | first version |
 | [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md) | JSON and SARIF, two writings of one review result | first version |
 | [OSV_TABLE.md](OSV_TABLE.md) | the OSV package table, the CSV converter, and how an administrator loads and refreshes it | first version |
-<<<<<<< main
 | [LAB.md](LAB.md) | the keys a live review needs, per generator mode, and where to get them | first version |
-=======
-| [ADAPTERS.md](ADAPTERS.md) | how to add a language: one adapter, with PHP (Composer) as the worked example | first version |
->>>>>>> fix/a-language-is-one-adapter-php
+| [ADAPTERS.md](ADAPTERS.md) | how to add a language, a tool or a data source: one adapter each, with a worked example | first version |
 | SETUP.md (not written yet) | running Proven live: Zetaris, Meterless Nightshift, the NVIDIA guardrail | written by the infrastructure track; not here yet |
 
 The design and its reasons are in [DESIGN.md](../hackathon/DESIGN.md); every decision is in [fleet/decisions/](adr/).
