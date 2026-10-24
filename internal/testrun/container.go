@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/childenv"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -22,8 +24,8 @@ import (
 // container when it exits. --cpus takes a number and 0 means no limit.
 // --memory takes a number and a suffix b, k, m or g, and 0 means no limit.
 // A volume's ro option mounts it read-only; the default is read-write.
-// That manual does not document a flag that stops a missing image from
-// being pulled on the host before the container starts.
+// --pull never stops a missing image from being pulled on the host before
+// the container starts; the run then fails and Run reports the Prover down.
 
 // The documented defaults of the container settings (ADR-0013, ADR-0025
 // point 5). checkoutDir is where the one checkout is mounted inside.
@@ -33,7 +35,44 @@ const (
 	defaultCPUs    = "1"
 	defaultMemory  = "512m"
 	checkoutDir    = "/checkout"
+
+	// defaultUser is "nobody" and its group, a fixed unprivileged identity that
+	// exists in common images and owns nothing in the checkout (ADR-0025).
+	defaultUser = "65534:65534"
+	// defaultPids bounds the processes of one container, so a runaway test
+	// cannot exhaust the host's process table.
+	defaultPids = 256
+	// defaultTmpSize bounds each writable scratch mount. A Go test build
+	// measured about 135 MB on a cold cache (compiled packages, the build's
+	// work directory and the test binary), so the default leaves a margin of
+	// about four times; maxTmpBytes stays the upper bound.
+	defaultTmpSize = "512m"
+
+	// maxPidsLimit and maxTmpBytes are the upper bounds of the PidsLimit and
+	// TmpSize settings, so no setting can turn a bound into a practically open
+	// one (ADR-0025 point 5). The scratch bound is 1 GiB per mount.
+	maxPidsLimit = 4096
+	maxTmpBytes  = 1 << 30
 )
+
+// scratchDirs are the only writable places in the container beside the
+// checkout's own read-only mount. A Go test builds and runs its binary under
+// /tmp, and its build cache lives there too (see containerEnv).
+var scratchDirs = []string{"/tmp"}
+
+// containerEnv is the whole environment the container receives, passed as -e.
+// The values are constants, never read from Proven's environment, and none is
+// a secret. They put the home and the Go build cache on scratch, because the
+// root is read-only and the image's own home for the unprivileged user (for the
+// default image, a path that does not exist) is not writable. This amends the
+// "no -e" contract of ADR-0025 point 3: no secret and no inherited value is
+// passed; these two fixed values are.
+var containerEnv = []string{"HOME=/tmp", "GOCACHE=/tmp/go-build"}
+
+// runtimeEnvNames are the variables, beyond PATH and HOME, the runtime process
+// may inherit. They only say where the container daemon is; none holds a
+// credential (ADR-0025).
+var runtimeEnvNames = []string{"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "XDG_RUNTIME_DIR"}
 
 // defaultTimeout is the default limit for one side of a test run.
 const defaultTimeout = 2 * time.Minute
@@ -57,6 +96,9 @@ type ContainerConfig struct {
 	CPUs            string        // CPU limit passed to the runtime
 	Memory          string        // memory limit passed to the runtime
 	MaxWrittenBytes int           // size limit for a test file the prover writes
+	User            string        // fixed unprivileged user and group, "uid:gid"
+	PidsLimit       int           // most processes one container may run
+	TmpSize         string        // size bound of each writable scratch mount
 }
 
 // cpuPattern and memPattern accept only the plain forms docker-run(1)
@@ -64,6 +106,8 @@ type ContainerConfig struct {
 var (
 	cpuPattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`)
 	memPattern = regexp.MustCompile(`^([0-9]+)([bkmg])?$`)
+	// userPattern accepts a numeric uid and gid only; root is refused by validUser.
+	userPattern = regexp.MustCompile(`^([0-9]+):([0-9]+)$`)
 )
 
 // DefaultContainerConfig returns the documented defaults.
@@ -75,6 +119,9 @@ func DefaultContainerConfig() ContainerConfig {
 		CPUs:            defaultCPUs,
 		Memory:          defaultMemory,
 		MaxWrittenBytes: DefaultMaxWrittenBytes,
+		User:            defaultUser,
+		PidsLimit:       defaultPids,
+		TmpSize:         defaultTmpSize,
 	}
 }
 
@@ -125,7 +172,68 @@ func (c ContainerConfig) Validate() error {
 			Allowed: []string{strconv.Itoa(DefaultMaxWrittenBytes)},
 		}
 	}
+	// A setting must not be able to hand the test root, lift the process bound
+	// or make the scratch unbounded (ADR-0025).
+	if !validUser(c.User) {
+		return &ConfigError{
+			Field: "User", Value: c.User,
+			Reason:  "the user is a numeric uid:gid that is not root",
+			Allowed: []string{defaultUser},
+		}
+	}
+	if c.PidsLimit <= 0 || c.PidsLimit > maxPidsLimit {
+		return &ConfigError{
+			Field: "PidsLimit", Value: strconv.Itoa(c.PidsLimit),
+			Reason:  "the process limit is a positive number of at most " + strconv.Itoa(maxPidsLimit) + "; 0 and -1 mean no limit and are refused",
+			Allowed: []string{strconv.Itoa(defaultPids)},
+		}
+	}
+	if !validMemory(c.TmpSize) || sizeBytes(c.TmpSize) > maxTmpBytes {
+		return &ConfigError{
+			Field: "TmpSize", Value: c.TmpSize,
+			Reason:  "the scratch size is a positive size of at most 1g with suffix b, k, m or g; 0 is refused",
+			Allowed: []string{defaultTmpSize},
+		}
+	}
 	return nil
+}
+
+// validUser accepts a numeric uid:gid where neither is 0, the root identity.
+func validUser(s string) bool {
+	m := userPattern.FindStringSubmatch(s)
+	if m == nil {
+		return false
+	}
+	uid, uerr := strconv.ParseUint(m[1], 10, 32)
+	gid, gerr := strconv.ParseUint(m[2], 10, 32)
+	return uerr == nil && gerr == nil && uid > 0 && gid > 0
+}
+
+// sizeBytes returns the bytes of a size that validMemory accepted, and
+// math.MaxInt64 for one too large to count, so the caller's upper bound
+// refuses it. A bare number is bytes, as in docker-run(1).
+func sizeBytes(s string) int64 {
+	m := memPattern.FindStringSubmatch(s)
+	if m == nil {
+		return math.MaxInt64
+	}
+	n, err := strconv.ParseUint(m[1], 10, 64)
+	if err != nil {
+		return math.MaxInt64
+	}
+	unit := uint64(1)
+	switch m[2] {
+	case "k":
+		unit = 1 << 10
+	case "m":
+		unit = 1 << 20
+	case "g":
+		unit = 1 << 30
+	}
+	if n > math.MaxInt64/unit {
+		return math.MaxInt64
+	}
+	return int64(n * unit)
 }
 
 // validToken accepts one non-empty word that does not start with a dash.
@@ -156,8 +264,8 @@ func validMemory(s string) bool {
 }
 
 // Container is the live test-run adapter. It runs each side of a test in a
-// fresh container with no network, no environment and one read-only
-// checkout (ADR-0025 points 1 to 4). review.Open builds it from Load.
+// fresh container with no network, a fixed non-secret environment, an unprivileged user, a
+// read-only root and one read-only checkout (ADR-0025 points 1 to 4). review.Open builds it from Load.
 type Container struct {
 	runtime string
 	cfg     ContainerConfig
@@ -209,9 +317,98 @@ func (c *Container) Argv(dir string, test []string) []string {
 	return c.argv(dir, test, "")
 }
 
+// How one RunCommand ended. A timeout or a side that did not run is not a
+// result of the command (ADR-0040: a tool that runs out of time is named).
+const (
+	CommandPass      = "pass"
+	CommandFail      = "fail"
+	CommandNotRun    = "not-run"
+	CommandTimeout   = "timeout"
+	CommandCancelled = "cancelled"
+)
+
+// CommandResult is one run of a command Proven built, in one checkout.
+type CommandResult struct {
+	Output string
+	Status string
+}
+
+// WithTimeout returns a copy whose limit for one side is d.
+// ADR-0040: a tool's limit is its own setting and does not change the test
+// runner that shares this container. A non-positive d is refused: a zero
+// limit would make every run look timed out.
+func (c *Container) WithTimeout(d time.Duration) (*Container, error) {
+	if c == nil {
+		return nil, errors.New("testrun: no container")
+	}
+	if d <= 0 {
+		return nil, &ConfigError{
+			Field:   "Timeout",
+			Value:   d.String(),
+			Reason:  "the time limit is a positive duration; a run past it is not proof",
+			Allowed: []string{defaultTimeout.String()},
+		}
+	}
+	cp := *c
+	cp.cfg.Timeout = d
+	return &cp, nil
+}
+
+// RunCommand runs argv inside the locked-down container, with dir as the one
+// checkout. argv is the words after the image. There is no shell (ADR-0025).
+// A cancelled review returns the context error. A timeout is a result, not an
+// error: the caller names it and does not treat it as a clean run (ADR-0040).
+// An absent image is the Prover down.
+func (c *Container) RunCommand(ctx context.Context, dir string, argv []string) (CommandResult, error) {
+	if c == nil || c.runtime == "" {
+		return CommandResult{}, &service.Down{Service: "prover", Reason: "Prover off: no container runtime"}
+	}
+	if err := ctx.Err(); err != nil {
+		return CommandResult{}, err
+	}
+	if len(argv) == 0 {
+		return CommandResult{Status: CommandNotRun, Output: "refused: empty command"}, nil
+	}
+	if dir == "" {
+		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout directory is required"}, nil
+	}
+	// ADR-0025: a checkout that is a link is not a mount source.
+	if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout is a symbolic link and is not mounted"}, nil
+	}
+	text, kind := c.side(ctx, dir, argv)
+	if kind == kindCancelled {
+		return CommandResult{}, withRemoval(ctx.Err(), text)
+	}
+	if down := c.absentImage(text, kind); down != nil {
+		return CommandResult{}, down
+	}
+	return CommandResult{Output: text, Status: commandStatus(kind)}, nil
+}
+
+// commandStatus is the public name of one side's ending.
+func commandStatus(k runKind) string {
+	switch k {
+	case kindPass:
+		return CommandPass
+	case kindFail:
+		return CommandFail
+	case kindTimeout:
+		return CommandTimeout
+	case kindCancelled:
+		return CommandCancelled
+	default:
+		return CommandNotRun
+	}
+}
+
 // argv builds the run line. Each flag below carries out ADR-0025: --rm and
 // --network none, CPU and memory limits from the settings, and the checkout
-// mounted read-only as the only volume. No -e or --env flag is ever added.
+// mounted read-only as the only volume. The only -e flags are the fixed,
+// non-secret values of containerEnv; nothing of Proven's environment is passed.
+// The container also runs as a fixed unprivileged user with a process limit,
+// no capabilities, no privilege gain and a read-only root; the bounded tmpfs
+// mounts are the only other place it may write.
 func (c *Container) argv(dir string, test []string, name string) []string {
 	if c == nil {
 		return nil
@@ -228,8 +425,29 @@ func (c *Container) argv(dir string, test []string, name string) []string {
 	args = append(args,
 		"--rm",
 		"--network", "none",
+		// ADR-0025: the review never fetches an image at test time. An absent image is the
+		// Prover down, and Run names the pull the owner does by hand.
+		"--pull", "never",
 		"--cpus", c.cfg.CPUs,
 		"--memory", c.cfg.Memory,
+		"--user", c.cfg.User,
+		"--pids-limit", strconv.Itoa(c.cfg.PidsLimit),
+		"--cap-drop", "ALL",
+		"--security-opt", "no-new-privileges",
+		"--read-only",
+	)
+	for _, dir := range scratchDirs {
+		// The runtimes mount a tmpfs noexec unless told otherwise, so exec is
+		// named: a Go test runs the binary it builds on scratch. nosuid and nodev
+		// keep a file written there from gaining privilege or acting as a device.
+		// Mode 1777 lets the unprivileged user write to a mount the runtime
+		// creates as root.
+		args = append(args, "--tmpfs", dir+":rw,exec,nosuid,nodev,mode=1777,size="+c.cfg.TmpSize)
+	}
+	for _, e := range containerEnv {
+		args = append(args, "-e", e)
+	}
+	args = append(args,
 		"-v", host+":"+checkoutDir+":ro",
 		"--workdir", checkoutDir,
 		c.cfg.Image,
@@ -281,6 +499,19 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 		return out, nil
 	}
 	out.Command = displayCommand(test)
+	// ADR-0025: a checkout that is a link is not a mount source. The runtime would follow it to
+	// whatever it names, which is not the tree that was prepared.
+	for _, dir := range []string{req.BaseDir, req.ChangeDir} {
+		if dir == "" {
+			continue
+		}
+		// The cleaned path is the one checked: a trailing slash makes Lstat follow
+		// the link, and the cleaned form is what names the mount source.
+		if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
+			return out, nil
+		}
+	}
 	if req.Content != "" {
 		// The written test goes into a copy of each checkout, so the caller's
 		// trees are never changed and both sides run the same test text.
@@ -308,6 +539,9 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	if changeKind == kindCancelled {
 		return Outcome{}, withRemoval(ctx.Err(), changeText)
 	}
+	if down := c.absentImage(changeText, changeKind); down != nil {
+		return Outcome{}, down
+	}
 	baseText, baseKind := c.side(ctx, req.BaseDir, test)
 	if baseKind == kindCancelled {
 		return Outcome{}, withRemoval(ctx.Err(), changeText+"\n"+baseText)
@@ -316,6 +550,24 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	out.PassesOnBase = baseKind == kindPass
 	out.Output = formatSides(changeText, changeKind, baseText, baseKind)
 	return out, nil
+}
+
+// absentImage turns a run the runtime refused for lack of the image into the Prover down, with the
+// pull as its next act, the way Probe does. It returns nil for any other outcome. Docker says
+// "Unable to find image" and podman says "image not known"; --pull never makes both refuse
+// instead of fetching (ADR-0025).
+func (c *Container) absentImage(text string, kind runKind) error {
+	if kind != kindNotRun {
+		return nil
+	}
+	lower := strings.ToLower(text)
+	if !strings.Contains(lower, "unable to find image") && !strings.Contains(lower, "image not known") {
+		return nil
+	}
+	return &service.Down{
+		Service: "prover",
+		Reason:  "image " + c.cfg.Image + " is not present; next: " + filepath.Base(c.runtime) + " pull " + c.cfg.Image,
+	}
 }
 
 // side runs the test command words in one checkout and classifies how it ended.
@@ -415,10 +667,12 @@ func commandOutput(ctx context.Context, argv []string) (string, error) {
 	if len(argv) == 0 {
 		return "", errors.New("testrun: empty argv")
 	}
-	// argv carries no -e and no --env, so the container does not receive the
-	// process environment. The runtime process itself keeps it, because that
-	// is how it finds its own daemon socket.
+	// argv carries only the fixed -e values of containerEnv, so the container
+	// does not receive the process environment. The runtime process gets an explicit minimal one
+	// too (ADR-0025): PATH, HOME and the names that locate its daemon, never
+	// a key, because its output can reach the trace.
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Env = childenv.Minimal(runtimeEnvNames...)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf

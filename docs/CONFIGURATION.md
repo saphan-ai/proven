@@ -10,17 +10,22 @@ The shell's own flags (`proven scan …`) are documented by the shell's track. S
 settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
 <!-- generated: settings -->
-## The model generator: Meterless Nightshift
+## The model generator: Meterless Nightshift or NVIDIA's hosted API
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `METERLESS_RUNTIME_TOKEN` | none (required live) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it |
-| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address |
-| `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call |
-| `PROVEN_GENERATOR_MODEL` | `meterless/auto` | the model asked for; Nightshift's router chooses when `auto` |
+| `PROVEN_GENERATOR_MODE` | `nightshift` | `nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031) |
+| `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
+| `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it |
+| `PROVEN_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031) |
+| `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
+| `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/llama-3.3-nemotron-super-49b-v1.5` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default is from NVIDIA's published list and is not yet confirmed by a live call |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | the limit for one model call |
-| `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by the stream's receipt); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
+| `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
 | `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's) |
+
+Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these.
 
 ## The guardrail: NVIDIA Nemotron content safety
 
@@ -58,14 +63,36 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_TEST_MEMORY` | `512m` | the memory limit of one test run; a positive size with suffix b, k, m or g |
 | `PROVEN_TEST_TIMEOUT` | `120s` | the limit for one test run, base or change |
 | `PROVEN_TEST_MAX_WRITTEN_BYTES` | `65536` | the largest test file the Prover may write |
+| `PROVEN_TEST_USER` | `65534:65534` | the unprivileged user and group the test runs as, as numbers; root is refused |
+| `PROVEN_TEST_PIDS` | `256` | the most processes one test run may start; at most 4096 |
+| `PROVEN_TEST_TMP_SIZE` | `512m` | the size limit of the writable scratch mount; a positive size of at most 1g with suffix b, k, m or g |
 
 Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these.
+
+## Deterministic tools
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_TOOL_TIMEOUT` | `120s` | the limit for one side of a deterministic tool run, base or change. A run past it is named and is not evidence. Sample mode uses the default and does not read this variable |
+
+Each tool runs in the Prover's container with no network and no secret (ADR-0025, ADR-0040). A tool that cannot run is named. Sample mode reads none of these.
 
 ## One adapter call
 
 | Environment variable | Default | What it changes |
 |---|---|---|
 | `PROVEN_ADAPTER_TIMEOUT` | `5s` | the limit on one adapter call when the caller set no shorter deadline. Sample mode uses the default and does not read this variable |
+
+## Reads of the repository under review
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_MAX_ARCHIVE_BYTES` | `134217728` | the most one export reads from the repository under review: a git archive, or the tracked files of a working tree |
+| `PROVEN_MAX_FILE_BYTES` | `8388608` | the largest single file, git blob or commit log read from the repository under review |
+| `PROVEN_MAX_CONFIG_BYTES` | `1048576` | the largest `proven.yaml` Proven reads |
+| `PROVEN_MAX_RECORD_BYTES` | `1048576` | the most the author record may hold, summed over the files `author_record` names |
+
+A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
 <!-- end generated -->
 
 ## `proven.yaml`

@@ -9,6 +9,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -49,6 +50,52 @@ func TestRefutationWithNoEvidenceLeavesTheFinding(t *testing.T) {
 	}
 	if !traceSays(t, d.TracePath, "F1", "verdict", "kept") {
 		t.Fatal("F1 verdict")
+	}
+}
+
+// ADR-0032 points 1 and 2: a Skeptic answer that carries SQL text, or a
+// template value outside its format, runs no query, and the trace says so with
+// the named reason and not with the model's text. The finding stays, since a
+// refusal is no refutation. Mutated field: the query part of the answer.
+func TestRefutingQueryThatIsNotATemplateIsRefused(t *testing.T) {
+	cases := map[string]struct{ body, reason string }{
+		"sql text": {`{"refuted":true,"reason":"r","path":"","name":"","sql":"DELETE FROM advisories"}`, querytpl.ReasonModelSQL},
+		"value outside its format": {
+			`{"refuted":true,"reason":"r","path":"","name":"","template":"kev-by-cve","params":{"cve_id":"CVE-2026-0001' OR cve_id = 'x"}}`,
+			querytpl.ReasonBadValue},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			d := reviewWithSkeptic(t, c.body, &scriptedRun{})
+			if _, ok := kept(d, "F1"); !ok {
+				t.Fatal("F1 must stay")
+			}
+			if !traceHas(t, d.TracePath, "refused: "+c.reason) {
+				t.Fatalf("the trace does not name the refusal %q", c.reason)
+			}
+			raw, err := os.ReadFile(d.TracePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(raw, []byte("DELETE FROM")) || bytes.Contains(raw, []byte("OR cve_id")) {
+				t.Fatal("the trace repeats the model's query text")
+			}
+		})
+	}
+}
+
+// ADR-0032 point 3: a Skeptic answer with a good template and values runs the
+// query Proven builds from it, and the review goes on. Mutated field: the
+// query part of the answer.
+func TestRefutingQueryFromATemplateRuns(t *testing.T) {
+	body := `{"refuted":true,"reason":"look at KEV","path":"","name":"","template":"kev-by-cve","params":{"cve_id":"CVE-2026-0001"}}`
+	d := reviewWithSkeptic(t, body, &scriptedRun{})
+	f1, ok := kept(d, "F1")
+	if !ok || f1.Dropped || f1.Unresolved {
+		t.Fatalf("%#v", f1)
+	}
+	if !traceSays(t, d.TracePath, "F1", "refutation", "look at KEV") {
+		t.Fatal("the refutation reason was lost")
 	}
 }
 

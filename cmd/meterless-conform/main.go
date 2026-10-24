@@ -216,13 +216,13 @@ func createSession(prefix string) (string, error) {
 	}
 	id := prefix + hex.EncodeToString(buf[:])
 	base := sessionBase(id)
-	if err := os.MkdirAll(filepath.Join(base, "state"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(base, "state"), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Join(base, "logs"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(base, "logs"), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Join(base, "hmem"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(base, "hmem"), 0o700); err != nil {
 		return "", err
 	}
 	return id, nil

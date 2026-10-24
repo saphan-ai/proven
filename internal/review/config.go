@@ -157,7 +157,8 @@ func loadConfigFile(path string) (fileSettings, error) {
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	b, err := os.ReadFile(path)
+	// ADR-0013: the file is read no further than the configuration bound.
+	b, err := change.ReadBounded(path, change.Bounds().Config, "the configuration file "+filepath.Base(path), change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, &ConfigError{
 			Field: "ConfigPath", Value: path, Reason: err.Error(),
@@ -178,6 +179,10 @@ func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
 	if !ok {
 		return defaultSettings(), nil
 	}
+	// Blob is bounded by the file limit; proven.yaml has a smaller bound of its own.
+	if bound := change.Bounds().Config; int64(len(b)) > bound {
+		return fileSettings{}, change.OverBound("proven.yaml", bound, change.EnvMaxConfigBytes)
+	}
 	return parseConfig(b)
 }
 
@@ -185,12 +190,21 @@ func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
 // given no path and the request has no baseline commit. A missing file is the defaults.
 func loadSettingsInTarget(target string) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
-	st, err := os.Stat(path)
+	// ADR-0013, ADR-0025: the target's copy is repository content, so a link is refused by name
+	// before it is opened. Stat and ReadFile would follow it to a file outside the checkout, and
+	// the refusal never quotes what the link points at.
+	st, err := os.Lstat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return defaultSettings(), nil
 		}
 		return fileSettings{}, err
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		return fileSettings{}, &ConfigError{
+			Field: "ConfigPath", Value: path, Reason: "proven.yaml is a symbolic link; Proven reads only a regular file inside the checkout",
+			Allowed: []string{"a regular file named proven.yaml"},
+		}
 	}
 	if st.IsDir() {
 		return fileSettings{}, &ConfigError{
@@ -198,7 +212,8 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	b, err := os.ReadFile(path)
+	// ADR-0013: the target's copy is repository content, so it is bounded.
+	b, err := change.ReadBounded(path, change.Bounds().Config, "proven.yaml", change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, err
 	}

@@ -359,8 +359,15 @@ func readRecord(target, pattern string) (string, error) {
 	}
 	sort.Strings(matches)
 	var b strings.Builder
+	// ADR-0013: the record is bounded as a whole. Each file may use only what
+	// the files before it left, so a pattern that matches many files cannot add up
+	// to a read without bound.
+	remaining := change.Bounds().Record
 	for _, p := range matches {
-		body, err := os.ReadFile(p)
+		body, err := change.ReadBounded(p, remaining, "the author record "+pattern, change.EnvMaxRecordBytes)
+		if err == nil {
+			remaining -= int64(len(body))
+		}
 		if err != nil {
 			if os.IsNotExist(err) {
 				return "", &ConfigError{

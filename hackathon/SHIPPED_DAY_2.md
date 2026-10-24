@@ -2,7 +2,8 @@
 
 Everything below was run by Marcin on 23 October 2026, about 14:00 UTC, on a fresh clone of `main` at `ae34d44`, on
 macOS, with **no keys and no network** (`env -i`). The output is pasted as it came, shortened where marked, and each
-step has a note for a person. To run it yourself, see [docs/INSTALL.md](../docs/INSTALL.md).
+step has a note for a person. To run it yourself, see [docs/INSTALL.md](../docs/INSTALL.md). The day before:
+[what shipped on day 1](SHIPPED_DAY_1.md).
 
 ## 1. The command line
 

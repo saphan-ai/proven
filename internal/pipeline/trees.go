@@ -8,6 +8,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/fixture"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 // liveSnapshotName is the evidence snapshot a live review records when the
@@ -40,20 +41,21 @@ func (p *Pipeline) loadTarget(req Request) (*fixture.Fixture, []string, func(), 
 	return p.loadLiveTarget(req)
 }
 
-// loadLiveTarget picks the live trees. A directory that already has base/ and
-// change/ is used as it is, which is how the demo is laid out. A git
-// repository is copied into a temporary directory under the run's working
-// area; the returned function removes that directory.
+// loadLiveTarget picks the live trees. With a baseline commit the git range
+// decides them, always: the repository under review is the change, and the
+// change must not choose which trees the agents read, so a base/ or change/
+// directory inside it is never taken for the prepared pair. The range is copied
+// into a temporary directory under the run's working area; the returned
+// function removes that directory. With no baseline, a directory that already
+// has base/ and change/ is used as it is, which is how the demo is laid out.
 func (p *Pipeline) loadLiveTarget(req Request) (*fixture.Fixture, []string, func(), error) {
-	if hasPreparedTrees(req.Target) {
-		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
+	if req.BaselineCommit != "" {
+		return p.materialize(req)
 	}
-	if req.BaselineCommit == "" {
-		// refuseBareRepository already stopped a git repository that reached
-		// here with no baseline. Anything else is not a pair of trees.
-		return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
-	}
-	return p.materialize(req)
+	// refuseBareRepository already stopped a git repository that reached here
+	// with no baseline and no prepared trees. Anything else is not a pair of
+	// trees, and the readers name what is missing.
+	return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
 }
 
 // refuseBareRepository refuses a git target that has no baseline commit and
@@ -75,8 +77,10 @@ func (p *Pipeline) refuseBareRepository(req Request) error {
 // hasPreparedTrees reports whether target already holds the two trees the
 // agents read. The demo is this shape, and live mode leaves it unchanged.
 func hasPreparedTrees(target string) bool {
-	base, err1 := os.Stat(filepath.Join(target, "base"))
-	chg, err2 := os.Stat(filepath.Join(target, "change"))
+	// ADR-0025: Lstat, so a base or change that is a link is not a prepared tree. Stat would follow
+	// it, and the agents and the Prover would then read whatever it names.
+	base, err1 := os.Lstat(filepath.Join(target, "base"))
+	chg, err2 := os.Lstat(filepath.Join(target, "change"))
 	return err1 == nil && err2 == nil && base.IsDir() && chg.IsDir()
 }
 
@@ -104,6 +108,12 @@ func (p *Pipeline) materialize(req Request) (*fixture.Fixture, []string, func(),
 		changeSkipped, err = change.ExportCommit(req.Target, req.HeadCommit, changeDir)
 	}
 	if err != nil {
+		remove()
+		return nil, nil, nil, err
+	}
+	// The trees are mounted read-only into a container whose user is not their
+	// owner, so others must be able to read them (ADR-0025).
+	if err := testrun.MakeReadable(dir); err != nil {
 		remove()
 		return nil, nil, nil, err
 	}

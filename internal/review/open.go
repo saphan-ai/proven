@@ -6,9 +6,11 @@ package review
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
@@ -16,6 +18,7 @@ import (
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
@@ -34,6 +37,20 @@ func open(opts Options) (Reviewer, error) {
 			Allowed: []string{"a directory path"},
 		}
 	}
+	// ADR-0013: the size bounds on every read of the repository under review are
+	// settings. They are loaded first, so the explicit configuration below is read
+	// under them too. A wrong value stops Open before any review and is never
+	// replaced by the default. Sample mode reads no setting, so it puts the defaults back: the bounds
+	// are process state, and a sample review must not run under an earlier review's bounds.
+	reads := change.DefaultLimits()
+	if !opts.Sample {
+		loaded, rerr := change.LoadLimits(opts.Env)
+		if rerr != nil {
+			return nil, readLimitConfig(rerr)
+		}
+		reads = loaded
+	}
+	change.UseLimits(reads)
 	cfg := defaultSettings()
 	explicit := false
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
@@ -63,7 +80,7 @@ func open(opts Options) (Reviewer, error) {
 		if d, ok := service.As(lerr); ok {
 			// ADR-0013 point 4a: an empty token does not build a live client.
 			popts.Down = append(popts.Down, *d)
-			popts.Generator = generator.Absent{Reason: d.Reason}
+			popts.Generator = generator.Absent{Service: d.Service, Reason: d.Reason}
 		} else if lerr != nil {
 			return nil, generatorConfig(lerr)
 		} else {
@@ -76,6 +93,9 @@ func open(opts Options) (Reviewer, error) {
 			// so the review does not dial. A review leaves gen unset.
 			popts.Generator = opts.gen
 		}
+		// ADR-0005, ADR-0013 point 4: the redactor holds the value of every secret this review loads, so no key
+		// a service echoes back reaches the trace or the result.
+		popts.Redactor = redact.FromEnv(env)
 		gs, gerr := guardrail.Load(env)
 		if d, ok := service.As(gerr); ok {
 			// ADR-0005 point 5: an empty key is not off. Every model call is
@@ -238,7 +258,10 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	out := fill(d)
+	out, err := fill(d)
+	if err != nil {
+		return Result{}, err
+	}
 	if err := applyDecision(&out, cfg, req); err != nil {
 		return Result{}, err
 	}
@@ -248,8 +271,14 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 // fill copies the writer's draft into the seam's Result. Slices are copied, so the Result shares no
 // memory with the pipeline. Findings and FailedServices are never nil, so an empty review prints
 // an empty list rather than a missing one.
-func fill(d candidate.Draft) Result {
-	out := Result{Partial: d.Partial, TracePath: d.TracePath}
+//
+// ADR-0044: fill sets each finding's ProofLevel from its strongest evidence and counts the findings by
+// level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
+func fill(d candidate.Draft) (Result, error) {
+	out := Result{Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{}}
+	for _, l := range ProofLevels {
+		out.ProofCounts[l] = 0
+	}
 	for _, c := range d.Findings {
 		f := Finding{
 			ID: c.ID, RuleID: c.RuleID, Title: c.Title, Message: c.Message,
@@ -261,6 +290,12 @@ func fill(d candidate.Draft) Result {
 		for _, e := range c.Evidence {
 			f.Evidence = append(f.Evidence, toEvidence(e))
 		}
+		level, err := ProofLevelOf(f.Evidence)
+		if err != nil {
+			return Result{}, fmt.Errorf("finding %s: %w", c.ID, err)
+		}
+		f.ProofLevel = level
+		out.ProofCounts[level]++
 		out.Findings = append(out.Findings, f)
 	}
 	for _, s := range d.Failed {
@@ -280,7 +315,7 @@ func fill(d candidate.Draft) Result {
 	if out.FailedServices == nil {
 		out.FailedServices = []ServiceFailure{}
 	}
-	return out
+	return out, nil
 }
 
 // toEvidence copies one piece of evidence across the seam, field by field.
@@ -299,6 +334,15 @@ func toEvidence(e candidate.Evidence) Evidence {
 			SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
 			Rows:    copyRows(q.Rows),
+		}
+	}
+	if e.Tool != nil {
+		// ADR-0040: the tool, its version, the command and both sides cross the seam together.
+		t := *e.Tool
+		out.Tool = &ToolEvidence{
+			Tool: t.Tool, Version: t.Version, Command: t.Command,
+			Output: t.Output, BaseOutput: t.BaseOutput,
+			PresentOnChange: t.PresentOnChange, PresentOnBase: t.PresentOnBase,
 		}
 	}
 	return out
@@ -357,6 +401,18 @@ func osvConfig(err error) error {
 // limitConfig turns a refused adapter-bound setting into the seam's *ConfigError.
 func limitConfig(err error) error {
 	var cfg *limit.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// readLimitConfig turns a refused read-bound setting into the seam's *ConfigError.
+func readLimitConfig(err error) error {
+	var cfg *change.LimitError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

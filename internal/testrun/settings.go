@@ -20,6 +20,9 @@ const (
 	EnvMemory          = "PROVEN_TEST_MEMORY"
 	EnvTimeout         = "PROVEN_TEST_TIMEOUT"
 	EnvMaxWrittenBytes = "PROVEN_TEST_MAX_WRITTEN_BYTES"
+	EnvUser            = "PROVEN_TEST_USER"
+	EnvPidsLimit       = "PROVEN_TEST_PIDS"
+	EnvTmpSize         = "PROVEN_TEST_TMP_SIZE"
 )
 
 // ConfigError names a refused container setting and the values that are allowed.
@@ -69,6 +72,12 @@ func Load(env func(string) string) (ContainerConfig, error) {
 	if raw := env(EnvMemory); raw != "" {
 		cfg.Memory = raw
 	}
+	if raw := env(EnvUser); raw != "" {
+		cfg.User = raw
+	}
+	if raw := env(EnvTmpSize); raw != "" {
+		cfg.TmpSize = raw
+	}
 	// Timeout and size are parsed here because the type changes; a value that
 	// parses but is not positive is refused by Validate below.
 	if raw := env(EnvTimeout); raw != "" {
@@ -85,6 +94,13 @@ func Load(env func(string) string) (ContainerConfig, error) {
 		}
 		cfg.MaxWrittenBytes = n
 	}
+	if raw := env(EnvPidsLimit); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return ContainerConfig{}, refuse(EnvPidsLimit, clip(raw), "not a positive number of processes", pidsAllowed())
+		}
+		cfg.PidsLimit = n
+	}
 	if err := cfg.Validate(); err != nil {
 		return ContainerConfig{}, fromSetting(err)
 	}
@@ -99,6 +115,10 @@ func timeoutAllowed() string {
 
 func bytesAllowed() string {
 	return fmt.Sprintf("a positive integer; empty means %d", DefaultMaxWrittenBytes)
+}
+
+func pidsAllowed() string {
+	return fmt.Sprintf("a positive integer of at most %d; empty means %d", maxPidsLimit, defaultPids)
 }
 
 // refuse builds a ConfigError with one allowed form.
@@ -136,6 +156,12 @@ func envName(field string) string {
 		return EnvMemory
 	case "MaxWrittenBytes":
 		return EnvMaxWrittenBytes
+	case "User":
+		return EnvUser
+	case "PidsLimit":
+		return EnvPidsLimit
+	case "TmpSize":
+		return EnvTmpSize
 	default:
 		return field
 	}
@@ -159,5 +185,8 @@ func Environment() []envdoc.Setting {
 		{Name: EnvMemory, Default: envdoc.Tick(defaultMemory), Description: "the memory limit of one test run; a positive size with suffix b, k, m or g"},
 		{Name: EnvTimeout, Default: envdoc.Tick(envdoc.SecondSpec(defaultTimeout)), Description: "the limit for one test run, base or change"},
 		{Name: EnvMaxWrittenBytes, Default: envdoc.Tick(strconv.Itoa(DefaultMaxWrittenBytes)), Description: "the largest test file the Prover may write"},
+		{Name: EnvUser, Default: envdoc.Tick(defaultUser), Description: "the unprivileged user and group the test runs as, as numbers; root is refused"},
+		{Name: EnvPidsLimit, Default: envdoc.Tick(strconv.Itoa(defaultPids)), Description: "the most processes one test run may start; at most 4096"},
+		{Name: EnvTmpSize, Default: envdoc.Tick(defaultTmpSize), Description: "the size limit of the writable scratch mount; a positive size of at most 1g with suffix b, k, m or g"},
 	}
 }

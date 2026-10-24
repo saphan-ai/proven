@@ -270,7 +270,7 @@ func (g *countGen) Complete(_ context.Context, agent, _ string) (string, error) 
 	case "planner":
 		return `[{"id":"F1","rule_id":"r","title":"t","message":"m","severity":"ERROR","path":"note.txt","start_line":1,"end_line":1}]`, nil
 	case "investigator":
-		return `{"sql":"SELECT 1"}`, nil
+		return `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`, nil
 	default:
 		return `{}`, nil
 	}

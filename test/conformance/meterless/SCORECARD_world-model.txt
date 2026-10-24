@@ -1,5 +1,5 @@
 
-World Model conformance: implementation = /home/mmarzec/.saphan/workspaces/wt-meterless-conformance-shim/conformance/meterless/world-model/index.ts
+World Model conformance: implementation = test/conformance/meterless/world-model/index.ts
 
   PASS sid-001 stable ids: diacritics and NBSP normalize identically (NFKD + strip marks)
   PASS sid-002 stable ids: distinct names stay distinct (no over-normalization)
