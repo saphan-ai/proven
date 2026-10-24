@@ -28,13 +28,16 @@ import (
 // the container starts; the run then fails and Run reports the Prover down.
 
 // The documented defaults of the container settings (ADR-0013, ADR-0025
-// point 5). checkoutDir is where the one checkout is mounted inside.
+// point 5). CheckoutDir is where the one checkout is mounted inside.
+// A tool database has to be a path under it: the container has no other
+// volume and no network.
 const (
 	defaultRuntime = "docker"
 	defaultImage   = "golang:1.26"
 	defaultCPUs    = "1"
 	defaultMemory  = "512m"
-	checkoutDir    = "/checkout"
+	// CheckoutDir is the checkout mount inside the container (ADR-0025).
+	CheckoutDir = "/checkout"
 
 	// defaultUser is "nobody" and its group, a fixed unprivileged identity that
 	// exists in common images and owns nothing in the checkout (ADR-0025).
@@ -456,8 +459,8 @@ func (c *Container) argv(dir string, test []string, name string) []string {
 		args = append(args, "-e", e)
 	}
 	args = append(args,
-		"-v", host+":"+checkoutDir+":ro",
-		"--workdir", checkoutDir,
+		"-v", host+":"+CheckoutDir+":ro",
+		"--workdir", CheckoutDir,
 		c.cfg.Image,
 	)
 	// ADR-0025: the words after the image are the test command Proven built.

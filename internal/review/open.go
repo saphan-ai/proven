@@ -21,6 +21,7 @@ import (
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
+	"github.com/saphan-ai/proven/internal/tool"
 )
 
 // open is Open. It refuses a missing LogDir, loads proven.yaml when the shell named one, and in live
@@ -176,6 +177,20 @@ func open(opts Options) (Reviewer, error) {
 				popts.TestRun = box
 			}
 		}
+		// ADR-0043: the govulncheck database and the tool time limit are settings.
+		// A wrong value stops Open. An empty database is allowed: the tool is
+		// named as not run and Go findings stay not measured. Sample mode
+		// skips this block and does not read either variable.
+		db, derr := tool.LoadDB(env)
+		if derr != nil {
+			return nil, toolConfig(derr)
+		}
+		popts.GovulnDB = db
+		tlim, terr2 := tool.Load(env)
+		if terr2 != nil {
+			return nil, toolConfig(terr2)
+		}
+		popts.ToolTimeout = tlim
 		// ADR-0013: the KEV view and the adapter bound are settings. A wrong
 		// value stops Open before any review. Sample mode skips this block
 		// and does not read either variable.
@@ -479,6 +494,18 @@ func guardrailConfig(err error) error {
 // epssConfig turns a refused EPSS view setting into the seam's *ConfigError.
 func epssConfig(err error) error {
 	var cfg *epss.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// toolConfig turns a refused tool setting into the seam's *ConfigError.
+func toolConfig(err error) error {
+	var cfg *tool.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

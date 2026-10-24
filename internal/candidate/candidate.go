@@ -3,8 +3,10 @@
 // The Planner fills a Risk. The Investigator and the Prover add Evidence, the
 // Skeptic fills the Refutation, the Judge sets Dropped, Unresolved and
 // DropReason, and the Writer hands the kept ones to the seam as a Draft. The
-// Fixer, after the Judge, adds a Fix to a kept finding (ADR-0042). Each
-// agent only adds its own part, so the trace can show who said what.
+// Fixer, after the Judge, adds a Fix to a kept finding (ADR-0042). A
+// dependency finding also carries its ecosystem and, after govulncheck, a
+// reachability label (ADR-0043). Each agent only adds its own part, so the
+// trace can show who said what.
 //
 // The package has no dependency on the seam (internal/review), so the agents
 // never import the shell's types; review.Open converts a Draft to a Result.
@@ -203,7 +205,31 @@ type Candidate struct {
 	QueryNote string
 	// Fix is the Fixer's proposal for this finding, or nil when it made none (ADR-0042).
 	Fix *Fix
+	// Ecosystem is the OSV ecosystem of a dependency finding, for example "Go".
+	// Empty when the finding did not come from the dependency check.
+	Ecosystem string
+	// ReachLabel is how far the vulnerable function was measured (ADR-0043).
+	// It is ReachReached, ReachImported or ReachNotMeasured, or empty when
+	// the finding is not a dependency finding.
+	ReachLabel string
+	// CallPath is the call path govulncheck printed. It is set only when
+	// ReachLabel is ReachReached.
+	CallPath string
 }
+
+// How far a dependency finding's vulnerable function was measured (ADR-0043).
+// A reached function ranks above one that is only present. A finding is never
+// dropped because it was not reached.
+const (
+	// ReachReached means the vulnerable function is called from the change.
+	ReachReached = "reached"
+	// ReachImported means the dependency is present and the vulnerable function is not called.
+	ReachImported = "imported but not reached"
+	// ReachNotMeasured means no tool measured this finding. Other ecosystems
+	// have no such tool. A Go finding is also not measured when govulncheck
+	// did not answer: that is never reported as not reached.
+	ReachNotMeasured = "not measured"
+)
 
 // The four things one reviewer can say about a risk (ADR-0037 point 4).
 const (

@@ -6,7 +6,8 @@
 // outcome and starts no container. Runner runs the command in the Prover's
 // container, with no network and no secret (ADR-0025), under the time limit
 // from PROVEN_TOOL_TIMEOUT (ADR-0013). A tool that cannot run is named.
-// The race detector is the first tool.
+// The race detector is the first tool. govulncheck is the second:
+// it labels Go dependency findings with reachability (ADR-0043).
 package tool
 
 import (
