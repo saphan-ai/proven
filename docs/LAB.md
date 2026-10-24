@@ -20,9 +20,12 @@ else changes.
 
 - **Both reviewers look at every change.** They work independently: neither is shown the other's answer. A change
   under review cannot narrow this for itself: `proven.yaml` is read from the baseline.
-- **Where they differ, the review says so.** A block *The reviewers disagree* shows each model's verdict on the
-  finding and its reason. The two are shown side by side and never averaged. Evidence still decides what is
-  reported: a risk neither reviewer can prove is not a finding, however many models name it.
+- **Where they differ, the review says so.** Each finding carries both reviewers' verdicts and reasons, and the
+  review counts the disagreements; the two are kept side by side and never averaged. The block *The reviewers
+  disagree*, which shows them in the text, Markdown, HTML and pull-request comment output, and the verdicts in the
+  JSON and SARIF output, arrive with the shell train (see [ARCHITECTURE.md](ARCHITECTURE.md)); the command line does
+  not render them yet. Evidence still decides what is reported: a risk neither reviewer can prove is not a finding,
+  however many models name it.
 - **Every review names its reviewers**, and whether either of them is the model that wrote the change.
 
 ## What it costs
