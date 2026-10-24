@@ -29,21 +29,27 @@ func TestStderrCarriesNoRawControlByteFromTheChange(t *testing.T) {
 	const name = "x\x1b[2Jy"
 	cases := []struct {
 		label string
-		bound int64
 		add   func(path string) error
 	}{
-		{"symlink named in the error", 0, func(p string) error { return os.Symlink("go.mod", p) }},
-		// Sample mode keeps the default bounds, so the file bound is set
-		// below the one oversize file; every fixture file is under 2 KiB.
-		{"over-bound file named in the error", 2048, func(p string) error { return os.WriteFile(p, make([]byte, 4096), 0o644) }},
+		{"symlink named in the error", func(p string) error { return os.Symlink("go.mod", p) }},
+		// Sample mode puts the default bounds back whatever the process held,
+		// so the file is one byte over the default bound. It is sparse: the
+		// size is checked before a byte is read.
+		{"over-bound file named in the error", func(p string) error {
+			f, err := os.Create(p)
+			if err != nil {
+				return err
+			}
+			if err := f.Truncate(change.DefaultLimits().File + 1); err != nil {
+				f.Close()
+				return err
+			}
+			return f.Close()
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.label, func(t *testing.T) {
 			dir := stderrFixture(t, name, c.add)
-			if c.bound > 0 {
-				previous := change.UseLimits(change.Limits{File: c.bound})
-				t.Cleanup(func() { change.UseLimits(previous) })
-			}
 			t.Chdir(t.TempDir())
 			var stdout, stderr bytes.Buffer
 			code := Run([]string{"scan", "--sample", dir}, emptyEnv, &stdout, &stderr, nil)
