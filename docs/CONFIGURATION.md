@@ -172,7 +172,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
 | `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` refuse when the `docker scout` plugin is installed and a fix is available. `make push` does not run Scout |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. This is the only published port |
+| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `LAB_BIND`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
 | `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
@@ -181,6 +181,19 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `GITEA_RUN_USER` | `git` | Account `make up` uses for every `gitea` command in the container. The image refuses that command as root, and `compose exec` is root when no user is named |
 | `DIND_HOST` | `dind` | Name of the Docker-in-Docker service |
 | `DIND_PORT` | `2375` | Port that daemon listens on inside the lab network. Not published on the host |
+| `LGTM_IMAGE` | `grafana/otel-lgtm` | The dashboard's image: collector, Prometheus, Tempo, Loki and Grafana in one container (ADR-0045). It is not part of Proven's image |
+| `LGTM_VERSION` | `0.11.0` | That image's tag. Not pulled when it was written; the first `make up` is the check |
+| `LGTM_INTERNAL_HOST` | `lgtm` | Name of that service on the lab network. The workflow's `OTEL_EXPORTER_OTLP_ENDPOINT` is built from it |
+| `LGTM_GRAFANA_PORT` | `3001` | Host port for Grafana, and so for the dashboard |
+| `LGTM_GRAFANA_CONTAINER_PORT` | `3000` | Port Grafana listens on inside the lab network |
+| `LGTM_OTLP_PORT` | `4318` | Host port for the collector's OTLP/HTTP endpoint, so a review run on the host can be exported to the lab too: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` |
+| `LGTM_OTLP_CONTAINER_PORT` | `4318` | Port the collector listens on inside the lab network |
+| `LGTM_DASHBOARD_UID` | `proven-review` | The dashboard's uid, from `lab/grafana/dashboards/proven-review.json`. `make up` prints the address built from it |
+| `LAB_OTEL_SERVICE_NAME` | `proven` | `OTEL_SERVICE_NAME` the lab's pull-request review is given |
+| `LAB_OTEL_METRIC_EXPORT_INTERVAL` | `1000` | `OTEL_METRIC_EXPORT_INTERVAL` it is given, in milliseconds. Short, so the dashboard moves while the review runs |
+| `LAB_SPECIAL_REVIEWER` | `qwen` | `special_reviewer` in the `proven.yaml` the lab's review runs with, so the dashboard has two reviewer models to show side by side (ADR-0009). Empty: one reviewer. The sample generator answers for both, so the findings do not change |
+| `LGTM_WAIT_SECONDS` | `120` | How long `make up` waits for Grafana before it goes on and names the delay |
+| `TRACE_WAIT_SECONDS` | `90` | How long `make trace` waits for the review's trace to reach the store |
 | `ACT_RUNNER_VERSION` | `0.2.11` | Gitea Actions runner image tag |
 | `DOCKER_VERSION` | `29.9.1` | Tag of the `docker` dind and cli images |
 | `PROVEN_TEST_IMAGE` | `golang:1.26` | The image the Prover runs each test in (also in the table above). `make up` pulls it into the lab's inner Docker daemon before the first review, so the Prover does not meet `No such image` there |
