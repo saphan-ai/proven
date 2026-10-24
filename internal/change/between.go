@@ -92,7 +92,7 @@ func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
 		if msg == "" {
 			msg = waitErr.Error()
 		}
-		return nil, &gitFailure{msg: offlineMessage(msg)}
+		return nil, &gitFailure{msg: offlineMessage(cmd, msg)}
 	}
 	return out, nil
 }
@@ -313,7 +313,7 @@ func gitZText(args []string) (string, error) {
 		if errors.As(err, &exitErr) && strings.TrimSpace(string(exitErr.Stderr)) != "" {
 			detail = strings.TrimSpace(string(exitErr.Stderr))
 		}
-		return "", fmt.Errorf("git: %s", offlineMessage(detail))
+		return "", fmt.Errorf("git: %s", offlineMessage(cmd, detail))
 	}
 	return strings.TrimSpace(string(out)), nil
 }

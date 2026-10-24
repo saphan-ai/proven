@@ -73,4 +73,59 @@ func TestOfflineGitCommandCarriesBothSwitches(t *testing.T) {
 	if !strings.Contains(joined, "protocol.allow=never") || !strings.Contains(env, "GIT_NO_LAZY_FETCH=1") || !strings.Contains(env, "GIT_TERMINAL_PROMPT=0") || strings.Contains(env, marker) {
 		t.Fatalf("offline command: args %v env %s", c.Args, env)
 	}
+	for _, name := range transports {
+		if !strings.Contains(joined, "protocol."+name+".allow=never") {
+			t.Fatalf("offline command leaves transport %s to the configuration: %v", name, c.Args)
+		}
+	}
+}
+
+// TestOfflineGitRefusesATransportTheRepositoryConfigAllows proves ADR-0034 for git when a configuration
+// file Proven does not own (the repository's .git/config or the user's ~/.gitconfig, which git reads
+// through HOME) sets a per-protocol policy. protocol.<name>.allow wins over protocol.allow, so
+// "-c protocol.allow=never" alone does not close that transport. Every offline git command also
+// passes "-c protocol.<name>.allow=never" for file, git, http, https, ssh and ext.
+// Mutated field: protocol.file.allow in the clone's own config.
+func TestOfflineGitRefusesATransportTheRepositoryConfigAllows(t *testing.T) {
+	clone := partialClone(t)
+	git(t, clone, "config", "protocol.file.allow", "always")
+	defer UseOffline(UseOffline(true))
+	out, err := GitCommand("-C", clone, "ls-remote", "origin").CombinedOutput()
+	if err == nil {
+		t.Fatalf("offline git reached the origin through a per-protocol policy in the repository config:\n%s", out)
+	}
+}
+
+// TestOfflineBlobNamesTheModeOnEveryGit proves the refusal is named on a git that honours
+// GIT_NO_LAZY_FETCH quietly: "git show" then prints only "fatal: bad object <rev>:<path>", with no
+// "lazy fetching disabled" line. The reader is still told that the mode refused the fetch.
+func TestOfflineBlobNamesTheModeOnEveryGit(t *testing.T) {
+	clone := partialClone(t)
+	defer UseOffline(UseOffline(true))
+	_, _, err := Blob(clone, "HEAD", "f.txt")
+	if err == nil || !strings.Contains(err.Error(), "PROVEN_NETWORK=local") {
+		t.Fatalf("offline read of a missing blob is not named: %v", err)
+	}
+}
+
+// TestOfflineMessageNamesAQuietGitInAPartialClone feeds the words of a git that says only "bad object"
+// and proves the sentence comes from the repository being a partial clone, not from git's words. A
+// full clone with the same words is not named, and an absent path is still an answer, not a refusal.
+// Mutated field: the isPartialClone check of offlineMessage.
+func TestOfflineMessageNamesAQuietGitInAPartialClone(t *testing.T) {
+	clone := partialClone(t)
+	defer UseOffline(UseOffline(true))
+	quiet := "fatal: bad object HEAD:./f.txt"
+	partial := GitCommand("-C", clone, "show", "HEAD:./f.txt")
+	if got := offlineMessage(partial, quiet); !strings.Contains(got, "PROVEN_NETWORK=local") || !strings.Contains(got, quiet) {
+		t.Fatalf("a partial clone's quiet refusal is not named: %q", got)
+	}
+	if got := offlineMessage(partial, "fatal: path 'f.txt' does not exist in 'HEAD'"); strings.Contains(got, "PROVEN_NETWORK") {
+		t.Fatalf("an absent path was named as a refused fetch: %q", got)
+	}
+	full := t.TempDir()
+	git(t, full, "init", full)
+	if got := offlineMessage(GitCommand("-C", full, "show", "HEAD:./f.txt"), quiet); strings.Contains(got, "PROVEN_NETWORK") {
+		t.Fatalf("a full clone was named as a partial one: %q", got)
+	}
 }
