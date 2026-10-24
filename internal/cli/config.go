@@ -79,6 +79,7 @@ type config struct {
 	help            bool
 	version         bool
 	head            string
+	evidencePack    string // --evidence-pack: where the signed pack of ADR-0035 is written; "" writes none
 }
 
 // cliError is a refusal that carries its own exit code.
@@ -171,7 +172,7 @@ type holders struct {
 	sample, quiet, verbose, help, ver   boolPresence
 	textOutput, jsonOutput, sarifOutput setString
 	baseline, configPath, severity      setString
-	timeout, output                     setString
+	timeout, output, evidencePack       setString
 	include, exclude                    multiFlag
 }
 
@@ -182,6 +183,7 @@ func knownFlagNames() []string {
 		"--baseline-commit",
 		"--config",
 		"--error",
+		"--evidence-pack",
 		"--exclude",
 		"--help",
 		"--include",
@@ -242,6 +244,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	fs.Var(&h.sample, "sample", "use the sample reviewer")
 	fs.Var(&h.quiet, "quiet", "suppress the progress line")
 	fs.Var(&h.verbose, "verbose", "print the request on standard error")
+	fs.Var(&h.evidencePack, "evidence-pack", "write a signed evidence pack to this file")
 	fs.Var(&h.help, "help", "show help")
 	fs.Var(&h.ver, "version", "show the version")
 	return fs, h
@@ -266,7 +269,7 @@ func refusedBoolFlag(h *holders) (string, string, bool) {
 // which arrange needs to keep a value from being read as the command.
 func isValueFlag(name string) bool {
 	switch name {
-	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout":
+	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout", "evidence-pack":
 		return true
 	default:
 		return false
@@ -427,6 +430,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		return config{}, err
 	}
 	cfg.sample = sample
+	cfg.evidencePack = h.evidencePack.v
 	cfg.quiet = h.quiet.set && h.quiet.v
 	cfg.verbose = h.verbose.set && h.verbose.v
 	return cfg, nil

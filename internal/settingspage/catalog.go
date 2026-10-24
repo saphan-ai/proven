@@ -10,6 +10,7 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/epss"
+	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
@@ -42,6 +43,9 @@ const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the
 
 // evidenceAfter follows the evidence table. It is not a setting.
 const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. couchdb is named and refused until it is built. Sample mode uses the local store on the fixture file and reads none of these."
+
+// packAfter follows the evidence-pack table. It is not a setting.
+const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
@@ -91,6 +95,11 @@ func Catalog() []envdoc.Section {
 			Heading: "Reads of the repository under review",
 			Rows:    change.Environment(),
 			After:   readsAfter,
+		},
+		{
+			Heading: "The evidence pack",
+			Rows:    evidence.Environment(),
+			After:   packAfter,
 		},
 	}
 }
