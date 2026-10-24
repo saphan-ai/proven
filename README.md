@@ -216,8 +216,12 @@ somewhere they do not:
   air-gapped. It reviews every pull request, not a nightly scan.
 - **More than one model, in the open.** Proven names the models that reviewed each change. Connect a second reviewer
   and you see both verdicts, and exactly where they disagree.
-- **Proof anyone can rerun**: a test that passes on the old code and fails on the new, or a query and the rows it
-  returned. No exploit code is written or kept.
+- **An agent is not trusted, even when it is not malicious.** A model's answer is treated as untrusted input: the
+  change's code runs only in a container with no network and no secret, and the command run there is built by Proven,
+  never taken from a model.
+- **Proof anyone can rerun, and the test fails first**: a test that passes on the old code and fails on the new, or a
+  query and the rows it returned. A finding whose test does not fail on the change is not proved. No exploit code is
+  written or kept.
 - **A fix is proved too**: the same test that showed the problem shows the fix works.
 
 ## Who builds it
@@ -229,7 +233,7 @@ Two different groups of AI agents appear in this project. Do not mix them up:
 | **The fleet that builds Proven** | coding agents run by Saphan Studio, with Marcin | plan each change, write the code, test it independently, review it, and hand Marcin a decision |
 | **The agents inside Proven** | Proven's own reviewers, once built | review someone else's pull request: plan, gather evidence, try to refute, judge, write the report |
 
-In the fleet, four Cursor agents write the product code. Other agents plan the work, write tests separately from the code, and review each change without having written it. Marcin sets the goals, rules on scope, settles disputes the evidence cannot settle, and approves every merge. An agent can recommend; only he can approve. How the fleet is organized is explained in **[SAPHAN.md](hackathon/SAPHAN.md)**.
+In the fleet, four Cursor agents write the product code. Other agents plan the work, write tests separately from the code, and review each change without having written it. Marcin sets the goals, rules on scope, settles disputes the evidence cannot settle, and approves every merge. An agent can recommend; only he can approve. No agent ever pushes: each change is built in its own copy of the repository, and only Marcin merges and pushes. How the fleet is organized is explained in **[SAPHAN.md](hackathon/SAPHAN.md)**.
 
 ## Follow the work
 
@@ -237,11 +241,9 @@ In the fleet, four Cursor agents write the product code. Other agents plan the w
 - **[The diary](hackathon/planning/CONVERSATIONS.md)**: every conversation between Marcin and the fleet, day by day.
 - **[Watch it being built, slice by slice](hackathon/fleet/)**: from 22 October, each change arrives with the request that asked for it, the builder's report, the independent review and Marcin's decision.
 - **[Design decisions](docs/adr/)**: what was decided, and why.
-- **[What it costs](hackathon/fleet/LEDGER.md)**: the recorded cost of every change, by model.
+- **[How each change went](hackathon/fleet/LEDGER.md)**: every change's rounds, the conditions its reviews raised, and its outcome.
 - **[Security](SECURITY.md)**: what Proven treats as untrusted, what it protects and how, and **[how its code is reviewed for security as a whole](docs/security/SECURITY_REVIEW.md)**, piece by piece.
 - **[How to code with Saphan Studio, step by step](https://github.com/saphan-ai/quake-watch-server)**: published alongside Proven, a sample app built as a series. First the server, an earthquake alert service on the USGS public feed; the mobile clients follow in their own repositories. Every step is recorded as it is built: the order, the agents' work, the review and the owner's decision.
-
-Every agent run records its model and the cost Saphan Studio measured for it. Where a cost was not measured, such as interactive planning sessions, or a share of a subscription the tools cannot read yet, the document says so and why. These figures are what the AI models cost; machines and human time are not included.
 
 **Updates:** once a day at **15:00 UTC** (22:00 in Bangkok; 17:00 in Warsaw until 25 October, 16:00 after). The last push comes before submissions close on 27 October, 23:45 UTC.
 
@@ -273,7 +275,7 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 | `SECURITY.md` | what Proven protects, and how to report a vulnerability |
 | `test/` | the test corpus (`test/corpus/`) and the Meterless conformance runner (`test/conformance/`) |
 | `testdata/`, `demo/`, `assets/` | sample scenarios, the live demo, images |
-| `hackathon/` | the build week's record: `fleet/` (every change's order, report, review and cost), `planning/` (the topic, the daily conversations), `SAPHAN.md`, `DESIGN.md` |
+| `hackathon/` | the build week's record: `fleet/` (every change's order, report, review and decision), `planning/` (the topic, the daily conversations), `SAPHAN.md`, `DESIGN.md` |
 | `metadata.json`, `metadata.schema.json` | the hackathon's submission metadata, at the root until the hackathon ends |
 
 ## For technical readers
@@ -285,7 +287,7 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 | [SAPHAN.md](hackathon/SAPHAN.md) | the platform that runs the fleet, its roles and vocabulary |
 | [AGENTS.md](AGENTS.md) | the rules every agent follows in this repository |
 | [planning/](hackathon/planning/) | how the topic was chosen, and the fleet's answers |
-| [fleet/](hackathon/fleet/) | orders, reports, reviews, decisions and the cost ledger, with their templates |
+| [fleet/](hackathon/fleet/) | orders, reports, reviews, decisions and the ledger of every change, with their templates |
 
 **Pre-existing components:** [Saphan Studio](https://saphan.ai/) runs the fleet; it is not part of this submission and not in this repository. The [Meterless engine specifications](https://github.com/Meterless/Meterless) (Apache-2.0) are open source; we build to them and do not copy their reference code. Model providers, tools and data sources are listed as they are used.
 
