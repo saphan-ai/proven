@@ -22,6 +22,10 @@ import (
 // file is refused before it is held in memory.
 const maxEntry = 512 << 20
 
+// maxPack bounds the whole file VerifyFile reads: nine files of at most
+// maxEntry, with the headers and padding, fit in it.
+const maxPack = 9*maxEntry + 1<<20
+
 // The checks Verify makes, in order. A Refusal names one.
 const (
 	CheckFormat    = "format"
@@ -110,9 +114,17 @@ var notChecked = []string{
 
 // VerifyFile reads the pack at path and verifies it against pub.
 func VerifyFile(packPath string, pub ed25519.PublicKey) (*Report, error) {
-	body, err := os.ReadFile(packPath)
+	f, err := os.Open(packPath)
 	if err != nil {
 		return nil, refuse(CheckFormat, "", "the pack cannot be read: %v", err)
+	}
+	defer f.Close()
+	body, err := io.ReadAll(io.LimitReader(f, maxPack+1))
+	if err != nil {
+		return nil, refuse(CheckFormat, "", "the pack cannot be read: %v", err)
+	}
+	if len(body) > maxPack {
+		return nil, refuse(CheckFormat, "", "larger than the %d byte bound", maxPack)
 	}
 	return Verify(body, pub)
 }
@@ -176,9 +188,17 @@ func Verify(pack []byte, pub ed25519.PublicKey) (*Report, error) {
 		if !present {
 			return nil, refuse(CheckMissing, ref.Path, "the manifest lists it and the pack does not hold it")
 		}
+		if ref.Size != len(data) {
+			return nil, refuse(CheckHash, ref.Path, "size is %d, the manifest says %d", len(data), ref.Size)
+		}
 		sum := sha256.Sum256(data)
 		if got := hex.EncodeToString(sum[:]); got != ref.SHA256 {
 			return nil, refuse(CheckHash, ref.Path, "sha256 is %s, the manifest says %s", got, ref.SHA256)
+		}
+	}
+	for _, name := range Required {
+		if !listed[name] {
+			return nil, refuse(CheckMissing, name, "the pack format requires it and the manifest does not list it")
 		}
 	}
 	var extra []string

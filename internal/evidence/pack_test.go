@@ -258,6 +258,7 @@ func TestThePrivateKeyNeverEntersThePack(t *testing.T) {
 
 func TestAnArchiveThatIsNotAFlatFileListIsRefused(t *testing.T) {
 	_, pub := sampleInput(t)
+	wantDetail := map[string]string{"duplicate": "holds the name twice", "path": "not a plain file name", "symlink": "not a regular file"}
 	for name, mk := range map[string]func(*tar.Writer){
 		"duplicate": func(tw *tar.Writer) {
 			for i := 0; i < 2; i++ {
@@ -280,7 +281,7 @@ func TestAnArchiveThatIsNotAFlatFileListIsRefused(t *testing.T) {
 			tw.Close()
 			_, err := Verify(buf.Bytes(), pub)
 			var r *Refusal
-			if !errors.As(err, &r) || r.Check != CheckFormat {
+			if !errors.As(err, &r) || r.Check != CheckFormat || !strings.Contains(r.Detail, wantDetail[name]) {
 				t.Fatalf("got %v", err)
 			}
 		})

@@ -32,11 +32,19 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/review"
+	"github.com/saphan-ai/proven/internal/service"
 )
+
+// Required lists the files every pack holds, besides the manifest and its
+// signature. Verify refuses a pack that lacks one, whatever the signed
+// manifest lists: a manifest that leaves out settings.json is signed and
+// still not a pack.
+var Required = []string{FindingsName, TraceName, TestsName, QueriesName, ReceiptsName, CommitsName, SettingsName}
 
 // File names inside a pack. The manifest and its signature are not listed in
 // the manifest: a file cannot hold its own hash.
@@ -130,6 +138,13 @@ func Build(in Input) ([]byte, error) {
 func build(in Input) ([]byte, error) {
 	if len(in.Key) != ed25519.PrivateKeySize {
 		return nil, errors.New("evidence pack: no signing key")
+	}
+	// The redactor replaces every configured value, but a value this short would
+	// also replace ordinary text in the pack, and a pack is evidence: no short
+	// secret is kept out of it by luck, so none is accepted. The refusal names
+	// the variables and never their values.
+	if short := in.Redactor.Shorter(service.MinSecretBytes); len(short) > 0 {
+		return nil, fmt.Errorf("evidence pack: not written, because the configured secret %s is shorter than %d bytes and cannot be kept out of a pack; set a longer value", strings.Join(short, ", "), service.MinSecretBytes)
 	}
 	files, err := collect(in)
 	if err != nil {
