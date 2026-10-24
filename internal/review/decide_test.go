@@ -81,6 +81,8 @@ func TestClassRules(t *testing.T) {
 		{"db/migrations/001.sql", "security", "**/migrations/**"},
 		{"go.mod", "security", "go.mod"},
 		{"service/go.mod", "security", "go.mod"},
+		{"composer.json", "security", "composer.json"},
+		{"app/composer.lock", "security", "composer.lock"},
 		{"README.md", "docs", "**/*.md"},
 		{"docs/guide.md", "docs", "**/*.md"},
 		{"billing/discount.go", "backend", "fallback"},

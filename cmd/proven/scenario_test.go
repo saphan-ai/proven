@@ -68,6 +68,33 @@ func TestOSVGoModuleShowsTheRangeAndTheEPSSScore(t *testing.T) {
 	}
 }
 
+// TestOSVPHPComposerReportsTheDependency proves the Packagist adapter
+// reports the raised Composer package from composer.lock, inside one
+// sample range and outside the other. Dropping Composer and ComposerLock
+// from manifest.Readers is what turns this test red.
+func TestOSVPHPComposerReportsTheDependency(t *testing.T) {
+	body, _ := scanScenario(t, "osv-php-composer")
+	for _, want := range []string{
+		"review class: security",
+		"review rule: composer.json",
+		"finding osv:monolog/monolog ERROR Dependency monolog/monolog 2.9.1 is in an OSV affected range",
+		"EPSS 0.25000 (91st percentile, 2026-10-24)",
+		"composer.lock:5-5",
+		"introduced 2.4.0 <= 2.9.1 < fixed 2.10.0",
+		"GHSA-php-sample-0002 does not match: 2.9.1 < introduced 3.0.0",
+		"alias CVE-2026-9090 is on the KEV list",
+		"ecosystem = 'Packagist' AND package = 'monolog/monolog'",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "other/unused") {
+		t.Fatalf("an unrelated package was queried\n%s", body)
+	}
+}
+
 func TestUnknownAuthorSaysTheDefaultReviewer(t *testing.T) {
 	body, _ := scanScenario(t, "unknown-author")
 	for _, want := range []string{

@@ -17,8 +17,10 @@ func NPM() Reader {
 		Match: func(path string) bool {
 			return path == "package.json" || strings.HasSuffix(path, "/package.json")
 		},
-		Diff:  diffNPM,
-		Notes: npmNotes,
+		Diff:    diffNPM,
+		Compare: semver.Compare,
+		Explain: semver.Explain,
+		Notes:   npmNotes,
 	}
 }
 

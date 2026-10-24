@@ -127,8 +127,8 @@ func (f Facts) Binds(req querytpl.Request) bool {
 	return false
 }
 
-// Check reads Go, npm and PyPI packages the change added or raised, queries
-// the OSV table once per package, and compares the version for that ecosystem.
+// Check reads the packages the registered adapters report, queries the OSV
+// table once per package, and compares the version with that adapter.
 // A lock file contributes the packages it pins. When a manifest and its lock
 // file both name a package, the lock file's version is the one compared.
 // A lock file that cannot be parsed adds a trace note and no finding.
@@ -148,13 +148,10 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 	if err != nil {
 		return Outcome{}, err
 	}
-	// Each ecosystem has a manifest reader and a lock reader. Collect pairs
-	// them, so a package both name is queried once, at the lock file's version.
-	hits, notes, err := manifest.Collect(files, []manifest.Reader{
-		manifest.Go(), manifest.GoSum(),
-		manifest.NPM(), manifest.NPMLock(),
-		manifest.PyPI(), manifest.Poetry(),
-	})
+	// ADR-0038: the languages live in the adapter list. Collect pairs a
+	// manifest with its lock file, so a package both name is queried once,
+	// at the lock file's version.
+	hits, notes, err := manifest.Collect(files, manifest.Readers())
 	if err != nil {
 		return Outcome{}, err
 	}

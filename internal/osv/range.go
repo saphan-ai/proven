@@ -3,7 +3,7 @@ package osv
 import (
 	"strings"
 
-	"github.com/saphan-ai/proven/internal/pep440"
+	"github.com/saphan-ai/proven/internal/manifest"
 	"github.com/saphan-ai/proven/internal/semver"
 )
 
@@ -12,69 +12,38 @@ import (
 // A non-empty fixed is an exclusive upper bound and wins over last_affected.
 // When fixed is empty, last_affected is an inclusive upper bound.
 // When both ends are empty, every version this comparer accepts at or after
-// introduced matches. Go and npm use semantic versions.
+// introduced matches. This function compares semantic versions. An ecosystem
+// uses its own adapter (InRangeEcosystem).
 // The string is the comparison, whether or not the version is inside the range.
 func InRange(version, introduced, fixed, last string) (bool, string) {
-	return inRange(version, introduced, fixed, last, explainSemver, semver.Compare)
+	return inRange(version, introduced, fixed, last, semver.Explain, semver.Compare)
 }
 
 // InRangeEcosystem is InRange for one package ecosystem.
-// Go and npm use semantic versions. PyPI uses PEP 440 release, pre-release
-// and post-release forms. Any other ecosystem is not compared.
+// The order is the adapter's, not a switch kept beside it (ADR-0038): Go and
+// npm compare semantic versions, PyPI compares PEP 440, and a later language
+// brings its own Compare and Explain. An ecosystem with no adapter is not
+// compared.
 func InRangeEcosystem(ecosystem, version, introduced, fixed, last string) (bool, string) {
-	switch ecosystem {
-	case "Go", "npm":
-		return InRange(version, introduced, fixed, last)
-	case "PyPI":
-		return inRange(version, introduced, fixed, last, explainPyPI, pep440.Compare)
-	default:
+	r, ok := manifest.ByEcosystem(ecosystem)
+	if !ok {
 		return false, "ecosystem " + ecosystem + " has no version comparison"
 	}
+	return inRange(version, introduced, fixed, last, r.Explain, r.Compare)
 }
 
 // Uncompared says why version cannot be ordered in ecosystem.
 // It is empty when the version can be compared.
 func Uncompared(ecosystem, version string) string {
-	switch ecosystem {
-	case "Go", "npm":
-		why, ok := explainSemver("", version)
-		if ok {
-			return ""
-		}
-		return why
-	case "PyPI":
-		why, ok := explainPyPI("", version)
-		if ok {
-			return ""
-		}
-		return why
-	default:
+	r, ok := manifest.ByEcosystem(ecosystem)
+	if !ok {
 		return "ecosystem " + ecosystem + " has no version comparison"
 	}
-}
-
-// explainSemver says why value is not a semantic version. kind names the
-// bound the value came from, and is empty for the package's own version.
-func explainSemver(kind, value string) (string, bool) {
-	if _, ok := semver.Parse(value); ok {
-		return "", true
+	why, parsed := r.Explain("", version)
+	if parsed {
+		return ""
 	}
-	if kind == "" {
-		return value + " is not a semantic version", false
-	}
-	return kind + " " + value + " is not a semantic version", false
-}
-
-// explainPyPI says why value is not a PEP 440 form this check compares.
-func explainPyPI(kind, value string) (string, bool) {
-	if _, ok := pep440.Parse(value); ok {
-		return "", true
-	}
-	why := pep440.Reject(value)
-	if kind == "" {
-		return why, false
-	}
-	return kind + " " + why, false
+	return why
 }
 
 // inRange is the comparison behind InRange and InRangeEcosystem. Each value

@@ -1,7 +1,10 @@
 // Package manifest reads dependency manifests and lock files and names the
 // packages a change added or raised. Go (go.mod and go.sum), npm
-// (package.json and package-lock.json) and PyPI (requirements.txt and
-// poetry.lock) each have a manifest reader and a lock reader.
+// (package.json and package-lock.json), PyPI (requirements.txt and
+// poetry.lock) and Packagist (composer.json and composer.lock) each have
+// a manifest reader and a lock reader. Each reader is an Adapter: the
+// files, the diff, the OSV ecosystem name, and the version comparison
+// (ADR-0038).
 //
 // It feeds the dependency check of the review, which runs with no model:
 // osv.Check calls Collect, queries the OSV table once per package it gets
@@ -40,9 +43,9 @@ type Change struct {
 }
 
 // Hit is a Change plus the manifest it came from.
-// Ecosystem is the OSV ecosystem name, Go, npm or PyPI; the query filters
-// the table's ecosystem column on it. File is the slash path of the
-// manifest under the change root.
+// Ecosystem is the OSV ecosystem name the adapter declares. The query
+// filters the table's ecosystem column on it. File is the slash path of
+// the manifest under the change root.
 // Lock is set when the hit came from a lock file.
 type Hit struct {
 	Ecosystem string
@@ -51,7 +54,9 @@ type Hit struct {
 	Change
 }
 
-// Reader reads one manifest kind.
+// Reader reads one manifest kind. It is the adapter of one ecosystem
+// (ADR-0038): which files, how a base and a change differ, the OSV
+// ecosystem name, and how two versions compare. Adapter is the same type.
 // Notes, when set, names lines of the change side that were not dependencies.
 // Each string is one sentence the OSV check writes to the trace.
 // Lock is set for a lock file. preferLock then keeps that hit and drops the
@@ -62,10 +67,19 @@ type Hit struct {
 // this kind; it matches the exact file name, never a suffix like .bak.
 // Diff names what the change side adds or raises over the base side. A
 // file that exists on one side only reaches it as empty bytes on the other.
+// Compare orders two versions by this ecosystem's rules. The bool is false
+// when either string is not a version this adapter compares. It is the same
+// order Diff uses, so a raise and an OSV range cannot disagree.
+// Explain says why a value is not such a version. kind is the bound name
+// (introduced, fixed, last_affected) or empty for the package version.
+// The bool is true when the value parses. A nil Explain means this
+// ecosystem is not compared.
 type Reader struct {
 	Ecosystem string
 	Match     func(path string) bool
 	Diff      func(base, change []byte) ([]Change, error)
+	Compare   func(a, b string) (int, bool)
+	Explain   func(kind, value string) (string, bool)
 	Notes     func(change []byte) []string
 	Lock      bool
 	NoteErr   bool
@@ -78,7 +92,9 @@ func Go() Reader {
 		Match: func(path string) bool {
 			return path == "go.mod" || strings.HasSuffix(path, "/go.mod")
 		},
-		Diff: diffGo,
+		Diff:    diffGo,
+		Compare: semver.Compare,
+		Explain: semver.Explain,
 	}
 }
 
