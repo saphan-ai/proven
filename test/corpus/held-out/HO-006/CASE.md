@@ -72,7 +72,19 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-To be recorded by the fixture round. **Not run**: the case code is not built yet.
+Recorded 2026-10-24T16:12Z on Linux. Toolchain: POSIX `sh` (here `dash`) for the project's check script, and Bash with `git version 2.43.0`, `cp`, `grep`, `wc` and `mktemp` for the case's check. macOS was not run: no macOS host was available.
+
+The check builds three trees under `.saphan/work/corpus-ho-006/` inside the checkout and removes them on exit. `base-tree` is a copy of `base/`. For the change it makes a repository of its own (with no global or system git configuration and no hooks), commits the tracked files of `change/`, and calls that the dirty tree. It then makes the clean tree with `git clone` of that repository, so it holds only what the change tracks. Last it copies the old `data/` directory into the dirty tree only; the check refuses to go on unless `git status --porcelain` there reads exactly `?? data/` and the clean tree has no `data/`. In `change/verify.sh` one path names the new directory (`records/`) and one still names the old one (`data/index.txt`). The result word is `ok` when the script exits 0 and `fail` otherwise. The reference labels are literals in `check.sh`; the script does not read them. In each line the column for the other version is `-`: the base is one tree, not a pair.
+
+Command, from the repository root:
+
+    bash test/corpus/held-out/HO-006/check.sh
+
+Exit code: 0
+
+    base base ok change - reference should pass
+    change-dirty base - change ok reference should fail
+    change-clean base - change fail reference should fail
 
 ## 9. Limits
 
