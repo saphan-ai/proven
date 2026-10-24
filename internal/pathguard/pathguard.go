@@ -64,5 +64,29 @@ func Inside(dir, root string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))), nil
+	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+		return true, nil
+	}
+	return sameFileAbove(rd, rr), nil
+}
+
+// sameFileAbove reports whether the nearest existing ancestor of dir (dir
+// itself when it exists), or any directory above that, is the same file as
+// root: the same device and inode. A spelling that differs only in letter case
+// on a file system that folds case names the same directory but not the same
+// string, so identity decides where the spelling cannot. A root that does not
+// exist has no identity, so it is never matched.
+func sameFileAbove(dir, root string) bool {
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		return false
+	}
+	for cur := dir; ; cur = filepath.Dir(cur) {
+		if info, err := os.Stat(cur); err == nil && os.SameFile(info, rootInfo) {
+			return true
+		}
+		if parent := filepath.Dir(cur); parent == cur {
+			return false
+		}
+	}
 }
