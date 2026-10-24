@@ -251,7 +251,7 @@ func TestEmptyURLOrOrgIDMeansZetarisIsDown(t *testing.T) {
 		t.Fatalf("empty environment: %v", err)
 	}
 	// Mutated field: ZETARIS_ORG_ID empty, the rest set.
-	_, err = query.Load(env(map[string]string{query.EnvRESTURL: "http://127.0.0.1:9/api/v1.0", query.EnvAPIKey: "k"}))
+	_, err = query.Load(env(map[string]string{query.EnvRESTURL: "http://127.0.0.1:9/api/v1.0", query.EnvAPIKey: "key-00001"}))
 	d, ok = service.As(err)
 	if !ok || d.Service != "zetaris" || !strings.Contains(d.Reason, query.EnvOrgID) {
 		t.Fatalf("empty org id: %v", err)
