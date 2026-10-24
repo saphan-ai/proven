@@ -2,13 +2,12 @@
 
 package cli
 
-// linkCount refuses an existing regular trace file.
-// The count is NumberOfLinks from GetFileInformationByHandle. That call is
-// in package syscall, and a production file under internal/ must not import
-// syscall, so the count is not read. Two is a second name: the load refuses
-// the file with the same exit and the same sentence as a real hard link.
-// A trace that already exists is refused on Windows, including a file that
-// has only one name.
+// linkCount reports one name for every file.
+// NumberOfLinks comes from GetFileInformationByHandle, in package syscall.
+// In Go 1.26.10 that call is GetFileInformationByHandle(handle, *ByHandleFileInformation).
+// A production file under internal/ must not import syscall, so the count
+// is not read. One means an existing trace file is not refused. A second
+// name on Windows is not distinguished from one name.
 func linkCount(string) (uint64, error) {
-	return 2, nil
+	return 1, nil
 }
