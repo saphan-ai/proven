@@ -248,12 +248,62 @@ func TestTraceFileHardLinkIntoTheTargetIsRefused(t *testing.T) {
 	if !bytes.Equal(before, after) {
 		t.Fatalf("linked file was written: before %q after %q", before, after)
 	}
-	root, err := filepath.EvalSymlinks(target)
-	if err != nil {
+	msg := stderr.String()
+	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, "trace file has 2 names") || !strings.Contains(msg, "remove or rename "+traceFile) {
+		t.Fatalf("stderr %q", msg)
+	}
+}
+
+// TestTraceFileSymlinkToALinkedFileIsRefused proves a trace.jsonl that is a
+// symlink is refused when the file the open would write has another name.
+// The directory check follows the link only to see where it lands. A landing
+// outside the target used to pass, and the append then wrote every name of
+// that file, including a name inside the target.
+// Unplug: the link-count check of the symlink's landing. The load exits 0
+// and a name of that file changes.
+// Mutated field: the link count of the file trace.jsonl names.
+func TestTraceFileSymlinkToALinkedFileIsRefused(t *testing.T) {
+	parent := t.TempDir()
+	target := filepath.Join(parent, "target")
+	copyTree(t, filepath.Join(moduleRoot(t), "testdata", "fixture", "discount"), target)
+	outside := filepath.Join(parent, "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	outsideFile := filepath.Join(outside, "kept.txt")
+	before := []byte{}
+	if err := os.WriteFile(outsideFile, before, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	insideName := filepath.Join(target, "kept.txt")
+	second := insideName
+	if cross := os.Link(outsideFile, insideName); cross != nil {
+		if !errors.Is(cross, syscall.EXDEV) {
+			t.Fatal(cross)
+		}
+		// The OS refused a link whose names are in different directories.
+		// The second name is created beside the outside file instead.
+		// The load reads the link count of the landing and not the other path.
+		second = filepath.Join(outside, "kept-link.txt")
+		if err := os.Link(outsideFile, second); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("measured cross-directory link: %v", cross)
+	}
+	if err := os.Symlink(outsideFile, filepath.Join(outside, traceFile)); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sample", target}, envOf(map[string]string{EnvLogDir: outside}), &stdout, &stderr, nil)
+	outsideAfter, outsideErr := os.ReadFile(outsideFile)
+	secondAfter, secondErr := os.ReadFile(second)
+	outsideChanged := outsideErr == nil && !bytes.Equal(before, outsideAfter)
+	secondChanged := secondErr == nil && !bytes.Equal(before, secondAfter)
+	if code != exitConfig || outsideChanged || secondChanged {
+		t.Fatalf("exit %d outside changed=%v second changed=%v read %v %v stderr %s", code, outsideChanged, secondChanged, outsideErr, secondErr, stderr.String())
+	}
 	msg := stderr.String()
-	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, root) {
+	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, "trace file has 2 names") || !strings.Contains(msg, "remove or rename "+traceFile) {
 		t.Fatalf("stderr %q", msg)
 	}
 }

@@ -61,15 +61,15 @@ func resolveLogDir(getenv func(string) string, target string) (string, error) {
 		return "", refuse(EnvLogDir, raw, "log directory resolves inside the review target "+root, logDirAllowed)
 	}
 	// The directory can sit outside the target while trace.jsonl is a symlink
-	// into it, or a hard link of a file inside it. Opening the trace follows
-	// the symlink and writes every name of a hard link, so the file is
-	// checked before anything is written.
-	fileInside, err := traceFileInsideTarget(resolved, root)
+	// into it, or a name of a file that has another name. Opening the trace
+	// follows the symlink and writes every name of that file, so the file
+	// the open would reach is checked before anything is written.
+	reason, err := traceFileRefusal(resolved, root)
 	if err != nil {
 		return "", refuse(EnvLogDir, raw, "trace file cannot be resolved", logDirAllowed)
 	}
-	if fileInside {
-		return "", refuse(EnvLogDir, raw, "trace file resolves inside the review target "+root, logDirAllowed)
+	if reason != "" {
+		return "", refuse(EnvLogDir, raw, reason, logDirAllowed)
 	}
 	if err := privateLogDir(resolved); err != nil {
 		return "", refuse(EnvLogDir, raw, err.Error(), logDirAllowed)
@@ -131,38 +131,66 @@ func resolvePath(path string) (string, error) {
 // followed by that open.
 const traceFile = "trace.jsonl"
 
-// traceFileInsideTarget reports whether opening trace.jsonl would write a
-// file inside the review target. A missing file is outside: the open would
-// create it in logDir, which was already checked. A symlink is followed to
-// its landing. A regular file with more than one name is the same file as
-// that other name, and the other name can sit inside the target. The kernel
-// reports the count and not the other path, so any count above one is refused.
-func traceFileInsideTarget(logDir, root string) (bool, error) {
+// traceFileRefusal is the reason opening trace.jsonl must be refused, or
+// empty when the open may proceed. A missing file is allowed: the open
+// would create it in logDir, which was already checked. A symlink is
+// followed to the file the open would write. That landing is refused when
+// it is inside the target. A landing, or a regular trace file, with more
+// than one name is the same file as that other name, and the other name
+// can sit inside the target. The kernel reports the count and not the
+// other path, so any count above one is refused.
+func traceFileRefusal(logDir, root string) (string, error) {
 	path := filepath.Join(logDir, traceFile)
 	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {
-		return false, nil
+		return "", nil
 	}
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		landing, err := symlinkLanding(path)
 		if err != nil {
-			return false, err
+			return "", err
 		}
-		return pathInside(landing, root)
+		inside, err := pathInside(landing, root)
+		if err != nil {
+			return "", err
+		}
+		if inside {
+			return "trace file resolves inside the review target " + root, nil
+		}
+		return manyNames(landing)
 	}
 	if !info.Mode().IsRegular() {
-		return false, nil
+		return "", nil
+	}
+	return manyNames(path)
+}
+
+// manyNames refuses path when it is a regular file with more than one name.
+// A missing file has no second name: the open would create it. The sentence
+// names the count that was read and the next act. It does not claim where
+// the other name is, because the count does not say.
+func manyNames(path string) (string, error) {
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", nil
 	}
 	n, err := linkCount(path)
 	if err != nil {
-		return false, err
+		return "", err
 	}
-	// A second name is not a path the open follows, so it cannot be compared
-	// with the target. The append would write every name of the file.
-	return n > 1, nil
+	if n > 1 {
+		return fmt.Sprintf("trace file has %d names; remove or rename %s", n, traceFile), nil
+	}
+	return "", nil
 }
 
 // symlinkLanding returns the path a symlink chain names, including a final
