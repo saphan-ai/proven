@@ -1,0 +1,11 @@
+unclosed base=command:echo hello change=refuse:unclosed-fence reference=command:echo hello
+closer-too-short base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello\n```
+closer-too-long base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello
+closer-longer-still base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello
+closer-tildes base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello\n~~~~
+closer-tildes-short base=command:echo hello change=refuse:closing-fence-wrong-length-or-character reference=command:echo hello\n~~~
+text-after-closer base=command:echo hello change=refuse:text-after-closing-fence reference=command:echo hello\n```` trailing
+text-after-closer-word base=command:echo hello change=refuse:text-after-closing-fence reference=command:echo hello\n````note
+well-formed base=command:echo hello change=command:echo hello reference=command:echo hello
+info-string-backtick base=command:echo hello change=command:echo hello reference=command:
+indent-four base=command: change=command:echo hello reference=refuse:no-fenced-block

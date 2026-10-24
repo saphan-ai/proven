@@ -81,6 +81,30 @@ The shell (command line, output formats, GitHub Action) and the reviewer meet in
 `review.Open(options)` returns a reviewer, and `Review(ctx, request)` returns the result. Neither side reaches into the
 other.
 
+## Two reviewers (ADR-0037)
+
+With `PROVEN_SECOND_REVIEWER_KEY`, `_BASE_URL` and `_MODEL` set, `generator.NewSecond` is the special-review generator: any
+OpenAI-compatible chat API behind the same `Generator` interface, called through the guardrail like every model call.
+`review.Open` refuses a wrong value before any review (exit 7); with no key nothing is connected and one reviewer reviews.
+A connected second reviewer doubles every class unless `proven.yaml` names the classes, and always doubles `security`.
+The two reviewers run independently: the second Planner and Skeptic are shown only the second reviewer's own words.
+
+**For the shell train (the block *The reviewers disagree*):** the review result carries these fields, and the shell renders
+only from them.
+
+| Field | Meaning |
+|---|---|
+| `Result.Reviewers` | one `ReviewerInfo` per reviewer, the default first: `Role` (`default` or `special`), `Model`, `Family`, `IsAuthorModel` (`yes`, `no` or `unknown`) |
+| `Finding.Verdicts` | empty when one reviewer ran, else one `ReviewerVerdict` per reviewer, the default first: `Role`, `Model`, `Verdict`, `Reason` |
+| `Finding.Disagree` | true when the reviewers who answered gave different verdicts; render the block for these findings |
+| `Result.Disagreements` | how many findings have `Disagree` set |
+
+`Verdict` is one of `reported` (the reviewer named the risk), `not reported` (its own review did not name it), `refuted`
+(it named the risk and its own Skeptic claimed to refute it) or `no answer` (its service failed; never a disagreement,
+and the failure is in `FailedServices` under `second-reviewer`). `Reason` is the reviewer's own text: its message for the
+risk, or its Skeptic's reason. The verdicts are shown side by side and never combined; evidence still decides which
+findings exist. JSON and SARIF carry both verdicts, as the values above.
+
 ## Levels of proof (ADR-0044)
 
 Each finding carries one named level of proof, `review.Finding.ProofLevel`. The reviewer core sets it from the finding's strongest evidence, and a finding whose evidence gives no level is refused before it reaches the result. From strongest to weakest:

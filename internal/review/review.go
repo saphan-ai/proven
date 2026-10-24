@@ -116,9 +116,48 @@ type Result struct {
 	AuthorModelStatement string           // "author model not stated" when the change names no model
 	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
 	GuardrailStatement   string           // set when the guardrail was switched off for this review; empty when it was on
+	// Reviewers names each reviewer that took part, the default one first, with whether it is the
+	// author's own model (ADR-0037 point 5). The shell renders from it, not from the statements.
+	Reviewers []ReviewerInfo
+	// Disagreements counts the findings whose Disagree is true (ADR-0037 point 4).
+	Disagreements int
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+}
+
+// The roles a reviewer takes in a review. The special role is the second reviewer of ADR-0037.
+const (
+	RoleDefault = "default"
+	RoleSpecial = "special"
+)
+
+// ReviewerInfo is one reviewer of one review (ADR-0037 point 5).
+type ReviewerInfo struct {
+	Role   string // RoleDefault or RoleSpecial
+	Model  string // the name the review gives it
+	Family string // a configured family, or "family unknown"
+	// IsAuthorModel is "yes" when the change named this model or a model of its family as its author,
+	// "no" when it named authors and none match, and "unknown" when the change named none or a
+	// family is unknown. It is never a guess: unknown stays unknown.
+	IsAuthorModel string
+}
+
+// The verdicts one reviewer can give on a finding (ADR-0037 point 4). The strings are carried by
+// JSON and SARIF, so a value never changes once released.
+const (
+	VerdictReported    = "reported"
+	VerdictNotReported = "not reported"
+	VerdictRefuted     = "refuted"
+	VerdictNoAnswer    = "no answer"
+)
+
+// ReviewerVerdict is one reviewer's word on one finding: the verdict and the reviewer's own reason.
+type ReviewerVerdict struct {
+	Role    string // RoleDefault or RoleSpecial
+	Model   string
+	Verdict string // one of the Verdict constants
+	Reason  string
 }
 
 // ProofLevel names how far a reader may trust one finding (ADR-0044). The string is what the
@@ -206,6 +245,12 @@ type Finding struct {
 	// Models names the reviewer models that reported this finding.
 	// One name when one run found it. Both names, the default reviewer first, when both did.
 	Models []string
+	// Verdicts holds each reviewer's verdict and reason, the default reviewer first. It is empty when
+	// one reviewer ran. The verdicts are never combined (ADR-0037 point 4).
+	Verdicts []ReviewerVerdict
+	// Disagree is true when the reviewers who answered gave different verdicts. A reviewer that did not
+	// answer (VerdictNoAnswer) is not a disagreement.
+	Disagree bool
 	// Fix is the fix Proven proposes for the finding, or nil when it proposed none (ADR-0042).
 	// It is a suggestion for a person to apply; Proven never writes it to the change.
 	Fix *Fix

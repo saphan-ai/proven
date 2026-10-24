@@ -70,6 +70,8 @@ func open(opts Options) (Reviewer, error) {
 	}
 	var kevView string
 	var adapterLimit time.Duration
+	// secondModel is the connected second reviewer's model; empty when none is connected (ADR-0037).
+	var secondModel string
 	// In sample mode the pipeline uses its recorded adapters, so none of the live settings are read.
 	if !opts.Sample {
 		env := opts.Env
@@ -92,6 +94,17 @@ func open(opts Options) (Reviewer, error) {
 			// A test supplies the generator. The live client above is not called,
 			// so the review does not dial. A review leaves gen unset.
 			popts.Generator = opts.gen
+		}
+		// ADR-0037: a key for a second reviewer connects it. Its settings are checked here, so a wrong
+		// address stops Open before any review. With no key nothing is connected and the review has
+		// one reviewer, as before.
+		sec, connected, serr := generator.LoadSecond(env)
+		if serr != nil {
+			return nil, generatorConfig(serr)
+		}
+		if connected {
+			popts.Special = generator.NewSecond(sec, nil)
+			secondModel = sec.Model
 		}
 		// ADR-0005, ADR-0013 point 4: the redactor holds the value of every secret this review loads, so no key
 		// a service echoes back reaches the trace or the result.
@@ -181,7 +194,32 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, secondModel: secondModel}, nil
+}
+
+// withSecond makes the connected second reviewer the special reviewer (ADR-0037 point 2) and widens
+// the doubled classes (point 3): with a second reviewer connected every class is doubled, unless
+// proven.yaml names the classes, and security is doubled either way. With none connected cfg is
+// returned as it is, so one reviewer reviews exactly as before.
+func withSecond(cfg fileSettings, model string) fileSettings {
+	if model == "" {
+		return cfg
+	}
+	cfg.SpecialReviewer = model
+	doubled := map[string]bool{}
+	if cfg.DoubledSet {
+		for class, on := range cfg.Doubled {
+			doubled[class] = on
+		}
+	} else {
+		for _, class := range classNames() {
+			doubled[class] = true
+		}
+	}
+	// Security is always doubled, even under "doubled_classes: off".
+	doubled["security"] = true
+	cfg.Doubled = doubled
+	return cfg
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
@@ -193,6 +231,8 @@ type runner struct {
 	explicit     bool
 	kevView      string
 	adapterLimit time.Duration
+	// secondModel is the second reviewer's model when one is connected; empty otherwise.
+	secondModel string
 }
 
 // Review runs one review: settings, deadline, class, the six agents, then the decision lines.
@@ -213,6 +253,7 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		}
 		cfg = loaded
 	}
+	cfg = withSecond(cfg, r.secondModel)
 	// The timeout setting applies only when the shell set no deadline: --timeout wins.
 	// Zero means no deadline from the settings.
 	timeout := cfg.Timeout
@@ -298,6 +339,13 @@ func fill(d candidate.Draft) (Result, error) {
 			f.Evidence = append(f.Evidence, toEvidence(e))
 		}
 		f.Fix = toFix(c.Fix)
+		for _, v := range c.Verdicts {
+			f.Verdicts = append(f.Verdicts, ReviewerVerdict{Role: v.Run, Model: v.Model, Verdict: v.Verdict, Reason: v.Reason})
+		}
+		f.Disagree = disagree(f.Verdicts)
+		if f.Disagree {
+			out.Disagreements++
+		}
 		level, err := ProofLevelOf(f.Evidence)
 		if err != nil {
 			return Result{}, fmt.Errorf("finding %s: %w", c.ID, err)
@@ -350,6 +398,26 @@ func toFix(f *candidate.Fix) *Fix {
 		}
 	}
 	return out
+}
+
+// disagree reports whether the reviewers who answered gave different verdicts on one finding
+// (ADR-0037 point 4). The verdicts are compared, never merged: two different verdicts stay two.
+// A reviewer with no answer is left out, because a failed call says nothing about the finding.
+func disagree(vs []ReviewerVerdict) bool {
+	first := ""
+	for _, v := range vs {
+		if v.Verdict == VerdictNoAnswer {
+			continue
+		}
+		if first == "" {
+			first = v.Verdict
+			continue
+		}
+		if v.Verdict != first {
+			return true
+		}
+	}
+	return false
 }
 
 // toEvidence copies one piece of evidence across the seam, field by field.

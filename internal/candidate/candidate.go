@@ -190,6 +190,9 @@ type Candidate struct {
 	Runs []string
 	// Models names the reviewer models for those runs, in the same order.
 	Models []string
+	// Verdicts holds what each reviewer said about this risk, one per run (ADR-0037 point 4). It is
+	// empty when only one reviewer ran. The verdicts are kept side by side and never combined.
+	Verdicts []Verdict
 	// ProverNote is why a written test is not evidence. The pipeline copies it
 	// into the trace. Empty when the prover did not write a test, or when the
 	// written test is evidence.
@@ -200,6 +203,28 @@ type Candidate struct {
 	QueryNote string
 	// Fix is the Fixer's proposal for this finding, or nil when it made none (ADR-0042).
 	Fix *Fix
+}
+
+// The four things one reviewer can say about a risk (ADR-0037 point 4).
+const (
+	// VerdictReported: the reviewer named the risk and its own Skeptic did not claim to refute it.
+	VerdictReported = "reported"
+	// VerdictNotReported: the reviewer's own review did not name the risk.
+	VerdictNotReported = "not reported"
+	// VerdictRefuted: the reviewer named the risk and its own Skeptic claimed to refute it.
+	VerdictRefuted = "refuted"
+	// VerdictNoAnswer: the reviewer's service failed, so it has no word on the risk. It is not a
+	// disagreement: a missing answer is not a different answer.
+	VerdictNoAnswer = "no answer"
+)
+
+// Verdict is one reviewer's word on one risk. Run is "default" or "special", Model the reviewer's
+// name, and Reason the reviewer's own words, or the plain reason it has none.
+type Verdict struct {
+	Run     string
+	Model   string
+	Verdict string
+	Reason  string
 }
 
 // Failure names a service the review degraded around.

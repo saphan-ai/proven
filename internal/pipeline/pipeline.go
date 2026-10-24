@@ -298,6 +298,14 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 		c.Severity, c.Path = rd.Text(c.Severity), rd.Text(c.Path)
 		c.DropReason, c.ProverNote = rd.Text(c.DropReason), rd.Text(c.ProverNote)
 		c.Runs, c.Models = rd.Texts(c.Runs), rd.Texts(c.Models)
+		// A reviewer's reason is a model's own text and can echo a configured value.
+		if c.Verdicts != nil {
+			vs := make([]candidate.Verdict, len(c.Verdicts))
+			for j, v := range c.Verdicts {
+				vs[j] = candidate.Verdict{Run: v.Run, Model: rd.Text(v.Model), Verdict: v.Verdict, Reason: rd.Text(v.Reason)}
+			}
+			c.Verdicts = vs
+		}
 		r := &c.Refutation
 		r.Reason, r.TestPath, r.TestName = rd.Text(r.Reason), rd.Text(r.TestPath), rd.Text(r.TestName)
 		// ADR-0032: a refutation names a query template and its values, never SQL;
@@ -515,6 +523,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// ADR-0009, ADR-0012: a doubled review runs a second Planner and a second
 	// Skeptic on the special-review model.
 	var special generator.Generator
+	// specialOwn holds the special run's own risk for each risk both runs named, by merged id.
+	specialOwn := map[string]candidate.Risk{}
 	if req.DoubleRun {
 		second := p.secondGenerator(req.SpecialModel, raw)
 		if second != nil {
@@ -525,6 +535,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 	}
 
+	// defaultFailed is why the default reviewer has no word on the second reviewer's risks; empty when it answered.
+	defaultFailed := ""
 	risks, err := planner.Plan(ctx, fx.Root, gen)
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
@@ -538,11 +550,15 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 		risks = nil
+		defaultFailed = failureReason(err)
 	}
 	cands := make([]candidate.Candidate, 0, len(risks))
 	for _, r := range risks {
 		c := candidate.Candidate{
 			Risk: r, Runs: []string{runDefault}, Models: []string{reviewerModel(req, runDefault)},
+		}
+		if special != nil {
+			c.Verdicts = []candidate.Verdict{reportedBy(req, runDefault, r)}
 		}
 		if err := st.claim(r.ID, r.Title, runDefault); err != nil {
 			return candidate.Draft{}, err
@@ -553,6 +569,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		if ctx.Err() != nil {
 			return p.cut(st, cands, allow)
 		}
+		// secondFailed is why the second reviewer has no word on the default run's risks; empty when it answered.
+		secondFailed := ""
 		more, err := planner.Plan(ctx, fx.Root, special)
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
@@ -564,11 +582,13 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				return candidate.Draft{}, err
 			}
 			more = nil
+			secondFailed = failureReason(err)
 		}
 		extra := make([]candidate.Candidate, 0, len(more))
 		for _, r := range more {
 			extra = append(extra, candidate.Candidate{
 				Risk: r, Runs: []string{runSpecial}, Models: []string{reviewerModel(req, runSpecial)},
+				Verdicts: []candidate.Verdict{reportedBy(req, runSpecial, r)},
 			})
 		}
 		// The two runs number their risks on their own, so they are merged by
@@ -576,6 +596,14 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		var ids []string
 		cands, ids = mergeCandidates(cands, extra)
 		for i, r := range more {
+			// ADR-0037 point 3: the second Skeptic is shown the second reviewer's own words about a
+			// risk both named, never the first reviewer's. The merged candidate keeps the first
+			// reviewer's wording, so the second's is kept apart here.
+			for _, c := range cands {
+				if c.ID == ids[i] && hasRun(c, runDefault) {
+					specialOwn[c.ID] = r
+				}
+			}
 			title := r.Title
 			if ids[i] != r.ID {
 				title = r.Title + " (special run named it " + r.ID + "; renamed " + ids[i] + ")"
@@ -584,6 +612,10 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				return candidate.Draft{}, err
 			}
 		}
+		// Both planners have now answered, so a run that did not name a risk is known to have
+		// passed it over. Filled here, not at the end, so a review cut short later still shows
+		// both reviewers' words on every risk.
+		addAbsentVerdicts(req, cands, defaultFailed, secondFailed)
 	}
 	// After each stage, a context that has ended returns what is judged so far.
 	p.boundary("planned")
@@ -674,6 +706,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 					}
 				}
 			}
+			noteRefuted(&cands[i], runDefault, cands[i].Refutation)
 			if err := st.refutation(cands[i], runDefault); err != nil {
 				return candidate.Draft{}, err
 			}
@@ -682,7 +715,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		// is written to the trace under the special run; it becomes the
 		// finding's refutation only when the default run did not name the risk.
 		if special != nil && hasRun(cands[i], runSpecial) {
-			next, err := skeptic.Attempt(ctx, cleared(cands[i]), special)
+			own := cleared(cands[i])
+			if r, ok := specialOwn[own.ID]; ok {
+				own.Risk = r
+			}
+			next, err := skeptic.Attempt(ctx, own, special)
 			ref := candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			if err != nil {
 				if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -708,6 +745,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			if !hasRun(cands[i], runDefault) {
 				cands[i].Refutation = ref
 			}
+			noteRefuted(&cands[i], runSpecial, ref)
 			traced := cands[i]
 			traced.Refutation = ref
 			if err := st.refutation(traced, runSpecial); err != nil {
@@ -1574,6 +1612,79 @@ func reviewerModel(req Request, run string) string {
 	return runDefault
 }
 
+// reportedBy is the verdict of a run that named risk r. The reason is the reviewer's own message about
+// the risk, so a reader sees what each reviewer said and not a summary of it.
+func reportedBy(req Request, run string, r candidate.Risk) candidate.Verdict {
+	return candidate.Verdict{Run: run, Model: reviewerModel(req, run), Verdict: candidate.VerdictReported, Reason: r.Message}
+}
+
+// failureReason is the reason a service failure gives, or the error's own text when it is not one.
+func failureReason(err error) string {
+	var d *service.Down
+	if errors.As(err, &d) {
+		return d.Reason
+	}
+	return err.Error()
+}
+
+// addAbsentVerdicts gives each candidate a verdict for the run that did not name it. A run whose
+// service failed has no word on the other run's risks, which is stated as such: a reviewer that never
+// answered must not be shown as having disagreed. defaultFailed and specialFailed are each run's failure
+// reason, or empty when that run answered. A failed default Planner leaves the special run's risks with
+// no default answer, and a failed special Planner leaves the default run's risks with no special answer.
+func addAbsentVerdicts(req Request, cands []candidate.Candidate, defaultFailed, specialFailed string) {
+	for i := range cands {
+		for _, run := range []string{runDefault, runSpecial} {
+			if hasVerdict(cands[i], run) {
+				continue
+			}
+			v := candidate.Verdict{
+				Run: run, Model: reviewerModel(req, run), Verdict: candidate.VerdictNotReported,
+				Reason: "this reviewer's own review did not name this risk",
+			}
+			failed := defaultFailed
+			if run == runSpecial {
+				failed = specialFailed
+			}
+			if failed != "" {
+				v.Verdict = candidate.VerdictNoAnswer
+				v.Reason = "this reviewer did not answer: " + failed
+			}
+			cands[i].Verdicts = append(cands[i].Verdicts, v)
+		}
+		// The default reviewer is always listed first, whichever run named the risk.
+		if vs := cands[i].Verdicts; len(vs) == 2 && vs[0].Run == runSpecial {
+			vs[0], vs[1] = vs[1], vs[0]
+		}
+	}
+}
+
+// hasVerdict reports whether run has a verdict on the candidate.
+func hasVerdict(c candidate.Candidate, run string) bool {
+	for _, v := range c.Verdicts {
+		if v.Run == run {
+			return true
+		}
+	}
+	return false
+}
+
+// noteRefuted turns run's verdict into "refuted" when that run's own Skeptic claimed to refute the
+// risk. The claim alone does not drop the finding (ADR-0006): the Judge still decides on evidence.
+// It only changes what that reviewer is shown to have said. A review with one reviewer carries no
+// verdicts, and nothing changes.
+func noteRefuted(c *candidate.Candidate, run string, ref candidate.Refutation) {
+	if !ref.Attempted || !ref.Refuted {
+		return
+	}
+	for i := range c.Verdicts {
+		if c.Verdicts[i].Run == run && c.Verdicts[i].Verdict == candidate.VerdictReported {
+			c.Verdicts[i].Verdict = candidate.VerdictRefuted
+			c.Verdicts[i].Reason = ref.Reason
+		}
+	}
+}
+
 // hasRun reports whether run named the candidate.
 func hasRun(c candidate.Candidate, run string) bool {
 	for _, r := range c.Runs {
@@ -1606,6 +1717,7 @@ func mergeCandidates(base, extra []candidate.Candidate) (merged []candidate.Cand
 		if i, ok := at[riskKey(c.Risk)]; ok {
 			base[i].Runs = appendNew(base[i].Runs, c.Runs)
 			base[i].Models = appendNew(base[i].Models, c.Models)
+			base[i].Verdicts = append(base[i].Verdicts, c.Verdicts...)
 			ids[j] = base[i].ID
 			continue
 		}
