@@ -8,8 +8,9 @@ package planner
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
-	"strings"
+	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
@@ -29,25 +30,40 @@ func Prompt(files []change.File) string {
 	return answer.Instruct(riskSpec, filesText(files))
 }
 
-// filesText lays out each file as its path, its base and its change. Each part
-// ends with a line break, so the next marker always starts its own line.
-func filesText(files []change.File) string {
-	var b strings.Builder
-	for _, f := range files {
-		b.WriteString("FILE ")
-		b.WriteString(f.Path)
-		b.WriteString("\nBASE\n")
-		b.Write(f.Base)
-		if len(f.Base) == 0 || f.Base[len(f.Base)-1] != '\n' {
-			b.WriteByte('\n')
-		}
-		b.WriteString("CHANGE\n")
-		b.Write(f.Change)
-		if len(f.Change) == 0 || f.Change[len(f.Change)-1] != '\n' {
-			b.WriteByte('\n')
-		}
+// fileRecord is one changed file as the prompt carries it: its path, its base
+// and its change, each a JSON string. A part that is not valid UTF-8 is carried
+// as base64 under its own key, so two different parts never give one text.
+type fileRecord struct {
+	Path         *string `json:"path,omitempty"`
+	PathBase64   string  `json:"path_base64,omitempty"`
+	Base         *string `json:"base,omitempty"`
+	BaseBase64   string  `json:"base_base64,omitempty"`
+	Change       *string `json:"change,omitempty"`
+	ChangeBase64 string  `json:"change_base64,omitempty"`
+}
+
+// part returns b as a JSON string when it is text, and as base64 when it is not.
+func part(b []byte) (text *string, b64 string) {
+	if utf8.Valid(b) {
+		s := string(b)
+		return &s, ""
 	}
-	return b.String()
+	return nil, base64.StdEncoding.EncodeToString(b)
+}
+
+// filesText writes the files as one JSON array, one record per file. The
+// change's bytes are data: every line break and quote inside them is escaped,
+// so no byte of a file can create a second file record or a new field.
+func filesText(files []change.File) string {
+	records := make([]fileRecord, 0, len(files))
+	for _, f := range files {
+		var r fileRecord
+		r.Path, r.PathBase64 = part([]byte(f.Path))
+		r.Base, r.BaseBase64 = part(f.Base)
+		r.Change, r.ChangeBase64 = part(f.Change)
+		records = append(records, r)
+	}
+	return answer.Encode(records)
 }
 
 // row is one risk as the model returns it.
