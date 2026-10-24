@@ -179,7 +179,7 @@ func TestClosedEndpointNamesZetarisUnreachable(t *testing.T) {
 	}))
 	url := srv.URL
 	srv.Close()
-	cfg := loadLive(t, url, "k")
+	cfg := loadLive(t, url, "test-api-key")
 	cfg.Timeout = time.Second
 	live := query.NewLive(cfg, nil)
 	_, err := live.Query(context.Background(), "SELECT cve_id FROM px_evidence.px_kev_vulns")
@@ -197,7 +197,7 @@ func TestNonSelectIsNotSent(t *testing.T) {
 		t.Error("a non-SELECT was sent")
 	}))
 	defer srv.Close()
-	live := query.NewLive(loadLive(t, srv.URL, "k"), nil)
+	live := query.NewLive(loadLive(t, srv.URL, "test-api-key"), nil)
 	_, err := live.Query(context.Background(), "DELETE FROM px_evidence.px_kev_vulns")
 	d, ok := service.As(err)
 	if !ok || d.Service != "zetaris" || d.Reason != "not a select" {

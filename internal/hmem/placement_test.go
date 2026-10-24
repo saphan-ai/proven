@@ -47,7 +47,7 @@ func TestOpenRefusesAStateDirectoryBehindALinkThatDoesNotResolve(t *testing.T) {
 func TestOpenNarrowsAnExistingWideStateFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
-	if err := os.WriteFile(path, []byte(`{"version":1,"seq":0,"records":[]}`+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`{"version":2,"seq":0,"records":[]}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chmod(path, 0o644); err != nil {
