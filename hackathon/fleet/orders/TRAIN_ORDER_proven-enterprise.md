@@ -40,7 +40,7 @@ and each has an operator page in `docs/`.
    of proven-security-review also read this code once it is on `main`, like any other code.
 5. **Quote per executor round:** 12 USD, cap 24 USD (the executor class p90), wall 150 minutes. One fix round per wagon
    at most is budgeted. Three wagons, two rounds each: cap 144 USD.
-6. **Signatures:** the owner signs this order and each wagon order.
+6. **Delegation:** the owner signs this order once; its wagon, round and review orders are signed by the master with the train's own key.
 
 ## §3 WAGONS
 
@@ -98,6 +98,9 @@ and each has an operator page in `docs/`.
 |---|---|
 | 2026-10-23 | hand-over: the advisor relayed the owner's assignment (messages bb32b90c9fff7f1c, eca6d07c6a764212); the owner confirmed it to this master in its session |
 | 2026-10-23 | order written by the master |
+| 2026-10-23 | W1 round 1 dispatched and master-verified; reviews: one accept-with-conditions, one reject; the owner ruled: keep the whole claim (round 2) |
+| 2026-10-23 | W3 dispatched, master-verified; accepted findings in JSON, SARIF and the PR comment are owed by the CLI train (their writers are not on main) |
+| 2026-10-24 | W1 round 2 not ready (the witness fails on a host with nscd); round 3 written; delegation added, the order signed again |
 
 ## §7 OUT OF SCOPE
 
