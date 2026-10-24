@@ -80,7 +80,21 @@ func TestMain(m *testing.M) {
 	if os.Getenv("PROVEN_CONNECT_CHILD") == "1" {
 		os.Exit(connectChild())
 	}
-	os.Exit(m.Run())
+	// The default trace directory is the user cache. Go 1.26 reads
+	// XDG_CACHE_HOME for that directory on this OS. Point it at a temp
+	// directory so the suite does not write the real user's cache.
+	dir, err := os.MkdirTemp("", "proven-cli-cache-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := os.Setenv("XDG_CACHE_HOME", dir); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
 }
 
 func connectChild() int {

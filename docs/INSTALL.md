@@ -23,8 +23,8 @@ go build -o /tmp/proven ./cmd/proven
 
 ## First review: sample mode
 
-Run Proven from a directory outside the repository: it keeps its memory in `./state` and its trace in `./logs`, and it
-refuses to keep its memory inside the repository it reviews.
+The trace is written to the user cache, in `proven/logs`, created so only that user can read it. `PROVEN_LOG_DIR`
+overrides that directory. A path that resolves inside the repository under review is refused when Proven loads.
 
 ```bash
 mkdir -p /tmp/proven-run && cd /tmp/proven-run

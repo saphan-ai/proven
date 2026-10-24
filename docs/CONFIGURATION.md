@@ -6,8 +6,8 @@ environment only). The names and defaults below were read from the code on `main
 `internal/review/config.go`, `cmd/livecheck`). A wrong value stops Proven before any work, and the refusal names the
 setting, the value and what is allowed. An empty secret does not: that service is down and the review names it, and an empty guardrail key refuses every model call unless `PROVEN_GUARDRAIL_MODE` is `off`.
 
-The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads none of the
-settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
+The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads `PROVEN_LOG_DIR`
+below and `proven.yaml`'s `timeout`, and it reads none of the other settings below: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
 <!-- generated: settings -->
 ## The model generator: Meterless Nightshift or NVIDIA's hosted API
@@ -93,6 +93,14 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 | `PROVEN_MAX_RECORD_BYTES` | `1048576` | the most the author record may hold, summed over the files `author_record` names |
 
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
+
+## The trace
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_LOG_DIR` | `<user cache>/proven/logs` | where the trace is written. The directory is created with mode 0700. A path that resolves inside the review target, including through a symlink, is refused. Sample mode reads this |
+
+The default is the user cache directory, with proven/logs under it, created so only that user can read it. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. Sample mode reads this setting.
 <!-- end generated -->
 
 ## `proven.yaml`

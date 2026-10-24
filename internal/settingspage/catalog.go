@@ -8,6 +8,7 @@ package settingspage
 
 import (
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/cli"
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
@@ -80,6 +81,11 @@ func Catalog() []envdoc.Section {
 			Heading: "Reads of the repository under review",
 			Rows:    change.Environment(),
 			After:   readsAfter,
+		},
+		{
+			Heading: "The trace",
+			Rows:    cli.Environment(),
+			After:   "The default is the user cache directory, with proven/logs under it, created so only that user can read it. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. Sample mode reads this setting.",
 		},
 	}
 }

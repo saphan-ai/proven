@@ -278,9 +278,8 @@ func assertDiscountText(t *testing.T, body string) {
 	}
 }
 
-// shellEnv returns empty for the variables the shell reads while resolving
-// ADR-0020, and fails the test on any other key. The reviewer receives the
-// same function and does not read it.
+// shellEnv returns empty for the variables the shell reads, and fails the test
+// on any other key. The reviewer receives the same function and does not read it.
 func shellEnv(t *testing.T) func(string) string {
 	t.Helper()
 	allowed := map[string]struct{}{
@@ -292,6 +291,7 @@ func shellEnv(t *testing.T) func(string) string {
 		"SEMGREP_BASELINE_REF":    {},
 		"PROVEN_CONFIG":           {},
 		"PROVEN_INCLUDE":          {},
+		"PROVEN_LOG_DIR":          {},
 		"PROVEN_EXCLUDE":          {},
 		"PROVEN_SEVERITY":         {},
 		"PROVEN_TIMEOUT":          {},

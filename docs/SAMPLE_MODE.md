@@ -19,8 +19,8 @@ To check that the live services are ready instead, run `go run ./cmd/livecheck` 
 
 ## Run it
 
-Run Proven from a directory **outside** the repository. Proven keeps its memory in `./state` and its trace in `./logs`,
-and it refuses to write its memory inside the repository it reviews.
+The trace is written to the user cache, in `proven/logs`, created so only that user can read it. `PROVEN_LOG_DIR`
+overrides that directory. A path that resolves inside the repository under review is refused when Proven loads.
 
 ```bash
 git clone https://github.com/saphan-ai/proven.git
@@ -91,14 +91,10 @@ failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
-Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `logs/trace.jsonl`
-in the directory it starts from.
-
-Run from inside the repository, it refuses (exit code 2):
-
-```text
-hmem: state directory <repository>/state/hmem is inside the repository
-```
+Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `trace.jsonl`
+in the user cache, under `proven/logs`, unless `PROVEN_LOG_DIR` names another directory. A path that resolves inside
+the repository under review is refused at load (exit 7). The `trace:` lines in the recorded output on this page are
+from the run that wrote the page.
 
 ## The scenario: `testdata/fixture/discount`
 

@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -165,18 +164,13 @@ func openCall(cfg config, getenv func(string) string, open opener) (rev review.R
 	return openReviewer(cfg, getenv, open)
 }
 
-// openReviewer builds the reviewer's options. The trace goes to logs/ in
-// the directory the command starts from, which is where docs/SAMPLE_MODE.md
-// tells a reader to look.
+// openReviewer builds the reviewer's options. The trace directory was chosen
+// and refused, when it had to be, while the configuration loaded.
 func openReviewer(cfg config, getenv func(string) string, open opener) (review.Reviewer, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
 	opts := review.Options{
 		ConfigPath: cfg.configPath,
 		Sample:     cfg.sample,
-		LogDir:     filepath.Join(wd, "logs"),
+		LogDir:     cfg.logDir,
 		Env:        getenv,
 	}
 	// Sample mode always takes the real review.Open, never a test's opener:
@@ -394,6 +388,9 @@ flags:
         lowest severity reported: INFO, WARNING, ERROR (PROVEN_SEVERITY, default INFO)
   --timeout
         the whole review's time limit in seconds (PROVEN_TIMEOUT; default no deadline)
+  PROVEN_LOG_DIR
+        trace directory (default: the user cache, proven/logs, mode 0700).
+        A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
