@@ -203,6 +203,227 @@ func TestFinalSymlinkOutputIsRefusedAtLoad(t *testing.T) {
 	}
 }
 
+// TestIntermediateDirectoryLinkInsideTheWorkingDirectoryIsRefusedAtLoad proves
+// an output path whose directory component lies inside the working directory
+// and is a symbolic link is refused at load with exit 7. The refusal names
+// the flag, the path and that linked component, and nothing is written
+// outside. The mutated field is that directory component: a link, not a real
+// directory. With the walk removed the write follows the link.
+func TestIntermediateDirectoryLinkInsideTheWorkingDirectoryIsRefusedAtLoad(t *testing.T) {
+	for _, f := range outputFlags {
+		t.Run(f.name, func(t *testing.T) {
+			_, link, victim := intermediateLinkCheckout(t, "reports")
+			rel := "reports/proven.sarif"
+			assertIntermediateLinkRefused(t, f, rel, link, victim)
+		})
+	}
+	sarif := outputFlag{"--sarif-output", "--sarif-output="}
+	t.Run("nested directory", func(t *testing.T) {
+		_, link, victim := intermediateLinkCheckout(t, filepath.Join("sub", "reports"))
+		rel := "sub/reports/proven.sarif"
+		assertIntermediateLinkRefused(t, sarif, rel, link, victim)
+	})
+	t.Run("absolute path under the working directory", func(t *testing.T) {
+		checkout, link, victim := intermediateLinkCheckout(t, "reports")
+		abs := filepath.Join(checkout, "reports", "proven.sarif")
+		assertIntermediateLinkRefused(t, sarif, abs, link, victim)
+	})
+}
+
+// intermediateLinkCheckout makes a working directory whose named directory
+// component is a symbolic link to a directory outside it. It returns that
+// working directory as the process reports it, the link joined onto it, and
+// victim, the file the link would steer the report onto, seeded so a write
+// is visible.
+func intermediateLinkCheckout(t *testing.T, linkRel string) (checkout, link, victim string) {
+	t.Helper()
+	dir := t.TempDir()
+	checkout = filepath.Join(dir, "checkout")
+	outside := filepath.Join(dir, "outside")
+	if err := os.MkdirAll(checkout, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link = filepath.Join(checkout, linkRel)
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+	victim = filepath.Join(outside, "proven.sarif")
+	if err := os.WriteFile(victim, []byte("kept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	// The refusal names the component the walk Lstats, which is joined onto
+	// the working directory the process reports, not the path TempDir returned.
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	link = filepath.Join(wd, linkRel)
+	return wd, link, victim
+}
+
+// assertIntermediateLinkRefused runs one output flag and requires exit 7,
+// the flag, the path and the linked component in the refusal, no review,
+// and the outside file left as it was.
+func assertIntermediateLinkRefused(t *testing.T, f outputFlag, path, link, victim string) {
+	t.Helper()
+	rev := &captureReviewer{}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", f.arg + path}, emptyEnv, &stdout, &stderr, openCapture(rev))
+	if code != exitConfig {
+		t.Errorf("exit %d, want %d; stderr %s", code, exitConfig, stderr.String())
+	}
+	for _, want := range []string{f.name, path, link, "inside the working directory"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Errorf("refusal does not name %q: %s", want, stderr.String())
+		}
+	}
+	if rev.req.Target != "" {
+		t.Error("the review ran despite the refusal")
+	}
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "kept\n" {
+		t.Errorf("the report was written through the link onto %s:\n%s", victim, b)
+	}
+}
+
+// TestOutputInARealDirectoryInsideTheWorkingDirectoryIsWritten proves a
+// directory component inside the working directory is written through when
+// it is a real directory. The mutated field is that component: a directory,
+// not a link. Refusing every directory component turns this red.
+func TestOutputInARealDirectoryInsideTheWorkingDirectoryIsWritten(t *testing.T) {
+	checkout := t.TempDir()
+	if err := os.Mkdir(filepath.Join(checkout, "reports"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	rev := &captureReviewer{res: review.Result{Class: "c", ClassRule: "r"}}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=reports/proven.sarif"}, emptyEnv, &stdout, &stderr, openCapture(rev))
+	if code != exitOK {
+		t.Fatalf("exit %d, want 0; stderr %s", code, stderr.String())
+	}
+	b, err := os.ReadFile(filepath.Join("reports", "proven.sarif"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte(`"class": "c"`)) {
+		t.Fatalf("report was not written:\n%s", b)
+	}
+}
+
+// TestDirectoryLinkOutsideTheWorkingDirectoryIsStillWritten proves an
+// intermediate symbolic link that does not lie inside the working directory
+// is not refused. The mutated field is that directory: it sits on an absolute
+// path outside the working directory. Refusing it turns this red.
+func TestDirectoryLinkOutsideTheWorkingDirectoryIsStillWritten(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real")
+	if err := os.Mkdir(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+	t.Chdir(t.TempDir())
+	out := filepath.Join(link, "proven.sarif")
+	rev := &captureReviewer{res: review.Result{Class: "c", ClassRule: "r"}}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=" + out}, emptyEnv, &stdout, &stderr, openCapture(rev))
+	if code != exitOK {
+		t.Fatalf("exit %d, want 0; stderr %s", code, stderr.String())
+	}
+	b, err := os.ReadFile(filepath.Join(real, "proven.sarif"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte(`"class": "c"`)) {
+		t.Fatalf("report was not written through the outside link:\n%s", b)
+	}
+}
+
+// TestOpenRefusesAFinalLinkSwappedInAfterTheCheck proves the open itself
+// refuses a symbolic link as the final component, so a link that replaces
+// the path after the Lstat is not followed. The mutated field is the open
+// flag O_NOFOLLOW. Without it the file the link names is replaced. On a
+// system whose open has no such flag the test does not run: the Lstat before
+// the write is the only guard, and a swap between the two can still steer it.
+func TestOpenRefusesAFinalLinkSwappedInAfterTheCheck(t *testing.T) {
+	if !outputOpenRefusesFinalLink {
+		t.Skip("this OS open follows a final symbolic link; the Lstat check is the only guard")
+	}
+	dir := t.TempDir()
+	victim := filepath.Join(dir, "kept.txt")
+	if err := os.WriteFile(victim, []byte("kept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "out")
+	if err := os.Symlink(victim, link); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+	f, err := openOutputFile(link)
+	if err == nil {
+		f.Close()
+		t.Error("open followed the final symbolic link")
+	}
+	b, rerr := os.ReadFile(victim)
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	if string(b) != "kept\n" {
+		t.Fatalf("the report was written through the link onto %s:\n%s", victim, b)
+	}
+}
+
+// TestFinalLinkAppearingAfterLoadExits2 proves a final symbolic link that
+// appears after the load check is refused by the write with exit 2, and the
+// file it names is left as it was. The mutated field is that final component
+// during the review: a link, where load saw a regular file.
+func TestFinalLinkAppearingAfterLoadExits2(t *testing.T) {
+	dir := t.TempDir()
+	victim := filepath.Join(dir, "kept.txt")
+	if err := os.WriteFile(victim, []byte("kept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "out")
+	if err := os.WriteFile(out, []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	open := func(review.Options) (review.Reviewer, error) {
+		return funcReviewer(func() review.Result {
+			if err := os.Remove(out); err != nil {
+				t.Error(err)
+			}
+			if err := os.Symlink(victim, out); err != nil {
+				t.Error(err)
+			}
+			return review.Result{Class: "c", ClassRule: "r"}
+		}), nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=" + out}, emptyEnv, &stdout, &stderr, open)
+	if code != exitFatal {
+		t.Fatalf("exit %d, want %d; stderr %s", code, exitFatal, stderr.String())
+	}
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "kept\n" {
+		t.Fatalf("the report was written through the link onto %s:\n%s", victim, b)
+	}
+}
+
 // TestRegularOutputFileIsStillOverwritten proves the symlink refusal does not
 // cover a regular file. The mutated field is the final component: a regular
 // file, not a link. Refusing every existing path turns this red.

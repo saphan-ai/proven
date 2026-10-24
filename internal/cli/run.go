@@ -289,19 +289,39 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 }
 
 // writeOutputFile writes body to path.
-// WHY a final symbolic link is not followed: os.WriteFile replaces the file
-// the link names. In proven ci the working directory is the checkout, so a
-// link the change committed would steer the report onto that other file.
-// The link is left in place and the write fails. A regular file is not a
-// link, and os.WriteFile overwrites it as before. A link that is only a
-// directory on the way to the file is not the final component, so Lstat
-// does not see it as a link and the file is created inside the target.
+// WHY a final symbolic link is not followed: the open would replace the file
+// the link names. The link is left in place and the write fails. A regular
+// file is not a link and is overwritten as before.
+//
+// The Lstat and the open are still two steps. Where the system can open a
+// file without following a final symbolic link, the open refuses a link that
+// was swapped in after the Lstat, and the target is not written. Where it
+// cannot, that swap can still steer the write. A directory link is not the
+// final component, so this open still follows one. A directory link inside
+// the working directory is refused at load, before this runs.
 func writeOutputFile(flag, path string, body []byte) error {
 	info, err := os.Lstat(path)
 	if err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%s %s: final component is a symbolic link; the file it names is not written", flag, path)
 	}
-	return os.WriteFile(path, body, 0o644)
+	f, err := openOutputFile(path)
+	if err != nil {
+		// ELOOP from a final link swapped in after the Lstat. An ELOOP from
+		// an intermediate loop is not that case: Lstat of the final component
+		// would not show a symlink, and the open error stands.
+		if openFailedOnFinalLink(err) {
+			again, lerr := os.Lstat(path)
+			if lerr == nil && again.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("%s %s: final component is a symbolic link; the file it names is not written", flag, path)
+			}
+		}
+		return err
+	}
+	_, werr := f.Write(body)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	return werr
 }
 
 // writtenOutput is a file this run has written, kept for os.SameFile.

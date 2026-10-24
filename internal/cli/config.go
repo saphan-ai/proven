@@ -484,15 +484,22 @@ func refuseCollidingOutputs(cfg config) error {
 	return nil
 }
 
-// refuseSymlinkOutputs refuses an output whose final component is a symbolic
-// link, before the review and before any file is written (exit 7).
-// WHY the link is not followed: os.WriteFile would replace the file the link
-// names. Run calls this after refuseCollidingOutputs and
-// refuseStdoutOnAnOutput, so a link that is the same file as another output,
-// or as standard output, is still refused as that same file, with both sides
-// named. A regular file is not a link and is overwritten at the write. A
-// symbolic link earlier in the path is a directory on the way and is still
-// resolved by that same-file check.
+// refuseSymlinkOutputs refuses an output that a symbolic link could steer,
+// before the review and before any file is written (exit 7).
+//
+// WHY a link is not followed: the write would create or replace the file in
+// the directory the link names. Two cases. The final component is refused on
+// every path, inside the working directory or not. Any earlier component that
+// lies inside the working directory is refused too, so in proven ci a
+// directory of the output path that the checkout committed as a link cannot
+// choose where the report is written. A component outside the working
+// directory is the operator's path and is not checked here.
+//
+// Run calls this after refuseCollidingOutputs and refuseStdoutOnAnOutput, so
+// a link that is the same file as another output, or as standard output, is
+// still refused as that same file, with both sides named. A directory link
+// is still resolved by that same-file check. A regular file is not a link
+// and is overwritten at the write.
 func refuseSymlinkOutputs(cfg config) error {
 	named := []struct{ flag, path string }{
 		{"-o", cfg.output},
@@ -504,6 +511,13 @@ func refuseSymlinkOutputs(cfg config) error {
 		if n.path == "" {
 			continue
 		}
+		component, err := symlinkComponentInsideWorkingDirectory(n.path)
+		if err != nil {
+			return err
+		}
+		if component != "" {
+			return refuse(n.flag, n.path, component+" is a symbolic link inside the working directory; the directory it names is not written through", nil)
+		}
 		info, err := os.Lstat(n.path)
 		if err != nil {
 			continue
@@ -513,6 +527,61 @@ func refuseSymlinkOutputs(cfg config) error {
 		}
 	}
 	return nil
+}
+
+// symlinkComponentInsideWorkingDirectory reports the first component of path
+// that lies inside the working directory and is a symbolic link. The final
+// component is not included: a final link is refused on every path by the
+// caller. The result is empty when no earlier component inside the working
+// directory is a link. The walk does not follow links, so ".." is applied to
+// the spelling, not to a directory a link points at.
+func symlinkComponentInsideWorkingDirectory(path string) (string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("working directory: %w", err)
+	}
+	wd = filepath.Clean(wd)
+	root, rest := splitRoot(path)
+	cur := wd
+	if root != "" {
+		cur = root
+	}
+	parts := splitComponents(rest)
+	if len(parts) < 2 {
+		return "", nil
+	}
+	for _, name := range parts[:len(parts)-1] {
+		if name == "." {
+			continue
+		}
+		if name == ".." {
+			parent := filepath.Dir(cur)
+			if parent != cur {
+				cur = parent
+			}
+			continue
+		}
+		next := filepath.Join(cur, name)
+		if componentInsideWorkingDirectory(wd, next) {
+			info, lerr := os.Lstat(next)
+			if lerr == nil && info.Mode()&os.ModeSymlink != 0 {
+				return next, nil
+			}
+		}
+		cur = next
+	}
+	return "", nil
+}
+
+// componentInsideWorkingDirectory reports whether component is a strict
+// descendant of the working directory. The working directory itself is not
+// one of the path's components that this check refuses.
+func componentInsideWorkingDirectory(wd, component string) bool {
+	rel, err := filepath.Rel(wd, filepath.Clean(component))
+	if err != nil || rel == "." || rel == "" {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // regularFileInfo is the FileInfo of w when w is an *os.File on a regular
