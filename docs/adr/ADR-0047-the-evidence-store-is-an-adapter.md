@@ -15,11 +15,15 @@ local query engine exists. An organisation, and Saphan Studio itself, may want P
 
 1. **One evidence-store interface**: register a source's table, run a query built from a template, return its columns and rows
    with the snapshot date.
-2. **Two stores to start**: **Zetaris** (over its REST API, as today) and **a local store** in one file with no server (DuckDB
-   or SQLite, chosen when built), grown from the engine sample mode already uses. A third, Postgres, may follow.
-3. **One setting chooses the store** (`PROVEN_EVIDENCE_STORE=zetaris|local`). For the hackathon the default stays Zetaris.
-4. **The same templates run on every store** and must return the same rows: a conformance test runs one scenario on each store
-   and compares the evidence byte for byte.
+2. **Three stores**: **Zetaris** (over its REST API, as today); **a local store** in one file with no server (DuckDB or
+   SQLite, chosen when built), grown from the engine sample mode already uses; and **CouchDB** (added the same day: *"we have
+   CouchDB"*), the document store Saphan Studio already runs, so Proven inside Saphan keeps its evidence where Saphan keeps the
+   rest. Postgres may follow.
+3. **One setting chooses the store** (`PROVEN_EVIDENCE_STORE=zetaris|local|couchdb`). For the hackathon the default stays
+   Zetaris.
+4. **A template has one form per query language**: SQL for Zetaris and the local store, a Mango selector for CouchDB. The
+   evidence in a review is the query in the form that actually ran, with the rows or documents it returned. A conformance test
+   runs one scenario on every store and compares the evidence they produce.
 5. **Source adapters (ADR-0046) load into the configured store**, whichever it is.
 6. **The local store works fully air-gapped** (ADR-0034).
 
