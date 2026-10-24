@@ -2,11 +2,13 @@
 //
 // The Planner fills a Risk. The Investigator and the Prover add Evidence, the
 // Skeptic fills the Refutation, the Judge sets Dropped, Unresolved and
-// DropReason, and the Writer hands the kept ones to the seam as a Draft. The
-// Fixer, after the Judge, adds a Fix to a kept finding (ADR-0042). A
-// dependency finding also carries its ecosystem and, after govulncheck, a
-// reachability label (ADR-0043). Each agent only adds its own part, so the
-// trace can show who said what.
+// DropReason, and the Writer hands the kept ones to the seam as a Draft.
+// A claim both reviewers reported that the Judge dropped for no evidence is
+// an Opinion on that draft, not a finding (ADR-0041). The Fixer, after the
+// Judge, adds a Fix to a kept finding (ADR-0042). A dependency finding also
+// carries its ecosystem and, after govulncheck, a reachability label
+// (ADR-0043). Each agent only adds its own part, so the trace can show who
+// said what.
 //
 // The package has no dependency on the seam (internal/review), so the agents
 // never import the shell's types; review.Open converts a Draft to a Result.
@@ -270,11 +272,25 @@ type ModelUse struct {
 	FromReceipt bool   // true only when the stream named a routed model
 }
 
+// Opinion is a claim both reviewers reported at one place that no evidence
+// proves (ADR-0041). It is not a finding: the Writer lifts it out of the
+// candidates the Judge dropped, and the totals do not count it.
+type Opinion struct {
+	ID        string
+	Title     string
+	Path      string
+	StartLine int // the lines both ranges share; equal to EndLine when the place is one line
+	EndLine   int
+	// Reasons holds each reviewer's own words, the default reviewer first.
+	Reasons []Verdict
+}
+
 // Draft is what the writer hands to the seam.
 // Partial is set when the deadline cut the review short; TracePath is the
 // JSONL trace of the run.
 type Draft struct {
 	Findings  []Candidate
+	Opinions  []Opinion
 	Failed    []Failure
 	Models    []ModelUse
 	Partial   bool
