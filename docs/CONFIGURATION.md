@@ -22,6 +22,14 @@ settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MOD
 | `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by the stream's receipt); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
 | `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's) |
 
+## The second reviewer: any OpenAI-compatible model
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_SECOND_REVIEWER_KEY` | none (empty: no second reviewer) | the API key of the second reviewer. Secret: never printed. Empty: not connected, and the review has one reviewer |
+| `PROVEN_SECOND_REVIEWER_BASE_URL` | none (required with the key) | the address of any OpenAI-compatible chat API, for example `https://api.openai.com/v1` or a local server |
+| `PROVEN_SECOND_REVIEWER_MODEL` | none (required with the key) | the model asked for; the review names it as the second reviewer |
+
 ## The guardrail: NVIDIA Nemotron content safety
 
 | Environment variable | Default | What it changes |
@@ -98,12 +106,12 @@ No environment variable sets these keys.
 |---|---|---|---|
 | `timeout` | `0s` | When greater than zero, bounds a review whose context has no deadline. Zero adds no deadline. The context's own deadline wins when it has one. | A Go duration of zero or greater, for example `30s`, `5m`, or `0s`. |
 | `default_reviewer` | `NVIDIA` | The reviewer used when a class is not doubled, and the first reviewer when it is. Also the name in "default reviewer" when the change names no model. | A non-empty model name. |
-| `special_reviewer` | empty | The second reviewer for a doubled class. Empty prints `special-review model: not configured`. | A model name, or empty. |
+| `special_reviewer` | empty | The second reviewer for a doubled class, run on the generator's own endpoint. Empty prints `special-review model: not configured`. When `PROVEN_SECOND_REVIEWER_KEY` is set, the second reviewer named by the three `PROVEN_SECOND_REVIEWER_*` variables is the special reviewer and this key is not used (ADR-0037). | A model name, or empty. |
 | `families` | `claude-*=Anthropic`, `gpt-*=OpenAI`, `codex-*=OpenAI`, `nemotron-*=NVIDIA`, `qwen*=Alibaba`, `NVIDIA=NVIDIA` | Maps a model name to a family. A model that matches nothing is `family unknown`. The same family as the author prints `yes`; a different known family prints `no`. | Comma-separated `pattern=name`. Any non-empty name is a family. An empty or malformed entry is refused. A bad pattern is refused. |
 | `path_rules` | the list under Default path rules | Maps a path pattern to a review class. The first matching rule of the highest class wins. A pattern with no slash also matches the base name, so `go.mod` matches a nested module. | Comma-separated `pattern=class`. A class is one of `security`, `backend`, `mobile`, `user interface`, `docs`. Patterns use `*` and `**`. |
 | `class_order` | `security`, `backend`, `mobile`, `user interface`, `docs` | Highest risk first. The matching rule whose class is earliest in this list wins. | Every class exactly once. An order that leaves a class out is refused, and the refusal lists the classes. |
 | `fallback_class` | `backend` | The class when no path rule matches. The rule name is `fallback`. | One of the five classes. |
-| `doubled_classes` | `security` | Classes that use the default reviewer and the special reviewer. | `off`, or a comma-separated list of classes. |
+| `doubled_classes` | `security` | Classes that use the default reviewer and the special reviewer. With a second reviewer connected (`PROVEN_SECOND_REVIEWER_KEY`) the default is every class, a list here narrows it to those classes, and `security` is doubled whatever the list says, `off` included (ADR-0037). | `off`, or a comma-separated list of classes. |
 | `author_commit_trailers` | `on` | Read author trailers from commits after the baseline. The baseline commit itself is not read. | `on` or `off`. |
 | `author_description` | `on` | Read author trailers from the pull-request description. | `on` or `off`. |
 | `author_record` | `off` | Read author trailers from a file inside the review target. | `off`, or a relative path or pattern inside the target. An absolute path, a `..` segment, a symlink, and a path that resolves outside the target are refused before the file is read. |
