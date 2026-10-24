@@ -108,7 +108,71 @@ func TestEachPolicyKeyRefusesAWeakerValueAndAcceptsAnEqualOrStricterOne(t *testi
 	}
 }
 
-// TestALocalValueOfAKeyThePolicyDidNotSetIsFree: the policy sets one key; the repository changes another.
+// TestNoPathLoosensTheClassAcrossFields compares the class every path gets, not one key at a time. Each
+// case is weaker only across fields: the repository's rule or fallback is fine against its own key and
+// lowers a path below what the policy's other key gives it. The refusal names the key, the pattern, both
+// classes and the policy file.
+func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
+	cases := []struct {
+		name, policy, local string
+		key                 string
+		why                 []string
+	}{
+		{
+			// The reviewer's case: every unmatched path now takes the docs rule.
+			"a local wildcard rule under a policy fallback", "fallback_class: security\n", "path_rules: **=docs\n",
+			"path_rules", []string{"**=docs", "fallback gives security", "policy's"},
+		},
+		{
+			"a local fallback under a policy that only sets rules", "path_rules: docs/**=security\n", "fallback_class: docs\n",
+			"fallback_class", []string{"falls back to docs", "falls back to docs, below backend"},
+		},
+		{
+			"a local rule below the fallback beside the policy's own rules", "path_rules: go.mod=security\nfallback_class: backend\n", "path_rules: go.mod=security, **/*.md=docs\n",
+			"path_rules", []string{"**/*.md=docs", "fallback gives backend", "policy's"},
+		},
+		{
+			"a local rule below the default fallback when the policy sets only the order", "class_order: security, backend, mobile, user interface, docs\n", "path_rules: **/auth/**=security, **=docs\n",
+			"path_rules", []string{"**=docs", "fallback gives backend", "policy's"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			p, err := loadPolicy(writeFile(t, "policy.yaml", c.policy))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = p.parseLocal([]byte(c.local))
+			ce, ok := err.(*ConfigError)
+			if !ok || ce.Field != c.key {
+				t.Fatalf("want a *ConfigError on %s, got %v", c.key, err)
+			}
+			for _, want := range append([]string{"weaker than the organisation policy", p.path}, c.why...) {
+				if !strings.Contains(ce.Reason, want) {
+					t.Errorf("reason lacks %q: %s", want, ce.Reason)
+				}
+			}
+		})
+	}
+	// The same rule is free when the policy fixes no class: it says nothing about paths.
+	p, err := loadPolicy(writeFile(t, "policy.yaml", "doubled_classes: security\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.parseLocal([]byte("path_rules: **=docs\n")); err != nil {
+		t.Fatalf("a policy with no class key refused a local rule: %v", err)
+	}
+	// A rule at or above the policy's fallback, and the policy's own low rule, are accepted.
+	p, err = loadPolicy(writeFile(t, "policy.yaml", "path_rules: docs/**=docs\nfallback_class: security\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.parseLocal([]byte("path_rules: docs/**=docs, **/*.go=security\n")); err != nil {
+		t.Fatalf("an equal or stricter rule set was refused: %v", err)
+	}
+}
+
+// TestALocalValueOfAKeyThePolicyDidNotSetIsFree:the policy sets one key; the repository changes another.
 func TestALocalValueOfAKeyThePolicyDidNotSetIsFree(t *testing.T) {
 	p, err := loadPolicy(writeFile(t, "policy.yaml", "doubled_classes: security\n"))
 	if err != nil {
@@ -180,7 +244,53 @@ func TestAnExpiredExceptionNoLongerAcceptsAndTheReviewSaysSo(t *testing.T) {
 	}
 }
 
-// TestAnExceptionCoversOnlyItsRuleAndItsLocation: the same path and line with another rule, and the
+// TestTheExpiryDayIsTheUTCDateInEveryZone: the exception of discountException holds through 2026-12-31 by
+// the UTC date of the clock. Two zones, an hour either side of that date's end, as written in the zone
+// and as the same instant in UTC: the answer follows the UTC date, never the zone's wall clock.
+func TestTheExpiryDayIsTheUTCDateInEveryZone(t *testing.T) {
+	bangkok := time.FixedZone("Asia/Bangkok", 7*3600)
+	newYork := time.FixedZone("America/New_York", -5*3600)
+	at := func(loc *time.Location, wall string) time.Time {
+		ts, err := time.ParseInLocation("2006-01-02 15:04", wall, loc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ts
+	}
+	cases := []struct {
+		name     string
+		now      time.Time
+		accepted bool
+	}{
+		// Bangkok (UTC+7): the wall clock is already on 1 Jan, yet the UTC date is still 31 Dec until 07:00.
+		{"Bangkok 06:59 on 1 Jan, UTC 23:59 on 31 Dec", at(bangkok, "2027-01-01 06:59"), true},
+		{"Bangkok 07:00 on 1 Jan, UTC 00:00 on 1 Jan", at(bangkok, "2027-01-01 07:00"), false},
+		// New York (UTC-5): the wall clock is still on 31 Dec when the UTC date has turned, at 19:00.
+		{"New York 18:59 on 31 Dec, UTC 23:59 on 31 Dec", at(newYork, "2026-12-31 18:59"), true},
+		{"New York 19:00 on 31 Dec, UTC 00:00 on 1 Jan", at(newYork, "2026-12-31 19:00"), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			p, err := loadPolicy(writeFile(t, "policy.yaml", discountException))
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := Result{Findings: []Finding{{ID: "F1", RuleID: "discount-applied-twice", Location: Location{Path: "billing/discount.go", StartLine: 5}}}}
+			p.applyExceptions(&out, c.now)
+			if got := len(out.Accepted) == 1; got != c.accepted || len(out.Findings) == 1 != !c.accepted {
+				t.Fatalf("now %s (UTC %s): accepted %d findings %d, want accepted %v", c.now, c.now.UTC().Format(dateLayout), len(out.Accepted), len(out.Findings), c.accepted)
+			}
+			// The same instant in UTC gives the same answer.
+			again := Result{Findings: []Finding{{ID: "F1", RuleID: "discount-applied-twice", Location: Location{Path: "billing/discount.go", StartLine: 5}}}}
+			p.applyExceptions(&again, c.now.UTC())
+			if len(again.Accepted) != len(out.Accepted) {
+				t.Fatalf("zone %s and UTC disagree", c.now.Location())
+			}
+		})
+	}
+}
+
+// TestAnExceptionCoversOnlyItsRuleAndItsLocation:the same path and line with another rule, and the
 // rule with another path or another line, are not accepted.
 func TestAnExceptionCoversOnlyItsRuleAndItsLocation(t *testing.T) {
 	for name, edit := range map[string][2]string{

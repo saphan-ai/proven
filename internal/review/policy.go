@@ -279,22 +279,15 @@ func (p *policy) weaker(key string, cfg fileSettings) string {
 			return "the policy fixes the order of the classes as " + strings.Join(order, ", ")
 		}
 	case "path_rules":
-		if !polSet {
+		if !p.fixesClasses() {
 			return ""
 		}
-		// A repository's list replaces the policy's, so it must still hold every rule of the policy at the
-		// same class or a higher one. Extra rules can only raise a review's class, never lower it.
-		for _, want := range pol.PathRules {
-			got, ok := ruleFor(cfg.PathRules, want.Pattern)
-			if !ok {
-				return "it leaves out the rule " + want.Pattern + "=" + want.Class
-			}
-			if classRank(order, got.Class) > classRank(order, want.Class) {
-				return "it puts " + want.Pattern + " in " + got.Class + ", below " + want.Class
-			}
-		}
+		return p.weakerRules(cfg)
 	case "fallback_class":
-		if polSet && classRank(order, cfg.Fallback) > classRank(order, pol.Fallback) {
+		if !p.fixesClasses() {
+			return ""
+		}
+		if classRank(order, cfg.Fallback) > classRank(order, pol.Fallback) {
 			return "it falls back to " + cfg.Fallback + ", below " + pol.Fallback
 		}
 	case "doubled_classes":
@@ -330,6 +323,56 @@ func (p *policy) weaker(key string, cfg fileSettings) string {
 			if !have[strings.ToLower(k)] {
 				return "it drops the key " + k
 			}
+		}
+	}
+	return ""
+}
+
+// fixesClasses reports whether the policy sets any key that decides the class of a path: path_rules,
+// class_order or fallback_class. Then the policy's effective classification (its rules, or the
+// defaults, and its fallback) is a floor for every path, and a repository's own is compared with it.
+func (p *policy) fixesClasses() bool {
+	for _, key := range []string{"path_rules", "class_order", "fallback_class"} {
+		if _, ok := p.given[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// weakerRules compares the class every path gets under the repository's rules and fallback with the
+// class it gets under the policy's, and returns why some path would get a lower one, or "". A path takes
+// the highest class of the rules that match it, else the fallback (ADR-0014). Two facts make the
+// comparison sound without listing paths:
+//
+//  1. A path a policy rule covers keeps its class when the repository holds that rule at the same class
+//     or a higher one, because extra rules only add candidates and the highest class wins.
+//  2. A path no policy rule covers gets the policy's fallback, so a repository rule that puts any path
+//     below that fallback may lower it.
+//
+// A rule of the repository that is not one of the policy's and sits below the policy's fallback is refused
+// even if it could only match paths a policy rule covers: a pattern cannot be shown disjoint from every
+// other, so the refusal takes the stricter reading.
+func (p *policy) weakerRules(cfg fileSettings) string {
+	pol, order := p.settings, p.settings.ClassOrder
+	// The rule that lowers a path is named first: it is the one a reader must change.
+	floor := classRank(order, pol.Fallback)
+	for _, r := range cfg.PathRules {
+		if classRank(order, r.Class) <= floor {
+			continue
+		}
+		if _, ours := ruleFor(pol.PathRules, r.Pattern); ours {
+			continue
+		}
+		return "its rule " + r.Pattern + "=" + r.Class + " gives paths " + r.Class + " where the policy's fallback gives " + pol.Fallback + ", below it"
+	}
+	for _, want := range pol.PathRules {
+		got, ok := ruleFor(cfg.PathRules, want.Pattern)
+		if !ok {
+			return "it leaves out the rule " + want.Pattern + "=" + want.Class
+		}
+		if classRank(order, got.Class) > classRank(order, want.Class) {
+			return "it puts " + want.Pattern + " in " + got.Class + ", below " + want.Class
 		}
 	}
 	return ""
