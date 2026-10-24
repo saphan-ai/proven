@@ -44,13 +44,12 @@ var fixSpec = answer.Spec{
 	Example: `{"what":"Subtract the discount once.","why":"The price subtracted the percent twice, so the total was too low.","edits":[{"path":"pkg/price.go","old":"return a - b - b","new":"return a - b"}]}`,
 }
 
-// Options are the checkouts the proof runs on, the attempts allowed and the size limit of a patch.
-// Attempts <= 0 uses DefaultAttempts. MaxPatchBytes <= 0 uses the testrun default.
+// Options are the checkouts the proof runs on and the attempts allowed.
+// Attempts <= 0 uses DefaultAttempts. The size limit of a patch is the test runner's own.
 type Options struct {
-	BaseDir       string
-	ChangeDir     string
-	Attempts      int
-	MaxPatchBytes int
+	BaseDir   string
+	ChangeDir string
+	Attempts  int
 }
 
 // row is the answer as the model returns it. Command is read only so that an answer

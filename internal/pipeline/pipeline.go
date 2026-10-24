@@ -3,9 +3,10 @@
 // It is the reviewer behind review.Open. One Review call reads the change, lets
 // the Planner name candidate risks, has the Investigator pick a query template and the
 // Prover write a test for each, lets the Skeptic try to refute every finding,
-// has the Judge keep only what carries evidence (ADR-0002), adds the dependency
-// check against the OSV table and the EPSS scores, and hands the result to the
-// Writer. Every step writes to the trace, which is then folded into H-MEM and
+// has the Judge keep only what carries evidence (ADR-0002), lets the Fixer propose
+// a fix for each finding a test proved and prove it with the same test (ADR-0042),
+// adds the dependency check against the OSV table, with the fixed version it
+// names, and the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
 // the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
@@ -246,7 +247,7 @@ type Request struct {
 	FixAttempts int
 }
 
-// Review runs planner, investigator, prover, skeptic, judge and writer.
+// Review runs planner, investigator, prover, skeptic, judge, the fixer (ADR-0042) and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
 // When ctx ends before the Judge has decided, the draft is partial and holds only
 // judged findings. After a review with no error the trace is folded into the World
