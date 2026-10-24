@@ -12,7 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saphan-ai/proven/internal/childenv"
+	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -313,6 +314,11 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	if cfg.command != "ci" {
 		return nil
 	}
+	// The merge base is read before review.Open loads the mode, so git is told here.
+	// A wrong PROVEN_NETWORK is not judged here: Open refuses it by name.
+	if pol, err := network.Load(getenv); err == nil {
+		defer change.UseOffline(change.UseOffline(pol.Local()))
+	}
 	var ev pullRequestEvent
 	have := false
 	if path := getenv("GITHUB_EVENT_PATH"); path != "" {
@@ -371,11 +377,9 @@ func applyCI(cfg *config, getenv func(string) string) error {
 // gitMergeBase asks git for the fork point of base and head in repo and
 // returns git's own sentence when it cannot answer.
 func gitMergeBase(repo, base, head string) (string, error) {
-	cmd := exec.Command("git", "-C", repo, "merge-base", base, head)
-	// Property: no key reaches a subprocess. An inherited environment would
-	// hand git, and any hook or alias it runs, every key Proven holds; git
-	// needs PATH and HOME only (ADR-0025).
-	cmd.Env = childenv.Minimal()
+	// Property: no key reaches a subprocess (ADR-0025). GitCommand builds the
+	// minimal environment and, in local mode, a git that cannot fetch.
+	cmd := change.GitCommand("-C", repo, "merge-base", base, head)
 	out, err := cmd.Output()
 	if err != nil {
 		detail := err.Error()

@@ -9,23 +9,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/saphan-ai/proven/internal/childenv"
 )
-
-// gitCommand builds a git call with the minimal environment of ADR-0025:
-// PATH and HOME and nothing else, so no key Proven holds reaches git, a git
-// hook or an alias. Every git call in this package goes through it.
-func gitCommand(args ...string) *exec.Cmd {
-	cmd := exec.Command("git", args...)
-	cmd.Env = childenv.Minimal()
-	return cmd
-}
 
 // WorkTree reports whether target is inside a git working tree.
 // A missing git binary is an error. A directory that is not a repository is false.
 func WorkTree(target string) (bool, error) {
-	cmd := gitCommand("-C", target, "rev-parse", "--is-inside-work-tree")
+	cmd := GitCommand("-C", target, "rev-parse", "--is-inside-work-tree")
 	out, err := cmd.Output()
 	if err == nil {
 		return strings.TrimSpace(string(out)) == "true", nil
@@ -42,7 +31,7 @@ func WorkTree(target string) (bool, error) {
 // does not run the change. The git directory is not in the archive. The
 // stream is bounded by the archive limit.
 func gitArchive(target, rev string) ([]byte, error) {
-	cmd := gitCommand("-C", target, "archive", "--format=tar", "--end-of-options", rev)
+	cmd := GitCommand("-C", target, "archive", "--format=tar", "--end-of-options", rev)
 	return outputBounded(cmd, Bounds().Archive, "the archive of the commit", EnvMaxArchiveBytes)
 }
 
@@ -103,7 +92,7 @@ func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
 		if msg == "" {
 			msg = waitErr.Error()
 		}
-		return nil, &gitFailure{msg: msg}
+		return nil, &gitFailure{msg: offlineMessage(msg)}
 	}
 	return out, nil
 }
@@ -162,7 +151,7 @@ func Blob(target, rev, rel string) ([]byte, bool, error) {
 		return nil, false, fmt.Errorf("git: path %q leaves the tree", rel)
 	}
 	// "./" makes the path relative to target, not to the repository root (git rev:path rule).
-	cmd := gitCommand("-C", target, "show", "--end-of-options", rev+":./"+rel)
+	cmd := GitCommand("-C", target, "show", "--end-of-options", rev+":./"+rel)
 	out, err := outputBounded(cmd, Bounds().File, "the file "+rel+" in the commit", EnvMaxFileBytes)
 	if err == nil {
 		return out, true, nil
@@ -201,7 +190,7 @@ func Messages(target, baseline, head string) ([]string, error) {
 	}
 	// %x1e ends each message with an ASCII record separator, so a message
 	// with blank lines in it is still split in the right place.
-	cmd := gitCommand("-C", target, "log", "--reverse", "--format=%B%x1e", "--end-of-options", baseline+".."+end)
+	cmd := GitCommand("-C", target, "log", "--reverse", "--format=%B%x1e", "--end-of-options", baseline+".."+end)
 	// The log is repository content: a commit message can be as long as its
 	// author likes, so the read is bounded like a file.
 	out, err := outputBounded(cmd, Bounds().File, "the commit log", EnvMaxFileBytes)
@@ -238,7 +227,7 @@ func ensureCommit(target, rev, which string) error {
 	if rev == "" {
 		return fmt.Errorf("%s commit %q does not exist", which, rev)
 	}
-	cmd := gitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}")
+	cmd := GitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}")
 	_, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil
@@ -253,7 +242,7 @@ func ensureCommit(target, rev, which string) error {
 // gitZ runs git with args and splits its NUL-separated output into slash
 // paths. A failure carries git's own message.
 func gitZ(args []string) ([]string, error) {
-	cmd := gitCommand(args...)
+	cmd := GitCommand(args...)
 	// A list of path names is repository content too, so it has the archive bound.
 	out, err := outputBounded(cmd, Bounds().Archive, "the list of file names", EnvMaxArchiveBytes)
 	if err != nil {
@@ -316,10 +305,15 @@ func underTarget(target string, paths []string) ([]string, error) {
 
 // gitZText runs git with args and returns its trimmed output as one string.
 func gitZText(args []string) (string, error) {
-	cmd := gitCommand(args...)
+	cmd := GitCommand(args...)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("git: %w", err)
+		detail := err.Error()
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && strings.TrimSpace(string(exitErr.Stderr)) != "" {
+			detail = strings.TrimSpace(string(exitErr.Stderr))
+		}
+		return "", fmt.Errorf("git: %s", offlineMessage(detail))
 	}
 	return strings.TrimSpace(string(out)), nil
 }

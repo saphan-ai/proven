@@ -19,6 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
@@ -57,6 +58,11 @@ func open(opts Options) (Reviewer, error) {
 			return nil, readLimitConfig(rerr)
 		}
 		reads = loaded
+		// ADR-0034: in the air-gapped mode git cannot fetch, not even the objects of a partial clone.
+		// A wrong PROVEN_NETWORK is refused by name by the loaders below, so it is not judged here.
+		if pol, nerr := network.Load(opts.Env); nerr == nil {
+			change.UseOffline(pol.Local())
+		}
 	}
 	change.UseLimits(reads)
 	cfg := defaultSettings()
