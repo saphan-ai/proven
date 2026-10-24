@@ -3,9 +3,10 @@
 // It is the reviewer behind review.Open. One Review call reads the change, lets
 // the Planner name candidate risks, has the Investigator pick a query template and the
 // Prover write a test for each, lets the Skeptic try to refute every finding,
-// has the Judge keep only what carries evidence (ADR-0002), adds the dependency
-// check against the OSV table and the EPSS scores, and hands the result to the
-// Writer. Every step writes to the trace, which is then folded into H-MEM and
+// has the Judge keep only what carries evidence (ADR-0002), lets the Fixer propose
+// a fix for each finding a test proved and prove it with the same test (ADR-0042),
+// adds the dependency check against the OSV table, with the fixed version it
+// names, and the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
 // the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
@@ -31,6 +32,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/saphan-ai/proven/internal/agent/fixer"
 	"github.com/saphan-ai/proven/internal/agent/investigator"
 	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/agent/planner"
@@ -239,9 +241,13 @@ type Request struct {
 	// DefaultModel and SpecialModel are the configured reviewer names.
 	DefaultModel string
 	SpecialModel string
+	// FixesOff turns proposed fixes off (ADR-0042). The zero value proposes them.
+	FixesOff bool
+	// FixAttempts is the most attempts at one fix; zero means fixer.DefaultAttempts.
+	FixAttempts int
 }
 
-// Review runs planner, investigator, prover, skeptic, judge and writer.
+// Review runs planner, investigator, prover, skeptic, judge, the fixer (ADR-0042) and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
 // When ctx ends before the Judge has decided, the draft is partial and holds only
 // judged findings. After a review with no error the trace is folded into the World
@@ -308,6 +314,7 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 					cp := *t
 					cp.Path, cp.Name = rd.Text(t.Path), rd.Text(t.Name)
 					cp.Command, cp.Output = rd.Text(t.Command), rd.Text(t.Output)
+					cp.Content = rd.Text(t.Content)
 					ev[j].Test = &cp
 				}
 				if q := e.Query; q != nil {
@@ -326,9 +333,43 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 			}
 			c.Evidence = ev
 		}
+		c.Fix = redactFix(rd, c.Fix)
 		out[i] = c
 	}
 	return out
+}
+
+// redactFix returns a copy of f with rd applied to every string a model or a test run wrote.
+// A fix is the last place model text and test output reach the result, so it is redacted
+// with the rest of the finding (ADR-0013 point 4). A nil fix stays nil.
+func redactFix(rd *redact.Redactor, f *candidate.Fix) *candidate.Fix {
+	if f == nil {
+		return nil
+	}
+	cp := *f
+	cp.What, cp.Why, cp.Note = rd.Text(f.What), rd.Text(f.Why), rd.Text(f.Note)
+	if f.Edits != nil {
+		cp.Edits = make([]candidate.FixEdit, len(f.Edits))
+		for i, e := range f.Edits {
+			cp.Edits[i] = candidate.FixEdit{Path: rd.Text(e.Path), Old: rd.Text(e.Old), New: rd.Text(e.New)}
+		}
+	}
+	if f.Runs != nil {
+		cp.Runs = make([]candidate.FixRun, len(f.Runs))
+		for i, r := range f.Runs {
+			cp.Runs[i] = candidate.FixRun{
+				Label: rd.Text(r.Label), Command: rd.Text(r.Command), Result: rd.Text(r.Result),
+				ExitCode: r.ExitCode, Output: rd.Text(r.Output),
+			}
+		}
+	}
+	if d := f.Dependency; d != nil {
+		dc := *d
+		dc.Ecosystem, dc.Package, dc.From, dc.To = rd.Text(d.Ecosystem), rd.Text(d.Package), rd.Text(d.From), rd.Text(d.To)
+		dc.AdvisoryID, dc.AdvisoryColumns, dc.AdvisoryRow = rd.Text(d.AdvisoryID), rd.Texts(d.AdvisoryColumns), rd.Texts(d.AdvisoryRow)
+		cp.Dependency = &dc
+	}
+	return &cp
 }
 
 // redactRows returns a copy of rows with rd applied to every cell. A nil slice stays nil.
@@ -675,9 +716,19 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
+	// ADR-0042: a kept finding that a test proved gets a fix proved by the same test. It
+	// comes after the Judge, so no fix is written for a finding that is dropped.
+	if !req.FixesOff {
+		if err := p.fix(ctx, st, gen, run, fx.Root, req.FixAttempts, cands); err != nil {
+			if errors.Is(err, errPartial) {
+				return p.cut(st, cands, allow)
+			}
+			return candidate.Draft{}, err
+		}
+	}
 	// The dependency check and the EPSS scores come after the Judge: they add
 	// findings judged on their own query rows and do not pass the Skeptic.
-	cands, err = p.addOSV(ctx, st, q, fx.Root, fx.Snapshot, cands)
+	cands, err = p.addOSV(ctx, st, q, fx.Root, fx.Snapshot, cands, !req.FixesOff)
 	if err != nil {
 		if _, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
@@ -725,7 +776,7 @@ func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Adapter, s
 // addOSV names added and raised modules without a model, queries the OSV
 // table, and compares versions in Go. A module with no affected row is a
 // trace line, not a finding.
-func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
+func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root, snapshot string, cands []candidate.Candidate, fixes bool) ([]candidate.Candidate, error) {
 	if ctx.Err() != nil {
 		return cands, ctx.Err()
 	}
@@ -745,6 +796,10 @@ func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root,
 		// The Judge still decides an OSV finding: a matching range is
 		// evidence, nothing else is.
 		c = judge.Decide(c)
+		// ADR-0042: with proposed fixes off, no fix is named for a dependency either.
+		if !fixes {
+			c.Fix = nil
+		}
 		if e := st.trace.Append(trace.Event{
 			FindingID: c.ID, Kind: "claim", Agent: "osv", Text: c.Title,
 			RuleID: c.RuleID, Path: c.Path, Title: c.Title,
@@ -766,6 +821,11 @@ func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root,
 		}
 		if e := st.event(c.ID, "verdict", "judge", c.DropReason); e != nil {
 			return nil, e
+		}
+		if c.Fix != nil {
+			if e := st.fixEvents(c); e != nil {
+				return nil, e
+			}
 		}
 		cands = append(cands, c)
 	}
@@ -914,7 +974,7 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 	run := p.testRun
 	if run == nil {
 		if p.sample {
-			run = testrun.NewSample(fx.Tests)
+			run = testrun.NewSample(fx.Tests, fx.Fixes...)
 		} else {
 			cfg, lerr := testrun.Load(p.env)
 			if lerr != nil {
@@ -969,6 +1029,83 @@ func (a checkoutRun) Run(ctx context.Context, req testrun.Request) (testrun.Outc
 		req.ChangeDir = a.change
 	}
 	return a.inner.Run(ctx, req)
+}
+
+// RunFix fills the empty checkout directories and proves a fix on the inner adapter,
+// as Run does for a test. An inner adapter that cannot prove a fix reports the Prover off.
+func (a checkoutRun) RunFix(ctx context.Context, req testrun.FixRequest) (testrun.FixOutcome, error) {
+	inner, ok := a.inner.(testrun.FixRunner)
+	if !ok {
+		return testrun.FixOutcome{}, &service.Down{Service: "prover", Reason: "Prover off: this runner cannot prove a fix"}
+	}
+	if req.BaseDir == "" {
+		req.BaseDir = a.base
+	}
+	if req.ChangeDir == "" {
+		req.ChangeDir = a.change
+	}
+	return inner.RunFix(ctx, req)
+}
+
+// fix runs the Fixer for every kept finding a test proved (ADR-0042) and writes what it did
+// to the trace. A runner that cannot prove a fix leaves the findings as they were: the
+// review's other results do not depend on it. A service that is down is named as failed,
+// like any other, and the review goes on.
+func (p *Pipeline) fix(ctx context.Context, st *state, gen generator.Generator, run testrun.Adapter, root string, attempts int, cands []candidate.Candidate) error {
+	runner, ok := run.(testrun.FixRunner)
+	if !ok {
+		return nil
+	}
+	for i := range cands {
+		if cands[i].Dropped {
+			continue
+		}
+		next, err := fixer.Propose(ctx, cands[i], gen, runner, fixer.Options{
+			BaseDir:   filepath.Join(root, "base"),
+			ChangeDir: filepath.Join(root, "change"),
+			Attempts:  attempts,
+		})
+		// The best result is kept even when an error came with it: a failed attempt
+		// the review already made is not hidden by a service that went down after it.
+		cands[i] = next
+		if next.Fix != nil {
+			if e := st.fixEvents(next); e != nil {
+				return e
+			}
+		}
+		if err != nil {
+			if _, fatal := st.soften(ctx, err); fatal != nil {
+				return fatal
+			}
+		}
+	}
+	return nil
+}
+
+// fixEvents writes the trace lines of one finding's fix: the outcome, and one line for each run
+// of its proof with the command and the exit code, so a reader of the trace can run it again.
+func (s *state) fixEvents(c candidate.Candidate) error {
+	f := c.Fix
+	switch {
+	case f.Proved:
+		if err := s.event(c.ID, "fix", "fixer", fmt.Sprintf("fix proved after %d attempt(s): %s", f.Attempts, f.What)); err != nil {
+			return err
+		}
+	case f.Dependency != nil:
+		if err := s.event(c.ID, "fix", "fixer", fmt.Sprintf("dependency fix named: %s %s to %s from advisory %s", f.Dependency.Package, f.Dependency.From, f.Dependency.To, f.Dependency.AdvisoryID)); err != nil {
+			return err
+		}
+	default:
+		if err := s.event(c.ID, "fix", "fixer", f.Note); err != nil {
+			return err
+		}
+	}
+	for _, r := range f.Runs {
+		if err := s.event(c.ID, "fix", "fixer", fmt.Sprintf("run %s: %s exit %d %s", r.Label, r.Command, r.ExitCode, r.Result)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // state is what one review gathers as it runs: the trace it writes to, the
