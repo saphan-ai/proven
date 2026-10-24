@@ -41,10 +41,16 @@ func TestLocalRefusesAPodmanRemoteServiceThatIsPublic(t *testing.T) {
 // not refuse podman: an address on the organisation's network loads, and public mode loads the public one.
 // Mutated field: the uri of the service destination.
 func TestLocalAcceptsAPodmanRemoteServiceOnTheNetwork(t *testing.T) {
-	near := podmanHome(t, "ssh://core@10.0.0.5:22/run/podman/podman.sock")
+	near := podmanHome(t, "tcp://10.0.0.5:2375")
 	env := map[string]string{"PROVEN_NETWORK": "local", "PROVEN_TEST_RUNTIME": "podman", "HOME": near}
 	if _, err := Load(func(k string) string { return env[k] }); err != nil {
 		t.Fatalf("a podman service on 10.0.0.5 was refused: %v", err)
+	}
+	// An ssh destination is refused even on a private IP: its route is ssh's to choose.
+	viaSSH := podmanHome(t, "ssh://core@10.0.0.5:22/run/podman/podman.sock")
+	env = map[string]string{"PROVEN_NETWORK": "local", "PROVEN_TEST_RUNTIME": "podman", "HOME": viaSSH}
+	if _, err := Load(func(k string) string { return env[k] }); err == nil {
+		t.Fatal("a podman ssh service on 10.0.0.5 was accepted")
 	}
 	far := podmanHome(t, "ssh://core@builder.example.com:22/run/podman/podman.sock")
 	env = map[string]string{"PROVEN_NETWORK": "public", "PROVEN_TEST_RUNTIME": "podman", "HOME": far}

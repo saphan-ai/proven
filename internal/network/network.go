@@ -171,6 +171,12 @@ func (p *Policy) CheckDaemon(setting, raw string) error {
 			return nil
 		}
 	}
+	// ssh chooses its own route from the ssh configuration under HOME (ProxyJump,
+	// ProxyCommand, Match rules), so the host in the address is not where it
+	// connects. Proven cannot enforce or verify every hop, so it refuses the scheme.
+	if u, err := url.Parse(raw); err == nil && strings.EqualFold(u.Scheme, "ssh") {
+		return refuse(setting, clip(raw), "an ssh daemon route is chosen by the ssh configuration, which can pass through a host outside the organisation's network, and Proven cannot check every hop (PROVEN_NETWORK=local)", "a local socket, or tcp:// to the IP address of the daemon on the organisation's network")
+	}
 	if err := p.CheckURL(setting, raw); err != nil {
 		return err
 	}
