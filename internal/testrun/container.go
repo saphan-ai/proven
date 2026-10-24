@@ -416,16 +416,9 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	out.Command = displayCommand(test)
 	// ADR-0025: a checkout that is a link is not a mount source. The runtime would follow it to
 	// whatever it names, which is not the tree that was prepared.
-	for _, dir := range []string{req.BaseDir, req.ChangeDir} {
-		if dir == "" {
-			continue
-		}
-		// The cleaned path is the one checked: a trailing slash makes Lstat follow
-		// the link, and the cleaned form is what names the mount source.
-		if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
-			out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
-			return out, nil
-		}
+	if linkedCheckout(req.BaseDir, req.ChangeDir) {
+		out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
+		return out, nil
 	}
 	if req.Content != "" {
 		// The written test goes into a copy of each checkout, so the caller's
@@ -467,6 +460,23 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	return out, nil
 }
 
+// linkedCheckout reports whether any named checkout is a symbolic link. The runtime
+// would follow it to whatever it names, which is not the tree that was prepared.
+// An empty name is skipped: the caller refuses a missing directory on its own.
+func linkedCheckout(dirs ...string) bool {
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		// The cleaned path is the one checked: a trailing slash makes Lstat follow
+		// the link, and the cleaned form is what names the mount source.
+		if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // absentImage turns a run the runtime refused for lack of the image into the Prover down, with the
 // pull as its next act, the way Probe does. It returns nil for any other outcome. Docker says
 // "Unable to find image" and podman says "image not known"; --pull never makes both refuse
@@ -487,13 +497,24 @@ func (c *Container) absentImage(text string, kind runKind) error {
 
 // side runs the test command words in one checkout and classifies how it ended.
 func (c *Container) side(ctx context.Context, dir string, test []string) (string, runKind) {
+	text, kind, _ := c.sideExit(ctx, dir, test)
+	return text, kind
+}
+
+// noExit is the exit code reported for a side that ended without one: it timed
+// out, was cancelled, or the runtime could not be started.
+const noExit = -1
+
+// sideExit is side with the exit code of the command, which a fix's record keeps
+// so a reader can compare it with a run of their own (ADR-0042 point 7).
+func (c *Container) sideExit(ctx context.Context, dir string, test []string) (string, runKind, int) {
 	if err := ctx.Err(); err != nil {
-		return "", kindCancelled
+		return "", kindCancelled, noExit
 	}
 	host, err := filepath.Abs(dir)
 	// A colon would split the -v host:container:ro value into the wrong parts.
 	if err != nil || strings.Contains(host, ":") {
-		return "the test could not run: the checkout path cannot be one mount", kindNotRun
+		return "the test could not run: the checkout path cannot be one mount", kindNotRun, noExit
 	}
 	// A unique name lets remove find the container after a timeout or a cancel.
 	name := containerName()
@@ -505,28 +526,28 @@ func (c *Container) side(ctx context.Context, dir string, test []string) (string
 	// review is not reported as a timeout. Either way the container is removed,
 	// because killing the CLI does not stop the container it started.
 	if ctx.Err() != nil {
-		return joinRemoval(text, c.remove(name)), kindCancelled
+		return joinRemoval(text, c.remove(name)), kindCancelled, noExit
 	}
 	if runCtx.Err() != nil {
-		return joinRemoval(text, c.remove(name)), kindTimeout
+		return joinRemoval(text, c.remove(name)), kindTimeout, noExit
 	}
 	if err == nil {
-		return text, kindPass
+		return text, kindPass, 0
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
 		switch exit.ExitCode() {
 		case 125, 126, 127:
-			return text, kindNotRun
+			return text, kindNotRun, exit.ExitCode()
 		default:
-			return text, kindFail
+			return text, kindFail, exit.ExitCode()
 		}
 	}
 	// No exit status at all: the runtime could not be started, so the test did not run.
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
-	return text + err.Error(), kindNotRun
+	return text + err.Error(), kindNotRun, noExit
 }
 
 // remove asks the runtime to delete name. Its own context is cleanupBound
