@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/review"
@@ -226,42 +227,56 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 	return nil
 }
 
-// visible returns s with every control byte shown as a visible escape such as
-// \x1b: the C0 bytes, DEL and the C1 bytes, a newline included. Every text the
-// writer prints that can come from the change goes through it, so the change
-// cannot move the cursor, recolour or rewrite the reader's terminal. A tab is
-// kept, because it only spaces. JSON and SARIF need no such step: their
-// encoders already escape.
+// continuationPrefix starts every line after the first of a multi-line field.
+// Every line Proven writes itself starts at column 0 or with exactly two
+// spaces, and none starts with four spaces and a bar, so a line carrying this
+// prefix is always read as the continuation of the field above it.
+const continuationPrefix = "    | "
+
+// visible returns s with every byte that could act on a terminal shown as a
+// visible escape. The byte contract, which ADR-0027 asks to be written once:
+//
+//   - C0 (U+0000 to U+001F), tab and newline included, DEL (U+007F) and C1
+//     (U+0080 to U+009F) are shown as \xNN of the code point, e.g. \x1b, \x09.
+//   - A byte that is not part of valid UTF-8 is shown as \xNN of the original
+//     byte, so what the change held is what the reader sees, not U+FFFD.
+//   - Everything else is written unchanged.
+//
+// Every text the writer prints that can come from the change goes through it,
+// so the change cannot move the cursor, recolour or rewrite the reader's
+// terminal. JSON and SARIF need no such step: their encoders already escape.
 func visible(s string) string {
 	return escapeControls(s, false)
 }
 
 // visibleLines is visible for a field that is several lines long, such as a
-// test's output: the newline between its lines is kept and every other
-// control byte is shown as an escape.
+// test's output. Its newlines are kept, and each one is followed by
+// continuationPrefix: otherwise a line inside the field, such as
+// "failed services: none", would be indistinguishable from one Proven wrote.
 func visibleLines(s string) string {
 	return escapeControls(s, true)
 }
 
 func escapeControls(s string, keepNewline bool) string {
 	var b strings.Builder
-	for _, r := range s {
-		if isControl(r, keepNewline) {
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, `\x%02x`, s[i])
+		case r == '\n' && keepNewline:
+			b.WriteString("\n" + continuationPrefix)
+		case isControl(r):
 			fmt.Fprintf(&b, `\x%02x`, r)
-			continue
+		default:
+			b.WriteString(s[i : i+size])
 		}
-		b.WriteRune(r)
+		i += size
 	}
 	return b.String()
 }
 
-func isControl(r rune, keepNewline bool) bool {
-	switch r {
-	case '\t':
-		return false
-	case '\n':
-		return !keepNewline
-	}
+func isControl(r rune) bool {
 	return r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 }
 
