@@ -227,6 +227,12 @@ func (p *Policy) DialContext(ctx context.Context, network, addr string) (net.Con
 	}
 	var last error
 	for _, ip := range ips {
+		// Lookup has judged every answer already. The address is judged again
+		// here, at the last step before the socket, so no other path to this
+		// loop can carry an outside address into a connection.
+		if !p.allowedHost(ip.String()) {
+			return nil, outsideAnswer(host, ip)
+		}
 		conn, derr := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 		if derr == nil {
 			return conn, nil
@@ -252,10 +258,60 @@ func (p *Policy) Lookup(ctx context.Context, host string) ([]netip.Addr, error) 
 		return []netip.Addr{netip.MustParseAddr("127.0.0.1"), netip.MustParseAddr("::1")}, nil
 	}
 	r := net.DefaultResolver
+	if p.Local() {
+		r = p.checkedResolver()
+	}
 	if p != nil && p.resolver != nil {
 		r = p.resolver
 	}
-	return r.LookupNetIP(ctx, "ip", name)
+	if !p.Local() {
+		return r.LookupNetIP(ctx, "ip", name)
+	}
+	// A trailing dot makes the name absolute, so the resolver's search list is
+	// not appended and no other name is queried.
+	ips, err := r.LookupNetIP(ctx, "ip", name+".")
+	if err != nil {
+		return nil, err
+	}
+	// The name is on the allow list; its answer is not. An address outside the
+	// organisation's network is refused, whole answer and not only that address,
+	// so a dial never meets it.
+	for _, ip := range ips {
+		if !p.allowedHost(ip.String()) {
+			return nil, outsideAnswer(name, ip)
+		}
+	}
+	return ips, nil
+}
+
+// outsideAnswer names the host and the address a DNS answer asked Proven to
+// connect to.
+func outsideAnswer(host string, ip netip.Addr) error {
+	return fmt.Errorf("network: lookup of %q refused: the answer %s is outside the organisation's network (%s=%s)", host, ip, EnvNetwork, ModeLocal)
+}
+
+// checkedResolver is the resolver of local mode. It is the pure-Go resolver, so
+// the host's C library never sends a query Proven did not see, and each
+// connection to a name server goes through resolverDial.
+func (p *Policy) checkedResolver() *net.Resolver {
+	return &net.Resolver{PreferGo: true, Dial: p.resolverDial}
+}
+
+// resolverDial opens the connection to a name server. The server's address is
+// the one the host configuration names (resolv.conf, or the loopback default
+// where the platform has none). A server outside the organisation's network is
+// refused by name and address before any query is sent; the resolver then tries
+// the next server, and the lookup fails when none is inside.
+func (p *Policy) resolverDial(ctx context.Context, network, address string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil || !p.allowedHost(host) {
+		return nil, fmt.Errorf("network: resolver %q refused: the name server is outside the organisation's network (%s=%s); point the host's resolver at an address on the network", address, EnvNetwork, ModeLocal)
+	}
+	if p.dial != nil {
+		return p.dial(ctx, network, address)
+	}
+	d := net.Dialer{}
+	return d.DialContext(ctx, network, address)
 }
 
 // allowedHost reports whether host is on the organisation's network: an IP
