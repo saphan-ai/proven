@@ -6,7 +6,8 @@
 // has the Judge keep only what carries evidence (ADR-0002), lets the Fixer propose
 // a fix for each finding a test proved and prove it with the same test (ADR-0042),
 // adds the dependency check against the OSV table, with the fixed version it
-// names, and the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
+// names, labels each dependency finding from govulncheck when the change is
+// Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
 // the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
@@ -32,6 +33,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/agent/fixer"
 	"github.com/saphan-ai/proven/internal/agent/investigator"
@@ -53,6 +55,7 @@ import (
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
+	"github.com/saphan-ai/proven/internal/tool"
 	"github.com/saphan-ai/proven/internal/trace"
 	"github.com/saphan-ai/proven/internal/world"
 )
@@ -94,6 +97,12 @@ type Options struct {
 	// MaxWrittenBytes is the loaded container limit for a test the prover writes.
 	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
 	MaxWrittenBytes int
+	// GovulnDB is the file URL of the local govulncheck database.
+	// Empty means the tool is named as not run. Sample mode leaves it empty.
+	GovulnDB string
+	// ToolTimeout is the limit for one side of a tool run.
+	// Zero in sample mode: sample mode does not start a container.
+	ToolTimeout time.Duration
 	// Down names services that are already down when the review starts.
 	// An empty secret is recorded here so the review names the service even
 	// when a later check never calls it (ADR-0013 point 4a, ADR-0005 point 5).
@@ -121,6 +130,8 @@ type Pipeline struct {
 	epssView     string
 	env          func(string) string
 	maxWritten   int
+	govulnDB     string
+	toolTimeout  time.Duration
 	down         []service.Down
 	atBoundary   func(stage string)
 	mem          *hmem.Store
@@ -193,6 +204,7 @@ func Build(opts Options) (*Pipeline, error) {
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
+		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
 		down: append([]service.Down(nil), opts.Down...), mem: mem, world: wm,
 		workDir: area, redactor: rd,
 	}
@@ -300,6 +312,8 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 		c.ID, c.RuleID = rd.Text(c.ID), rd.Text(c.RuleID)
 		c.Title, c.Message = rd.Text(c.Title), rd.Text(c.Message)
 		c.Severity, c.Path = rd.Text(c.Severity), rd.Text(c.Path)
+		// A call path is checkout text and can carry a configured value.
+		c.Ecosystem, c.ReachLabel, c.CallPath = rd.Text(c.Ecosystem), rd.Text(c.ReachLabel), rd.Text(c.CallPath)
 		c.DropReason, c.ProverNote = rd.Text(c.DropReason), rd.Text(c.ProverNote)
 		c.Runs, c.Models = rd.Texts(c.Runs), rd.Texts(c.Models)
 		// A reviewer's reason is a model's own text and can echo a configured value.
@@ -792,6 +806,18 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
+	// ADR-0043: label dependency findings from govulncheck before they are judged.
+	// A tool that did not answer leaves every Go finding "not measured".
+	if checkErr == nil {
+		var rerr error
+		checked, rerr = p.measureReach(ctx, checked, selected, filepath.Join(fx.Root, "base"), filepath.Join(fx.Root, "change"))
+		if rerr != nil {
+			if ctx.Err() != nil {
+				return p.cut(st, cands, allow)
+			}
+			return candidate.Draft{}, rerr
+		}
+	}
 	// The dependency check and the EPSS scores come after the Judge: they add
 	// findings judged on their own query rows and do not pass the Skeptic.
 	cands, err = p.addOSV(ctx, st, checked, checkErr, cands, !req.FixesOff)
@@ -837,6 +863,56 @@ func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Adapter, s
 		}
 	}
 	return next, err
+}
+
+// measureReach labels each dependency finding from govulncheck (ADR-0043).
+// Sample mode starts no container and labels every finding not measured.
+// A live run uses the Prover's container and the tool's own time limit.
+// The change's output is what the label is read from: the finding describes
+// the change. The base still runs, so a tool that does not answer on either
+// side is named. A missing binary is that kind of miss, and it is never
+// "imported but not reached".
+func (p *Pipeline) measureReach(ctx context.Context, checked osv.Outcome, paths []string, baseDir, changeDir string) (osv.Outcome, error) {
+	g := tool.Govulncheck{DB: p.govulnDB}
+	if !g.Applies(paths) {
+		if len(checked.Candidates) > 0 {
+			checked.Notes = append(checked.Notes, "govulncheck does not apply")
+		}
+		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+		return checked, nil
+	}
+	if p.sample {
+		checked.Notes = append(checked.Notes, "govulncheck was not run: sample mode starts no container")
+		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+		return checked, nil
+	}
+	var host tool.Host
+	if box, ok := p.testRun.(*testrun.Container); ok && p.toolTimeout > 0 {
+		host = tool.ContainerHost{Box: box, Timeout: p.toolTimeout}
+	}
+	out, err := tool.NewRunner(g, host).Run(ctx, tool.Request{
+		Paths: paths, BaseDir: baseDir, ChangeDir: changeDir,
+	})
+	if err != nil {
+		return checked, err
+	}
+	if out.Answered && tool.ScanStarted(out.ChangeOutput) {
+		checked.Notes = append(checked.Notes, "govulncheck measured the change")
+		checked.Candidates = tool.LabelFindings(checked.Candidates, true, tool.Symbols(out.ChangeOutput))
+		return checked, nil
+	}
+	if out.Answered {
+		// Exit status alone is not a scan. A missing database exits as a
+		// command failure and prints no config object (ADR-0043).
+		checked.Notes = append(checked.Notes, "govulncheck cannot run: the output is not a govulncheck scan")
+		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+		return checked, nil
+	}
+	if out.Reason != "" {
+		checked.Notes = append(checked.Notes, out.Reason)
+	}
+	checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+	return checked, nil
 }
 
 // addOSV names added and raised modules without a model, queries the OSV

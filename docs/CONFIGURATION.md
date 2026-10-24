@@ -82,6 +82,7 @@ Each test runs with no network and no secret (ADR-0025). With no container runti
 | Environment variable | Default | What it changes |
 |---|---|---|
 | `PROVEN_TOOL_TIMEOUT` | `120s` | the limit for one side of a deterministic tool run, base or change. A run past it is named and is not evidence. Sample mode uses the default and does not read this variable |
+| `PROVEN_GOVULNCHECK_DB` | `empty` | the file URL of the local govulncheck database, inside the checkout mount, for example file:///checkout/vulndb. Empty means govulncheck is not run and Go dependency findings are not measured. A network address is refused. Sample mode does not read this variable |
 
 Each tool runs in the Prover's container with no network and no secret (ADR-0025, ADR-0040). A tool that cannot run is named. Sample mode reads none of these.
 

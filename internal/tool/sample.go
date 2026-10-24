@@ -51,6 +51,37 @@ func RaceOnBoth() Recorded {
 	}
 }
 
+// The recorded govulncheck scenario (ADR-0043). The change calls one vulnerable
+// function and imports another without calling it. The version is the module
+// tag the proxy named, not a measurement from a container. Sample mode runs
+// no container. The JSON is one object per line, the govulncheck -json stream.
+const (
+	govulnVersion = "v1.1.4"
+	govulnCommand = "govulncheck -json -db file:///checkout/vulndb ./..."
+	// govulnChangeOutput has a call stack for example.com/reached and a
+	// package-only trace for example.com/quiet.
+	govulnChangeOutput = `{"config":{"protocol_version":"v1.0.0","scanner_name":"govulncheck","scanner_version":"v1.1.4","db":"file:///checkout/vulndb","scan_level":"symbol"}}
+{"finding":{"osv":"GO-2026-0001","trace":[{"module":"example.com/reached","version":"v1.2.3","package":"example.com/reached","function":"Bad","position":{"filename":"bad.go","line":4}},{"module":"example.com/app","package":"example.com/app","function":"main","position":{"filename":"main.go","line":10}}]}}
+{"finding":{"osv":"GO-2026-0002","trace":[{"module":"example.com/quiet","version":"v0.9.0","package":"example.com/quiet"}]}}
+`
+	// govulnBaseOutput names neither function as reached.
+	govulnBaseOutput = `{"config":{"protocol_version":"v1.0.0","scanner_name":"govulncheck","scanner_version":"v1.1.4"}}
+{"finding":{"osv":"GO-2026-0001","trace":[{"module":"example.com/reached","version":"v1.2.0","package":"example.com/reached"}]}}
+{"finding":{"osv":"GO-2026-0002","trace":[{"module":"example.com/quiet","version":"v0.9.0","package":"example.com/quiet"}]}}
+`
+)
+
+// GovulncheckMixed is the sample in which one vulnerable function is reached
+// and one is imported but not reached.
+func GovulncheckMixed() Recorded {
+	return Recorded{
+		Version:      govulnVersion,
+		Command:      govulnCommand,
+		BaseOutput:   govulnBaseOutput,
+		ChangeOutput: govulnChangeOutput,
+	}
+}
+
 // RaceTimeout is the sample in which the change did not answer.
 // The reason names a timeout, and the outcome is not a clean run.
 func RaceTimeout() Recorded {

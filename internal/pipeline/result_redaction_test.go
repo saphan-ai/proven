@@ -118,12 +118,13 @@ func TestTokenInAFatalAgentErrorDoesNotReachTheError(t *testing.T) {
 // TestRedactFindingsReachesEvidence proves that the redaction of a finding
 // covers its evidence and its refutation, and leaves the caller's candidates
 // unchanged.
-// Mutated field: the test output, the query rows, the tool output and the refutation reason.
+// Mutated field: the test output, the query rows, the tool output, the call path and the refutation reason.
 func TestRedactFindingsReachesEvidence(t *testing.T) {
 	const marker = "marker-w30-evid-7be1"
 	p := &Pipeline{redactor: redact.New(map[string]string{generator.EnvToken: marker})}
 	in := []candidate.Candidate{{
-		Risk: candidate.Risk{ID: "F1", Title: "t " + marker},
+		Risk:     candidate.Risk{ID: "F1", Title: "t " + marker},
+		CallPath: "path " + marker,
 		Evidence: []candidate.Evidence{
 			{Kind: candidate.KindTest, Test: &candidate.TestEvidence{Output: "out " + marker}},
 			{Kind: candidate.KindQuery, Query: &candidate.QueryEvidence{Rows: [][]string{{"r " + marker}}}},
@@ -134,7 +135,7 @@ func TestRedactFindingsReachesEvidence(t *testing.T) {
 	out := p.redactFindings(in)
 	got := out[0]
 	tool := got.Evidence[2].Tool
-	if strings.Contains(got.Title+got.Evidence[0].Test.Output+got.Evidence[1].Query.Rows[0][0]+tool.Command+tool.Output+tool.BaseOutput+got.Refutation.Reason+got.Refutation.QueryRows[0][0], marker) {
+	if strings.Contains(got.Title+got.CallPath+got.Evidence[0].Test.Output+got.Evidence[1].Query.Rows[0][0]+tool.Command+tool.Output+tool.BaseOutput+got.Refutation.Reason+got.Refutation.QueryRows[0][0], marker) {
 		t.Errorf("a redacted finding still carries the token: %#v", got)
 	}
 	if !strings.Contains(in[0].Evidence[0].Test.Output, marker) {

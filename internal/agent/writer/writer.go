@@ -2,10 +2,11 @@
 //
 // The Writer is the last agent of the review and calls no model. It adds no
 // finding of its own: it keeps what the Judge kept, orders it by EPSS inside
-// each severity (ADR-0004), and carries the failures, model uses, trace path
-// and skipped symlink paths into the draft. A claim both reviewers reported
-// at the same place, which the Judge dropped for no evidence, is lifted into
-// Opinions and is not a finding (ADR-0041).
+// each severity (ADR-0004), and within that order puts a reached dependency
+// ahead of one that is only present (ADR-0043). It carries the failures,
+// model uses, trace path and skipped symlink paths into the draft. A claim
+// both reviewers reported at the same place, which the Judge dropped for no
+// evidence, is lifted into Opinions and is not a finding (ADR-0041).
 package writer
 
 import (
@@ -88,12 +89,28 @@ func sortStable(items []candidate.Candidate) {
 	}
 }
 
-// before reports whether a sorts ahead of b: a score beats no score, a higher score a lower one.
+// before reports whether a sorts ahead of b.
+// A reached dependency finding sorts ahead of a dependency finding that is
+// not reached, whatever their EPSS scores (ADR-0043). A finding that is not
+// a dependency finding has an empty label and keeps the EPSS order.
+// Otherwise a score beats no score, and a higher score beats a lower one.
 func before(a, b candidate.Candidate) bool {
+	if reachAhead(a, b) {
+		return true
+	}
+	if reachAhead(b, a) {
+		return false
+	}
 	as, aok := epss.Best(a)
 	bs, bok := epss.Best(b)
 	if aok && bok {
 		return as > bs
 	}
 	return aok && !bok
+}
+
+// reachAhead reports whether a is reached and b is a dependency finding that
+// is not. Both labels have to be set: an empty label is not a dependency finding.
+func reachAhead(a, b candidate.Candidate) bool {
+	return a.ReachLabel == candidate.ReachReached && b.ReachLabel != "" && b.ReachLabel != candidate.ReachReached
 }

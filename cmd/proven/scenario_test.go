@@ -52,6 +52,7 @@ func TestOSVGoModuleShowsTheRangeAndTheEPSSScore(t *testing.T) {
 		"introduced 1.3.0 <= v1.4.0 < fixed 1.5.0",
 		"GHSA-w19-sample-0002 does not match: v1.4.0 < introduced 2.0.0",
 		"alias CVE-2026-4242 is on the KEV list",
+		"Reachability: not measured",
 		"SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'example.com/widget'",
 		"row: GHSA-w19-sample-0001 | CVE-2026-4242 | Go | example.com/widget | 1.3.0 | 1.5.0 |  | HIGH | 2026-04-01",
 		"row: GHSA-w19-sample-0002 |  | Go | example.com/widget | 2.0.0 | 2.1.0 |  | LOW | 2026-05-01",
@@ -83,6 +84,7 @@ func TestOSVPHPComposerReportsTheDependency(t *testing.T) {
 		"introduced 2.4.0 <= 2.9.1 < fixed 2.10.0",
 		"GHSA-php-sample-0002 does not match: 2.9.1 < introduced 3.0.0",
 		"alias CVE-2026-9090 is on the KEV list",
+		"Reachability: not measured",
 		"ecosystem = 'Packagist' AND package = 'monolog/monolog'",
 		"failed services: none",
 	} {
@@ -111,6 +113,7 @@ func TestOSVRustCargoReportsTheDependency(t *testing.T) {
 		"introduced 1.7.0 <= 1.9.1 < fixed 1.10.0",
 		"GHSA-rs-sample-0002 does not match: 1.9.1 < introduced 1.11.0",
 		"alias CVE-2026-9191 is on the KEV list",
+		"Reachability: not measured",
 		"ecosystem = 'crates.io' AND package = 'regex'",
 		"fix named from the advisory table, not run by a test: raise regex 1.9.1 to 1.10.0",
 		"failed services: none",
