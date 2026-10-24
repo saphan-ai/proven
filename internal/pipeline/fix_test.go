@@ -45,7 +45,7 @@ func (c *fixerCounter) Complete(ctx context.Context, agent, prompt string) (stri
 	if agent == "fixer" {
 		c.calls++
 	}
-	if agent == "skeptic" && c.refuteF1 != "" && strings.Contains(prompt, "\nid: F1\n") {
+	if agent == "skeptic" && c.refuteF1 != "" && strings.Contains(prompt, `"id":"F1"`) {
 		return c.refuteF1, nil
 	}
 	return c.inner.Complete(ctx, agent, prompt)
