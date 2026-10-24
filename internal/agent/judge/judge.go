@@ -60,14 +60,17 @@ func Evidenced(c candidate.Candidate) bool {
 }
 
 // counts reports whether the candidate has evidence of its own: a test with
-// both outcomes right, query rows that name the finding, or a tool result
+// both outcomes right, query rows Proven bound to the change, or a tool result
 // the base did not already have (ADR-0040).
 func counts(c candidate.Candidate) bool {
 	for _, e := range c.Evidence {
 		if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
 			return true
 		}
-		if e.Kind == candidate.KindQuery && e.Query != nil && queryRelates(c, e.Query.Rows) {
+		// Rows are evidence only when Proven tied them to the change's own
+		// package, version or advisory. A word a cell shares with the finding's
+		// text, which a model wrote, binds nothing.
+		if e.Kind == candidate.KindQuery && e.Query != nil && e.Query.Bound && len(e.Query.Rows) > 0 {
 			return true
 		}
 		// A result on both sides is the base, not the change, so it is not evidence.

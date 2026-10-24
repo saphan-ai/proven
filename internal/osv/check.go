@@ -80,6 +80,50 @@ type Outcome struct {
 	Candidates []candidate.Candidate
 	Notes      []string
 	Down       *service.Down
+	// Facts are the packages and advisory ids the change is affected by, as
+	// Proven derived them. The pipeline binds a model's query to the change
+	// with them.
+	Facts Facts
+}
+
+// Facts is what the dependency check established about the change: the
+// packages whose changed version lies inside an advisory range, and the ids
+// (advisory ids and aliases such as CVE ids) of those advisories. A model's
+// words are not in it.
+type Facts struct {
+	packages map[string]bool
+	ids      map[string]bool
+}
+
+func (f *Facts) add(ecosystem, pkg string, row Row) {
+	if f.packages == nil {
+		f.packages = map[string]bool{}
+		f.ids = map[string]bool{}
+	}
+	f.packages[ecosystem+"\x00"+pkg] = true
+	if row.ID != "" {
+		f.ids[row.ID] = true
+	}
+	for _, id := range strings.Fields(row.Aliases) {
+		f.ids[id] = true
+		f.ids[strings.ToUpper(id)] = true
+	}
+}
+
+// Binds reports whether a query request is about the change: an OSV package
+// lookup of a package the change is affected by, or a lookup by an advisory
+// id or CVE id of an advisory that affects it. A template or a value that
+// names anything else binds nothing.
+func (f Facts) Binds(req querytpl.Request) bool {
+	switch req.Template {
+	case querytpl.OSVByPackage:
+		return f.packages[req.Params[querytpl.ParamEcosystem]+"\x00"+req.Params[querytpl.ParamPackage]]
+	case querytpl.OSVByAdvisory:
+		return f.ids[req.Params[querytpl.ParamAdvisoryID]]
+	case querytpl.KEVByCVE, querytpl.EPSSByCVE:
+		return f.ids[req.Params[querytpl.ParamCVEID]]
+	}
+	return false
 }
 
 // Check reads Go, npm and PyPI packages the change added or raised, queries
@@ -131,7 +175,7 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
-		next, note, err := oneModule(ctx, q, table, snapshot, hit)
+		next, note, err := oneModule(ctx, q, table, snapshot, hit, &out.Facts)
 		if note != "" {
 			out.Notes = append(out.Notes, note)
 		}
@@ -154,7 +198,7 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 // oneModule runs the OSV query for one package and compares its version with
 // every row. It returns a candidate when at least one row matches, and
 // otherwise a trace note that says why.
-func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit manifest.Hit) (*candidate.Candidate, string, error) {
+func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit manifest.Hit, facts *Facts) (*candidate.Candidate, string, error) {
 	// ADR-0032: Proven builds the query from the osv-by-package template. A
 	// package name outside its ecosystem's format has no query: the check says
 	// so in a trace note and goes on to the next package, as it does for a
@@ -204,6 +248,11 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	}
 	if len(matched) == 0 {
 		return nil, missNote(hit, sqlText, missed), nil
+	}
+	// The change's version is inside these rows' ranges, so their package and
+	// their advisory ids are facts about the change.
+	for _, item := range matched {
+		facts.add(hit.Ecosystem, hit.Package, item.row)
 	}
 	// The row's severity is not mapped: sources write it in different forms,
 	// so every match is reported at one level.
@@ -310,6 +359,8 @@ func findingMessage(hit manifest.Hit, matched, missed []compared) string {
 
 // queryEvidence copies a query result into evidence. The engine's own
 // snapshot wins; the review's snapshot is used when the engine gives none.
+// The rows are Bound: Check built the query from the change's own manifests
+// and a matching range, or from an alias of a matching row.
 func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 	snap := res.Snapshot
 	if snap == "" {
@@ -321,6 +372,7 @@ func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 			SQL: res.SQL, Engine: res.Engine, Snapshot: snap,
 			Columns: append([]string(nil), res.Columns...),
 			Rows:    copyRows(res.Rows),
+			Bound:   true,
 		},
 	}
 }

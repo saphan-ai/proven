@@ -86,9 +86,30 @@ func TestDropsAQueryWithNoRows(t *testing.T) {
 	}
 }
 
-// Query rows that name the finding keep it.
-func TestKeepsAQueryWhoseRowNamesTheFinding(t *testing.T) {
+// Query rows Proven bound to the change keep the finding.
+func TestKeepsQueryRowsBoundToTheChange(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
+		Risk: candidate.Risk{
+			ID:      "F2",
+			Title:   "Dependency leftpad v1.2.3 is on the known-exploited list",
+			Message: "The change requires evil.example/leftpad v1.2.3.",
+		},
+		Evidence: []candidate.Evidence{{
+			Kind: candidate.KindQuery,
+			Query: &candidate.QueryEvidence{Bound: true, Rows: [][]string{
+				{"evil.example/leftpad", "1.2.3", "CVE-2026-0001", "true"},
+			}},
+		}},
+	})
+	if got.Dropped || got.Unresolved || got.DropReason != "kept" {
+		t.Fatalf("%#v", got)
+	}
+}
+
+// Property: rows that repeat words of the finding's own text are not evidence
+// unless Proven bound them to the change. Mutated field: Bound.
+func TestDropsQueryRowsThatOnlyRepeatTheFindingsWords(t *testing.T) {
+	c := candidate.Candidate{
 		Risk: candidate.Risk{
 			ID:      "F2",
 			Title:   "Dependency leftpad v1.2.3 is on the known-exploited list",
@@ -100,9 +121,13 @@ func TestKeepsAQueryWhoseRowNamesTheFinding(t *testing.T) {
 				{"evil.example/leftpad", "1.2.3", "CVE-2026-0001", "true"},
 			}},
 		}},
-	})
-	if got.Dropped || got.Unresolved || got.DropReason != "kept" {
+	}
+	if got := judge.Decide(c); !got.Dropped || got.DropReason != "dropped: no evidence" {
 		t.Fatalf("%#v", got)
+	}
+	c.Evidence[0].Query.Bound = true
+	if got := judge.Decide(c); got.Dropped {
+		t.Fatalf("negative control: the same rows, bound, must keep the finding: %#v", got)
 	}
 }
 

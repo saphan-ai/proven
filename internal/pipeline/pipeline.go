@@ -319,6 +319,14 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 					cp := *q
 					cp.SQL, cp.Engine, cp.Snapshot = rd.Text(q.SQL), rd.Text(q.Engine), rd.Text(q.Snapshot)
 					cp.Columns, cp.Rows = rd.Texts(q.Columns), redactRows(rd, q.Rows)
+					cp.Request.Template = rd.Text(q.Request.Template)
+					if q.Request.Params != nil {
+						params := make(map[string]string, len(q.Request.Params))
+						for k, v := range q.Request.Params {
+							params[k] = rd.Text(v)
+						}
+						cp.Request.Params = params
+					}
 					ev[j].Query = &cp
 				}
 				if t := e.Tool; t != nil {
@@ -426,7 +434,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
-	st :=&state{trace: p.trace, redactor: p.redactor, changeKey: changeKey(req), skipped: skipped}
+	st := &state{trace: p.trace, redactor: p.redactor, changeKey: changeKey(req), skipped: skipped}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
@@ -547,6 +555,14 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// ADR-0032: the Investigator and the Skeptic name a template; the table and
 	// view names come from the review's settings, read once.
 	rel := p.relations(ctx)
+	// The dependency check runs before the Investigator so its findings of fact
+	// (which packages and advisories the change is affected by) can bind the
+	// Investigator's query rows to the change. addOSV reports its findings later.
+	var checked osv.Outcome
+	var checkErr error
+	if ctx.Err() == nil {
+		checked, checkErr = osv.Check(ctx, q, fx.Root, p.osvTable, fx.Snapshot)
+	}
 	for i := range cands {
 		next, err := investigator.Investigate(ctx, cands[i], fx.Snapshot, gen, q, rel)
 		if err != nil {
@@ -558,7 +574,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			}
 			continue
 		}
-		cands[i] = next
+		cands[i] = bindQueries(next, checked.Facts)
 	}
 	p.boundary("investigated")
 	if ctx.Err() != nil {
@@ -684,7 +700,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// The dependency check and the EPSS scores come after the Judge: they add
 	// findings judged on their own query rows and do not pass the Skeptic.
-	cands, err = p.addOSV(ctx, st, q, fx.Root, fx.Snapshot, cands)
+	cands, err = p.addOSV(ctx, st, checked, checkErr, cands)
 	if err != nil {
 		if _, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
@@ -732,11 +748,10 @@ func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Adapter, s
 // addOSV names added and raised modules without a model, queries the OSV
 // table, and compares versions in Go. A module with no affected row is a
 // trace line, not a finding.
-func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
+func (p *Pipeline) addOSV(ctx context.Context, st *state, checked osv.Outcome, err error, cands []candidate.Candidate) ([]candidate.Candidate, error) {
 	if ctx.Err() != nil {
 		return cands, ctx.Err()
 	}
-	checked, err := osv.Check(ctx, q, root, p.osvTable, snapshot)
 	for _, note := range checked.Notes {
 		if e := st.event("osv", "osv", "osv", note); e != nil {
 			return nil, e
@@ -777,6 +792,29 @@ func (p *Pipeline) addOSV(ctx context.Context, st *state, q query.Adapter, root,
 		cands = append(cands, c)
 	}
 	return cands, nil
+}
+
+// bindQueries marks the Investigator's query rows as evidence about the change
+// when Proven can tie them to it: the template and values name a package or an
+// advisory the dependency check found the change affected by. Rows that cannot
+// be tied stay on the candidate as context, the candidate says so, and the Judge
+// does not count them.
+func bindQueries(c candidate.Candidate, facts osv.Facts) candidate.Candidate {
+	unbound := false
+	for _, e := range c.Evidence {
+		if e.Kind != candidate.KindQuery || e.Query == nil || e.Query.Bound {
+			continue
+		}
+		if facts.Binds(e.Query.Request) {
+			e.Query.Bound = true
+		} else {
+			unbound = true
+		}
+	}
+	if unbound && c.QueryNote == "" {
+		c.QueryNote = "the query rows are not about a package or advisory the change is affected by"
+	}
+	return c
 }
 
 // relations is the table and view names the review's settings give, for the
