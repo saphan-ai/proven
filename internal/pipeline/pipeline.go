@@ -308,6 +308,7 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 					cp := *t
 					cp.Path, cp.Name = rd.Text(t.Path), rd.Text(t.Name)
 					cp.Command, cp.Output = rd.Text(t.Command), rd.Text(t.Output)
+					cp.Content = rd.Text(t.Content)
 					ev[j].Test = &cp
 				}
 				if q := e.Query; q != nil {

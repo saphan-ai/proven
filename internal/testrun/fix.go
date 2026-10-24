@@ -186,6 +186,23 @@ func readRegular(dir, rel string) (string, string) {
 	return string(b), ""
 }
 
+// ReadEditable returns the text of rel in dir for a model to read before it writes a
+// patch, cut at maxBytes. A path a patch could not edit (a test file, a path outside
+// the checkout, a link) is not read, and the second result says why.
+func ReadEditable(dir, rel string, maxBytes int) (string, string) {
+	if reason := refuseEditPath(rel); reason != "" {
+		return "", reason
+	}
+	text, reason := readRegular(dir, rel)
+	if reason != "" {
+		return "", reason
+	}
+	if maxBytes > 0 && len(text) > maxBytes {
+		text = text[:maxBytes]
+	}
+	return text, ""
+}
+
 // stagePatched copies src into a new directory and applies the edits to the copy.
 // The caller's tree is never changed. The caller removes the returned directory.
 func stagePatched(src string, edits []Edit, maxBytes int) (string, error) {
