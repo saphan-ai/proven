@@ -86,6 +86,13 @@ func unsettled(c candidate.Candidate) bool {
 	return c.Refutation.TestCannotRun || c.Refutation.QueryCannotRun
 }
 
+// Refutes reports whether the candidate's refutation carries evidence: a
+// refuting test found and passing on the change, or query rows that contradict
+// the finding. The Skeptic's own word is not evidence (ADR-0006 point 4).
+func Refutes(c candidate.Candidate) bool {
+	return refuteWhy(c) != ""
+}
+
 // refuteWhy is the reason a refutation holds, or empty when it does not.
 // A refuting test holds when it was found and does not fail on the change.
 func refuteWhy(c candidate.Candidate) string {

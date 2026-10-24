@@ -686,7 +686,7 @@ type proverSwap struct {
 }
 
 func (g *proverSwap) Complete(ctx context.Context, agent, prompt string) (string, error) {
-	if agent == "prover" && strings.Contains(prompt, "id: F1\n") {
+	if agent == "prover" && strings.Contains(prompt, findingMarker("F1")) {
 		return g.response, nil
 	}
 	return g.inner.Complete(ctx, agent, prompt)

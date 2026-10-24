@@ -1031,6 +1031,7 @@ func (s *state) refutation(c candidate.Candidate, run string) error {
 			Attempted: r.Attempted,
 			Refuted:   r.Refuted,
 			Reason:    r.Reason,
+			Evidenced: judge.Refutes(c),
 		},
 		ChangeKey:   s.changeKey,
 		RuleID:      c.RuleID,

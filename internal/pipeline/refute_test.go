@@ -177,7 +177,7 @@ func reviewWithSkeptic(t *testing.T, f1Body string, run *scriptedRun) candidate.
 	p, err := Build(Options{
 		Sample:    true,
 		LogDir:    t.TempDir(),
-		Generator: &answerFor{inner: inner, agent: "skeptic", match: "id: F1\n", body: f1Body},
+		Generator: &answerFor{inner: inner, agent: "skeptic", match: findingMarker("F1"), body: f1Body},
 		TestRun:   run,
 		Env: func(k string) string {
 			t.Fatalf("sample mode read %s", k)
