@@ -426,9 +426,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
-	p.mem.SetGenerator(gen)
-	p.world.SetGenerator(gen)
-	st := &state{trace: p.trace, redactor: p.redactor, changeKey: changeKey(req), skipped: skipped}
+	st :=&state{trace: p.trace, redactor: p.redactor, changeKey: changeKey(req), skipped: skipped}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
@@ -461,6 +459,10 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
+	// The stores get the guarded generator, never the raw one: a call a store
+	// ever makes is checked before and after, and recorded, like an agent call.
+	p.mem.SetGenerator(gen)
+	p.world.SetGenerator(gen)
 	// ADR-0009, ADR-0012: a doubled review runs a second Planner and a second
 	// Skeptic on the special-review model.
 	var special generator.Generator
