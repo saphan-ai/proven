@@ -72,7 +72,20 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-To be recorded by the fixture round. **Not run**: the case code is not built yet.
+Recorded 2026-10-24T16:04Z on Linux. Toolchain: POSIX `sh` (here `dash`) with `grep`, `cut` and `mktemp`. No other tool. macOS was not run: no macOS host was available.
+
+The check writes its four recorded states under `.saphan/work/corpus-ho-002/` inside the checkout and removes them on exit. Each state records the bot account's name in `bot.txt`. The reference labels are literals in `check.sh`; neither gate reads them or `bot.txt`.
+
+Command, from the repository root:
+
+    sh test/corpus/held-out/HO-002/check.sh
+
+Exit code: 0
+
+    bot-marker-current base pass change pass reference should pass
+    no-marker base fail change fail reference should fail
+    person-marker-current base pass change pass reference should fail
+    person-marker-older base pass change pass reference should pass
 
 ## 9. Limits
 
