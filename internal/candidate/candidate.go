@@ -114,8 +114,8 @@ type Fix struct {
 }
 
 // QueryEvidence is a query and the rows the engine returned.
-// Engine and Snapshot say where the rows came from, so a reader can run the
-// same SQL again (ADR-0023).
+// Form names the query language that ran. Engine and Snapshot say where the
+// rows came from, so a reader can run the same query again (ADR-0023, ADR-0047).
 //
 // Bound is set by Proven, never by a model: the rows are about the change's own
 // package, version or advisory (the dependency check derives those from the
@@ -125,6 +125,7 @@ type Fix struct {
 // Investigator named, kept so the pipeline can decide Bound; it holds no SQL.
 type QueryEvidence struct {
 	SQL      string
+	Form     string
 	Engine   string
 	Snapshot string
 	Columns  []string

@@ -2,14 +2,20 @@ package query
 
 import "context"
 
-// Result is one query's rows, with the SQL that produced them, the engine
-// that ran it, and when they were read. The Judge keeps all of it as
-// evidence, so a reader can run the same SQL again (ADR-0002).
-// Engine is "zetaris" for a live call and "local-sample" in sample mode.
-// Snapshot is when the rows were read; the local engine leaves it empty, and
-// the caller fills in the fixture's snapshot. Every cell is text.
+// Result is one query's rows. SQL is the text that ran, Form names that
+// text's language, Engine names the store, and Snapshot is when the rows
+// were read. The Judge keeps all of it, so a reader can run the same query
+// again (ADR-0002, ADR-0047).
+// Form is "sql" for Zetaris and the local store. "mango" is reserved for
+// CouchDB and is not produced yet.
+// Engine is "zetaris" for a live Zetaris call, "local" for the configured
+// local file, and "local-sample" when sample mode opens a fixture file.
+// A fixture leaves Snapshot empty and the caller fills the fixture's date.
+// Zetaris and a configured local store set Snapshot to the UTC time of the
+// call. Every cell is text.
 type Result struct {
 	SQL      string
+	Form     string
 	Engine   string
 	Snapshot string
 	Columns  []string

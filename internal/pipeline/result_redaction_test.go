@@ -127,7 +127,7 @@ func TestRedactFindingsReachesEvidence(t *testing.T) {
 		CallPath: "path " + marker,
 		Evidence: []candidate.Evidence{
 			{Kind: candidate.KindTest, Test: &candidate.TestEvidence{Output: "out " + marker}},
-			{Kind: candidate.KindQuery, Query: &candidate.QueryEvidence{Rows: [][]string{{"r " + marker}}}},
+			{Kind: candidate.KindQuery, Query: &candidate.QueryEvidence{Form: marker, Rows: [][]string{{"r " + marker}}}},
 			{Kind: candidate.KindTool, Tool: &candidate.ToolEvidence{Command: "cmd " + marker, Output: "tool " + marker, BaseOutput: "base " + marker}},
 		},
 		Refutation: candidate.Refutation{Reason: "why " + marker, QueryRows: [][]string{{marker}}},
@@ -135,7 +135,7 @@ func TestRedactFindingsReachesEvidence(t *testing.T) {
 	out := p.redactFindings(in)
 	got := out[0]
 	tool := got.Evidence[2].Tool
-	if strings.Contains(got.Title+got.CallPath+got.Evidence[0].Test.Output+got.Evidence[1].Query.Rows[0][0]+tool.Command+tool.Output+tool.BaseOutput+got.Refutation.Reason+got.Refutation.QueryRows[0][0], marker) {
+	if strings.Contains(got.Title+got.CallPath+got.Evidence[0].Test.Output+got.Evidence[1].Query.Form+got.Evidence[1].Query.Rows[0][0]+tool.Command+tool.Output+tool.BaseOutput+got.Refutation.Reason+got.Refutation.QueryRows[0][0], marker) {
 		t.Errorf("a redacted finding still carries the token: %#v", got)
 	}
 	if !strings.Contains(in[0].Evidence[0].Test.Output, marker) {

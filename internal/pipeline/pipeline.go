@@ -342,7 +342,7 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 				}
 				if q := e.Query; q != nil {
 					cp := *q
-					cp.SQL, cp.Engine, cp.Snapshot = rd.Text(q.SQL), rd.Text(q.Engine), rd.Text(q.Snapshot)
+					cp.SQL, cp.Form, cp.Engine, cp.Snapshot = rd.Text(q.SQL), rd.Text(q.Form), rd.Text(q.Engine), rd.Text(q.Snapshot)
 					cp.Columns, cp.Rows = rd.Texts(q.Columns), redactRows(rd, q.Rows)
 					cp.Request.Template = rd.Text(q.Request.Template)
 					if q.Request.Params != nil {
@@ -1113,6 +1113,8 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 				return nil, nil, nil, err
 			}
 		}
+		// ADR-0047: sample mode opens the fixture file as the local store.
+		// The engine name stays local-sample, so a sample review reads as it did.
 		q, err = query.OpenSample(fx.Tables)
 		if err != nil {
 			return nil, nil, nil, err
@@ -1653,7 +1655,7 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 		if e.Query != nil {
 			q := e.Query
 			ev.Query = &trace.QueryEvidence{
-				SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
+				SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 				Columns: append([]string(nil), q.Columns...),
 				Rows:    copyRows(q.Rows),
 			}

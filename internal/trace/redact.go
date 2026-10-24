@@ -63,6 +63,7 @@ func redactEvidence(x Evidence, r *redact.Redactor) Evidence {
 	if x.Query != nil {
 		q := *x.Query
 		q.SQL = r.Text(q.SQL)
+		q.Form = r.Text(q.Form)
 		q.Engine = r.Text(q.Engine)
 		q.Snapshot = r.Text(q.Snapshot)
 		q.Columns = r.Texts(q.Columns)

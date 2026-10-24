@@ -341,7 +341,10 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		query := evidence.Query
-		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", visible(query.Engine), visible(query.Snapshot)); err != nil {
+		// ADR-0047: the line names the form that ran. The SQL line below is
+		// that form's text. Existing readers match the engine and the snapshot
+		// as a prefix of this line.
+		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s form=%s\n", visible(query.Engine), visible(query.Snapshot), visible(query.Form)); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintf(w, "  SQL: %s\n", visible(query.SQL)); err != nil {
