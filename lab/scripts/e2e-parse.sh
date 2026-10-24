@@ -45,20 +45,39 @@ newest_run() {
     }'
 }
 
-# review_since COMMENTS_JSON SINCE — exit 0 when a comment that starts with
-# proven's marker was created at or after SINCE. The marker may be JSON-escaped.
-review_since() {
-  printf '%s' "$1" | awk -v since="$2" '
+# review_for COMMENTS_JSON RUN SHA AUTHOR — exit 0 when a comment by AUTHOR
+# starts its body with `<!-- proven-review run=RUN sha=SHA -->`. The marker
+# names the run and the head commit, so no time is compared: two events in one
+# second cannot be told apart by time. Gitea may write < and > as < and
+# >. On stdout it prints one line per proven marker it ignored (another
+# author, another run or commit), so the caller can say why.
+review_for() {
+  printf '%s' "$1" | awk -v run="$2" -v sha="$3" -v author="$4" '
     { buf = buf $0 }
     END {
-      rest = buf
-      while (match(rest, /"body":"(<|\\u003c)!-- proven-review --/)) {
-        rest = substr(rest, RSTART + RLENGTH)
-        if (match(rest, /"created_at":"[^"]*"/)) {
-          ts = substr(rest, RSTART + 14, RLENGTH - 15)
-          if ((ts "") >= (since "")) exit 0
+      want = "<!-- proven-review run=" run " sha=" sha " -->"
+      n = split(buf, parts, "\"body\":\"")
+      ok = 0
+      for (i = 2; i <= n; i++) {
+        # The poster is the last "login" before this body: the user object precedes it.
+        before = parts[i - 1]
+        login = ""
+        while (match(before, /"login":"[^"]*"/)) {
+          login = substr(before, RSTART + 9, RLENGTH - 10)
+          before = substr(before, RSTART + RLENGTH)
+        }
+        body = parts[i]
+        gsub(/\\u003c/, "<", body)
+        gsub(/\\u003e/, ">", body)
+        if (index(body, "<!-- proven-review") != 1) continue
+        if (index(body, want) != 1) {
+          printf "ignored: a proven review by %s names another run or commit\n", login
+        } else if (login != author) {
+          printf "ignored: a proven review for run #%s by %s, not by %s\n", run, login, author
+        } else {
+          ok = 1
         }
       }
-      exit 1
+      exit ok ? 0 : 1
     }'
 }

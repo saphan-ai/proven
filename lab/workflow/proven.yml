@@ -34,6 +34,8 @@ jobs:
           API_URL: ${{ github.api_url }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          RUN_NUMBER: ${{ github.run_number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           token="$PROVEN_TOKEN"
           if [ -z "$token" ]; then
@@ -44,7 +46,7 @@ jobs:
             exit 1
           fi
           {
-            printf '%s\n' '<!-- proven-review -->'
+            printf '<!-- proven-review run=%s sha=%s -->\n' "$RUN_NUMBER" "$HEAD_SHA"
             cat review.txt
           } > comment.txt
           awk '

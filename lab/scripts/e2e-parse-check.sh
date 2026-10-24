@@ -27,12 +27,44 @@ done3='[{"id":9,"status":"failure","target_url":"/p/d/actions/runs/3/jobs/0","co
 expect "run 3 failed, start is its pending" "$(newest_run "$done3" "$ctx")" "3${tab}failure${tab}2026-10-23T21:14:21Z"
 expect "no statuses" "$(newest_run '[]' "$ctx")" ""
 
-comments='[{"id":1,"body":"<!-- proven-review -->\nfinding F1","created_at":"2026-10-23T21:14:20Z"}]'
-if review_since "$comments" "2026-10-23T21:14:21Z"; then
-  echo "e2e-parse-check: FAIL: a comment older than the run counted" >&2
-  fail=1
-fi
-review_since "$comments" "2026-10-23T21:14:20Z" || { echo "e2e-parse-check: FAIL: a comment at the run start did not count" >&2; fail=1; }
+# Comments in the shape Gitea 1.22.6 serves: the user object precedes the body,
+# and < and > may be written as < and >.
+sha=0123456789abcdef0123456789abcdef01234567
+other=fedcba9876543210fedcba9876543210fedcba98
+mk() { # mk ID LOGIN MARKER-TEXT TIME
+  printf '{"id":%s,"html_url":"http://lab/proven/discount/pulls/1#issuecomment-%s","user":{"id":1,"login":"%s","login_name":"","full_name":""},"original_author":"","body":"%s\\nfinding F1","created_at":"%s"}' "$1" "$1" "$2" "$3" "$4"
+}
+good="<!-- proven-review run=3 sha=$sha -->"
+
+# accept: run 3, this head, posted by the workflow's account.
+c=$(mk 1 proven "$good" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the run's own review was refused" >&2; fail=1; }
+c=$(mk 1 proven "\\u003c!-- proven-review run=3 sha=$sha --\\u003e" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the review with an escaped marker was refused" >&2; fail=1; }
+
+# refuse: a marker by another account, with run and commit right.
+c=$(mk 1 unrelated "$good" 2026-10-24T04:31:02Z)
+out=$(review_for "[$c]" 3 "$sha" proven) && { echo "e2e-parse-check: FAIL: an unrelated account's marker was accepted" >&2; fail=1; }
+case $out in *"by unrelated, not by proven"*) ;; *) echo "e2e-parse-check: FAIL: the ignored author was not named: '$out'" >&2; fail=1 ;; esac
+
+# refuse: a successful run that posted nothing (no comments, or only a human's).
+review_for '[]' 3 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: no comment was accepted" >&2; fail=1; }
+c=$(mk 1 proven "looks good to me" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: a comment without the marker was accepted" >&2; fail=1; }
+
+# refuse: an older run's review, posted in the same second as run 4's first status.
+c=$(mk 1 proven "<!-- proven-review run=3 sha=$sha -->" 2026-10-24T04:31:01Z)
+review_for "[$c]" 4 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: an older run's review from the same second was accepted" >&2; fail=1; }
+
+# refuse: a review of another head commit, by the right account and run.
+c=$(mk 1 proven "<!-- proven-review run=3 sha=$other -->" 2026-10-24T04:31:02Z)
+review_for "[$c]" 3 "$sha" proven >/dev/null && { echo "e2e-parse-check: FAIL: a review of another head commit was accepted" >&2; fail=1; }
+
+# a refused marker does not hide a later good one; the author is read per comment.
+c1=$(mk 1 unrelated "$good" 2026-10-24T04:31:02Z)
+c2=$(mk 2 proven "$good" 2026-10-24T04:31:03Z)
+review_for "[$c1,$c2]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the run's review after an unrelated one was refused" >&2; fail=1; }
+review_for "[$c2,$c1]" 3 "$sha" proven >/dev/null || { echo "e2e-parse-check: FAIL: the run's review before an unrelated one was refused" >&2; fail=1; }
 
 [ "$fail" -eq 0 ] && echo "e2e-parse-check: ok"
 exit "$fail"

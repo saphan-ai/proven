@@ -2,7 +2,8 @@
 # Start the lab if it is down, then wait for the pull request's CURRENT head
 # commit to have a workflow run, and require that run to have succeeded and to
 # have posted proven's review. An older review comment, left on a kept volume,
-# is not proof: it must be created at or after the run's start.
+# is not proof: the comment's marker must name this run's number and this head
+# commit, and the comment must be by the account the workflow posts as.
 # If the lab is up and the runner is not, exit 1 and say so. Do not start the runner then.
 #
 # Gitea 1.22.6 (lab/versions.env) has no Actions runs, tasks, jobs or workflows
@@ -43,13 +44,6 @@ if [ -z "$context" ]; then
   die "e2e: could not read the workflow name and job from lab/workflow/proven.yml"
 fi
 
-utc() {
-  case $1 in
-    ????-??-??T??:??:??Z) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 deadline=$(($(date +%s) + E2E_WAIT_SECONDS))
 last="no workflow run has started for the pull request's head commit"
 while [ "$(date +%s)" -lt "$deadline" ]; do
@@ -68,7 +62,6 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     else
       run_no=$(printf '%s' "$run" | cut -f 1)
       status=$(printf '%s' "$run" | cut -f 2)
-      started=$(printf '%s' "$run" | cut -f 3)
       last="workflow run #$run_no for head commit $sha is $status"
       case $status in
         failure | error)
@@ -78,17 +71,16 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
           exit 1
           ;;
         success)
-          if ! utc "$started"; then
-            echo "e2e: run #$run_no started at '$started', which is not a UTC time; cannot order it against the comment" >&2
-            exit 1
-          fi
           comments=$(gitea_curl "$base/issues/$num/comments" 2>/dev/null || true)
-          if review_since "$comments" "$started"; then
+          if notes=$(review_for "$comments" "$run_no" "$sha" "$LAB_ADMIN_USER"); then
             echo "e2e: proven review is on the pull request (workflow run #$run_no succeeded; head commit $sha)"
             printf '%s\n' "$comments"
             exit 0
           fi
-          last="workflow run #$run_no succeeded, but no proven review comment was created at or after $started"
+          last="workflow run #$run_no succeeded, but no proven review by $LAB_ADMIN_USER names run #$run_no and head commit $sha"
+          if [ -n "$notes" ]; then
+            last="$last ($(printf '%s' "$notes" | tr '\n' ';'))"
+          fi
           ;;
       esac
     fi
