@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -52,7 +53,7 @@ func CouchEnvironment() []envdoc.Setting {
 		{
 			Name:        EnvCouchURL,
 			Default:     "none (required when the store is `couchdb`)",
-			Description: "CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it",
+			Description: "CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it. In `PROVEN_NETWORK=local` an address outside the organisation's network is refused at load, and the store's client refuses to dial one",
 		},
 		{
 			Name:        EnvCouchPrefix,
@@ -92,6 +93,8 @@ type CouchSettings struct {
 	Password string
 	RowLimit int
 	Timeout  time.Duration
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network *network.Policy
 }
 
 // LoadCouch reads the CouchDB settings. A value that is set wrongly is
@@ -104,6 +107,10 @@ func LoadCouch(env func(string) string) (CouchSettings, error) {
 	if env == nil {
 		env = func(string) string { return "" }
 	}
+	policy, perr := network.Load(env)
+	if perr != nil {
+		return CouchSettings{}, fromNetwork(perr)
+	}
 	var missing string
 	base := strings.TrimSpace(env(EnvCouchURL))
 	if base == "" {
@@ -112,6 +119,11 @@ func LoadCouch(env func(string) string) (CouchSettings, error) {
 		var err error
 		if base, err = checkCouchBase(base); err != nil {
 			return CouchSettings{}, err
+		}
+		// ADR-0034: in the air-gapped mode an address outside the network is
+		// refused here, by name, before the credential is ever sent to it.
+		if err := policy.CheckURL(EnvCouchURL, base); err != nil {
+			return CouchSettings{}, fromNetwork(err)
 		}
 	}
 	prefix := env(EnvCouchPrefix)
@@ -158,7 +170,15 @@ func LoadCouch(env func(string) string) (CouchSettings, error) {
 		// The reason names the variable and never a value.
 		return CouchSettings{}, &service.Down{Service: couchService, Reason: missing + " is empty"}
 	}
-	return CouchSettings{BaseURL: base, Prefix: prefix, User: user, Password: pass, RowLimit: limit, Timeout: timeout}, nil
+	return CouchSettings{BaseURL: base, Prefix: prefix, User: user, Password: pass, RowLimit: limit, Timeout: timeout, Network: policy}, nil
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+	}
+	return err
 }
 
 // checkCouchBase accepts an absolute http or https URL. User info is refused,
