@@ -61,6 +61,8 @@ It then prints what was reviewed, when, the models with their receipt ids, and t
 
 `proven scan --evidence-pack` verifies the pack it has just built before it writes the file. A secret the redactor catches is blacked out in `MANIFEST.json` as in every other file, and a pack that would not verify is not written. A key setting that cannot be used exits 7.
 
+The pack's path must be its own. `--evidence-pack` naming the same file as `-o`, `--text-output`, `--json-output` or `--sarif-output` — by the same spelling, by a link, or by a link to its directory — is refused before the review starts. If a link appears after that check, the run stops with the pack left as it was written.
+
 **What verify does not check**, and says every time: the provider's own signature on each receipt, because the pack keeps the receipt id, the route and the model, not the signed body; and whether the review was right. A pack proves what was recorded and that it has not been changed since it was signed. It does not prove the findings are true.
 
 A sample-mode review has no provider receipts, so its models read `unknown` with no receipt id, and verify reports them as models without a receipt.

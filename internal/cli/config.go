@@ -386,6 +386,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.textOutput = h.textOutput.v
 	cfg.jsonOutput = h.jsonOutput.v
 	cfg.sarifOutput = h.sarifOutput.v
+	cfg.evidencePack = h.evidencePack.v
 	if h.output.set {
 		cfg.output = h.output.v
 	} else {
@@ -430,10 +431,23 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		return config{}, err
 	}
 	cfg.sample = sample
-	cfg.evidencePack = h.evidencePack.v
 	cfg.quiet = h.quiet.set && h.quiet.v
 	cfg.verbose = h.verbose.set && h.verbose.v
 	return cfg, nil
+}
+
+// outputFiles lists every file a run writes by a flag, the signed evidence pack
+// among them: a report that replaced the pack would leave the audit nothing to
+// verify while the run exited 0 (ADR-0035). The pack is first, so a collision
+// is named as one with the pack.
+func outputFiles(cfg config) []struct{ flag, path string } {
+	return []struct{ flag, path string }{
+		{"--evidence-pack", cfg.evidencePack},
+		{"-o", cfg.output},
+		{"--text-output", cfg.textOutput},
+		{"--json-output", cfg.jsonOutput},
+		{"--sarif-output", cfg.sarifOutput},
+	}
 }
 
 // refuseCollidingOutputs refuses two outputs that are one file, at load
@@ -450,12 +464,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 // letter case on a case-insensitive volume are not caught: no I/O can tell them
 // apart before the file is made.
 func refuseCollidingOutputs(cfg config) error {
-	named := []struct{ flag, path string }{
-		{"-o", cfg.output},
-		{"--text-output", cfg.textOutput},
-		{"--json-output", cfg.jsonOutput},
-		{"--sarif-output", cfg.sarifOutput},
-	}
+	named := outputFiles(cfg)
 	type seenOutput struct {
 		flag string
 		info os.FileInfo
@@ -514,13 +523,7 @@ func refuseStdoutOnAnOutput(cfg config, stdout io.Writer) error {
 	if std == nil {
 		return nil
 	}
-	named := []struct{ flag, path string }{
-		{"-o", cfg.output},
-		{"--text-output", cfg.textOutput},
-		{"--json-output", cfg.jsonOutput},
-		{"--sarif-output", cfg.sarifOutput},
-	}
-	for _, n := range named {
+	for _, n := range outputFiles(cfg) {
 		if n.path == "" {
 			continue
 		}

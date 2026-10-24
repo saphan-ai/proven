@@ -281,6 +281,13 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 	// with the files already written in this run before it is written, and the
 	// run stops with the first output intact.
 	var written []writtenOutput
+	// The signed pack was written before this point; it is the first file of the
+	// run, so a link made after the load check cannot lead an output onto it.
+	if cfg.evidencePack != "" {
+		if info, err := os.Stat(cfg.evidencePack); err == nil {
+			written = append(written, writtenOutput{"--evidence-pack", info})
+		}
+	}
 	if cfg.output == "" {
 		// Standard output was written above; when it is a regular file it is
 		// the first file of the run.
