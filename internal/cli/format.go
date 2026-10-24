@@ -185,8 +185,9 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 }
 
 // writeEvidence prints the proof under a finding: the test the Prover wrote,
-// with whether it fails on the change and passes on the base, or the query
-// that was run and the rows it returned. A reader can rerun either.
+// with whether it fails on the change and passes on the base, the query
+// that was run and the rows it returned, or a tool's run on both sides.
+// A reader can rerun any of them.
 func writeEvidence(w io.Writer, evidence review.Evidence) error {
 	switch evidence.Kind {
 	case review.EvidenceTest:
@@ -221,6 +222,25 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			if _, err := fmt.Fprintf(w, "  row: %s\n", strings.Join(row, " | ")); err != nil {
 				return err
 			}
+		}
+	case review.EvidenceTool:
+		if evidence.Tool == nil {
+			return nil
+		}
+		// ADR-0040: the reader sees the tool, the command and both sides.
+		// The bools say whether the result was new; the outputs are the difference.
+		tool := evidence.Tool
+		if _, err := fmt.Fprintf(w, "  evidence tool %s version=%s present_on_change=%t present_on_base=%t\n", tool.Tool, tool.Version, tool.PresentOnChange, tool.PresentOnBase); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "  command: %s\n", tool.Command); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "  change: %s\n", strings.TrimSpace(tool.Output)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "  base: %s\n", strings.TrimSpace(tool.BaseOutput)); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -29,6 +29,35 @@ func TestKeepsATestThatFailsOnTheChange(t *testing.T) {
 	}
 }
 
+// A tool result on the change and not on the base keeps the finding (ADR-0040).
+func TestKeepsAToolResultTheBaseDidNotHave(t *testing.T) {
+	got := judge.Decide(candidate.Candidate{
+		Risk: candidate.Risk{ID: "R1"},
+		Evidence: []candidate.Evidence{{
+			Kind: candidate.KindTool,
+			Tool: &candidate.ToolEvidence{Tool: "go-race", PresentOnChange: true, PresentOnBase: false},
+		}},
+	})
+	if got.Dropped || got.DropReason != "kept" {
+		t.Fatalf("%#v", got)
+	}
+}
+
+// A tool result that is also on the base is not evidence of the change (ADR-0040).
+// Mutated field: ToolEvidence.PresentOnBase.
+func TestDropsAToolResultTheBaseAlreadyHad(t *testing.T) {
+	got := judge.Decide(candidate.Candidate{
+		Risk: candidate.Risk{ID: "R2"},
+		Evidence: []candidate.Evidence{{
+			Kind: candidate.KindTool,
+			Tool: &candidate.ToolEvidence{Tool: "go-race", PresentOnChange: true, PresentOnBase: true},
+		}},
+	})
+	if !got.Dropped || got.DropReason != "dropped: no evidence" {
+		t.Fatalf("%#v", got)
+	}
+}
+
 // A test that fails on the base too is not evidence.
 func TestDropsATestThatDoesNotPassOnTheBase(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
