@@ -29,6 +29,20 @@ import (
 // scope is the instrumentation scope every span and instrument is made under.
 const scope = "github.com/saphan-ai/proven"
 
+// The instruments' names. The lab's dashboard queries them (as Prometheus spells them), and a test
+// holds the dashboard to this list.
+const (
+	MetricFindings      = "proven.review.findings"
+	MetricDropped       = "proven.review.claims.dropped"
+	MetricVerdicts      = "proven.reviewer.verdicts"
+	MetricDisagreements = "proven.reviewer.disagreements"
+	MetricModelCalls    = "proven.model.calls"
+	MetricModelDuration = "gen_ai.client.operation.duration"
+	MetricGuardChecks   = "proven.guardrail.checks"
+	MetricGuardUnsafe   = "proven.guardrail.unsafe"
+	MetricAgentState    = "proven.agent.state"
+)
+
 // Agent states, as the proven.agent.state gauge reports them. The dashboard's
 // state timeline maps these numbers to words.
 const (
@@ -89,41 +103,41 @@ func New(tp trace.TracerProvider, mp metric.MeterProvider) (*T, error) {
 	}
 	m := mp.Meter(scope)
 	var err error
-	if t.findings, err = m.Int64Counter("proven.review.findings",
+	if t.findings, err = m.Int64Counter(MetricFindings,
 		metric.WithDescription("Findings a review kept, by level of proof (ADR-0044)")); err != nil {
 		return nil, err
 	}
-	if t.dropped, err = m.Int64Counter("proven.review.claims.dropped",
+	if t.dropped, err = m.Int64Counter(MetricDropped,
 		metric.WithDescription("Claims the Judge did not keep, by reason")); err != nil {
 		return nil, err
 	}
-	if t.verdicts, err = m.Int64Counter("proven.reviewer.verdicts",
+	if t.verdicts, err = m.Int64Counter(MetricVerdicts,
 		metric.WithDescription("The Skeptic's verdict on a finding, by reviewer")); err != nil {
 		return nil, err
 	}
-	if t.disagreements, err = m.Int64Counter("proven.reviewer.disagreements",
+	if t.disagreements, err = m.Int64Counter(MetricDisagreements,
 		metric.WithDescription("Findings on which the two reviewers do not agree")); err != nil {
 		return nil, err
 	}
-	if t.modelCalls, err = m.Int64Counter("proven.model.calls",
+	if t.modelCalls, err = m.Int64Counter(MetricModelCalls,
 		metric.WithDescription("Model calls, by agent, reviewer and outcome")); err != nil {
 		return nil, err
 	}
-	if t.modelDuration, err = m.Float64Histogram("gen_ai.client.operation.duration",
+	if t.modelDuration, err = m.Float64Histogram(MetricModelDuration,
 		metric.WithUnit("s"),
 		metric.WithDescription("Duration of a model call (gen_ai semantic conventions)"),
 		metric.WithExplicitBucketBoundaries(0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128)); err != nil {
 		return nil, err
 	}
-	if t.guardChecks, err = m.Int64Counter("proven.guardrail.checks",
+	if t.guardChecks, err = m.Int64Counter(MetricGuardChecks,
 		metric.WithDescription("Guardrail checks, by side and verdict")); err != nil {
 		return nil, err
 	}
-	if t.guardUnsafe, err = m.Int64Counter("proven.guardrail.unsafe",
+	if t.guardUnsafe, err = m.Int64Counter(MetricGuardUnsafe,
 		metric.WithDescription("Guardrail checks that returned unsafe")); err != nil {
 		return nil, err
 	}
-	if t.agentState, err = m.Int64Gauge("proven.agent.state",
+	if t.agentState, err = m.Int64Gauge(MetricAgentState,
 		metric.WithDescription("State of an agent: 0 waiting, 1 working, 2 done, 3 failed")); err != nil {
 		return nil, err
 	}

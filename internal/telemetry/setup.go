@@ -6,6 +6,8 @@ package telemetry
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -107,10 +109,18 @@ func Setup(ctx context.Context, env func(string) string) (*T, error) {
 	if name == "" {
 		name = DefaultServiceName
 	}
-	// The name comes first, so OTEL_RESOURCE_ATTRIBUTES, read after it, can
-	// still say more about the service.
+	// One process is one review, so the instance id tells two reviews apart in a backend: a counter
+	// that starts at zero in each process must not be read as one series that went back to zero.
+	// The name and the id come first, so OTEL_RESOURCE_ATTRIBUTES, read after them, can still say more.
+	var id [8]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return nil, fmt.Errorf("telemetry: instance id: %w", err)
+	}
 	res, err := resource.New(ctx,
-		resource.WithAttributes(attribute.String("service.name", name)),
+		resource.WithAttributes(
+			attribute.String("service.name", name),
+			attribute.String("service.instance.id", hex.EncodeToString(id[:])),
+		),
 		resource.WithFromEnv(),
 		resource.WithTelemetrySDK(),
 	)
