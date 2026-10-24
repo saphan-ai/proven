@@ -39,9 +39,9 @@ func refusedField(t *testing.T, err error) (field, text string) {
 func TestLocalRefusesAPublicAddressInEachAddressSetting(t *testing.T) {
 	local := map[string]string{
 		"PROVEN_NETWORK":          "local",
-		"METERLESS_RUNTIME_TOKEN": "t",
-		"PROVEN_GUARDRAIL_KEY":    "k",
-		"ZETARIS_API_KEY":         "z",
+		"METERLESS_RUNTIME_TOKEN": "token-long-enough",
+		"PROVEN_GUARDRAIL_KEY":    "guardrail-key-ok",
+		"ZETARIS_API_KEY":         "zetaris-key-ok",
 		"ZETARIS_ORG_ID":          "1",
 		"ZETARIS_REST_URL":        "http://10.0.0.7:8080",
 	}
@@ -79,7 +79,7 @@ func TestLocalRefusesAPublicAddressInEachAddressSetting(t *testing.T) {
 func TestLocalRefusesTheHostedGuardrailByName(t *testing.T) {
 	env := map[string]string{
 		"PROVEN_NETWORK": "local", "PROVEN_GUARDRAIL_MODE": "nvidia",
-		"PROVEN_GUARDRAIL_BASE_URL": "http://127.0.0.1:8081", "PROVEN_GUARDRAIL_KEY": "k",
+		"PROVEN_GUARDRAIL_BASE_URL": "http://127.0.0.1:8081", "PROVEN_GUARDRAIL_KEY": "guardrail-key-ok",
 	}
 	_, err := guardrail.Load(func(k string) string { return env[k] })
 	field, text := refusedField(t, err)
@@ -101,7 +101,7 @@ func TestLocalRefusesTheHostedGuardrailByName(t *testing.T) {
 func TestLocalRefusesTheHostedGeneratorByName(t *testing.T) {
 	env := map[string]string{
 		"PROVEN_NETWORK": "local", "PROVEN_GENERATOR_MODE": "nvidia",
-		"PROVEN_GENERATOR_KEY": "k", "PROVEN_NVIDIA_BASE_URL": "https://127.0.0.1:8443",
+		"PROVEN_GENERATOR_KEY": "generator-key-ok", "PROVEN_NVIDIA_BASE_URL": "https://127.0.0.1:8443",
 	}
 	_, err := generator.Load(func(k string) string { return env[k] })
 	field, text := refusedField(t, err)
