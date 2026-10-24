@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/review"
@@ -52,24 +53,24 @@ type textFormatter struct{}
 // "failed services: none" is printed rather than left out, so a reader can
 // tell a review that reached everything from one whose failures went unsaid.
 func (textFormatter) Write(w io.Writer, result review.Result) error {
-	if _, err := fmt.Fprintf(w, "review class: %s\n", result.Class); err != nil {
+	if _, err := fmt.Fprintf(w, "review class: %s\n", visible(result.Class)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "review rule: %s\n", result.ClassRule); err != nil {
+	if _, err := fmt.Fprintf(w, "review rule: %s\n", visible(result.ClassRule)); err != nil {
 		return err
 	}
 	if result.SettingsStatement != "" {
-		if _, err := fmt.Fprintln(w, result.SettingsStatement); err != nil {
+		if _, err := fmt.Fprintln(w, visible(result.SettingsStatement)); err != nil {
 			return err
 		}
 	}
 	if result.AuthorModelStatement != "" {
-		if _, err := fmt.Fprintln(w, result.AuthorModelStatement); err != nil {
+		if _, err := fmt.Fprintln(w, visible(result.AuthorModelStatement)); err != nil {
 			return err
 		}
 	}
 	for _, line := range result.ReviewerStatements {
-		if _, err := fmt.Fprintln(w, line); err != nil {
+		if _, err := fmt.Fprintln(w, visible(line)); err != nil {
 			return err
 		}
 	}
@@ -84,7 +85,7 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		}
 	} else {
 		for _, failed := range result.FailedServices {
-			if _, err := fmt.Fprintf(w, "failed service: %s: %s\n", failed.Service, failed.Reason); err != nil {
+			if _, err := fmt.Fprintf(w, "failed service: %s: %s\n", visible(failed.Service), visible(failed.Reason)); err != nil {
 				return err
 			}
 		}
@@ -95,12 +96,12 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		}
 	}
 	if sentence := familySentence(result.TracePath); sentence != "" {
-		if _, err := fmt.Fprintln(w, sentence); err != nil {
+		if _, err := fmt.Fprintln(w, visible(sentence)); err != nil {
 			return err
 		}
 	}
 	if result.TracePath != "" {
-		if _, err := fmt.Fprintf(w, "trace: %s\n", result.TracePath); err != nil {
+		if _, err := fmt.Fprintf(w, "trace: %s\n", visible(result.TracePath)); err != nil {
 			return err
 		}
 	}
@@ -145,7 +146,7 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	if name == "" {
 		name = finding.RuleID
 	}
-	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", name, finding.Severity, finding.Title); err != nil {
+	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", visible(name), visible(string(finding.Severity)), visible(finding.Title)); err != nil {
 		return err
 	}
 	for _, e := range finding.Evidence {
@@ -153,7 +154,7 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			continue
 		}
 		for _, line := range epss.Phrases(e.Query.Columns, e.Query.Rows) {
-			if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
+			if _, err := fmt.Fprintf(w, "  %s\n", visible(line)); err != nil {
 				return err
 			}
 		}
@@ -163,16 +164,16 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", finding.Location.Path, finding.Location.StartLine, finding.Location.EndLine); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", visible(finding.Location.Path), finding.Location.StartLine, finding.Location.EndLine); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %s\n", finding.Message); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s\n", visible(finding.Message)); err != nil {
 		return err
 	}
 	// The rule line is printed only when it adds something the name line
 	// does not already say.
 	if finding.RuleID != "" && finding.RuleID != name {
-		if _, err := fmt.Fprintf(w, "  rule %s\n", finding.RuleID); err != nil {
+		if _, err := fmt.Fprintf(w, "  rule %s\n", visible(finding.RuleID)); err != nil {
 			return err
 		}
 	}
@@ -195,13 +196,13 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		test := evidence.Test
-		if _, err := fmt.Fprintf(w, "  evidence test %s %s fails_on_change=%t passes_on_base=%t\n", test.Path, test.Name, test.FailsOnChange, test.PassesOnBase); err != nil {
+		if _, err := fmt.Fprintf(w, "  evidence test %s %s fails_on_change=%t passes_on_base=%t\n", visible(test.Path), visible(test.Name), test.FailsOnChange, test.PassesOnBase); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  command: %s\n", test.Command); err != nil {
+		if _, err := fmt.Fprintf(w, "  command: %s\n", visible(test.Command)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  output: %s\n", strings.TrimSpace(test.Output)); err != nil {
+		if _, err := fmt.Fprintf(w, "  output: %s\n", visibleLines(strings.TrimSpace(test.Output))); err != nil {
 			return err
 		}
 	case review.EvidenceQuery:
@@ -209,17 +210,17 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		query := evidence.Query
-		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", query.Engine, query.Snapshot); err != nil {
+		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", visible(query.Engine), visible(query.Snapshot)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  SQL: %s\n", query.SQL); err != nil {
+		if _, err := fmt.Fprintf(w, "  SQL: %s\n", visible(query.SQL)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  columns: %s\n", strings.Join(query.Columns, ", ")); err != nil {
+		if _, err := fmt.Fprintf(w, "  columns: %s\n", visible(strings.Join(query.Columns, ", "))); err != nil {
 			return err
 		}
 		for _, row := range query.Rows {
-			if _, err := fmt.Fprintf(w, "  row: %s\n", strings.Join(row, " | ")); err != nil {
+			if _, err := fmt.Fprintf(w, "  row: %s\n", visible(strings.Join(row, " | "))); err != nil {
 				return err
 			}
 		}
@@ -244,6 +245,61 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 		}
 	}
 	return nil
+}
+
+// continuationPrefix starts every line after the first of a multi-line field.
+// Every line Proven writes itself starts at column 0 or with exactly two
+// spaces, and none starts with four spaces and a bar, so a line carrying this
+// prefix is always read as the continuation of the field above it.
+const continuationPrefix = "    | "
+
+// visible returns s with every byte that could act on a terminal shown as a
+// visible escape. The byte contract, which ADR-0027 asks to be written once:
+//
+//   - C0 (U+0000 to U+001F), tab and newline included, DEL (U+007F) and C1
+//     (U+0080 to U+009F) are shown as \xNN of the code point, e.g. \x1b, \x09.
+//   - A byte that is not part of valid UTF-8 is shown as \xNN of the original
+//     byte, so what the change held is what the reader sees, not U+FFFD.
+//   - Everything else is written unchanged.
+//
+// Every text the writer prints that can come from the change goes through it,
+// so the change cannot move the cursor, recolour or rewrite the reader's
+// terminal. This is the text writer's contract only: encoding/json escapes C0
+// but leaves DEL and C1 bytes raw, so a JSON or SARIF writer must not assume
+// its encoder covers this range.
+func visible(s string) string {
+	return escapeControls(s, false)
+}
+
+// visibleLines is visible for a field that is several lines long, such as a
+// test's output. Its newlines are kept, and each one is followed by
+// continuationPrefix: otherwise a line inside the field, such as
+// "failed services: none", would be indistinguishable from one Proven wrote.
+func visibleLines(s string) string {
+	return escapeControls(s, true)
+}
+
+func escapeControls(s string, keepNewline bool) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, `\x%02x`, s[i])
+		case r == '\n' && keepNewline:
+			b.WriteString("\n" + continuationPrefix)
+		case isControl(r):
+			fmt.Fprintf(&b, `\x%02x`, r)
+		default:
+			b.WriteString(s[i : i+size])
+		}
+		i += size
+	}
+	return b.String()
+}
+
+func isControl(r rune) bool {
+	return r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 }
 
 // filterFindings keeps the findings at or above min.

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/childenv"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -34,7 +35,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	// value costs nothing and its exit code is the one ADR-0020 §2 names.
 	cfg, err := resolve(args, getenv, fileExists)
 	if err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return errorCode(err)
 	}
 	if cfg.help {
@@ -46,13 +47,13 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		return exitOK
 	}
 	if err := applyCI(&cfg, getenv); err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return errorCode(err)
 	}
 	// Every requested format must have a writer before the review runs: a
 	// review that cannot be written is time spent for an exit 2 anyway.
 	if err := writable(cfg); err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	rev, err := openCall(cfg, getenv, open)
@@ -61,10 +62,10 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		// configuration refused at load, exit 7; anything else is exit 2.
 		var conf *review.ConfigError
 		if errors.As(err, &conf) {
-			fmt.Fprintln(stderr, conf.Error())
+			printErr(stderr, conf)
 			return exitConfig
 		}
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	// --timeout bounds the whole review; zero means no deadline (ADR-0020 §1).
@@ -85,20 +86,20 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	if err != nil {
 		var conf *review.ConfigError
 		if errors.As(err, &conf) {
-			fmt.Fprintln(stderr, conf.Error())
+			printErr(stderr, conf)
 			return exitConfig
 		}
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	// The severity floor is applied here as well as in the request, so the
 	// outputs and the exit code agree whatever a reviewer returns.
 	result.Findings = filterFindings(result.Findings, cfg.severity)
 	if cfg.verbose && !cfg.quiet {
-		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", cfg.target, cfg.baseline, cfg.head)
+		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", visible(cfg.target), visible(cfg.baseline), visible(cfg.head))
 	}
 	if err := writeOutputs(cfg, result, stdout); err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	// A failed outside service is named in the output and is not exit 2:
@@ -108,6 +109,12 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		code = exitFindings
 	}
 	return code
+}
+
+// printErr writes an error sentence to stderr through the encoder the text
+// output uses: errors name files from the change, and stderr is a terminal too.
+func printErr(stderr io.Writer, err error) {
+	fmt.Fprintln(stderr, visible(err.Error()))
 }
 
 // errorCode is the exit code an error carries; an error that carries none
@@ -326,6 +333,10 @@ func applyCI(cfg *config, getenv func(string) string) error {
 // returns git's own sentence when it cannot answer.
 func gitMergeBase(repo, base, head string) (string, error) {
 	cmd := exec.Command("git", "-C", repo, "merge-base", base, head)
+	// Property: no key reaches a subprocess. An inherited environment would
+	// hand git, and any hook or alias it runs, every key Proven holds; git
+	// needs PATH and HOME only (ADR-0025).
+	cmd.Env = childenv.Minimal()
 	out, err := cmd.Output()
 	if err != nil {
 		detail := err.Error()
