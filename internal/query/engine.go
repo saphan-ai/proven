@@ -148,7 +148,7 @@ func (db *DB) execInsert(toks []token) error {
 	}
 	tb, ok := db.tables[name]
 	if !ok {
-		return fmt.Errorf("query: no table %s", name)
+		return &NoTableError{Name: name}
 	}
 	i++
 	if i >= len(toks) || toks[i].val != "(" {
@@ -455,7 +455,7 @@ func isKeyword(s string) bool {
 func (db *DB) bind(ref tableRef) (side, error) {
 	tb, ok := db.tables[ref.name]
 	if !ok {
-		return side{}, fmt.Errorf("query: no table %s", ref.name)
+		return side{}, &NoTableError{Name: ref.name}
 	}
 	idx := make(map[string]int, len(tb.cols))
 	for n, c := range tb.cols {
@@ -673,4 +673,16 @@ func tokenize(s string) ([]token, error) {
 // underscore.
 func isIdent(b byte) bool {
 	return b == '_' || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
+}
+
+// NoTableError says a statement named a table the loaded file does not hold.
+// It keeps the text the engine always gave, and it is a type so the local
+// store can tell a missing table from a bad statement (ADR-0047).
+type NoTableError struct {
+	Name string
+}
+
+// Error returns "query: no table <name>".
+func (e *NoTableError) Error() string {
+	return "query: no table " + e.Name
 }

@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/querytpl"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // File is the local evidence store: one file of tables and no server
@@ -135,6 +137,13 @@ func (f *File) Query(ctx context.Context, sql string) (Result, error) {
 	defer f.mu.Unlock()
 	cols, rows, err := f.db.Query(sql)
 	if err != nil {
+		// ADR-0047: in the configured local store a missing table is a down
+		// source, as it is on Zetaris, so a review names it and goes on. The
+		// sample engine keeps the plain error its fixtures expect.
+		var missing *NoTableError
+		if f.engine == "local" && errors.As(err, &missing) {
+			return Result{}, &service.Down{Service: "local", Reason: "no table " + missing.Name}
+		}
 		return Result{}, err
 	}
 	// No match is an empty list, not nil, so the evidence prints [] and not null.
