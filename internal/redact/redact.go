@@ -11,7 +11,9 @@
 package redact
 
 import (
+	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/generator"
@@ -44,6 +46,7 @@ type needle struct {
 
 // New builds a Redactor from variable name to value. An empty value, and a
 // value shorter than MinLength after trimming white space, is not redacted.
+// A value is redacted in its raw form and in the escaped forms %q, %+q and JSON give it.
 // When two variables hold the same value the name that sorts first is used,
 // so the marker does not depend on map order.
 func New(values map[string]string) *Redactor {
@@ -59,11 +62,38 @@ func New(values map[string]string) *Redactor {
 		if len(v) < MinLength || seen[v] {
 			continue
 		}
-		seen[v] = true
-		r.needles = append(r.needles, needle{value: v, marker: "[redacted: " + name + "]"})
+		// ADR-0005: an error that quotes a value with %q, or a JSON line that carries it, writes
+		// it escaped, so each escaped spelling is a needle of its own under the same marker.
+		for _, form := range spellings(v) {
+			if seen[form] {
+				continue
+			}
+			seen[form] = true
+			r.needles = append(r.needles, needle{value: form, marker: "[redacted: " + name + "]"})
+		}
 	}
 	sort.SliceStable(r.needles, func(i, j int) bool { return len(r.needles[i].value) > len(r.needles[j].value) })
 	return r
+}
+
+// spellings returns v and the ways Go's %q, %+q and a JSON encoder write it inside quotes, without
+// the quotes, each once. A value with nothing to escape has one spelling.
+func spellings(v string) []string {
+	out := []string{v}
+	add := func(s string) {
+		for _, have := range out {
+			if have == s {
+				return
+			}
+		}
+		out = append(out, s)
+	}
+	add(strings.Trim(strconv.Quote(v), `"`))
+	add(strings.Trim(strconv.QuoteToASCII(v), `"`))
+	if b, err := json.Marshal(v); err == nil {
+		add(strings.Trim(string(b), `"`))
+	}
+	return out
 }
 
 // FromEnv builds a Redactor from the variables in Names, read through env.

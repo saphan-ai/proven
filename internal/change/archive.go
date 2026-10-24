@@ -65,6 +65,16 @@ func ExportWorktree(target, dst string) ([]string, error) {
 		}
 		src := filepath.Join(target, filepath.FromSlash(clean))
 		out := filepath.Join(dst, filepath.FromSlash(clean))
+		// ADR-0025: a tracked path whose parent directory is a link in the working tree
+		// would be read from wherever the link points, so it is left out like a tracked link.
+		linked, err := behindALink(target, clean)
+		if err != nil {
+			return nil, err
+		}
+		if linked {
+			skipped = append(skipped, clean)
+			continue
+		}
 		skip, n, err := copyTracked(src, out, clean)
 		if err != nil {
 			return nil, err
@@ -196,6 +206,28 @@ func writeTarFile(tr *tar.Reader, dst string, mode os.FileMode) error {
 		return copyErr
 	}
 	return closeErr
+}
+
+// behindALink reports whether a directory on the way from root to the slash path rel is a symbolic
+// link. Each directory is checked with Lstat, which does not follow it. A directory that is gone is
+// not a link: copyTracked treats the missing file as a deletion.
+func behindALink(root, rel string) (bool, error) {
+	parts := strings.Split(rel, "/")
+	cur := root
+	for _, p := range parts[:len(parts)-1] {
+		cur = filepath.Join(cur, p)
+		info, err := os.Lstat(cur)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // copyTracked copies one tracked working-tree file and returns the bytes it

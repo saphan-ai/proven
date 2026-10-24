@@ -24,8 +24,8 @@ import (
 // container when it exits. --cpus takes a number and 0 means no limit.
 // --memory takes a number and a suffix b, k, m or g, and 0 means no limit.
 // A volume's ro option mounts it read-only; the default is read-write.
-// That manual does not document a flag that stops a missing image from
-// being pulled on the host before the container starts.
+// --pull never stops a missing image from being pulled on the host before
+// the container starts; the run then fails and Run reports the Prover down.
 
 // The documented defaults of the container settings (ADR-0013, ADR-0025
 // point 5). checkoutDir is where the one checkout is mounted inside.
@@ -340,6 +340,9 @@ func (c *Container) argv(dir string, test []string, name string) []string {
 	args = append(args,
 		"--rm",
 		"--network", "none",
+		// ADR-0025: the review never fetches an image at test time. An absent image is the
+		// Prover down, and Run names the pull the owner does by hand.
+		"--pull", "never",
 		"--cpus", c.cfg.CPUs,
 		"--memory", c.cfg.Memory,
 		"--user", c.cfg.User,
@@ -411,6 +414,19 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 		return out, nil
 	}
 	out.Command = displayCommand(test)
+	// ADR-0025: a checkout that is a link is not a mount source. The runtime would follow it to
+	// whatever it names, which is not the tree that was prepared.
+	for _, dir := range []string{req.BaseDir, req.ChangeDir} {
+		if dir == "" {
+			continue
+		}
+		// The cleaned path is the one checked: a trailing slash makes Lstat follow
+		// the link, and the cleaned form is what names the mount source.
+		if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
+			return out, nil
+		}
+	}
 	if req.Content != "" {
 		// The written test goes into a copy of each checkout, so the caller's
 		// trees are never changed and both sides run the same test text.
@@ -438,6 +454,9 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	if changeKind == kindCancelled {
 		return Outcome{}, withRemoval(ctx.Err(), changeText)
 	}
+	if down := c.absentImage(changeText, changeKind); down != nil {
+		return Outcome{}, down
+	}
 	baseText, baseKind := c.side(ctx, req.BaseDir, test)
 	if baseKind == kindCancelled {
 		return Outcome{}, withRemoval(ctx.Err(), changeText+"\n"+baseText)
@@ -446,6 +465,24 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	out.PassesOnBase = baseKind == kindPass
 	out.Output = formatSides(changeText, changeKind, baseText, baseKind)
 	return out, nil
+}
+
+// absentImage turns a run the runtime refused for lack of the image into the Prover down, with the
+// pull as its next act, the way Probe does. It returns nil for any other outcome. Docker says
+// "Unable to find image" and podman says "image not known"; --pull never makes both refuse
+// instead of fetching (ADR-0025).
+func (c *Container) absentImage(text string, kind runKind) error {
+	if kind != kindNotRun {
+		return nil
+	}
+	lower := strings.ToLower(text)
+	if !strings.Contains(lower, "unable to find image") && !strings.Contains(lower, "image not known") {
+		return nil
+	}
+	return &service.Down{
+		Service: "prover",
+		Reason:  "image " + c.cfg.Image + " is not present; next: " + filepath.Base(c.runtime) + " pull " + c.cfg.Image,
+	}
 }
 
 // side runs the test command words in one checkout and classifies how it ended.

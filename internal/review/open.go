@@ -6,6 +6,7 @@ package review
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/candidate"
@@ -39,14 +40,17 @@ func open(opts Options) (Reviewer, error) {
 	// ADR-0013: the size bounds on every read of the repository under review are
 	// settings. They are loaded first, so the explicit configuration below is read
 	// under them too. A wrong value stops Open before any review and is never
-	// replaced by the default. Sample mode reads no setting and keeps the defaults.
+	// replaced by the default. Sample mode reads no setting, so it puts the defaults back: the bounds
+	// are process state, and a sample review must not run under an earlier review's bounds.
+	reads := change.DefaultLimits()
 	if !opts.Sample {
-		reads, rerr := change.LoadLimits(opts.Env)
+		loaded, rerr := change.LoadLimits(opts.Env)
 		if rerr != nil {
 			return nil, readLimitConfig(rerr)
 		}
-		change.UseLimits(reads)
+		reads = loaded
 	}
+	change.UseLimits(reads)
 	cfg := defaultSettings()
 	explicit := false
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
@@ -254,7 +258,10 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	out := fill(d)
+	out, err := fill(d)
+	if err != nil {
+		return Result{}, err
+	}
 	if err := applyDecision(&out, cfg, req); err != nil {
 		return Result{}, err
 	}
@@ -264,8 +271,14 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 // fill copies the writer's draft into the seam's Result. Slices are copied, so the Result shares no
 // memory with the pipeline. Findings and FailedServices are never nil, so an empty review prints
 // an empty list rather than a missing one.
-func fill(d candidate.Draft) Result {
-	out := Result{Partial: d.Partial, TracePath: d.TracePath}
+//
+// ADR-0044: fill sets each finding's ProofLevel from its strongest evidence and counts the findings by
+// level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
+func fill(d candidate.Draft) (Result, error) {
+	out := Result{Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{}}
+	for _, l := range ProofLevels {
+		out.ProofCounts[l] = 0
+	}
 	for _, c := range d.Findings {
 		f := Finding{
 			ID: c.ID, RuleID: c.RuleID, Title: c.Title, Message: c.Message,
@@ -277,6 +290,12 @@ func fill(d candidate.Draft) Result {
 		for _, e := range c.Evidence {
 			f.Evidence = append(f.Evidence, toEvidence(e))
 		}
+		level, err := ProofLevelOf(f.Evidence)
+		if err != nil {
+			return Result{}, fmt.Errorf("finding %s: %w", c.ID, err)
+		}
+		f.ProofLevel = level
+		out.ProofCounts[level]++
 		out.Findings = append(out.Findings, f)
 	}
 	for _, s := range d.Failed {
@@ -296,7 +315,7 @@ func fill(d candidate.Draft) Result {
 	if out.FailedServices == nil {
 		out.FailedServices = []ServiceFailure{}
 	}
-	return out
+	return out, nil
 }
 
 // toEvidence copies one piece of evidence across the seam, field by field.

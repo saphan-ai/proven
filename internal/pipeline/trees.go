@@ -77,8 +77,10 @@ func (p *Pipeline) refuseBareRepository(req Request) error {
 // hasPreparedTrees reports whether target already holds the two trees the
 // agents read. The demo is this shape, and live mode leaves it unchanged.
 func hasPreparedTrees(target string) bool {
-	base, err1 := os.Stat(filepath.Join(target, "base"))
-	chg, err2 := os.Stat(filepath.Join(target, "change"))
+	// ADR-0025: Lstat, so a base or change that is a link is not a prepared tree. Stat would follow
+	// it, and the agents and the Prover would then read whatever it names.
+	base, err1 := os.Lstat(filepath.Join(target, "base"))
+	chg, err2 := os.Lstat(filepath.Join(target, "change"))
 	return err1 == nil && err2 == nil && base.IsDir() && chg.IsDir()
 }
 

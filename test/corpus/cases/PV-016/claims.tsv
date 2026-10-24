@@ -1,0 +1,12 @@
+D-setup	dest	chat:t-backup-ops	-	chat-setup.md	Set `destination` to `chat:t-backup-ops`.
+D-index	dest	chat:c-backup-ops	-	index.md	Destination ids begin with `c`, for example `chat:c-backup-ops`.
+P-backup_failed	deliver	backup_failed	-	what-goes-out.md	Each alert listed here is delivered to the configured destination.
+P-backup_late	deliver	backup_late	-	what-goes-out.md	Each alert listed here is delivered to the configured destination.
+P-restore_done	deliver	restore_done	-	what-goes-out.md	Each alert listed here is delivered to the configured destination.
+P-storage_low	deliver	storage_low	-	what-goes-out.md	Each alert listed here is delivered to the configured destination.
+P-delivery_failed	deliver	delivery_failed	-	what-goes-out.md	Each alert listed here is delivered to the configured destination.
+F-backup_failed	fields	backup_failed	job,host,error,time,retry_count	what-goes-out.md	`backup_failed` carries: job, host, error, time, retry_count.
+F-backup_late	fields	backup_late	job,host,expected_at,time	what-goes-out.md	`backup_late` carries: job, host, expected_at, time.
+F-restore_done	fields	restore_done	job,host,time	what-goes-out.md	`restore_done` carries: job, host, time. It carries no actor.
+F-storage_low	fields	storage_low	volume,percent_free,threshold,time	what-goes-out.md	`storage_low` carries: volume, percent_free, threshold, time.
+F-delivery_failed	fields	delivery_failed	destination,reason,time	what-goes-out.md	`delivery_failed` carries: destination, reason, time.

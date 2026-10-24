@@ -121,12 +121,17 @@ type Writer struct {
 
 // Open creates the logs directory and opens the trace for appending.
 func Open(dir string) (*Writer, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := privateDir(dir); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, "trace.jsonl")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
+		return nil, err
+	}
+	// OpenFile sets the mode only when it creates; an existing file is narrowed too.
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
 		return nil, err
 	}
 	id, err := newRunID()
@@ -225,4 +230,14 @@ func eventID(e Event) string {
 	}
 	sum := sha256.Sum256(bytes.TrimSpace(buf.Bytes()))
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
+// mode only when it creates, and a directory an earlier run left at 0755 must
+// not stay readable by others (Proven's own state is readable only by its user).
+func privateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(dir, 0o700)
 }
