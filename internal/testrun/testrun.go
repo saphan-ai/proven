@@ -6,7 +6,8 @@
 // runs the test in a container with no network and no secret (ADR-0025);
 // Sample replays outcomes recorded in a fixture and runs no code; Off and Live
 // report the Prover off, so a review without a container runtime never runs
-// the change's code on the host (ADR-0025 point 6).
+// the change's code on the host (ADR-0025 point 6). RunCommand runs a command
+// Proven built, such as a tool's argv (ADR-0040), in that same container.
 package testrun
 
 import "context"
