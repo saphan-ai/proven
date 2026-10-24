@@ -142,6 +142,7 @@ func defaultPathRules() []pathRule {
 		"Pipfile.lock",
 		"poetry.lock",
 		"Gemfile.lock",
+		"composer.json",
 		"composer.lock",
 		"pom.xml",
 		"build.gradle",

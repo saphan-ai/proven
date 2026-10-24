@@ -52,6 +52,20 @@ func Compare(a, b string) (int, bool) {
 	return av.cmp(bv), true
 }
 
+// Explain says why value is not a form this package compares.
+// kind names the bound the value came from, and is empty for the package's
+// own version. The bool is true when Parse accepts value.
+func Explain(kind, value string) (string, bool) {
+	if _, ok := Parse(value); ok {
+		return "", true
+	}
+	why := Reject(value)
+	if kind == "" {
+		return why, false
+	}
+	return kind + " " + why, false
+}
+
 // Reject says why s is not compared. It is empty when Parse accepts s.
 func Reject(s string) string {
 	shown := strings.TrimSpace(s)

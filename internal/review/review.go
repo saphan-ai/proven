@@ -115,6 +115,7 @@ type Result struct {
 	AuthorModels         []AuthorModel    // models the change named; empty means none were stated
 	AuthorModelStatement string           // "author model not stated" when the change names no model
 	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
+	GuardrailStatement   string           // set when the guardrail was switched off for this review; empty when it was on
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string

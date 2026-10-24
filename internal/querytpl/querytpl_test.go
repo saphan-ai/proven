@@ -80,6 +80,10 @@ func TestPackageFormatsFollowTheEcosystem(t *testing.T) {
 		{"PyPI", "Django_REST.framework", true},
 		{"PyPI", "-leading", false},
 		{"PyPI", "a/b", false},
+		{"Packagist", "monolog/monolog", true},
+		{"Packagist", "Monolog/monolog", true},
+		{"Packagist", "monolog", false},
+		{"Packagist", "-bad/name", false},
 		{"Go", "", false},
 		{"Cargo", "serde", false},
 		{"", "serde", false},
@@ -124,6 +128,18 @@ func TestPyPINameIsBuiltInItsPEP503Form(t *testing.T) {
 	got, err := OSVPackageSQL(DefaultOSVTable, "PyPI", "Django_REST.framework")
 	if err != nil || !strings.HasSuffix(got, "package = 'django-rest-framework'") {
 		t.Errorf("got %q, %v", got, err)
+	}
+}
+
+// TestPackagistNameIsBuiltInLowerCase proves a Packagist package is looked
+// up by the lower-case vendor/name form the OSV table is keyed by.
+func TestPackagistNameIsBuiltInLowerCase(t *testing.T) {
+	got, err := OSVPackageSQL(DefaultOSVTable, "Packagist", "Monolog/monolog")
+	if err != nil || !strings.HasSuffix(got, "package = 'monolog/monolog'") {
+		t.Errorf("got %q, %v", got, err)
+	}
+	if !strings.Contains(got, "ecosystem = 'Packagist'") {
+		t.Errorf("got %q", got)
 	}
 }
 

@@ -20,8 +20,10 @@ func PyPI() Reader {
 		Match: func(path string) bool {
 			return path == "requirements.txt" || strings.HasSuffix(path, "/requirements.txt")
 		},
-		Diff:  diffRequirements,
-		Notes: requirementsNotes,
+		Diff:    diffRequirements,
+		Compare: pep440.Compare,
+		Explain: pep440.Explain,
+		Notes:   requirementsNotes,
 	}
 }
 

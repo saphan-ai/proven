@@ -36,7 +36,12 @@ var querySpec = answer.Spec{
 
 // Prompt asks for the template and values for one risk.
 func Prompt(id, title, path string) string {
-	return answer.Instruct(querySpec, "id: "+id+"\ntitle: "+title+"\npath: "+path+"\n")
+	// The title is model text shaped by the change, so it enters as data.
+	return answer.Instruct(querySpec, answer.Encode(struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		Path  string `json:"path"`
+	}{id, title, path}))
 }
 
 // row is the query as the model returns it. The prompt does not ask for SQL.
@@ -124,6 +129,10 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 		Query: &candidate.QueryEvidence{
 			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: res.Columns, Rows: res.Rows,
+			// The request is kept so the pipeline can bind the rows to the
+			// change. The Investigator never sets Bound: the model chose the
+			// query, so Proven decides what it is about.
+			Request: req,
 		},
 	})
 	return c, nil

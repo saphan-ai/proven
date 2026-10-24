@@ -112,6 +112,13 @@ type Fix struct {
 // QueryEvidence is a query and the rows the engine returned.
 // Form names the query language that ran. Engine and Snapshot say where the
 // rows came from, so a reader can run the same query again (ADR-0023, ADR-0047).
+//
+// Bound is set by Proven, never by a model: the rows are about the change's own
+// package, version or advisory (the dependency check derives those from the
+// change's manifests and compares versions in Go). The Judge counts query rows
+// as evidence only when Bound is set; a word that a row shares with the
+// finding's text binds nothing. Request is the template and values the
+// Investigator named, kept so the pipeline can decide Bound; it holds no SQL.
 type QueryEvidence struct {
 	SQL      string
 	Form     string
@@ -119,6 +126,8 @@ type QueryEvidence struct {
 	Snapshot string
 	Columns  []string
 	Rows     [][]string
+	Request  querytpl.Request
+	Bound    bool
 }
 
 // ToolEvidence is a deterministic tool's run on the base and the change (ADR-0040).
@@ -223,4 +232,12 @@ type Draft struct {
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+	// GuardrailStatement is set when the review ran with the guardrail
+	// switched off, so the result says so and not only the trace
+	// (ADR-0005). Empty when the guardrail was on.
+	GuardrailStatement string
 }
+
+// GuardrailOffStatement is the sentence a review carries when its guardrail
+// was switched off. The trace line, the draft and every format use this one text.
+const GuardrailOffStatement = "no guardrail: this review ran with the guardrail switched off"

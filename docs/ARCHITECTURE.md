@@ -35,10 +35,11 @@ The model-calling agents (Planner, Investigator, Prover, Skeptic) speak to Meter
 `PROVEN_GENERATOR_MODE=nvidia`, to NVIDIA's hosted API (ADR-0031). Every prompt and every
 answer passes the NVIDIA content-safety guardrail first.
 
-A dependency the change adds or raises is not named by those agents. Proven reads `go.mod`, `package.json` and
-`requirements.txt`, queries the OSV package table once per package, and compares the version in Go. The Judge still
-decides: a matching range is evidence, and a version outside every range is a trace line, not a finding. See
-[OSV_TABLE.md](OSV_TABLE.md).
+A dependency the change adds or raises is not named by those agents. Proven reads `go.mod`, `package.json`,
+`requirements.txt` and `composer.json`, and the lock file beside each, queries the OSV package table once per package,
+and compares the version with that language's adapter. The Judge still decides: a matching range is evidence, and a
+version outside every range is a trace line, not a finding. See [OSV_TABLE.md](OSV_TABLE.md) and
+[ADAPTERS.md](ADAPTERS.md).
 
 ## Proposed fixes (ADR-0042)
 

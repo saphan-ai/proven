@@ -138,7 +138,7 @@ func Catalogue() []Template {
 			Name:   OSVByPackage,
 			Answer: "the OSV advisory rows of one package",
 			Params: []Param{
-				{ParamEcosystem, "one of Go, npm, PyPI"},
+				{ParamEcosystem, "one of Go, npm, PyPI, Packagist"},
 				{ParamPackage, "a package name in the ecosystem's own spelling"},
 			},
 		},
@@ -186,11 +186,12 @@ func Describe() string {
 // in RE2 the dollar sign matches the end of the text only, so a trailing line
 // break is not admitted.
 var (
-	cveFormat      = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,12}$`)
-	advisoryFormat = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,15}(-[A-Za-z0-9]{1,40}){1,6}$`)
-	goFormat       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
-	npmFormat      = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._~-]{0,213}/)?[A-Za-z0-9][A-Za-z0-9._~-]{0,213}$`)
-	pypiFormat     = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._-]{0,212}[A-Za-z0-9])?$`)
+	cveFormat       = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,12}$`)
+	advisoryFormat  = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,15}(-[A-Za-z0-9]{1,40}){1,6}$`)
+	goFormat        = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
+	npmFormat       = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._~-]{0,213}/)?[A-Za-z0-9][A-Za-z0-9._~-]{0,213}$`)
+	pypiFormat      = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._-]{0,212}[A-Za-z0-9])?$`)
+	packagistFormat = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?/[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?$`)
 )
 
 // ValidCVE reports whether s is a CVE id and nothing else.
@@ -256,6 +257,8 @@ func packageFormat(ecosystem string) *regexp.Regexp {
 		return goFormat
 	case "npm":
 		return npmFormat
+	case "Packagist":
+		return packagistFormat
 	default:
 		return pypiFormat
 	}
@@ -338,6 +341,8 @@ func checkParams(tpl Template, params map[string]string) error {
 
 // OSVPackageSQL is the OSV package query for one ecosystem and package. A PyPI
 // name is put in its PEP 503 form first, because the table is keyed by it.
+// A Packagist name is put in lower case first, because Packagist names are
+// not case-sensitive and the table is keyed by the lower-case form.
 // The dependency check calls it with names from the change's manifests.
 func OSVPackageSQL(table, ecosystem, pkg string) (string, error) {
 	return osvByPackage(table, ecosystem, pkg)
@@ -349,12 +354,17 @@ func osvByPackage(table, ecosystem, pkg string) (string, error) {
 		return "", &Refusal{Reason: ReasonBadRelation, Detail: OSVByPackage}
 	}
 	switch ecosystem {
-	case "Go", "npm", "PyPI":
+	case "Go", "npm", "PyPI", "Packagist":
 	default:
 		return "", &Refusal{Reason: ReasonBadValue, Detail: OSVByPackage + " " + ParamEcosystem}
 	}
 	if ecosystem == "PyPI" {
 		pkg = pep503.Normalise(pkg)
+	}
+	// Lower case is the spelling Packagist publishes. The reader already
+	// stores it that way; this is the same fold for a name a model typed.
+	if ecosystem == "Packagist" {
+		pkg = strings.ToLower(pkg)
 	}
 	name, err := literal(OSVByPackage, ParamPackage, pkg, packageFormat(ecosystem))
 	if err != nil {
