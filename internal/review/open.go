@@ -172,6 +172,7 @@ func open(opts Options) (Reviewer, error) {
 			} else if cerr != nil {
 				return nil, storeConfig(cerr)
 			} else {
+				cfg.Network = cfg.Network.WithDial(opts.dial)
 				popts.LiveStore = store.NewCouchDB(cfg, nil)
 			}
 		} else {
@@ -259,7 +260,7 @@ func open(opts Options) (Reviewer, error) {
 	// reads only OTEL_* names.
 	tel := opts.tel
 	if tel == nil {
-		set, terr := telemetry.Setup(context.Background(), opts.Env)
+		set, terr := telemetry.SetupWithDial(context.Background(), opts.Env, opts.dial)
 		if terr != nil {
 			return nil, telemetryConfig(terr)
 		}

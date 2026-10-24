@@ -22,6 +22,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 )
 
 // The standard variables Setup reads. Exporter details it does not read here
@@ -62,9 +63,9 @@ func (e *ConfigError) Error() string {
 // OpenTelemetry specification's own; Proven adds no setting of its own (ADR-0045 point 2).
 func Environment() []envdoc.Setting {
 	return []envdoc.Setting{
-		{Name: EnvEndpoint, Default: "none (telemetry is off)", Description: "the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too"},
-		{Name: EnvTracesEndpoint, Default: "none", Description: "the full URL the trace is sent to. It wins over `" + EnvEndpoint + "` for the trace and, set alone, turns the trace on"},
-		{Name: EnvMetricsEndpoint, Default: "none", Description: "the full URL the metrics are sent to. It wins over `" + EnvEndpoint + "` for the metrics and, set alone, turns the metrics on"},
+		{Name: EnvEndpoint, Default: "none (telemetry is off)", Description: "the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too. In `PROVEN_NETWORK=local` a host outside the organisation's network is refused at load, in sample mode as well, and both exporters refuse to dial one"},
+		{Name: EnvTracesEndpoint, Default: "none", Description: "the full URL the trace is sent to. It wins over `" + EnvEndpoint + "` for the trace and, set alone, turns the trace on. In `PROVEN_NETWORK=local` the same network rule applies"},
+		{Name: EnvMetricsEndpoint, Default: "none", Description: "the full URL the metrics are sent to. It wins over `" + EnvEndpoint + "` for the metrics and, set alone, turns the metrics on. In `PROVEN_NETWORK=local` the same network rule applies"},
 		{Name: EnvDisabled, Default: "none", Description: "`true` turns telemetry off even when an endpoint is set"},
 		{Name: EnvProtocol, Default: envdoc.Tick(protocolHTTP), Description: "the OTLP transport. Only `" + protocolHTTP + "` is built in; any other value is refused by name. `" + EnvTracesProtocol + "` and `" + EnvMetricsProtocol + "` are read the same way"},
 		{Name: EnvServiceName, Default: envdoc.Tick(DefaultServiceName), Description: "the service name a backend shows"},
@@ -76,6 +77,13 @@ func Environment() []envdoc.Setting {
 // is off, when no endpoint is set or OTEL_SDK_DISABLED is true: nothing is
 // built and no connection is opened. env nil reads nothing, so it is off.
 func Setup(ctx context.Context, env func(string) string) (*T, error) {
+	return SetupWithDial(ctx, env, nil)
+}
+
+// SetupWithDial is Setup with a seam: in the air-gapped mode (ADR-0034) dial
+// opens each allowed connection of both exporters, so a test can record every
+// dial. Nil dials for real. It has no effect in public mode.
+func SetupWithDial(ctx context.Context, env func(string) string, dial network.DialFunc) (*T, error) {
 	if env == nil {
 		return nil, nil
 	}
@@ -93,6 +101,27 @@ func Setup(ctx context.Context, env func(string) string) (*T, error) {
 	if traceURL == "" && metricURL == "" {
 		return nil, nil
 	}
+	// ADR-0034: in the air-gapped mode an endpoint outside the organisation's
+	// network is refused here, by name, and both exporters dial through the
+	// policy client, which refuses an outside address and any proxy.
+	policy, err := network.Load(env)
+	if err != nil {
+		return nil, fromNetwork(err)
+	}
+	policy = policy.WithDial(dial)
+	for _, c := range []struct{ field, url string }{
+		{signalField(env, EnvTracesEndpoint), traceURL},
+		{signalField(env, EnvMetricsEndpoint), metricURL},
+	} {
+		if c.url == "" {
+			continue
+		}
+		if err := policy.CheckURL(c.field, c.url); err != nil {
+			return nil, fromNetwork(err)
+		}
+	}
+	// Nil in public mode: the exporters keep their own client there.
+	client := policy.LocalClient(0)
 	for _, name := range []string{EnvProtocol, EnvTracesProtocol, EnvMetricsProtocol} {
 		if v := strings.TrimSpace(env(name)); v != "" && v != protocolHTTP {
 			return nil, &ConfigError{
@@ -129,7 +158,11 @@ func Setup(ctx context.Context, env func(string) string) (*T, error) {
 	}
 	var tp *sdktrace.TracerProvider
 	if traceURL != "" {
-		exp, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(traceURL))
+		topts := []otlptracehttp.Option{otlptracehttp.WithEndpointURL(traceURL)}
+		if client != nil {
+			topts = append(topts, otlptracehttp.WithHTTPClient(client))
+		}
+		exp, err := otlptracehttp.New(ctx, topts...)
 		if err != nil {
 			return nil, fmt.Errorf("telemetry: trace exporter: %w", err)
 		}
@@ -139,7 +172,11 @@ func Setup(ctx context.Context, env func(string) string) (*T, error) {
 	}
 	var mp *sdkmetric.MeterProvider
 	if metricURL != "" {
-		exp, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpointURL(metricURL))
+		mopts := []otlpmetrichttp.Option{otlpmetrichttp.WithEndpointURL(metricURL)}
+		if client != nil {
+			mopts = append(mopts, otlpmetrichttp.WithHTTPClient(client))
+		}
+		exp, err := otlpmetrichttp.New(ctx, mopts...)
 		if err != nil {
 			return nil, fmt.Errorf("telemetry: metric exporter: %w", err)
 		}
@@ -168,6 +205,23 @@ func signalURL(env func(string) string, specific, path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(u, "/") + path, nil
+}
+
+// signalField names the variable a signal's URL came from: the specific one
+// when it is set, else the general one, so a refusal names what to fix.
+func signalField(env func(string) string, specific string) string {
+	if strings.TrimSpace(env(specific)) != "" {
+		return specific
+	}
+	return EnvEndpoint
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Allowed: ne.Allowed, Reason: ne.Reason}
+	}
+	return err
 }
 
 func checkURL(field, v string) (string, error) {
