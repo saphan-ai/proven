@@ -436,9 +436,8 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 // (ADR-0013). The files are written one after another, so the last write would
 // silently replace the others and the run would still exit 0 (ADR-0020 §1).
 //
-// What counts as one file: the same path after filepath.Abs, filepath.Clean and
-// the resolution of every symbolic link in the part of the path that exists
-// (outputIdentity), or two existing files for which os.SameFile is true (a
+// What counts as one file: the same path after the filesystem's own resolution
+// of the raw spelling, links before ".." (outputIdentity), or two existing files for which os.SameFile is true (a
 // hard link, or a link to the file itself). Links are resolved because a
 // directory link such as link -> real makes "link/r.json" and "real/r.json" the
 // same file under two spellings, and a check that compared spellings would let
@@ -490,62 +489,107 @@ func refuseCollidingOutputs(cfg config) error {
 // instead of being left to fail at the write.
 const maxOutputLinkHops = 40
 
-// outputIdentity is the path the file would have with every symbolic link
-// resolved, whether or not the file exists. It resolves the existing prefix,
-// and when the final component is a link that EvalSymlinks could not follow
-// because its target is absent, it reads the link and goes on from the target
-// (a relative target is taken against the directory holding the link), for at
-// most maxOutputLinkHops links.
+// outputIdentity is the path the file would have if the filesystem resolved
+// the raw path, whether or not the file exists.
 //
-// WHY the dangling link is followed: os.WriteFile on alias.json -> actual.json
-// creates actual.json, so a not-yet-existing target is the same file as the
-// link's name. Without this the check keys the link by its own name, sees no
-// collision with an output named actual.json, and the later format replaces
-// the earlier one.
+// THE RULE: walk the path as the kernel does, one component at a time, from
+// the root (or from the working directory for a relative path). A symbolic
+// link is resolved when it is met, before the next component is looked at, so
+// ".." applies to the directory the link led to and not to the directory that
+// holds the link: with link -> elsewhere/dir, "link/../report" is
+// "elsewhere/report". The path is never cleaned or made absolute first,
+// because filepath.Clean and filepath.Abs remove "link/.." textually, before
+// link is read, and name a different file. A relative link target is taken
+// against the directory that holds the link, and at most maxOutputLinkHops
+// links are followed. At the first component that does not exist the rest is
+// appended as written (a ".." there only drops the component before it).
+//
+// WHY a dangling final link is followed: os.WriteFile on alias.json ->
+// actual.json creates actual.json, so a not-yet-existing target is the same
+// file as the link's name.
+//
+// WHY the write-time os.SameFile check in run.go stays: this runs once, at
+// load, and the disk can change before the write; that check is the second
+// line and is never the one meant to fire for an alias this function can see.
 func outputIdentity(path string) (string, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		// Abs fails only when the working directory is unreadable; the
-		// cleaned path is still a usable key for the comparison.
-		abs = filepath.Clean(path)
-	}
-	for hops := 0; ; hops++ {
-		abs = resolveExistingPrefix(abs)
-		info, err := os.Lstat(abs)
-		if err != nil || info.Mode()&os.ModeSymlink == 0 {
-			return abs, nil
+	root, rest := splitRoot(path)
+	if root == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			// The working directory is unreadable; the cleaned path is
+			// still a usable key for the comparison.
+			return filepath.Clean(path), nil
 		}
-		// A link survives resolveExistingPrefix only when it dangles or
-		// loops; either way its target is what the write would reach.
+		root, _ = splitRoot(cwd)
+		rest = cwd[len(root):] + string(filepath.Separator) + path
+	}
+	pending := splitComponents(rest)
+	resolved := root
+	missing := false // true once a component did not exist: the rest is lexical
+	for hops := 0; len(pending) > 0; {
+		name := pending[0]
+		pending = pending[1:]
+		switch name {
+		case ".":
+			continue
+		case "..":
+			if resolved != root {
+				resolved = filepath.Dir(resolved)
+			}
+			continue
+		}
+		next := filepath.Join(resolved, name)
+		if missing {
+			resolved = next
+			continue
+		}
+		info, err := os.Lstat(next)
+		if err != nil {
+			missing = true
+			resolved = next
+			continue
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			resolved = next
+			continue
+		}
 		if hops == maxOutputLinkHops {
 			return "", fmt.Errorf("more than %d symbolic links, or a link loop", maxOutputLinkHops)
 		}
-		target, err := os.Readlink(abs)
+		hops++
+		target, err := os.Readlink(next)
 		if err != nil {
-			return abs, nil
+			resolved = next
+			missing = true
+			continue
 		}
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(filepath.Dir(abs), target)
+		if tRoot, tRest := splitRoot(target); tRoot != "" {
+			resolved = tRoot
+			target = tRest
 		}
-		abs = filepath.Clean(target)
+		pending = append(splitComponents(target), pending...)
 	}
+	return resolved, nil
 }
 
-// resolveExistingPrefix runs EvalSymlinks on the longest prefix of an absolute
-// path that exists and joins the not-yet-existing tail on unchanged.
-func resolveExistingPrefix(abs string) string {
-	prefix, tail := abs, ""
-	for {
-		if resolved, err := filepath.EvalSymlinks(prefix); err == nil {
-			return filepath.Join(resolved, tail)
-		}
-		parent := filepath.Dir(prefix)
-		if parent == prefix {
-			return abs
-		}
-		tail = filepath.Join(filepath.Base(prefix), tail)
-		prefix = parent
+// splitRoot splits a path into its root ("/" or `C:\`, "" when relative) and
+// the remainder, without cleaning either.
+func splitRoot(path string) (root, rest string) {
+	vol := filepath.VolumeName(path)
+	rest = path[len(vol):]
+	if rest != "" && os.IsPathSeparator(rest[0]) {
+		return vol + string(filepath.Separator), rest
 	}
+	if vol != "" {
+		return vol, rest
+	}
+	return "", path
+}
+
+// splitComponents splits a path on its separators and drops empty parts, so a
+// trailing or doubled separator names the same component.
+func splitComponents(path string) []string {
+	return strings.FieldsFunc(path, func(r rune) bool { return os.IsPathSeparator(byte(r)) && r < 0x80 })
 }
 
 // refuseExclusive refuses pairs that cannot both hold: two output formats,
