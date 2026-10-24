@@ -8,7 +8,8 @@
 ## 1. Story
 
 A small tool copies a directory tree, for example to make a read-only snapshot of a build. The snapshot must be readable by
-the owner, the group and others, and must not be writable by the group or by others.
+the owner, the group and others, and must not be writable by the group or by others: every file in the copy has mode `0644`
+and every directory `0755`, whatever mode its source had.
 
 The change under review rewrites the copy. Its description says: "the copy adds the read bits for everyone and leaves the
 rest as it was". The change's own test copies a small tree and checks that every file and directory in the copy has the mode
@@ -26,8 +27,9 @@ The case must provide, with no network and no model:
   - **change** copies each entry, then sets the mode to the mode the new entry has OR the read bits for owner, group and
     others. New entries are created with the language's ordinary creation call.
 - a **source tree**: a small tree made by the case, with files of mode `0600` and `0640`, and directories of mode `0700`.
-- a **reference**: for each entry, the mode the description promises under every umask the check uses; never computed by
-  the copy; used only by the check.
+- a **reference**: for each entry, the mode the snapshot must have: `0644` for every file and `0755` for every directory,
+  under every umask the check uses and whatever the source mode; written as literals, never computed by the copy; used
+  only by the check.
 - a **check** that runs the copy under two umasks, `022` and `002`, each in a separate process so one run does not change
   the other, and prints one line per entry and umask: entry name, umask, base mode, change mode, reference mode.
 
