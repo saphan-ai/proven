@@ -61,7 +61,8 @@ func resolveLogDir(getenv func(string) string, target string) (string, error) {
 		return "", refuse(EnvLogDir, raw, "log directory resolves inside the review target "+root, logDirAllowed)
 	}
 	// The directory can sit outside the target while trace.jsonl is a symlink
-	// into it. Opening the trace follows that final link, so the file is
+	// into it, or a hard link of a file inside it. Opening the trace follows
+	// the symlink and writes every name of a hard link, so the file is
 	// checked before anything is written.
 	fileInside, err := traceFileInsideTarget(resolved, root)
 	if err != nil {
@@ -130,9 +131,12 @@ func resolvePath(path string) (string, error) {
 // followed by that open.
 const traceFile = "trace.jsonl"
 
-// traceFileInsideTarget reports whether trace.jsonl is a symlink whose
-// destination resolves inside the review target. A missing file is outside:
-// the open would create it in logDir, which was already checked.
+// traceFileInsideTarget reports whether opening trace.jsonl would write a
+// file inside the review target. A missing file is outside: the open would
+// create it in logDir, which was already checked. A symlink is followed to
+// its landing. A regular file with more than one name is the same file as
+// that other name, and the other name can sit inside the target. The kernel
+// reports the count and not the other path, so any count above one is refused.
 func traceFileInsideTarget(logDir, root string) (bool, error) {
 	path := filepath.Join(logDir, traceFile)
 	info, err := os.Lstat(path)
@@ -142,14 +146,23 @@ func traceFileInsideTarget(logDir, root string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if info.Mode()&os.ModeSymlink == 0 {
+	if info.Mode()&os.ModeSymlink != 0 {
+		landing, err := symlinkLanding(path)
+		if err != nil {
+			return false, err
+		}
+		return pathInside(landing, root)
+	}
+	if !info.Mode().IsRegular() {
 		return false, nil
 	}
-	landing, err := symlinkLanding(path)
+	n, err := linkCount(path)
 	if err != nil {
 		return false, err
 	}
-	return pathInside(landing, root)
+	// A second name is not a path the open follows, so it cannot be compared
+	// with the target. The append would write every name of the file.
+	return n > 1, nil
 }
 
 // symlinkLanding returns the path a symlink chain names, including a final
