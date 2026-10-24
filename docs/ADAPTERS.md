@@ -25,7 +25,7 @@ The runner lives in `internal/tool`. The sample implementation replays a recorde
 
 The command is the tail of the Prover's run line ([ADR-0025](adr/ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md)): no network, no secret, a read-only checkout, a CPU limit and a memory limit. The same argv builder builds that line for a test and for a tool. A checkout that is a symbolic link is not mounted.
 
-A real run needs a container runtime on the host. This wagon's tests do not start one. They check the run line and they replay recorded output.
+A real run needs a container runtime on the host. One test starts that run, and it is skipped unless `PROVEN_TEST_DOCKER` is `1`. The other tests check the run line and replay recorded output.
 
 ## The time limit
 
