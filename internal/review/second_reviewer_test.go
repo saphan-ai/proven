@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/redact"
 )
@@ -64,6 +65,13 @@ func (a *secondAPI) RoundTrip(r *http.Request) (*http.Response, error) {
 // over api, as Open wires them when the three settings are present. The redactor holds the key.
 func reviewWithSecond(t *testing.T, cfg fileSettings, def generator.Generator, api *secondAPI) Result {
 	t.Helper()
+	return reviewWithSecondRail(t, cfg, def, api, nil)
+}
+
+// reviewWithSecondRail is reviewWithSecond with the guardrail rail set on the pipeline; a nil rail
+// leaves the sample pipeline's own guardrail, which answers safe.
+func reviewWithSecondRail(t *testing.T, cfg fileSettings, def generator.Generator, api *secondAPI, rail guardrail.Adapter) Result {
+	t.Helper()
 	second := generator.NewSecond(generator.SecondSettings{
 		BaseURL: "https://api.example.test/v1", Key: secondTestKey, Model: secondModel, Timeout: 5e9,
 	}, &http.Client{Transport: api})
@@ -74,7 +82,7 @@ func reviewWithSecond(t *testing.T, cfg fileSettings, def generator.Generator, a
 		return ""
 	}
 	p, err := pipeline.Build(pipeline.Options{
-		Sample: true, LogDir: t.TempDir(), Generator: def, Special: second, Redactor: redact.FromEnv(env),
+		Sample: true, LogDir: t.TempDir(), Generator: def, Special: second, Redactor: redact.FromEnv(env), Guardrail: rail,
 		Env: func(k string) string {
 			t.Fatalf("sample mode read %s", k)
 			return ""

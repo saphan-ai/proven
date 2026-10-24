@@ -472,6 +472,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 	}
 
+	// defaultFailed is why the default reviewer has no word on the second reviewer's risks; empty when it answered.
+	defaultFailed := ""
 	risks, err := planner.Plan(ctx, fx.Root, gen)
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
@@ -485,6 +487,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 		risks = nil
+		defaultFailed = failureReason(err)
 	}
 	cands := make([]candidate.Candidate, 0, len(risks))
 	for _, r := range risks {
@@ -549,7 +552,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		// Both planners have now answered, so a run that did not name a risk is known to have
 		// passed it over. Filled here, not at the end, so a review cut short later still shows
 		// both reviewers' words on every risk.
-		addAbsentVerdicts(req, cands, secondFailed)
+		addAbsentVerdicts(req, cands, defaultFailed, secondFailed)
 	}
 	// After each stage, a context that has ended returns what is judged so far.
 	p.boundary("planned")
@@ -1424,11 +1427,11 @@ func failureReason(err error) string {
 }
 
 // addAbsentVerdicts gives each candidate a verdict for the run that did not name it. A run whose
-// service failed (failed non-empty) has no word on the default run's risks, which is stated as such:
-// a reviewer that never answered must not be shown as having disagreed. The special run's risks are
-// always named by the special run, and the default run is never the one that fails here, because a
-// failed default Planner leaves no risks to be absent from.
-func addAbsentVerdicts(req Request, cands []candidate.Candidate, failed string) {
+// service failed has no word on the other run's risks, which is stated as such: a reviewer that never
+// answered must not be shown as having disagreed. defaultFailed and specialFailed are each run's failure
+// reason, or empty when that run answered. A failed default Planner leaves the special run's risks with
+// no default answer, and a failed special Planner leaves the default run's risks with no special answer.
+func addAbsentVerdicts(req Request, cands []candidate.Candidate, defaultFailed, specialFailed string) {
 	for i := range cands {
 		for _, run := range []string{runDefault, runSpecial} {
 			if hasVerdict(cands[i], run) {
@@ -1438,7 +1441,11 @@ func addAbsentVerdicts(req Request, cands []candidate.Candidate, failed string) 
 				Run: run, Model: reviewerModel(req, run), Verdict: candidate.VerdictNotReported,
 				Reason: "this reviewer's own review did not name this risk",
 			}
-			if run == runSpecial && failed != "" {
+			failed := defaultFailed
+			if run == runSpecial {
+				failed = specialFailed
+			}
+			if failed != "" {
 				v.Verdict = candidate.VerdictNoAnswer
 				v.Reason = "this reviewer did not answer: " + failed
 			}
