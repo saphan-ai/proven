@@ -77,6 +77,10 @@ func Load(env func(string) string) (ContainerConfig, error) {
 	if raw := env(EnvRuntime); raw != "" {
 		cfg.Runtime = raw
 	}
+	// Each runtime finds its daemon its own way. One Proven cannot judge is refused.
+	if rerr := checkRuntime(policy, env, cfg.Runtime); rerr != nil {
+		return ContainerConfig{}, rerr
+	}
 	if raw := env(EnvImage); raw != "" {
 		cfg.Image = raw
 	}
