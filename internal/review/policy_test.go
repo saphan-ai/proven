@@ -154,13 +154,23 @@ func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
 			}
 		})
 	}
-	// The same rule is free when the policy fixes no class: it says nothing about paths.
-	p, err := loadPolicy(writeFile(t, "policy.yaml", "doubled_classes: security\n"))
+	// The same rule is free when the policy fixes no class and names no doubled class: it says nothing
+	// about paths.
+	p, err := loadPolicy(writeFile(t, "policy.yaml", "author_commit_trailers: on\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := p.parseLocal([]byte("path_rules: **=docs\n")); err != nil {
-		t.Fatalf("a policy with no class key refused a local rule: %v", err)
+		t.Fatalf("a policy that fixes no class refused a local rule: %v", err)
+	}
+	// A policy that doubles a class says which paths it doubles, so the same rule is refused: it would
+	// review go.mod, which the policy doubles as security, once as docs.
+	p, err = loadPolicy(writeFile(t, "policy.yaml", "doubled_classes: security\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.parseLocal([]byte("path_rules: **=docs\n")); err == nil {
+		t.Fatal("a policy that doubles security accepted a local rule that puts every path in docs")
 	}
 	// A rule at or above the policy's fallback, and the policy's own low rule, are accepted.
 	p, err = loadPolicy(writeFile(t, "policy.yaml", "path_rules: docs/**=docs\nfallback_class: security\n"))
@@ -174,7 +184,7 @@ func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
 
 // TestALocalValueOfAKeyThePolicyDidNotSetIsFree:the policy sets one key; the repository changes another.
 func TestALocalValueOfAKeyThePolicyDidNotSetIsFree(t *testing.T) {
-	p, err := loadPolicy(writeFile(t, "policy.yaml", "doubled_classes: security\n"))
+	p, err := loadPolicy(writeFile(t, "policy.yaml", "author_commit_trailers: on\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,8 +192,8 @@ func TestALocalValueOfAKeyThePolicyDidNotSetIsFree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Fallback != "docs" || !cfg.Doubled["security"] {
-		t.Fatalf("fallback %q doubled %v", cfg.Fallback, cfg.Doubled)
+	if cfg.Fallback != "docs" || !cfg.ReadCommits {
+		t.Fatalf("fallback %q read commits %v", cfg.Fallback, cfg.ReadCommits)
 	}
 }
 
@@ -196,6 +206,15 @@ func TestARepositoryInheritsThePolicyValueItDoesNotSet(t *testing.T) {
 	}
 	if res.PolicyStatement == "" || !strings.Contains(res.PolicyStatement, "policy.yaml") {
 		t.Fatalf("statement %q", res.PolicyStatement)
+	}
+	// The inherited value is the one the review used: nothing in the policy's own rules matches the
+	// fixture's paths, so its class is the policy's fallback and not the default backend.
+	res, err = reviewUnderPolicy(t, "fallback_class: security\npath_rules: nothing-matches/**=docs\n", "timeout: 30s\n", "2026-10-24")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Class != "security" || res.ClassRule != "fallback" {
+		t.Fatalf("class %q rule %q, want the policy's fallback security", res.Class, res.ClassRule)
 	}
 	p, err := loadPolicy(writeFile(t, "policy.yaml", policyBody))
 	if err != nil {

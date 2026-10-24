@@ -270,9 +270,7 @@ func (p *policy) weaker(key string, cfg fileSettings) string {
 	case "class_order":
 		// The order ranks every class a path rule or the fallback names, so a policy that sets either also
 		// fixes the order; a repository that reorders the classes would move the policy's own paths.
-		_, rules := p.given["path_rules"]
-		_, fallback := p.given["fallback_class"]
-		if !polSet && !rules && !fallback {
+		if !p.fixesClasses() {
 			return ""
 		}
 		if strings.Join(cfg.ClassOrder, ", ") != strings.Join(order, ", ") {
@@ -289,6 +287,9 @@ func (p *policy) weaker(key string, cfg fileSettings) string {
 		}
 		if classRank(order, cfg.Fallback) > classRank(order, pol.Fallback) {
 			return "it falls back to " + cfg.Fallback + ", below " + pol.Fallback
+		}
+		if cfg.Fallback != pol.Fallback && p.leavesDoubled(cfg, cfg.Fallback) {
+			return "it falls back to " + cfg.Fallback + ", above " + pol.Fallback + ", and does not double " + cfg.Fallback + " where the policy doubles " + p.doubledList()
 		}
 	case "doubled_classes":
 		if !polSet {
@@ -329,15 +330,56 @@ func (p *policy) weaker(key string, cfg fileSettings) string {
 }
 
 // fixesClasses reports whether the policy sets any key that decides the class of a path: path_rules,
-// class_order or fallback_class. Then the policy's effective classification (its rules, or the
-// defaults, and its fallback) is a floor for every path, and a repository's own is compared with it.
+// class_order or fallback_class, or doubled_classes, which names the classes whose paths are reviewed
+// twice and so says which paths those are (with a second reviewer connected, security is doubled even
+// under "doubled_classes: off"). Then the policy's effective classification (its rules, or the defaults,
+// and its fallback) is a floor for every path, and a repository's own is compared with it.
 func (p *policy) fixesClasses() bool {
-	for _, key := range []string{"path_rules", "class_order", "fallback_class"} {
+	for _, key := range []string{"path_rules", "class_order", "fallback_class", "doubled_classes"} {
 		if _, ok := p.given[key]; ok {
 			return true
 		}
 	}
 	return false
+}
+
+// doubledRank is the place, in the policy's order, of the least strict class the policy doubles. It is
+// false when the policy does not name doubled_classes or names none: then no path is doubled by the
+// policy's word and a class a repository moves a path to cannot undouble it.
+func (p *policy) doubledRank() (int, bool) {
+	if _, set := p.given["doubled_classes"]; !set {
+		return 0, false
+	}
+	least, any := 0, false
+	for _, c := range classNames() {
+		if p.settings.Doubled[c] {
+			if r := classRank(p.settings.ClassOrder, c); !any || r > least {
+				least, any = r, true
+			}
+		}
+	}
+	return least, any
+}
+
+// leavesDoubled reports whether a path the repository puts in class could have been a path the policy
+// doubles, and the repository does not double class. The repository's classification is never lower than
+// the policy's (weakerRules), so a path it moves to class comes from a class below it; when the policy
+// doubles a class below class, the move may take the path out of a doubled class into one that is not.
+// The check does not list paths: a pattern cannot be shown disjoint from every other.
+func (p *policy) leavesDoubled(cfg fileSettings, class string) bool {
+	least, ok := p.doubledRank()
+	return ok && classRank(p.settings.ClassOrder, class) < least && !cfg.Doubled[class]
+}
+
+// doubledList names the classes the policy doubles, in the order of the classes.
+func (p *policy) doubledList() string {
+	var out []string
+	for _, c := range p.settings.ClassOrder {
+		if p.settings.Doubled[c] {
+			out = append(out, c)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 // weakerRules compares the class every path gets under the repository's rules and fallback with the
@@ -366,6 +408,13 @@ func (p *policy) weakerRules(cfg fileSettings) string {
 		}
 		return "its rule " + r.Pattern + "=" + r.Class + " gives paths " + r.Class + " where the policy's fallback gives " + pol.Fallback + ", below it"
 	}
+	// A rule the policy does not hold raises the paths it matches to its class. Raised past a class the
+	// policy doubles into one the repository does not double, a doubled path would be reviewed once.
+	for _, r := range cfg.PathRules {
+		if !hasRule(pol.PathRules, r) && p.leavesDoubled(cfg, r.Class) {
+			return "its rule " + r.Pattern + "=" + r.Class + " may move a path out of a class the policy doubles (" + p.doubledList() + ") into " + r.Class + ", which it does not double"
+		}
+	}
 	for _, want := range pol.PathRules {
 		got, ok := ruleFor(cfg.PathRules, want.Pattern)
 		if !ok {
@@ -376,6 +425,16 @@ func (p *policy) weakerRules(cfg fileSettings) string {
 		}
 	}
 	return ""
+}
+
+// hasRule reports whether rules holds r: the same pattern at the same class.
+func hasRule(rules []pathRule, r pathRule) bool {
+	for _, have := range rules {
+		if have == r {
+			return true
+		}
+	}
+	return false
 }
 
 // ruleFor finds the rule for one pattern.
@@ -403,21 +462,34 @@ func (p *policy) refuse(key, local, why string) *ConfigError {
 }
 
 // refuseInside refuses a policy file that lies inside the repository under review: the change under
-// review could edit it, so a change would carry its own policy (ADR-0036 point 1). Links are resolved
-// on both sides before they are compared.
+// review could edit it, so a change would carry its own policy (ADR-0036 point 1). The repository is the
+// target and, when the target lies in a git working tree, that whole tree from its top level: a target may
+// be one directory of a larger repository. Links are resolved on both sides before they are compared.
 func (p *policy) refuseInside(target string) error {
 	if p == nil {
 		return nil
 	}
+	roots := make([]string, 0, 2)
 	root, err := resolvedAbs(target)
 	if err != nil {
 		return err
+	}
+	roots = append(roots, root)
+	top, in, err := change.TopLevel(root)
+	if err != nil {
+		return err
+	}
+	if in {
+		if top, err = resolvedAbs(top); err != nil {
+			return err
+		}
+		roots = append(roots, top)
 	}
 	file, err := resolvedAbs(p.path)
 	if err != nil {
 		return err
 	}
-	if pathInside(root, file) {
+	if repositoryHolds(roots, file) {
 		return &ConfigError{
 			Field: EnvPolicy, Value: p.path,
 			Reason:  "the policy file lies inside the repository under review, so a change could carry its own policy",
@@ -425,6 +497,16 @@ func (p *policy) refuseInside(target string) error {
 		}
 	}
 	return nil
+}
+
+// repositoryHolds reports whether file lies inside any of roots.
+func repositoryHolds(roots []string, file string) bool {
+	for _, root := range roots {
+		if pathInside(root, file) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolvedAbs is the absolute path with every link resolved.
