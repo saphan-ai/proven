@@ -1,0 +1,29 @@
+# ADR-0047: The evidence store is an adapter: Zetaris, or a local store, chosen by one setting
+
+**Status:** accepted · **Date:** 2026-10-24
+**Decided by:** the owner · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-24
+**Amends:** [ADR-0046](ADR-0046-a-data-source-is-one-adapter.md) (a source loads into the configured evidence store, not into Zetaris by name)
+**Follows:** [ADR-0001](ADR-0001-go-behind-adapters.md) (Go behind adapters), [ADR-0015](ADR-0015-zetaris-through-its-rest-api.md) and [ADR-0023](ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) (Zetaris), [ADR-0032](ADR-0032-proven-builds-every-query-from-a-template.md) (queries from templates), [ADR-0034](ADR-0034-proven-runs-air-gapped.md) (air-gapped)
+**Trigger:** the owner, 24 October: *"Meterless is open source, so it can stay. But for Zetaris we must think about running it through a data-store adapter, because in Saphan we may not want Zetaris."*
+
+## Context
+
+Proven's evidence queries go to Zetaris, a commercial platform. Sample mode already runs the same SQL over local tables, so a
+local query engine exists. An organisation, and Saphan Studio itself, may want Proven without Zetaris.
+
+## Decision
+
+1. **One evidence-store interface**: register a source's table, run a query built from a template, return its columns and rows
+   with the snapshot date.
+2. **Two stores to start**: **Zetaris** (over its REST API, as today) and **a local store** in one file with no server (DuckDB
+   or SQLite, chosen when built), grown from the engine sample mode already uses. A third, Postgres, may follow.
+3. **One setting chooses the store** (`PROVEN_EVIDENCE_STORE=zetaris|local`). For the hackathon the default stays Zetaris.
+4. **The same templates run on every store** and must return the same rows: a conformance test runs one scenario on each store
+   and compares the evidence byte for byte.
+5. **Source adapters (ADR-0046) load into the configured store**, whichever it is.
+6. **The local store works fully air-gapped** (ADR-0034).
+
+## Consequences
+
+- Proven no longer depends on one vendor's platform; Zetaris stays a first-class choice.
+- Each store must keep up with the templates; the conformance test is what catches a store that drifts.

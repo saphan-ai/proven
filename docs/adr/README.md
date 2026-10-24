@@ -60,6 +60,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0044](ADR-0044-every-finding-names-its-level-of-proof.md) | every finding names its level of proof first: by a test, by a tool, by data, or agreed by two models | accepted, 2026-10-23 |
 | [0045](ADR-0045-a-review-is-observable-through-opentelemetry.md) | a review is observable through OpenTelemetry (standard `OTEL_*`, off unless set), plugs into any monitoring; the lab shows it live on a provisioned Grafana dashboard | accepted, 2026-10-23 |
 | [0046](ADR-0046-a-data-source-is-one-adapter.md) | a data source is one adapter: it loads into Zetaris, offers query templates and a rule that turns a row into a finding; an organisation adds its own sources the same way | accepted, 2026-10-24 |
+| [0047](ADR-0047-the-evidence-store-is-an-adapter.md) | the evidence store is an adapter: Zetaris or a local one-file store, chosen by one setting; the same templates return the same rows on both | accepted, 2026-10-24 |
 
 **Rules for an ADR**
 
