@@ -238,11 +238,31 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 |---|---|
 | `cmd/`, `internal/` | Proven's code: the command line and the reviewer |
 | `docs/` | how to install, run and configure Proven; `docs/adr/` holds the design decisions, `docs/security/` the security review |
+| `docs-site/` | the documentation website, built from this repository's Markdown and from the code |
 | `SECURITY.md` | what Proven protects, and how to report a vulnerability |
 | `test/` | the test corpus (`test/corpus/`) and the Meterless conformance runner (`test/conformance/`) |
 | `testdata/`, `demo/`, `assets/` | sample scenarios, the live demo, images |
 | `hackathon/` | the build week's record: `fleet/` (every change's order, report, review and cost), `planning/` (the topic, the daily conversations), `SAPHAN.md`, `DESIGN.md` |
 | `metadata.json`, `metadata.schema.json` | the hackathon's submission metadata, at the root until the hackathon ends |
+
+## Documentation site
+
+The documentation website is built from this repository's own Markdown and from the code, and packaged as one container image. Run it locally:
+
+```bash
+docker build -f docs-site/Dockerfile -t proven-docs .
+docker run -p 3000:3000 proven-docs
+```
+
+Then open `http://localhost:3000/docs`. The command-line, settings and adapter pages are written from the code during the build, and the build fails when a link is broken, a page names an internal path, machine or credential, or a generated page is out of date. After a flag, a setting or an adapter interface changes, regenerate the committed copies with `sh docs-site/scripts/generate.sh docs-site/generated`.
+
+Deploy it to Cloudflare, from `docs-site/`, with one command:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=<your account id> CLOUDFLARE_API_TOKEN=<a token that may edit Workers, Containers and DNS> npx wrangler@4.45.0 deploy
+```
+
+It needs Docker running, and it serves `proven.saphan.ai`: the route in `docs-site/wrangler.jsonc` and its `DOCS_HOST` setting name that host, and a different host is changed in both.
 
 ## For technical readers
 
