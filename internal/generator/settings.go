@@ -158,6 +158,7 @@ type Settings struct {
 	Token         string
 	Timeout       time.Duration
 	SkepticModel  string
+	plain         bool
 	requireAll    bool
 	requireNone   bool
 	requireNVIDIA map[string]bool
@@ -413,4 +414,10 @@ func endpoint(base, method string) string {
 		return b + method
 	}
 	return b + "/v1" + method
+}
+
+// checkBaseFor checks the address in the setting named field, so the second reviewer's address
+// is refused under its own name and never under Nightshift's (ADR-0037).
+func checkBaseFor(field, raw string) (string, error) {
+	return checkBase(field, raw, false)
 }
