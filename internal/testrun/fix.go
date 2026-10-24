@@ -165,19 +165,28 @@ func refuseEditPath(p string) string {
 	return ""
 }
 
-// readRegular reads rel under dir when it is a regular file. A link is refused,
-// because it would lead out of the checkout.
+// readRegular reads rel under dir when it is a regular file. A link is refused at
+// every segment of the path, the parent directories as well as the file, because
+// a link would lead out of the checkout.
 func readRegular(dir, rel string) (string, string) {
 	if dir == "" {
 		return "", ReasonEditMissing
 	}
-	full := filepath.Join(dir, filepath.FromSlash(rel))
-	info, err := os.Lstat(full)
-	if err != nil {
-		return "", ReasonEditMissing
-	}
-	if !info.Mode().IsRegular() {
-		return "", ReasonEditPath
+	segments := strings.Split(filepath.ToSlash(rel), "/")
+	full := dir
+	for i, seg := range segments {
+		full = filepath.Join(full, seg)
+		info, err := os.Lstat(full)
+		if err != nil {
+			return "", ReasonEditMissing
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", ReasonEditPath
+		}
+		last := i == len(segments)-1
+		if (last && !info.Mode().IsRegular()) || (!last && !info.IsDir()) {
+			return "", ReasonEditPath
+		}
 	}
 	b, err := os.ReadFile(full)
 	if err != nil {
@@ -241,7 +250,7 @@ func PackageArgv(testPath, name string) ([]string, string) {
 		return nil, reason
 	}
 	// The package is the last word of the test command (see TestArgv).
-	return []string{"go", "test", argv[len(argv)-1]}, ""
+	return []string{"go", "test", jsonFlag, argv[len(argv)-1]}, ""
 }
 
 // resultOf names how a side ended, in the words of the FixRun record.

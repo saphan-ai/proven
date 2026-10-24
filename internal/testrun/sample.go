@@ -69,7 +69,16 @@ func (s *Sample) RunFix(ctx context.Context, req FixRequest) (FixOutcome, error)
 		// No recording is not a failed fix: nothing was run, so nothing is claimed.
 		return FixOutcome{Refused: "the sample records no run of this attempt"}, nil
 	}
-	return FixOutcome{Runs: append([]FixRun(nil), rec.Runs...)}, nil
+	// ADR-0042: the replay judges a recorded run as the container judges a live one, by
+	// its output and not by the recorded word alone.
+	runs := append([]FixRun(nil), rec.Runs...)
+	for i, r := range runs {
+		if r.Result == ResultPassed && !RecordedPass(r.Command, r.Output) {
+			runs[i].Result = ResultNotRun
+			runs[i].Output += "\nthe recorded output has no pass line for the run: it is not a pass"
+		}
+	}
+	return FixOutcome{Runs: runs}, nil
 }
 
 // Run returns the recorded outcome for this finding and test name.

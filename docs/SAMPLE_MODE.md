@@ -155,7 +155,7 @@ Run the same command a second time in the same directory: the findings are the s
    `message`, `severity`, `path`, `start_line`, `end_line`), each agent's recorded answer (`responses`) and each test's
    outcome (`recorded_tests`: `path`, `name`, `command`, `fails_on_change`, `passes_on_base`, `output`). A recorded
    answer names a test by `path` and `name` only: an answer that carries a `command` is refused. The `command` of a
-   recorded test is the line Proven builds from them, `go test -run '^<name>$' ./<directory of path>`. Copy
+   recorded test is the line Proven builds from them, `go test -json -run '^<name>$' ./<directory of path>`. Copy
    `discount/fixture.json` and change it; the Planner's prompt hash (`planner_prompt_sha256`) must match the new trees,
    and a run with a stale hash stops and prints the hash it computed
    (`fixture: planner prompt sha256 is <hash>`); put that hash in the file.
@@ -298,7 +298,7 @@ finding F1 ERROR Discount is applied twice
   Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.
   rule discount-applied-twice
   evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true
-  command: go test -run '^TestDiscounted$' ./billing
+  command: go test -json -run '^TestDiscounted$' ./billing
   output: base: PASS
 change: FAIL got 60 want 80
   fix proved after 1 attempt: a suggestion for you to apply; Proven changes nothing
@@ -307,10 +307,10 @@ change: FAIL got 60 want 80
   fix edit billing/discount.go
   - return cents - cents*percent/100 - cents*percent/100
   + return cents - cents*percent/100
-  fix run base: go test -run '^TestDiscounted$' ./billing exit=0 passed
-  fix run change: go test -run '^TestDiscounted$' ./billing exit=1 failed
-  fix run change+patch: go test -run '^TestDiscounted$' ./billing exit=0 passed
-  fix run package on change+patch: go test ./billing exit=0 passed
+  fix run base: go test -json -run '^TestDiscounted$' ./billing exit=0 passed
+  fix run change: go test -json -run '^TestDiscounted$' ./billing exit=1 failed
+  fix run change+patch: go test -json -run '^TestDiscounted$' ./billing exit=0 passed
+  fix run package on change+patch: go test -json ./billing exit=0 passed
 ```
 
 The four `fix run` lines are the validation steps: each has the command, its exit code and how it ended, so a reader can
@@ -325,15 +325,19 @@ finding F2 ERROR Shipping is always free
   Fee returns 0 for every order, so an order of 1000 cents pays no shipping instead of 500.
   rule shipping-fee-dropped
   evidence test shipping/shipping_test.go TestFee fails_on_change=true passes_on_base=true
-  command: go test -run '^TestFee$' ./shipping
+  command: go test -json -run '^TestFee$' ./shipping
   output: base: PASS
 change: FAIL got 0 want 500
   fix not proved after 2 attempts: the patch breaks another test of the package
-  fix run base: go test -run '^TestFee$' ./shipping exit=0 passed
-  fix run change: go test -run '^TestFee$' ./shipping exit=1 failed
-  fix run change+patch: go test -run '^TestFee$' ./shipping exit=0 passed
-  fix run package on change+patch: go test ./shipping exit=1 failed
+  fix run base: go test -json -run '^TestFee$' ./shipping exit=0 passed
+  fix run change: go test -json -run '^TestFee$' ./shipping exit=1 failed
+  fix run change+patch: go test -json -run '^TestFee$' ./shipping exit=0 passed
+  fix run package on change+patch: go test -json ./shipping exit=1 failed
 ```
+
+A run counts as passed only when its output shows the named test ran and passed (ADR-0042). Every proof run is
+`go test -json`, and a run that exits 0 without a pass event for the test is recorded as not run. The sample applies the
+same rule to a recorded run: its output must hold a `--- PASS:` line for the test, and a package run an `ok` line too.
 
 A patch that is not proved is not shown: there is no `fix edit` for F2, only the record of the last attempt. Two settings
 in `proven.yaml` change this ([CONFIGURATION.md](CONFIGURATION.md)): `fixes: off` shows no fix at all, and

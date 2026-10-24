@@ -624,8 +624,17 @@ func (c *Container) sideExit(ctx context.Context, dir string, test []string) (st
 	if runCtx.Err() != nil {
 		return joinRemoval(text, c.remove(name)), kindTimeout, noExit
 	}
+	proof := isProofArgv(test)
 	if err == nil {
-		return text, kindPass, 0
+		if !proof {
+			return text, kindPass, 0
+		}
+		// ADR-0042: exit code 0 is not enough; the output must show the test ran and passed.
+		shown, passed := judgeProof(test, text)
+		if !passed {
+			return shown, kindNotRun, 0
+		}
+		return shown, kindPass, 0
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
@@ -633,6 +642,9 @@ func (c *Container) sideExit(ctx context.Context, dir string, test []string) (st
 		case 125, 126, 127:
 			return text, kindNotRun, exit.ExitCode()
 		default:
+			if proof {
+				_, text = parseEvents(text)
+			}
 			return text, kindFail, exit.ExitCode()
 		}
 	}

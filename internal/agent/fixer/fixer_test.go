@@ -3,6 +3,8 @@ package fixer
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -45,9 +47,9 @@ func (r *scriptedRunner) RunFix(_ context.Context, req testrun.FixRequest) (test
 
 // run builds one FixRun the way the test runner reports it.
 func run(label, result string, code int, output string) testrun.FixRun {
-	cmd := "go test -run '^TestPrice$' ./billing"
+	cmd := "go test -json -run '^TestPrice$' ./billing"
 	if label == testrun.RunPackage {
-		cmd = "go test ./billing"
+		cmd = "go test -json ./billing"
 	}
 	return testrun.FixRun{Label: label, Command: cmd, Result: result, ExitCode: code, Output: output}
 }
@@ -81,7 +83,7 @@ func finding() candidate.Candidate {
 	return candidate.Candidate{
 		Risk: candidate.Risk{ID: "F1", Title: "Price is wrong", Message: "Price returns 60.", Path: "billing/price.go", StartLine: 3, EndLine: 3},
 		Evidence: []candidate.Evidence{{Kind: candidate.KindTest, Test: &candidate.TestEvidence{
-			Path: "billing/price_test.go", Name: "TestPrice", Command: "go test -run '^TestPrice$' ./billing",
+			Path: "billing/price_test.go", Name: "TestPrice", Command: "go test -json -run '^TestPrice$' ./billing",
 			Output: "change: failed", FailsOnChange: true, PassesOnBase: true,
 		}}},
 	}
@@ -318,5 +320,48 @@ func TestADownRunnerIsReturnedAndLeavesTheFindingAsItWas(t *testing.T) {
 	var d *service.Down
 	if !errors.As(err, &d) || got.Fix != nil {
 		t.Fatalf("%v %#v", err, got.Fix)
+	}
+}
+
+// TestARunThatShowedNoPassIsNotAProvedFix proves the property of ADR-0042 that a fix is shown as
+// proved only when the proving test ran and passed on every run, end to end through the
+// sample runner: runs recorded as passed (exit code 0) whose output has no pass line do not
+// prove the fix. The mutated field is the output of the recorded runs, and nothing else.
+func TestARunThatShowedNoPassIsNotAProvedFix(t *testing.T) {
+	change := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(change, "billing"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(change, "billing", "price.go"), []byte("package billing\n\nfunc Price() int { return 60 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	recorded := func(passLine string) *testrun.Sample {
+		runs := good().Runs
+		for i := range runs {
+			if runs[i].Result == testrun.ResultPassed {
+				runs[i].Output = passLine
+			}
+		}
+		return testrun.NewSample(nil, testrun.RecordedFix{FindingID: "F1", Attempt: 1, Runs: runs})
+	}
+	for _, tc := range []struct {
+		name, output string
+		proved       bool
+	}{
+		{"pass lines", "--- PASS: TestPrice (0.00s)\nPASS\nok  \texample.com/p\t0.001s", true},
+		{"exit 0 and an ok line only", "ok  \texample.com/p\t0.001s", false},
+		{"exit 0 and no output", "", false},
+	} {
+		m := &scriptedModel{replies: []string{answerOne}}
+		got, err := Propose(context.Background(), finding(), m, recorded(tc.output), Options{BaseDir: "b", ChangeDir: change, Attempts: 1})
+		if err != nil || got.Fix == nil {
+			t.Fatalf("%s: %#v %v", tc.name, got.Fix, err)
+		}
+		if got.Fix.Proved != tc.proved {
+			t.Errorf("%s: proved=%v, want %v", tc.name, got.Fix.Proved, tc.proved)
+		}
+		if !tc.proved && len(got.Fix.Edits) != 0 {
+			t.Errorf("%s: a fix that was not proved keeps its edits", tc.name)
+		}
 	}
 }

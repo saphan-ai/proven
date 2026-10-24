@@ -66,7 +66,7 @@ func pricedRuntime(t *testing.T, mounts *[]string) func(context.Context, []strin
 		if _, err := os.Stat(filepath.Join(host, "billing", "broken.go")); err == nil && packageRun {
 			return "FAIL TestNeighbour", fail
 		}
-		return "ok", nil
+		return passedRun(argv), nil
 	}
 }
 
@@ -91,10 +91,10 @@ func TestRunFixRunsTheProofThreeTimesAndThePackage(t *testing.T) {
 		label, result, command string
 		code                   int
 	}{
-		{RunBase, ResultPassed, "go test -run '^TestPrice$' ./billing", 0},
-		{RunChange, ResultFailed, "go test -run '^TestPrice$' ./billing", 1},
-		{RunPatched, ResultPassed, "go test -run '^TestPrice$' ./billing", 0},
-		{RunPackage, ResultPassed, "go test ./billing", 0},
+		{RunBase, ResultPassed, "go test -json -run '^TestPrice$' ./billing", 0},
+		{RunChange, ResultFailed, "go test -json -run '^TestPrice$' ./billing", 1},
+		{RunPatched, ResultPassed, "go test -json -run '^TestPrice$' ./billing", 0},
+		{RunPackage, ResultPassed, "go test -json ./billing", 0},
 	}
 	for i, w := range want {
 		got := out.Runs[i]
@@ -252,6 +252,35 @@ func TestRefuseEditsDoesNotFollowALink(t *testing.T) {
 	edits := []Edit{{Path: "billing/link.go", Old: "return 60", New: "return 80"}}
 	if reason := RefuseEdits(change, edits, 0); reason != ReasonEditPath {
 		t.Fatal(reason)
+	}
+}
+
+// TestAnEditCannotReachThroughALinkedParentDirectory proves a link on a parent segment
+// is refused like a link on the file itself: the file's own name is plain and only its
+// parent directory is a link out of the checkout. The mutated field is that one segment;
+// the same path under a real directory is read.
+func TestAnEditCannotReachThroughALinkedParentDirectory(t *testing.T) {
+	_, change := fixTrees(t)
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "price.go"), []byte("return 60"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(change, "lib")); err != nil {
+		t.Skip("symbolic links are not available here")
+	}
+	edits := []Edit{{Path: "lib/price.go", Old: "return 60", New: "return 80"}}
+	if reason := RefuseEdits(change, edits, 0); reason != ReasonEditPath {
+		t.Fatalf("RefuseEdits through a linked parent: %q", reason)
+	}
+	if text, reason := ReadEditable(change, "lib/price.go", 0); reason != ReasonEditPath || text != "" {
+		t.Fatalf("ReadEditable through a linked parent: %q %q", text, reason)
+	}
+	if _, err := stagePatched(change, edits, 0); err == nil {
+		t.Fatal("a patch was staged through a linked parent")
+	}
+	// The control: the same shape of path under a real directory is read.
+	if text, reason := ReadEditable(change, "billing/price.go", 0); reason != "" || !strings.Contains(text, "return 60") {
+		t.Fatalf("a plain path was refused: %q %q", text, reason)
 	}
 }
 

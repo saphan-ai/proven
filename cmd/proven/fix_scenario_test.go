@@ -58,10 +58,10 @@ func TestFixScenarioShowsOneProvedFixAndOneFailedAttempt(t *testing.T) {
 		"fix edit billing/discount.go",
 		"  - return cents - cents*percent/100 - cents*percent/100",
 		"  + return cents - cents*percent/100",
-		"fix run base: go test -run '^TestDiscounted$' ./billing exit=0 passed",
-		"fix run change: go test -run '^TestDiscounted$' ./billing exit=1 failed",
-		"fix run change+patch: go test -run '^TestDiscounted$' ./billing exit=0 passed",
-		"fix run package on change+patch: go test ./billing exit=0 passed",
+		"fix run base: go test -json -run '^TestDiscounted$' ./billing exit=0 passed",
+		"fix run change: go test -json -run '^TestDiscounted$' ./billing exit=1 failed",
+		"fix run change+patch: go test -json -run '^TestDiscounted$' ./billing exit=0 passed",
+		"fix run package on change+patch: go test -json ./billing exit=0 passed",
 	} {
 		if !strings.Contains(f1, want) {
 			t.Fatalf("F1 is missing %q\n%s", want, f1)
@@ -77,7 +77,7 @@ func TestFixScenarioShowsOneProvedFixAndOneFailedAttempt(t *testing.T) {
 		}
 	}
 	// The record of the last attempt stays, so a reader sees which run failed and its exit code.
-	if !strings.Contains(f2, "fix run package on change+patch: go test ./shipping exit=1 failed") {
+	if !strings.Contains(f2, "fix run package on change+patch: go test -json ./shipping exit=1 failed") {
 		t.Fatalf("F2 does not show the failed package run\n%s", f2)
 	}
 	for _, want := range []string{"fix proved after 1 attempt(s)", "fix not proved after 2 attempts", "run change+patch: go test"} {
