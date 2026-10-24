@@ -39,6 +39,9 @@ A host name that is not on the list is refused even if it would resolve to a pri
 name up to judge it: a lookup is itself a connection, and an answer can change. Put the name on the list, or use the
 address.
 
+A name is looked up only when it is on the list. `localhost` is answered with the loopback addresses and an IP
+literal answers itself; neither sends a query. Any other name is refused before a DNS query is sent.
+
 Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
 
 ### What is refused, and when
@@ -54,8 +57,24 @@ Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
 2. **At dial.** Each live client opens its connections through a dialer that refuses an address off your network.
    It holds when a setting was built some other way, and a redirect is never followed. A refused dial is a failed
    service in the review, named like any other.
-3. **In the container.** The Prover's image is run with `--pull never`. If the image is not on the machine, the Prover
-   is down, and the review says which image to load.
+3. **In the container.** The Prover's image is run with `--pull never` and `--network none`. If the image is not on
+   the machine, the Prover is down, and the review says which image to load. The address of the container daemon is
+   checked at load (see [The paths beyond the HTTP clients](#the-paths-beyond-the-http-clients)).
+4. **In git.** Git is run so that it cannot fetch. A review of a partial clone that needs an object the clone does not
+   hold fails by name, and git is not asked to fetch it.
+5. **In name resolution.** A name is looked up only when it is on `PROVEN_NETWORK_ALLOW`. Any other name is refused
+   before a DNS query is sent.
+
+## The paths beyond the HTTP clients
+
+The dial check sees the connections Proven's own HTTP clients make. Three other paths reach the network without them.
+Each is named here with what Proven enforces on it and what you do.
+
+| Path | What Proven enforces in `local` mode | Your act |
+|---|---|---|
+| **The container daemon.** The runtime (`docker`, `podman`) talks to a daemon, and where that daemon is comes from `DOCKER_HOST`, `CONTAINER_HOST`, `DOCKER_CONTEXT`, or the context named in `~/.docker/config.json`. | The address is checked when the settings load. A local socket (`unix://`, `npipe://`, `fd://`) passes. A `tcp://` or `ssh://` address passes only when its host is on your network, by the rule above. Any other address is refused by name, and no container starts. A docker context that cannot be read is refused by name as well. | Use a local daemon socket. A remote daemon on your own network is allowed when its host is a private address or is on `PROVEN_NETWORK_ALLOW`. The daemon's own registry access is yours to close: Proven runs the image with `--pull never`, and the image must already be on the daemon's host. |
+| **Git.** In a partial clone, git fetches a missing object from the remote on demand when a command needs it. | Every git command Proven runs has `GIT_NO_LAZY_FETCH=1` and `-c protocol.allow=never`, and no terminal prompt. Both switches stop the fetch (measured on git 2.43). The review fails with a message naming `PROVEN_NETWORK=local` and the partial clone. Proven never runs `git fetch` or `git clone`. | Review a full clone, or fetch the objects yourself on a connected host before you go off the network. |
+| **DNS.** A name on `PROVEN_NETWORK_ALLOW` is resolved by your host's resolver when Proven dials it. That query is itself a connection, to whatever resolver the host is set to use. | Only a name on the list, or an IP literal, reaches a resolver at all. `localhost` is never looked up. | Point the host's resolver at one on your network, or put the name in `/etc/hosts` or use an address. Proven cannot see where the host's resolver sends the query. |
 
 ## How to check the mode holds
 
@@ -67,17 +86,27 @@ Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
 
    A setting that names an address off your network is refused, and the refusal names it. A service that is on your
    network and answering is `ready`. `livecheck` never prints a secret.
-2. **Run the test that proves it.** It reviews a change in the air-gapped mode with every address answered from
-   memory by a dialer that records each connection and refuses any host that is not allowed:
+2. **Run the tests that prove it.**
 
    ```bash
-   go test -count=1 -run 'TestAirGapped|TestLocal|TestDial' ./internal/review ./internal/network ./internal/testrun
+   go test -count=1 -run 'TestAirGapped|TestLocal|TestDial|TestOffline' ./internal/review ./internal/network ./internal/testrun ./internal/change
    ```
 
-   `TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts` passes when the review completes, every
-   recorded dial went to an allowed host, and a public address asked for by hand never reached the dialer.
-   `TestLocalRefusesAPublicAddressInEachAddressSetting` passes when each of the three address settings refuses a public
-   address, naming the setting and the host.
+   - `TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts` reviews a change with every address answered
+     from memory by a dialer that records each connection. It passes when the review completes, the generator, the
+     guardrail and Zetaris were each dialled, every dial went to an allowed host, and a public address asked for by
+     hand never reached the dialer.
+   - `TestAirGappedWitnessSeesEveryConnection` is the process-wide witness. It runs a review against real loopback
+     services in a process whose `connect` system calls are all seen and answered by a seccomp filter, and the filter
+     is inherited by git and by the container runtime. It passes when every connect went to an allowed address, git and
+     a runtime stand-in were seen connecting (so the filter reaches them), a public address and a public name asked for
+     by hand made no connect and no DNS query, and a partial clone whose origin is public failed by name. It runs on
+     linux/amd64 and skips elsewhere, saying why.
+   - `TestLocalNeverQueriesDNSForAPublicName` passes when no DNS query is attempted for a name off the list.
+   - `TestLocalRefusesAPublicDaemonAddressAtLoad` and `TestLocalRefusesADockerContextWhoseDaemonIsPublic` pass when a
+     public container daemon is refused at load.
+   - `TestLocalRefusesAPublicAddressInEachAddressSetting` passes when each of the three address settings refuses a
+     public address, naming the setting and the host.
 3. **Watch the wire, if you want a second witness.** Run a review with a firewall rule that drops everything but your
    own ranges. A review that completes, with no service named failed for a refused dial, is the same proof from outside.
 
@@ -86,4 +115,6 @@ Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
 - It does not make a service you run local: if `PROVEN_NETWORK_ALLOW` names a host that forwards to the internet,
   Proven allows the name, and the forward is yours to close.
 - A proxy set in the environment is not used by Proven's live clients in the air-gapped mode.
+- It does not see where your host's resolver, or a container daemon on your network, sends a query or a pull of its
+  own. Proven checks the address it is given, not what the service at that address does next.
 - The Prover's container runs with no network at all (ADR-0025), in either mode.
