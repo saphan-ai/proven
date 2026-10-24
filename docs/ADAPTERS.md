@@ -134,8 +134,8 @@ Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four
 A source adapter feeds the evidence store and plugs into the decision ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). It declares four things.
 
 1. **How it loads.** Where the data comes from, how often it is refreshed, the table name it is registered as, and the snapshot date of that load. The adapter does not name a store ([ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md)). `PROVEN_EVIDENCE_STORE` runs the query.
-2. **Its query templates.** Each one is a template the Investigator may pick, plus the builder that writes the query. A model never writes the query ([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)). `Catalogue` and `Build` in `internal/querytpl` read the registry, so the template is written in one place.
-3. **Its rule.** What a returned row means. Rows that mean a finding become evidence: the query and those rows. Rows that mean nothing are not evidence. The Judge decides, as it does for any other finding.
+2. **Its query templates.** Each one is a template the Investigator may pick, plus the builder that writes the query. Each parameter carries a format as a pattern; `Register` refuses a parameter with none. A model never writes the query ([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)). `Catalogue` and `Build` in `internal/querytpl` read the registry, so the template is written in one place.
+3. **Its rule.** What a returned row means. Rows that mean a finding become evidence: the query and those rows. Rows that mean nothing are not evidence. The Judge decides, as it does for any other finding. On the Investigator's path the rule of the adapter that owns the template decides whether the rows become evidence.
 4. **A sample table and a test.** The test adds the adapter by registering it.
 
 The type is `Adapter` in `internal/source`. The built-in adapters are OSV, KEV and EPSS, in that order. OSV owns `osv-by-package` and `osv-by-advisory`. KEV owns `kev-by-cve`. EPSS owns `epss-by-cve`. Their query text stays in `internal/querytpl`, beside the check that refuses a value outside its format. `internal/source` does not import `internal/querytpl`. The catalogue reads the registry, so the import goes the other way.
@@ -154,7 +154,7 @@ The template is `banned-by-package`. It takes `package`. The builder writes:
 SELECT name, reason FROM banned_pkg WHERE name = '<package>'
 ```
 
-The value is placed between quotes, so a quote, a space or a semicolon is refused and never escaped. The table name is the adapter's own. It is not a review setting.
+The parameter declares its format as a pattern, `^[A-Za-z0-9._-]{1,200}$`. Proven holds every value to that pattern, and to a floor of its own, before the builder runs: no quote, no backslash, no control byte and nothing outside printable ASCII. A value outside either is refused with a named reason and never escaped. The builder is not the only guard. A builder that refuses a value for its own reason returns a `*querytpl.Refusal`; any other error it returns is turned into one, so the review records a query note and goes on. The table name is the adapter's own. `Register` refuses it unless it is a plain name, one identifier or `schema.name`.
 
 The rule is: a row means the package is banned, and the evidence is that query and the row. No row means the package is not on the list, and there is no finding.
 
