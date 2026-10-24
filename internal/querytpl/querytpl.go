@@ -1,15 +1,18 @@
 // Package querytpl is the closed list of questions Proven can ask a store, and
-// the only place their text is written (ADR-0032).
+// the only place the built-in query text is written (ADR-0032).
 //
-// A model never writes a query. The Investigator and the Skeptic name one
-// template and give the values of its parameters; Proven checks each value
-// against the strict format of that parameter and builds the query itself. A
-// value outside its format is refused with a named reason, never escaped, so
-// a quote, a backslash, a control byte or invalid UTF-8 cannot reach the text.
-// Each template has one form per query language (ADR-0047): sql for Zetaris
-// and the local store, and room for a mango form when CouchDB is built. The
-// OSV check and the EPSS check build their queries here too, so every query
-// Proven sends has one author. docs/QUERIES.md lists the templates.
+// The list is the source-adapter registry (ADR-0046). OSV, KEV and EPSS
+// register their templates from this package, and Catalogue and Build read
+// that registry, so each template is written once. A model never writes a
+// query. The Investigator and the Skeptic name one template and give the
+// values of its parameters; Proven checks each value against the strict
+// format of that parameter and builds the query itself. A value outside its
+// format is refused with a named reason, never escaped, so a quote, a
+// backslash, a control byte or invalid UTF-8 cannot reach the text. Each
+// template has one form per query language (ADR-0047): sql for Zetaris and
+// the local store, and room for a mango form when CouchDB is built. The OSV
+// check and the EPSS check build their queries from the same registry, so
+// every query Proven sends has one author. docs/QUERIES.md lists the templates.
 package querytpl
 
 import (
@@ -19,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/pep503"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // The defaults of the three settings that name a table or a view (ADR-0013).
@@ -117,47 +121,26 @@ func (r Relations) resolved() Relations {
 }
 
 // Param is one parameter of a template and the format its value must have.
-type Param struct {
-	Name   string
-	Format string
-}
+// It is the source adapter's parameter type, so a template is not declared twice.
+type Param = source.Param
 
 // Template is one question Proven can ask: its name, what it answers, and the
-// parameters it takes. Catalogue returns them all.
-type Template struct {
-	Name   string
-	Answer string
-	Params []Param
-}
+// parameters it takes. Catalogue returns them all. It is the source adapter's
+// template type (ADR-0046).
+type Template = source.Template
 
-// Catalogue lists every template, in a fixed order. The prompts and
+// Catalogue lists every template, in the registry's order. The prompts and
 // docs/QUERIES.md are written from it, and a test holds the document to it.
+// The list is the source adapters, so a template is not written here again
+// (ADR-0046).
 func Catalogue() []Template {
-	return []Template{
-		{
-			Name:   OSVByPackage,
-			Answer: "the OSV advisory rows of one package",
-			Params: []Param{
-				{ParamEcosystem, "one of Go, npm, PyPI, Packagist, crates.io"},
-				{ParamPackage, "a package name in the ecosystem's own spelling"},
-			},
-		},
-		{
-			Name:   OSVByAdvisory,
-			Answer: "the OSV advisory with one advisory id",
-			Params: []Param{{ParamAdvisoryID, "an advisory id such as GHSA-xxxx-xxxx-xxxx or GO-2021-0113"}},
-		},
-		{
-			Name:   KEVByCVE,
-			Answer: "the CISA known-exploited entry of one CVE",
-			Params: []Param{{ParamCVEID, "a CVE id such as CVE-2021-44228"}},
-		},
-		{
-			Name:   EPSSByCVE,
-			Answer: "the EPSS score of one CVE",
-			Params: []Param{{ParamCVEID, "a CVE id such as CVE-2021-44228"}},
-		},
+	var out []Template
+	for _, a := range source.All() {
+		for _, spec := range a.Templates() {
+			out = append(out, spec.Template)
+		}
 	}
+	return out
 }
 
 // Describe is the list of templates as a prompt gives it to a model: one line
@@ -277,31 +260,26 @@ func packageFormat(ecosystem string) *regexp.Regexp {
 func Build(req Request, rel Relations) (string, error) {
 	rel = rel.resolved()
 	name := strings.TrimSpace(req.Template)
-	tpl, ok := lookup(name)
+	_, spec, ok := source.Lookup(name)
 	if !ok {
 		// The name is not repeated: it is model text and may be SQL.
 		return "", &Refusal{Reason: ReasonUnknownTemplate}
 	}
-	if err := checkParams(tpl, req.Params); err != nil {
+	if err := checkParams(spec.Template, req.Params); err != nil {
 		return "", err
 	}
-	switch name {
-	case OSVByPackage:
-		return osvByPackage(rel.OSVTable, req.Params[ParamEcosystem], req.Params[ParamPackage])
-	case OSVByAdvisory:
-		if !ValidRelation(rel.OSVIDView) {
-			return "", &Refusal{Reason: ReasonBadRelation, Detail: name}
-		}
-		id, err := literal(name, ParamAdvisoryID, req.Params[ParamAdvisoryID], advisoryFormat)
-		if err != nil {
-			return "", err
-		}
-		return "SELECT id, alias, published, severity FROM " + rel.OSVIDView + " WHERE id = " + id, nil
-	case KEVByCVE:
-		return KEVSQL(rel.KEVView, req.Params[ParamCVEID])
-	default:
-		return EPSSSQL(rel.EPSSView, req.Params[ParamCVEID])
+	// ADR-0046: the adapter that owns the template builds it. The text stays
+	// in this package; the registry is what names the builder, so the switch
+	// that used to live here is not a second copy.
+	if spec.Build == nil {
+		return "", fmt.Errorf("querytpl: template %s has no builder", spec.Template.Name)
 	}
+	return spec.Build(req.Params, source.Rel{
+		OSVTable:  rel.OSVTable,
+		KEVView:   rel.KEVView,
+		EPSSView:  rel.EPSSView,
+		OSVIDView: rel.OSVIDView,
+	})
 }
 
 // Validate checks a request without building a query: the Skeptic uses it to
@@ -309,16 +287,6 @@ func Build(req Request, rel Relations) (string, error) {
 func Validate(req Request) error {
 	_, err := Build(req, Relations{})
 	return err
-}
-
-// lookup finds a template by name.
-func lookup(name string) (Template, bool) {
-	for _, t := range Catalogue() {
-		if t.Name == name {
-			return t, true
-		}
-	}
-	return Template{}, false
 }
 
 // checkParams holds the request to exactly the template's parameters: each one
@@ -343,6 +311,18 @@ func checkParams(tpl Template, params map[string]string) error {
 		return &Refusal{Reason: ReasonUnknownParam, Detail: fmt.Sprintf("%s takes %d parameters and %d others were given", tpl.Name, len(tpl.Params), len(extra))}
 	}
 	return nil
+}
+
+// osvByAdvisory builds the osv-by-advisory query.
+func osvByAdvisory(view, id string) (string, error) {
+	if !ValidRelation(view) {
+		return "", &Refusal{Reason: ReasonBadRelation, Detail: OSVByAdvisory}
+	}
+	lit, err := literal(OSVByAdvisory, ParamAdvisoryID, id, advisoryFormat)
+	if err != nil {
+		return "", err
+	}
+	return "SELECT id, alias, published, severity FROM " + view + " WHERE id = " + lit, nil
 }
 
 // OSVPackageSQL is the OSV package query for one ecosystem and package. A PyPI
