@@ -19,6 +19,7 @@ The forge is yours too: Gitea on premises is an equal scenario (ADR-0022), and t
 set-up.
 
 The hosted NVIDIA API is not one of the four. The guardrail's `nvidia` mode is refused in `local` mode, by name.
+The generator's `nvidia` mode is refused in `local` mode, by name.
 
 ## The settings
 
