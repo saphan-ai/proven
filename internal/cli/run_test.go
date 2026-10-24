@@ -90,6 +90,8 @@ func assertDiscountText(t *testing.T, body string) {
 		// ADR-0032: F2's query evidence comes from the osv-by-package template.
 		"row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15",
 		"failed services: none",
+		"Agreed by two models, not proven",
+		"none: one reviewer; a claim only one model makes stays dropped",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q\n%s", want, body)

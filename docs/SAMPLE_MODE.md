@@ -87,6 +87,8 @@ finding F1 ERROR Discount is applied twice
   command: go test -run '^TestDiscounted$' ./billing
   output: base: PASS
 change: FAIL got 60 want 80
+Agreed by two models, not proven
+  none: one reviewer; a claim only one model makes stays dropped
 failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
@@ -133,7 +135,7 @@ and in `go.mod`:
 
 Totals by level on this scan: 1 proved by a test, 0 proved by a tool, 3 proved by data, 0 agreed by two models and not proven.
 
-F3 is the point of the scenario: a plausible risk with no evidence never reaches the review.
+F3 is the point of the scenario: a plausible risk with no evidence never reaches the review. This scan has one reviewer, so the section "Agreed by two models, not proven" is empty and says why. An agreed opinion needs both reviewers to name it at the same place, and it is not a finding and not one of these totals (ADR-0041).
 
 ## Read the trace
 

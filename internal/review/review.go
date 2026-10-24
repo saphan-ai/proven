@@ -5,7 +5,8 @@
 // Besides the seam's types, the package holds what the reviewer decides before and after the six agents run:
 // it loads proven.yaml (config.go), chooses the review class from the changed paths (ADR-0012, ADR-0014),
 // reads the author's model from the change (ADR-0011) and names the reviewer models and their independence
-// from the author (ADR-0008, ADR-0009) (decide.go). Open wires the adapters and the pipeline (open.go).
+// from the author (ADR-0008, ADR-0009) (decide.go). An agreed, unproven claim is an Opinion beside the
+// findings, not one of them (ADR-0041). Open wires the adapters and the pipeline (open.go).
 // The six agents themselves live in internal/agent and run in internal/pipeline.
 package review
 
@@ -99,7 +100,8 @@ const (
 type Result struct {
 	Findings []Finding // only findings with evidence (ADR-0002); unresolved ones are marked and counted
 	// ProofCounts counts Findings by ProofLevel (ADR-0044 point 3). Every level is a key, with 0
-	// when none; the counts add up to len(Findings). Findings, unresolved ones included, keep their meaning.
+	// when none; the counts add up to len(Findings). Opinions are not counted (ADR-0041).
+	// Findings, unresolved ones included, keep their meaning.
 	ProofCounts          map[ProofLevel]int
 	FailedServices       []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
 	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
@@ -121,6 +123,10 @@ type Result struct {
 	Reviewers []ReviewerInfo
 	// Disagreements counts the findings whose Disagree is true (ADR-0037 point 4).
 	Disagreements int
+	// Opinions lists claims both reviewers reported at the same place that no
+	// evidence proves (ADR-0041). They are not Findings, they are not in
+	// ProofCounts, and they do not change the exit code. Empty when none.
+	Opinions []Opinion
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
@@ -173,10 +179,31 @@ const (
 	ProvedByTool ProofLevel = "proved-by-tool"
 	// ProvedByData: a query and the rows it returned (ADR-0002).
 	ProvedByData ProofLevel = "proved-by-data"
-	// AgreedNotProven: two models reported it and nothing proves it (ADR-0041).
-	// No finding gets it yet; the ADR-0041 wagon sets it.
+	// AgreedNotProven is the level name ADR-0044 reserved for an opinion.
+	// ADR-0041 does not put that opinion on a finding: it is Result.Opinions,
+	// and ProofCounts keeps this key at 0 so the totals stay the findings.
 	AgreedNotProven ProofLevel = "agreed-by-two-models-not-proven"
 )
+
+// OpinionLevel is the level an opinion carries for JSON and SARIF (ADR-0041).
+// It is note, so a machine does not read the opinion as a proven finding.
+// Those writers are not in this build. The text section is what a reader gets,
+// and a writer that lands later copies this value and does not put the opinion
+// among the findings.
+const OpinionLevel = "note"
+
+// Opinion is one claim both reviewers reported at the same place that no evidence
+// proves (ADR-0041). It is not a Finding. ProofCounts does not count it, and the
+// exit code does not see it. Reasons holds both reviewers' own words, the default
+// reviewer first.
+type Opinion struct {
+	ID       string
+	Title    string
+	Location Location
+	// Level is OpinionLevel. It is not a proof level and not a severity.
+	Level   string
+	Reasons []ReviewerVerdict
+}
 
 // ProofLevels lists every level, strongest first. Counts and renderers walk this order.
 var ProofLevels = []ProofLevel{ProvedByTest, ProvedByTool, ProvedByData, AgreedNotProven}

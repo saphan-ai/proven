@@ -354,6 +354,18 @@ func fill(d candidate.Draft) (Result, error) {
 		out.ProofCounts[level]++
 		out.Findings = append(out.Findings, f)
 	}
+	// ADR-0041: an opinion is copied beside the findings. It has no proof level,
+	// so it is not added to ProofCounts and it cannot fail the review.
+	for _, o := range d.Opinions {
+		op := Opinion{
+			ID: o.ID, Title: o.Title, Level: OpinionLevel,
+			Location: Location{Path: o.Path, StartLine: o.StartLine, EndLine: o.EndLine},
+		}
+		for _, v := range o.Reasons {
+			op.Reasons = append(op.Reasons, ReviewerVerdict{Role: v.Run, Model: v.Model, Verdict: v.Verdict, Reason: v.Reason})
+		}
+		out.Opinions = append(out.Opinions, op)
+	}
 	for _, s := range d.Failed {
 		out.FailedServices = append(out.FailedServices, ServiceFailure{Service: s.Service, Reason: s.Reason})
 	}
@@ -367,6 +379,9 @@ func fill(d candidate.Draft) (Result, error) {
 	}
 	if out.Findings == nil {
 		out.Findings = []Finding{}
+	}
+	if out.Opinions == nil {
+		out.Opinions = []Opinion{}
 	}
 	if out.FailedServices == nil {
 		out.FailedServices = []ServiceFailure{}
