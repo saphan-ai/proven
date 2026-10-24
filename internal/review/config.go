@@ -2,7 +2,8 @@ package review
 
 // This file reads proven.yaml, the reviewer's own settings (ADR-0013): the timeout, the two reviewer
 // models (ADR-0009, ADR-0010), the family table and author sources (ADR-0011), and the class rules
-// (ADR-0014). Every key is closed: an unknown key or value is refused with the values allowed.
+// (ADR-0014), and the two settings of proposed fixes: whether they are made and how many attempts one
+// gets (ADR-0042). Every key is closed: an unknown key or value is refused with the values allowed.
 
 import (
 	"bytes"

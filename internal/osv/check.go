@@ -5,7 +5,8 @@
 // the osv-by-package template (ADR-0032, internal/querytpl). A matching range
 // is a candidate whose evidence is the query and the rows it returned
 // (ADR-0002), and the Judge keeps or drops it like any other finding. A version outside every range is
-// a trace line, never a finding.
+// a trace line, never a finding. The candidate also carries the smallest fixed version that leaves
+// every returned range, with the advisory row that shows it (ADR-0042 point 5, fix.go).
 //
 // The package also defines the OSV table itself: its columns, the setting
 // that names it (PROVEN_OSV_TABLE, ADR-0013), the setting that names the
