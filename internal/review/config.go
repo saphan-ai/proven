@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -20,6 +21,16 @@ const configKeyTimeout = "timeout"
 
 // allowedTimeout is the value list a refused timeout names.
 const allowedTimeout = "a Go duration of zero or greater, for example 30s, 5m or 0s"
+
+// The bounds of fix_attempts (ADR-0042 point 6). The default is two: one try and one retry with the
+// failure in hand. The upper bound keeps a setting from turning a retry into an open loop of model calls.
+const (
+	defaultFixAttempts = 2
+	maxFixAttempts     = 5
+)
+
+// allowedFixAttempts is the value list a refused fix_attempts names.
+const allowedFixAttempts = "a whole number from 1 to 5"
 
 // configKeys is the closed key set, in the order a refusal lists them.
 var configKeys = []string{
@@ -36,6 +47,8 @@ var configKeys = []string{
 	"author_record",
 	"author_trailer_keys",
 	"raise_class",
+	"fixes",
+	"fix_attempts",
 }
 
 // fileSettings is one loaded proven.yaml. A missing file is defaultSettings.
@@ -54,6 +67,9 @@ type fileSettings struct {
 	Record          string
 	TrailerKeys     []string
 	RaiseClass      bool
+	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
+	Fixes       bool
+	FixAttempts int
 }
 
 // familyRule maps a model-name pattern to a family, one row of the families table (ADR-0011 point 4).
@@ -98,6 +114,9 @@ func defaultSettings() fileSettings {
 		ReadCommits:     true,
 		ReadDescription: true,
 		TrailerKeys:     []string{"Assisted-by"},
+		// ADR-0042: proposed fixes are on by default, with one try and one retry.
+		Fixes:       true,
+		FixAttempts: defaultFixAttempts,
 	}
 }
 
@@ -293,8 +312,10 @@ func allowedText(key string) string {
 	switch key {
 	case configKeyTimeout:
 		return allowedTimeout
-	case "author_commit_trailers", "author_description", "raise_class":
+	case "author_commit_trailers", "author_description", "raise_class", "fixes":
 		return "on, off"
+	case "fix_attempts":
+		return allowedFixAttempts
 	case "fallback_class", "doubled_classes", "class_order", "path_rules":
 		return strings.Join(classNames(), ", ")
 	case "families":
@@ -415,6 +436,20 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		}
 		// ADR-0014 point 9: the setting is checked and kept, but no model raises a class yet.
 		cfg.RaiseClass = on
+		return nil
+	case "fixes":
+		on, err := parseOnOff(key, val)
+		if err != nil {
+			return err
+		}
+		cfg.Fixes = on
+		return nil
+	case "fix_attempts":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 1 || n > maxFixAttempts {
+			return configRefused(key, val, "not a number of attempts in range", allowedFixAttempts)
+		}
+		cfg.FixAttempts = n
 		return nil
 	default:
 		return &ConfigError{Field: key, Value: val, Reason: "unknown key", Allowed: append([]string(nil), configKeys...)}

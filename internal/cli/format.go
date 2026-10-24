@@ -181,7 +181,93 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			return err
 		}
 	}
+	return writeFix(w, finding.Fix)
+}
+
+// writeFix prints the fix under a finding (ADR-0042). A proved patch shows its edits, its
+// explanation and the commands of its proof; a patch that was not proved shows only that the
+// attempt failed and why, never the patch. A dependency fix shows the version and the advisory row.
+// Every fix says it is a suggestion: a person applies it, Proven writes nothing to the change.
+func writeFix(w io.Writer, fix *review.Fix) error {
+	if fix == nil {
+		return nil
+	}
+	switch {
+	case fix.Dependency != nil:
+		return writeDependencyFix(w, fix)
+	case fix.Proved:
+		return writeProvedFix(w, fix)
+	default:
+		if _, err := fmt.Fprintf(w, "  %s\n", fix.Note); err != nil {
+			return err
+		}
+		return writeFixRuns(w, fix.Runs)
+	}
+}
+
+// writeProvedFix prints a patch that the same test proved, with its explanation (point 7).
+func writeProvedFix(w io.Writer, fix *review.Fix) error {
+	if _, err := fmt.Fprintf(w, "  fix proved after %d %s: a suggestion for you to apply; Proven changes nothing\n", fix.Attempts, attemptWord(fix.Attempts)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  fix changes: %s\n  fix closes the problem because: %s\n", oneLine(fix.What), oneLine(fix.Why)); err != nil {
+		return err
+	}
+	for _, edit := range fix.Edits {
+		if _, err := fmt.Fprintf(w, "  fix edit %s\n", edit.Path); err != nil {
+			return err
+		}
+		for _, line := range strings.Split(strings.TrimRight(edit.Old, "\n"), "\n") {
+			if _, err := fmt.Fprintf(w, "  - %s\n", line); err != nil {
+				return err
+			}
+		}
+		for _, line := range strings.Split(strings.TrimRight(edit.New, "\n"), "\n") {
+			if _, err := fmt.Fprintf(w, "  + %s\n", line); err != nil {
+				return err
+			}
+		}
+	}
+	return writeFixRuns(w, fix.Runs)
+}
+
+// writeFixRuns prints the validation steps: each run with its command, exit code and result.
+func writeFixRuns(w io.Writer, runs []review.FixRun) error {
+	for _, run := range runs {
+		if _, err := fmt.Fprintf(w, "  fix run %s: %s exit=%d %s\n", run.Label, run.Command, run.ExitCode, run.Result); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// writeDependencyFix prints the smallest version that leaves the affected range, with the
+// advisory row that shows it (point 5). It says no test ran, so it is not read as a proved fix.
+func writeDependencyFix(w io.Writer, fix *review.Fix) error {
+	dep := fix.Dependency
+	if _, err := fmt.Fprintf(w, "  fix named from the advisory table, not run by a test: raise %s %s to %s\n", dep.Package, dep.From, dep.To); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  fix closes the problem because: %s\n", oneLine(fix.Why)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  fix advisory %s columns: %s\n  fix advisory row: %s\n", dep.AdvisoryID, strings.Join(dep.AdvisoryColumns, ", "), strings.Join(dep.AdvisoryRow, " | ")); err != nil {
+		return err
+	}
+	return nil
+}
+
+// attemptWord is "attempt" for one and "attempts" for any other number.
+func attemptWord(n int) string {
+	if n == 1 {
+		return "attempt"
+	}
+	return "attempts"
+}
+
+// oneLine folds the line breaks of a model's sentence, so it stays on one line of the review.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // writeEvidence prints the proof under a finding: the test the Prover wrote,
