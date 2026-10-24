@@ -83,6 +83,20 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 |---|---|---|
 | `PROVEN_ADAPTER_TIMEOUT` | `5s` | the limit on one adapter call when the caller set no shorter deadline. Sample mode uses the default and does not read this variable |
 
+## Telemetry: OpenTelemetry (ADR-0045)
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | none (telemetry is off) | the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | none | the full URL the trace is sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the trace and, set alone, turns the trace on |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | none | the full URL the metrics are sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the metrics and, set alone, turns the metrics on |
+| `OTEL_SDK_DISABLED` | none | `true` turns telemetry off even when an endpoint is set |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | the OTLP transport. Only `http/protobuf` is built in; any other value is refused by name. `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` and `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` are read the same way |
+| `OTEL_SERVICE_NAME` | `proven` | the service name a backend shows |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | how often the metrics are pushed, in milliseconds. The lab sets it low so a dashboard moves while a review runs |
+
+Telemetry is off unless an endpoint is set. It only observes: it never changes what a review decides, and a collector that cannot be reached never fails a review (the export is bounded at 5 seconds, and the failure goes to stderr). No secret is put in an attribute: the same redactor that cleans the trace file cleans the span events. The headers, timeout and certificates of the exporter are the SDK's own variables (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_CERTIFICATE`), read from the process environment. Sample mode reads the `OTEL_*` variables and no other.
+
 ## Reads of the repository under review
 
 | Environment variable | Default | What it changes |
