@@ -22,10 +22,12 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// Names lists every variable whose value Proven must never write: the keys it
-// sends (the generator's two, the second reviewer's (ADR-0037), the guardrail's and
-// Zetaris's), and the organisation id it identifies itself with. The generator's NVIDIA
-// key is here so a hosted answer that echoes it never reaches the trace (ADR-0031 point 3).
+// Names lists every variable whose value Proven redacts: the keys it sends (the
+// generator's two, the second reviewer's (ADR-0037), the guardrail's and Zetaris's), and the
+// organisation id it identifies itself with. The generator's NVIDIA key is here so a hosted
+// answer that echoes it never reaches the trace (ADR-0031 point 3). The organisation id is
+// an identifier, not a credential: an id shorter than service.MinSecretBytes is NOT redacted
+// (FromEnv leaves it out), so a short id can appear in a trace.
 var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID}
 
 // Redactor replaces configured values in text. The zero value and a nil
@@ -98,8 +100,11 @@ func spellings(v string) []string {
 // FromEnv builds a Redactor from the variables in Names, read through env.
 // A nil env reads nothing.
 //
-// The three credentials are always handed to the redactor: a short one is
-// refused by the settings loaders, so none reaches here. The organisation id is
+// The five credentials (the generator's two keys, the second reviewer's, the
+// guardrail's and Zetaris's) are always handed to the redactor: a short one that
+// is in use is refused by its settings loader, so none reaches here. A credential
+// set but unused by the active mode is not checked by a loader and is redacted
+// as it is. The organisation id is
 // an identifier, not a credential, and the loaders accept a short numeric one;
 // handed over as it is, an id of one digit would replace that digit in every
 // commit id and line number. So an id shorter than service.MinSecretBytes is
