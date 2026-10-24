@@ -22,7 +22,9 @@ func Poetry() Reader {
 		Match: func(path string) bool {
 			return path == "poetry.lock" || strings.HasSuffix(path, "/poetry.lock")
 		},
-		Diff: diffPoetry,
+		Diff:    diffPoetry,
+		Compare: pep440.Compare,
+		Explain: pep440.Explain,
 	}
 }
 

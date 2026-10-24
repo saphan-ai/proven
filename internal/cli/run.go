@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/childenv"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -34,7 +35,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	// value costs nothing and its exit code is the one ADR-0020 §2 names.
 	cfg, err := resolve(args, getenv, fileExists)
 	if err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return errorCode(err)
 	}
 	if cfg.help {
@@ -46,13 +47,19 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		return exitOK
 	}
 	if err := applyCI(&cfg, getenv); err != nil {
+		printErr(stderr, err)
+		return errorCode(err)
+	}
+	// Standard output is compared with the output files here, not in resolve,
+	// because only Run holds the writer it is open on.
+	if err := refuseStdoutOnAnOutput(cfg, stdout); err != nil {
 		fmt.Fprintln(stderr, err.Error())
 		return errorCode(err)
 	}
 	// Every requested format must have a writer before the review runs: a
 	// review that cannot be written is time spent for an exit 2 anyway.
 	if err := writable(cfg); err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	rev, err := openCall(cfg, getenv, open)
@@ -61,10 +68,10 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		// configuration refused at load, exit 7; anything else is exit 2.
 		var conf *review.ConfigError
 		if errors.As(err, &conf) {
-			fmt.Fprintln(stderr, conf.Error())
+			printErr(stderr, conf)
 			return exitConfig
 		}
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	// --timeout bounds the whole review; zero means no deadline (ADR-0020 §1).
@@ -85,20 +92,20 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	if err != nil {
 		var conf *review.ConfigError
 		if errors.As(err, &conf) {
-			fmt.Fprintln(stderr, conf.Error())
+			printErr(stderr, conf)
 			return exitConfig
 		}
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	// The severity floor is applied here as well as in the request, so the
 	// outputs and the exit code agree whatever a reviewer returns.
 	result.Findings = filterFindings(result.Findings, cfg.severity)
 	if cfg.verbose && !cfg.quiet {
-		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", cfg.target, cfg.baseline, cfg.head)
+		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", visible(cfg.target), visible(cfg.baseline), visible(cfg.head))
 	}
 	if err := writeOutputs(cfg, result, stdout); err != nil {
-		fmt.Fprintln(stderr, err.Error())
+		printErr(stderr, err)
 		return exitFatal
 	}
 	// A failed outside service is named in the output and is not exit 2:
@@ -108,6 +115,12 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		code = exitFindings
 	}
 	return code
+}
+
+// printErr writes an error sentence to stderr through the encoder the text
+// output uses: errors name files from the change, and stderr is a terminal too.
+func printErr(stderr io.Writer, err error) {
+	fmt.Fprintln(stderr, visible(err.Error()))
 }
 
 // errorCode is the exit code an error carries; an error that carries none
@@ -201,6 +214,7 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		return err
 	}
 	type extraFile struct {
+		flag string
 		path string
 		body []byte
 	}
@@ -210,35 +224,67 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.textOutput, body})
+		extras = append(extras, extraFile{"--text-output", cfg.textOutput, body})
 	}
 	if cfg.jsonOutput != "" {
 		body, err := render("json", result)
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.jsonOutput, body})
+		extras = append(extras, extraFile{"--json-output", cfg.jsonOutput, body})
 	}
 	if cfg.sarifOutput != "" {
 		body, err := render("sarif", result)
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.sarifOutput, body})
+		extras = append(extras, extraFile{"--sarif-output", cfg.sarifOutput, body})
 	}
+	files := extras
 	if cfg.output == "" {
 		if _, err := stdout.Write(primary); err != nil {
 			return err
 		}
-	} else if err := os.WriteFile(cfg.output, primary, 0o644); err != nil {
-		return err
+	} else {
+		files = append([]extraFile{{"-o", cfg.output, primary}}, extras...)
 	}
-	for _, one := range extras {
+	// WHY a second check beside refuseCollidingOutputs: that one runs at load,
+	// and the disk can change before the write (a link made while the review
+	// ran). Two outputs must never share one file, so each file is compared
+	// with the files already written in this run before it is written, and the
+	// run stops with the first output intact.
+	var written []writtenOutput
+	if cfg.output == "" {
+		// Standard output was written above; when it is a regular file it is
+		// the first file of the run.
+		if info := regularFileInfo(stdout); info != nil {
+			written = append(written, writtenOutput{"standard output", info})
+		}
+	}
+	for _, one := range files {
+		if info, err := os.Stat(one.path); err == nil {
+			for _, w := range written {
+				if os.SameFile(info, w.info) {
+					return fmt.Errorf("%s and %s are the same file (%s); %s is left as it was written", w.flag, one.flag, one.path, w.flag)
+				}
+			}
+		}
 		if err := os.WriteFile(one.path, one.body, 0o644); err != nil {
 			return err
 		}
+		info, err := os.Stat(one.path)
+		if err != nil {
+			return err
+		}
+		written = append(written, writtenOutput{one.flag, info})
 	}
 	return nil
+}
+
+// writtenOutput is a file this run has written, kept for os.SameFile.
+type writtenOutput struct {
+	flag string
+	info os.FileInfo
 }
 
 // pullRequestEvent is the part of GitHub's pull_request event payload ci
@@ -326,6 +372,10 @@ func applyCI(cfg *config, getenv func(string) string) error {
 // returns git's own sentence when it cannot answer.
 func gitMergeBase(repo, base, head string) (string, error) {
 	cmd := exec.Command("git", "-C", repo, "merge-base", base, head)
+	// Property: no key reaches a subprocess. An inherited environment would
+	// hand git, and any hook or alias it runs, every key Proven holds; git
+	// needs PATH and HOME only (ADR-0025).
+	cmd.Env = childenv.Minimal()
 	out, err := cmd.Output()
 	if err != nil {
 		detail := err.Error()
@@ -366,7 +416,6 @@ not review.
 flags:
   --text, --json, --sarif
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-        This build writes text. --json and --sarif stop with exit 2 until their writers land.
   --text-output, --json-output, --sarif-output
         also write that format to a file
   -o, --output

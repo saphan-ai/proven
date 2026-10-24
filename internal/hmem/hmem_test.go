@@ -44,6 +44,20 @@ func TestLoadRefusesABadVersion(t *testing.T) {
 	}
 }
 
+// TestAStateFromBeforeEvidencedRefutationsIsRefused proves a version 1 state,
+// whose refutations were not required to carry evidence, is refused by name
+// instead of being read.
+func TestAStateFromBeforeEvidencedRefutationsIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{"version":1,"seq":0,"records":[]}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := hmem.Open(hmem.Options{Dir: dir, LogDir: t.TempDir()})
+	if err == nil || !strings.Contains(err.Error(), "state version 1") || !strings.Contains(err.Error(), "remove") {
+		t.Fatalf("a version 1 state was not refused by name: %v", err)
+	}
+}
+
 // TestStateInsideTheRepositoryIsRefused proves memory cannot be kept inside
 // the repository under review.
 func TestStateInsideTheRepositoryIsRefused(t *testing.T) {

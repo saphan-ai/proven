@@ -2,7 +2,7 @@
 
 - incident: I05 (one incident; this case is a later review round of it, and its only pair in the corpus)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-23 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -90,8 +90,41 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+- toolchain: Go, standard library only, `go version go1.26.5 linux/amd64`. The case is its own module (`go.mod` in
+  this directory, module `pv006`), so it stays out of the repository's module.
+- run: 2026-10-23T09:07:42Z (UTC)
+- command, from the repository root: `bash test/corpus/cases/PV-006/check.sh` (it runs `go -C test/corpus/cases/PV-006 run ./check`)
+- exit code: 0
+
+```
+well-formed base=pass change=pass reference=pass
+listed-token base=fail({limit}) change=fail({limit}) reference=fail
+unlisted-token base=pass change=fail({window}) reference=fail
+dollar-token base=pass change=pass reference=fail raw=$wait
+duration-0-vs-1 base=pass change=pass reference=fail shown=0 retry-after=1
+duration-equal base=pass change=pass reference=pass shown=30 retry-after=30
+```
+
+Each line gives the input name and the base, change and reference results. A failing text result names the raw
+placeholder found. The dollar line reports the raw token after checking the rendered notice contains it. Duration
+lines report the shown and retry-after values. The inputs are one catalog entry,
+`Too many requests. Please wait {wait} before trying again.`, with a wait of 30 seconds, plus a suffix per text input
+(` Limit: {limit}.`, ` Window: {window}.`, ` $wait`).
+
+- negative control command: `go -C test/corpus/cases/PV-006 test -count=1 -v ./check` (exit code 0). It replaces
+  `$wait` in the rendered notice with `30 sec`; the evidence check raises an error:
+
+```
+=== RUN   TestRawTokenEvidenceRejectsRemovedToken
+    main_test.go:20: negative control alarm: rendered notice does not contain "$wait"
+--- PASS: TestRawTokenEvidenceRejectsRemovedToken (0.00s)
+PASS
+ok  	pv006/check	0.001s
+```
+
+The checker uses Bash, `dirname`, `pwd` and Go's `-C` flag; it uses no GNU-only flag. A macOS run was not available.
 
 ## 9. Limits
 

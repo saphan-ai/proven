@@ -50,6 +50,30 @@ func reviewRewriting(t *testing.T, marker string, rewrite func(string) string) (
 	return d, err
 }
 
+// TestAnOpinionReasonIsRedacted proves a configured token in an opinion's title
+// or in a reviewer's reason does not reach the draft. The mutated field is the
+// reason string.
+func TestAnOpinionReasonIsRedacted(t *testing.T) {
+	const marker = "marker-w37-opinion-91ab"
+	p := &Pipeline{redactor: redact.FromEnv(secretEnv(map[string]string{generator.EnvToken: marker}))}
+	in := []candidate.Opinion{{
+		ID: "O1", Title: "title " + marker, Path: "a.go",
+		Reasons: []candidate.Verdict{{
+			Run: "default", Model: "NVIDIA", Verdict: candidate.VerdictReported, Reason: "says " + marker,
+		}},
+	}}
+	out := p.redactOpinions(in)
+	if len(out) != 1 {
+		t.Fatalf("%d opinions", len(out))
+	}
+	if strings.Contains(out[0].Title+out[0].Reasons[0].Reason, marker) {
+		t.Fatalf("the token reached the opinion: %+v", out[0])
+	}
+	if strings.Contains(in[0].Reasons[0].Reason, "[redacted:") {
+		t.Fatal("redaction wrote into the input")
+	}
+}
+
 // TestTokenInAFindingDoesNotReachTheDraft proves that a configured token a
 // model echoes in a finding's title and message does not reach the draft the
 // review returns, and that the finding is still reported.

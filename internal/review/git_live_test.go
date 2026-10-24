@@ -33,7 +33,7 @@ func TestLiveGitReviewReachesThePlanner(t *testing.T) {
 		t.Fatal("partial")
 	}
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\nbase-text\nCHANGE\ncommitted-change\n"
+	const want = `{"path":"note.txt","base":"base-text\n","change":"committed-change\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the changed file\n%s", prompt)
 	}
@@ -61,7 +61,7 @@ func TestLiveWorktreeReviewSeesAnUncommittedEdit(t *testing.T) {
 		Target: repo, BaselineCommit: head, HeadCommit: "",
 	})
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\ncommitted-change\nCHANGE\nuncommitted-edit\n"
+	const want = `{"path":"note.txt","base":"committed-change\n","change":"uncommitted-edit\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the uncommitted edit\n%s", prompt)
 	}
@@ -148,7 +148,7 @@ func TestLivePreparedTreesNeedNoFixtureJSON(t *testing.T) {
 	gen := &recordingGen{}
 	res := reviewLive(t, t.TempDir(), gen, Request{Target: dir})
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE hello.txt\nBASE\nold\nCHANGE\nnew\n"
+	const want = `{"path":"hello.txt","base":"old\n","change":"new\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt\n%s", prompt)
 	}
@@ -329,7 +329,7 @@ func TestLiveGitReviewSkipsATrackedSymlink(t *testing.T) {
 		t.Fatal("partial")
 	}
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\nbase-text\nCHANGE\ncommitted-change\n"
+	const want = `{"path":"note.txt","base":"base-text\n","change":"committed-change\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the changed file\n%s", prompt)
 	}
@@ -351,7 +351,7 @@ func TestLiveWorktreeReviewSkipsATrackedSymlink(t *testing.T) {
 		Target: repo, BaselineCommit: head, HeadCommit: "",
 	})
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\ncommitted-change\nCHANGE\nuncommitted-edit\n"
+	const want = `{"path":"note.txt","base":"committed-change\n","change":"uncommitted-edit\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the uncommitted edit\n%s", prompt)
 	}
@@ -361,7 +361,7 @@ func TestLiveWorktreeReviewSkipsATrackedSymlink(t *testing.T) {
 // assertSymlinkSkipped checks the link was named once and its target was not read.
 func assertSymlinkSkipped(t *testing.T, res Result, gen *recordingGen, prompt, marker, rel string) {
 	t.Helper()
-	if strings.Contains(prompt, marker) || strings.Contains(prompt, "FILE "+rel+"\n") {
+	if strings.Contains(prompt, marker) || strings.Contains(prompt, `"path":"`+rel+`"`) {
 		t.Fatalf("planner prompt contains the symlink or its target\n%s", prompt)
 	}
 	if gen.linkPresent {

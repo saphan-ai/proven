@@ -351,6 +351,8 @@ func contractW1bExitForCheckouts(t *testing.T, base, change string) string {
 		"  exit 1\n" +
 		"fi\n" +
 		"if [ \"$hit_base\" -eq 1 ]; then\n" +
+		// A pass needs the test's pass event, not only exit code 0 (ADR-0042).
+		"  printf '%s\\n' '{\"Action\":\"pass\",\"Package\":\"p\",\"Test\":\"TestProved\"}'\n" +
 		"  exit 0\n" +
 		"fi\n" +
 		"exit 2\n"
