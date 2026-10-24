@@ -212,8 +212,10 @@ func checkKey(key string) error {
 // An empty key is not this case. The refusal's value is empty, so the secret
 // is never printed.
 func refuseBrokenKey(key string) error {
-	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
-		return refuse(EnvKey, "", "the guardrail needs a key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
+	// A key too short to be redacted is refused too: the redactor has no
+	// length floor, so the loader holds the floor (service.MinSecretBytes).
+	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 || service.TooShortSecret(key) {
+		return refuse(EnvKey, "", "the guardrail needs a key", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
 	return nil
 }

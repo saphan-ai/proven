@@ -25,13 +25,6 @@ import (
 // keys it sends, and the organisation id it identifies itself with.
 var Names = []string{generator.EnvToken, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID}
 
-// MinLength is the shortest value that is redacted as a substring.
-// A value shorter than this would be found inside ordinary words, numbers and
-// line counts, and replacing it would destroy the text it sits in; no key a
-// service issues is this short. A shorter value is left alone here, and the
-// settings loaders still never print it in a refusal.
-const MinLength = 6
-
 // Redactor replaces configured values in text. The zero value and a nil
 // *Redactor leave text unchanged.
 type Redactor struct {
@@ -44,8 +37,11 @@ type needle struct {
 	value, marker string
 }
 
-// New builds a Redactor from variable name to value. An empty value, and a
-// value shorter than MinLength after trimming white space, is not redacted.
+// New builds a Redactor from variable name to value. A value that is empty
+// after trimming white space is not redacted; every other value is, whatever
+// its length. A secret too short to redact without damaging ordinary text is
+// refused by the settings loaders (service.MinSecretBytes), so none reaches
+// here from the environment.
 // A value is redacted in its raw form and in the escaped forms %q, %+q and JSON give it.
 // When two variables hold the same value the name that sorts first is used,
 // so the marker does not depend on map order.
@@ -59,7 +55,7 @@ func New(values map[string]string) *Redactor {
 	r := &Redactor{}
 	for _, name := range names {
 		v := strings.TrimSpace(values[name])
-		if len(v) < MinLength || seen[v] {
+		if v == "" || seen[v] {
 			continue
 		}
 		// ADR-0005: an error that quotes a value with %q, or a JSON line that carries it, writes

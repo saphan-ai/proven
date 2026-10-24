@@ -157,8 +157,10 @@ func Load(env func(string) string) (Settings, error) {
 	// A line break or an over-long token is a wrong value, refused before any
 	// review. The value is not echoed: it is a secret. An empty token is
 	// handled after the other settings, so a bad URL is still refused.
-	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 {
-		return Settings{}, refuse(EnvToken, "", "the live generator needs a runtime token", "a non-empty secret in the environment, at most 4096 characters, with no line break")
+	// A token too short to be redacted is refused too: the redactor has no
+	// length floor, so the loader holds the floor (service.MinSecretBytes).
+	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 || service.TooShortSecret(token) {
+		return Settings{}, refuse(EnvToken, "", "the live generator needs a runtime token", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
 	base := env(EnvBaseURL)
 	if base == "" {
