@@ -21,12 +21,15 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/network"
+	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 // witnessSpec is what the test hands the child that runs the review under the witness.
 type witnessSpec struct {
 	Gen, Guard, Zetaris, Daemon, Canary int // loopback ports of the services the review may reach
+	Couch, OTLP                         int // loopback ports of the CouchDB store and the OTLP collector
 	Home                                string
 	Fixture                             string
 	Full, Partial                       witnessRepo
@@ -50,7 +53,7 @@ func witnessChild(raw string) int {
 		return 1
 	}
 	local := func(port int) string { return net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) }
-	allowed := map[string]bool{local(spec.Gen): true, local(spec.Guard): true, local(spec.Zetaris): true, local(spec.Daemon): true, local(spec.Canary): true}
+	allowed := map[string]bool{local(spec.Gen): true, local(spec.Guard): true, local(spec.Zetaris): true, local(spec.Daemon): true, local(spec.Canary): true, local(spec.Couch): true, local(spec.OTLP): true}
 	w, err := installWitness(func(target string) bool { return allowed[target] })
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -154,6 +157,45 @@ func witnessChild(raw string) int {
 		}
 	}
 	step("probe-public", probeErr)
+
+	// The CouchDB store and the OTLP exporters (ADR-0034). Each is built the way Open builds it, with
+	// the policy, and each connects to its loopback service; the service closes at once, so an error is
+	// expected and the witness's record of the connect is the proof.
+	couchEnv := map[string]string{
+		"PROVEN_NETWORK":          "local",
+		"PROVEN_COUCHDB_URL":      "http://" + local(spec.Couch),
+		"PROVEN_COUCHDB_USER":     "reviewer",
+		"PROVEN_COUCHDB_PASSWORD": "a-password-of-valid-length",
+	}
+	ccfg, cerr := store.LoadCouch(func(k string) string { return couchEnv[k] })
+	if cerr == nil {
+		_ = store.NewCouchDB(ccfg, nil).Register(ctx, store.Table{Name: "t", Columns: []string{"a"}})
+		// A public address in a store built by hand is refused by the dial check, before a connect.
+		bad := ccfg
+		bad.BaseURL = "https://203.0.113.9:5984"
+		if err := store.NewCouchDB(bad, nil).Register(ctx, store.Table{Name: "t", Columns: []string{"a"}}); err == nil {
+			cerr = fmt.Errorf("a register on a public CouchDB address succeeded")
+		}
+	}
+	step("couchdb", cerr)
+	otelEnv := map[string]string{
+		"PROVEN_NETWORK":              "local",
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "http://" + local(spec.OTLP),
+		"OTEL_METRIC_EXPORT_INTERVAL": "1000",
+	}
+	tel, oerr := telemetry.Setup(ctx, func(k string) string { return otelEnv[k] })
+	if oerr == nil {
+		rctx, rev := tel.StartReview(ctx)
+		rev.End(nil)
+		fctx, fcancel := context.WithTimeout(rctx, 5*time.Second)
+		_ = tel.Flush(fctx)
+		fcancel()
+		otelEnv["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://203.0.113.9:4318"
+		if _, err := telemetry.Setup(ctx, func(k string) string { return otelEnv[k] }); err == nil {
+			oerr = fmt.Errorf("a public OTLP endpoint was accepted")
+		}
+	}
+	step("otlp", oerr)
 
 	// A child Proven starts, asked about a host off the list: git as the offline mode runs it. The
 	// protocol switch refuses before git resolves the name, so no lookup reaches a local resolver. A host
@@ -294,7 +336,7 @@ func TestAirGappedWitnessSeesEveryConnection(t *testing.T) {
 	src, srcBase, srcHead := twoCommits(t)
 	spec := witnessSpec{
 		Gen: serving(t, "8088"), Guard: serving(t, "8081"), Zetaris: serving(t, "9"),
-		Daemon: accepting(t), Canary: accepting(t),
+		Daemon: accepting(t), Canary: accepting(t), Couch: accepting(t), OTLP: accepting(t),
 		Home:    t.TempDir(),
 		Fixture: filepath.Join(root, "testdata", "fixture", "discount"),
 		Full:    witnessRepo{full, fullBase, fullHead},
@@ -382,7 +424,7 @@ func TestAirGappedWitnessSeesEveryConnection(t *testing.T) {
 	case !strings.Contains(strings.Join(ipc, "\n"), "/ipc.sock") || !strings.Contains(strings.Join(resolvers, "\n"), "/nscd/socket"):
 		t.Errorf("the witness did not tell IPC from a resolver socket\nipc %v\nresolvers %v", ipc, resolvers)
 	}
-	for name, port := range map[string]int{"generator": spec.Gen, "guardrail": spec.Guard, "zetaris": spec.Zetaris} {
+	for name, port := range map[string]int{"generator": spec.Gen, "guardrail": spec.Guard, "zetaris": spec.Zetaris, "couchdb": spec.Couch, "otlp collector": spec.OTLP} {
 		addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 		if pid, ok := targets[addr]; !ok || pid != childPid {
 			t.Errorf("no connect by the review itself to the %s at %s (pid %q, child %s)", name, addr, pid, childPid)
