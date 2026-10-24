@@ -1,6 +1,7 @@
 // Command livecheck names each live service a review needs, before a demo.
 //
-// It checks the generator (Meterless Nightshift), the guardrail, Zetaris and
+// It checks the generator (Meterless Nightshift or NVIDIA's hosted API, by
+// PROVEN_GENERATOR_MODE), the guardrail, Zetaris and
 // the Prover's container runtime. It reads the same settings a live review
 // loads, sends one small call to each service, and prints one line for each.
 // A secret value is never printed.
@@ -35,7 +36,10 @@ const helpText = `livecheck checks every live service a review needs.
 
 One line per service, then a summary.
 A line is "ready" or "not ready: <reason>".
-The generator line names the routed model and the receipt id, or "none".
+The generator line names the mode (` + generator.EnvMode + `: nightshift or nvidia), the
+model and the receipt id, or "none"; in nvidia mode the receipt is "no receipt" and
+the line names the host the answer came from.
+A missing or rejected key is named on that line.
 The guardrail line names the verdict and the latency.
 Mode off is ready and prints "off by setting".
 The query line names the row count of one SELECT over the evidence view.
@@ -56,6 +60,12 @@ A secret value is never printed.
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 }
+
+// newLive builds the generator the check calls. The command uses the generator's
+// own client; a test replaces this to serve a recorded answer without a port,
+// because nvidia mode accepts only an https address. This file keeps off
+// net/http on purpose: only the adapters dial.
+var newLive = func(cfg generator.Settings) *generator.Live { return generator.NewLive(cfg, nil) }
 
 // check is one service's printed line and whether it is ready.
 type check struct {
@@ -104,14 +114,17 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	return exitReady
 }
 
-// checkGenerator sends one short prompt and names the routed model and the
-// receipt id the answer carried.
+// checkGenerator sends one short prompt and names the mode in use, the routed
+// model and the receipt id the answer carried. ADR-0031: it checks the provider
+// PROVEN_GENERATOR_MODE chooses, so a missing or rejected NVIDIA key is named
+// here before a review. It makes a completion rather than a model-list call,
+// because a list may be served without a key and would call a wrong key ready.
 func checkGenerator(env func(string) string) check {
 	cfg, err := generator.Load(env)
 	if err != nil {
 		return notReady("generator", err.Error())
 	}
-	live := generator.NewLive(cfg, nil)
+	live := newLive(cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
 	if _, err := live.Complete(ctx, "planner", "hello"); err != nil {
@@ -126,7 +139,13 @@ func checkGenerator(env func(string) string) check {
 			receipt = use.ReceiptID
 		}
 	}
-	return readyLine("generator", fmt.Sprintf("model %s, receipt %s", model, receipt))
+	detail := fmt.Sprintf("mode %s, model %s, receipt %s", cfg.Mode, model, receipt)
+	// ADR-0031 point 3: in nvidia mode the model field of the answer is the only
+	// statement of who answered, so the line names the host it was read from.
+	if cfg.Mode == generator.ModeNVIDIA {
+		detail += ", host " + cfg.BaseHost()
+	}
+	return readyLine("generator", detail)
 }
 
 // checkGuardrail checks one short prompt. Mode off is a setting, not a

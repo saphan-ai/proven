@@ -75,5 +75,16 @@ func redactEvidence(x Evidence, r *redact.Redactor) Evidence {
 		}
 		x.Query = &q
 	}
+	if x.Tool != nil {
+		// A tool's output is text from a checkout, so a secret in it is redacted
+		// the same way as a test's output (ADR-0005).
+		t := *x.Tool
+		t.Tool = r.Text(t.Tool)
+		t.Version = r.Text(t.Version)
+		t.Command = r.Text(t.Command)
+		t.Output = r.Text(t.Output)
+		t.BaseOutput = r.Text(t.BaseOutput)
+		x.Tool = &t
+	}
 	return x
 }

@@ -309,12 +309,105 @@ func (o Off) Run(ctx context.Context, _ Request) (Outcome, error) {
 	return Outcome{}, &service.Down{Service: "prover", Reason: o.Reason}
 }
 
+// RunFix reports the Prover down and starts nothing, as Run does.
+func (o Off) RunFix(ctx context.Context, _ FixRequest) (FixOutcome, error) {
+	if err := ctx.Err(); err != nil {
+		return FixOutcome{}, err
+	}
+	return FixOutcome{}, &service.Down{Service: "prover", Reason: o.Reason}
+}
+
 // Argv is the runtime's argument list for running the test command words in
 // dir: the whole sentence handed to the runtime, so a test can read every
 // property of the run. Run adds a unique --name so a timed-out container can
 // be removed.
 func (c *Container) Argv(dir string, test []string) []string {
 	return c.argv(dir, test, "")
+}
+
+// How one RunCommand ended. A timeout or a side that did not run is not a
+// result of the command (ADR-0040: a tool that runs out of time is named).
+const (
+	CommandPass      = "pass"
+	CommandFail      = "fail"
+	CommandNotRun    = "not-run"
+	CommandTimeout   = "timeout"
+	CommandCancelled = "cancelled"
+)
+
+// CommandResult is one run of a command Proven built, in one checkout.
+type CommandResult struct {
+	Output string
+	Status string
+}
+
+// WithTimeout returns a copy whose limit for one side is d.
+// ADR-0040: a tool's limit is its own setting and does not change the test
+// runner that shares this container. A non-positive d is refused: a zero
+// limit would make every run look timed out.
+func (c *Container) WithTimeout(d time.Duration) (*Container, error) {
+	if c == nil {
+		return nil, errors.New("testrun: no container")
+	}
+	if d <= 0 {
+		return nil, &ConfigError{
+			Field:   "Timeout",
+			Value:   d.String(),
+			Reason:  "the time limit is a positive duration; a run past it is not proof",
+			Allowed: []string{defaultTimeout.String()},
+		}
+	}
+	cp := *c
+	cp.cfg.Timeout = d
+	return &cp, nil
+}
+
+// RunCommand runs argv inside the locked-down container, with dir as the one
+// checkout. argv is the words after the image. There is no shell (ADR-0025).
+// A cancelled review returns the context error. A timeout is a result, not an
+// error: the caller names it and does not treat it as a clean run (ADR-0040).
+// An absent image is the Prover down.
+func (c *Container) RunCommand(ctx context.Context, dir string, argv []string) (CommandResult, error) {
+	if c == nil || c.runtime == "" {
+		return CommandResult{}, &service.Down{Service: "prover", Reason: "Prover off: no container runtime"}
+	}
+	if err := ctx.Err(); err != nil {
+		return CommandResult{}, err
+	}
+	if len(argv) == 0 {
+		return CommandResult{Status: CommandNotRun, Output: "refused: empty command"}, nil
+	}
+	if dir == "" {
+		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout directory is required"}, nil
+	}
+	// ADR-0025: a checkout that is a link is not a mount source.
+	if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout is a symbolic link and is not mounted"}, nil
+	}
+	text, kind := c.side(ctx, dir, argv)
+	if kind == kindCancelled {
+		return CommandResult{}, withRemoval(ctx.Err(), text)
+	}
+	if down := c.absentImage(text, kind); down != nil {
+		return CommandResult{}, down
+	}
+	return CommandResult{Output: text, Status: commandStatus(kind)}, nil
+}
+
+// commandStatus is the public name of one side's ending.
+func commandStatus(k runKind) string {
+	switch k {
+	case kindPass:
+		return CommandPass
+	case kindFail:
+		return CommandFail
+	case kindTimeout:
+		return CommandTimeout
+	case kindCancelled:
+		return CommandCancelled
+	default:
+		return CommandNotRun
+	}
 }
 
 // argv builds the run line. Each flag below carries out ADR-0025: --rm and
@@ -416,16 +509,9 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	out.Command = displayCommand(test)
 	// ADR-0025: a checkout that is a link is not a mount source. The runtime would follow it to
 	// whatever it names, which is not the tree that was prepared.
-	for _, dir := range []string{req.BaseDir, req.ChangeDir} {
-		if dir == "" {
-			continue
-		}
-		// The cleaned path is the one checked: a trailing slash makes Lstat follow
-		// the link, and the cleaned form is what names the mount source.
-		if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
-			out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
-			return out, nil
-		}
+	if linkedCheckout(req.BaseDir, req.ChangeDir) {
+		out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
+		return out, nil
 	}
 	if req.Content != "" {
 		// The written test goes into a copy of each checkout, so the caller's
@@ -467,6 +553,23 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 	return out, nil
 }
 
+// linkedCheckout reports whether any named checkout is a symbolic link. The runtime
+// would follow it to whatever it names, which is not the tree that was prepared.
+// An empty name is skipped: the caller refuses a missing directory on its own.
+func linkedCheckout(dirs ...string) bool {
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		// The cleaned path is the one checked: a trailing slash makes Lstat follow
+		// the link, and the cleaned form is what names the mount source.
+		if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // absentImage turns a run the runtime refused for lack of the image into the Prover down, with the
 // pull as its next act, the way Probe does. It returns nil for any other outcome. Docker says
 // "Unable to find image" and podman says "image not known"; --pull never makes both refuse
@@ -487,13 +590,24 @@ func (c *Container) absentImage(text string, kind runKind) error {
 
 // side runs the test command words in one checkout and classifies how it ended.
 func (c *Container) side(ctx context.Context, dir string, test []string) (string, runKind) {
+	text, kind, _ := c.sideExit(ctx, dir, test)
+	return text, kind
+}
+
+// noExit is the exit code reported for a side that ended without one: it timed
+// out, was cancelled, or the runtime could not be started.
+const noExit = -1
+
+// sideExit is side with the exit code of the command, which a fix's record keeps
+// so a reader can compare it with a run of their own (ADR-0042 point 7).
+func (c *Container) sideExit(ctx context.Context, dir string, test []string) (string, runKind, int) {
 	if err := ctx.Err(); err != nil {
-		return "", kindCancelled
+		return "", kindCancelled, noExit
 	}
 	host, err := filepath.Abs(dir)
 	// A colon would split the -v host:container:ro value into the wrong parts.
 	if err != nil || strings.Contains(host, ":") {
-		return "the test could not run: the checkout path cannot be one mount", kindNotRun
+		return "the test could not run: the checkout path cannot be one mount", kindNotRun, noExit
 	}
 	// A unique name lets remove find the container after a timeout or a cancel.
 	name := containerName()
@@ -505,28 +619,40 @@ func (c *Container) side(ctx context.Context, dir string, test []string) (string
 	// review is not reported as a timeout. Either way the container is removed,
 	// because killing the CLI does not stop the container it started.
 	if ctx.Err() != nil {
-		return joinRemoval(text, c.remove(name)), kindCancelled
+		return joinRemoval(text, c.remove(name)), kindCancelled, noExit
 	}
 	if runCtx.Err() != nil {
-		return joinRemoval(text, c.remove(name)), kindTimeout
+		return joinRemoval(text, c.remove(name)), kindTimeout, noExit
 	}
+	proof := isProofArgv(test)
 	if err == nil {
-		return text, kindPass
+		if !proof {
+			return text, kindPass, 0
+		}
+		// ADR-0042: exit code 0 is not enough; the output must show the test ran and passed.
+		shown, passed := judgeProof(test, text)
+		if !passed {
+			return shown, kindNotRun, 0
+		}
+		return shown, kindPass, 0
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
 		switch exit.ExitCode() {
 		case 125, 126, 127:
-			return text, kindNotRun
+			return text, kindNotRun, exit.ExitCode()
 		default:
-			return text, kindFail
+			if proof {
+				_, text = parseEvents(text)
+			}
+			return text, kindFail, exit.ExitCode()
 		}
 	}
 	// No exit status at all: the runtime could not be started, so the test did not run.
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
-	return text + err.Error(), kindNotRun
+	return text + err.Error(), kindNotRun, noExit
 }
 
 // remove asks the runtime to delete name. Its own context is cleanupBound

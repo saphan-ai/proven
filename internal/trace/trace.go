@@ -70,11 +70,25 @@ type Check struct {
 }
 
 // Evidence is one piece of proof stored with its finding. Kind says which of
-// Test or Query is set (ADR-0002: evidence is a test or a query).
+// Test, Query or Tool is set (ADR-0002: a test or a query; ADR-0040: a tool's run).
 type Evidence struct {
 	Kind  string         `json:"kind"`
 	Test  *TestEvidence  `json:"test,omitempty"`
 	Query *QueryEvidence `json:"query,omitempty"`
+	Tool  *ToolEvidence  `json:"tool,omitempty"`
+}
+
+// ToolEvidence is a deterministic tool's run on both sides (ADR-0040).
+// The bools are stored even when false, so a result the base already had
+// is visible and not mistaken for a missing field.
+type ToolEvidence struct {
+	Tool            string `json:"tool"`
+	Version         string `json:"version"`
+	Command         string `json:"command"`
+	Output          string `json:"output"`
+	BaseOutput      string `json:"base_output"`
+	PresentOnChange bool   `json:"present_on_change"`
+	PresentOnBase   bool   `json:"present_on_base"`
 }
 
 // TestEvidence is the prover outcome. Bools are stored even when false, so a
@@ -104,6 +118,10 @@ type Refutation struct {
 	Attempted bool   `json:"attempted"`
 	Refuted   bool   `json:"refuted"`
 	Reason    string `json:"reason"`
+	// Evidenced is set only when the refutation carries evidence of its own: a
+	// refuting test or contradicting query rows. Refuted alone is the model's
+	// word, and a store never learns from it.
+	Evidenced bool `json:"evidenced,omitempty"`
 }
 
 // Writer appends events to logs/trace.jsonl.

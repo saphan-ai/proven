@@ -155,7 +155,7 @@ Run the same command a second time in the same directory: the findings are the s
    `message`, `severity`, `path`, `start_line`, `end_line`), each agent's recorded answer (`responses`) and each test's
    outcome (`recorded_tests`: `path`, `name`, `command`, `fails_on_change`, `passes_on_base`, `output`). A recorded
    answer names a test by `path` and `name` only: an answer that carries a `command` is refused. The `command` of a
-   recorded test is the line Proven builds from them, `go test -run '^<name>$' ./<directory of path>`. Copy
+   recorded test is the line Proven builds from them, `go test -json -run '^<name>$' ./<directory of path>`. Copy
    `discount/fixture.json` and change it; the Planner's prompt hash (`planner_prompt_sha256`) must match the new trees,
    and a run with a stale hash stops and prints the hash it computed
    (`fixture: planner prompt sha256 is <hash>`); put that hash in the file.
@@ -165,10 +165,20 @@ Run the same command a second time in the same directory: the findings are the s
    The Investigator's and the Skeptic's recorded answers name a query template and its values, never SQL
    ([QUERIES.md](QUERIES.md)): `{"template":"kev-by-cve","params":{"cve_id":"CVE-2026-0001"}}`. An empty `template`
    means no query. A recorded answer is found by its agent and the exact prompt text the code builds, so after a change
-   to a prompt the recorded prompts are regenerated.
+   to a prompt the recorded prompts are regenerated. In every prompt the change's text and each model-written title
+   sit in one data section after the line `DATA:`, written as a single line of JSON, so no byte of the change can start
+   a new line, field or file record of the prompt itself. A query's rows count as evidence only when Proven ties them
+   to a package or an advisory the change is affected by; a recorded query for anything else keeps its rows on the
+   finding as context and the finding is dropped for lack of evidence.
+   A fixture that shows a fix (ADR-0042) adds two things. The Fixer's recorded answers (`responses`, agent `fixer`)
+   are a patch as a list of edits, `{"what":"…","why":"…","edits":[{"path":"…","old":"…","new":"…"}]}`; a retry's
+   prompt carries the failed attempt's record, so its recorded prompt is regenerated from a run. And `recorded_fixes`
+   lists the runs of each attempt (`finding_id`, `attempt` from 1, and `runs`, each with `label`, `command`, `result`,
+   `exit_code` and `output`). Sample mode still checks every recorded patch against the real trees: an edit whose old text
+   is not in the file once is refused as it would be live. A finding with no recorded Fixer answer shows no fix.
 4. Run `proven scan --sample testdata/fixture/<name>` from outside the repository, as above.
 
-The four scenarios below run the same way: from `/tmp/proven-run`, with the repository in `$OLDPWD` as in "Run it".
+The scenarios below run the same way: from `/tmp/proven-run`, with the repository in `$OLDPWD` as in "Run it".
 
 ## The scenario: `testdata/fixture/refuted`
 
@@ -260,8 +270,114 @@ finding osv:example.com/widget ERROR Dependency example.com/widget v1.4.0 is in 
   SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-4242'
   columns: cve_id, epss, percentile, score_date
   row: CVE-2026-4242 | 0.42000 | 0.91000 | 2026-10-21
+  fix named from the advisory table, not run by a test: raise example.com/widget v1.4.0 to 1.5.0
+  fix closes the problem because: 1.5.0 is the fixed version of advisory GHSA-w19-sample-0001, and it is the smallest fixed version of the rows returned that no affected range of those rows holds. No test proves a version change, so this fix is named from the table, not run.
+  fix advisory GHSA-w19-sample-0001 columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  fix advisory row: GHSA-w19-sample-0001 | CVE-2026-4242 | Go | example.com/widget | 1.3.0 | 1.5.0 |  | HIGH | 2026-04-01
 failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
+```
+
+The last four lines are the dependency fix (ADR-0042 point 5): the smallest fixed version, taken from the advisory rows
+the query returned, with the row that shows it. Proven compares versions in Go, never in SQL, and no model names the
+version. When no row names a fixed version (an advisory with only a last-affected bound), the review says so instead of
+guessing the next version.
+
+## The scenario: `testdata/fixture/fix`
+
+Two findings, each proved by a test that fails on the change and passes on the base. F1 is `Discounted` taking the
+percent off twice. F2 is `shipping.Fee` returning 0 for every order. The recorded model answers a patch for each, and the
+recorded runs are what a container run printed: the fixture's `recorded_fixes` were made by running the real
+`go test` commands on copies of the trees (a container run is the one thing sample mode does not do).
+
+```bash
+/tmp/proven scan --sample "$OLDPWD/testdata/fixture/fix"
+```
+
+Output for F1, whose patch is proved on the first attempt (exit code 0):
+
+```text
+finding F1 ERROR Discount is applied twice
+  billing/discount.go:5-5
+  Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.
+  rule discount-applied-twice
+  evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true
+  command: go test -json -run '^TestDiscounted$' ./billing
+  output: base: PASS
+change: FAIL got 60 want 80
+  fix proved after 1 attempt: a suggestion for you to apply; Proven changes nothing
+  fix changes: Subtract the discount once.
+  fix closes the problem because: Discounted took the percent off twice, so 100 cents at 20 percent came to 60. Taking it off once gives 80.
+  fix edit billing/discount.go
+  - return cents - cents*percent/100 - cents*percent/100
+  + return cents - cents*percent/100
+  fix run base: go test -json -run '^TestDiscounted$' ./billing exit=0 passed
+  fix run change: go test -json -run '^TestDiscounted$' ./billing exit=1 failed
+  fix run change+patch: go test -json -run '^TestDiscounted$' ./billing exit=0 passed
+  fix run package on change+patch: go test -json ./billing exit=0 passed
+```
+
+The four `fix run` lines are the validation steps: each has the command, its exit code and how it ended, so a reader can
+run them again. The patch is a suggestion for a person to apply; nothing in the review is written to the change.
+
+Output for F2, whose first patch (`return 50`) fails the proving test, and whose retry (`return 500`) makes it pass and
+breaks `TestFreeShipping` in the same package. The model got the failed run's output with its retry:
+
+```text
+finding F2 ERROR Shipping is always free
+  shipping/shipping.go:5-5
+  Fee returns 0 for every order, so an order of 1000 cents pays no shipping instead of 500.
+  rule shipping-fee-dropped
+  evidence test shipping/shipping_test.go TestFee fails_on_change=true passes_on_base=true
+  command: go test -json -run '^TestFee$' ./shipping
+  output: base: PASS
+change: FAIL got 0 want 500
+  fix not proved after 2 attempts: the patch breaks another test of the package
+  fix run base: go test -json -run '^TestFee$' ./shipping exit=0 passed
+  fix run change: go test -json -run '^TestFee$' ./shipping exit=1 failed
+  fix run change+patch: go test -json -run '^TestFee$' ./shipping exit=0 passed
+  fix run package on change+patch: go test -json ./shipping exit=1 failed
+```
+
+A run counts as passed only when its output shows the named test ran and passed (ADR-0042). Every proof run is
+`go test -json`, and a run that exits 0 without a pass event for the test is recorded as not run. The sample applies the
+same rule to a recorded run: its output must hold a `--- PASS:` line for the test, and a package run an `ok` line too.
+
+A patch that is not proved is not shown: there is no `fix edit` for F2, only the record of the last attempt. Two settings
+in `proven.yaml` change this ([CONFIGURATION.md](CONFIGURATION.md)): `fixes: off` shows no fix at all, and
+`fix_attempts: 1` ends F2 after its first patch.
+
+## The scenario: `testdata/fixture/osv-php-composer`
+
+`composer.json` and `composer.lock` raise `monolog/monolog` from 2.0.0 to 2.9.1. 2.9.1 is inside one sample OSV range and outside another. The lock file's version is the one reported. The alias `CVE-2026-9090` has an EPSS row. The row for `other/unused` is not returned.
+
+The lines below are the stdout of `scan --sample testdata/fixture/osv-php-composer`, captured on 24 October 2026 with Go 1.26.8 by the scenario test, which runs that command. The trace path is the directory the scan starts from, so it is not copied here.
+
+```text
+review class: security
+review rule: composer.json
+author model not stated; default reviewer NVIDIA
+reviewer NVIDIA; role default; family NVIDIA; author model not stated
+special-review model: not configured
+finding osv:monolog/monolog ERROR Dependency monolog/monolog 2.9.1 is in an OSV affected range
+  EPSS 0.25000 (91st percentile, 2026-10-24)
+  composer.lock:5-5
+  monolog/monolog 2.9.1 matches GHSA-php-sample-0001: introduced 2.4.0 <= 2.9.1 < fixed 2.10.0. GHSA-php-sample-0002 does not match: 2.9.1 < introduced 3.0.0. alias CVE-2026-9090 is on the KEV list
+  rule osv-affected-package
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Packagist' AND package = 'monolog/monolog'
+  columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  row: GHSA-php-sample-0001 | CVE-2026-9090 | Packagist | monolog/monolog | 2.4.0 | 2.10.0 |  | HIGH | 2026-10-01
+  row: GHSA-php-sample-0002 |  | Packagist | monolog/monolog | 3.0.0 | 3.1.0 |  | LOW | 2026-10-02
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-9090'
+  columns: cve_id, vendor_project, product, date_added, known_ransomware
+  row: CVE-2026-9090 | example.com | monolog | 2026-10-24 | Unknown
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-9090'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-9090 | 0.25000 | 0.91000 | 2026-10-24
+failed services: none
 ```
 
 ## The scenario: `testdata/fixture/unknown-author`

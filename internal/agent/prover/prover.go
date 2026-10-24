@@ -37,7 +37,11 @@ const (
 
 // Prompt asks which test would prove one risk.
 func Prompt(id, title string) string {
-	return answer.Instruct(testSpec, "id: "+id+"\ntitle: "+title+"\n")
+	// The title is model text shaped by the change, so it enters as data.
+	return answer.Instruct(testSpec, answer.Encode(struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}{id, title}))
 }
 
 // row is the test as the model returns it. The prompt does not ask for Command.
@@ -155,7 +159,11 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 		return c, nil
 	}
 	if out.FailsOnChange && out.PassesOnBase {
-		c.Evidence = append(c.Evidence, testEvidence(out))
+		ev := testEvidence(out)
+		// ADR-0042: the Fixer runs this same test again on a patched change, so the
+		// evidence keeps the file the model wrote.
+		ev.Test.Content = got.Content
+		c.Evidence = append(c.Evidence, ev)
 		return c, nil
 	}
 	// The passes-on-base check. A written test that passed on the base did not

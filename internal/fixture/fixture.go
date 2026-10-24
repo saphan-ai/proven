@@ -32,6 +32,7 @@ type Fixture struct {
 	Snapshot  string
 	Answers   []generator.Response
 	Tests     []testrun.Recorded
+	Fixes     []testrun.RecordedFix
 	Tables    string
 	Guardrail []guardrail.Record // empty means the sample review answers safe
 }
@@ -55,6 +56,19 @@ type file struct {
 		FailsOnChange bool   `json:"fails_on_change"`
 		PassesOnBase  bool   `json:"passes_on_base"`
 	} `json:"recorded_tests"`
+	// RecordedFixes are the runs of each attempt to prove a fix, keyed by finding and attempt.
+	// Optional: a fixture with none proposes no fix that was run.
+	RecordedFixes []struct {
+		FindingID string `json:"finding_id"`
+		Attempt   int    `json:"attempt"`
+		Runs      []struct {
+			Label    string `json:"label"`
+			Command  string `json:"command"`
+			Result   string `json:"result"`
+			ExitCode int    `json:"exit_code"`
+			Output   string `json:"output"`
+		} `json:"runs"`
+	} `json:"recorded_fixes"`
 	// Guardrail is optional. agent "planner" with an empty prompt binds the
 	// planner prompt of these trees. A fixture with no records answers safe.
 	Guardrail []struct {
@@ -114,6 +128,19 @@ func Load(root string) (*Fixture, error) {
 			Output: r.Output, FailsOnChange: r.FailsOnChange, PassesOnBase: r.PassesOnBase,
 		})
 	}
+	fixes := make([]testrun.RecordedFix, 0, len(f.RecordedFixes))
+	for _, r := range f.RecordedFixes {
+		if r.Attempt < 1 {
+			return nil, fmt.Errorf("fixture: a recorded fix of %s has no attempt number", r.FindingID)
+		}
+		rec := testrun.RecordedFix{FindingID: r.FindingID, Attempt: r.Attempt}
+		for _, run := range r.Runs {
+			rec.Runs = append(rec.Runs, testrun.FixRun{
+				Label: run.Label, Command: run.Command, Result: run.Result, ExitCode: run.ExitCode, Output: run.Output,
+			})
+		}
+		fixes = append(fixes, rec)
+	}
 	// The sample tables must exist now, not fail later in the Investigator.
 	tables := filepath.Join(root, "tables.sql")
 	if _, err := os.Stat(tables); err != nil {
@@ -134,6 +161,6 @@ func Load(root string) (*Fixture, error) {
 		})
 	}
 	return &Fixture{
-		Root: root, Snapshot: f.Snapshot, Answers: answers, Tests: tests, Tables: tables, Guardrail: rails,
+		Root: root, Snapshot: f.Snapshot, Answers: answers, Tests: tests, Fixes: fixes, Tables: tables, Guardrail: rails,
 	}, nil
 }

@@ -45,7 +45,8 @@ func TestInRange(t *testing.T) {
 
 // TestInRangeEcosystem proves that npm compares semantic versions, that PyPI
 // compares PEP 440 and refuses dev, epoch and local versions with a
-// sentence, that a bound which does not parse is named, and that an
+// sentence, that Packagist compares the Composer subset and names a
+// constraint, that a bound which does not parse is named, and that an
 // unknown ecosystem is not compared.
 func TestInRangeEcosystem(t *testing.T) {
 	cases := []struct {
@@ -69,6 +70,8 @@ func TestInRangeEcosystem(t *testing.T) {
 		{name: "pypi local is not compared", ecosystem: "PyPI", version: "1.0+local", introduced: "0", want: false, sentence: "1.0+local has a local version; this check does not compare it"},
 		{name: "pypi unparsed", ecosystem: "PyPI", version: "latest", introduced: "1.0", want: false, sentence: "latest is not a release, pre-release or post-release"},
 		{name: "pypi bad introduced", ecosystem: "PyPI", version: "1.0", introduced: "1.0.dev1", want: false, sentence: "introduced 1.0.dev1 has a dev release; this check does not compare it"},
+		{name: "packagist rc below the release", ecosystem: "Packagist", version: "1.0.0-RC1", introduced: "1.0.0-RC1", fixed: "1.0.0", want: true, sentence: "introduced 1.0.0-RC1 <= 1.0.0-RC1 < fixed 1.0.0"},
+		{name: "packagist constraint is not a version", ecosystem: "Packagist", version: "^1.2", introduced: "1.0.0", want: false, sentence: "^1.2 is a constraint; this check compares one Composer version"},
 		{name: "unknown ecosystem", ecosystem: "Maven", version: "1.0", introduced: "0", want: false, sentence: "ecosystem Maven has no version comparison"},
 	}
 	for _, tc := range cases {

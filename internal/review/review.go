@@ -100,26 +100,27 @@ type Result struct {
 	Findings []Finding // only findings with evidence (ADR-0002); unresolved ones are marked and counted
 	// ProofCounts counts Findings by ProofLevel (ADR-0044 point 3). Every level is a key, with 0
 	// when none; the counts add up to len(Findings). Findings, unresolved ones included, keep their meaning.
-	ProofCounts        map[ProofLevel]int
-	FailedServices     []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
-	Models             []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
-	Partial            bool             // the deadline was reached
-	TracePath          string           // the JSONL trace in LogDir
-	Class              string           // review class the path rules chose (ADR-0012, ADR-0014)
-	ClassRule          string           // path pattern that chose Class, or "fallback"
-	Doubled            bool             // Class is one of the doubled classes
-	DefaultReviewer    string           // configured default reviewer
-	SpecialReviewer    string           // configured special-review model; empty means not configured
-	ReviewerModels     []string         // models this review uses, the default reviewer first
-	ReviewerStatements []string         // one line per reviewer, plus a line when the special model is not configured
+	ProofCounts          map[ProofLevel]int
+	FailedServices       []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
+	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
+	Partial              bool             // the deadline was reached
+	TracePath            string           // the JSONL trace in LogDir
+	Class                string           // review class the path rules chose (ADR-0012, ADR-0014)
+	ClassRule            string           // path pattern that chose Class, or "fallback"
+	Doubled              bool             // Class is one of the doubled classes
+	DefaultReviewer      string           // configured default reviewer
+	SpecialReviewer      string           // configured special-review model; empty means not configured
+	ReviewerModels       []string         // models this review uses, the default reviewer first
+	ReviewerStatements   []string         // one line per reviewer, plus a line when the special model is not configured
+	AuthorModels         []AuthorModel    // models the change named; empty means none were stated
+	AuthorModelStatement string           // "author model not stated" when the change names no model
+	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
+	GuardrailStatement   string           // set when the guardrail was switched off for this review; empty when it was on
 	// Reviewers names each reviewer that took part, the default one first, with whether it is the
 	// author's own model (ADR-0037 point 5). The shell renders from it, not from the statements.
 	Reviewers []ReviewerInfo
 	// Disagreements counts the findings whose Disagree is true (ADR-0037 point 4).
-	Disagreements        int
-	AuthorModels         []AuthorModel // models the change named; empty means none were stated
-	AuthorModelStatement string        // "author model not stated" when the change names no model
-	SettingsStatement    string        // set when the change edits proven.yaml; empty otherwise
+	Disagreements int
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
@@ -168,7 +169,7 @@ const (
 	// ProvedByTest: a test fails on the change and passes on the base (ADR-0002).
 	ProvedByTest ProofLevel = "proved-by-test"
 	// ProvedByTool: a deterministic tool's result differs between base and change (ADR-0040).
-	// No evidence kind sets it yet; the ADR-0040 wagon adds the kind and the rule in ProofLevelOf.
+	// EvidenceTool is the kind that sets it, in ProofLevelOf.
 	ProvedByTool ProofLevel = "proved-by-tool"
 	// ProvedByData: a query and the rows it returned (ADR-0002).
 	ProvedByData ProofLevel = "proved-by-data"
@@ -201,6 +202,9 @@ func ProofLevelOf(ev []Evidence) (ProofLevel, error) {
 		switch e.Kind {
 		case EvidenceTest:
 			got = ProvedByTest
+		case EvidenceTool:
+			// ADR-0040: a tool's run sits between a test and a query in strength (ADR-0044).
+			got = ProvedByTool
 		case EvidenceQuery:
 			got = ProvedByData
 		default:
@@ -247,6 +251,68 @@ type Finding struct {
 	// Disagree is true when the reviewers who answered gave different verdicts. A reviewer that did not
 	// answer (VerdictNoAnswer) is not a disagreement.
 	Disagree bool
+	// Fix is the fix Proven proposes for the finding, or nil when it proposed none (ADR-0042).
+	// It is a suggestion for a person to apply; Proven never writes it to the change.
+	Fix *Fix
+}
+
+// The kinds of Fix.
+const (
+	// FixPatch is a patch to the change, proved by the test that proved the finding.
+	FixPatch = "patch"
+	// FixDependency is a version of a package that leaves the advisory's affected range.
+	FixDependency = "dependency"
+)
+
+// Fix is a proposed fix for one finding (ADR-0042).
+// A patch is shown (Edits) only when Proved is true: it passed the proving test on the change with
+// the patch applied, the test failed on the change and passed on the base, and the other tests of the
+// package still passed. A patch that was not proved carries no Edits, and Note says the attempt failed.
+// Runs is the record of the proof, with the command and exit code of each run, so a reader can run it
+// again (point 7). A dependency fix has Dependency set and no Runs: no test proves a version change.
+type Fix struct {
+	Kind     string
+	Proved   bool
+	Attempts int
+	// What the fix changes and Why that closes the problem, as the model explained it.
+	What       string
+	Why        string
+	Edits      []FixEdit
+	Runs       []FixRun
+	Note       string
+	Dependency *DependencyFix
+}
+
+// FixEdit is one edit of a proposed patch: the one place where Old stands in the file at Path is
+// replaced by New. It is the whole patch in a form a person can apply by hand.
+type FixEdit struct {
+	Path string
+	Old  string
+	New  string
+}
+
+// FixRun is one run of the proof of a fix. Label names the tree it ran in (base, change,
+// change+patch, or the package on change+patch) and Result how it ended: passed, failed,
+// could not run or timed out. ExitCode is -1 when the run ended without one.
+type FixRun struct {
+	Label    string
+	Command  string
+	Result   string
+	ExitCode int
+	Output   string
+}
+
+// DependencyFix is the smallest version of Package that leaves the advisory's affected range (point 5).
+// AdvisoryColumns and AdvisoryRow are the row of the OSV table whose fixed version To is, so a reader
+// can check the choice against the table.
+type DependencyFix struct {
+	Ecosystem       string
+	Package         string
+	From            string
+	To              string
+	AdvisoryID      string
+	AdvisoryColumns []string
+	AdvisoryRow     []string
 }
 
 // Location is where a finding is.
@@ -256,17 +322,34 @@ type Location struct {
 	EndLine   int
 }
 
-// Evidence kinds. candidate.KindTest and candidate.KindQuery carry the same strings.
+// Evidence kinds. candidate.KindTest, candidate.KindQuery and candidate.KindTool
+// carry the same strings.
 const (
 	EvidenceTest  = "test"
 	EvidenceQuery = "query"
+	// EvidenceTool is a deterministic tool's run compared between base and change (ADR-0040).
+	EvidenceTool = "tool"
 )
 
-// Evidence is a test or a query with its rows (ADR-0002).
+// Evidence is a test, a query with its rows (ADR-0002), or a tool's run (ADR-0040).
 type Evidence struct {
-	Kind  string         // EvidenceTest or EvidenceQuery
+	Kind  string         // EvidenceTest, EvidenceQuery or EvidenceTool
 	Test  *TestEvidence  // set when Kind is EvidenceTest
 	Query *QueryEvidence // set when Kind is EvidenceQuery
+	Tool  *ToolEvidence  // set when Kind is EvidenceTool
+}
+
+// ToolEvidence is a deterministic tool's run on the base and the change (ADR-0040).
+// PresentOnChange and PresentOnBase are both stored, so a reader can see a
+// result the base already had and not mistake it for proof of the change.
+type ToolEvidence struct {
+	Tool            string
+	Version         string
+	Command         string
+	Output          string // the change side, the output that differs
+	BaseOutput      string
+	PresentOnChange bool
+	PresentOnBase   bool
 }
 
 // TestEvidence is a test that fails on the change and passes on the base.

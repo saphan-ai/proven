@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-
-	"github.com/saphan-ai/proven/internal/service"
 )
 
 // liveBuilt counts live clients NewLive has constructed in this process.
@@ -110,11 +108,12 @@ type chatMessage struct {
 
 // Complete sends one streamed chat completion.
 // An empty answer is tried once more. A wrong token, a timeout, an
-// unreachable endpoint, or a second empty answer is a named nightshift failure.
-// A routed model outside nvidia/* is refused when this agent requires NVIDIA.
+// unreachable endpoint, or a second empty answer is a named failure of the
+// provider in use (nightshift or nvidia).
+// A model outside nvidia/* is refused when this agent requires NVIDIA.
 func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, error) {
 	if l == nil || l.client == nil || l.cfg.Token == "" || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
-		return "", down("not configured")
+		return "", l.down("not configured")
 	}
 	// Clear the last use first, so a failed call never reports the model of the call before it.
 	l.has = false
@@ -132,7 +131,7 @@ func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, erro
 			return "", err
 		}
 		if strings.TrimSpace(text) == "" {
-			return "", down("empty answer")
+			return "", l.down("empty answer")
 		}
 	}
 	return l.finish(agent, text, meta)
@@ -142,7 +141,7 @@ func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, erro
 // A review does not call it. The completion itself is the call a review makes.
 func (l *Live) Models(ctx context.Context) error {
 	if l == nil || l.client == nil || l.cfg.Token == "" || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
-		return down("not configured")
+		return l.down("not configured")
 	}
 	// parent is kept so a cancellation by the caller is told apart from this call's own timeout.
 	parent := ctx
@@ -150,29 +149,37 @@ func (l *Live) Models(ctx context.Context) error {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint(l.cfg.BaseURL, "/models"), nil)
 	if err != nil {
-		return down("not configured")
+		return l.down("not configured")
 	}
 	l.authorize(req)
 	resp, err := l.client.Do(req)
 	if err != nil {
-		return classify(parent, ctx, err)
+		return l.classify(parent, ctx, err)
 	}
 	defer resp.Body.Close()
 	discard(resp.Body)
-	if resp.StatusCode == http.StatusUnauthorized {
-		return down("unauthorized")
+	if l.rejectsKey(resp.StatusCode) {
+		return l.down("unauthorized")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return down(httpReason(resp.StatusCode))
+		return l.down(httpReason(resp.StatusCode))
 	}
 	return nil
 }
 
+// NoReceipt is the receipt id a call carries in nvidia mode. The hosted API
+// signs nothing, so the trace says so instead of inventing an id (ADR-0031
+// point 3). FromReceipt is false beside it.
+const NoReceipt = "no receipt"
+
 // finish records the model that answered and applies the NVIDIA check.
-// ADR-0019 point 4: the check reads the receipt, because Nightshift does not
-// obey the model a request names. With no receipt the model is "unknown" and
-// the answer is kept here.
+// ADR-0019 point 4: in nightshift mode the check reads the receipt, because
+// Nightshift does not obey the model a request names. With no receipt the model
+// is "unknown" and the answer is kept here unless NVIDIA is required.
 func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
+	if l.cfg.Mode == ModeNVIDIA {
+		return l.finishHosted(agent, text, meta)
+	}
 	use := Use{Model: "unknown", Route: meta.route, ReceiptID: meta.receipt}
 	if meta.model != "" {
 		use.Model = meta.model
@@ -188,10 +195,41 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	// With no receipt the model cannot be shown to be NVIDIA's, so it is refused
 	// the same way as a non-NVIDIA model.
 	if !use.FromReceipt {
-		return "", down("answer carries no receipt, refused: the model cannot be shown to be NVIDIA's")
+		return "", l.down("answer carries no receipt, refused: the model cannot be shown to be NVIDIA's")
 	}
 	if !nvidiaModel(use.Model) {
-		return "", down("answered by " + use.Model + ", refused: not an NVIDIA model")
+		return "", l.down("answered by " + use.Model + ", refused: not an NVIDIA model")
+	}
+	return text, nil
+}
+
+// finishHosted is finish for nvidia mode (ADR-0031, the master's ruling of
+// 2026-10-24). The two modes differ on purpose. Nightshift is a router: it may
+// answer with a model other than the one asked for, so ADR-0019 point 4 trusts
+// only its signed receipt and refuses an answer without one. Here Proven calls
+// NVIDIA directly and no router stands between, so the `model` field of the
+// hosted API's own response is the only statement of who answered. It is kept
+// as the answering model, recorded with NoReceipt, and the nvidia/* requirement
+// is checked against it. A response that names no model cannot be shown to be
+// NVIDIA's and is refused where NVIDIA is required.
+func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error) {
+	// Route carries the host the answer came from, so the trace's model event
+	// names where the trusted model field was read.
+	use := Use{Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt}
+	if meta.chunkModel != "" {
+		use.Model = meta.chunkModel
+	}
+	// The use is recorded before the check, so a refused answer still names its model in the trace.
+	l.last = use
+	l.has = true
+	if !l.cfg.requiresNVIDIA(agent) {
+		return text, nil
+	}
+	if use.Model == "unknown" {
+		return "", l.down("answer names no model, refused: the model cannot be shown to be NVIDIA's")
+	}
+	if !nvidiaModel(use.Model) {
+		return "", l.down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
 	return text, nil
 }
@@ -220,67 +258,74 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint(l.cfg.BaseURL, "/chat/completions"), bytes.NewReader(payload))
 	if err != nil {
-		return "", streamMeta{}, down("not configured")
+		return "", streamMeta{}, l.down("not configured")
 	}
 	l.authorize(req)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	resp, err := l.client.Do(req)
 	if err != nil {
-		return "", streamMeta{}, classify(parent, ctx, err)
+		return "", streamMeta{}, l.classify(parent, ctx, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized {
+	if l.rejectsKey(resp.StatusCode) {
 		discard(resp.Body)
 		// A wrong token is not retried: the next call would be refused the same way.
-		return "", streamMeta{}, down("unauthorized")
+		return "", streamMeta{}, l.down("unauthorized")
 	}
 	if resp.StatusCode != http.StatusOK {
 		discard(resp.Body)
-		return "", streamMeta{}, down(httpReason(resp.StatusCode))
+		return "", streamMeta{}, l.down(httpReason(resp.StatusCode))
 	}
 	meta, err := parseStream(resp.Body)
 	if err != nil {
 		// A stream cut by the caller's cancellation returns that cancellation,
-		// not a Nightshift failure.
+		// not a provider failure.
 		if parent.Err() != nil {
 			return "", streamMeta{}, parent.Err()
 		}
-		var d *service.Down
-		if errors.As(err, &d) {
-			return "", streamMeta{}, err
-		}
+		// The deadline is checked before the stream's own fault on purpose: a body
+		// cut by this call's deadline can end on a half event, and the cause worth
+		// naming is the timeout, not the fragment it left.
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return "", streamMeta{}, down("timeout")
+			return "", streamMeta{}, l.down("timeout")
 		}
-		return "", streamMeta{}, down("bad stream")
+		return "", streamMeta{}, l.down("bad stream")
 	}
 	return meta.text, meta, nil
 }
 
-// authorize sets the headers of Nightshift's app contract: the token, the app
-// name that selects the operator's routing mode, and the user scope.
+// authorize sets the request's headers. Nightshift's app contract adds the app
+// name that selects the operator's routing mode, and the user scope; the hosted
+// API takes the key as a bearer token and nothing else, so those headers are
+// not sent to it.
 func (l *Live) authorize(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+l.cfg.Token)
 	// ADR-0037: a second reviewer is any OpenAI-compatible server, which knows nothing of
 	// Nightshift's routing headers; sending them would tell a third party our app name.
-	if l.cfg.plain {
+	if l.cfg.Mode == ModeNVIDIA || l.cfg.plain {
 		return
 	}
 	req.Header.Set("meterless-app", l.cfg.App)
 	req.Header.Set("meterless-scope", "user")
 }
 
+// rejectsKey reports whether status says the credential was refused. The hosted
+// API answers a wrong or unauthorised key with 403 as well as 401.
+func (l *Live) rejectsKey(status int) bool {
+	return status == http.StatusUnauthorized || (l.cfg.Mode == ModeNVIDIA && status == http.StatusForbidden)
+}
+
 // classify names a failed request: the caller's cancellation, a timeout, or an
 // unreachable endpoint.
-func classify(parent, ctx context.Context, err error) error {
+func (l *Live) classify(parent, ctx context.Context, err error) error {
 	if parent.Err() != nil {
 		return parent.Err()
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) || timedOut(err) {
-		return down("timeout")
+		return l.down("timeout")
 	}
-	return down("unreachable")
+	return l.down("unreachable")
 }
 
 // timedOut reports whether err says it is a timeout, as net errors do.
@@ -291,5 +336,9 @@ func timedOut(err error) bool {
 
 // httpReason names an unexpected HTTP status without the body, which may be large or echo the request.
 func httpReason(code int) string {
+	// ADR-0031: a free NVIDIA key is rate limited, and the review must name that rather than a bare status.
+	if code == http.StatusTooManyRequests {
+		return "http 429, rate limited"
+	}
 	return "http " + strconv.Itoa(code)
 }
