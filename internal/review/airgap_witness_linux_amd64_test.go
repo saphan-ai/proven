@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -49,7 +51,7 @@ func witnessChild(raw string) int {
 	}
 	local := func(port int) string { return net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) }
 	allowed := map[string]bool{local(spec.Gen): true, local(spec.Guard): true, local(spec.Zetaris): true, local(spec.Daemon): true, local(spec.Canary): true}
-	w, err := installWitness(func(target string) bool { return allowed[target] || strings.HasPrefix(target, "unix:") })
+	w, err := installWitness(func(target string) bool { return allowed[target] })
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -153,12 +155,69 @@ func witnessChild(raw string) int {
 	}
 	step("probe-public", probeErr)
 
+	// A child Proven starts, asked about a host off the list: git as the offline mode runs it. The
+	// protocol switch refuses before git resolves the name, so no lookup reaches a local resolver. A host
+	// lookup the witness did see would be a resolver socket (refused) followed by a DNS connect (a
+	// network record), so the test reads this window for network records.
+	prev := change.UseOffline(true)
+	mark := len(w.records())
+	for _, url := range []string{"git://offlist.example.invalid/x.git", "https://offlist.example.invalid/x.git"} {
+		_ = change.GitCommand("ls-remote", url).Run()
+	}
+	change.UseOffline(prev)
+	fmt.Fprintf(out, "window %d %d\n", mark, len(w.records()))
+
+	// The double of a local resolver: a socket where nscd's lives, and a plain IPC socket. A host
+	// running nscd shows the same record from a child's own passwd lookup; this one is made on purpose,
+	// so a seat without the daemon still sees the witness tell the three kinds apart.
+	if err := resolverDouble(spec.Home); errors.Is(err, errNoUnixSockets) {
+		fmt.Fprintf(out, "step resolver-double unrun %s\n", strings.ReplaceAll(err.Error(), "\n", " "))
+	} else {
+		step("resolver-double", err)
+	}
+
 	// The witness's own account, in the order the calls were made.
 	for _, r := range w.records() {
-		fmt.Fprintf(out, "connect pid=%d allowed=%v %s\n", r.Pid, r.Allowed, r.Target)
+		fmt.Fprintf(out, "connect pid=%d allowed=%v kind=%s %s\n", r.Pid, r.Allowed, r.Kind, r.Target)
 	}
 	fmt.Fprintln(out, "done")
 	return 0
+}
+
+var errNoUnixSockets = errors.New("this seat refuses unix sockets")
+
+// resolverDouble listens on unix sockets at <home>/nscd/socket and <home>/ipc.sock and dials both from
+// this process. The first is refused by the witness, the second continues.
+func resolverDouble(home string) error {
+	if err := os.MkdirAll(filepath.Join(home, "nscd"), 0o700); err != nil {
+		return err
+	}
+	for _, path := range []string{filepath.Join(home, "nscd", "socket"), filepath.Join(home, "ipc.sock")} {
+		ln, err := net.Listen("unix", path)
+		if err != nil {
+			// A seat that refuses unix sockets cannot make the double. The unit test of connectKind
+			// still judges the classification there; this step says it did not run.
+			return fmt.Errorf("%w: %v", errNoUnixSockets, err)
+		}
+		defer ln.Close()
+		go func() {
+			for {
+				c, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				c.Close()
+			}
+		}()
+		c, err := net.Dial("unix", path)
+		if c != nil {
+			c.Close()
+		}
+		if strings.HasSuffix(path, "/nscd/socket") == (err == nil) {
+			return fmt.Errorf("dial of %s: %v", path, err)
+		}
+	}
+	return nil
 }
 
 // accepting listens on a loopback port, takes each connection and closes it. It is a service that
@@ -262,32 +321,67 @@ func TestAirGappedWitnessSeesEveryConnection(t *testing.T) {
 		t.Fatalf("the child did not finish\n%s", report)
 	}
 	var childPid string
-	targets := map[string]string{} // target -> pid of its first connect
+	targets := map[string]string{} // network target -> pid of its first connect
+	var ipc, resolvers []string    // unix sockets the processes connected to
+	var window [2]int              // records made while git was asked about hosts off the list
+	var n int                      // index of the connect record being read
 	for _, line := range strings.Split(report, "\n") {
 		switch {
 		case strings.HasPrefix(line, "pid "):
 			childPid = strings.TrimPrefix(line, "pid ")
+		case strings.HasPrefix(line, "window "):
+			fmt.Sscanf(line, "window %d %d", &window[0], &window[1])
 		case strings.HasPrefix(line, "step ") && strings.Contains(line, " FAIL "):
 			t.Errorf("%s", line)
 		case strings.HasPrefix(line, "connect "):
 			f := strings.Fields(line)
-			if len(f) != 4 {
+			if len(f) != 5 {
 				t.Errorf("record %q", line)
 				continue
 			}
+			index := n
+			n++
+			kind, target := strings.TrimPrefix(f[3], "kind="), f[4]
+			switch kind {
+			case kindIPC:
+				// Local IPC names no host. It is listed, and judged by nothing else.
+				ipc = append(ipc, f[1]+" "+target)
+				continue
+			case kindResolver:
+				// A local resolver's socket was refused. Whatever the process wanted, it must now
+				// resolve for itself, and that is a network record the checks below read.
+				resolvers = append(resolvers, f[1]+" "+target)
+				continue
+			}
 			if f[2] != "allowed=true" {
-				t.Errorf("a connection the witness refused: %s", line)
+				t.Errorf("a connect the witness refused: %s", line)
 			}
-			if _, ok := targets[f[3]]; !ok {
-				targets[f[3]] = strings.TrimPrefix(f[1], "pid=")
+			if _, ok := targets[target]; !ok {
+				targets[target] = strings.TrimPrefix(f[1], "pid=")
 			}
-			host, port, _ := net.SplitHostPort(f[3])
+			host, port, _ := net.SplitHostPort(target)
 			if host != "127.0.0.1" || port == "53" {
 				t.Errorf("a connect off the allowed set: %s", line)
+			}
+			if index >= window[0] && index < window[1] {
+				t.Errorf("a host off the list was looked up by a child: %s", line)
 			}
 		}
 	}
 	t.Logf("recorded connect targets: %v", targets)
+	t.Logf("local IPC, not network: %v", ipc)
+	t.Logf("local resolver sockets, refused: %v", resolvers)
+	if window[1] < window[0] || !strings.Contains(report, "\nwindow ") {
+		t.Errorf("the git window was not reported\n%s", report)
+	}
+	switch {
+	case strings.Contains(report, "step resolver-double unrun"):
+		t.Logf("UNRUN: the resolver double (this seat refuses unix sockets); TestConnectKindTellsIPCFromTheNetwork judges the classification")
+	case !strings.Contains(report, "step resolver-double ok"):
+		t.Errorf("the resolver double was not seen\n%s", report)
+	case !strings.Contains(strings.Join(ipc, "\n"), "/ipc.sock") || !strings.Contains(strings.Join(resolvers, "\n"), "/nscd/socket"):
+		t.Errorf("the witness did not tell IPC from a resolver socket\nipc %v\nresolvers %v", ipc, resolvers)
+	}
 	for name, port := range map[string]int{"generator": spec.Gen, "guardrail": spec.Guard, "zetaris": spec.Zetaris} {
 		addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 		if pid, ok := targets[addr]; !ok || pid != childPid {

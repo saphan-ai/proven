@@ -19,7 +19,8 @@ import (
 // a Transport built by hand, a resolver sending a DNS query, and, because a filter is inherited across
 // fork and exec, git and the container runtime that Proven starts. The witness records each target and
 // answers it: an address the review is allowed to reach continues, any other fails with EPERM, so a
-// guard that is unplugged in a test shows up as a record and nothing leaves the host.
+// guard that is unplugged in a test shows up as a record and nothing leaves the host. Local IPC
+// continues; a local resolver's socket is refused (see connectKind).
 //
 // The numbers are the linux/amd64 forms, as in internal/cli/connect_linux_test.go, where the reason
 // for each is measured: Go's syscall list stops before __NR_seccomp, PR_SET_NO_NEW_PRIVS must come first,
@@ -41,12 +42,46 @@ const (
 	errnoEPERM                   = 1
 )
 
+// The kinds of connect the witness tells apart. A unix socket is local IPC: it names no host, so it is
+// never judged against the allowed addresses. A local name-service daemon is the one kind of IPC that
+// can resolve a host name for the caller (nscd, systemd-resolved), so its sockets are listed apart and
+// refused: glibc then looks the name up itself, and a lookup of that kind ends in a network connect
+// (a DNS server) that the witness judges like any other.
+const (
+	kindNetwork  = "network"
+	kindIPC      = "ipc"
+	kindResolver = "resolver"
+)
+
+// resolverSockets are the suffixes of the unix socket paths of the local name-service daemons.
+var resolverSockets = []string{
+	"/nscd/socket",
+	"/systemd/resolve/io.systemd.Resolve",
+	"/systemd/resolve/io.systemd.Resolve.Monitor",
+	"/org/freedesktop/resolve1",
+}
+
+// connectKind says what a target is: IPC, a local resolver's socket, or a network address.
+func connectKind(target string) string {
+	path, ok := strings.CutPrefix(target, "unix:")
+	if !ok {
+		return kindNetwork
+	}
+	for _, s := range resolverSockets {
+		if strings.HasSuffix(path, s) {
+			return kindResolver
+		}
+	}
+	return kindIPC
+}
+
 // connectRecord is one connect the witness saw. Target is "ip:port", "[ip6]:port", "unix:path" or a
 // word naming what could not be read. Pid is the process that made the call, so a record of a child
-// shows the filter reached it.
+// shows the filter reached it. Kind is one of the kinds above. Allowed is true when the connect went on.
 type connectRecord struct {
 	Pid     uint32
 	Target  string
+	Kind    string
 	Allowed bool
 }
 
@@ -122,9 +157,18 @@ func (w *witness) serve(fd int) {
 		if err != nil {
 			target = "unreadable: " + err.Error()
 		}
-		ok := err == nil && w.allow(target)
+		kind := connectKind(target)
+		var ok bool
+		switch {
+		case err != nil || kind == kindResolver:
+			ok = false
+		case kind == kindIPC:
+			ok = true
+		default:
+			ok = w.allow(target)
+		}
 		w.mu.Lock()
-		w.seen = append(w.seen, connectRecord{Pid: processOf(note.Pid), Target: target, Allowed: ok})
+		w.seen = append(w.seen, connectRecord{Pid: processOf(note.Pid), Target: target, Kind: kind, Allowed: ok})
 		w.mu.Unlock()
 		resp := seccompNotifResp{ID: note.ID}
 		if ok {
