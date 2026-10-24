@@ -70,11 +70,25 @@ type Check struct {
 }
 
 // Evidence is one piece of proof stored with its finding. Kind says which of
-// Test or Query is set (ADR-0002: evidence is a test or a query).
+// Test, Query or Tool is set (ADR-0002: a test or a query; ADR-0040: a tool's run).
 type Evidence struct {
 	Kind  string         `json:"kind"`
 	Test  *TestEvidence  `json:"test,omitempty"`
 	Query *QueryEvidence `json:"query,omitempty"`
+	Tool  *ToolEvidence  `json:"tool,omitempty"`
+}
+
+// ToolEvidence is a deterministic tool's run on both sides (ADR-0040).
+// The bools are stored even when false, so a result the base already had
+// is visible and not mistaken for a missing field.
+type ToolEvidence struct {
+	Tool            string `json:"tool"`
+	Version         string `json:"version"`
+	Command         string `json:"command"`
+	Output          string `json:"output"`
+	BaseOutput      string `json:"base_output"`
+	PresentOnChange bool   `json:"present_on_change"`
+	PresentOnBase   bool   `json:"present_on_base"`
 }
 
 // TestEvidence is the prover outcome. Bools are stored even when false, so a
@@ -121,12 +135,17 @@ type Writer struct {
 
 // Open creates the logs directory and opens the trace for appending.
 func Open(dir string) (*Writer, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := privateDir(dir); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, "trace.jsonl")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
+		return nil, err
+	}
+	// OpenFile sets the mode only when it creates; an existing file is narrowed too.
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
 		return nil, err
 	}
 	id, err := newRunID()
@@ -225,4 +244,14 @@ func eventID(e Event) string {
 	}
 	sum := sha256.Sum256(bytes.TrimSpace(buf.Bytes()))
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
+// mode only when it creates, and a directory an earlier run left at 0755 must
+// not stay readable by others (Proven's own state is readable only by its user).
+func privateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(dir, 0o700)
 }

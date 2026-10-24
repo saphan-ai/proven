@@ -69,6 +69,14 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 
 Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these.
 
+## Deterministic tools
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_TOOL_TIMEOUT` | `120s` | the limit for one side of a deterministic tool run, base or change. A run past it is named and is not evidence. Sample mode uses the default and does not read this variable |
+
+Each tool runs in the Prover's container with no network and no secret (ADR-0025, ADR-0040). A tool that cannot run is named. Sample mode reads none of these.
+
 ## One adapter call
 
 | Environment variable | Default | What it changes |

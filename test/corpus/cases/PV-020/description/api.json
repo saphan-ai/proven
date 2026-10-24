@@ -1,0 +1,11 @@
+{
+  "max_body_bytes": 2048,
+  "routes": [
+    {"method": "GET", "path": "/v1/health", "exempt": false},
+    {"method": "POST", "path": "/v1/items", "exempt": false},
+    {"method": "POST", "path": "/v1/search", "exempt": false},
+    {"method": "PUT", "path": "/v1/items/current", "exempt": false},
+    {"method": "POST", "path": "/v1/uploads/media", "exempt": true},
+    {"method": "POST", "path": "/v1/uploads/bundle", "exempt": true}
+  ]
+}

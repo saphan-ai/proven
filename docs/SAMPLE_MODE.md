@@ -123,13 +123,15 @@ and in `go.mod`:
 
 **What comes out, and why:**
 
-| Finding | Verdict | Evidence |
-|---|---|---|
-| F1 Discount is applied twice | reported | a test: `TestDiscounted` fails on the change and passes on the base |
-| F2 leftpad v1.2.3 is known-exploited | reported | a query and its rows in `px_osvfile.px_osv_pkg` |
-| F3 `note` may include a payment token | **dropped** | none: the Planner named it, nothing proved it; the trace says `dropped: no evidence` |
-| F4 CVE-2026-0001 is on the KEV list | reported | a query and its row in `px_evidence.px_kev_vulns` |
-| osv:evil.example/leftpad | reported | the OSV package query, both range rows, the comparison `introduced 1.0.0 <= v1.2.3 < fixed 1.2.4`, and the KEV row for the alias `CVE-2026-0001`. The row for `example.com/unused` is not returned |
+| Finding | Verdict | Level of proof (ADR-0044) | Evidence |
+|---|---|---|---|
+| F1 Discount is applied twice | reported | proved by a test | a test: `TestDiscounted` fails on the change and passes on the base |
+| F2 leftpad v1.2.3 is known-exploited | reported | proved by data | a query and its rows in `px_osvfile.px_osv_pkg` |
+| F3 `note` may include a payment token | **dropped** | none: dropped | none: the Planner named it, nothing proved it; the trace says `dropped: no evidence` |
+| F4 CVE-2026-0001 is on the KEV list | reported | proved by data | a query and its row in `px_evidence.px_kev_vulns` |
+| osv:evil.example/leftpad | reported | proved by data | the OSV package query, both range rows, the comparison `introduced 1.0.0 <= v1.2.3 < fixed 1.2.4`, and the KEV row for the alias `CVE-2026-0001`. The row for `example.com/unused` is not returned |
+
+Totals by level on this scan: 1 proved by a test, 0 proved by a tool, 3 proved by data, 0 agreed by two models and not proven.
 
 F3 is the point of the scenario: a plausible risk with no evidence never reaches the review.
 

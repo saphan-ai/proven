@@ -69,7 +69,7 @@ Each day, what lands moves from this list to the day's summary.
 - **Comments on the pull request**, in GitHub and in Gitea, and a GitHub Action to add Proven to any pipeline.
 - **A ready-to-run Docker environment with a local Gitea**, where you can watch Proven review a pull request ([ADR-0026](docs/adr/ADR-0026-one-makefile-builds-proven-and-runs-the-judges-lab.md)).
 - **More proof, not only tests**: a data race or a crash found by running real tools on the old and the new code ([ADR-0040](docs/adr/ADR-0040-a-tool-run-is-evidence.md)).
-- **More sources**: packages published on purpose to do harm, project health, severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)).
+- **More sources**: packages published on purpose to do harm, project health, severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)), and **your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
 - **More languages**: PHP, Rust, Java, C# and Ruby, next to Go, JavaScript and Python, and a simple adapter so anyone can add theirs ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
 - **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
 - **Features for compliance audits**: a signed record of every review that an auditor can check ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)).
@@ -77,6 +77,7 @@ Each day, what lands moves from this list to the day's summary.
 - **A fix you can trust**: for a problem proved by a test, Proven proposes a fix, and the same test proves the fix works ([ADR-0042](docs/adr/ADR-0042-a-proposed-fix-is-proved-by-the-same-test.md)).
 - **Is the vulnerable code actually called?** For Go, each vulnerable dependency says whether your code reaches the vulnerable function ([ADR-0043](docs/adr/ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md)).
 - **How far to trust each finding, in one word**: proved by a test, by a tool, by data, or only agreed by two models ([ADR-0044](docs/adr/ADR-0044-every-finding-names-its-level-of-proof.md)).
+- **Watch a review live**: a dashboard of the agents and the two reviewers working side by side, their verdicts and where they disagree; the numbers go to any monitoring you already use, through OpenTelemetry ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
 - **NVIDIA's model joins our security review** as a third reviewer.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 

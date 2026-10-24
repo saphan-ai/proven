@@ -71,8 +71,11 @@ for any finding without query evidence. A package name from the change that is o
 ## The second check
 
 `internal/query` keeps a gate in front of the live client. A query Proven builds passes it by construction; it holds for
-a statement from any other caller, such as the `livecheck` probe. It refuses a text with a backslash or a control byte
-anywhere, invalid UTF-8, an unclosed quote, and, outside a string literal, a semicolon or the start of a comment.
+a statement from any other caller, such as the `livecheck` probe. It reads only the single quote as a quote. It refuses a
+text with a backslash, a double quote, a backtick or a control byte anywhere, because a dialect may read any of them as
+a quote or an escape and a single quote inside one would hide a second statement from a gate that tracks the single
+quote alone. It also refuses invalid UTF-8, an unclosed single quote, and, outside a single-quoted literal, a semicolon
+or the start of a comment.
 
 ## What this page does not claim
 

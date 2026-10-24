@@ -17,6 +17,7 @@ import (
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/testrun"
+	"github.com/saphan-ai/proven/internal/tool"
 )
 
 //go:generate go run ../../cmd/settings-doc
@@ -28,6 +29,9 @@ const guardrailAfter = "Every prompt and every answer is checked; an `unsafe` ve
 
 // containerAfter follows the container table. It is not a setting.
 const containerAfter = "Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these."
+
+// toolAfter follows the tool table. It is not a setting.
+const toolAfter = "Each tool runs in the Prover's container with no network and no secret (ADR-0025, ADR-0040). A tool that cannot run is named. Sample mode reads none of these."
 
 // readsAfter follows the read-bound table. It is not a setting.
 const readsAfter = "A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these."
@@ -62,6 +66,11 @@ func Catalog() []envdoc.Section {
 			Heading: "The Prover's container",
 			Rows:    testrun.Environment(),
 			After:   containerAfter,
+		},
+		{
+			Heading: "Deterministic tools",
+			Rows:    tool.Environment(),
+			After:   toolAfter,
 		},
 		{
 			Heading: "One adapter call",
