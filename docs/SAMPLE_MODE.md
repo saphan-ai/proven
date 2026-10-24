@@ -165,7 +165,11 @@ Run the same command a second time in the same directory: the findings are the s
    The Investigator's and the Skeptic's recorded answers name a query template and its values, never SQL
    ([QUERIES.md](QUERIES.md)): `{"template":"kev-by-cve","params":{"cve_id":"CVE-2026-0001"}}`. An empty `template`
    means no query. A recorded answer is found by its agent and the exact prompt text the code builds, so after a change
-   to a prompt the recorded prompts are regenerated.
+   to a prompt the recorded prompts are regenerated. In every prompt the change's text and each model-written title
+   sit in one data section after the line `DATA:`, written as a single line of JSON, so no byte of the change can start
+   a new line, field or file record of the prompt itself. A query's rows count as evidence only when Proven ties them
+   to a package or an advisory the change is affected by; a recorded query for anything else keeps its rows on the
+   finding as context and the finding is dropped for lack of evidence.
 4. Run `proven scan --sample testdata/fixture/<name>` from outside the repository, as above.
 
 The four scenarios below run the same way: from `/tmp/proven-run`, with the repository in `$OLDPWD` as in "Run it".

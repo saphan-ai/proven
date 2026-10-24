@@ -49,12 +49,21 @@ type TestEvidence struct {
 // QueryEvidence is a query and the rows the engine returned.
 // Engine and Snapshot say where the rows came from, so a reader can run the
 // same SQL again (ADR-0023).
+//
+// Bound is set by Proven, never by a model: the rows are about the change's own
+// package, version or advisory (the dependency check derives those from the
+// change's manifests and compares versions in Go). The Judge counts query rows
+// as evidence only when Bound is set; a word that a row shares with the
+// finding's text binds nothing. Request is the template and values the
+// Investigator named, kept so the pipeline can decide Bound; it holds no SQL.
 type QueryEvidence struct {
 	SQL      string
 	Engine   string
 	Snapshot string
 	Columns  []string
 	Rows     [][]string
+	Request  querytpl.Request
+	Bound    bool
 }
 
 // ToolEvidence is a deterministic tool's run on the base and the change (ADR-0040).

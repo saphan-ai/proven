@@ -113,7 +113,7 @@ func reviewWith(t *testing.T, logDir, state string, gen generator.Generator) can
 }
 
 // findingMarker is the text of an agent prompt that names one finding by id.
-func findingMarker(id string) string { return "id: " + id + "\n" }
+func findingMarker(id string) string { return `{"id":"` + id + `",` }
 
 // reviewWithRefutingTest runs a sample review whose Skeptic refutes F1 with a
 // test that passes on the change, so the refutation carries evidence.

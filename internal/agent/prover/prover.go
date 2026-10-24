@@ -37,7 +37,11 @@ const (
 
 // Prompt asks which test would prove one risk.
 func Prompt(id, title string) string {
-	return answer.Instruct(testSpec, "id: "+id+"\ntitle: "+title+"\n")
+	// The title is model text shaped by the change, so it enters as data.
+	return answer.Instruct(testSpec, answer.Encode(struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}{id, title}))
 }
 
 // row is the test as the model returns it. The prompt does not ask for Command.
