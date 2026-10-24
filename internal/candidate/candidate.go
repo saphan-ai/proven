@@ -12,11 +12,13 @@ package candidate
 
 import "github.com/saphan-ai/proven/internal/querytpl"
 
-// Evidence kind strings. They match the seam's EvidenceTest and EvidenceQuery,
-// so the conversion to a review.Result copies the kind unchanged.
+// Evidence kind strings. They match the seam's EvidenceTest, EvidenceQuery
+// and EvidenceTool, so the conversion to a review.Result copies the kind unchanged.
 const (
 	KindTest  = "test"
 	KindQuery = "query"
+	// KindTool is a deterministic tool's run compared between base and change (ADR-0040).
+	KindTool = "tool"
 )
 
 // Risk is one candidate the planner named.
@@ -118,12 +120,27 @@ type QueryEvidence struct {
 	Rows     [][]string
 }
 
+// ToolEvidence is a deterministic tool's run on the base and the change (ADR-0040).
+// It counts as evidence only when PresentOnChange is true and PresentOnBase is
+// false: the change produced a result the base did not. A tool that did not
+// run is not this struct; the runner names that tool instead.
+type ToolEvidence struct {
+	Tool            string
+	Version         string
+	Command         string
+	Output          string // the change side, the output that differs
+	BaseOutput      string
+	PresentOnChange bool
+	PresentOnBase   bool
+}
+
 // Evidence is one piece of proof.
-// Kind is KindTest or KindQuery; the matching pointer is set and the other is nil.
+// Kind is KindTest, KindQuery or KindTool; the matching pointer is set and the others are nil.
 type Evidence struct {
 	Kind  string
 	Test  *TestEvidence
 	Query *QueryEvidence
+	Tool  *ToolEvidence
 }
 
 // Refutation is one skeptic attempt.

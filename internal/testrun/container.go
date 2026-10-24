@@ -325,6 +325,91 @@ func (c *Container) Argv(dir string, test []string) []string {
 	return c.argv(dir, test, "")
 }
 
+// How one RunCommand ended. A timeout or a side that did not run is not a
+// result of the command (ADR-0040: a tool that runs out of time is named).
+const (
+	CommandPass      = "pass"
+	CommandFail      = "fail"
+	CommandNotRun    = "not-run"
+	CommandTimeout   = "timeout"
+	CommandCancelled = "cancelled"
+)
+
+// CommandResult is one run of a command Proven built, in one checkout.
+type CommandResult struct {
+	Output string
+	Status string
+}
+
+// WithTimeout returns a copy whose limit for one side is d.
+// ADR-0040: a tool's limit is its own setting and does not change the test
+// runner that shares this container. A non-positive d is refused: a zero
+// limit would make every run look timed out.
+func (c *Container) WithTimeout(d time.Duration) (*Container, error) {
+	if c == nil {
+		return nil, errors.New("testrun: no container")
+	}
+	if d <= 0 {
+		return nil, &ConfigError{
+			Field:   "Timeout",
+			Value:   d.String(),
+			Reason:  "the time limit is a positive duration; a run past it is not proof",
+			Allowed: []string{defaultTimeout.String()},
+		}
+	}
+	cp := *c
+	cp.cfg.Timeout = d
+	return &cp, nil
+}
+
+// RunCommand runs argv inside the locked-down container, with dir as the one
+// checkout. argv is the words after the image. There is no shell (ADR-0025).
+// A cancelled review returns the context error. A timeout is a result, not an
+// error: the caller names it and does not treat it as a clean run (ADR-0040).
+// An absent image is the Prover down.
+func (c *Container) RunCommand(ctx context.Context, dir string, argv []string) (CommandResult, error) {
+	if c == nil || c.runtime == "" {
+		return CommandResult{}, &service.Down{Service: "prover", Reason: "Prover off: no container runtime"}
+	}
+	if err := ctx.Err(); err != nil {
+		return CommandResult{}, err
+	}
+	if len(argv) == 0 {
+		return CommandResult{Status: CommandNotRun, Output: "refused: empty command"}, nil
+	}
+	if dir == "" {
+		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout directory is required"}, nil
+	}
+	// ADR-0025: a checkout that is a link is not a mount source.
+	if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout is a symbolic link and is not mounted"}, nil
+	}
+	text, kind := c.side(ctx, dir, argv)
+	if kind == kindCancelled {
+		return CommandResult{}, withRemoval(ctx.Err(), text)
+	}
+	if down := c.absentImage(text, kind); down != nil {
+		return CommandResult{}, down
+	}
+	return CommandResult{Output: text, Status: commandStatus(kind)}, nil
+}
+
+// commandStatus is the public name of one side's ending.
+func commandStatus(k runKind) string {
+	switch k {
+	case kindPass:
+		return CommandPass
+	case kindFail:
+		return CommandFail
+	case kindTimeout:
+		return CommandTimeout
+	case kindCancelled:
+		return CommandCancelled
+	default:
+		return CommandNotRun
+	}
+}
+
 // argv builds the run line. Each flag below carries out ADR-0025: --rm and
 // --network none, CPU and memory limits from the settings, and the checkout
 // mounted read-only as the only volume. The only -e flags are the fixed,

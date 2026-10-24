@@ -83,6 +83,32 @@ func TestNoSettingsNamesEveryServiceNotReady(t *testing.T) {
 	}
 }
 
+// TestNVIDIAModeNamesAMissingKey proves ADR-0031's livecheck: in nvidia mode the
+// generator line names the missing PROVEN_GENERATOR_KEY as the hosted API down,
+// makes no call, and does not fall back on the Nightshift token set beside it.
+// Mutated field: PROVEN_GENERATOR_KEY, empty, with METERLESS_RUNTIME_TOKEN set.
+func TestNVIDIAModeNamesAMissingKey(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	env := func(k string) string {
+		switch k {
+		case generator.EnvMode:
+			return "nvidia"
+		case generator.EnvToken:
+			return fakeToken
+		}
+		return ""
+	}
+	var stdout, stderr bytes.Buffer
+	code := run(nil, &stdout, &stderr, env)
+	body := stdout.String() + stderr.String()
+	if code != 1 || !strings.Contains(body, "generator: not ready: nvidia: "+generator.EnvKey+" is empty") {
+		t.Fatalf("exit %d\n%s", code, body)
+	}
+	if strings.Contains(body, fakeToken) {
+		t.Fatal("a secret was printed")
+	}
+}
+
 // TestAllServicesReady proves that when every service answers, each line is
 // ready, each service gets one call, the default view is queried, and the
 // image is not pulled.
@@ -97,7 +123,7 @@ func TestAllServicesReady(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, body)
 	}
 	for _, want := range []string{
-		"generator: ready: model nvidia/livecheck-test, receipt rcpt-livecheck",
+		"generator: ready: mode nightshift, model nvidia/livecheck-test, receipt rcpt-livecheck",
 		"guardrail: ready: verdict safe, latency ",
 		"query: ready: rows 1",
 		"container: ready",
@@ -159,7 +185,7 @@ func TestSecretFromTheEnvironmentIsNotPrinted(t *testing.T) {
 	if strings.Contains(body, fakeToken) || strings.Contains(body, fakeKey) || strings.Contains(body, fakeZKey) {
 		t.Fatalf("secret leaked\n%s", body)
 	}
-	if !strings.Contains(body, "model nvidia/[redacted: METERLESS_RUNTIME_TOKEN], receipt rcpt-livecheck") {
+	if !strings.Contains(body, "mode nightshift, model nvidia/[redacted: METERLESS_RUNTIME_TOKEN], receipt rcpt-livecheck") {
 		t.Fatalf("model line\n%s", body)
 	}
 }

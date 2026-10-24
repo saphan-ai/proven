@@ -323,6 +323,13 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 					cp.Columns, cp.Rows = rd.Texts(q.Columns), redactRows(rd, q.Rows)
 					ev[j].Query = &cp
 				}
+				if t := e.Tool; t != nil {
+					// ADR-0040: a tool's output is checkout text and can carry a secret.
+					cp := *t
+					cp.Tool, cp.Version = rd.Text(t.Tool), rd.Text(t.Version)
+					cp.Command, cp.Output, cp.BaseOutput = rd.Text(t.Command), rd.Text(t.Output), rd.Text(t.BaseOutput)
+					ev[j].Tool = &cp
+				}
 			}
 			c.Evidence = ev
 		}
@@ -1418,6 +1425,9 @@ func evidenceText(c candidate.Candidate) string {
 		if e.Query != nil {
 			text += fmt.Sprintf("query %s rows=%d", e.Query.SQL, len(e.Query.Rows))
 		}
+		if e.Tool != nil {
+			text += fmt.Sprintf("tool %s %s", e.Tool.Tool, e.Tool.Command)
+		}
 	}
 	if text == "" {
 		if notes != "" {
@@ -1453,6 +1463,14 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 				SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
 				Columns: append([]string(nil), q.Columns...),
 				Rows:    copyRows(q.Rows),
+			}
+		}
+		if e.Tool != nil {
+			t := e.Tool
+			ev.Tool = &trace.ToolEvidence{
+				Tool: t.Tool, Version: t.Version, Command: t.Command,
+				Output: t.Output, BaseOutput: t.BaseOutput,
+				PresentOnChange: t.PresentOnChange, PresentOnBase: t.PresentOnBase,
 			}
 		}
 		out = append(out, ev)

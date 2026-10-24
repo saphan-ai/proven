@@ -129,7 +129,7 @@ const (
 	// ProvedByTest: a test fails on the change and passes on the base (ADR-0002).
 	ProvedByTest ProofLevel = "proved-by-test"
 	// ProvedByTool: a deterministic tool's result differs between base and change (ADR-0040).
-	// No evidence kind sets it yet; the ADR-0040 wagon adds the kind and the rule in ProofLevelOf.
+	// EvidenceTool is the kind that sets it, in ProofLevelOf.
 	ProvedByTool ProofLevel = "proved-by-tool"
 	// ProvedByData: a query and the rows it returned (ADR-0002).
 	ProvedByData ProofLevel = "proved-by-data"
@@ -162,6 +162,9 @@ func ProofLevelOf(ev []Evidence) (ProofLevel, error) {
 		switch e.Kind {
 		case EvidenceTest:
 			got = ProvedByTest
+		case EvidenceTool:
+			// ADR-0040: a tool's run sits between a test and a query in strength (ADR-0044).
+			got = ProvedByTool
 		case EvidenceQuery:
 			got = ProvedByData
 		default:
@@ -273,17 +276,34 @@ type Location struct {
 	EndLine   int
 }
 
-// Evidence kinds. candidate.KindTest and candidate.KindQuery carry the same strings.
+// Evidence kinds. candidate.KindTest, candidate.KindQuery and candidate.KindTool
+// carry the same strings.
 const (
 	EvidenceTest  = "test"
 	EvidenceQuery = "query"
+	// EvidenceTool is a deterministic tool's run compared between base and change (ADR-0040).
+	EvidenceTool = "tool"
 )
 
-// Evidence is a test or a query with its rows (ADR-0002).
+// Evidence is a test, a query with its rows (ADR-0002), or a tool's run (ADR-0040).
 type Evidence struct {
-	Kind  string         // EvidenceTest or EvidenceQuery
+	Kind  string         // EvidenceTest, EvidenceQuery or EvidenceTool
 	Test  *TestEvidence  // set when Kind is EvidenceTest
 	Query *QueryEvidence // set when Kind is EvidenceQuery
+	Tool  *ToolEvidence  // set when Kind is EvidenceTool
+}
+
+// ToolEvidence is a deterministic tool's run on the base and the change (ADR-0040).
+// PresentOnChange and PresentOnBase are both stored, so a reader can see a
+// result the base already had and not mistake it for proof of the change.
+type ToolEvidence struct {
+	Tool            string
+	Version         string
+	Command         string
+	Output          string // the change side, the output that differs
+	BaseOutput      string
+	PresentOnChange bool
+	PresentOnBase   bool
 }
 
 // TestEvidence is a test that fails on the change and passes on the base.
