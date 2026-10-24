@@ -46,7 +46,8 @@ func TestInRange(t *testing.T) {
 // TestInRangeEcosystem proves that npm compares semantic versions, that PyPI
 // compares PEP 440 and refuses dev, epoch and local versions with a
 // sentence, that Packagist compares the Composer subset and names a
-// constraint, that a bound which does not parse is named, and that an
+// constraint, that crates.io compares a Cargo version and names a constraint,
+// that a bound which does not parse is named, and that an
 // unknown ecosystem is not compared.
 func TestInRangeEcosystem(t *testing.T) {
 	cases := []struct {
@@ -72,6 +73,10 @@ func TestInRangeEcosystem(t *testing.T) {
 		{name: "pypi bad introduced", ecosystem: "PyPI", version: "1.0", introduced: "1.0.dev1", want: false, sentence: "introduced 1.0.dev1 has a dev release; this check does not compare it"},
 		{name: "packagist rc below the release", ecosystem: "Packagist", version: "1.0.0-RC1", introduced: "1.0.0-RC1", fixed: "1.0.0", want: true, sentence: "introduced 1.0.0-RC1 <= 1.0.0-RC1 < fixed 1.0.0"},
 		{name: "packagist constraint is not a version", ecosystem: "Packagist", version: "^1.2", introduced: "1.0.0", want: false, sentence: "^1.2 is a constraint; this check compares one Composer version"},
+		{name: "crates.io release", ecosystem: "crates.io", version: "1.9.1", introduced: "1.7.0", fixed: "1.10.0", want: true, sentence: "introduced 1.7.0 <= 1.9.1 < fixed 1.10.0"},
+		{name: "crates.io pre-release", ecosystem: "crates.io", version: "1.0.0-alpha.1", introduced: "1.0.0", want: false, sentence: "1.0.0-alpha.1 < introduced 1.0.0"},
+		{name: "crates.io constraint is not a version", ecosystem: "crates.io", version: "^1.2.3", introduced: "1.0.0", want: false, sentence: "^1.2.3 is a constraint; this check compares one Cargo version"},
+		{name: "crates.io leading v", ecosystem: "crates.io", version: "v1.2.3", introduced: "1.0.0", want: false, sentence: "v1.2.3 is not a Cargo version; a Cargo version has no leading v"},
 		{name: "unknown ecosystem", ecosystem: "Maven", version: "1.0", introduced: "0", want: false, sentence: "ecosystem Maven has no version comparison"},
 	}
 	for _, tc := range cases {

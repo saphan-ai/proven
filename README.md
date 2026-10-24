@@ -2,6 +2,14 @@
 
 **A code reviewer that has to show its evidence, built in public by one person and a fleet of AI coding agents.**
 
+## Quick start
+
+```bash
+make up
+```
+
+`make up` builds Proven and starts the judges' lab on this machine. It prints the lab address and a generated admin password, once. Open that address, then the open pull request: the sample review is a comment on it. The steps are in [docs/LAB.md](docs/LAB.md). `make down` stops the lab.
+
 Proven will review pull requests: proposed changes to a codebase. Every problem it reports must come with evidence you can check yourself, such as a test you can run or a data query you can repeat. If it cannot show the evidence, it does not report the problem.
 
 [Marcin "Wato" Marzec](https://wato.org/) used fleets of AI coding agents on commercial telco software, and built [Saphan Studio](https://saphan.ai/) to direct and check their work. Now he is taking that fleet to the [Open Agent Hackathon 2026](https://hackathon.genai.works/event/open-agent-hackathon-2026), organized by GenAI Works, from **22 to 27 October 2026**, in the track *The Agent That Can Explain Why*, to build Proven. The agents write the code. Marcin sets the direction, makes the decisions, reviews the outcomes and approves every merge.

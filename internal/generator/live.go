@@ -70,6 +70,20 @@ func NewLive(cfg Settings, client *http.Client) *Live {
 	return &Live{cfg: cfg, client: client}
 }
 
+// NewSecond builds the second reviewer's client (ADR-0037). It lives here, with the other code that
+// dials, because this file is the only one of the package allowed to import net/http. A nil client
+// does not follow redirects, so the key is not sent to another host (the same rule as NewLive).
+func NewSecond(s SecondSettings, client *http.Client) *Second {
+	cfg := Settings{
+		BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout,
+		plain: true,
+		// requireNone: the NVIDIA check is Nightshift's rule (ADR-0019) and this reviewer is meant to
+		// be another family.
+		requireNone: true,
+	}
+	return &Second{live: NewLive(cfg, client), model: s.Model}
+}
+
 // LastUse reports the model of the call that just finished.
 func (l *Live) LastUse() (Use, bool) {
 	if l == nil || !l.has {
@@ -287,7 +301,9 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 // not sent to it.
 func (l *Live) authorize(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+l.cfg.Token)
-	if l.cfg.Mode == ModeNVIDIA {
+	// ADR-0037: a second reviewer is any OpenAI-compatible server, which knows nothing of
+	// Nightshift's routing headers; sending them would tell a third party our app name.
+	if l.cfg.Mode == ModeNVIDIA || l.cfg.plain {
 		return
 	}
 	req.Header.Set("meterless-app", l.cfg.App)

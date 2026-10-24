@@ -52,6 +52,7 @@ func TestOSVGoModuleShowsTheRangeAndTheEPSSScore(t *testing.T) {
 		"introduced 1.3.0 <= v1.4.0 < fixed 1.5.0",
 		"GHSA-w19-sample-0002 does not match: v1.4.0 < introduced 2.0.0",
 		"alias CVE-2026-4242 is on the KEV list",
+		"Reachability: not measured",
 		"SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'example.com/widget'",
 		"row: GHSA-w19-sample-0001 | CVE-2026-4242 | Go | example.com/widget | 1.3.0 | 1.5.0 |  | HIGH | 2026-04-01",
 		"row: GHSA-w19-sample-0002 |  | Go | example.com/widget | 2.0.0 | 2.1.0 |  | LOW | 2026-05-01",
@@ -83,6 +84,7 @@ func TestOSVPHPComposerReportsTheDependency(t *testing.T) {
 		"introduced 2.4.0 <= 2.9.1 < fixed 2.10.0",
 		"GHSA-php-sample-0002 does not match: 2.9.1 < introduced 3.0.0",
 		"alias CVE-2026-9090 is on the KEV list",
+		"Reachability: not measured",
 		"ecosystem = 'Packagist' AND package = 'monolog/monolog'",
 		"failed services: none",
 	} {
@@ -92,6 +94,36 @@ func TestOSVPHPComposerReportsTheDependency(t *testing.T) {
 	}
 	if strings.Contains(body, "other/unused") {
 		t.Fatalf("an unrelated package was queried\n%s", body)
+	}
+}
+
+// TestOSVRustCargoReportsTheDependency proves the crates.io adapter reports
+// the raised Cargo package from Cargo.lock, inside one sample range and
+// outside the other. The manifest writes a constraint; the lock file's
+// version is the one reported. Dropping Cargo and CargoLock from
+// manifest.Readers is what turns this test red.
+func TestOSVRustCargoReportsTheDependency(t *testing.T) {
+	body, _ := scanScenario(t, "osv-rust-cargo")
+	for _, want := range []string{
+		"review class: security",
+		"review rule: Cargo.toml",
+		"finding osv:regex ERROR Dependency regex 1.9.1 is in an OSV affected range",
+		"EPSS 0.33000 (91st percentile, 2026-10-24)",
+		"Cargo.lock:15-15",
+		"introduced 1.7.0 <= 1.9.1 < fixed 1.10.0",
+		"GHSA-rs-sample-0002 does not match: 1.9.1 < introduced 1.11.0",
+		"alias CVE-2026-9191 is on the KEV list",
+		"Reachability: not measured",
+		"ecosystem = 'crates.io' AND package = 'regex'",
+		"fix named from the advisory table, not run by a test: raise regex 1.9.1 to 1.10.0",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "unused_crate") || strings.Contains(body, "Dependency libc") {
+		t.Fatalf("a package that was not raised was queried\n%s", body)
 	}
 }
 

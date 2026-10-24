@@ -5,21 +5,17 @@ import (
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/manifest"
-	"github.com/saphan-ai/proven/internal/pep440"
-	"github.com/saphan-ai/proven/internal/semver"
 )
 
-// compareFor is the version order of one ecosystem: semantic versions for Go and npm,
-// PEP 440 for PyPI. It is nil for an ecosystem the check does not compare.
+// compareFor is the version order of one ecosystem. It is the adapter's
+// Compare (ADR-0038), so a language added to Readers is ordered here too.
+// It is nil when no adapter compares that ecosystem.
 func compareFor(ecosystem string) func(a, b string) (int, bool) {
-	switch ecosystem {
-	case "Go", "npm":
-		return semver.Compare
-	case "PyPI":
-		return pep440.Compare
-	default:
+	r, ok := manifest.ByEcosystem(ecosystem)
+	if !ok || r.Compare == nil {
 		return nil
 	}
+	return r.Compare
 }
 
 // SmallestFix names the smallest version of the package that leaves the affected range of

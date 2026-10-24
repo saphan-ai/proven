@@ -5,7 +5,8 @@
 // Besides the seam's types, the package holds what the reviewer decides before and after the six agents run:
 // it loads proven.yaml (config.go), chooses the review class from the changed paths (ADR-0012, ADR-0014),
 // reads the author's model from the change (ADR-0011) and names the reviewer models and their independence
-// from the author (ADR-0008, ADR-0009) (decide.go). Open wires the adapters and the pipeline (open.go).
+// from the author (ADR-0008, ADR-0009) (decide.go). An agreed, unproven claim is an Opinion beside the
+// findings, not one of them (ADR-0041). Open wires the adapters and the pipeline (open.go).
 // The six agents themselves live in internal/agent and run in internal/pipeline.
 package review
 
@@ -99,7 +100,8 @@ const (
 type Result struct {
 	Findings []Finding // only findings with evidence (ADR-0002); unresolved ones are marked and counted
 	// ProofCounts counts Findings by ProofLevel (ADR-0044 point 3). Every level is a key, with 0
-	// when none; the counts add up to len(Findings). Findings, unresolved ones included, keep their meaning.
+	// when none; the counts add up to len(Findings). Opinions are not counted (ADR-0041).
+	// Findings, unresolved ones included, keep their meaning.
 	ProofCounts          map[ProofLevel]int
 	FailedServices       []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
 	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
@@ -116,9 +118,52 @@ type Result struct {
 	AuthorModelStatement string           // "author model not stated" when the change names no model
 	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
 	GuardrailStatement   string           // set when the guardrail was switched off for this review; empty when it was on
+	// Reviewers names each reviewer that took part, the default one first, with whether it is the
+	// author's own model (ADR-0037 point 5). The shell renders from it, not from the statements.
+	Reviewers []ReviewerInfo
+	// Disagreements counts the findings whose Disagree is true (ADR-0037 point 4).
+	Disagreements int
+	// Opinions lists claims both reviewers reported at the same place that no
+	// evidence proves (ADR-0041). They are not Findings, they are not in
+	// ProofCounts, and they do not change the exit code. Empty when none.
+	Opinions []Opinion
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+}
+
+// The roles a reviewer takes in a review. The special role is the second reviewer of ADR-0037.
+const (
+	RoleDefault = "default"
+	RoleSpecial = "special"
+)
+
+// ReviewerInfo is one reviewer of one review (ADR-0037 point 5).
+type ReviewerInfo struct {
+	Role   string // RoleDefault or RoleSpecial
+	Model  string // the name the review gives it
+	Family string // a configured family, or "family unknown"
+	// IsAuthorModel is "yes" when the change named this model or a model of its family as its author,
+	// "no" when it named authors and none match, and "unknown" when the change named none or a
+	// family is unknown. It is never a guess: unknown stays unknown.
+	IsAuthorModel string
+}
+
+// The verdicts one reviewer can give on a finding (ADR-0037 point 4). The strings are carried by
+// JSON and SARIF, so a value never changes once released.
+const (
+	VerdictReported    = "reported"
+	VerdictNotReported = "not reported"
+	VerdictRefuted     = "refuted"
+	VerdictNoAnswer    = "no answer"
+)
+
+// ReviewerVerdict is one reviewer's word on one finding: the verdict and the reviewer's own reason.
+type ReviewerVerdict struct {
+	Role    string // RoleDefault or RoleSpecial
+	Model   string
+	Verdict string // one of the Verdict constants
+	Reason  string
 }
 
 // ProofLevel names how far a reader may trust one finding (ADR-0044). The string is what the
@@ -134,10 +179,31 @@ const (
 	ProvedByTool ProofLevel = "proved-by-tool"
 	// ProvedByData: a query and the rows it returned (ADR-0002).
 	ProvedByData ProofLevel = "proved-by-data"
-	// AgreedNotProven: two models reported it and nothing proves it (ADR-0041).
-	// No finding gets it yet; the ADR-0041 wagon sets it.
+	// AgreedNotProven is the level name ADR-0044 reserved for an opinion.
+	// ADR-0041 does not put that opinion on a finding: it is Result.Opinions,
+	// and ProofCounts keeps this key at 0 so the totals stay the findings.
 	AgreedNotProven ProofLevel = "agreed-by-two-models-not-proven"
 )
+
+// OpinionLevel is the level an opinion carries for JSON and SARIF (ADR-0041).
+// It is note, so a machine does not read the opinion as a proven finding.
+// Those writers are not in this build. The text section is what a reader gets,
+// and a writer that lands later copies this value and does not put the opinion
+// among the findings.
+const OpinionLevel = "note"
+
+// Opinion is one claim both reviewers reported at the same place that no evidence
+// proves (ADR-0041). It is not a Finding. ProofCounts does not count it, and the
+// exit code does not see it. Reasons holds both reviewers' own words, the default
+// reviewer first.
+type Opinion struct {
+	ID       string
+	Title    string
+	Location Location
+	// Level is OpinionLevel. It is not a proof level and not a severity.
+	Level   string
+	Reasons []ReviewerVerdict
+}
 
 // ProofLevels lists every level, strongest first. Counts and renderers walk this order.
 var ProofLevels = []ProofLevel{ProvedByTest, ProvedByTool, ProvedByData, AgreedNotProven}
@@ -206,6 +272,12 @@ type Finding struct {
 	// Models names the reviewer models that reported this finding.
 	// One name when one run found it. Both names, the default reviewer first, when both did.
 	Models []string
+	// Verdicts holds each reviewer's verdict and reason, the default reviewer first. It is empty when
+	// one reviewer ran. The verdicts are never combined (ADR-0037 point 4).
+	Verdicts []ReviewerVerdict
+	// Disagree is true when the reviewers who answered gave different verdicts. A reviewer that did not
+	// answer (VerdictNoAnswer) is not a disagreement.
+	Disagree bool
 	// Fix is the fix Proven proposes for the finding, or nil when it proposed none (ADR-0042).
 	// It is a suggestion for a person to apply; Proven never writes it to the change.
 	Fix *Fix

@@ -6,7 +6,8 @@
 // is a candidate whose evidence is the query and the rows it returned
 // (ADR-0002), and the Judge keeps or drops it like any other finding. A version outside every range is
 // a trace line, never a finding. The candidate also carries the smallest fixed version that leaves
-// every returned range, with the advisory row that shows it (ADR-0042 point 5, fix.go).
+// every returned range, with the advisory row that shows it (ADR-0042 point 5, fix.go), and the
+// ecosystem, so a later step can label reachability. This package does not run govulncheck (ADR-0043).
 //
 // The package also defines the OSV table itself: its columns, the setting
 // that names it (PROVEN_OSV_TABLE, ADR-0013), the setting that names the
@@ -265,6 +266,9 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 			StartLine: hit.Line,
 			EndLine:   hit.Line,
 		},
+		// The pipeline reads the ecosystem when it labels reachability (ADR-0043).
+		// This check does not run govulncheck.
+		Ecosystem: hit.Ecosystem,
 	}
 	// ADR-0002: the evidence is the query and every row it returned, the rows
 	// that missed included, so a reader can redo the comparison.

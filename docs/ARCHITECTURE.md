@@ -81,6 +81,30 @@ The shell (command line, output formats, GitHub Action) and the reviewer meet in
 `review.Open(options)` returns a reviewer, and `Review(ctx, request)` returns the result. Neither side reaches into the
 other.
 
+## Two reviewers (ADR-0037)
+
+With `PROVEN_SECOND_REVIEWER_KEY`, `_BASE_URL` and `_MODEL` set, `generator.NewSecond` is the special-review generator: any
+OpenAI-compatible chat API behind the same `Generator` interface, called through the guardrail like every model call.
+`review.Open` refuses a wrong value before any review (exit 7); with no key nothing is connected and one reviewer reviews.
+A connected second reviewer doubles every class unless `proven.yaml` names the classes, and always doubles `security`.
+The two reviewers run independently: the second Planner and Skeptic are shown only the second reviewer's own words.
+
+**For the shell train (the block *The reviewers disagree*):** the review result carries these fields, and the shell renders
+only from them.
+
+| Field | Meaning |
+|---|---|
+| `Result.Reviewers` | one `ReviewerInfo` per reviewer, the default first: `Role` (`default` or `special`), `Model`, `Family`, `IsAuthorModel` (`yes`, `no` or `unknown`) |
+| `Finding.Verdicts` | empty when one reviewer ran, else one `ReviewerVerdict` per reviewer, the default first: `Role`, `Model`, `Verdict`, `Reason` |
+| `Finding.Disagree` | true when the reviewers who answered gave different verdicts; render the block for these findings |
+| `Result.Disagreements` | how many findings have `Disagree` set |
+
+`Verdict` is one of `reported` (the reviewer named the risk), `not reported` (its own review did not name it), `refuted`
+(it named the risk and its own Skeptic claimed to refute it) or `no answer` (its service failed; never a disagreement,
+and the failure is in `FailedServices` under `second-reviewer`). `Reason` is the reviewer's own text: its message for the
+risk, or its Skeptic's reason. The verdicts are shown side by side and never combined; evidence still decides which
+findings exist. JSON and SARIF carry both verdicts, as the values above.
+
 ## Levels of proof (ADR-0044)
 
 Each finding carries one named level of proof, `review.Finding.ProofLevel`. The reviewer core sets it from the finding's strongest evidence, and a finding whose evidence gives no level is refused before it reaches the result. From strongest to weakest:
@@ -90,8 +114,8 @@ Each finding carries one named level of proof, `review.Finding.ProofLevel`. The 
 | proved by a test | `proved-by-test` | yes: a test fails on the change and passes on the base |
 | proved by a tool | `proved-by-tool` | yes: a tool reports a result on the change and not on the base (ADR-0040) |
 | proved by data | `proved-by-data` | yes: a query and its rows |
-| agreed by two models, not proven | `agreed-by-two-models-not-proven` | no: the value exists; the two-model work (ADR-0041) sets it |
+| agreed by two models, not proven | `agreed-by-two-models-not-proven` | the key stays in the totals at 0. ADR-0041 keeps the opinion in `Result.Opinions`, not in the findings, so it is not counted |
 
-`review.Result.ProofCounts` counts the findings by level, with every level present as a key and 0 when none, so the counts add up to the findings. `review.ProofLevels` lists the levels in this order.
+`review.Result.ProofCounts` counts the findings by level, with every level present as a key and 0 when none, so the counts add up to the findings. An agreed opinion is not a finding and is not in these counts (ADR-0041). `review.ProofLevels` lists the levels in this order.
 
 **For the shell train (output formats):** render `Finding.ProofLevel` first in the text, Markdown, HTML and pull-request comment, as a field in JSON and SARIF, and render `Result.ProofCounts` as the totals by level. A proposed fix (ADR-0042) is not a level of proof. It is `Finding.Fix`, with `Proved`, the edits, the explanation and the runs; render it under the finding it belongs to, and render a fix that was not proved as "fix not proved" with `Fix.Note`, never as a patch. The text output does this today; the other formats carry the same fields when they are built.

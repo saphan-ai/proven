@@ -9,6 +9,8 @@ One language is one adapter ([ADR-0038](adr/ADR-0038-a-language-is-one-small-ada
 
 The type is `Adapter` in `internal/manifest`. It is the same type as `Reader`. The dependency check runs `Readers()`. A version lands in a range through `InRangeEcosystem`, which calls the adapter's `Compare` and `Explain`.
 
+The languages are Go, JavaScript, Python, PHP and Rust.
+
 ### What you add
 
 1. A comparer for the ecosystem's versions, with tests for equal, lower, higher, and for a string the comparer refuses. Put the refusal in a sentence. Do not guess a version for a string you refuse.
@@ -102,6 +104,26 @@ Two recordings are the controls:
 
 - `RaceOnBoth` has the banner on both sides. It is not a finding.
 - `RaceTimeout` is a change that did not answer. The reason names `go-race` and `timeout`.
+
+### govulncheck
+
+The second tool is govulncheck ([ADR-0043](adr/ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md)). Its id is `govulncheck`. It applies to a changed Go file, `go.mod` or `go.sum`. Its command is:
+
+```text
+govulncheck -json -db file:///checkout/<database> ./...
+```
+
+`./...` is the whole module. A new dependency can be called from a file the diff did not touch. The database is a file URL under `/checkout`, the only directory the container can read. `PROVEN_GOVULNCHECK_DB` names that URL. Empty means the tool is not run. An `http` or `https` URL is refused: the container has no network, and a failed fetch must not be read as "not reached". The time limit is `PROVEN_TOOL_TIMEOUT`, the same setting as the race detector.
+
+The JSON stream is one object per line. A trace whose first frame names a function and that has a caller is **reached**. The call path is that trace written from the caller down to the vulnerable function. Any other trace for the module is **imported but not reached**, including a module that is required but whose package is not imported. A module the stream does not mention is **not measured**: silence is not a measurement that the function is unreached.
+
+Each dependency finding gains one label. A Go finding is **not measured** when govulncheck did not answer, including when the binary is not in the image and when the command exits without a config object (a missing database is that kind of miss, and it is not called a measurement). A finding for any other ecosystem is **not measured**. A finding is never dropped because it is not reached. Within one severity, a reached dependency finding ranks ahead of a dependency finding that is not reached. Scores from EPSS still order findings that share a label.
+
+### Sample scenario
+
+Sample mode runs no container. The recorded scenario `GovulncheckMixed` has a call stack for `example.com/reached` and a package-only trace for `example.com/quiet`. The version in that recording is `v1.1.4`. A live run that does not ask the container for a version records `unknown`.
+
+That scenario labels the reached module with the call path and the quiet module as imported but not reached. A Packagist finding in the same list is not measured. The reached finding is ordered first.
 
 ### Adding the next tool
 

@@ -6,14 +6,16 @@
 // has the Judge keep only what carries evidence (ADR-0002), lets the Fixer propose
 // a fix for each finding a test proved and prove it with the same test (ADR-0042),
 // adds the dependency check against the OSV table, with the fixed version it
-// names, and the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
+// names, labels each dependency finding from govulncheck when the change is
+// Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
 // the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
 // and answer (ADR-0005), the record of every model call, the doubled review
 // with a second model (ADR-0009, ADR-0012), the partial review a deadline
 // leaves behind, and the redaction of every configured secret from the trace,
-// the recorded models, a failure's reason and every finding, because a service
+// the recorded models, a failure's reason, every finding and every agreed
+// opinion, because a service
 // can echo a value it was sent (ADR-0005, ADR-0013 point 4).
 //
 // Live mode reads a directory that already has base/ and change/, or a git
@@ -31,6 +33,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/agent/fixer"
 	"github.com/saphan-ai/proven/internal/agent/investigator"
@@ -52,6 +55,7 @@ import (
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
+	"github.com/saphan-ai/proven/internal/tool"
 	"github.com/saphan-ai/proven/internal/trace"
 	"github.com/saphan-ai/proven/internal/world"
 )
@@ -93,6 +97,12 @@ type Options struct {
 	// MaxWrittenBytes is the loaded container limit for a test the prover writes.
 	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
 	MaxWrittenBytes int
+	// GovulnDB is the file URL of the local govulncheck database.
+	// Empty means the tool is named as not run. Sample mode leaves it empty.
+	GovulnDB string
+	// ToolTimeout is the limit for one side of a tool run.
+	// Zero in sample mode: sample mode does not start a container.
+	ToolTimeout time.Duration
 	// Down names services that are already down when the review starts.
 	// An empty secret is recorded here so the review names the service even
 	// when a later check never calls it (ADR-0013 point 4a, ADR-0005 point 5).
@@ -120,6 +130,8 @@ type Pipeline struct {
 	epssView     string
 	env          func(string) string
 	maxWritten   int
+	govulnDB     string
+	toolTimeout  time.Duration
 	down         []service.Down
 	atBoundary   func(stage string)
 	mem          *hmem.Store
@@ -129,6 +141,9 @@ type Pipeline struct {
 	workDir string
 	// redactor replaces the configured secrets in text a service returned.
 	redactor *redact.Redactor
+	// logDir and stateDir are where Review opens the trace and the stores,
+	// once it knows the reviewed target.
+	logDir, stateDir string
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -151,16 +166,11 @@ func Build(opts Options) (*Pipeline, error) {
 	if !opts.Sample && opts.Redactor == nil {
 		return nil, fmt.Errorf("pipeline: a live pipeline needs a redactor and none was set")
 	}
-	tw, err := trace.Open(opts.LogDir)
-	if err != nil {
-		return nil, err
-	}
 	// ADR-0005, ADR-0013 point 4: one redactor, built by review.Open from the values the live settings
 	// loaded, stands at every place a service's text becomes trace or result text.
 	// Build does not read the environment to make it, so sample mode reads no
 	// setting; with none given, nothing is redacted.
 	rd := opts.Redactor
-	tw.SetRedactor(rd)
 	stateDir := opts.StateDir
 	if stateDir == "" {
 		var derr error
@@ -169,31 +179,20 @@ func Build(opts Options) (*Pipeline, error) {
 			return nil, derr
 		}
 	}
-	// The stores refuse a state directory inside the proven module, so they are
-	// told where the module is.
-	root := moduleRoot()
-	mem, err := hmem.Open(hmem.Options{
-		Dir: filepath.Join(stateDir, "hmem"), LogDir: opts.LogDir, RepoRoot: root,
-	})
-	if err != nil {
-		return nil, err
-	}
-	wm, err := world.Open(world.Options{
-		Dir: filepath.Join(stateDir, "world"), LogDir: opts.LogDir, RepoRoot: root, Memory: mem,
-	})
-	if err != nil {
-		return nil, err
-	}
 	area, aerr := workArea(opts.LogDir)
 	if aerr != nil {
 		return nil, aerr
 	}
+	// Nothing is written here. The reviewed target is not known until Review, and
+	// the trace, the state and the work area must stay outside it, so Review
+	// opens them (see begin) after it has compared them with the target.
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
-		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, trace: tw, rail: opts.Guardrail, guardOff: opts.GuardOff,
+		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
-		down: append([]service.Down(nil), opts.Down...), mem: mem, world: wm,
-		workDir: area, redactor: rd,
+		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
+		down:    append([]service.Down(nil), opts.Down...),
+		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -253,9 +252,15 @@ type Request struct {
 // judged findings. After a review with no error the trace is folded into the World
 // Model and H-MEM; if that fails, the review fails.
 func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
-	if p.trace != nil {
-		defer p.trace.Close()
+	// The trace, the state and the work area are compared with the reviewed
+	// target before anything is written, so none of them lands inside it.
+	if err := p.begin(req.Target); err != nil {
+		if p.trace != nil {
+			p.trace.Close()
+		}
+		return candidate.Draft{}, err
 	}
+	defer p.trace.Close()
 	// Fold only a review that ended without an error. This defer runs before
 	// the trace is closed, and reads what the review wrote.
 	defer func() {
@@ -274,6 +279,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	// ADR-0005, ADR-0013 point 4: the draft is the last place model and service text
 	// can reach the result, so it is redacted once here, after every agent has run.
 	d.Findings = p.redactFindings(d.Findings)
+	// An opinion's reasons are the reviewers' own words, so they are redacted
+	// with the findings (ADR-0041, ADR-0005).
+	d.Opinions = p.redactOpinions(d.Opinions)
 	// A review run without the guardrail says so in its result, not only in its
 	// trace: a reader of the result alone must not take it for a guarded review.
 	if p.guardOff {
@@ -296,8 +304,18 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 		c.ID, c.RuleID = rd.Text(c.ID), rd.Text(c.RuleID)
 		c.Title, c.Message = rd.Text(c.Title), rd.Text(c.Message)
 		c.Severity, c.Path = rd.Text(c.Severity), rd.Text(c.Path)
+		// A call path is checkout text and can carry a configured value.
+		c.Ecosystem, c.ReachLabel, c.CallPath = rd.Text(c.Ecosystem), rd.Text(c.ReachLabel), rd.Text(c.CallPath)
 		c.DropReason, c.ProverNote = rd.Text(c.DropReason), rd.Text(c.ProverNote)
 		c.Runs, c.Models = rd.Texts(c.Runs), rd.Texts(c.Models)
+		// A reviewer's reason is a model's own text and can echo a configured value.
+		if c.Verdicts != nil {
+			vs := make([]candidate.Verdict, len(c.Verdicts))
+			for j, v := range c.Verdicts {
+				vs[j] = candidate.Verdict{Run: v.Run, Model: rd.Text(v.Model), Verdict: v.Verdict, Reason: rd.Text(v.Reason)}
+			}
+			c.Verdicts = vs
+		}
 		r := &c.Refutation
 		r.Reason, r.TestPath, r.TestName = rd.Text(r.Reason), rd.Text(r.TestPath), rd.Text(r.TestName)
 		// ADR-0032: a refutation names a query template and its values, never SQL;
@@ -434,6 +452,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	keep := func(d candidate.Draft) candidate.Draft {
 		d.Findings = keepFindings(d.Findings, allow)
+		d.Opinions = keepOpinions(d.Opinions, allow)
 		return d
 	}
 
@@ -515,6 +534,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// ADR-0009, ADR-0012: a doubled review runs a second Planner and a second
 	// Skeptic on the special-review model.
 	var special generator.Generator
+	// specialOwn holds the special run's own risk for each risk both runs named, by merged id.
+	specialOwn := map[string]candidate.Risk{}
 	if req.DoubleRun {
 		second := p.secondGenerator(req.SpecialModel, raw)
 		if second != nil {
@@ -525,6 +546,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 	}
 
+	// defaultFailed is why the default reviewer has no word on the second reviewer's risks; empty when it answered.
+	defaultFailed := ""
 	risks, err := planner.Plan(ctx, fx.Root, gen)
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
@@ -538,11 +561,15 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 		risks = nil
+		defaultFailed = failureReason(err)
 	}
 	cands := make([]candidate.Candidate, 0, len(risks))
 	for _, r := range risks {
 		c := candidate.Candidate{
 			Risk: r, Runs: []string{runDefault}, Models: []string{reviewerModel(req, runDefault)},
+		}
+		if special != nil {
+			c.Verdicts = []candidate.Verdict{reportedBy(req, runDefault, r)}
 		}
 		if err := st.claim(r.ID, r.Title, runDefault); err != nil {
 			return candidate.Draft{}, err
@@ -553,6 +580,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		if ctx.Err() != nil {
 			return p.cut(st, cands, allow)
 		}
+		// secondFailed is why the second reviewer has no word on the default run's risks; empty when it answered.
+		secondFailed := ""
 		more, err := planner.Plan(ctx, fx.Root, special)
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
@@ -564,11 +593,13 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				return candidate.Draft{}, err
 			}
 			more = nil
+			secondFailed = failureReason(err)
 		}
 		extra := make([]candidate.Candidate, 0, len(more))
 		for _, r := range more {
 			extra = append(extra, candidate.Candidate{
 				Risk: r, Runs: []string{runSpecial}, Models: []string{reviewerModel(req, runSpecial)},
+				Verdicts: []candidate.Verdict{reportedBy(req, runSpecial, r)},
 			})
 		}
 		// The two runs number their risks on their own, so they are merged by
@@ -576,6 +607,14 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		var ids []string
 		cands, ids = mergeCandidates(cands, extra)
 		for i, r := range more {
+			// ADR-0037 point 3: the second Skeptic is shown the second reviewer's own words about a
+			// risk both named, never the first reviewer's. The merged candidate keeps the first
+			// reviewer's wording, so the second's is kept apart here.
+			for _, c := range cands {
+				if c.ID == ids[i] && hasRun(c, runDefault) {
+					specialOwn[c.ID] = r
+				}
+			}
 			title := r.Title
 			if ids[i] != r.ID {
 				title = r.Title + " (special run named it " + r.ID + "; renamed " + ids[i] + ")"
@@ -584,6 +623,10 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				return candidate.Draft{}, err
 			}
 		}
+		// Both planners have now answered, so a run that did not name a risk is known to have
+		// passed it over. Filled here, not at the end, so a review cut short later still shows
+		// both reviewers' words on every risk.
+		addAbsentVerdicts(req, cands, defaultFailed, secondFailed)
 	}
 	// After each stage, a context that has ended returns what is judged so far.
 	p.boundary("planned")
@@ -674,6 +717,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 					}
 				}
 			}
+			noteRefuted(&cands[i], runDefault, cands[i].Refutation)
 			if err := st.refutation(cands[i], runDefault); err != nil {
 				return candidate.Draft{}, err
 			}
@@ -682,7 +726,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		// is written to the trace under the special run; it becomes the
 		// finding's refutation only when the default run did not name the risk.
 		if special != nil && hasRun(cands[i], runSpecial) {
-			next, err := skeptic.Attempt(ctx, cleared(cands[i]), special)
+			own := cleared(cands[i])
+			if r, ok := specialOwn[own.ID]; ok {
+				own.Risk = r
+			}
+			next, err := skeptic.Attempt(ctx, own, special)
 			ref := candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			if err != nil {
 				if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -708,6 +756,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			if !hasRun(cands[i], runDefault) {
 				cands[i].Refutation = ref
 			}
+			noteRefuted(&cands[i], runSpecial, ref)
 			traced := cands[i]
 			traced.Refutation = ref
 			if err := st.refutation(traced, runSpecial); err != nil {
@@ -747,6 +796,18 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				return p.cut(st, cands, allow)
 			}
 			return candidate.Draft{}, err
+		}
+	}
+	// ADR-0043: label dependency findings from govulncheck before they are judged.
+	// A tool that did not answer leaves every Go finding "not measured".
+	if checkErr == nil {
+		var rerr error
+		checked, rerr = p.measureReach(ctx, checked, selected, filepath.Join(fx.Root, "base"), filepath.Join(fx.Root, "change"))
+		if rerr != nil {
+			if ctx.Err() != nil {
+				return p.cut(st, cands, allow)
+			}
+			return candidate.Draft{}, rerr
 		}
 	}
 	// The dependency check and the EPSS scores come after the Judge: they add
@@ -794,6 +855,56 @@ func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Adapter, s
 		}
 	}
 	return next, err
+}
+
+// measureReach labels each dependency finding from govulncheck (ADR-0043).
+// Sample mode starts no container and labels every finding not measured.
+// A live run uses the Prover's container and the tool's own time limit.
+// The change's output is what the label is read from: the finding describes
+// the change. The base still runs, so a tool that does not answer on either
+// side is named. A missing binary is that kind of miss, and it is never
+// "imported but not reached".
+func (p *Pipeline) measureReach(ctx context.Context, checked osv.Outcome, paths []string, baseDir, changeDir string) (osv.Outcome, error) {
+	g := tool.Govulncheck{DB: p.govulnDB}
+	if !g.Applies(paths) {
+		if len(checked.Candidates) > 0 {
+			checked.Notes = append(checked.Notes, "govulncheck does not apply")
+		}
+		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+		return checked, nil
+	}
+	if p.sample {
+		checked.Notes = append(checked.Notes, "govulncheck was not run: sample mode starts no container")
+		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+		return checked, nil
+	}
+	var host tool.Host
+	if box, ok := p.testRun.(*testrun.Container); ok && p.toolTimeout > 0 {
+		host = tool.ContainerHost{Box: box, Timeout: p.toolTimeout}
+	}
+	out, err := tool.NewRunner(g, host).Run(ctx, tool.Request{
+		Paths: paths, BaseDir: baseDir, ChangeDir: changeDir,
+	})
+	if err != nil {
+		return checked, err
+	}
+	if out.Answered && tool.ScanStarted(out.ChangeOutput) {
+		checked.Notes = append(checked.Notes, "govulncheck measured the change")
+		checked.Candidates = tool.LabelFindings(checked.Candidates, true, tool.Symbols(out.ChangeOutput))
+		return checked, nil
+	}
+	if out.Answered {
+		// Exit status alone is not a scan. A missing database exits as a
+		// command failure and prints no config object (ADR-0043).
+		checked.Notes = append(checked.Notes, "govulncheck cannot run: the output is not a govulncheck scan")
+		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+		return checked, nil
+	}
+	if out.Reason != "" {
+		checked.Notes = append(checked.Notes, out.Reason)
+	}
+	checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+	return checked, nil
 }
 
 // addOSV names added and raised modules without a model, queries the OSV
@@ -1258,6 +1369,7 @@ func (p *Pipeline) cut(st *state, cands []candidate.Candidate, allow map[string]
 		return candidate.Draft{}, err
 	}
 	d.Findings = keepFindings(d.Findings, allow)
+	d.Opinions = keepOpinions(d.Opinions, allow)
 	return d, nil
 }
 
@@ -1432,6 +1544,41 @@ func selectionText(dropped []string) string {
 	return "selected out: " + strings.Join(cp, ", ")
 }
 
+// keepOpinions keeps the opinions whose path is one of the selected files.
+// An opinion outside the selection is not shown, for the same reason a finding
+// outside it is not (ADR-0041).
+func keepOpinions(in []candidate.Opinion, allow map[string]struct{}) []candidate.Opinion {
+	var out []candidate.Opinion
+	for _, o := range in {
+		if _, ok := allow[o.Path]; ok {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+// redactOpinions returns a copy of in with the configured secrets replaced in
+// every string a reviewer wrote. A nil redactor leaves the text as it is.
+func (p *Pipeline) redactOpinions(in []candidate.Opinion) []candidate.Opinion {
+	if in == nil {
+		return nil
+	}
+	rd := p.redactor
+	out := make([]candidate.Opinion, len(in))
+	for i, o := range in {
+		o.ID, o.Title, o.Path = rd.Text(o.ID), rd.Text(o.Title), rd.Text(o.Path)
+		if o.Reasons != nil {
+			rs := make([]candidate.Verdict, len(o.Reasons))
+			for j, v := range o.Reasons {
+				rs[j] = candidate.Verdict{Run: v.Run, Model: rd.Text(v.Model), Verdict: v.Verdict, Reason: rd.Text(v.Reason)}
+			}
+			o.Reasons = rs
+		}
+		out[i] = o
+	}
+	return out
+}
+
 // keepFindings keeps the findings whose path is one of the selected files.
 func keepFindings(in []candidate.Candidate, allow map[string]struct{}) []candidate.Candidate {
 	var out []candidate.Candidate
@@ -1576,6 +1723,79 @@ func reviewerModel(req Request, run string) string {
 	return runDefault
 }
 
+// reportedBy is the verdict of a run that named risk r. The reason is the reviewer's own message about
+// the risk, so a reader sees what each reviewer said and not a summary of it.
+func reportedBy(req Request, run string, r candidate.Risk) candidate.Verdict {
+	return candidate.Verdict{Run: run, Model: reviewerModel(req, run), Verdict: candidate.VerdictReported, Reason: r.Message}
+}
+
+// failureReason is the reason a service failure gives, or the error's own text when it is not one.
+func failureReason(err error) string {
+	var d *service.Down
+	if errors.As(err, &d) {
+		return d.Reason
+	}
+	return err.Error()
+}
+
+// addAbsentVerdicts gives each candidate a verdict for the run that did not name it. A run whose
+// service failed has no word on the other run's risks, which is stated as such: a reviewer that never
+// answered must not be shown as having disagreed. defaultFailed and specialFailed are each run's failure
+// reason, or empty when that run answered. A failed default Planner leaves the special run's risks with
+// no default answer, and a failed special Planner leaves the default run's risks with no special answer.
+func addAbsentVerdicts(req Request, cands []candidate.Candidate, defaultFailed, specialFailed string) {
+	for i := range cands {
+		for _, run := range []string{runDefault, runSpecial} {
+			if hasVerdict(cands[i], run) {
+				continue
+			}
+			v := candidate.Verdict{
+				Run: run, Model: reviewerModel(req, run), Verdict: candidate.VerdictNotReported,
+				Reason: "this reviewer's own review did not name this risk",
+			}
+			failed := defaultFailed
+			if run == runSpecial {
+				failed = specialFailed
+			}
+			if failed != "" {
+				v.Verdict = candidate.VerdictNoAnswer
+				v.Reason = "this reviewer did not answer: " + failed
+			}
+			cands[i].Verdicts = append(cands[i].Verdicts, v)
+		}
+		// The default reviewer is always listed first, whichever run named the risk.
+		if vs := cands[i].Verdicts; len(vs) == 2 && vs[0].Run == runSpecial {
+			vs[0], vs[1] = vs[1], vs[0]
+		}
+	}
+}
+
+// hasVerdict reports whether run has a verdict on the candidate.
+func hasVerdict(c candidate.Candidate, run string) bool {
+	for _, v := range c.Verdicts {
+		if v.Run == run {
+			return true
+		}
+	}
+	return false
+}
+
+// noteRefuted turns run's verdict into "refuted" when that run's own Skeptic claimed to refute the
+// risk. The claim alone does not drop the finding (ADR-0006): the Judge still decides on evidence.
+// It only changes what that reviewer is shown to have said. A review with one reviewer carries no
+// verdicts, and nothing changes.
+func noteRefuted(c *candidate.Candidate, run string, ref candidate.Refutation) {
+	if !ref.Attempted || !ref.Refuted {
+		return
+	}
+	for i := range c.Verdicts {
+		if c.Verdicts[i].Run == run && c.Verdicts[i].Verdict == candidate.VerdictReported {
+			c.Verdicts[i].Verdict = candidate.VerdictRefuted
+			c.Verdicts[i].Reason = ref.Reason
+		}
+	}
+}
+
 // hasRun reports whether run named the candidate.
 func hasRun(c candidate.Candidate, run string) bool {
 	for _, r := range c.Runs {
@@ -1608,6 +1828,7 @@ func mergeCandidates(base, extra []candidate.Candidate) (merged []candidate.Cand
 		if i, ok := at[riskKey(c.Risk)]; ok {
 			base[i].Runs = appendNew(base[i].Runs, c.Runs)
 			base[i].Models = appendNew(base[i].Models, c.Models)
+			base[i].Verdicts = append(base[i].Verdicts, c.Verdicts...)
 			ids[j] = base[i].ID
 			continue
 		}

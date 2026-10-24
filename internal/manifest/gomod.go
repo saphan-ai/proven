@@ -1,7 +1,8 @@
 // Package manifest reads dependency manifests and lock files and names the
 // packages a change added or raised. Go (go.mod and go.sum), npm
 // (package.json and package-lock.json), PyPI (requirements.txt and
-// poetry.lock) and Packagist (composer.json and composer.lock) each have
+// poetry.lock), Packagist (composer.json and composer.lock) and Rust
+// (Cargo.toml and Cargo.lock) each have
 // a manifest reader and a lock reader. Each reader is an Adapter: the
 // files, the diff, the OSV ecosystem name, and the version comparison
 // (ADR-0038).
@@ -152,7 +153,7 @@ func Collect(files []change.File, readers []Reader) ([]Hit, []string, error) {
 
 // preferLock drops a manifest hit when a lock file in the same directory
 // already names that package. The lock hit carries the exact version.
-// PyPI names match after PEP 503 normalisation. Go and npm names do not.
+// PyPI names match after PEP 503 normalisation. Go, npm and crate names do not.
 func preferLock(hits []Hit) []Hit {
 	type key struct {
 		dir string
@@ -193,8 +194,8 @@ func dirOf(path string) string {
 
 // foldName gives the name preferLock compares. A PyPI name is the PEP 503
 // form, so Flask and flask are one package, and zope_interface and
-// zope.interface are one package. Go module paths and npm names are compared
-// as written: case folding would merge modules that are not the same.
+// zope.interface are one package. Go module paths, npm names and crate names
+// are compared as written: case folding would merge modules that are not the same.
 func foldName(ecosystem, pkg string) string {
 	if ecosystem == "PyPI" {
 		return pep503.Normalise(pkg)

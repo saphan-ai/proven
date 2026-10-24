@@ -87,6 +87,8 @@ finding F1 ERROR Discount is applied twice
   command: go test -run '^TestDiscounted$' ./billing
   output: base: PASS
 change: FAIL got 60 want 80
+Agreed by two models, not proven
+  none: one reviewer; a claim only one model makes stays dropped
 failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
@@ -133,7 +135,7 @@ and in `go.mod`:
 
 Totals by level on this scan: 1 proved by a test, 0 proved by a tool, 3 proved by data, 0 agreed by two models and not proven.
 
-F3 is the point of the scenario: a plausible risk with no evidence never reaches the review.
+F3 is the point of the scenario: a plausible risk with no evidence never reaches the review. This scan has one reviewer, so the section "Agreed by two models, not proven" is empty and says why. An agreed opinion needs both reviewers to name it at the same place, and it is not a finding and not one of these totals (ADR-0041).
 
 ## Read the trace
 
@@ -351,7 +353,7 @@ in `proven.yaml` change this ([CONFIGURATION.md](CONFIGURATION.md)): `fixes: off
 
 `composer.json` and `composer.lock` raise `monolog/monolog` from 2.0.0 to 2.9.1. 2.9.1 is inside one sample OSV range and outside another. The lock file's version is the one reported. The alias `CVE-2026-9090` has an EPSS row. The row for `other/unused` is not returned.
 
-The lines below are the stdout of `scan --sample testdata/fixture/osv-php-composer`, captured on 24 October 2026 with Go 1.26.8 by the scenario test, which runs that command. The trace path is the directory the scan starts from, so it is not copied here.
+The lines below are the stdout of `scan --sample testdata/fixture/osv-php-composer`, captured on 24 October 2026 with Go 1.26.10 by the scenario test, which runs that command. The trace path is the directory the scan starts from, so it is not copied here. The fix lines are in this capture because the fix chooser uses the language adapter's version order.
 
 ```text
 review class: security
@@ -377,6 +379,47 @@ finding osv:monolog/monolog ERROR Dependency monolog/monolog 2.9.1 is in an OSV 
   SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-9090'
   columns: cve_id, epss, percentile, score_date
   row: CVE-2026-9090 | 0.25000 | 0.91000 | 2026-10-24
+  fix named from the advisory table, not run by a test: raise monolog/monolog 2.9.1 to 2.10.0
+  fix closes the problem because: 2.10.0 is the fixed version of advisory GHSA-php-sample-0001, and it is the smallest fixed version of the rows returned that no affected range of those rows holds. No test proves a version change, so this fix is named from the table, not run.
+  fix advisory GHSA-php-sample-0001 columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  fix advisory row: GHSA-php-sample-0001 | CVE-2026-9090 | Packagist | monolog/monolog | 2.4.0 | 2.10.0 |  | HIGH | 2026-10-01
+failed services: none
+```
+
+## The scenario: `testdata/fixture/osv-rust-cargo`
+
+`Cargo.toml` and `Cargo.lock` raise `regex` from 1.5.0 to 1.9.1. The manifest writes the constraint `^1.9`. The lock file's version is the one reported. 1.9.1 is inside one sample OSV range and outside another. `libc` goes from 0.2.150 to 0.2.140 and is not a finding. The alias `CVE-2026-9191` has an EPSS row. The row for `unused_crate` is not returned. 1.10.0 is the smallest fixed version that leaves every returned range.
+
+The lines below are the stdout of `scan --sample testdata/fixture/osv-rust-cargo`, captured on 24 October 2026 with Go 1.26.10 by the scenario test, which runs that command. The trace path is the directory the scan starts from, so it is not copied here.
+
+```text
+review class: security
+review rule: Cargo.toml
+author model not stated; default reviewer NVIDIA
+reviewer NVIDIA; role default; family NVIDIA; author model not stated
+special-review model: not configured
+finding osv:regex ERROR Dependency regex 1.9.1 is in an OSV affected range
+  EPSS 0.33000 (91st percentile, 2026-10-24)
+  Cargo.lock:15-15
+  regex 1.9.1 matches GHSA-rs-sample-0001: introduced 1.7.0 <= 1.9.1 < fixed 1.10.0. GHSA-rs-sample-0002 does not match: 1.9.1 < introduced 1.11.0. alias CVE-2026-9191 is on the KEV list
+  rule osv-affected-package
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'crates.io' AND package = 'regex'
+  columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  row: GHSA-rs-sample-0001 | CVE-2026-9191 | crates.io | regex | 1.7.0 | 1.10.0 |  | HIGH | 2026-10-01
+  row: GHSA-rs-sample-0002 |  | crates.io | regex | 1.11.0 | 1.12.0 |  | LOW | 2026-10-02
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-9191'
+  columns: cve_id, vendor_project, product, date_added, known_ransomware
+  row: CVE-2026-9191 | example.com | regex | 2026-10-24 | Unknown
+  evidence query local-sample snapshot=sample-2026-10-24
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-9191'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-9191 | 0.33000 | 0.91000 | 2026-10-24
+  fix named from the advisory table, not run by a test: raise regex 1.9.1 to 1.10.0
+  fix closes the problem because: 1.10.0 is the fixed version of advisory GHSA-rs-sample-0001, and it is the smallest fixed version of the rows returned that no affected range of those rows holds. No test proves a version change, so this fix is named from the table, not run.
+  fix advisory GHSA-rs-sample-0001 columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  fix advisory row: GHSA-rs-sample-0001 | CVE-2026-9191 | crates.io | regex | 1.7.0 | 1.10.0 |  | HIGH | 2026-10-01
 failed services: none
 ```
 
