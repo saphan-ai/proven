@@ -2,7 +2,7 @@
 
 - incident: I03 (one incident; this case is its first round; a later round is PV-004)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -86,8 +86,47 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+- run date: 2026-10-22 (UTC). The time of day was not recorded: the seat's permission class denies the `date` program.
+- toolchain: `go version go1.26.5 linux/amd64`; standard library only; no network, no model.
+- layout: `base/gate.go`, `change/gate.go`, `check/main.go` and `check/reference.go` (the reference gate), `check.sh`.
+- `gofmt -l test/corpus/cases/PV-003`: no output. `go vet ./test/corpus/cases/PV-003/...`: no output.
+- command, from the repository root: `bash test/corpus/cases/PV-003/check.sh` (runs `go run ./test/corpus/cases/PV-003/check`).
+- exit code: 0.
+
+Output, in full:
+
+```
+own-case-cooled-slot | base=allowed | change=refused(A) | reference=refused(A)
+own-case-other-slot | base=allowed | change=allowed | reference=allowed
+move-moved-tenant | base=refused(X) | change=allowed | reference=refused(X)
+vacated-slot | base=refused(X) | change=refused(X) | reference=allowed
+control-no-cooldown | base=allowed | change=allowed | reference=allowed
+```
+
+Each line is: input, base result, change result, reference result. Inputs: `own-case-*` are the change's own cases
+(A on slot 1 uses up its quota, B on slot 2 runs without using up its own, no move; asked on slot 1 and on slot 2);
+`move-moved-tenant` asks on slot 2 after X uses up its quota on slot 1 and moves to slot 2; `vacated-slot` asks on slot 1
+after that move and after Y is assigned to slot 1; `control-no-cooldown` has no run that uses up the quota.
+Build choices the contract left open: a run that does not use up the quota clears the cooldown held under that run's key
+(node for base, (node, slot) for change, tenant for the reference); the cooldown is one minute on a fake clock that is
+never advanced; an unassigned slot is asked about with no tenant on it.
+
+Round 2 recheck: 2026-10-23 08:43 UTC, on Linux with `go version go1.26.5 linux/amd64`. From the repository root,
+`bash test/corpus/cases/PV-003/check.sh` exited 0 and printed, in full:
+
+```
+own-case-cooled-slot | base=allowed | change=refused(A) | reference=refused(A)
+own-case-other-slot | base=allowed | change=allowed | reference=allowed
+move-moved-tenant | base=refused(X) | change=allowed | reference=refused(X)
+vacated-slot | base=refused(X) | change=refused(X) | reference=allowed
+control-no-cooldown | base=allowed | change=allowed | reference=allowed
+```
+
+Not run: native macOS check. This seat runs Linux and has no macOS runner. The script uses Bash and Go only;
+source inspection found no GNU-only flag. Linux output does not establish the macOS result, so the review's
+cross-platform verification condition remains open.
 
 ## 9. Limits
 
