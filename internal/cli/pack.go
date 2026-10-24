@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/review"
@@ -79,21 +79,10 @@ func resolveCommits(cfg config) evidence.Commits {
 	return evidence.Commits{
 		Target:           cfg.target,
 		Baseline:         cfg.baseline,
-		BaselineResolved: resolveCommit(cfg.target, cfg.baseline),
+		BaselineResolved: change.ResolveCommit(cfg.target, cfg.baseline),
 		Head:             cfg.head,
-		HeadResolved:     resolveCommit(cfg.target, cfg.head),
+		HeadResolved:     change.ResolveCommit(cfg.target, cfg.head),
 	}
-}
-
-func resolveCommit(repo, name string) string {
-	if name == "" {
-		return ""
-	}
-	out, err := exec.Command("git", "-C", repo, "rev-parse", "--verify", "--quiet", name+"^{commit}").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }
 
 // packSettings is the settings the run used, and never a secret. A secret
