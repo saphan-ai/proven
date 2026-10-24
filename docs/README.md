@@ -4,6 +4,7 @@ Read in this order.
 
 | Page | For | Status |
 |---|---|---|
+| [LAB.md](LAB.md) | the judges' lab: `make up`, the pull request, and how to stop it | first version |
 | [INSTALL.md](INSTALL.md) | the quick start: prerequisites, build, the first sample review, livecheck | first version |
 | [SAMPLE_MODE.md](SAMPLE_MODE.md) | a whole review with no network and no keys: the scenario, what comes out, how to add one | first version |
 | [../demo/live/README.md](../demo/live/README.md) | a live review a judge can rerun: one finding proved by a test, one by Zetaris KEV | first version; the live run needs keys |

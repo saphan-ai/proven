@@ -1,0 +1,103 @@
+# Judges' lab. Every value comes from the environment (lab/versions.env).
+# Published ports bind to LAB_BIND (default 127.0.0.1) only.
+# The runner talks to the dind service. It does not mount the host's Docker socket.
+# SSH is off. The image's OpenSSH already holds :22, and Gitea's own server
+# on that port exited the container (measured 2026-10-23). No SSH port is published.
+
+name: ${COMPOSE_PROJECT_NAME}
+
+services:
+  gitea:
+    image: gitea/gitea:${GITEA_VERSION}
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__database__PATH: /data/gitea/gitea.db
+      GITEA__server__DOMAIN: ${LAB_BIND}
+      GITEA__server__ROOT_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/
+      GITEA__server__HTTP_PORT: ${GITEA_CONTAINER_HTTP_PORT}
+      GITEA__server__DISABLE_SSH: "${GITEA_DISABLE_SSH}"
+      GITEA__server__START_SSH_SERVER: "${GITEA_START_SSH_SERVER}"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__actions__ENABLED: "true"
+      # A repository made through the API gets these units. The seed also
+      # turns the Actions unit on by name, so a kept volume is repaired.
+      GITEA__repository__DEFAULT_REPO_UNITS: "repo.code,repo.releases,repo.issues,repo.pulls,repo.wiki,repo.projects,repo.packages,repo.actions"
+      GITEA__security__INSTALL_LOCK: "true"
+    ports:
+      - "${LAB_BIND}:${GITEA_HTTP_PORT}:${GITEA_CONTAINER_HTTP_PORT}"
+    volumes:
+      - gitea-data:/data
+    networks:
+      - lab
+
+  dind:
+    image: docker:${DOCKER_VERSION}-dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - --host=tcp://0.0.0.0:${DIND_PORT}
+      - --host=unix:///var/run/docker.sock
+      - --tls=false
+    volumes:
+      - dind-data:/var/lib/docker
+    networks:
+      - lab
+
+  runner:
+    image: gitea/act_runner:${ACT_RUNNER_VERSION}
+    environment:
+      GITEA_INSTANCE_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
+      GITEA_RUNNER_NAME: ${RUNNER_NAME}
+      GITEA_RUNNER_LABELS: ${RUNNER_LABEL}:docker://docker:${DOCKER_VERSION}-cli
+      DOCKER_HOST: tcp://${DIND_HOST}:${DIND_PORT}
+      CONFIG_FILE: /config.yaml
+    entrypoint: ["/bin/sh", "/start.sh"]
+    volumes:
+      - runner-data:/data
+      - runner-reg:/reg:ro
+      - ./runner/config.yaml:/config.yaml:ro
+      - ./runner/start.sh:/start.sh:ro
+    depends_on:
+      - gitea
+      - dind
+    restart: on-failure
+    networks:
+      - lab
+
+  seed:
+    image: ${SEED_IMAGE}:${SEED_IMAGE_TAG}
+    user: "0:0"
+    environment:
+      GITEA_INTERNAL_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
+      LAB_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/
+      LAB_ADMIN_USER: ${LAB_ADMIN_USER}
+      LAB_ADMIN_EMAIL: ${LAB_ADMIN_EMAIL}
+      LAB_BOT_USER: ${LAB_BOT_USER}
+      LAB_BOT_EMAIL: ${LAB_BOT_EMAIL}
+      LAB_DEMO_REPO: ${LAB_DEMO_REPO}
+      LAB_DEMO_BASE: ${LAB_DEMO_BASE}
+      LAB_DEMO_HEAD: ${LAB_DEMO_HEAD}
+      PROVEN_IMAGE: ${PROVEN_IMAGE}
+      RUNNER_LABEL: ${RUNNER_LABEL}
+      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}
+    volumes:
+      - seed-state:/state
+      - runner-reg:/reg
+      - ./workflow/proven.yml:/workflow/proven.yml:ro
+    depends_on:
+      - gitea
+    networks:
+      - lab
+
+networks:
+  lab:
+
+volumes:
+  gitea-data:
+  dind-data:
+  runner-data:
+  runner-reg:
+  seed-state:
