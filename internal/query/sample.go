@@ -2,46 +2,34 @@ package query
 
 import (
 	"context"
-	"os"
-
-	"github.com/saphan-ai/proven/internal/limit"
+	"fmt"
 )
 
-// Sample runs SQL on the local engine. It opens no network.
-// It is the query adapter of sample mode (ADR-0002, point 4).
+// Sample runs SQL on the local one-file store, opened on a fixture's
+// tables file (ADR-0047). It opens no network. It is the query adapter of
+// sample mode (ADR-0002, point 4). The engine name stays local-sample so a
+// sample review reads as it did before the store had a file.
 type Sample struct {
-	db *DB
+	file *File
 }
 
-// OpenSample loads a SQL file of sample tables.
-// The file may hold only CREATE TABLE and INSERT statements.
+// OpenSample loads a SQL file of sample tables as the local store.
+// The file may hold only CREATE TABLE and INSERT statements. The file is
+// not rewritten: sample mode only queries it.
 func OpenSample(path string) (*Sample, error) {
-	b, err := os.ReadFile(path)
+	// A fixture has its own snapshot date. The store leaves Snapshot empty
+	// so the caller can fill that date, as it always has.
+	f, err := openFile(path, "local-sample", nil)
 	if err != nil {
 		return nil, err
 	}
-	db, err := LoadSQL(string(b))
-	if err != nil {
-		return nil, err
-	}
-	return &Sample{db: db}, nil
+	return &Sample{file: f}, nil
 }
 
 // Query runs the statement on the loaded tables.
 func (s *Sample) Query(ctx context.Context, sql string) (Result, error) {
-	// ADR-0001, point 3: every adapter call is bounded, the local one too.
-	ctx, cancel := limit.Bound(ctx)
-	defer cancel()
-	if err := ctx.Err(); err != nil {
-		return Result{}, err
+	if s == nil || s.file == nil {
+		return Result{}, fmt.Errorf("query: no local store")
 	}
-	cols, rows, err := s.db.Query(sql)
-	if err != nil {
-		return Result{}, err
-	}
-	// No match is an empty list, not nil, so the evidence prints [] and not null.
-	if rows == nil {
-		rows = [][]string{}
-	}
-	return Result{SQL: sql, Engine: "local-sample", Columns: cols, Rows: rows}, nil
+	return s.file.Query(ctx, sql)
 }

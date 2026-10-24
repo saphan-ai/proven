@@ -319,7 +319,8 @@ type TestEvidence struct {
 // QueryEvidence is a query and the rows it returned.
 type QueryEvidence struct {
 	SQL      string
-	Engine   string // "zetaris" or "local-sample"
+	Form     string // "sql"; "mango" is reserved for CouchDB (ADR-0047)
+	Engine   string // "zetaris", "local", or "local-sample"
 	Snapshot string // which snapshot of each source was read
 	Columns  []string
 	Rows     [][]string

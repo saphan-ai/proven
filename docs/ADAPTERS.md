@@ -57,3 +57,13 @@ Two recordings are the controls:
 ## Adding the next tool
 
 Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four answers above, a recorded scenario, and tests for three outcomes: a result only on the change, the same result on the base, and a run that does not answer. It uses the same container and the same time-limit setting. It does not grow a second way to start a process.
+
+## The evidence store
+
+[ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md). A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it. The default is `zetaris`. `local` is one file and no server, and it opens no network. `couchdb` is refused by name until it is built. The file of the local store is `PROVEN_EVIDENCE_FILE`; empty means `proven-evidence.sql`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
+
+A source registers a table on the configured store, then runs a query Proven built from a template. Zetaris keeps the rule that Proven's key only reads: registering a table there is the administrator's act, and Proven records the name and sends no statement. The local store writes the table into its file.
+
+A template has one form for each query language. This wagon fills the `sql` form, which Zetaris and the local store both run. The `mango` form is empty until CouchDB. The evidence of a query names the form that ran, with the text of that form and the rows it returned.
+
+One scenario runs on every store that is built. The form, the query text, the columns and the rows match. Zetaris is played by a recorded HTTP server in that test. The local store is the real file.

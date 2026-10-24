@@ -1,13 +1,15 @@
-// Package querytpl is the closed list of questions Proven can ask Zetaris, and
-// the only place their SQL is written (ADR-0032).
+// Package querytpl is the closed list of questions Proven can ask a store, and
+// the only place their text is written (ADR-0032).
 //
 // A model never writes a query. The Investigator and the Skeptic name one
 // template and give the values of its parameters; Proven checks each value
-// against the strict format of that parameter and builds the SQL itself. A
+// against the strict format of that parameter and builds the query itself. A
 // value outside its format is refused with a named reason, never escaped, so
-// a quote, a backslash, a control byte or invalid UTF-8 cannot reach the SQL.
-// The OSV check and the EPSS check build their queries here too, so every
-// query Proven sends has one author. docs/QUERIES.md lists the templates.
+// a quote, a backslash, a control byte or invalid UTF-8 cannot reach the text.
+// Each template has one form per query language (ADR-0047): sql for Zetaris
+// and the local store, and room for a mango form when CouchDB is built. The
+// OSV check and the EPSS check build their queries here too, so every query
+// Proven sends has one author. docs/QUERIES.md lists the templates.
 package querytpl
 
 import (

@@ -110,10 +110,11 @@ type Fix struct {
 }
 
 // QueryEvidence is a query and the rows the engine returned.
-// Engine and Snapshot say where the rows came from, so a reader can run the
-// same SQL again (ADR-0023).
+// Form names the query language that ran. Engine and Snapshot say where the
+// rows came from, so a reader can run the same query again (ADR-0023, ADR-0047).
 type QueryEvidence struct {
 	SQL      string
+	Form     string
 	Engine   string
 	Snapshot string
 	Columns  []string

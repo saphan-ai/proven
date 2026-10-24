@@ -5,7 +5,8 @@
 // SQL: Proven checks each value against its format and builds the SQL from the
 // template (internal/querytpl) over the evidence tables behind Zetaris
 // (ADR-0002, ADR-0004). A query and the rows it returned are evidence the Judge
-// can keep; the SQL is kept with them so any reader can run it again.
+// can keep; the form and the text that ran are kept with them so any reader
+// can run the query again (ADR-0047).
 package investigator
 
 import (
@@ -121,7 +122,7 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	c.Evidence = append(c.Evidence, candidate.Evidence{
 		Kind: candidate.KindQuery,
 		Query: &candidate.QueryEvidence{
-			SQL: res.SQL, Engine: res.Engine, Snapshot: snap,
+			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: res.Columns, Rows: res.Rows,
 		},
 	})

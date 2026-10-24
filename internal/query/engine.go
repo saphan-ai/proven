@@ -1,11 +1,13 @@
-// Package query runs the SQL Proven builds. It holds the one Adapter
-// interface and its two implementations: Live sends a SELECT to Zetaris over
-// REST (ADR-0015), and Sample runs the same SQL on a small local engine over
-// sample tables, so sample mode and the tests need no network (ADR-0002,
+// Package query runs the SQL Proven builds. It holds the Adapter interface
+// and the stores behind it (ADR-0047). Live sends a SELECT to Zetaris over
+// REST (ADR-0015). The local store is one file of tables and no server; it
+// runs that SQL on the small engine sample mode already uses, so it needs
+// no network (ADR-0034). Sample opens that file on a fixture (ADR-0002,
 // point 4). The EPSS and OSV steps of the pipeline query through the same
-// Adapter. The Judge keeps the SQL and its rows as evidence. No SQL a model wrote
-// reaches an Adapter: Proven builds every query from a template (ADR-0032,
-// internal/querytpl), and Live checks the text once more before it sends it.
+// Adapter. The Judge keeps the query, the form that ran, and its rows as
+// evidence. No SQL a model wrote reaches an Adapter: Proven builds every
+// query from a template (ADR-0032, internal/querytpl), and Live checks the
+// text once more before it sends it.
 package query
 
 import (

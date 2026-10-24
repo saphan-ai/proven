@@ -25,7 +25,7 @@ func TestAppendRedactsEveryTextFieldAndLeavesTheCallersEventAlone(t *testing.T) 
 		Evidence: []Evidence{
 			{Kind: secret, Test: &TestEvidence{Path: secret, Name: secret, Command: secret, Output: secret}},
 			{Kind: "query", Query: &QueryEvidence{
-				SQL: secret, Engine: secret, Snapshot: secret,
+				SQL: secret, Form: secret, Engine: secret, Snapshot: secret,
 				Columns: []string{secret}, Rows: [][]string{{secret, "plain"}},
 			}},
 			{Kind: "tool", Tool: &ToolEvidence{Tool: secret, Version: secret, Command: secret, Output: secret, BaseOutput: secret}},

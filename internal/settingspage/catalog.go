@@ -16,6 +16,7 @@ import (
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
 )
@@ -39,14 +40,19 @@ const readsAfter = "A read over its bound is refused by name before the review g
 // generatorAfter says, per mode, which keys the generator needs and where to get them (ADR-0031 point 6).
 const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these."
 
+// evidenceAfter follows the evidence table. It is not a setting.
+const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. couchdb is named and refused until it is built. Sample mode uses the local store on the fixture file and reads none of these."
+
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
 // beside PROVEN_OSV_TABLE. PROVEN_EVIDENCE_VIEW is declared in livecheck.
 // PROVEN_ADAPTER_TIMEOUT is declared in limit.
-// The evidence table joins the rows of four packages: the Zetaris adapter,
-// OSV, EPSS and livecheck.
+// PROVEN_EVIDENCE_STORE and PROVEN_EVIDENCE_FILE are declared in store.
+// The evidence table joins the store choice, the Zetaris adapter, OSV, EPSS
+// and livecheck.
 func Catalog() []envdoc.Section {
-	evidence := append(append(append(query.Environment(), osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
+	evidence := append(store.Environment(), query.Environment()...)
+	evidence = append(append(append(evidence, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
 		{
 			Heading: "The model generator: Meterless Nightshift or NVIDIA's hosted API",
@@ -59,8 +65,9 @@ func Catalog() []envdoc.Section {
 			After:   guardrailAfter,
 		},
 		{
-			Heading: "Evidence: Zetaris over REST",
+			Heading: "Evidence: the store, and Zetaris over REST",
 			Rows:    evidence,
+			After:   evidenceAfter,
 		},
 		{
 			Heading: "The Prover's container",

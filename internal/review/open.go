@@ -20,6 +20,7 @@ import (
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -115,14 +116,29 @@ func open(opts Options) (Reviewer, error) {
 			}
 			popts.Guardrail = rail
 		}
-		zset, zerr := query.Load(env)
-		if d, ok := service.As(zerr); ok {
-			popts.Down = append(popts.Down, *d)
-			popts.LiveQuery = query.Absent{Reason: d.Reason}
-		} else if zerr != nil {
-			return nil, queryConfig(zerr)
+		// ADR-0047: one setting chooses the store. The default is Zetaris, and
+		// that path is the client this review already used. local skips the
+		// Zetaris settings, so a review with no Zetaris key still runs.
+		choice, serr := store.Load(env)
+		if serr != nil {
+			return nil, storeConfig(serr)
+		}
+		if choice.Name == store.NameLocal {
+			loc, oerr := store.OpenLocal(choice.File)
+			if oerr != nil {
+				return nil, oerr
+			}
+			popts.LiveQuery = loc
 		} else {
-			popts.LiveQuery = query.NewLive(zset, nil)
+			zset, zerr := query.Load(env)
+			if d, ok := service.As(zerr); ok {
+				popts.Down = append(popts.Down, *d)
+				popts.LiveQuery = query.Absent{Reason: d.Reason}
+			} else if zerr != nil {
+				return nil, queryConfig(zerr)
+			} else {
+				popts.LiveQuery = query.NewLive(zset, nil)
+			}
 		}
 		if opts.liveQuery != nil {
 			// A test supplies the query adapter. The live client above is not called.
@@ -361,7 +377,7 @@ func toEvidence(e candidate.Evidence) Evidence {
 	if e.Query != nil {
 		q := *e.Query
 		out.Query = &QueryEvidence{
-			SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
+			SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
 			Rows:    copyRows(q.Rows),
 		}
@@ -380,9 +396,21 @@ func toEvidence(e candidate.Evidence) Evidence {
 
 // queryConfig turns a refused Zetaris query setting into the seam's *ConfigError.
 // The shell exits 7 on that type. Any other error passes through unchanged.
-// The five functions below do the same for the other adapters' settings.
+// The functions below do the same for the other adapters' settings.
 func queryConfig(err error) error {
 	var cfg *query.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// storeConfig turns a refused evidence-store setting into the seam's *ConfigError.
+func storeConfig(err error) error {
+	var cfg *store.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

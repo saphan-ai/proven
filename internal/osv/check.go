@@ -323,7 +323,7 @@ func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 	return candidate.Evidence{
 		Kind: candidate.KindQuery,
 		Query: &candidate.QueryEvidence{
-			SQL: res.SQL, Engine: res.Engine, Snapshot: snap,
+			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: append([]string(nil), res.Columns...),
 			Rows:    copyRows(res.Rows),
 		},
