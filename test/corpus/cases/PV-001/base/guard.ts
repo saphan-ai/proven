@@ -1,7 +1,3 @@
-// Base guard: frame ids come from a text pattern over the raw document.
-// The pattern does not know about elements, so it also matches in comments,
-// scripts, style blocks, attribute values and other non-element text.
-
 const FRAME_ID = /data-screen\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 
 export interface Answer {

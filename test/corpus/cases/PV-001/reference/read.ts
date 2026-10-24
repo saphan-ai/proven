@@ -11,7 +11,6 @@ function walk(node: Node, ids: string[]): void {
     for (const attr of node.attrs) {
       if (attr.name === "data-screen") {
         ids.push(attr.value);
-        break;
       }
     }
   }

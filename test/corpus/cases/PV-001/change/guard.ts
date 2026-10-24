@@ -1,7 +1,3 @@
-// Change guard: tokenize tags, then fold each tag's attributes into a map.
-// A later duplicate attribute overwrites an earlier one. The HTML standard
-// keeps the first duplicate; this map does not.
-
 export interface Answer {
   pass: boolean;
   missing: string[];
@@ -145,7 +141,6 @@ export function listFrameIds(document: string): string[] {
         }
       }
 
-      // Later duplicate wins. This is the property the case exists to show.
       attrs.set(attrName, value);
     }
 

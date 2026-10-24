@@ -3,8 +3,8 @@
 // The reference result applies that same required-id test to the parser's
 // frame ids. It does not call either guard.
 
-import { judge as judgeBase } from "./base/guard.js";
-import { judge as judgeChange } from "./change/guard.js";
+import { judge as judgeBase, listFrameIds as baseFrameIds } from "./base/guard.js";
+import { judge as judgeChange, listFrameIds as changeFrameIds } from "./change/guard.js";
 import { listFrameIds as referenceFrameIds } from "./reference/read.js";
 
 declare const console: { log(message: string): void };
@@ -55,12 +55,16 @@ function referenceResult(html: string): string {
 for (const input of inputs) {
   const base = judgeBase(input.html, REQUIRED);
   const change = judgeChange(input.html, REQUIRED);
+  const referenceIds = referenceFrameIds(input.html);
   console.log(
     [
       input.name,
       "base=" + formatAnswer(base.pass, base.missing),
       "change=" + formatAnswer(change.pass, change.missing),
       "reference=" + referenceResult(input.html),
+      "base_ids=" + JSON.stringify(baseFrameIds(input.html)),
+      "change_ids=" + JSON.stringify(changeFrameIds(input.html)),
+      "reference_ids=" + JSON.stringify(referenceIds),
     ].join(" "),
   );
 }
