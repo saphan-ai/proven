@@ -259,8 +259,10 @@ func TestTraceFileHardLinkIntoTheTargetIsRefused(t *testing.T) {
 }
 
 // TestLogDirCaseAliasInsideTheTargetIsRefused proves a log directory that
-// differs from the target only by letter case is refused. The skip runs
-// only after a probe of this temp filesystem.
+// differs from the target only by letter case is refused. That refusal is
+// exercised only on volumes that ignore case (darwin, Windows). On any
+// other volume this test skips, and the skip is a measurement of this
+// temp filesystem, not an assumption.
 // Mutated field: letter case of PROVEN_LOG_DIR.
 func TestLogDirCaseAliasInsideTheTargetIsRefused(t *testing.T) {
 	folds, detail := tempFilesystemFoldsCase(t)

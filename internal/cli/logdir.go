@@ -18,7 +18,7 @@ func Environment() []envdoc.Setting {
 	return []envdoc.Setting{{
 		Name:        EnvLogDir,
 		Default:     envdoc.Tick("<user cache>/proven/logs"),
-		Description: "where the trace is written. The directory is created with mode 0700. A path that resolves inside the review target, including through a symlink, is refused. Sample mode reads this",
+		Description: "where the trace is written. The directory is created with mode 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Sample mode reads this",
 	}}
 }
 

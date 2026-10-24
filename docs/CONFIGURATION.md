@@ -98,7 +98,7 @@ A read over its bound is refused by name before the review goes on; the refusal 
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_LOG_DIR` | `<user cache>/proven/logs` | where the trace is written. The directory is created with mode 0700. A path that resolves inside the review target, including through a symlink, is refused. Sample mode reads this |
+| `PROVEN_LOG_DIR` | `<user cache>/proven/logs` | where the trace is written. The directory is created with mode 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Sample mode reads this |
 
 The default is the user cache directory, with proven/logs under it, created so only that user can read it. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. Sample mode reads this setting.
 <!-- end generated -->
