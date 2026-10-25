@@ -68,7 +68,10 @@ func contractResult(t *testing.T) review.Result {
 				// The field says proved-by-tool, so a writer that derives the
 				// level from the evidence instead of copying ProofLevel fails.
 				ProofLevel: review.ProvedByTool,
-				Location:   review.Location{Path: "dir/a.go", StartLine: 5, EndLine: 7},
+				// The first finding has a stored record and the second has none, so the
+				// JSON contract shows the field present on one and omitted on the other.
+				EvidenceRecordURL: "http://couch.test/proven_records/_design/evidence/viewer.html?doc=rec-1",
+				Location:          review.Location{Path: "dir/a.go", StartLine: 5, EndLine: 7},
 				Evidence: []review.Evidence{
 					{Kind: review.EvidenceTest, Test: &review.TestEvidence{
 						Path: "dir/a_test.go", Name: "TestA", Command: "go test ./dir", FailsOnChange: true, PassesOnBase: true, Output: "FAIL",
@@ -142,8 +145,9 @@ func TestJSONDocumentIsTheContract(t *testing.T) {
 			map[string]any{
 				"id": "F1", "proof_level": "proved-by-tool", "rule_id": "rule-one", "title": "title one", "message": "message one",
 				"severity": "ERROR", "unresolved": true, "models": []any{"model-a", "model-b"},
-				"location": map[string]any{"path": "dir/a.go", "start_line": float64(5), "end_line": float64(7)},
-				"evidence": wantEvidence(),
+				"location":            map[string]any{"path": "dir/a.go", "start_line": float64(5), "end_line": float64(7)},
+				"evidence":            wantEvidence(),
+				"evidence_record_url": "http://couch.test/proven_records/_design/evidence/viewer.html?doc=rec-1",
 			},
 			map[string]any{
 				"id": "F2", "proof_level": "agreed-by-two-models-not-proven", "rule_id": "", "title": "", "message": "message two",

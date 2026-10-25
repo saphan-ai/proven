@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -82,6 +83,10 @@ type Options struct {
 	// tel, when set, replaces the telemetry the OTEL_* variables build (ADR-0045).
 	// A test sets it to read the spans and numbers back from memory.
 	tel *telemetry.T
+	// recordsClient, when set, is the HTTP client of the evidence records' writer
+	// and of the viewer check. A review leaves it unset. Tests set it to a
+	// recorded CouchDB, so no test dials one.
+	recordsClient *http.Client
 }
 
 // Request is one review request.
@@ -319,6 +324,12 @@ type Finding struct {
 	// Fix is the fix Proven proposes for the finding, or nil when it proposed none (ADR-0042).
 	// It is a suggestion for a person to apply; Proven never writes it to the change.
 	Fix *Fix
+	// EvidenceRecordURL is the address of the finding's evidence record in the
+	// read-only viewer page CouchDB serves. It is set only when the records
+	// setting and the link base URL setting are both set and the record was
+	// stored; otherwise it is empty and the comment shows no link. The pull
+	// request comment's renderer reads it.
+	EvidenceRecordURL string
 }
 
 // The kinds of Fix.

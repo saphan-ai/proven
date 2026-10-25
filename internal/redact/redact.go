@@ -25,12 +25,12 @@ import (
 )
 
 // Names lists every variable whose value Proven redacts: the keys it sends (the
-// generator's two, the second reviewer's (ADR-0037), the guardrail's, Zetaris's and the CouchDB store's password), and the
+// generator's two, the second reviewer's (ADR-0037), the guardrail's, Zetaris's and the CouchDB store's two passwords), and the
 // organisation id it identifies itself with. The generator's NVIDIA key is here so a hosted
 // answer that echoes it never reaches the trace (ADR-0031 point 3). The organisation id is
 // an identifier, not a credential: an id shorter than service.MinSecretBytes is NOT redacted
 // (FromEnv leaves it out), so a short id can appear in a trace.
-var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID, store.EnvCouchPassword}
+var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID, store.EnvCouchPassword, store.EnvRecordsPassword}
 
 // Redactor replaces configured values in text. The zero value and a nil
 // *Redactor leave text unchanged.

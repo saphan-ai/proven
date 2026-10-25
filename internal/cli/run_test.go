@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/saphan-ai/proven/internal/store"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -710,7 +711,8 @@ func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
 		}
 		// ADR-0045: the OTEL_* variables are the one family sample mode reads besides ADR-0020 §1's.
 		// They name no secret of Proven's; with none set, a review exports nothing.
-		if !KnownCLIEnv(k) && !strings.HasPrefix(k, "OTEL_") {
+		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+		if !KnownCLIEnv(k) && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) {
 			t.Errorf("sample mode read %s, which ADR-0020 §1 does not name", k)
 		}
 		return ""
