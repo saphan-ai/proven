@@ -6,21 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/trace"
 )
 
-// EnvLogDir is the trace directory. An empty value means the user cache.
-// Sample mode reads it: the sample reviewer writes a trace too.
-const EnvLogDir = "PROVEN_LOG_DIR"
-
-// Environment is the trace directory row on the configuration page.
-func Environment() []envdoc.Setting {
-	return []envdoc.Setting{{
-		Name:        EnvLogDir,
-		Default:     envdoc.Tick("<user cache>/proven/logs"),
-		Description: "where the trace is written. The directory is created with mode 0700. An existing configured directory is narrowed to 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Each file written in that directory, trace.jsonl, hmem.jsonl and world.jsonl, is refused when it is a symlink (wherever it points) or has more than one name. The link count is read on every OS. Sample mode reads this",
-	}}
-}
+// EnvLogDir is the trace directory setting, declared beside the trace
+// (trace.EnvLogDir) so the configuration page can list it without importing
+// this package.
+const EnvLogDir = trace.EnvLogDir
 
 // logDirAllowed is the form a refused log directory names (ADR-0013).
 var logDirAllowed = []string{"an absolute path outside the review target"}
