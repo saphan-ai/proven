@@ -76,6 +76,7 @@ Francisco, and the fleet at home keeps working, reached over the same private ne
 | **AMD Ryzen 9 9950X workstation** | 16 cores / 32 threads, 128 GB, 2 × 2 TB NVMe on ZFS, Proxmox | every Linux virtual machine of the fleet: the agent runners (Cursor, Claude Code, Codex, NVIDIA Nemotron, Qwen), the builders, Zetaris in its own virtual machine, and the judges' lab Gitea |
 | **three Intel NUCs** | Proxmox cluster | observability (Prometheus, Grafana), the model router (LiteLLM), network routing |
 | **Lenovo ThinkPad** | a separate laptop | fresh-install tests of each Saphan Studio release, on a machine the fleet has never touched |
+| **six UPS units** | battery backup | this is Thailand in the rainy season: power cuts happen, and the fleet rides through them |
 
 In all:
 
