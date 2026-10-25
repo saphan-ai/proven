@@ -37,7 +37,8 @@ export const publicTextRules = [
   { kind: 'credential', re: /\bxox[baprs]-[A-Za-z0-9-]{10,}/ },
   { kind: 'credential', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
   { kind: 'credential', re: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}/ },
-  { kind: 'credential', re: /\b(api[_-]?key|token|secret|password)\b\s*[:=]\s*["']?[A-Za-z0-9/+_-]{24,}/i },
+  // also after an underscore-joined name: GITHUB_TOKEN=…, PROVEN_GUARDRAIL_KEY=…
+  { kind: 'credential', re: /(?:\b|_)(api[_-]?key|key|token|secret|password)\b\s*[:=]\s*["']?[A-Za-z0-9/+_-]{24,}/i },
 ];
 
 // ---- the checks: pages are [{ slug, text }]; each returns a list of findings --

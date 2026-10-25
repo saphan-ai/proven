@@ -53,7 +53,8 @@ test('an internal path and a credential fail the public-text guard', () => {
     page('b', 'key = AKIAABCDEFGHIJKLMNOP\n'),
     page('c', 'export PROVEN_GENERATOR_KEY=nvapi-abcdefghijklmnopqrstuvwxyz0123\n'),
   ]);
-  assert.deepEqual(found.map((f) => f.split(':')[0]), ['a', 'b', 'c']);
+  // c is caught twice: as an nvapi- key and as a key assignment
+  assert.deepEqual([...new Set(found.map((f) => f.split(':')[0]))], ['a', 'b', 'c']);
 });
 
 test('a merge-conflict marker fails the page-intact guard', () => {
@@ -92,4 +93,39 @@ test('an indented conflict marker fails the page-intact guard; an indented =====
 test('a raw HTML link whose tag spans lines is checked (negative control: the line break)', () => {
   const pages = [{ slug: 'x', text: '<a class="nav"\n   href="/docs/missing">missing</a>\n' }];
   assert.equal(checkLinks(pages).findings.length, 1);
+});
+
+// One case per publicTextRules entry: the positive is caught by that rule alone,
+// so deleting any one rule turns exactly one of these tests red.
+const publicTextCases = [
+  ['a home directory', 'cd /Users/someone/work', 'cd /usr/local/bin'],
+  ['a workspace name', 'see worktrees/proven for it', 'a git worktree is a checkout'],
+  ['a private-zone host', 'ssh build-box-07.corp', 'mail proven-bot@lab.local'],
+  ['a tailnet host', 'open box.tail1234.ts.net', 'see tailscale.com'],
+  ['a private address', 'curl http://10.1.2.3/', 'version 10.1.2'],
+  ['an AWS key id', 'id AKIAABCDEFGHIJKLMNOP', 'id AKIA1234'],
+  ['a GitHub token', `use ghp_${'a'.repeat(36)}`, 'use ghp_short'],
+  ['an NVIDIA key', `use nvapi-${'a'.repeat(24)}`, 'use nvapi-short'],
+  ['an sk- key', `use sk-${'a'.repeat(24)}`, 'use sk-short'],
+  ['a Slack token', 'use xoxb-1234567890ab', 'use xoxb-12'],
+  ['a private key block', '-----BEGIN RSA PRIVATE KEY-----', '-----BEGIN PUBLIC KEY-----'],
+  ['a JWT', 'eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0.abcdefgh', 'eyJ.short'],
+  ['a credential assignment', `export GITHUB_TOKEN=${'a1'.repeat(15)}`, 'export GITHUB_TOKEN=$GITHUB_TOKEN'],
+];
+
+for (const [what, positive, nearMiss] of publicTextCases) {
+  test(`public-text: ${what} is caught by exactly one rule, and its near miss passes`, () => {
+    assert.equal(checkPublicText([page('p', positive)]).length, 1, positive);
+    assert.deepEqual(checkPublicText([page('p', nearMiss)]), [], nearMiss);
+  });
+}
+
+test('public-text: a key after an underscore-joined name is caught (negative control: the underscore)', () => {
+  assert.equal(checkPublicText([page('p', `PROVEN_GUARDRAIL_KEY=${'b2'.repeat(15)}`)]).length, 1);
+});
+
+test('the deploy route and DOCS_HOST name the same host (negative control: either literal)', () => {
+  const text = fs.readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+  const config = JSON.parse(text.replace(/^\s*\/\/.*$/gm, ''));
+  assert.equal(config.routes[0].pattern, config.vars.DOCS_HOST);
 });
