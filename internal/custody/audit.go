@@ -369,6 +369,12 @@ func Write(w io.Writer, rep Report) {
 		fmt.Fprintf(w, "custody FAILED for %d answers\n", n)
 		return
 	}
+	if all.Answers == 0 {
+		// With no live answer there is nothing custody could fail on, so
+		// "holds" would read the same whether it holds or not.
+		fmt.Fprintln(w, "custody UNMEASURED: the traces hold no live answer")
+		return
+	}
 	fmt.Fprintln(w, "custody holds for every answer")
 }
 

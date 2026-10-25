@@ -276,3 +276,15 @@ func TestWriteNamesEveryFailure(t *testing.T) {
 		}
 	}
 }
+
+// Property: with receipts but no live answer in the traces, the report says
+// custody is unmeasured, never that it holds.
+func TestWriteSaysUnmeasuredWithNoAnswer(t *testing.T) {
+	sample := `{"time":"` + day1 + `","kind":"model","agent":"planner","model":{"model":"unknown","from_receipt":false}}`
+	rep := audit(t, good(t, "chatcmpl-1", answerModel, day1), sample)
+	var out bytes.Buffer
+	Write(&out, rep)
+	if !strings.Contains(out.String(), "custody UNMEASURED") || strings.Contains(out.String(), "custody holds") {
+		t.Fatalf("output:\n%s", out.String())
+	}
+}
