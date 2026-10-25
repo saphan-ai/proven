@@ -8,7 +8,7 @@
   "editable": false,
   "graphTooltip": 1,
   "refresh": "5s",
-  "time": { "from": "now-30m", "to": "now" },
+  "time": { "from": "now-24h", "to": "now" },
   "timepicker": { "refresh_intervals": ["2s", "5s", "10s", "30s", "1m"] },
   "templating": {
     "list": [
@@ -42,7 +42,10 @@
           "refId": "A",
           "expr": "proven_agent_state{instance=~\"$run\"}",
           "legendFormat": "{{proven_agent}} · {{proven_reviewer}}",
-          "interval": "1s"
+          "interval": "1s",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
         }
       ],
       "fieldConfig": {
@@ -107,7 +110,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=~\"$run\"}[$__range]))",
+          "expr": "sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=~\"$run\"}[$__range])) or on() label_replace(vector(0), \"kind\", \"none\", \"\", \"\")",
           "legendFormat": "{{kind}}",
           "instant": true
         }
@@ -136,7 +139,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (reason) (last_over_time(proven_review_claims_dropped_total{instance=~\"$run\"}[$__range]))",
+          "expr": "sum by (reason) (last_over_time(proven_review_claims_dropped_total{instance=~\"$run\"}[$__range])) or on() label_replace(vector(0), \"reason\", \"none\", \"\", \"\")",
           "legendFormat": "{{reason}}",
           "instant": true
         }
