@@ -105,7 +105,7 @@ func PlanBounded(ctx context.Context, files []change.File, gen generator.Generat
 		prompt := StepPrompt(n, len(parts), carried, p)
 		rec := Step{
 			Index: n, Steps: len(parts), Part: p.Name(), PromptTokens: markov.EstimateTokens(prompt),
-			CarriedTokens: carried.Tokens(), Carried: len(carried.Decisions) + len(carried.Context),
+			CarriedTokens: carried.Tokens(), Carried: len(carried.Decisions) + len(carried.Context) + len(carried.Pinned),
 		}
 		var got stepAnswer
 		if err := answer.Read(ctx, gen, "planner", prompt, stepSpec, &got); err != nil {

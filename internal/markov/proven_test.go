@@ -97,15 +97,18 @@ func TestFitBoundsTheStateAndDropsTheOldestDecisionFirst(t *testing.T) {
 }
 
 // TestTheCarriedBlockListsEveryAwaitingClaim is the negative control for the awaiting list (acceptance 3(b)): every
-// claim awaiting evidence is in the block's context, each under its label, after the suspicions. Leaving the awaiting
-// list out of ReviewState.Block empties this list and the test is red; so does a claim written without its label,
-// which the model could not read back.
+// claim awaiting evidence is in the block's pinned list, each under its label. Leaving the awaiting list out of
+// ReviewState.Block empties this list and the test is red; so does a claim written without its label, which the
+// model could not read back.
 func TestTheCarriedBlockListsEveryAwaitingClaim(t *testing.T) {
 	r := ReviewState{Suspected: []string{"s1"}, Awaiting: []string{"needs file 7", "needs file 9"}}
-	got := r.Block(2, 5).Context
-	want := []string{"suspected: s1", "awaiting evidence: needs file 7", "awaiting evidence: needs file 9"}
-	if strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Fatalf("context %q, want %q", got, want)
+	b := r.Block(2, 5)
+	if strings.Join(b.Context, "|") != "suspected: s1" {
+		t.Fatalf("context %q", b.Context)
+	}
+	want := []string{"awaiting evidence: needs file 7", "awaiting evidence: needs file 9"}
+	if strings.Join(b.Pinned, "|") != strings.Join(want, "|") {
+		t.Fatalf("pinned %q, want %q", b.Pinned, want)
 	}
 	if _, _, err := r.Carry(1, 2, 5, 800); err != nil {
 		t.Fatal(err)

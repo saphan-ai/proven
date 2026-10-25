@@ -13,6 +13,9 @@ type Block struct {
 	Remaining string
 	Decisions []string
 	Context   []string
+	// Pinned items are rendered after Context and are never cut and never dropped by Fit. ADR-0048: a claim that
+	// awaits evidence is carried whole, because a claim cut short can no longer name the evidence it needs.
+	Pinned []string
 }
 
 // maxItem bounds one carried item, so a single long sentence cannot take the whole state.
@@ -24,7 +27,7 @@ func (b Block) Render() string {
 	fmt.Fprintf(&s, "COMPLETED: %s\nREMAINING: %s\nDECISIONS:", b.Completed, b.Remaining)
 	writeItems(&s, b.Decisions)
 	s.WriteString("\nCONTEXT:")
-	writeItems(&s, b.Context)
+	writeItems(&s, append(append([]string(nil), b.Context...), b.Pinned...))
 	return s.String()
 }
 
@@ -44,10 +47,12 @@ func (b Block) Tokens() int {
 	return EstimateTokens(b.Render())
 }
 
-// Fit bounds the block to budget estimated tokens and returns how many items it dropped. Each item is first cut
-// to maxItem bytes. Then the oldest decision goes first, and the oldest context item only when no decision is left:
-// what a later step still has to act on is kept longest. A block that cannot fit even with every item gone keeps
-// its two summary lines, which are the step count and nothing a model wrote.
+// Fit bounds the block to budget estimated tokens and returns how many items it dropped. Each decision and context
+// item is first cut to maxItem bytes; a pinned item is made one line and is never cut. Then the oldest decision
+// goes first, and the oldest context item only when no decision is left: what a later step still has to act on is
+// kept longest. Pinned items are never dropped, so a block that cannot fit is returned over budget and the caller
+// decides (see ReviewState.Carry). A block with nothing pinned that cannot fit even with every item gone keeps its
+// two summary lines, which are the step count and nothing a model wrote.
 func (b Block) Fit(budget int) (Block, int) {
 	out := Block{Completed: b.Completed, Remaining: b.Remaining}
 	for _, it := range b.Decisions {
@@ -55,6 +60,9 @@ func (b Block) Fit(budget int) (Block, int) {
 	}
 	for _, it := range b.Context {
 		out.Context = append(out.Context, clipItem(it))
+	}
+	for _, it := range b.Pinned {
+		out.Pinned = append(out.Pinned, oneLine(it))
 	}
 	dropped := 0
 	for out.Tokens() > budget {
@@ -71,9 +79,14 @@ func (b Block) Fit(budget int) (Block, int) {
 	return out, dropped
 }
 
+// oneLine trims an item and makes it one line, without cutting it.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 // clipItem trims an item, makes it one line and bounds it at maxItem bytes on a rune boundary.
 func clipItem(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
+	s = oneLine(s)
 	if len(s) <= maxItem {
 		return s
 	}
@@ -96,8 +109,8 @@ type ReviewState struct {
 }
 
 // Block maps the review's state onto the spec's shape for the step about to run: COMPLETED and REMAINING count the
-// parts; what is established is a DECISION; what is suspected and what awaits evidence is CONTEXT, the awaiting
-// claims last, so the bound drops them last.
+// parts; what is established is a DECISION; what is suspected is CONTEXT; what awaits evidence is PINNED, so the
+// bound neither cuts nor drops it (ADR-0048).
 func (r ReviewState) Block(step, steps int) Block {
 	b := Block{
 		Completed: completedText(step-1, "part"),
@@ -110,7 +123,7 @@ func (r ReviewState) Block(step, steps int) Block {
 		b.Context = append(b.Context, labelSuspected+s)
 	}
 	for _, a := range r.Awaiting {
-		b.Context = append(b.Context, labelAwaiting+a)
+		b.Pinned = append(b.Pinned, labelAwaiting+a)
 	}
 	return b
 }
@@ -126,27 +139,33 @@ type CarryFullError struct {
 
 // Error names that the bounded review is incomplete, why, and what to do next.
 func (e *CarryFullError) Error() string {
-	return fmt.Sprintf("the bounded review is incomplete: after step %d the carried state held %d of %d claims awaiting evidence within %d estimated tokens (%s); "+
-		"the claims that did not fit could never meet their evidence, so the review stopped. Run the whole review (%s off), or raise %s",
+	return fmt.Sprintf("the bounded review is incomplete: after step %d the carried state held %d of %d claims awaiting evidence whole within %d estimated tokens (%s); "+
+		"a claim that is cut or dropped could never meet its evidence, so the review stopped before any claim was cut. Run the whole review (%s off), or raise %s",
 		e.Step, e.Held, e.Open, e.Budget, EnvCarry, EnvSwitch, EnvCarry)
 }
 
 // Carry fits the state's block for the step about to run into budget estimated tokens and returns how many items the
-// bound cut. ADR-0048: the bound may cut what is established or only suspected, never a claim awaiting evidence; when
-// it would, Carry returns *CarryFullError and the caller stops the review. afterStep is the step that produced the
-// state, for the error.
+// bound cut. ADR-0048: the bound may cut what is established or only suspected, never a claim awaiting evidence,
+// which is carried whole (pinned). When the block with every cuttable item gone still exceeds the budget, Carry
+// returns *CarryFullError before any claim is handed on cut, and the caller stops the review. afterStep is the step
+// that produced the state, for the error.
 func (r ReviewState) Carry(afterStep, step, steps, budget int) (Block, int, error) {
 	b, dropped := r.Block(step, steps).Fit(budget)
+	if len(r.Awaiting) == 0 || b.Tokens() <= budget {
+		return b, dropped, nil
+	}
+	// Even with every cuttable item gone the claims do not fit whole. Count how many would, for the message; the
+	// count is of claims carried intact, never of shortened ones.
 	held := 0
-	for _, c := range b.Context {
-		if strings.HasPrefix(c, labelAwaiting) {
-			held++
+	base := Block{Completed: b.Completed, Remaining: b.Remaining}
+	for _, a := range b.Pinned {
+		base.Pinned = append(base.Pinned, a)
+		if base.Tokens() > budget {
+			break
 		}
+		held++
 	}
-	if held < len(r.Awaiting) {
-		return b, dropped, &CarryFullError{Step: afterStep, Open: len(r.Awaiting), Held: held, Budget: budget}
-	}
-	return b, dropped, nil
+	return b, dropped, &CarryFullError{Step: afterStep, Open: len(r.Awaiting), Held: held, Budget: budget}
 }
 
 // completedText says how many units are done.

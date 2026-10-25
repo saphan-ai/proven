@@ -166,6 +166,120 @@ func TestTheEarliestOpenClaimReachesItsEvidenceWhenTheBoundHoldsThem(t *testing.
 	}
 }
 
+// longEvidence names the evidence the long claim waits for. It is the claim's last words, beyond byte 400.
+const longEvidence = "evidence-in-file-20"
+
+// longClaim is an open claim longer than the 400 bytes a decision or context item may take, whose required evidence
+// is named only at its end.
+func longClaim() string {
+	return "f03 needs a later file: " + strings.Repeat("this claim is long on purpose and names its evidence last; ", 8) + "it needs " + longEvidence
+}
+
+// longClaimPlanner raises longClaim at file 03, carries what it is handed, and settles the claim at file 20 only if
+// the claim reached it whole, that is with its evidence name intact. It answers the Planner only and keeps its prompts.
+type longClaimPlanner struct {
+	mu      sync.Mutex
+	prompts []string
+}
+
+func (l *longClaimPlanner) Complete(_ context.Context, agent, prompt string) (string, error) {
+	if agent != "planner" {
+		return "", &service.Down{Service: agent, Reason: "scripted: only the Planner answers in this test"}
+	}
+	l.mu.Lock()
+	l.prompts = append(l.prompts, prompt)
+	l.mu.Unlock()
+	var carried []string
+	for _, m := range awaitingRe.FindAllStringSubmatch(prompt, -1) {
+		carried = append(carried, strings.TrimSpace(m[1]))
+	}
+	n := 0
+	if f := filesIn(prompt); len(f) == 1 {
+		fmt.Sscanf(f[0], "UNIQUE-f%d", &n)
+	}
+	ans := map[string]any{"risks": []any{}, "established": []string{}, "suspected": []string{}}
+	switch {
+	case n == 3:
+		carried = append(carried, longClaim())
+	case n == 20 && hasClaim(carried, longClaim()):
+		ans["risks"] = []any{sinkRiskRow()}
+		carried = without(carried, longClaim())
+	}
+	ans["awaiting_evidence"] = carried
+	b, _ := json.Marshal(ans)
+	return string(b), nil
+}
+
+// reviewLong runs the 24-file fixture through gen with carry bound carry and returns the review's error and the trace.
+func reviewLong(t *testing.T, gen *longClaimPlanner, carry int) (error, []trace.Event) {
+	t.Helper()
+	logs := t.TempDir()
+	s := on(markov.UnitFile)
+	s.Carry = carry
+	p, err := Build(Options{
+		Sample: true, LogDir: logs, Generator: gen, Markov: s,
+		Env: func(k string) string {
+			t.Fatalf("sample mode read %s", k)
+			return ""
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rerr := p.Review(context.Background(), Request{Target: boundedFixture(t, 24), FixesOff: true})
+	return rerr, readTrace(t, filepath.Join(logs, "trace.jsonl"))
+}
+
+// TestALongOpenClaimIsCarriedWholeToItsEvidence proves the property of ADR-0048's carried state: a claim awaiting
+// evidence is never shortened. The claim is over 400 bytes and names its evidence beyond byte 400; the bound holds it
+// whole; it reaches file 20 intact and becomes a finding. Unplug control: clip awaiting claims again, as decisions
+// and context items are clipped, and file 20 receives the claim cut to "[cut]", the scripted model cannot settle it,
+// no risk is reported, and this test is red.
+func TestALongOpenClaimIsCarriedWholeToItsEvidence(t *testing.T) {
+	if i := strings.Index(longClaim(), longEvidence); i <= 400 {
+		t.Fatalf("the evidence name is at byte %d; the test needs it beyond 400", i)
+	}
+	gen := &longClaimPlanner{}
+	err, events := reviewLong(t, gen, markov.DefaultCarry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gen.prompts) != 24 || strings.Contains(gen.prompts[19], unique(3)) || !strings.Contains(gen.prompts[19], longEvidence) || strings.Contains(gen.prompts[19], "[cut]") {
+		t.Fatalf("%d steps; step 20 must carry the whole claim and not file 03", len(gen.prompts))
+	}
+	var claimed bool
+	for _, e := range linesOf(events, "claim") {
+		claimed = claimed || (e.FindingID == "R1" && e.Text == sinkRisk)
+	}
+	if !claimed {
+		t.Fatal("the long claim did not become a risk at its evidence")
+	}
+}
+
+// TestALongOpenClaimThatCannotBeHeldWholeStopsTheReviewBeforeAnyCut proves the other side: when the bound cannot hold
+// the claim whole, the review stops with *markov.CarryFullError naming step 3, the step that raised it, and no later
+// step runs on a shortened claim. Unplug control: with the bound check removed, the claim is carried over budget or
+// cut, the review goes on without an error, and this test is red.
+func TestALongOpenClaimThatCannotBeHeldWholeStopsTheReviewBeforeAnyCut(t *testing.T) {
+	gen := &longClaimPlanner{}
+	err, _ := reviewLong(t, gen, minCarry)
+	var full *markov.CarryFullError
+	if !errors.As(err, &full) {
+		t.Fatalf("the review ended with %v, want *markov.CarryFullError", err)
+	}
+	if full.Step != 3 || full.Open != 1 || full.Held != 0 {
+		t.Fatalf("%+v", full)
+	}
+	if len(gen.prompts) != 3 {
+		t.Fatalf("%d steps ran, want 3: the review went on past the overflow", len(gen.prompts))
+	}
+	for _, p := range gen.prompts {
+		if strings.Contains(p, "[cut]") {
+			t.Fatal("a prompt carried a shortened claim")
+		}
+	}
+}
+
 // TestTheThresholdSettingDecidesWhetherAChangeIsCut is the negative control for the threshold setting (acceptance
 // 3(c)). The same 3-file change, about 4,600 estimated tokens, is reviewed with thresholds on both sides of it, and
 // of the default 8000. A review that ignores the setting, whether it always cuts, never cuts, or reads the default
