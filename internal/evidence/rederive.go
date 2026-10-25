@@ -43,25 +43,25 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 		return refuse(CheckFormat, FindingsName, "not readable: %v", err)
 	}
 	for i, f := range res.Findings {
-		if slices.Contains(redactionMoved, f.ID) {
-			rep.NotRederived = append(rep.NotRederived, fmt.Sprintf("finding %s: redaction changed the text the rule reads for it, so its outcome is not re-derived", Visible(f.ID)))
-			continue
-		}
 		// A pack written before Bound was recorded holds rows whose tie to the change is unknown.
-		// Absent is not false. The rule is run with each absent Bound read both ways, and a
-		// component is checked whenever the two readings agree on it: the rest of the recorded
+		// Absent is not false. A finding named by redaction_moved holds text that is not the text
+		// the review had; the rule reads that text for one thing, whether a refuting query's rows
+		// are about the finding. The rule is run with each unknown read both ways, and a
+		// component is checked whenever every reading agrees on it: the rest of the recorded
 		// evidence decides it.
-		lo, hi, err := boundedOutcomes(f, unbound[i])
+		moved := slices.Contains(redactionMoved, f.ID)
+		got, err := readings(f, unbound[i], moved)
 		if err != nil {
 			return refuse(CheckOutcome, FindingsName, "finding %s: %v", Visible(f.ID), err)
 		}
+		lo := got[0]
 		var undecided []string
-		if lo.Level != hi.Level {
+		if !agree(got, func(o review.Outcome) any { return o.Level }) {
 			undecided = append(undecided, "its proof level")
 		} else if lo.Level != f.ProofLevel {
 			return refuse(CheckOutcome, FindingsName, "finding %s records proof level %q, the rule gives %q for the evidence recorded", Visible(f.ID), Visible(string(f.ProofLevel)), string(lo.Level))
 		}
-		if lo.Reported != hi.Reported {
+		if !agree(got, func(o review.Outcome) any { return o.Reported }) {
 			undecided = append(undecided, "whether it is reported")
 		} else if !lo.Reported {
 			return refuse(CheckOutcome, FindingsName, "finding %s is recorded as reported, the rule drops it for the evidence recorded", Visible(f.ID))
@@ -69,7 +69,7 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 		switch {
 		case !lo.Complete:
 			undecided = append(undecided, "whether it was refuted or left open")
-		case lo.Unresolved != hi.Unresolved:
+		case !agree(got, func(o review.Outcome) any { return o.Unresolved }):
 			undecided = append(undecided, "whether it is open")
 		case lo.Unresolved != f.Unresolved:
 			return refuse(CheckOutcome, FindingsName, "finding %s records unresolved=%t, the rule gives unresolved=%t for the evidence recorded", Visible(f.ID), f.Unresolved, lo.Unresolved)
@@ -78,6 +78,9 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 			var why []string
 			if len(unbound[i]) > 0 {
 				why = append(why, "does not record whether its query rows are bound to the change")
+			}
+			if moved && textMatters(f) {
+				why = append(why, "no longer holds the text the rule matched its refuting query rows against")
 			}
 			if !lo.Complete {
 				why = append(why, "records no refutation")
@@ -93,14 +96,48 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 	return nil
 }
 
-// boundedOutcomes gives the rule's outcome for f with every query listed in unbound read as not
-// bound (lo) and as bound (hi). With none listed, the two are the same.
-func boundedOutcomes(f review.Finding, unbound map[int]bool) (lo, hi review.Outcome, err error) {
-	if lo, err = review.Rederive(withBound(f, unbound, false)); err != nil {
-		return lo, hi, err
+// readings gives the rule's outcome for f under every reading of what the pack leaves open: each
+// query listed in unbound read as not bound and as bound, and, when redaction moved the finding's
+// text, the refutation's query rows read as not about the finding and as about it. The first
+// reading is the least one: nothing bound, no query refutation.
+func readings(f review.Finding, unbound map[int]bool, moved bool) ([]review.Outcome, error) {
+	texts := []review.Finding{f}
+	if moved {
+		unrelated, related := review.TextReadings(f)
+		texts = []review.Finding{unrelated, related}
 	}
-	hi, err = review.Rederive(withBound(f, unbound, true))
-	return lo, hi, err
+	var out []review.Outcome
+	for _, t := range texts {
+		for _, bound := range []bool{false, true} {
+			o, err := review.Rederive(withBound(t, unbound, bound))
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, o)
+			if len(unbound) == 0 {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// agree reports whether every reading gives the same value of one outcome component.
+func agree(got []review.Outcome, component func(review.Outcome) any) bool {
+	for _, o := range got[1:] {
+		if component(o) != component(got[0]) {
+			return false
+		}
+	}
+	return true
+}
+
+// textMatters reports whether the two readings of f's text give different outcomes.
+func textMatters(f review.Finding) bool {
+	a, b := review.TextReadings(f)
+	oa, errA := review.Rederive(a)
+	ob, errB := review.Rederive(b)
+	return errA != nil || errB != nil || oa != ob
 }
 
 // withBound copies f with the listed queries' Bound set to v.

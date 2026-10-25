@@ -5,6 +5,8 @@ package review
 // rule: the Judge's own, called here and not copied.
 
 import (
+	"strings"
+
 	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/candidate"
 )
@@ -44,6 +46,28 @@ func Rederive(f Finding) (Outcome, error) {
 	}
 	c = judge.Decide(c)
 	return Outcome{Level: level, Reported: !c.Dropped, Unresolved: c.Unresolved, Complete: f.Refutation != nil}, nil
+}
+
+// TextReadings gives f twice, for a verifier that no longer holds the text the Judge read. The
+// rule reads a finding's id, rule, title, message and path for one thing: whether a refuting
+// query's rows are about the finding (judge.QueryContradicts). The first copy reads them as not
+// about it, so the refutation holds no query rows. The second reads every row cell as named by
+// the finding's message, so the rows are about it. Every other reading lies between the two.
+func TextReadings(f Finding) (unrelated, related Finding) {
+	unrelated, related = f, f
+	r := f.Refutation
+	if r == nil {
+		return unrelated, related
+	}
+	u := *r
+	u.QueryRows = nil
+	unrelated.Refutation = &u
+	var cells []string
+	for _, row := range r.QueryRows {
+		cells = append(cells, row...)
+	}
+	related.Message = f.Message + " " + strings.Join(cells, " ")
+	return unrelated, related
 }
 
 // CountProofs counts findings by proof level. Every level is a key, with 0 when none.
