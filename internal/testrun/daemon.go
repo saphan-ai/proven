@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -130,12 +131,17 @@ func dockerConfigDir(env func(string) string) string {
 	return ""
 }
 
-// readSmall reads a file of at most maxDaemonFile bytes.
+// readSmall reads a file of at most maxDaemonFile bytes. A larger file is an
+// error, never a prefix: the runtime reads all of it, so all of it is judged.
 func readSmall(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return io.ReadAll(io.LimitReader(f, maxDaemonFile))
+	b, err := io.ReadAll(io.LimitReader(f, maxDaemonFile+1))
+	if err == nil && len(b) > maxDaemonFile {
+		return nil, fmt.Errorf("the file is larger than %d bytes", maxDaemonFile)
+	}
+	return b, err
 }
