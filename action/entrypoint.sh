@@ -98,7 +98,8 @@ done
 set +f
 IFS=$oldifs
 
-# The write token is read only when comment is true, and before anything runs.
+# The write token is read only when comment is true, and before anything runs;
+# below, it is removed from the environment Proven runs in.
 reporter=
 if [ "$comment" = true ]; then
   token=${INPUT_GITHUB_TOKEN:-}
@@ -109,12 +110,19 @@ if [ "$comment" = true ]; then
   command -v "$reviewdog" >/dev/null 2>&1 || fail "comment is true but reviewdog '$reviewdog' was not found in the image; rebuild action/Dockerfile."
 fi
 
+# Credentials never reach the scan: Proven reads the code under review, and that
+# code must not see a token, whether comment is true or false. The posting token
+# was copied into $token above (an unexported shell variable) and goes only to reviewdog.
+unset INPUT_GITHUB_TOKEN GITHUB_TOKEN ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQUEST_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL
+# The runner also passes each input as INPUT_<NAME> with its hyphen kept, a name sh cannot unset.
+scrub="env -u INPUT_GITHUB-TOKEN"
+
 # A file left by an earlier run must not be counted as this run's.
 rm -f "$workspace/$json_file" "$workspace/$sarif_file" "$workspace/$text_file"
 scratch=$(mktemp -d)
 cd "$scratch"
 rc=0
-"$proven" scan "$@" "$target" || rc=$?
+$scrub "$proven" scan "$@" "$target" || rc=$?
 
 # Outputs are written whatever the exit code, so a later step can read them.
 # A review that could not run (2) or refused its configuration (7) wrote no JSON.

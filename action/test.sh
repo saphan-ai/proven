@@ -101,7 +101,9 @@ check "severity=ERROR: every fixture finding is ERROR, so all 4 stay" 4 "$(outpu
 cat >"$tmp/stub.sh" <<'EOF'
 #!/bin/sh
 for a in "$@"; do printf '%s\n' "$a"; done >"$STUB_ARGS"
+env | grep -e '=tok-' >"$STUB_ARGS.env" || true
 for a in "$@"; do
+  case "$a" in --sarif-output=*) printf '{}\n' >"${a#--sarif-output=}" ;; esac
   case "$a" in --json-output=*) printf '{"findings": [\n{"unresolved": true},\n{"unresolved": false},\n{"unresolved": true}\n]}\n' >"${a#--json-output=}" ;; esac
 done
 exit "${STUB_RC:-0}"
@@ -220,6 +222,18 @@ check "comment=false: no token needed" 0 "$rc"
 
 rdrun nofail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_CONFIG=does-not-exist.yaml
 check "comment=true, Proven refused (7): nothing posted, exit 7" "7 0" "$rc $(test -e "$RD_ARGS" && echo 1 || echo 0)"
+
+# No credential reaches the scan, with comment true or false (negative control:
+# drop the unset and the env -u in entrypoint.sh and these two turn red).
+for c in true false; do
+  STUB_ARGS=$tmp/scrub-$c.args
+  run "scrub-$c" PROVEN_BIN="$tmp/stub.sh" STUB_ARGS="$STUB_ARGS" REVIEWDOG_BIN="$tmp/reviewdog.sh" \
+    RD_ARGS=$tmp/scrub-$c.rdargs RD_STDIN=$tmp/scrub-$c.rdstdin RD_TOKEN=$tmp/scrub-$c.rdtoken \
+    INPUT_COMMENT=$c INPUT_STRICT=false INPUT_GITHUB_TOKEN=tok-1 INPUT_GITHUB-TOKEN=tok-2 \
+    GITHUB_TOKEN=tok-3 ACTIONS_RUNTIME_TOKEN=tok-4 ACTIONS_ID_TOKEN_REQUEST_TOKEN=tok-5
+  check "comment=$c: the scan runs with no token in its environment" "" "$(cat "$STUB_ARGS.env")"
+done
+check "comment=true: the token still reaches reviewdog" "tok-1|tok-1" "$(cat "$tmp/scrub-true.rdtoken")"
 
 echo "passed $pass, failed $failed"
 [ "$failed" -eq 0 ]
