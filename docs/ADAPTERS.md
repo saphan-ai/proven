@@ -2,6 +2,77 @@
 
 An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)); a source adapter loads a table and turns a query's rows into evidence ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). An output format writes the review result. Each has one worked example below.
 
+## Adding a model provider
+
+### The interface
+
+The generator is the one model interface: the model-calling agents (Planner,
+Investigator, Prover, Fixer and Skeptic) send their prompts through a
+Generator; the Judge and the Writer call no model. It is in
+`internal/generator/generator.go`:
+
+```go
+// Generator answers one prompt for one agent.
+type Generator interface {
+	Complete(ctx context.Context, agent, prompt string) (string, error)
+}
+```
+
+`Complete` answers one prompt for one agent: `ctx` cancels the call,
+`agent` names the agent asking, and `prompt` is the whole prompt. It returns
+the answer or a named failure of the provider in use. The package comment
+names the existing implementations: `Live` (Meterless Nightshift, or NVIDIA's
+hosted API in nvidia mode), `Sample` (recorded responses, no network),
+`Absent` (the service is down, named) and `Second` (any OpenAI-compatible
+API, the second reviewer).
+
+### The settings that select an implementation
+
+`PROVEN_GENERATOR_MODE` chooses (`internal/generator/settings.go`):
+`nightshift`, the default, calls Meterless Nightshift and reads the answering
+model from its receipt (ADR-0019, ADR-0031); `nvidia` calls NVIDIA's hosted
+API directly and reads it from the response's `model` field (ADR-0031). The
+rest of `PROVEN_GENERATOR_*` — key, base URL, model, timeout and the NVIDIA
+require list — is read and validated by `Load` in the same file; an empty
+token or key is not a refused configuration: it names the service down
+(`Absent`) and the review goes on (ADR-0013 point 4a).
+
+### How sample mode treats it
+
+Sample mode (`internal/generator/sample.go`, ADR-0001) answers from recorded
+responses and opens no network. It does not read `PROVEN_GENERATOR_MODE` or
+any secret: `NewSample` indexes recorded responses by agent and prompt, and
+`Complete` returns the recorded answer or `generator.Missing` for an agent
+and prompt the fixture has not recorded. Sample mode is what a judge runs
+without live keys and what tests run.
+
+### Worked example: a fixed table
+
+[`examples/generator`](../examples/generator) is a small adapter inside this
+module. `Table` answers Complete from a fixed table keyed by agent name:
+
+```go
+var _ generator.Generator = Table{}
+```
+
+The assignment fails the build when `internal/generator.Generator` changes.
+`NewTable` builds the table from rows and refuses a duplicate agent.
+`Complete` returns the agent's answer, or `ErrUnknownAgent` when the agent is
+not in the table. It starts no network, reads no secret and no environment
+variable.
+
+The test checks one answer and one refusal: a known agent answers, and an
+unknown agent returns `ErrUnknownAgent`
+([`examples/generator/table_test.go`](../examples/generator/table_test.go)).
+
+```text
+go test -count=1 ./examples/generator
+```
+
+`go test ./...` from the repository root runs the same test. No separate job
+is required.
+
+
 ## Adding a language
 
 
