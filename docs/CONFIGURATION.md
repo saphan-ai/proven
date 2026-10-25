@@ -131,6 +131,14 @@ Telemetry is off unless an endpoint is set. It only observes: once a review has 
 
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
 
+## The organisation policy
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_POLICY` | none | a path to the organisation policy file, read before each repository's `proven.yaml`; see [POLICY.md](POLICY.md). A path inside the repository under review is refused, and so is a missing or unreadable file. Sample mode reads it too |
+
+A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036).
+
 ## The evidence pack
 
 | Environment variable | Default | What it changes |
