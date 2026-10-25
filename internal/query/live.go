@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -51,6 +52,16 @@ func NewLive(cfg Settings, client *http.Client) *Live {
 		}
 	}
 	return &Live{cfg: cfg, client: client, now: time.Now, newID: newRequestID}
+}
+
+// SetClock replaces the clock that stamps a snapshot.
+// A test sets it so two stores can be compared at one instant. A nil clock
+// means the next query uses the wall clock.
+func (l *Live) SetClock(now func() time.Time) {
+	if l == nil {
+		return
+	}
+	l.now = now
 }
 
 // sqlRunRequest is the body of the SQL-editor route. QueryID is new for every
@@ -175,6 +186,7 @@ func (l *Live) Query(ctx context.Context, sql string) (Result, error) {
 	}
 	return Result{
 		SQL:      sql,
+		Form:     querytpl.FormSQL,
 		Engine:   "zetaris",
 		Snapshot: when().UTC().Format(time.RFC3339),
 		Columns:  cols,

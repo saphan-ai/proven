@@ -1,8 +1,8 @@
 // Package osv is the dependency check of the review. It takes the packages
 // a change added or raised (package manifest), queries the OSV package table
 // through the query adapter once per package, and compares the version in
-// Go, not in SQL. It runs with no model, and the query is built by Proven from
-// the osv-by-package template (ADR-0032, internal/querytpl). A matching range
+// Go, not in SQL. It runs with no model, and the OSV source adapter builds the
+// query from the osv-by-package template (ADR-0032, ADR-0046). A matching range
 // is a candidate whose evidence is the query and the rows it returned
 // (ADR-0002), and the Judge keeps or drops it like any other finding. A version outside every range is
 // a trace line, never a finding. The candidate also carries the smallest fixed version that leaves
@@ -29,6 +29,7 @@ import (
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // RuleID is the kind of a dependency finding this check names.
@@ -198,17 +199,28 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 // every row. It returns a candidate when at least one row matches, and
 // otherwise a trace note that says why.
 func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit manifest.Hit, facts *Facts) (*candidate.Candidate, string, error) {
-	// ADR-0032: Proven builds the query from the osv-by-package template. A
-	// package name outside its ecosystem's format has no query: the check says
-	// so in a trace note and goes on to the next package, as it does for a
-	// package with no affected row. The name is the one thing the note must
-	// show a reader, and it is quoted with %q so a control byte or invalid
-	// UTF-8 in it reaches the trace and the terminal as an escape, not raw.
-	sqlText, err := querytpl.OSVPackageSQL(table, hit.Ecosystem, hit.Package)
+	// ADR-0032, ADR-0046: the OSV adapter builds the query from the
+	// osv-by-package template. A package name outside its ecosystem's format
+	// has no query: the check says so in a trace note and goes on to the next
+	// package, as it does for a package with no affected row. The name is the
+	// one thing the note must show a reader, and it is quoted with %q so a
+	// control byte or invalid UTF-8 in it reaches the trace and the terminal
+	// as an escape, not raw.
+	sqlText, found, err := source.Build(querytpl.OSVByPackage, map[string]string{
+		querytpl.ParamEcosystem: hit.Ecosystem,
+		querytpl.ParamPackage:   hit.Package,
+	}, source.Rel{OSVTable: table})
+	if !found {
+		return nil, "", fmt.Errorf("osv: template %s is not registered", querytpl.OSVByPackage)
+	}
 	if err != nil {
 		var refusal *querytpl.Refusal
 		if errors.As(err, &refusal) {
 			return nil, fmt.Sprintf("%q %q: osv query refused: %s", hit.Package, hit.Version, refusal.Error()), nil
+		}
+		var bad *source.ValueError
+		if errors.As(err, &bad) {
+			return nil, fmt.Sprintf("%q %q: osv query refused: %s", hit.Package, hit.Version, bad.Error()), nil
 		}
 		return nil, "", err
 	}
@@ -294,7 +306,13 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 				continue
 			}
 			seen[id] = struct{}{}
-			sql, serr := querytpl.KEVSQL(view, id)
+			// ADR-0046: the KEV adapter owns kev-by-cve.
+			sql, found, serr := source.Build(querytpl.KEVByCVE, map[string]string{
+				querytpl.ParamCVEID: id,
+			}, source.Rel{KEVView: view})
+			if !found {
+				return nil, "", fmt.Errorf("osv: template %s is not registered", querytpl.KEVByCVE)
+			}
 			if serr != nil {
 				return nil, "", serr
 			}
@@ -309,7 +327,14 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 				}
 				return nil, "", kerr
 			}
-			if len(kres.Rows) == 0 {
+			// The KEV rule is the decision: a row is evidence, no row is not.
+			// The evidence attached below stays queryEvidence, which marks
+			// the rows Bound. The rule does not know that mark.
+			kev, kok := source.ByID("kev")
+			if !kok {
+				return nil, "", fmt.Errorf("osv: kev adapter is not registered")
+			}
+			if _, ruled := kev.Rule(source.Evidence{Rows: kres.Rows}); !ruled {
 				kevNotes = append(kevNotes, "alias "+id+" is not a KEV row")
 				continue
 			}
@@ -375,7 +400,7 @@ func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 	return candidate.Evidence{
 		Kind: candidate.KindQuery,
 		Query: &candidate.QueryEvidence{
-			SQL: res.SQL, Engine: res.Engine, Snapshot: snap,
+			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: append([]string(nil), res.Columns...),
 			Rows:    copyRows(res.Rows),
 			Bound:   true,

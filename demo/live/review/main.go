@@ -92,7 +92,7 @@ func printResult(w io.Writer, res review.Result) {
 				fmt.Fprintf(w, "  command: %s\n", e.Test.Command)
 				fmt.Fprintf(w, "  output: %s\n", strings.TrimSpace(e.Test.Output))
 			case review.EvidenceQuery:
-				fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", e.Query.Engine, e.Query.Snapshot)
+				fmt.Fprintf(w, "  evidence query %s snapshot=%s form=%s\n", e.Query.Engine, e.Query.Snapshot, e.Query.Form)
 				fmt.Fprintf(w, "  SQL: %s\n", e.Query.SQL)
 				fmt.Fprintf(w, "  columns: %s\n", strings.Join(e.Query.Columns, ", "))
 				for _, row := range e.Query.Rows {

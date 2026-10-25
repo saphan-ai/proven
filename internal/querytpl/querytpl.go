@@ -1,22 +1,29 @@
-// Package querytpl is the closed list of questions Proven can ask Zetaris, and
-// the only place their SQL is written (ADR-0032).
+// Package querytpl is the closed list of questions Proven can ask a store, and
+// the only place the built-in query text is written (ADR-0032).
 //
-// A model never writes a query. The Investigator and the Skeptic name one
-// template and give the values of its parameters; Proven checks each value
-// against the strict format of that parameter and builds the SQL itself. A
-// value outside its format is refused with a named reason, never escaped, so
-// a quote, a backslash, a control byte or invalid UTF-8 cannot reach the SQL.
-// The OSV check and the EPSS check build their queries here too, so every
-// query Proven sends has one author. docs/QUERIES.md lists the templates.
+// The list is the source-adapter registry (ADR-0046). OSV, KEV and EPSS
+// register their templates from this package, and Catalogue and Build read
+// that registry, so each template is written once. A model never writes a
+// query. The Investigator and the Skeptic name one template and give the
+// values of its parameters; Proven checks each value against the strict
+// format of that parameter and builds the query itself. A value outside its
+// format is refused with a named reason, never escaped, so a quote, a
+// backslash, a control byte or invalid UTF-8 cannot reach the text. Each
+// template has one form per query language (ADR-0047): sql for Zetaris and
+// the local store, and room for a mango form when CouchDB is built. The OSV
+// check and the EPSS check build their queries from the same registry, so
+// every query Proven sends has one author. docs/QUERIES.md lists the templates.
 package querytpl
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/pep503"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // The defaults of the three settings that name a table or a view (ADR-0013).
@@ -58,6 +65,7 @@ const (
 	ReasonUnknownParam    = "query template parameter is not one the template takes"
 	ReasonBadValue        = "query parameter value is outside its format"
 	ReasonBadRelation     = "table or view name is not a plain name"
+	ReasonBuilder         = "query template builder refused the values"
 	ReasonModelSQL        = "a model's answer carries SQL text"
 )
 
@@ -115,47 +123,26 @@ func (r Relations) resolved() Relations {
 }
 
 // Param is one parameter of a template and the format its value must have.
-type Param struct {
-	Name   string
-	Format string
-}
+// It is the source adapter's parameter type, so a template is not declared twice.
+type Param = source.Param
 
 // Template is one question Proven can ask: its name, what it answers, and the
-// parameters it takes. Catalogue returns them all.
-type Template struct {
-	Name   string
-	Answer string
-	Params []Param
-}
+// parameters it takes. Catalogue returns them all. It is the source adapter's
+// template type (ADR-0046).
+type Template = source.Template
 
-// Catalogue lists every template, in a fixed order. The prompts and
+// Catalogue lists every template, in the registry's order. The prompts and
 // docs/QUERIES.md are written from it, and a test holds the document to it.
+// The list is the source adapters, so a template is not written here again
+// (ADR-0046).
 func Catalogue() []Template {
-	return []Template{
-		{
-			Name:   OSVByPackage,
-			Answer: "the OSV advisory rows of one package",
-			Params: []Param{
-				{ParamEcosystem, "one of Go, npm, PyPI, Packagist, crates.io"},
-				{ParamPackage, "a package name in the ecosystem's own spelling"},
-			},
-		},
-		{
-			Name:   OSVByAdvisory,
-			Answer: "the OSV advisory with one advisory id",
-			Params: []Param{{ParamAdvisoryID, "an advisory id such as GHSA-xxxx-xxxx-xxxx or GO-2021-0113"}},
-		},
-		{
-			Name:   KEVByCVE,
-			Answer: "the CISA known-exploited entry of one CVE",
-			Params: []Param{{ParamCVEID, "a CVE id such as CVE-2021-44228"}},
-		},
-		{
-			Name:   EPSSByCVE,
-			Answer: "the EPSS score of one CVE",
-			Params: []Param{{ParamCVEID, "a CVE id such as CVE-2021-44228"}},
-		},
+	var out []Template
+	for _, a := range source.All() {
+		for _, spec := range a.Templates() {
+			out = append(out, spec.Template)
+		}
 	}
+	return out
 }
 
 // Describe is the list of templates as a prompt gives it to a model: one line
@@ -184,12 +171,17 @@ func Describe() string {
 // in RE2 the dollar sign matches the end of the text only, so a trailing line
 // break is not admitted.
 var (
-	cveFormat       = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,12}$`)
-	advisoryFormat  = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,15}(-[A-Za-z0-9]{1,40}){1,6}$`)
-	goFormat        = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
-	npmFormat       = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._~-]{0,213}/)?[A-Za-z0-9][A-Za-z0-9._~-]{0,213}$`)
-	pypiFormat      = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._-]{0,212}[A-Za-z0-9])?$`)
-	packagistFormat = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?/[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?$`)
+	ecosystemFormat = regexp.MustCompile(`^(Go|npm|PyPI|Packagist|crates\.io)$`)
+	// anyPackageFormat admits every ecosystem's package spelling and nothing
+	// more. It is the gate Proven applies to the parameter; the builder then
+	// holds the name to its own ecosystem's format.
+	anyPackageFormat = regexp.MustCompile(`^@?[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
+	cveFormat        = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,12}$`)
+	advisoryFormat   = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,15}(-[A-Za-z0-9]{1,40}){1,6}$`)
+	goFormat         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
+	npmFormat        = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._~-]{0,213}/)?[A-Za-z0-9][A-Za-z0-9._~-]{0,213}$`)
+	pypiFormat       = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._-]{0,212}[A-Za-z0-9])?$`)
+	packagistFormat  = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?/[a-z0-9]([a-z0-9._-]{0,212}[a-z0-9])?$`)
 	// A crate name is 1 to 64 characters, starts with an ASCII letter, and
 	// otherwise contains ASCII letters, digits, '_' or '-'. The spelling is
 	// kept: crates.io does not fold case or turn '_' into '-'.
@@ -203,36 +195,7 @@ func ValidCVE(s string) bool { return cveFormat.MatchString(s) }
 // identifier, or schema.name, of letters, digits and underscores. The name
 // goes into the SQL unquoted, so this check is what keeps a setting from
 // carrying SQL of its own.
-func ValidRelation(name string) bool {
-	parts := strings.Split(name, ".")
-	if len(parts) > 2 {
-		return false
-	}
-	for _, p := range parts {
-		if !identifier(p) {
-			return false
-		}
-	}
-	return true
-}
-
-// identifier reports whether s is a letter or underscore followed by letters,
-// digits and underscores.
-func identifier(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c == '_':
-		case i > 0 && c >= '0' && c <= '9':
-		default:
-			return false
-		}
-	}
-	return true
-}
+func ValidRelation(name string) bool { return source.ValidRelation(name) }
 
 // literal is the one builder of a SQL string literal. It does not escape: a
 // value outside its format is refused, so the text between the two quotes is
@@ -275,31 +238,46 @@ func packageFormat(ecosystem string) *regexp.Regexp {
 func Build(req Request, rel Relations) (string, error) {
 	rel = rel.resolved()
 	name := strings.TrimSpace(req.Template)
-	tpl, ok := lookup(name)
+	_, spec, ok := source.Lookup(name)
 	if !ok {
 		// The name is not repeated: it is model text and may be SQL.
 		return "", &Refusal{Reason: ReasonUnknownTemplate}
 	}
-	if err := checkParams(tpl, req.Params); err != nil {
+	if err := checkParams(spec.Template, req.Params); err != nil {
 		return "", err
 	}
-	switch name {
-	case OSVByPackage:
-		return osvByPackage(rel.OSVTable, req.Params[ParamEcosystem], req.Params[ParamPackage])
-	case OSVByAdvisory:
-		if !ValidRelation(rel.OSVIDView) {
-			return "", &Refusal{Reason: ReasonBadRelation, Detail: name}
+	// ADR-0046: the adapter that owns the template builds it. The text stays
+	// in this package; the registry is what names the builder, so the switch
+	// that used to live here is not a second copy.
+	if spec.Build == nil {
+		return "", fmt.Errorf("querytpl: template %s has no builder", spec.Template.Name)
+	}
+	// Proven holds every value to its parameter's format and to the byte
+	// floor before any builder runs, built-in or registered: the adapter's
+	// builder is never the only guard (ADR-0032 points 1 and 3).
+	for _, p := range spec.Template.Params {
+		if !source.CheckValue(p, req.Params[p.Name]) {
+			return "", &Refusal{Reason: ReasonBadValue, Detail: spec.Template.Name + " " + p.Name}
 		}
-		id, err := literal(name, ParamAdvisoryID, req.Params[ParamAdvisoryID], advisoryFormat)
-		if err != nil {
+	}
+	sql, err := spec.Build(req.Params, source.Rel{
+		OSVTable:  rel.OSVTable,
+		KEVView:   rel.KEVView,
+		EPSSView:  rel.EPSSView,
+		OSVIDView: rel.OSVIDView,
+	})
+	if err != nil {
+		// A registered builder returns what it likes. Whatever it returns
+		// reaches the Investigator as a refusal, so one refused value is a
+		// query note and never a failed review. The builder's text is not
+		// repeated: it may echo the value.
+		var refusal *Refusal
+		if errors.As(err, &refusal) {
 			return "", err
 		}
-		return "SELECT id, alias, published, severity FROM " + rel.OSVIDView + " WHERE id = " + id, nil
-	case KEVByCVE:
-		return KEVSQL(rel.KEVView, req.Params[ParamCVEID])
-	default:
-		return EPSSSQL(rel.EPSSView, req.Params[ParamCVEID])
+		return "", &Refusal{Reason: ReasonBuilder, Detail: spec.Template.Name}
 	}
+	return sql, nil
 }
 
 // Validate checks a request without building a query: the Skeptic uses it to
@@ -307,16 +285,6 @@ func Build(req Request, rel Relations) (string, error) {
 func Validate(req Request) error {
 	_, err := Build(req, Relations{})
 	return err
-}
-
-// lookup finds a template by name.
-func lookup(name string) (Template, bool) {
-	for _, t := range Catalogue() {
-		if t.Name == name {
-			return t, true
-		}
-	}
-	return Template{}, false
 }
 
 // checkParams holds the request to exactly the template's parameters: each one
@@ -341,6 +309,18 @@ func checkParams(tpl Template, params map[string]string) error {
 		return &Refusal{Reason: ReasonUnknownParam, Detail: fmt.Sprintf("%s takes %d parameters and %d others were given", tpl.Name, len(tpl.Params), len(extra))}
 	}
 	return nil
+}
+
+// osvByAdvisory builds the osv-by-advisory query.
+func osvByAdvisory(view, id string) (string, error) {
+	if !ValidRelation(view) {
+		return "", &Refusal{Reason: ReasonBadRelation, Detail: OSVByAdvisory}
+	}
+	lit, err := literal(OSVByAdvisory, ParamAdvisoryID, id, advisoryFormat)
+	if err != nil {
+		return "", err
+	}
+	return "SELECT id, alias, published, severity FROM " + view + " WHERE id = " + lit, nil
 }
 
 // OSVPackageSQL is the OSV package query for one ecosystem and package. A PyPI
