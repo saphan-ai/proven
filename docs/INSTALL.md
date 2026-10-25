@@ -11,7 +11,7 @@ The quick start: build Proven and run a first review with no network and no keys
 |---|---|---|
 | Go | 1.26 or later (`go.mod` says `go 1.26`) | building and running Proven |
 | git | any recent | cloning; a live review of a git range reads the repository with git |
-| Docker (or another container runtime) | any recent | **live mode only**: the Prover runs each test in a container with no network and no secret. Without a runtime the Prover is off, and the review names it as a failed service |
+| Docker (or another container runtime) | any recent | **live mode and the container image** (`make image`, `make image-check`); in live mode the Prover runs each test in a container with no network and no secret. Without a runtime the Prover is off, and the review names it as a failed service |
 
 Sample mode needs only Go.
 
@@ -35,6 +35,27 @@ mkdir -p /tmp/proven-run && cd /tmp/proven-run
 
 It prints three findings (F1 proved by a test, F2 and F4 by a query and its row), drops F3 for lack of evidence, and
 exits 0. The full output and what each line means: [SAMPLE_MODE.md](SAMPLE_MODE.md).
+
+## The container image
+
+This needs Docker (with buildx) as well as Go. `make image` builds Proven's image for this machine. `make image-check` builds
+the binary and the image and checks that they
+print the same version line and the same sample review, then prints the image's size; it fails and names the first difference.
+The same check by hand, from the repository, after `make build` and `make image`:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+sh scripts/image-check.sh saphan/proven:latest ./bin/proven
+```
+
+In a git checkout the image must carry this checkout's commit as its `org.opencontainers.image.revision` label, or the check
+fails and names both commits; the binary is compared by its output only.
+
+Inside the image the sample fixture is at `/opt/proven/fixture/discount`:
+
+```bash
+docker run --rm saphan/proven:latest scan --sample /opt/proven/fixture/discount
+```
 
 ## Before a live review: livecheck
 
