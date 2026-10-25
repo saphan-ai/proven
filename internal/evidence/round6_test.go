@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/review"
@@ -58,6 +59,43 @@ func TestReviewR8MissingBoundCannotHideAnOutcomeNoReadingGives(t *testing.T) {
 	}
 }
 
+// A finding marked redaction-moved whose refutation holds a denial that its text may or may not
+// name is recorded reported and open. The unrelated reading gives that outcome, so the pack
+// verifies; the related reading drops the finding, so it is named for whether it is reported.
+func TestRedactionMovedFindingMatchedByOneReadingVerifiesAndIsNamed(t *testing.T) {
+	in, pub := forgeryInput(t)
+	in.Result.Findings[3].Refutation = &review.Refutation{TestCannotRun: true, QueryRows: [][]string{{"zzzz", "no"}}}
+	pack, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := readArchive(pack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m Manifest
+	if err := json.Unmarshal(files[ManifestName], &m); err != nil {
+		t.Fatal(err)
+	}
+	m.RedactionMoved = []string{"F4"}
+	if files[ManifestName], err = marshal(m); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := Verify(sealed(t, files, in.Key, false), pub)
+	if err != nil {
+		t.Fatalf("a pack that one reading of the redacted text matches is refused: %v", err)
+	}
+	var line string
+	for _, s := range rep.NotRederived {
+		if strings.Contains(s, "finding F4:") {
+			line = s
+		}
+	}
+	if !strings.Contains(line, "whether it is reported") {
+		t.Fatalf("F4 should be named not re-derived for whether it is reported, got %q (named: %q)", line, rep.NotRederived)
+	}
+}
+
 // F4 records a counting test and a refuting test that could not run, so the rule keeps it open.
 // Its refutation also holds a row with a denial that the pack's text does not name. A forger marks
 // F4 redaction-moved and records it closed. Read as not about F4, the rows leave it open; read as
@@ -102,4 +140,3 @@ func TestReviewR8RedactionCannotHideAnOutcomeNoReadingGives(t *testing.T) {
 		t.Fatalf("F4 recorded kept and closed verified, although no reading of the redacted text gives that outcome (not re-derived: %q, err: %v)", named, err)
 	}
 }
-

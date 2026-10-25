@@ -40,6 +40,9 @@ func TestRedactionNamesOnlyTheComponentsTheTextDecides(t *testing.T) {
 	if !strings.Contains(line, "whether it is reported") || strings.Contains(line, "whether it is open") || strings.Contains(line, "proof level") {
 		t.Fatalf("F3 should be named not re-derived for whether it is reported only (open is false in both readings), got %q", line)
 	}
+	if !strings.Contains(line, "no longer holds the text") {
+		t.Fatalf("F3's line should say the pack no longer holds the text the rule matched, got %q", line)
+	}
 	files, err := readArchive(pack)
 	if err != nil {
 		t.Fatal(err)
