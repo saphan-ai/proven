@@ -1,6 +1,10 @@
 package labcheck
 
-// Review checks for security-piece-7 (lab and images), read against main at 177bba6.
+// Checks on the judges' lab and the images we build: the lab publishes only on
+// loopback, no container gets the host Docker socket, only dind is privileged, the
+// seed and the images run as a user that is not root, make scan refuses to pass when
+// nothing was scanned, the build context is an allow-list, the Dockerfile defaults
+// equal lab/versions.env, and no password is committed.
 // Each check is a function over file text. Every test runs the check on the real file
 // and on one mutated copy (the negative control), so a check that cannot fail is caught.
 
