@@ -2,12 +2,26 @@
 
 package cli
 
-// linkCount reports one name for every file.
-// NumberOfLinks comes from GetFileInformationByHandle, in package syscall.
-// In Go 1.26.10 that call is GetFileInformationByHandle(handle, *ByHandleFileInformation).
-// A production file under internal/ must not import syscall, so the count
-// is not read. One means an existing trace file is not refused. A second
-// name on Windows is not distinguished from one name.
-func linkCount(string) (uint64, error) {
-	return 1, nil
+import (
+	"os"
+	"syscall"
+)
+
+// linkCount is how many directory names a file has: NumberOfLinks from
+// GetFileInformationByHandle. Windows has no other way to tell a second hard
+// link from one name, and a trace file with a second name inside the review
+// target must be refused (security review piece 8). The handle is opened for
+// its attributes only; nothing is read, written, started or dialled, which is
+// why this file is a syscall exemption in internal/pipeline/imports_test.go.
+func linkCount(path string) (uint64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	var info syscall.ByHandleFileInformation
+	if err := syscall.GetFileInformationByHandle(syscall.Handle(f.Fd()), &info); err != nil {
+		return 0, err
+	}
+	return uint64(info.NumberOfLinks), nil
 }
