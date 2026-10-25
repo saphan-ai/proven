@@ -90,7 +90,9 @@ Five rules decide which plan runs, and a reader can check each one in the trace:
 
 1. **The floor.** A plan never goes below the class the configured path rules choose (`floorClass` in
    `internal/review/plan.go`). If the plan's class ranks lower, the configured class runs in full. ADR-0036's
-   organisation policy is not in this build; when it lands, its minimum class is passed to the same function.
+   organisation policy is not in this build; when it lands, its minimum class is passed to the same function. The
+   floor keeps its work as well as its rank: a security-floored change runs every agent, tool and source whatever plan
+   the kind proposes, so a manifest the rules call security (`go.mod` is, by default) runs the Prover.
 2. **Ambiguity.** A change that is not wholly one kind (documentation beside code, a manifest beside new code) is never
    planned as a confident class. It runs the class its rules choose, in full.
 3. **Security is never outvoted.** One file with a security signal plans the whole change as security-sensitive.
@@ -98,8 +100,10 @@ Five rules decide which plan runs, and a reader can check each one in the trace:
 4. **Only verified prose runs no model.** A name proves nothing: `docs/run.go` matches the documentation trigger by its
    directory, and a script or a template under `docs/` does too. The documentation plan is chosen only when every
    changed file (and the old path of a rename) has a suffix on the `prose_suffixes` list, carries no executable bit
-   and starts with no shebang line (`notProse` in `internal/review/plan.go`; the modes come from `change.FactsBetween`
-   and `change.TreeFacts`). A file whose facts cannot be read is not prose. Anything else runs the class its rules
+   and starts with no shebang line, on either side of the change, so a script that loses its header is still
+   reviewed (`notProse` in `internal/review/plan.go`; the modes come from `change.FactsBetween` and
+   `change.TreeFacts`). The list cannot name a source, script, build or template suffix: the loader refuses one by
+   name (`builtSuffixes`), and the plan does not believe one set in code either. A file whose facts cannot be read is not prose. Anything else runs the class its rules
    choose in full, and the plan line says which file failed and why.
 5. **The trace.** Every review writes one `plan` line before any agent runs. It names the class, the confidence and
    band, the signals, the ambiguity and the plan, or says `no plan chosen (scout_intent is off)`. Each part a plan
@@ -131,13 +135,15 @@ loses a finding. Measured 2026-10-25:
 | scenario | model calls without plan | model calls with plan | wall without | wall with | findings without | findings with | lost |
 |---|---|---|---|---|---|---|---|
 | documentation only (scripted) | 4 | 0 | 110ms | 82ms | 0 | 0 | 0 |
-| dependency only, one OSV advisory (scripted) | 8 | 6 | 216ms | 220ms | 1 | 1 | 0 |
+| dependency only, one OSV advisory, manifest not called security (scripted) | 4 | 3 | 1.113s | 792ms | 1 | 1 | 0 |
+| dependency only, one OSV advisory, manifest called security, the default (scripted) | 8 | 8 | 844ms | 1.39s | 1 | 1 | 0 |
 | security-sensitive session code (scripted) | 4 | 8 | 118ms | 192ms | 0 | 0 | 0 |
 | feature: one modified Go file (scripted) | 4 | 4 | 131ms | 121ms | 0 | 0 | 0 |
 | ambiguous: documentation beside code (scripted) | 4 | 4 | 130ms | 132ms | 0 | 0 | 0 |
 | the corpus cases | UNMEASURED — no corpus recording (proven-test-corpus record-and-replay not yet landed) | | | | | | |
 
 remark: a scripted planner names one risk and nothing proves it, so "findings 0 / lost 0" on four rows says only that no finding existed to lose; the dependency row is the one case where a finding existed and the plan kept it.
+remark: the two dependency rows differ only in the path rules: where the rules call the manifest security (the default), the plan keeps the floor's full agent set and doubles the review, so it cuts nothing; the cut applies only where the rules leave the manifest in a lower class. Re-measured 2026-10-25 on a loaded machine, so the wall times of all rows are not comparable with the older ones.
 remark: the security row costs more by design: the plan doubles a change the configured rules did not call sensitive.
 
 ## Modes
