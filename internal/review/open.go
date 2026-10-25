@@ -261,6 +261,13 @@ func open(opts Options) (Reviewer, error) {
 	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
 	// the lab's pull-request review is a sample review, and it is the one the dashboard shows. Setup
 	// reads only OTEL_* names.
+	// ADR-0013: the evidence records and their link are settings. A wrong value stops Open. Sample mode
+	// reads them too, as it reads OTEL_*: the lab's pull-request review is a sample review, and the
+	// lab's CouchDB is where its records go. Unset, nothing is written and no link is made.
+	rec, rcerr := openRecorder(opts)
+	if rcerr != nil {
+		return nil, rcerr
+	}
 	tel := opts.tel
 	if tel == nil {
 		set, terr := telemetry.Setup(context.Background(), opts.Env)
@@ -274,7 +281,40 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec}, nil
+}
+
+// openRecorder loads the records settings and the link base address. It returns a nil recorder
+// when PROVEN_COUCHDB_RECORDS is unset: a link needs a stored record, so the link base alone
+// makes no link.
+func openRecorder(opts Options) (*recorder, error) {
+	env := opts.Env
+	if env == nil {
+		env = func(string) string { return "" }
+	}
+	rset, err := store.LoadRecords(env)
+	if err != nil {
+		return nil, storeConfig(err)
+	}
+	link, err := store.LoadLinkBase(env)
+	if err != nil {
+		return nil, storeConfig(err)
+	}
+	if !rset.Enabled() {
+		return nil, nil
+	}
+	rc := &recorder{
+		writer:   store.NewRecorder(rset, opts.recordsClient),
+		linkBase: link,
+		pr:       store.PullOf(env(envGitHubRef)),
+		now:      time.Now,
+	}
+	// The read-only account is the one the viewer is opened with. When it is not configured the
+	// viewer cannot be checked, and the link is shown unchecked with a failed service that says so.
+	if cfg, cerr := store.LoadCouch(env); cerr == nil {
+		rc.reader = store.NewCouchDB(cfg, opts.recordsClient)
+	}
+	return rc, nil
 }
 
 // lazyLocal opens the local store on its first use, so nothing is written
@@ -417,8 +457,10 @@ type runner struct {
 	tel *telemetry.T
 	// sample is true when the adapters are the recorded ones.
 	sample bool
-	pol    *policy          // the organisation policy, or nil (ADR-0036)
-	now    func() time.Time // the review's clock; nil in a runner built by a test means time.Now
+	// records writes the review's evidence records; nil when none are written.
+	records *recorder
+	pol     *policy          // the organisation policy, or nil (ADR-0036)
+	now     func() time.Time // the review's clock; nil in a runner built by a test means time.Now
 }
 
 // Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
@@ -556,6 +598,9 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		}
 		r.pol.applyExceptions(&out, now())
 	}
+	// The records are written last, from the Result the shell will print, so a record holds
+	// what the reader is shown. A failure is named in FailedServices and does not fail the review.
+	r.records.publish(ctx, req, &out)
 	return out, nil
 }
 
