@@ -1,6 +1,7 @@
 // H-MEM shim. Forwards each call to proven's store through meterless-conform.
-// Sleep, dreaming, conflicts and ledger history are deferred by ADR-0018:
-// those calls reach the command and come back as errors.
+// Sleep, dreaming, conflicts and ledger history each reach their own operation
+// in the command. Each call is one process, so what a later call needs from an
+// earlier one (a sleep plan, a conflict) is handed back to it.
 
 import { rpc } from "../bridge.ts";
 
@@ -44,26 +45,26 @@ export class HMEM {
     };
     this.sleep = {
       preview() {
-        return call("sleep");
+        return call("sleep").preview;
       },
-      execute() {
-        return call("sleep");
+      execute(preview?: unknown) {
+        return call("sleepExecute", { preview: preview ?? null }).report;
       },
     };
     this.dreaming = {
       dream() {
-        return call("dream");
+        return call("dream").proposals;
       },
-      approve() {
-        return call("dream");
+      approve(id: string) {
+        return call("approve", { memoryId: id }).record ?? undefined;
       },
     };
     this.conflicts = {
       scan() {
-        return call("conflicts");
+        return call("conflicts").conflicts;
       },
-      autoResolve() {
-        return call("conflicts");
+      autoResolve(found: unknown) {
+        return call("autoResolve", { conflict: found }).outcome;
       },
     };
   }
