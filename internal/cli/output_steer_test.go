@@ -815,3 +815,32 @@ func TestAbsentDirectoryLinkedDuringTheReviewDoesNotReceiveTheReport(t *testing.
 		t.Fatalf("the error does not name the path: %s", stderr.String())
 	}
 }
+
+// TestDirectoryRenamedAwayDuringTheReviewStillCompletesTheRun proves a write
+// that succeeded through the directory held from load is not then failed
+// because the path's spelling names nothing. The mutated field is the
+// directory's name: renamed away, nothing put in its place. Reading the
+// written file back by its path exits 2 after a successful write.
+func TestDirectoryRenamedAwayDuringTheReviewStillCompletesTheRun(t *testing.T) {
+	checkout := filepath.Join(t.TempDir(), "checkout")
+	if err := os.MkdirAll(filepath.Join(checkout, "reports"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	open := func(review.Options) (review.Reviewer, error) {
+		return funcReviewer(func() review.Result {
+			if err := os.Rename("reports", "reports.moved"); err != nil {
+				t.Error(err)
+			}
+			return review.Result{Class: "c", ClassRule: "r"}
+		}), nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=reports/proven.sarif"}, emptyEnv, &stdout, &stderr, open)
+	if code != exitOK {
+		t.Fatalf("exit %d, want 0; stderr %s", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(checkout, "reports.moved", "proven.sarif")); err != nil {
+		t.Fatalf("the report is not in the directory held from load: %v", err)
+	}
+}

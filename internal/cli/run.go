@@ -276,19 +276,20 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		}
 	}
 	for _, one := range files {
-		if info, err := os.Stat(one.path); err == nil {
+		dir := cfg.outputDirs[one.path]
+		if info, err := statOutput(one.path, dir); err == nil {
 			for _, w := range written {
 				if os.SameFile(info, w.info) {
 					return fmt.Errorf("%s and %s are the same file (%s); %s is left as it was written", w.flag, one.flag, one.path, w.flag)
 				}
 			}
 		}
-		if err := writeOutputFile(one.flag, one.path, one.body, cfg.outputDirs[one.path]); err != nil {
+		if err := writeOutputFile(one.flag, one.path, one.body, dir); err != nil {
 			return err
 		}
-		info, err := os.Stat(one.path)
+		info, err := statOutput(one.path, dir)
 		if err != nil {
-			return err
+			return fmt.Errorf("%s %s: %w", one.flag, one.path, err)
 		}
 		written = append(written, writtenOutput{one.flag, info})
 	}
@@ -332,6 +333,16 @@ func writeOutputFile(flag, path string, body []byte, dir *os.Root) error {
 // check and before the rooted create. Tests replace that component in
 // the window a rooted open would follow. Production leaves it nil.
 var beforeRootedOutputCreate func(path string)
+
+// statOutput reads the file at path through dir, the directory opened at
+// load, when there is one: the path's spelling may name another directory by
+// now, and the report is where the handle put it.
+func statOutput(path string, dir *os.Root) (os.FileInfo, error) {
+	if dir != nil {
+		return dir.Stat(filepath.Base(path))
+	}
+	return os.Stat(path)
+}
 
 // outputDirectories holds, per output path inside the working directory,
 // that path's directory opened at load.
