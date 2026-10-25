@@ -58,6 +58,21 @@ Saphan Studio is the product. What follows is how *this* fleet is set up to buil
 4. The **owner** reads the review and decides: accept, accept with conditions, reject, or close without shipping. His reason is written down.
 5. If the change goes back, it gets a new round. The documents of every round stay.
 
+### The hardware this fleet runs on
+
+Everything runs on premises, in one person's home office. No cloud: only the model vendors' APIs are reached over the
+internet.
+
+| machine | specification | what runs on it |
+|---|---|---|
+| **Apple MacBook Pro** (macm5) | Apple M5 Max, 18 cores, 128 GB unified memory, 4 TB SSD | Saphan Studio itself: the engine, the record and the console (one app served from one binary); the masters' sessions; Meterless Nightshift in its own macOS virtual machine |
+| **Apple Mac mini** (macmini) | Apple M4, 10 cores, 16 GB, 1 TB external SSD | agent runs and reviews that need Apple's platform |
+| **AMD Ryzen AI Max+ 395 mini PC** | 32 threads, 128 GB memory shared with the integrated Radeon GPU, 2 TB NVMe | local inference on the AMD GPU: NVIDIA's Nemotron Content Safety (Proven's guardrail), three more guard models, and local coding and reasoning models |
+| **AMD Ryzen 9 9950X workstation** | 16 cores / 32 threads, 128 GB, 2 × 2 TB NVMe on ZFS, Proxmox | every Linux virtual machine of the fleet: the agent runners (Cursor, Claude Code, Codex, NVIDIA Nemotron, Qwen), the builders, Zetaris in its own virtual machine, and the judges' lab Gitea |
+| **three Intel NUCs** | Proxmox cluster | observability (Prometheus, Grafana), the model router (LiteLLM), network routing |
+
+In all: about 436 GB of memory and 11 TB of SSD, most of it in three machines.
+
 ## Skills, rules and orchestration
 
 **Skills.** Every agent run gets the skills its task needs, from a library of 32, in the open Agent Skills format. A skill brings the right instrument for a job: which tool, which check, which command. Each project switches on its own set; that is the owner's decision.
