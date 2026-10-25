@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -23,6 +24,7 @@ import (
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
@@ -75,6 +77,7 @@ func open(opts Options) (Reviewer, error) {
 	}
 	var kevView string
 	var adapterLimit time.Duration
+	var localFile string
 	// secondModel is the connected second reviewer's model; empty when none is connected (ADR-0037).
 	var secondModel string
 	// In sample mode the pipeline uses its recorded adapters, so none of the live settings are read.
@@ -133,14 +136,29 @@ func open(opts Options) (Reviewer, error) {
 			}
 			popts.Guardrail = rail
 		}
-		zset, zerr := query.Load(env)
-		if d, ok := service.As(zerr); ok {
-			popts.Down = append(popts.Down, *d)
-			popts.LiveQuery = query.Absent{Reason: d.Reason}
-		} else if zerr != nil {
-			return nil, queryConfig(zerr)
+		// ADR-0047: one setting chooses the store. The default is Zetaris, and
+		// that path is the client this review already used. local skips the
+		// Zetaris settings, so a review with no Zetaris key still runs.
+		choice, serr := store.Load(env)
+		if serr != nil {
+			return nil, storeConfig(serr)
+		}
+		if choice.Name == store.NameLocal {
+			// ADR-0047: the file is opened on the first query, after Review has
+			// checked it is not inside the target. Opening creates it, and the
+			// target is not known until a review starts.
+			localFile = choice.File
+			popts.LiveQuery = &lazyLocal{path: choice.File}
 		} else {
-			popts.LiveQuery = query.NewLive(zset, nil)
+			zset, zerr := query.Load(env)
+			if d, ok := service.As(zerr); ok {
+				popts.Down = append(popts.Down, *d)
+				popts.LiveQuery = query.Absent{Reason: d.Reason}
+			} else if zerr != nil {
+				return nil, queryConfig(zerr)
+			} else {
+				popts.LiveQuery = query.NewLive(zset, nil)
+			}
 		}
 		if opts.liveQuery != nil {
 			// A test supplies the query adapter. The live client above is not called.
@@ -226,7 +244,46 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, secondModel: secondModel, tel: tel, sample: opts.Sample}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample}, nil
+}
+
+// lazyLocal opens the local store on its first query, so nothing is written
+// before the review has checked where the file is.
+type lazyLocal struct {
+	path string
+	once sync.Once
+	loc  *store.Local
+	err  error
+}
+
+// Query opens the store once and runs the SQL on it.
+func (l *lazyLocal) Query(ctx context.Context, sql string) (query.Result, error) {
+	l.once.Do(func() { l.loc, l.err = store.OpenLocal(l.path) })
+	if l.err != nil {
+		return query.Result{}, l.err
+	}
+	return l.loc.Query(ctx, sql)
+}
+
+// checkLocalFile refuses a local evidence file that resolves inside the
+// review's target (ADR-0047). The refusal names the setting.
+func checkLocalFile(file, target string) error {
+	if file == "" {
+		return nil
+	}
+	inside, err := store.Within(file, target)
+	if err != nil {
+		return err
+	}
+	if inside {
+		return &ConfigError{
+			Field:   store.EnvFile,
+			Value:   file,
+			Reason:  "the file is inside the repository under review",
+			Allowed: []string{"a path outside the review target"},
+		}
+	}
+	return nil
 }
 
 // telemetryFlushBound bounds the push of a review's telemetry to the exporter, so an unreachable
@@ -279,6 +336,7 @@ type runner struct {
 	explicit     bool
 	kevView      string
 	adapterLimit time.Duration
+	localFile    string
 	// secondModel is the second reviewer's model when one is connected; empty otherwise.
 	secondModel string
 	// tel is the review's telemetry; nil is off (ADR-0045).
@@ -321,6 +379,11 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 
 // review runs one review: settings, deadline, class, the six agents, then the decision lines.
 func (r *runner) review(ctx context.Context, req Request) (Result, error) {
+	// ADR-0047: before anything reads or writes, the local evidence file must
+	// be outside the tree under review.
+	if err := checkLocalFile(r.localFile, req.Target); err != nil {
+		return Result{}, err
+	}
 	cfg := r.cfg
 	// Settings come from the baseline commit, not from the change, so a change cannot loosen its
 	// own review. With no baseline there is only the working tree to read.
@@ -536,7 +599,7 @@ func toEvidence(e candidate.Evidence) Evidence {
 	if e.Query != nil {
 		q := *e.Query
 		out.Query = &QueryEvidence{
-			SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
+			SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
 			Rows:    copyRows(q.Rows),
 		}
@@ -555,9 +618,21 @@ func toEvidence(e candidate.Evidence) Evidence {
 
 // queryConfig turns a refused Zetaris query setting into the seam's *ConfigError.
 // The shell exits 7 on that type. Any other error passes through unchanged.
-// The five functions below do the same for the other adapters' settings.
+// The functions below do the same for the other adapters' settings.
 func queryConfig(err error) error {
 	var cfg *query.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// storeConfig turns a refused evidence-store setting into the seam's *ConfigError.
+func storeConfig(err error) error {
+	var cfg *store.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

@@ -247,7 +247,7 @@ func TestLoadRefusesAWrongModeAndDefaultsToNightshift(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 	cfg, err := generator.Load(func(k string) string {
-		return map[string]string{generator.EnvToken: "t"}[k]
+		return map[string]string{generator.EnvToken: "test-token"}[k]
 	})
 	if err != nil || cfg.Mode != generator.ModeNightshift {
 		t.Fatalf("mode %q err %v", cfg.Mode, err)

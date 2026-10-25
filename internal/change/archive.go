@@ -187,17 +187,31 @@ func safeRel(name string) (string, error) {
 	return clean, nil
 }
 
-// writeTarFile writes one regular file from the archive. A zero mode becomes
-// the usual file mode, because a header can omit it.
+// treeFileMode is the mode a materialized file gets: 0644, or 0755 when the
+// source is executable by its owner. The group and other write bits are never
+// carried over from the source or from the umask, so a tree written under a
+// permissive umask is not writable by group or others. A header with no mode
+// gets the usual file mode.
+func treeFileMode(src os.FileMode) os.FileMode {
+	if src&0o100 != 0 {
+		return 0o755
+	}
+	return 0o644
+}
+
+// writeTarFile writes one regular file from the archive, at the mode treeFileMode gives it.
 func writeTarFile(tr *tar.Reader, dst string, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	if mode == 0 {
-		mode = 0o644
-	}
-	f, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	f, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, treeFileMode(mode))
 	if err != nil {
+		return err
+	}
+	// OpenFile applies the umask and keeps the mode of a file that exists; the
+	// mode is set outright so it never follows either.
+	if err := f.Chmod(treeFileMode(mode)); err != nil {
+		f.Close()
 		return err
 	}
 	_, copyErr := io.Copy(f, tr)
@@ -267,8 +281,12 @@ func copyTracked(src, dst, name string) (skip bool, copied int64, err error) {
 		return false, 0, err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, treeFileMode(info.Mode().Perm()))
 	if err != nil {
+		return false, 0, err
+	}
+	if err := out.Chmod(treeFileMode(info.Mode().Perm())); err != nil {
+		out.Close()
 		return false, 0, err
 	}
 	// One byte past the limit shows a file that grew after Lstat.

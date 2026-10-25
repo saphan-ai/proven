@@ -128,8 +128,10 @@ func Load(env func(string) string) (Settings, error) {
 	// review. The value is not echoed: it is a secret. An empty key is a down
 	// service, decided after the other settings so a bad URL is still refused.
 	key := env(EnvAPIKey)
-	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 {
-		return Settings{}, refuse(EnvAPIKey, "", "the live query adapter needs an API key", "a non-empty secret in the environment, at most 4096 characters, with no line break")
+	// A key too short to be redacted is refused too: the redactor has no
+	// length floor, so the loader holds the floor (service.MinSecretBytes).
+	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 || service.TooShortSecret(key) {
+		return Settings{}, refuse(EnvAPIKey, "", "the live query adapter needs an API key", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
 	// ADR-0023, point 6: the organisation id is the numeric id Zetaris issues.
 	org := strings.TrimSpace(env(EnvOrgID))

@@ -13,7 +13,7 @@ import (
 func TestLoadUsesDefaults(t *testing.T) {
 	s, err := generator.Load(func(k string) string {
 		if k == generator.EnvToken {
-			return "tok"
+			return "token-0001"
 		}
 		return ""
 	})
@@ -32,7 +32,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if s.Timeout != 60*time.Second {
 		t.Fatalf("timeout %s", s.Timeout)
 	}
-	if s.Token != "tok" {
+	if s.Token != "token-0001" {
 		t.Fatal("token")
 	}
 }
@@ -173,7 +173,7 @@ func TestLoadAcceptsAnAPIRoot(t *testing.T) {
 func envWith(key, value string) func(string) string {
 	return func(k string) string {
 		if k == generator.EnvToken {
-			return "tok"
+			return "token-0001"
 		}
 		if k == key {
 			return value

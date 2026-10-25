@@ -1,6 +1,6 @@
 # Adapters
 
-An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)). Each has one worked example below.
+An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)). An output format writes the review result. Each has one worked example below.
 
 ## Adding a language
 
@@ -128,3 +128,77 @@ That scenario labels the reached module with the call path and the quiet module 
 ### Adding the next tool
 
 Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four answers above, a recorded scenario, and tests for three outcomes: a result only on the change, the same result on the base, and a run that does not answer. It uses the same container and the same time-limit setting. It does not grow a second way to start a process.
+
+## The evidence store
+
+[ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md). A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it. The default is `zetaris`. `local` is one file and no server, and it opens no network. `couchdb` is refused by name until it is built. The file of the local store is `PROVEN_EVIDENCE_FILE`. It is required when the store is `local`: an empty value is refused by name, because a default would sit in the repository under review. A path that resolves inside that repository, links included, is refused by name too. A table the file does not hold is a down source named `local`, as a missing view on Zetaris is a down source named `zetaris`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
+
+A source registers a table on the configured store, then runs a query Proven built from a template. Zetaris keeps the rule that Proven's key only reads: registering a table there is the administrator's act, and Proven records the name and sends no statement. The local store writes the table into its file.
+
+A template has one form for each query language. This wagon fills the `sql` form, which Zetaris and the local store both run. The `mango` form is empty until CouchDB. The evidence of a query names the form that ran, with the text of that form and the rows it returned.
+
+One scenario runs on every store that is built. The form, the query text, the columns and the rows match. Zetaris is played by a recorded HTTP server in that test. The local store is the real file.
+
+## Adding an output format
+
+A formatter writes one review result, for a person or for another program. text, JSON and SARIF are the three formats in this build ([ADR-0020](adr/ADR-0020-proven-command-line-and-action-interface.md)). The bytes of JSON and SARIF are the contract in [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md). A new format is another writer. It does not change the review.
+
+### The interface
+
+`Formatter` is in `internal/cli`. It has one method.
+
+```text
+Write(w io.Writer, result review.Result) error
+```
+
+`w` is the destination. The shell does not hand `Write` a file. `render` hands it a memory buffer and keeps the bytes only when `Write` returns nil. A formatter does not open a path of its own.
+
+`result` is the whole review: the findings, the opinions, the failed services, the class and the trace path. `--sample` swaps the reviewer for the sample adapters. The value that comes back is still a `review.Result`. `internal/cli/format.go` does not read the sample flag, so a formatter behaves the same in sample mode and in a live review.
+
+Return nil only when `w` holds a complete body. A non-nil error means the body is not usable. Return the destination's error as it was given. `render` drops the buffer on that error. `writeOutputs` renders every body before it writes any of them, so a format that cannot be encoded publishes nothing. A failure while writing a later file leaves the first file as it was written. A formatter that writes straight to a destination the caller passed can leave a prefix in that destination. The shell's `render` does not pass such a destination.
+
+`FormatterFor` is a closed switch over `text`, `json` and `sarif`. There is no registry. Any other name returns `format %q has no writer in this build` and writes nothing.
+
+### Where the format is chosen
+
+The standard-output format is one of `--text`, `--json` or `--sarif`. The command has no `--format` flag. Two of those three flags together are refused. When none is set, `PROVEN_OUTPUT_FORMAT` is used. The variable accepts `text`, `json` or `sarif` in any letter case. When the variable is empty, the format is `text`.
+
+`-o` and `--output` write that chosen format to a file instead of standard output. They do not choose the format. When the flag is absent, `PROVEN_OUTPUT` names the file. When both are absent, the body goes to standard output.
+
+`--text-output`, `--json-output` and `--sarif-output` each write that one format as well, in the same run, to their own file. Two outputs of one run must be two files. The collision rules are in [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md).
+
+### What you add
+
+1. A type whose `Write` matches `Formatter`, and a case for its name in `FormatterFor` (`internal/cli/format.go`).
+2. The flag. A format named `lines` is selectable only when every one of these exists. The flag sites are `internal/cli/config.go` and `internal/cli/run.go`:
+   - a bool flag `--lines`, counted in `refuseExclusive` and read in `resolveFormat`
+   - the name in `parseFormat`, so `PROVEN_OUTPUT_FORMAT` accepts it, and in `knownFlagNames`
+   - a `--lines-output` flag, stored the way `--text-output` is, rendered in `writeOutputs`, and included in both collision checks
+   - that output flag named in `isValueFlag`, so its path is not read as the command
+   - one line in `helpText`
+
+The worked example is not registered. Putting it on the command would edit `internal/cli`. This page shows the writer, and names the edits.
+
+### Strings from the change
+
+Every string the text writer prints that can come from the change goes through `visible` in `internal/cli/format.go`. C0 (U+0000 to U+001F), DEL (U+007F) and C1 (U+0080 to U+009F) are written as `\xNN`. A byte that is not valid UTF-8 is written as `\xNN` of that byte. It is not replaced with U+FFFD. A title that contains an escape then cannot move the cursor.
+
+JSON and SARIF must not assume `encoding/json` does this. Both writers call `SetEscapeHTML(false)`. In Go 1.26.10 that encoder escapes a byte below 0x20. It copies DEL through: `safeSet` and `htmlSafeSet` both mark U+007F as safe, so turning HTML escaping off does not change DEL. It copies a C1 rune through as UTF-8. The only runes above ASCII that it escapes are U+2028 and U+2029. A byte that is not valid UTF-8 becomes U+FFFD, which is a different choice from `visible`. A consumer that prints a decoded JSON or SARIF string on a terminal still needs the `visible` rule. `go.mod` says `go 1.26` and names no toolchain. The reading above is the `encoding/json` in Go 1.26.10.
+
+### Worked example: one line per finding
+
+[`examples/formatter`](../examples/formatter) is a small format inside this module. `Lines.Write` prints one finding per line:
+
+```text
+path:line: title
+```
+
+`line` is `Location.StartLine`. The path and the title go through `Escaped`, which applies the same byte rule as `visible`, so a newline in the title stays inside its line. A review with no findings prints `findings: none`. An opinion is not a finding and is not a line.
+
+The package assigns `Lines` to a `cli.Formatter`. That line fails the build when `Write` changes. `lines_test.go` renders one fixed `review.Result` and compares the bytes with `testdata/lines.golden`. A golden that differs by one byte fails the test.
+
+```text
+go test -count=1 ./examples/formatter
+```
+
+`go test ./...` runs the same test. No separate job is required.

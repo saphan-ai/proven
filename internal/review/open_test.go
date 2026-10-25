@@ -11,7 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/review"
+	"github.com/saphan-ai/proven/internal/store"
 )
 
 // TestOpenSampleReviewKeepsF1AndF2 proves the sample review end to end through the seam: F1 is kept on a
@@ -203,6 +205,52 @@ func TestEmptyLogDirIsRefused(t *testing.T) {
 	var cfg *review.ConfigError
 	if err == nil || !errorAs(err, &cfg) || cfg.Field != "LogDir" {
 		t.Fatal(err)
+	}
+}
+
+// TestCouchDBIsRefusedByName proves PROVEN_EVIDENCE_STORE=couchdb stops Open
+// before a review, and the refusal names the field. The mutated field is
+// PROVEN_EVIDENCE_STORE.
+func TestCouchDBIsRefusedByName(t *testing.T) {
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env:    liveEnv("http://127.0.0.1:9", map[string]string{"PROVEN_EVIDENCE_STORE": "couchdb"}),
+	})
+	var cfg *review.ConfigError
+	if err == nil || !errorAs(err, &cfg) || cfg.Field != store.EnvStore || cfg.Value != "couchdb" {
+		t.Fatal(err)
+	}
+	if !strings.Contains(err.Error(), "not built") {
+		t.Fatal(err)
+	}
+}
+
+// TestLocalStoreNeedsNoZetaris proves a local store does not build a Zetaris
+// client and does not require the Zetaris settings. The mutated field is
+// ZETARIS_API_KEY, left empty, with the store set to local.
+func TestLocalStoreNeedsNoZetaris(t *testing.T) {
+	dir := t.TempDir()
+	before := query.LiveBuilt()
+	rev, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: dir,
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_EVIDENCE_STORE": "local",
+			"PROVEN_EVIDENCE_FILE":  filepath.Join(dir, "evidence.sql"),
+			"ZETARIS_REST_URL":      "",
+			"ZETARIS_API_KEY":       "",
+			"ZETARIS_ORG_ID":        "",
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rev == nil {
+		t.Fatal("no reviewer")
+	}
+	if query.LiveBuilt() != before {
+		t.Fatalf("local store built %d Zetaris clients", query.LiveBuilt()-before)
 	}
 }
 

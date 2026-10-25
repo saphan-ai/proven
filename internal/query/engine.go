@@ -1,11 +1,13 @@
-// Package query runs the SQL Proven builds. It holds the one Adapter
-// interface and its two implementations: Live sends a SELECT to Zetaris over
-// REST (ADR-0015), and Sample runs the same SQL on a small local engine over
-// sample tables, so sample mode and the tests need no network (ADR-0002,
+// Package query runs the SQL Proven builds. It holds the Adapter interface
+// and the stores behind it (ADR-0047). Live sends a SELECT to Zetaris over
+// REST (ADR-0015). The local store is one file of tables and no server; it
+// runs that SQL on the small engine sample mode already uses, so it needs
+// no network (ADR-0034). Sample opens that file on a fixture (ADR-0002,
 // point 4). The EPSS and OSV steps of the pipeline query through the same
-// Adapter. The Judge keeps the SQL and its rows as evidence. No SQL a model wrote
-// reaches an Adapter: Proven builds every query from a template (ADR-0032,
-// internal/querytpl), and Live checks the text once more before it sends it.
+// Adapter. The Judge keeps the query, the form that ran, and its rows as
+// evidence. No SQL a model wrote reaches an Adapter: Proven builds every
+// query from a template (ADR-0032, internal/querytpl), and Live checks the
+// text once more before it sends it.
 package query
 
 import (
@@ -146,7 +148,7 @@ func (db *DB) execInsert(toks []token) error {
 	}
 	tb, ok := db.tables[name]
 	if !ok {
-		return fmt.Errorf("query: no table %s", name)
+		return &NoTableError{Name: name}
 	}
 	i++
 	if i >= len(toks) || toks[i].val != "(" {
@@ -453,7 +455,7 @@ func isKeyword(s string) bool {
 func (db *DB) bind(ref tableRef) (side, error) {
 	tb, ok := db.tables[ref.name]
 	if !ok {
-		return side{}, fmt.Errorf("query: no table %s", ref.name)
+		return side{}, &NoTableError{Name: ref.name}
 	}
 	idx := make(map[string]int, len(tb.cols))
 	for n, c := range tb.cols {
@@ -671,4 +673,16 @@ func tokenize(s string) ([]token, error) {
 // underscore.
 func isIdent(b byte) bool {
 	return b == '_' || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
+}
+
+// NoTableError says a statement named a table the loaded file does not hold.
+// It keeps the text the engine always gave, and it is a type so the local
+// store can tell a missing table from a bad statement (ADR-0047).
+type NoTableError struct {
+	Name string
+}
+
+// Error returns "query: no table <name>".
+func (e *NoTableError) Error() string {
+	return "query: no table " + e.Name
 }

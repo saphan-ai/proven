@@ -104,8 +104,10 @@ type TestEvidence struct {
 
 // QueryEvidence is the investigator result, including every column and row,
 // so a judge can read the proof without rerunning the query.
+// Form is the query language that ran (ADR-0047).
 type QueryEvidence struct {
 	SQL      string     `json:"sql"`
+	Form     string     `json:"form,omitempty"`
 	Engine   string     `json:"engine"`
 	Snapshot string     `json:"snapshot"`
 	Columns  []string   `json:"columns"`
