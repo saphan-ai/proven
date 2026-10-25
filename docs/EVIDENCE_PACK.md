@@ -13,10 +13,10 @@ A pack is one tar archive. It has no folders. Every file below is listed in the 
 
 | file | holds |
 |---|---|
-| `findings.json` | the review result: every finding with its evidence, the proof counts, the failed services, the review class and the reviewer models |
+| `findings.json` | the review result: every finding with its evidence, the facts of the Skeptic's refutation that the Judge's rule reads, whether query rows are bound to the change, the proof counts, the failed services, the review class and the reviewer models |
 | `trace.jsonl` | this run's lines of the trace: claims, evidence, refutations, verdicts, guardrail checks and one line per model call |
 | `tests.json` | every test and every deterministic tool run behind a finding: the command, whether it failed on the change and passed on the base, and its output |
-| `queries.json` | every query behind a finding, the engine, the snapshot, the columns and every row |
+| `queries.json` | every query behind a finding, the engine, the snapshot, the columns, every row and whether the rows are bound to the change |
 | `receipts.json` | one entry per model use: agent, route, model and the Nightshift receipt id |
 | `commits.json` | the target, the baseline and the head as named, and what git resolved each name to |
 | `settings.json` | the settings the run used. A secret setting is written as `set` or `unset`, never its value |
@@ -56,6 +56,13 @@ Keep `pack.key` where only the people and the jobs that sign may read it. Hand `
 3. **Hash of every file.** Each listed file's SHA-256 is the manifest's.
 4. **No file missing, none extra.** The pack holds the listed files and the manifest and signature, and nothing else. The manifest must list every file of the table above, by name; a signed manifest that leaves one out is refused. Each listed size is the file's size.
 5. **Receipts.** `receipts.json` is the manifest's own model list. Each model use that says it came from a receipt has a receipt id and a model, and the trace holds a model event with that id and that model.
+6. **Outcomes.** Each finding's outcome is worked out again from the evidence the pack records for it, with the Judge's own rule and the review's own function for the proof level (`review.Rederive`; the code is shared, not copied). `verify` runs no test and no query and opens no connection: it reads the recorded results only. The pack must say, for each finding:
+   - its **proof level**: `proved-by-test` when a recorded test failed on the change and passed on the base, `proved-by-tool` when a recorded tool result was on the change and not on the base, `proved-by-data` when recorded query rows are marked as bound to the change. The level is the strongest kind of evidence the finding holds;
+   - whether it is **reported**: its own evidence counts under that rule, and the recorded refutation (the Skeptic's test result and query rows, in `findings.json`) does not hold;
+   - whether it is **left open** (`unresolved`): the refuting test or query could not run;
+   - the **proof counts**, which must be the counts of the findings recorded.
+
+   `tests.json` and `queries.json` must be the evidence `findings.json` holds for each finding, value for value, so one of them cannot be changed alone. A refusal names the finding, the recorded outcome and the re-derived one, for example `evidence pack refused: outcome check failed on findings.json: finding F3 records proof level "proved-by-test", the rule gives "proved-by-data" for the evidence recorded`. A finding whose pack records no refutation still verifies; `verify` prints it under `not re-derived`, because whether it was refuted or left open cannot be worked out, and does not count it in `outcomes: N of M finding(s) re-derived`.
 
 It then prints what was reviewed, when, the models with their receipt ids, and the evidence: findings by level of proof, test and tool runs, queries and trace events. Exit code 0 means the pack verified. A refusal names the check and the file, for example `evidence pack refused: hash check failed on findings.json`, and exits 2. Every text that comes from the pack or from its path is shown with control characters, bidirectional marks and invalid bytes written as `\xNN` or `\uNNNN`, so a pack cannot move the cursor or recolour your terminal.
 
@@ -63,7 +70,29 @@ It then prints what was reviewed, when, the models with their receipt ids, and t
 
 The pack's path must be its own. `--evidence-pack` naming the same file as `-o`, `--text-output`, `--json-output` or `--sarif-output` — by the same spelling, by a link, or by a link to its directory — is refused before the review starts. If a link appears after that check, the run stops with the pack left as it was written.
 
-**What verify does not check**, and says every time: the provider's own signature on each receipt, because the pack keeps the receipt id, the route and the model, not the signed body; and whether the review was right. A pack proves what was recorded and that it has not been changed since it was signed. It does not prove the findings are true.
+**What a pack proves.** A pack proves that each verdict follows from the evidence it records, not that the evidence is true. Whoever holds the signing key can sign a pack that records a test result that never happened; the re-derivation then agrees with it. What stops this is the key, who holds it, and the trace, the commits and the receipts a reader can compare with the repository and the provider.
+
+**What verify does not check**, and says every time: the provider's own signature on each receipt, because the pack keeps the receipt id, the route and the model, not the signed body; and that the recorded evidence is true. Two more limits: the Judge's rule is the only rule re-derived (a finding the Judge dropped is not in the pack, so a pack cannot show that a finding was left out), and the pack does not record the model's own claims, only the facts the rule reads.
+
+## The forgery bench
+
+`TestForgeryBench` in `internal/evidence` takes a sample pack of four findings (one proved by a test, one by a tool, one by data, and one left open), lists every value of every record (each JSON value of every file, each value of every trace line, the manifest's values and its signature), and changes one at a time. Each value is replaced in the way that matters for it: a text gets a letter, a flag is turned over, a number goes up by one, and a proof level becomes each of the other levels.
+
+| part | the forger | the bench requires |
+|---|---|---|
+| (a) hashes left | changes one value and leaves the archive as it is | every change refused by the hash check or the signature check |
+| (b) hashes recomputed | changes one value, recomputes every hash in the manifest, and signs the manifest again with the key | every change that moves a finding's outcome refused by the re-derivation |
+
+A change moves an outcome when the pack, read by a path that does not go through `verify`, states a different proof level, reported state, open state or count for any finding, or states them in a way no reader can read. The bench fails if any change in (a), or any outcome-moving change in (b), verifies. The signature file has one value that is not JSON, and it is changed in (a) only: signing again would put the original back.
+
+The counts of the last run (`go test -count=1 -v -run TestForgeryBench ./internal/evidence`, 25 October 2026):
+
+| part | changes | result |
+|---|---|---|
+| (a) hashes left | 265 | 230 refused by the hash check, 35 by the signature check, 0 verified |
+| (b) hashes recomputed | 264 | 91 move an outcome, and 91 of them were refused by the re-derivation. The other 173 leave every outcome as it was (a title, a trace line, a time): 92 were refused by another check, and 81 verify, as they should |
+
+Without the re-derivation, (b) fails by name: with the call removed from `verify`, `TestForgeryBench/b-hashes-recomputed` reported 90 outcome-moving changes that verified.
 
 A sample-mode review has no provider receipts, so its models read `unknown` with no receipt id, and verify reports them as models without a receipt.
 
