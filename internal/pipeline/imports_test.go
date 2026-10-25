@@ -29,6 +29,9 @@ var exemptBanned = map[string]map[string]string{
 	"internal/cli/linkcount_windows.go": {
 		"syscall": "reads the link count of the trace file on Windows; no process, no network",
 	},
+	"internal/cli/output_open_unix.go": {
+		"syscall": "O_NOFOLLOW on the output open, so a final symbolic link is not followed",
+	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",
 	},
