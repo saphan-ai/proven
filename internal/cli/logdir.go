@@ -18,7 +18,7 @@ func Environment() []envdoc.Setting {
 	return []envdoc.Setting{{
 		Name:        EnvLogDir,
 		Default:     envdoc.Tick("<user cache>/proven/logs"),
-		Description: "where the trace is written. The directory is created with mode 0700. An existing configured directory is narrowed to 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Each file written in that directory, trace.jsonl, hmem.jsonl and world.jsonl, is refused when it is a symlink into the review target or has more than one name. The link count is read on every OS. Sample mode reads this",
+		Description: "where the trace is written. The directory is created with mode 0700. An existing configured directory is narrowed to 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Each file written in that directory, trace.jsonl, hmem.jsonl and world.jsonl, is refused when it is a symlink (wherever it points) or has more than one name. The link count is read on every OS. Sample mode reads this",
 	}}
 }
 
@@ -194,22 +194,12 @@ func logFileInside(name string) string {
 	return name
 }
 
-// manyNames refuses path when it is a regular file with more than one name.
-// A missing file has no second name: the open would create it. The sentence
+// manyNames refuses path when it has more than one name. Its caller has
+// already read path with Lstat and passes only an existing regular file. The sentence
 // names the count that was read, the file to remove or rename, and the
 // review target the scan was about to write beside. It does not claim that
 // the other name is inside that target, because the count does not say.
 func manyNames(path, name, root string) (string, error) {
-	info, err := os.Lstat(path)
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	if !info.Mode().IsRegular() {
-		return "", nil
-	}
 	n, err := linkCount(path)
 	if err != nil {
 		return "", err

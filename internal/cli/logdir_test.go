@@ -652,7 +652,10 @@ func insideTarget(t *testing.T, dir, root string) bool {
 // once the kernel resolves sub first. Mutated field: the symlink branch of
 // logFileRefusal (judge the cleaned landing instead of refusing).
 func TestLogFileLinkThroughDotDotIsRefused(t *testing.T) {
+	// A real fixture, so a run that is not refused does write its logs and
+	// the "not written inside the target" check can fail.
 	target := t.TempDir()
+	copyTree(t, filepath.Join(moduleRoot(t), "testdata", "fixture", "discount"), target)
 	outside := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(target, "deep"), 0o755); err != nil {
 		t.Fatal(err)
