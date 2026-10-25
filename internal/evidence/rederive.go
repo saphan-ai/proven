@@ -55,24 +55,21 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 			return refuse(CheckOutcome, FindingsName, "finding %s: %v", Visible(f.ID), err)
 		}
 		lo := got[0]
+		if err := checkRecorded(f, got); err != nil {
+			return err
+		}
 		var undecided []string
 		if !agree(got, func(o review.Outcome) any { return o.Level }) {
 			undecided = append(undecided, "its proof level")
-		} else if lo.Level != f.ProofLevel {
-			return refuse(CheckOutcome, FindingsName, "finding %s records proof level %q, the rule gives %q for the evidence recorded", Visible(f.ID), Visible(string(f.ProofLevel)), string(lo.Level))
 		}
 		if !agree(got, func(o review.Outcome) any { return o.Reported }) {
 			undecided = append(undecided, "whether it is reported")
-		} else if !lo.Reported {
-			return refuse(CheckOutcome, FindingsName, "finding %s is recorded as reported, the rule drops it for the evidence recorded", Visible(f.ID))
 		}
 		switch {
 		case !lo.Complete:
 			undecided = append(undecided, "whether it was refuted or left open")
 		case !agree(got, func(o review.Outcome) any { return o.Unresolved }):
 			undecided = append(undecided, "whether it is open")
-		case lo.Unresolved != f.Unresolved:
-			return refuse(CheckOutcome, FindingsName, "finding %s records unresolved=%t, the rule gives unresolved=%t for the evidence recorded", Visible(f.ID), f.Unresolved, lo.Unresolved)
 		}
 		if len(undecided) > 0 {
 			var why []string
@@ -94,6 +91,29 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 		return refuse(CheckOutcome, FindingsName, "the recorded proof counts %v are not the counts %v of the findings recorded", res.ProofCounts, want)
 	}
 	return nil
+}
+
+// checkRecorded refuses a finding when no reading of what the pack leaves open gives the outcome
+// the pack records for it as a whole: reported, its proof level and its open state together. Each
+// component alone is not enough, because a reading that matches one component can differ on
+// another. The pack records every finding as reported, so a reading that drops it cannot match. A
+// finding with no recorded refutation has no derived open state, and only its level is matched.
+func checkRecorded(f review.Finding, got []review.Outcome) error {
+	for _, o := range got {
+		if o.Reported && o.Level == f.ProofLevel && (!o.Complete || o.Unresolved == f.Unresolved) {
+			return nil
+		}
+	}
+	lo := got[0]
+	switch {
+	case agree(got, func(o review.Outcome) any { return o.Level }) && lo.Level != f.ProofLevel:
+		return refuse(CheckOutcome, FindingsName, "finding %s records proof level %q, the rule gives %q for the evidence recorded", Visible(f.ID), Visible(string(f.ProofLevel)), string(lo.Level))
+	case agree(got, func(o review.Outcome) any { return o.Reported }) && !lo.Reported:
+		return refuse(CheckOutcome, FindingsName, "finding %s is recorded as reported, the rule drops it for the evidence recorded", Visible(f.ID))
+	case lo.Complete && agree(got, func(o review.Outcome) any { return o.Unresolved }) && lo.Unresolved != f.Unresolved:
+		return refuse(CheckOutcome, FindingsName, "finding %s records unresolved=%t, the rule gives unresolved=%t for the evidence recorded", Visible(f.ID), f.Unresolved, lo.Unresolved)
+	}
+	return refuse(CheckOutcome, FindingsName, "finding %s records proof level %q, reported, unresolved=%t, and no reading of what the pack leaves open gives that outcome as a whole", Visible(f.ID), Visible(string(f.ProofLevel)), f.Unresolved)
 }
 
 // readings gives the rule's outcome for f under every reading of what the pack leaves open: each
