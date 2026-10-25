@@ -67,7 +67,7 @@ so it is never marked proved.
 - **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
 
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
-`test/conformance/meterless/run.sh`.
+`test/conformance/meterless/run.sh`. The World Model passes its suite 8 of 8, bitemporal edges included (runner pinned at upstream commit `1742dec5`).
 
 ## Modes
 
