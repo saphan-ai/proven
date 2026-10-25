@@ -200,6 +200,17 @@ No environment variable sets these keys.
 | `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
 | `fixes` | `on` | Proposes a fix for a finding a test proved, and a fixed version for a dependency finding (ADR-0042). `off` proposes none, runs none of the three proof runs and names no version. | `on` or `off`. |
 | `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. |
+| `investigator_templates` | every template | The query templates the Investigator may ask (ADR-0013, ADR-0032). Its prompt lists only these, and a request for any other is refused before a store is asked: the finding goes on with no query evidence and the trace says `refused: query template is outside the evidence scope of this role: <template> for the investigator`. Unset narrows nothing. | A comma-separated list of template names from `docs/QUERIES.md`, each once. A name that is not on the list, a name twice or an empty entry is refused on load. |
+| `skeptic_templates` | every template | The query templates the Skeptic may ask. Its prompt lists only these, and a refuting query for any other is refused before a store is asked: the proposal is dropped, the finding is judged on the rest of the attempt, and the refutation says `refused: query template is outside the evidence scope of this role: <template> for the skeptic`. The two lists are independent, so the Skeptic can be held to fewer templates than the Investigator. Unset narrows nothing. | The same as `investigator_templates`. |
+
+The Planner, the Prover, the Judge, the Writer and the Fixer have no query path, so they have no scope key. A template name is the only thing a scope names: it does not narrow the tables or views a template reads.
+
+For example, an Investigator that may ask every KEV, EPSS and OSV template and a Skeptic that may ask only KEV:
+
+```yaml
+investigator_templates: kev-by-cve, epss-by-cve, osv-by-package, osv-by-advisory
+skeptic_templates: kev-by-cve
+```
 
 ### Default path rules
 

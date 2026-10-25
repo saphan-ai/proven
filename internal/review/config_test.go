@@ -28,7 +28,7 @@ func TestUnknownConfigKeyIsRefused(t *testing.T) {
 	if cfg.Field != "colour" {
 		t.Fatalf("field %q", cfg.Field)
 	}
-	if cfg.Error() != `configuration refused: colour="red": unknown key; allowed: timeout, default_reviewer, special_reviewer, families, path_rules, class_order, fallback_class, doubled_classes, author_commit_trailers, author_description, author_record, author_trailer_keys, raise_class, fixes, fix_attempts` {
+	if cfg.Error() != `configuration refused: colour="red": unknown key; allowed: timeout, default_reviewer, special_reviewer, families, path_rules, class_order, fallback_class, doubled_classes, author_commit_trailers, author_description, author_record, author_trailer_keys, raise_class, fixes, fix_attempts, investigator_templates, skeptic_templates` {
 		t.Fatalf("error %q", cfg.Error())
 	}
 }
