@@ -4,14 +4,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/review"
+	"github.com/saphan-ai/proven/internal/store"
 )
 
 // TestOpenSampleReviewKeepsF1AndF2 proves the sample review end to end through the seam: F1 is kept on a
@@ -102,7 +107,13 @@ func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 		Sample: true,
 		LogDir: t.TempDir(),
 		Env: func(k string) string {
-			t.Fatalf("sample mode read %s", k)
+			// ADR-0045: the OTEL_* variables are the one family sample mode reads, because the lab's
+			// pull-request review is a sample review and the dashboard shows it. They name no key of
+			// Proven's, and a review with none of them set exports nothing.
+			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+			if !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) {
+				t.Fatalf("sample mode read %s", k)
+			}
 			return ""
 		},
 	})
@@ -111,6 +122,73 @@ func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 	}
 	if _, err := rev.Review(context.Background(), review.Request{Target: fixturePath(t)}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestSampleReviewWithRecordsReadsExactlyTheDocumentedSet proves the set of
+// variables sample mode reads once PROVEN_COUCHDB_RECORDS is set: the records
+// and link variables, the other PROVEN_COUCHDB_* variables and GITHUB_REF, and
+// no other, OTEL_* aside. The docs state this same set, so a variable added to
+// the read path without a docs change, or the reverse, turns the test red. The
+// mutated field is the set below: dropping one name fails it, and so does
+// reading one more.
+func TestSampleReviewWithRecordsReadsExactlyTheDocumentedSet(t *testing.T) {
+	values := map[string]string{
+		store.EnvRecordsDB: "proven_records", store.EnvRecordsUser: "writer-user", store.EnvRecordsPassword: "writer-pass-1234",
+		store.EnvCouchURL: "http://couch.test:5984", store.EnvCouchUser: "reader-user", store.EnvCouchPassword: "reader-pass-1234",
+		store.EnvEvidenceLink: "http://couch.test:5984", "GITHUB_REF": "refs/pull/7/merge",
+	}
+	var mu sync.Mutex
+	read := map[string]bool{}
+	_, err := review.Open(review.Options{
+		Sample: true,
+		LogDir: t.TempDir(),
+		Env: func(k string) string {
+			if !strings.HasPrefix(k, "OTEL_") {
+				mu.Lock()
+				read[k] = true
+				mu.Unlock()
+			}
+			return values[k]
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"GITHUB_REF",
+		"PROVEN_COUCHDB_PASSWORD", "PROVEN_COUCHDB_PREFIX", "PROVEN_COUCHDB_RECORDS", "PROVEN_COUCHDB_RECORDS_PASSWORD",
+		"PROVEN_COUCHDB_RECORDS_USER", "PROVEN_COUCHDB_ROW_LIMIT", "PROVEN_COUCHDB_TIMEOUT", "PROVEN_COUCHDB_URL",
+		"PROVEN_COUCHDB_USER", "PROVEN_EVIDENCE_LINK_BASE_URL",
+	}
+	var got []string
+	for k := range read {
+		got = append(got, k)
+	}
+	sort.Strings(got)
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("sample mode with records set read\n got %v\nwant %v", got, want)
+	}
+}
+
+// TestOpenRefusesAWrongRecordsDatabaseByName proves a wrong
+// PROVEN_COUCHDB_RECORDS value stops Open with a named config error, in sample
+// mode too, before any review runs. The mutated line is the return of the
+// records error in Open: replaced by a no-op, Open succeeds and the test fails.
+func TestOpenRefusesAWrongRecordsDatabaseByName(t *testing.T) {
+	_, err := review.Open(review.Options{
+		Sample: true,
+		LogDir: t.TempDir(),
+		Env: func(k string) string {
+			if k == store.EnvRecordsDB {
+				return "Not_Valid"
+			}
+			return ""
+		},
+	})
+	var cfg *review.ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != store.EnvRecordsDB {
+		t.Fatalf("Open with a wrong records database: %v", err)
 	}
 }
 
@@ -198,6 +276,94 @@ func TestEmptyLogDirIsRefused(t *testing.T) {
 	var cfg *review.ConfigError
 	if err == nil || !errorAs(err, &cfg) || cfg.Field != "LogDir" {
 		t.Fatal(err)
+	}
+}
+
+// TestCouchDBIsAccepted proves PROVEN_EVIDENCE_STORE=couchdb opens a review
+// with the CouchDB settings given, builds no Zetaris client, and reads no
+// Zetaris variable (ADR-0047). The mutated field is PROVEN_EVIDENCE_STORE;
+// the Zetaris key is left empty, which would be a down Zetaris on that path.
+func TestCouchDBIsAccepted(t *testing.T) {
+	before := query.LiveBuilt()
+	rev, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_EVIDENCE_STORE":   "couchdb",
+			"PROVEN_COUCHDB_URL":      "http://127.0.0.1:9",
+			"PROVEN_COUCHDB_USER":     "proven",
+			"PROVEN_COUCHDB_PASSWORD": "couch-test-password",
+			"ZETARIS_API_KEY":         "",
+		}),
+	})
+	if err != nil || rev == nil {
+		t.Fatalf("%v", err)
+	}
+	if query.LiveBuilt() != before {
+		t.Fatalf("couchdb store built %d Zetaris clients", query.LiveBuilt()-before)
+	}
+}
+
+// TestCouchDBWrongValueIsRefusedByName proves a CouchDB setting that is set
+// wrongly stops Open before a review and the refusal names the variable and
+// does not print the password (ADR-0013). The mutated field is
+// PROVEN_COUCHDB_URL, then PROVEN_COUCHDB_PASSWORD (too short).
+func TestCouchDBWrongValueIsRefusedByName(t *testing.T) {
+	for field, extra := range map[string]map[string]string{
+		store.EnvCouchURL:      {"PROVEN_COUCHDB_URL": "ftp://host"},
+		store.EnvCouchPassword: {"PROVEN_COUCHDB_URL": "http://127.0.0.1:9", "PROVEN_COUCHDB_PASSWORD": "short"},
+	} {
+		extra["PROVEN_EVIDENCE_STORE"] = "couchdb"
+		_, err := review.Open(review.Options{Sample: false, LogDir: t.TempDir(), Env: liveEnv("http://127.0.0.1:9", extra)})
+		var cfg *review.ConfigError
+		if err == nil || !errorAs(err, &cfg) || cfg.Field != field {
+			t.Fatalf("%s: %v", field, err)
+		}
+		if strings.Contains(err.Error(), "short") {
+			t.Fatalf("%s: the refusal printed the value: %v", field, err)
+		}
+	}
+}
+
+// TestCouchDBEmptyAddressIsADownStore proves an empty CouchDB address does
+// not stop Open: the review names couchdb down (ADR-0013 point 4a). The
+// mutated field is PROVEN_COUCHDB_URL, left empty.
+func TestCouchDBEmptyAddressIsADownStore(t *testing.T) {
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env:    liveEnv("http://127.0.0.1:9", map[string]string{"PROVEN_EVIDENCE_STORE": "couchdb"}),
+	})
+	if err != nil {
+		t.Fatalf("an empty CouchDB address stopped Open: %v", err)
+	}
+}
+
+// TestLocalStoreNeedsNoZetaris proves a local store does not build a Zetaris
+// client and does not require the Zetaris settings. The mutated field is
+// ZETARIS_API_KEY, left empty, with the store set to local.
+func TestLocalStoreNeedsNoZetaris(t *testing.T) {
+	dir := t.TempDir()
+	before := query.LiveBuilt()
+	rev, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: dir,
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_EVIDENCE_STORE": "local",
+			"PROVEN_EVIDENCE_FILE":  filepath.Join(dir, "evidence.sql"),
+			"ZETARIS_REST_URL":      "",
+			"ZETARIS_API_KEY":       "",
+			"ZETARIS_ORG_ID":        "",
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rev == nil {
+		t.Fatal("no reviewer")
+	}
+	if query.LiveBuilt() != before {
+		t.Fatalf("local store built %d Zetaris clients", query.LiveBuilt()-before)
 	}
 }
 

@@ -66,7 +66,9 @@ func TestArgv(testPath, name string) ([]string, string) {
 	if dir := path.Dir(filepath.ToSlash(testPath)); dir != "." {
 		pkg = "./" + dir
 	}
-	return []string{"go", "test", "-run", "^" + name + "$", pkg}, ""
+	// ADR-0042: -json makes the output carry a pass event per test, which is how a
+	// run shows the test ran; an exit code alone cannot show that.
+	return []string{"go", "test", jsonFlag, "-run", "^" + name + "$", pkg}, ""
 }
 
 // displayCommand is the line the trace and the review show for an argv built by

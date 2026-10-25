@@ -23,17 +23,25 @@ import (
 
 // refuteSpec is the JSON the skeptic asks a model to return.
 // A test or a query is a proposal. The prover or the investigator runs it.
-// The model's refuted flag does not drop the finding.
-var refuteSpec = answer.Spec{
-	Task: "Make one attempt to refute this finding. A refuting query is one of these templates with the values of its parameters: " +
-		querytpl.Describe(),
-	Shape:   "one JSON object. It has refuted (boolean), reason (string), path (string), name (string), template (string) and params (an object of strings). Empty path and name mean there is no refuting test. An empty template means there is no refuting query. Do not add a command or SQL: Proven builds the command that runs the test and the SQL of the query.",
-	Example: `{"refuted":false,"reason":"no refutation","path":"","name":"","template":"","params":{}}`,
+// The model's refuted flag does not drop the finding. The templates the task
+// lists are the Skeptic's scope (ADR-0013), not the whole registry.
+func refuteSpec(scope querytpl.Scope) answer.Spec {
+	return answer.Spec{
+		Task: "Make one attempt to refute this finding. A refuting query is one of these templates with the values of its parameters: " +
+			scope.Describe(),
+		Shape:   "one JSON object. It has refuted (boolean), reason (string), path (string), name (string), template (string) and params (an object of strings). Empty path and name mean there is no refuting test. An empty template means there is no refuting query. Do not add a command or SQL: Proven builds the command that runs the test and the SQL of the query.",
+		Example: `{"refuted":false,"reason":"no refutation","path":"","name":"","template":"","params":{}}`,
+	}
 }
 
-// Prompt asks for one refutation of a finding.
-func Prompt(id, title string) string {
-	return answer.Instruct(refuteSpec, "id: "+id+"\ntitle: "+title+"\n")
+// Prompt asks for one refutation of a finding. scope is the templates the
+// Skeptic may ask; the nil scope is every template.
+func Prompt(id, title string, scope querytpl.Scope) string {
+	// The title is model text shaped by the change, so it enters as data.
+	return answer.Instruct(refuteSpec(scope), answer.Encode(struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}{id, title}))
 }
 
 // row is the refutation as the model returns it. The prompt does not ask for
@@ -52,10 +60,11 @@ type row struct {
 
 // Attempt asks for one refutation. It does not run the proposal and it does
 // not drop the finding. The prover or the investigator runs a proposal, and
-// the judge decides.
-func Attempt(ctx context.Context, c candidate.Candidate, gen generator.Generator) (candidate.Candidate, error) {
+// the judge decides. scope shapes the prompt only: the check that holds the
+// Skeptic to its scope runs where the query is run, before any store is asked.
+func Attempt(ctx context.Context, c candidate.Candidate, gen generator.Generator, scope querytpl.Scope) (candidate.Candidate, error) {
 	var got row
-	if err := answer.Read(ctx, gen, "skeptic", Prompt(c.ID, c.Title), refuteSpec, &got); err != nil {
+	if err := answer.Read(ctx, gen, "skeptic", Prompt(c.ID, c.Title, scope), refuteSpec(scope), &got); err != nil {
 		return c, err
 	}
 	reason := got.Reason

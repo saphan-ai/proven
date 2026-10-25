@@ -1,0 +1,22 @@
+# Used instead of the root .dockerignore when building docs-site/Dockerfile
+# (BuildKit reads <Dockerfile>.dockerignore). The site links to files across the
+# repository, so only build output, VCS data and secrets are left out.
+.git
+**/node_modules
+**/.next
+docs-site/content
+docs-site/public
+docs-site/.source
+bin
+dist
+**/.env
+**/.env.*
+**/.DS_Store
+# Live work files a checkout of this repository can hold: never in the image.
+.provision
+.saphan
+.saphan-*
+_*
+**/_EXEC_*
+**/_REVIEW_*
+SHOUT_*

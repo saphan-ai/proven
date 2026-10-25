@@ -59,14 +59,29 @@ type Model struct {
 	Model       string `json:"model"`
 	ReceiptID   string `json:"receipt_id,omitempty"`
 	FromReceipt bool   `json:"from_receipt"`
+	// Requested is the model the request asked for and ResponseID the id of the
+	// completion response. The custody audit reads both; older lines omit them.
+	Requested  string `json:"requested,omitempty"`
+	ResponseID string `json:"response_id,omitempty"`
 }
 
-// Check is one guardrail verdict: the side, the verdict, the categories and the latency.
+// Check is one guardrail check: the side, the verdict, the categories and the
+// latency, and the backend and model that answered. A check that could not be
+// made has no verdict; Down then names why, as one value of the guardrail's
+// closed set, so a count never has to read free text. Older lines omit
+// Backend, Model and Down, and older down lines have no Check at all.
 type Check struct {
 	Side       string   `json:"side,omitempty"`
 	Verdict    string   `json:"verdict,omitempty"`
 	Categories []string `json:"categories,omitempty"`
 	LatencyMS  int64    `json:"latency_ms"`
+	// Backend is the adapter that answered: "server", "nvidia", or the name
+	// of a sample or refusing adapter.
+	Backend string `json:"backend,omitempty"`
+	// Model is the configured model id; empty for an adapter that calls no model.
+	Model string `json:"model,omitempty"`
+	// Down is set only when the check could not be made.
+	Down string `json:"down,omitempty"`
 }
 
 // Evidence is one piece of proof stored with its finding. Kind says which of
@@ -104,8 +119,10 @@ type TestEvidence struct {
 
 // QueryEvidence is the investigator result, including every column and row,
 // so a judge can read the proof without rerunning the query.
+// Form is the query language that ran (ADR-0047).
 type QueryEvidence struct {
 	SQL      string     `json:"sql"`
+	Form     string     `json:"form,omitempty"`
 	Engine   string     `json:"engine"`
 	Snapshot string     `json:"snapshot"`
 	Columns  []string   `json:"columns"`
@@ -118,6 +135,10 @@ type Refutation struct {
 	Attempted bool   `json:"attempted"`
 	Refuted   bool   `json:"refuted"`
 	Reason    string `json:"reason"`
+	// Evidenced is set only when the refutation carries evidence of its own: a
+	// refuting test or contradicting query rows. Refuted alone is the model's
+	// word, and a store never learns from it.
+	Evidenced bool `json:"evidenced,omitempty"`
 }
 
 // Writer appends events to logs/trace.jsonl.
@@ -130,7 +151,18 @@ type Writer struct {
 	f        *os.File
 	runID    string
 	redactor *redact.Redactor
+	observer func(Event)
 	mu       sync.Mutex
+}
+
+// SetObserver sets a function Append calls with each event after the event is
+// redacted and written (ADR-0045: the events ride along as span events). The
+// observer sees what the file holds and never a secret. It must not call
+// Append, and it cannot fail the write.
+func (w *Writer) SetObserver(f func(Event)) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.observer = f
 }
 
 // Open creates the logs directory and opens the trace for appending.
@@ -209,7 +241,13 @@ func (w *Writer) Append(e Event) error {
 		return err
 	}
 	// Sync after each line: a review that dies still leaves every event it wrote.
-	return w.f.Sync()
+	if err := w.f.Sync(); err != nil {
+		return err
+	}
+	if w.observer != nil {
+		w.observer(e)
+	}
+	return nil
 }
 
 // Close closes the trace file. A second call does nothing.

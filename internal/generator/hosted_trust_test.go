@@ -48,7 +48,7 @@ func TestEachModeReadsItsOwnBase(t *testing.T) {
 	}
 	cfg, err = generator.Load(func(k string) string {
 		return map[string]string{
-			generator.EnvToken:         "tok",
+			generator.EnvToken:         "test-token",
 			generator.EnvBaseURL:       "http://127.0.0.1:8088",
 			generator.EnvNVIDIABaseURL: "https://example.test/v1",
 		}[k]

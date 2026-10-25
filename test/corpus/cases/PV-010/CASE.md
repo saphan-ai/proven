@@ -2,7 +2,7 @@
 
 - incident: I07 (an incident of several review rounds; this case is the round after PV-009; a later round gives PV-011)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22 (declared: built inside the build window) · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -103,8 +103,48 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base, change and change-edited and record each line of its output. **Not run**: the case code is
-not built yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base, change and change-edited and record each line of its output.
+
+Run 2026-10-22T15:46Z (UTC). Toolchain: `go version go1.26.8 darwin/arm64`, standard library only; each of `base/`,
+`change/` and `reference/` is its own module. change-edited is built by `check.sh` into
+`.saphan/work/corpus-pv-010/change-edited/` as a copy of `change/` with only the line `const statedMaxGap = 48` replaced
+by `const statedMaxGap = 256`.
+
+Command, from the repository root: `bash test/corpus/cases/PV-010/check.sh` — exit code 0. Full output:
+
+```
+toolchain: go version go1.26.8 darwin/arm64
+pinned count: 42
+current | base=pass | change=pass | reference=current
+stale | base=fail | change=fail | reference=stale
+twenty-digits | base=pass | change=fail | reference=stale
+minus-999 | base=pass | change=pass | reference=stale
+plus-41 | base=pass | change=pass | reference=stale
+arabic-indic-41 | base=pass | change=pass | reference=stale
+description | stated widths: base=none | change=0..48 | change-edited=0..256 | reference=0..48 (49 widths) | change tests on change=pass | change tests on change-edited=pass
+```
+
+The matcher is `LANGUAGES[0-9 ]{0,48}-> ?([0-9]+)`; the reference's width probe runs `change`'s matcher (base's is the
+same pattern). The check's exit code reports that it ran, not a verdict on the guard.
+
+Run 2026-10-23T09:53:51Z (UTC) on Linux at commit `457031534a09d291251572cb9e4f87577070fcb0`.
+Toolchain: `go version go1.26.5 linux/amd64`. Command, from the repository root:
+`bash test/corpus/cases/PV-010/check.sh` — exit code 0. Full output:
+
+```
+toolchain: go version go1.26.5 linux/amd64
+pinned count: 42
+current | base=pass | change=pass | reference=current
+stale | base=fail | change=fail | reference=stale
+twenty-digits | base=pass | change=fail | reference=stale
+minus-999 | base=pass | change=pass | reference=stale
+plus-41 | base=pass | change=pass | reference=stale
+arabic-indic-41 | base=pass | change=pass | reference=stale
+description | stated widths: base=none | change=0..48 | change-edited=0..256 | reference=0..48 (49 widths) | change tests on change=pass | change tests on change-edited=pass
+```
+
+The Linux result matches the earlier macOS output line by line except for the toolchain line. The modules require Go
+1.26. The check now sets `GOTOOLCHAIN=local` so an older Go refuses instead of downloading a toolchain.
 
 ## 9. Limits
 

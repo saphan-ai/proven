@@ -20,8 +20,8 @@ crossed, not only the files where it is expected.
 | 3 | **The reviewed repository as input** | a git range, a path, a manifest, a lock file or `proven.yaml` from the change cannot inject arguments into a command or lead Proven to read or write outside the places it should | fixes in progress |
 | 4 | **Evidence queries** | a value from the change enters a query only as a literal and cannot change the query's meaning | fixes in progress |
 | 5 | **Models** | text in the change cannot make an agent drop its rules; the guardrail checks every prompt and answer; a model's answer without evidence never becomes a finding | fixes in progress |
-| 6 | **Output and CI** | a pull-request comment carries no active content taken from the change; the workflow asks for the least token permission, never runs on `pull_request_target`, and pins every action it uses | not started |
-| 7 | **The lab and the images** | the lab binds to localhost, generates its password, keeps the Prover's containers inside Docker in Docker; images are minimal, not root, and scanned by Docker Scout | not started |
+| 6 | **Output and CI** | a pull-request comment carries no active content taken from the change; the workflow asks for the least token permission, never runs on `pull_request_target`, and pins every action it uses | fixes in progress |
+| 7 | **The lab and the images** | the lab binds to localhost, generates its password, keeps the Prover's containers inside Docker in Docker; images are minimal, not root, and scanned by Docker Scout | fixes in progress |
 | 8 | **Data on disk** | the state and the trace are kept outside the reviewed repository, readable only by their user, and hold no secret | fixes in progress |
 
 Pieces 0, 1 and 2 go first: they guard the machine and the keys. The others follow, two or three a day. Each piece reviews `main` at one named commit, and a piece whose code is not on `main` yet waits for it

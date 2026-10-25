@@ -14,6 +14,10 @@ Proven sends has one author. The list lives in `internal/querytpl`; a test holds
 | `osv-by-advisory` | the OSV advisory with one advisory id | `advisory_id` |
 | `kev-by-cve` | the CISA known-exploited entry of one CVE | `cve_id` |
 | `epss-by-cve` | the EPSS score of one CVE | `cve_id` |
+| `mal-by-package` | the malicious-package advisory of one package | `ecosystem`, `package` |
+| `scorecard-by-package` | the project-health scores of one package | `ecosystem`, `package` |
+| `cvss-by-cve` | the CVSS score of one CVE | `cve_id` |
+| `spdx-by-package` | the SPDX licence of one package | `ecosystem`, `package` |
 
 A template that is not in this table is refused. A request names its template and gives exactly its parameters: a
 missing parameter and an extra one are each refused.
@@ -27,10 +31,13 @@ is exactly the value.
 
 | Parameter | Format |
 |---|---|
-| `ecosystem` | exactly `Go`, `npm` or `PyPI` |
+| `ecosystem` | exactly `Go`, `npm`, `PyPI`, `Packagist`, `crates.io` or `Maven` |
 | `package`, ecosystem `Go` | a module path of letters, digits and `. _ ~ / -`, at most 300 characters, starting with a letter or digit |
 | `package`, ecosystem `npm` | an optional `@scope/` and a name of letters, digits and `. _ ~ -`, each starting with a letter or digit, at most 214 characters |
 | `package`, ecosystem `PyPI` | letters, digits and `. _ -`, starting and ending with a letter or digit, at most 214 characters. It is put in its PEP 503 form first, because the OSV table is keyed by that form |
+| `package`, ecosystem `Packagist` | `vendor/name` in lower case. Each part is letters, digits and `. _ -`, starts and ends with a letter or digit, and is at most 214 characters. A name is put in lower case first, because Packagist is not case-sensitive |
+| `package`, ecosystem `crates.io` | a crate name of 1 to 64 characters. It starts with a letter. The rest are letters, digits, `_` or `-`. The spelling is kept: case is not folded, and `_` is not turned into `-` |
+| `package`, ecosystem `Maven` | `group:artifact`. Each part starts with a letter, a digit or `_`, then letters, digits, `.`, `_` or `-`, and is at most 149 characters. The spelling is kept: case is not folded |
 | `cve_id` | `CVE-` and four digits, a hyphen and four to twelve digits |
 | `advisory_id` | an upper-case prefix of two to sixteen letters or digits, then one to six hyphen-separated parts of letters and digits, such as `GHSA-xxxx-xxxx-xxxx`, `GO-2021-0113` or `PYSEC-2021-1` |
 
@@ -39,10 +46,10 @@ Go by the dependency check, never in SQL.
 
 ## The names of tables and views
 
-A table or view name is a setting ([CONFIGURATION.md](CONFIGURATION.md)), not a value from a model or from the change.
-It goes into the SQL unquoted, so it is checked again when the query is built: one identifier, or `schema.name`, of
-letters, digits and underscores. A setting that is not a plain name is refused at load and again at build. The names
-and their defaults:
+The OSV, KEV and EPSS names are settings ([CONFIGURATION.md](CONFIGURATION.md)), not values from a model or from the change.
+The four tables of ADR-0039 are the adapters' own names. Either way the name goes into the SQL unquoted, so it is
+checked again when the query is built: one identifier, or `schema.name`, of letters, digits and underscores. A setting
+that is not a plain name is refused at load and again at build. The names and their defaults:
 
 | Template | Name | Setting | Default |
 |---|---|---|---|
@@ -50,6 +57,12 @@ and their defaults:
 | `kev-by-cve` | view | `PROVEN_KEV_VIEW` | `px_evidence.px_kev_vulns` |
 | `epss-by-cve` | view | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` |
 | `osv-by-advisory` | view | none | `px_evidence.px_osv_id` |
+| `mal-by-package` | table | none; the adapter's own name | `px_evidence.px_mal_pkg` |
+| `scorecard-by-package` | table | none; the adapter's own name | `px_evidence.px_scorecard` |
+| `cvss-by-cve` | table | none; the adapter's own name | `px_evidence.px_cvss_cve` |
+| `spdx-by-package` | table | none; the adapter's own name | `px_evidence.px_spdx_lic` |
+
+The four tables of [ADR-0039](adr/ADR-0039-more-evidence-sources.md) are not settings. Each name is the source adapter's load table. A review cannot point them at another name: an organisation that wants another name writes another adapter.
 
 ## What a refusal does
 

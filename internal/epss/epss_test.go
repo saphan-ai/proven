@@ -9,6 +9,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
 // TestPhraseUsesTheStoredScoreAndAnOrdinalPercentile proves the phrase keeps
@@ -222,19 +223,22 @@ type memQuery struct {
 	rows  map[string][]string
 }
 
-func (m *memQuery) Query(_ context.Context, sql string) (query.Result, error) {
-	m.calls = append(m.calls, sql)
-	for id, row := range m.rows {
-		if strings.Contains(sql, "'"+id+"'") {
-			return query.Result{
-				SQL: sql, Engine: "mem",
-				Columns: []string{"cve_id", "epss", "percentile", "score_date"},
-				Rows:    [][]string{row},
-			}, nil
-		}
+func (m *memQuery) Run(_ context.Context, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
+	forms, err := querytpl.BuildForms(req, rel)
+	if err != nil {
+		return query.Result{}, err
+	}
+	m.calls = append(m.calls, forms.SQL)
+	id := req.Params[querytpl.ParamCVEID]
+	if row, ok := m.rows[id]; ok {
+		return query.Result{
+			SQL: forms.SQL, Form: querytpl.FormSQL, Engine: "mem",
+			Columns: []string{"cve_id", "epss", "percentile", "score_date"},
+			Rows:    [][]string{row},
+		}, nil
 	}
 	return query.Result{
-		SQL: sql, Engine: "mem",
+		SQL: forms.SQL, Form: querytpl.FormSQL, Engine: "mem",
 		Columns: []string{"cve_id", "epss", "percentile", "score_date"},
 		Rows:    [][]string{},
 	}, nil

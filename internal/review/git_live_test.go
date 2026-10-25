@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
+	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -33,7 +34,7 @@ func TestLiveGitReviewReachesThePlanner(t *testing.T) {
 		t.Fatal("partial")
 	}
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\nbase-text\nCHANGE\ncommitted-change\n"
+	const want = `{"path":"note.txt","base":"base-text\n","change":"committed-change\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the changed file\n%s", prompt)
 	}
@@ -61,7 +62,7 @@ func TestLiveWorktreeReviewSeesAnUncommittedEdit(t *testing.T) {
 		Target: repo, BaselineCommit: head, HeadCommit: "",
 	})
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\ncommitted-change\nCHANGE\nuncommitted-edit\n"
+	const want = `{"path":"note.txt","base":"committed-change\n","change":"uncommitted-edit\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the uncommitted edit\n%s", prompt)
 	}
@@ -148,7 +149,7 @@ func TestLivePreparedTreesNeedNoFixtureJSON(t *testing.T) {
 	gen := &recordingGen{}
 	res := reviewLive(t, t.TempDir(), gen, Request{Target: dir})
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE hello.txt\nBASE\nold\nCHANGE\nnew\n"
+	const want = `{"path":"hello.txt","base":"old\n","change":"new\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt\n%s", prompt)
 	}
@@ -187,12 +188,15 @@ func (g *recordingGen) Complete(_ context.Context, agent, prompt string) (string
 	return "[]", nil
 }
 
-// quietQuery is the stub query adapter. It returns no rows and dials nothing.
+// quietQuery is the stub evidence store. It returns no rows and dials nothing.
 type quietQuery struct{}
 
-// Query returns no rows.
-func (quietQuery) Query(context.Context, string) (query.Result, error) {
-	return query.Result{}, nil
+// Register writes nothing.
+func (quietQuery) Register(context.Context, store.Table) error { return nil }
+
+// Run returns no rows. A review that asks a query adds no evidence.
+func (quietQuery) Run(context.Context, querytpl.Request, querytpl.Relations) (store.Evidence, error) {
+	return store.Evidence{}, nil
 }
 
 // quietRun is the stub test runner. It runs no container.
@@ -224,7 +228,7 @@ func openLive(t *testing.T, logDir string, gen *recordingGen) Reviewer {
 		LogDir:    logDir,
 		Env:       liveTestEnv(),
 		gen:       gen,
-		liveQuery: quietQuery{},
+		liveStore: quietQuery{},
 		testRun:   quietRun{},
 	})
 	if err != nil {
@@ -329,7 +333,7 @@ func TestLiveGitReviewSkipsATrackedSymlink(t *testing.T) {
 		t.Fatal("partial")
 	}
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\nbase-text\nCHANGE\ncommitted-change\n"
+	const want = `{"path":"note.txt","base":"base-text\n","change":"committed-change\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the changed file\n%s", prompt)
 	}
@@ -351,7 +355,7 @@ func TestLiveWorktreeReviewSkipsATrackedSymlink(t *testing.T) {
 		Target: repo, BaselineCommit: head, HeadCommit: "",
 	})
 	prompt := plannerPrompt(t, gen)
-	const want = "FILE note.txt\nBASE\ncommitted-change\nCHANGE\nuncommitted-edit\n"
+	const want = `{"path":"note.txt","base":"committed-change\n","change":"uncommitted-edit\n"}`
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("planner prompt missing the uncommitted edit\n%s", prompt)
 	}
@@ -361,7 +365,7 @@ func TestLiveWorktreeReviewSkipsATrackedSymlink(t *testing.T) {
 // assertSymlinkSkipped checks the link was named once and its target was not read.
 func assertSymlinkSkipped(t *testing.T, res Result, gen *recordingGen, prompt, marker, rel string) {
 	t.Helper()
-	if strings.Contains(prompt, marker) || strings.Contains(prompt, "FILE "+rel+"\n") {
+	if strings.Contains(prompt, marker) || strings.Contains(prompt, `"path":"`+rel+`"`) {
 		t.Fatalf("planner prompt contains the symlink or its target\n%s", prompt)
 	}
 	if gen.linkPresent {

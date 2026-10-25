@@ -76,7 +76,7 @@ func TestEmptyGuardrailKeyRefusesEveryModelCall(t *testing.T) {
 		LogDir:    logDir,
 		Env:       liveSecrets(map[string]string{"PROVEN_GUARDRAIL_KEY": ""}),
 		gen:       gen,
-		liveQuery: quietQuery{},
+		liveStore: quietQuery{},
 		testRun:   quietRun{},
 	})
 	if err != nil {
@@ -112,7 +112,7 @@ func TestGuardrailOffWithEmptyKeyLetsModelCallsThrough(t *testing.T) {
 			"PROVEN_GUARDRAIL_MODE": "off",
 		}),
 		gen:       gen,
-		liveQuery: quietQuery{},
+		liveStore: quietQuery{},
 		testRun:   quietRun{},
 	})
 	if err != nil {

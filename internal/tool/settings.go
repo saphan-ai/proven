@@ -12,6 +12,10 @@ const (
 	// EnvTimeout is the limit for one side of a tool run, base or change.
 	// Sample mode does not read it. Empty means DefaultTimeout.
 	EnvTimeout = "PROVEN_TOOL_TIMEOUT"
+	// EnvDB is the file URL of the local govulncheck database (ADR-0043).
+	// Sample mode does not read it. Empty means the tool is not run: there is
+	// no network fallback. The URL has to name a path under the checkout mount.
+	EnvDB = "PROVEN_GOVULNCHECK_DB"
 )
 
 // DefaultTimeout is the limit for one side when EnvTimeout is empty.
@@ -65,11 +69,40 @@ func Load(env func(string) string) (time.Duration, error) {
 	return d, nil
 }
 
+// LoadDB reads EnvDB. An empty value means there is no local database and
+// govulncheck is not run. A value that is set and is not a file URL inside
+// the checkout is refused and is never replaced by a network address (ADR-0013, ADR-0043).
+func LoadDB(env func(string) string) (string, error) {
+	if env == nil {
+		env = func(string) string { return "" }
+	}
+	raw := strings.TrimSpace(env(EnvDB))
+	if raw == "" {
+		return "", nil
+	}
+	if why := refuseDB(raw); why != "" {
+		return "", &ConfigError{
+			Field:   EnvDB,
+			Value:   raw,
+			Reason:  why,
+			Allowed: []string{"empty, or a file URL under /checkout, for example file:///checkout/vulndb"},
+		}
+	}
+	return raw, nil
+}
+
 // Environment lists the tool settings for the configuration page.
 func Environment() []envdoc.Setting {
-	return []envdoc.Setting{{
-		Name:        EnvTimeout,
-		Default:     envdoc.Tick(envdoc.SecondSpec(DefaultTimeout)),
-		Description: "the limit for one side of a deterministic tool run, base or change. A run past it is named and is not evidence. Sample mode uses the default and does not read this variable",
-	}}
+	return []envdoc.Setting{
+		{
+			Name:        EnvTimeout,
+			Default:     envdoc.Tick(envdoc.SecondSpec(DefaultTimeout)),
+			Description: "the limit for one side of a deterministic tool run, base or change. A run past it is named and is not evidence. Sample mode uses the default and does not read this variable",
+		},
+		{
+			Name:        EnvDB,
+			Default:     envdoc.Tick("empty"),
+			Description: "the file URL of the local govulncheck database, inside the checkout mount, for example file:///checkout/vulndb. Empty means govulncheck is not run and Go dependency findings are not measured. A network address is refused. Sample mode does not read this variable",
+		},
+	}
 }

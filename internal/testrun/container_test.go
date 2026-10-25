@@ -357,7 +357,7 @@ func TestRunSetsProofOnlyWhenChangeFailsAndBasePasses(t *testing.T) {
 			return "FAIL TestDiscounted", fail
 		case strings.Contains(mount, base+":/checkout:ro"):
 			sawBase = true
-			return "ok", nil
+			return passedRun(argv), nil
 		default:
 			t.Fatalf("mount %s", mount)
 			return "", nil

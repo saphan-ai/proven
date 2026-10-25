@@ -26,11 +26,14 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/pathguard"
 )
 
 // schemaVersion is the state.json format. Open refuses any other version
-// rather than guess at a file it does not know.
-const schemaVersion = 1
+// rather than guess at a file it does not know. Version 2 stores a refutation
+// only with its evidence, so a version 1 file, whose records were not held to
+// that rule, is refused rather than trusted.
+const schemaVersion = 2
 
 // Layers and types are the closed sets from the memory record.
 const (
@@ -174,6 +177,10 @@ func Open(opts Options) (*Store, error) {
 		records:   map[string]Record{},
 	}
 	path := filepath.Join(dir, "state.json")
+	// A state file an earlier run left at a wider mode is narrowed before it is read.
+	if err := os.Chmod(path, 0o600); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("hmem: state file: %w", err)
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -186,7 +193,7 @@ func Open(opts Options) (*Store, error) {
 		return nil, fmt.Errorf("hmem: state.json is not valid JSON: %w", err)
 	}
 	if file.Version != schemaVersion {
-		return nil, fmt.Errorf("hmem: state version %d, want %d", file.Version, schemaVersion)
+		return nil, fmt.Errorf("hmem: state version %d, want %d; remove %s to start a new memory", file.Version, schemaVersion, dir)
 	}
 	for _, rec := range file.Records {
 		if err := validate(rec); err != nil {
@@ -206,17 +213,14 @@ func refuseInside(dir, root string) error {
 	if root == "" {
 		return nil
 	}
-	root, err := filepath.Abs(root)
+	// Both paths are resolved through their links first, so a state path that
+	// reaches the repository through a link is refused; a link that does not
+	// resolve is refused too.
+	inside, err := pathguard.Inside(dir, root)
 	if err != nil {
-		return fmt.Errorf("hmem: repository root: %w", err)
+		return fmt.Errorf("hmem: state directory %s cannot be placed against the repository: %w", dir, err)
 	}
-	rel, err := filepath.Rel(root, dir)
-	if err != nil {
-		return fmt.Errorf("hmem: state directory: %w", err)
-	}
-	// A name such as "..state" starts with ".." and is still inside; only ".."
-	// itself or a "../" prefix leaves the repository.
-	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+	if inside {
 		return fmt.Errorf("hmem: state directory %s is inside the repository", dir)
 	}
 	return nil
@@ -556,8 +560,25 @@ func findingKey(rule, path, title string) string {
 
 // writeAtomic writes beside path and renames, so a crash never leaves a half-written state.json.
 func writeAtomic(path string, b []byte) error {
+	// A temporary file left by an earlier run is removed first and the new one
+	// is created exclusively at 0600, so the mode of an old file never passes
+	// through the rename onto state.json.
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	// A directory at that name is not removed: the exclusive create below then fails.
+	if info, err := os.Lstat(tmp); err == nil && !info.IsDir() {
+		if err := os.Remove(tmp); err != nil {
+			return err
+		}
+	}
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

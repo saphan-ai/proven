@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -30,10 +31,11 @@ const (
 // documents for the command line. The table names PROVEN_OUTPUT_FORMAT,
 // PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT, SEMGREP_BASELINE_COMMIT,
 // SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE, PROVEN_EXCLUDE,
-// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE. PROVEN_LOG_DIR is the trace
-// directory; sample mode reads it too. That section's ci paragraph names
-// GITHUB_EVENT_PATH, GITHUB_BASE_REF and GITHUB_SHA. GITHUB_WORKSPACE is not in
-// the section. Adapter secrets are not in this set.
+// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY.
+// PROVEN_LOG_DIR is the trace directory; sample mode reads it too. That
+// section's ci paragraph names GITHUB_EVENT_PATH, GITHUB_BASE_REF and
+// GITHUB_SHA. GITHUB_WORKSPACE is not in the section. Adapter secrets are not
+// in this set.
 func KnownCLIEnv(name string) bool {
 	switch name {
 	case "GITHUB_BASE_REF",
@@ -47,6 +49,7 @@ func KnownCLIEnv(name string) bool {
 		"PROVEN_LOG_DIR",
 		"PROVEN_OUTPUT",
 		"PROVEN_OUTPUT_FORMAT",
+		"PROVEN_POLICY",
 		"PROVEN_SEVERITY",
 		"PROVEN_TIMEOUT",
 		"SAMPLE_MODE",
@@ -70,6 +73,7 @@ type config struct {
 	errorOnFindings bool
 	baseline        string
 	configPath      string
+	policyPath      string
 	logDir          string
 	include         []string
 	exclude         []string
@@ -81,6 +85,7 @@ type config struct {
 	help            bool
 	version         bool
 	head            string
+	evidencePack    string // --evidence-pack: where the signed pack of ADR-0035 is written; "" writes none
 }
 
 // cliError is a refusal that carries its own exit code.
@@ -173,7 +178,7 @@ type holders struct {
 	sample, quiet, verbose, help, ver   boolPresence
 	textOutput, jsonOutput, sarifOutput setString
 	baseline, configPath, severity      setString
-	timeout, output                     setString
+	timeout, output, evidencePack       setString
 	include, exclude                    multiFlag
 }
 
@@ -184,6 +189,7 @@ func knownFlagNames() []string {
 		"--baseline-commit",
 		"--config",
 		"--error",
+		"--evidence-pack",
 		"--exclude",
 		"--help",
 		"--include",
@@ -244,6 +250,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	fs.Var(&h.sample, "sample", "use the sample reviewer")
 	fs.Var(&h.quiet, "quiet", "suppress the progress line")
 	fs.Var(&h.verbose, "verbose", "print the request on standard error")
+	fs.Var(&h.evidencePack, "evidence-pack", "write a signed evidence pack to this file")
 	fs.Var(&h.help, "help", "show help")
 	fs.Var(&h.ver, "version", "show the version")
 	return fs, h
@@ -268,7 +275,7 @@ func refusedBoolFlag(h *holders) (string, string, bool) {
 // which arrange needs to keep a value from being read as the command.
 func isValueFlag(name string) bool {
 	switch name {
-	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout":
+	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout", "evidence-pack":
 		return true
 	default:
 		return false
@@ -385,10 +392,14 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.textOutput = h.textOutput.v
 	cfg.jsonOutput = h.jsonOutput.v
 	cfg.sarifOutput = h.sarifOutput.v
+	cfg.evidencePack = h.evidencePack.v
 	if h.output.set {
 		cfg.output = h.output.v
 	} else {
 		cfg.output = getenv("PROVEN_OUTPUT")
+	}
+	if err := refuseCollidingOutputs(cfg); err != nil {
+		return config{}, err
 	}
 	errorOn, err := resolveError(cmd, getenv, h)
 	if err != nil {
@@ -401,6 +412,8 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		return config{}, err
 	}
 	cfg.configPath = configPath
+	// ADR-0036: the organisation policy is named by a variable only; the reviewer reads and checks it.
+	cfg.policyPath = strings.TrimSpace(getenv("PROVEN_POLICY"))
 	if h.include.set {
 		cfg.include = append([]string{}, h.include.v...)
 	} else {
@@ -434,6 +447,226 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	}
 	cfg.logDir = logDir
 	return cfg, nil
+}
+
+// outputFiles lists every file a run writes by a flag, the signed evidence pack
+// among them: a report that replaced the pack would leave the audit nothing to
+// verify while the run exited 0 (ADR-0035). The pack is first, so a collision
+// is named as one with the pack.
+func outputFiles(cfg config) []struct{ flag, path string } {
+	return []struct{ flag, path string }{
+		{"--evidence-pack", cfg.evidencePack},
+		{"-o", cfg.output},
+		{"--text-output", cfg.textOutput},
+		{"--json-output", cfg.jsonOutput},
+		{"--sarif-output", cfg.sarifOutput},
+	}
+}
+
+// refuseCollidingOutputs refuses two outputs that are one file, at load
+// (ADR-0013). The files are written one after another, so the last write would
+// silently replace the others and the run would still exit 0 (ADR-0020 §1).
+//
+// What counts as one file: the same path after the filesystem's own resolution
+// of the raw spelling, links before ".." (outputIdentity), or two existing files for which os.SameFile is true (a
+// hard link, or a link to the file itself). Links are resolved because a
+// directory link such as link -> real makes "link/r.json" and "real/r.json" the
+// same file under two spellings, and a check that compared spellings would let
+// the second write replace the first. Only stat calls happen here; nothing is
+// created. Two spellings of a file that does not exist yet and differs only in
+// letter case on a case-insensitive volume are not caught: no I/O can tell them
+// apart before the file is made.
+func refuseCollidingOutputs(cfg config) error {
+	named := outputFiles(cfg)
+	type seenOutput struct {
+		flag string
+		info os.FileInfo
+	}
+	byIdentity := map[string]string{} // identity -> the flag that named it first
+	var existing []seenOutput         // outputs whose file exists, for os.SameFile
+	for _, n := range named {
+		if n.path == "" {
+			continue
+		}
+		identity, err := outputIdentity(n.path)
+		if err != nil {
+			return refuse(n.flag, n.path, err.Error(), nil)
+		}
+		if first, ok := byIdentity[identity]; ok {
+			return refuse(n.flag, identity, "same file as "+first+"; each output needs its own path", nil)
+		}
+		byIdentity[identity] = n.flag
+		info, err := os.Stat(n.path)
+		if err != nil {
+			continue
+		}
+		for _, other := range existing {
+			if os.SameFile(info, other.info) {
+				return refuse(n.flag, identity, "same file as "+other.flag+"; each output needs its own path", nil)
+			}
+		}
+		existing = append(existing, seenOutput{flag: n.flag, info: info})
+	}
+	return nil
+}
+
+// regularFileInfo is the FileInfo of w when w is an *os.File on a regular
+// file, and nil for a terminal, a pipe, a buffer or anything that cannot be
+// compared with an output path.
+func regularFileInfo(w io.Writer) os.FileInfo {
+	f, ok := w.(*os.File)
+	if !ok {
+		return nil
+	}
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil
+	}
+	return info
+}
+
+// refuseStdoutOnAnOutput refuses an output file that is the file standard
+// output is already redirected onto (ADR-0013), at load, before the review
+// runs. The shell creates the redirect target before Proven starts, so an
+// output that is that file exists under some spelling and os.Stat, which
+// follows links, finds it; os.SameFile then compares the two. A terminal or a
+// pipe on standard output is not a regular file and is never a collision.
+func refuseStdoutOnAnOutput(cfg config, stdout io.Writer) error {
+	std := regularFileInfo(stdout)
+	if std == nil {
+		return nil
+	}
+	for _, n := range outputFiles(cfg) {
+		if n.path == "" {
+			continue
+		}
+		if info, err := os.Stat(n.path); err == nil && os.SameFile(info, std) {
+			return refuse(n.flag, n.path, "same file as standard output; each output needs its own path", nil)
+		}
+	}
+	return nil
+}
+
+// maxOutputLinkHops bounds the symbolic links followed from one output path.
+// The kernel stops at 40 as well; a longer chain or a loop is refused at load
+// instead of being left to fail at the write.
+const maxOutputLinkHops = 40
+
+// unreachableOutputPrefix marks a path the kernel cannot name: a ".."
+// follows a component that does not exist, so the walk cannot reach the
+// parent a lexical collapse would invent. An identity resolved with a
+// readable working directory is absolute, so it does not start with this
+// prefix, and the marked spelling is not that file. The write of the raw
+// path fails later.
+const unreachableOutputPrefix = "unreachable:"
+
+// outputIdentity is the path the file would have if the filesystem resolved
+// the raw path, whether or not the file exists.
+//
+// THE RULE: walk the path as the kernel does, one component at a time, from
+// the root (or from the working directory for a relative path). A symbolic
+// link is resolved when it is met, before the next component is looked at, so
+// ".." applies to the directory the link led to and not to the directory that
+// holds the link: with link -> elsewhere/dir, "link/../report" is
+// "elsewhere/report". The path is never cleaned or made absolute first,
+// because filepath.Clean and filepath.Abs remove "link/.." textually, before
+// link is read, and name a different file. A relative link target is taken
+// against the directory that holds the link, and at most maxOutputLinkHops
+// links are followed. At the first component that does not exist the rest is
+// appended as written, until a "..". The kernel cannot traverse the missing
+// component, so that ".." does not name the parent a lexical collapse would
+// reach. The path is unwritable. Its identity is the raw spelling under
+// unreachableOutputPrefix, and the write fails.
+//
+// WHY a dangling final link is followed: os.WriteFile on alias.json ->
+// actual.json creates actual.json, so a not-yet-existing target is the same
+// file as the link's name.
+//
+// WHY the write-time os.SameFile check in run.go stays: this runs once, at
+// load, and the disk can change before the write; that check is the second
+// line and is never the one meant to fire for an alias this function can see.
+func outputIdentity(path string) (string, error) {
+	root, rest := splitRoot(path)
+	if root == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			// The working directory is unreadable; the cleaned path is
+			// still a usable key for the comparison.
+			return filepath.Clean(path), nil
+		}
+		root, _ = splitRoot(cwd)
+		rest = cwd[len(root):] + string(filepath.Separator) + path
+	}
+	pending := splitComponents(rest)
+	resolved := root
+	missing := false // true once a component did not exist. A later ".." is unreachable.
+	for hops := 0; len(pending) > 0; {
+		name := pending[0]
+		pending = pending[1:]
+		switch name {
+		case ".":
+			continue
+		case "..":
+			if missing {
+				return unreachableOutputPrefix + path, nil
+			}
+			if resolved != root {
+				resolved = filepath.Dir(resolved)
+			}
+			continue
+		}
+		next := filepath.Join(resolved, name)
+		if missing {
+			resolved = next
+			continue
+		}
+		info, err := os.Lstat(next)
+		if err != nil {
+			missing = true
+			resolved = next
+			continue
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			resolved = next
+			continue
+		}
+		if hops == maxOutputLinkHops {
+			return "", fmt.Errorf("more than %d symbolic links, or a link loop", maxOutputLinkHops)
+		}
+		hops++
+		target, err := os.Readlink(next)
+		if err != nil {
+			resolved = next
+			missing = true
+			continue
+		}
+		if tRoot, tRest := splitRoot(target); tRoot != "" {
+			resolved = tRoot
+			target = tRest
+		}
+		pending = append(splitComponents(target), pending...)
+	}
+	return resolved, nil
+}
+
+// splitRoot splits a path into its root ("/" or `C:\`, "" when relative) and
+// the remainder, without cleaning either.
+func splitRoot(path string) (root, rest string) {
+	vol := filepath.VolumeName(path)
+	rest = path[len(vol):]
+	if rest != "" && os.IsPathSeparator(rest[0]) {
+		return vol + string(filepath.Separator), rest
+	}
+	if vol != "" {
+		return vol, rest
+	}
+	return "", path
+}
+
+// splitComponents splits a path on its separators and drops empty parts, so a
+// trailing or doubled separator names the same component.
+func splitComponents(path string) []string {
+	return strings.FieldsFunc(path, func(r rune) bool { return os.IsPathSeparator(byte(r)) && r < 0x80 })
 }
 
 // refuseExclusive refuses pairs that cannot both hold: two output formats,

@@ -27,6 +27,12 @@ type Use struct {
 	Route       string
 	ReceiptID   string
 	FromReceipt bool
+	// Requested is the model field the request sent. The routed Model may
+	// differ from it; the custody audit compares the two.
+	Requested string
+	// ResponseID is the id of the completion response, "" when the stream
+	// carried none. A Nightshift receipt names it as its request id.
+	ResponseID string
 }
 
 // Reported names the model of the completion that just finished.
@@ -68,6 +74,20 @@ func NewLive(cfg Settings, client *http.Client) *Live {
 		}
 	}
 	return &Live{cfg: cfg, client: client}
+}
+
+// NewSecond builds the second reviewer's client (ADR-0037). It lives here, with the other code that
+// dials, because this file is the only one of the package allowed to import net/http. A nil client
+// does not follow redirects, so the key is not sent to another host (the same rule as NewLive).
+func NewSecond(s SecondSettings, client *http.Client) *Second {
+	cfg := Settings{
+		BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout,
+		plain: true,
+		// requireNone: the NVIDIA check is Nightshift's rule (ADR-0019) and this reviewer is meant to
+		// be another family.
+		requireNone: true,
+	}
+	return &Second{live: NewLive(cfg, client), model: s.Model}
 }
 
 // LastUse reports the model of the call that just finished.
@@ -166,7 +186,10 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	if l.cfg.Mode == ModeNVIDIA {
 		return l.finishHosted(agent, text, meta)
 	}
-	use := Use{Model: "unknown", Route: meta.route, ReceiptID: meta.receipt}
+	use := Use{
+		Model: "unknown", Route: meta.route, ReceiptID: meta.receipt,
+		Requested: l.cfg.ModelFor(agent), ResponseID: meta.responseID,
+	}
 	if meta.model != "" {
 		use.Model = meta.model
 		use.FromReceipt = true
@@ -201,7 +224,10 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error) {
 	// Route carries the host the answer came from, so the trace's model event
 	// names where the trusted model field was read.
-	use := Use{Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt}
+	use := Use{
+		Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt,
+		Requested: l.cfg.ModelFor(agent), ResponseID: meta.responseID,
+	}
 	if meta.chunkModel != "" {
 		use.Model = meta.chunkModel
 	}
@@ -287,7 +313,9 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 // not sent to it.
 func (l *Live) authorize(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+l.cfg.Token)
-	if l.cfg.Mode == ModeNVIDIA {
+	// ADR-0037: a second reviewer is any OpenAI-compatible server, which knows nothing of
+	// Nightshift's routing headers; sending them would tell a third party our app name.
+	if l.cfg.Mode == ModeNVIDIA || l.cfg.plain {
 		return
 	}
 	req.Header.Set("meterless-app", l.cfg.App)

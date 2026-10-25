@@ -12,6 +12,8 @@ fit at all. Meterless's **Markovian** engine solves exactly that: long work cut 
 carried from one step to the next, so the context and the cost per step stay flat however long the work is. We use it where
 Proven has that problem, and nowhere else.
 
+Saphan Studio has its own implementation, patent pending; for the hackathon we use Meterless's.
+
 ## Decision
 
 1. **A change above a size set in the settings is reviewed in bounded steps**: file by file (or hunk by hunk), each step seeing

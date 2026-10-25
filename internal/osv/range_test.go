@@ -45,7 +45,10 @@ func TestInRange(t *testing.T) {
 
 // TestInRangeEcosystem proves that npm compares semantic versions, that PyPI
 // compares PEP 440 and refuses dev, epoch and local versions with a
-// sentence, that a bound which does not parse is named, and that an
+// sentence, that Packagist compares the Composer subset and names a
+// constraint, that crates.io compares a Cargo version and names a constraint,
+// that Maven compares its qualifier order and names a constraint,
+// that a bound which does not parse is named, and that an
 // unknown ecosystem is not compared.
 func TestInRangeEcosystem(t *testing.T) {
 	cases := []struct {
@@ -69,7 +72,16 @@ func TestInRangeEcosystem(t *testing.T) {
 		{name: "pypi local is not compared", ecosystem: "PyPI", version: "1.0+local", introduced: "0", want: false, sentence: "1.0+local has a local version; this check does not compare it"},
 		{name: "pypi unparsed", ecosystem: "PyPI", version: "latest", introduced: "1.0", want: false, sentence: "latest is not a release, pre-release or post-release"},
 		{name: "pypi bad introduced", ecosystem: "PyPI", version: "1.0", introduced: "1.0.dev1", want: false, sentence: "introduced 1.0.dev1 has a dev release; this check does not compare it"},
-		{name: "unknown ecosystem", ecosystem: "Maven", version: "1.0", introduced: "0", want: false, sentence: "ecosystem Maven has no version comparison"},
+		{name: "packagist rc below the release", ecosystem: "Packagist", version: "1.0.0-RC1", introduced: "1.0.0-RC1", fixed: "1.0.0", want: true, sentence: "introduced 1.0.0-RC1 <= 1.0.0-RC1 < fixed 1.0.0"},
+		{name: "packagist constraint is not a version", ecosystem: "Packagist", version: "^1.2", introduced: "1.0.0", want: false, sentence: "^1.2 is a constraint; this check compares one Composer version"},
+		{name: "crates.io release", ecosystem: "crates.io", version: "1.9.1", introduced: "1.7.0", fixed: "1.10.0", want: true, sentence: "introduced 1.7.0 <= 1.9.1 < fixed 1.10.0"},
+		{name: "crates.io pre-release", ecosystem: "crates.io", version: "1.0.0-alpha.1", introduced: "1.0.0", want: false, sentence: "1.0.0-alpha.1 < introduced 1.0.0"},
+		{name: "crates.io constraint is not a version", ecosystem: "crates.io", version: "^1.2.3", introduced: "1.0.0", want: false, sentence: "^1.2.3 is a constraint; this check compares one Cargo version"},
+		{name: "crates.io leading v", ecosystem: "crates.io", version: "v1.2.3", introduced: "1.0.0", want: false, sentence: "v1.2.3 is not a Cargo version; a Cargo version has no leading v"},
+		{name: "maven release", ecosystem: "Maven", version: "1.4.0", introduced: "1.3.0", fixed: "1.5.0", want: true, sentence: "introduced 1.3.0 <= 1.4.0 < fixed 1.5.0"},
+		{name: "maven snapshot below release", ecosystem: "Maven", version: "1.0-snapshot", introduced: "1.0", want: false, sentence: "1.0-snapshot < introduced 1.0"},
+		{name: "maven constraint is not a version", ecosystem: "Maven", version: "[1.0,2.0)", introduced: "1.0", want: false, sentence: "[1.0,2.0) is a constraint; this check compares one Maven version"},
+		{name: "unknown ecosystem", ecosystem: "NuGet", version: "1.0", introduced: "0", want: false, sentence: "ecosystem NuGet has no version comparison"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

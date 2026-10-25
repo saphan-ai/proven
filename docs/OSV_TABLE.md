@@ -8,7 +8,7 @@ Proven defines this table. One row is one affected range of one advisory. The fi
 |---|---|
 | `id` | the advisory id |
 | `aliases` | other ids for the same advisory, separated by spaces, sorted |
-| `ecosystem` | the package ecosystem: `Go`, `npm` or `PyPI` |
+| `ecosystem` | the package ecosystem: `Go`, `npm`, `PyPI`, `Packagist`, `crates.io` or `Maven` |
 | `package` | the module path, or the package name in another ecosystem |
 | `introduced` | the first affected version; empty or `0` means there is no lower bound |
 | `fixed` | the first version that is not affected; the bound is exclusive |
@@ -28,7 +28,7 @@ go run ./cmd/osv-to-csv <advisory-dir> <out.csv>
 
 The setting is the environment variable `PROVEN_OSV_TABLE`. The default is `px_osvfile.px_osv_pkg`. An empty value means the default. Any other value must be a table name or `schema.table`, made of letters, digits and underscores. Sample mode uses the default and does not read the variable.
 
-For each package the change adds, or whose required version goes up, Proven runs one query. The ecosystem is `Go`, `npm` or `PyPI`.
+For each package the change adds, or whose required version goes up, Proven runs one query. The ecosystem is `Go`, `npm`, `PyPI`, `Packagist`, `crates.io` or `Maven`.
 
 ```sql
 SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
@@ -54,7 +54,27 @@ A `replace` or an `exclude` in `go.mod` is not read. Only `require` lines are.
 
 `poetry.lock` contributes each `[[package]]` table's `name` and `version`. The ecosystem is PyPI. The version is the one written before the next table header. Lines in any other table, including a multi-line array, are not pins. A file this reader cannot parse gives no finding, and the trace says why.
 
-A package that both a manifest and its lock file add or raise is checked once. The lock file's version is the one compared, and the finding names the lock file. The pairs are `go.mod` with `go.sum`, `package.json` with `package-lock.json`, and `requirements.txt` with `poetry.lock`, each pair in the same directory. PyPI names are compared and queried after PEP 503 normalisation: lower case, and every run of `-`, `_` or `.` becomes one `-`. Go module paths and npm names do not. A package that only one of the two files names is still checked.
+`composer.json` contributes `require` and `require-dev`. Other keys are not read. A requirement whose value is not a string is skipped, and the trace names it. A platform package (`php`, `hhvm`, `ext-*`, `lib-*`, `php-*`, `composer-plugin-api`, `composer-runtime-api`) is not a Packagist package: the trace names it and it is not checked. The package name is stored in lower case.
+
+`composer.lock` contributes each object in `packages` and `packages-dev`, its `name` and its `version`. The ecosystem is Packagist. Other keys, including `platform` and `content-hash`, are not pins. An object with no version string is not a pin. A file this reader cannot parse gives no finding, and the trace says why.
+
+`Cargo.toml` contributes `[dependencies]` and `[dev-dependencies]`. Other tables, including `[build-dependencies]`, `[workspace.dependencies]` and a target-specific table, are not read. A dependency written as a string is that version. An inline table contributes its `version`, and its `package` name when it renames the crate; otherwise the key is the name. A dotted table such as `[dependencies.tokio]` is the same crate. One assignment is one line, and an inline table is one line. A dependency with no version is named in the trace and not checked. A value that is not a string is named in the trace and not checked. The package name is stored as written.
+
+`Cargo.lock` contributes each `[[package]]` table's `name` and `version`. The ecosystem is crates.io. Lines in any other table are not pins. The package being built is a `[[package]]` table too; an unchanged version is not a finding. A file this reader cannot parse gives no finding, and the trace says why.
+
+`libs.versions.toml` contributes `[libraries]`. The ecosystem is Maven. A `version.ref` is the string named in `[versions]`. A ref that is not there, a value that is not a string, and a rich version (`strictly`, `prefer`, `require`) are named in the trace and not checked. `[plugins]` is not a Maven coordinate: each plugin is named in the trace and not checked. `[bundles]` is not read. A table other than `versions`, `libraries`, `bundles` and `plugins` means the file was not parsed.
+
+`build.gradle.kts` contributes a double-quoted `group:artifact:version`, and one line that names `group`, `name` and `version` as literal strings. The ecosystem is Maven. A version that contains `$`, or a version written as a name, is a variable: the trace names it and it is not checked. A plugin id and a `libs.` catalog reference are named in the trace and not checked. Groovy `build.gradle` is not this file.
+
+`gradle.lockfile` contributes each `group:artifact:version=configurations` line. The ecosystem is Maven. A line `empty=` names configurations that locked nothing and is not a package. A comment is ignored. A non-empty file with no pin and no `empty=` line means the file was not parsed: no finding from that file, and the trace says why.
+
+crates.io compares semantic versions: `MAJOR.MINOR.PATCH`, an optional pre-release, and build metadata that is ignored, so `1.2.3+build` and `1.2.3` are the same version. A pre-release is lower than the release it precedes. A leading `v` is refused. A constraint (`^`, `~`, `>`, `<`, `=`, `*`, a comma, `||`, a space) and a version that is not three numeric components give no finding. The trace says which. The check does not rewrite the string. The subset is the one `internal/cargover` implements.
+
+Packagist compares a subset of Composer's version order. One to four numeric components, with a missing component equal to zero, so `1.2` and `1.2.0.0` are the same version. A leading `v` is ignored. Text after `+` is ignored. Stability, from lowest to highest, is dev, alpha (`a`), beta (`b`), RC (`rc`), stable, then patch (`p`, `pl`, `patch`). The spelling is not case-sensitive. A suffix with no number is below the same suffix numbered 0. An explicit `-stable` is the same as no suffix. A constraint (`^`, `~`, `>`, `<`, `=`, `*`, a comma, `||`, a space) and a branch name (`dev-*`, or a component `x`, including `1.0.x-dev`) give no finding. The trace says which. The check does not rewrite the string. The subset is the one `internal/composerver` implements; [ADAPTERS.md](ADAPTERS.md) is the worked example.
+
+Maven compares a subset of Maven's version order. Numeric tokens compare as integers, and a missing numeric token equals zero, so `1`, `1.0` and `1.0.0` are the same version. A hyphen between numbers is the same separator as a dot in this subset, so `1.0-1` and `1.0.1` are the same version. Qualifiers, from lowest to highest, are alpha, beta, milestone, rc, snapshot, release, then sp. The spelling is not case-sensitive. `a`, `b`, `m` and `cr` are the short names. `ga`, `final` and `release` are the release itself, so `1.0-ga` and `1.0` are the same version. A qualifier below release is below the same numbers with no qualifier. `sp` is above that release. A number on the qualifier orders that qualifier, and a missing number equals zero. A qualifier that is not in that list is above sp, then compared as lowercase text. That placement was not checked against one named Maven release. A constraint (including `[1.0,2.0)` and a Gradle dynamic version such as `1.2.+`) and a leading `v` give no finding. The trace says which. The check does not rewrite the string. The subset is the one `internal/mavenver` implements; [ADAPTERS.md](ADAPTERS.md) is the worked example.
+
+A package that both a manifest and its lock file add or raise is checked once. The lock file's version is the one compared, and the finding names the lock file. The pairs are `go.mod` with `go.sum`, `package.json` with `package-lock.json`, `requirements.txt` with `poetry.lock`, `composer.json` with `composer.lock`, `Cargo.toml` with `Cargo.lock`, and `build.gradle.kts` or `libs.versions.toml` with `gradle.lockfile`, each pair in the same directory. A catalog under `gradle/` is not paired with a lock file at the project root. PyPI names are compared and queried after PEP 503 normalisation: lower case, and every run of `-`, `_` or `.` becomes one `-`. Packagist names are compared and queried in lower case, and the separators are kept. Go module paths, npm names, crate names and Maven coordinates do not change. A package that only one of the two files names is still checked.
 
 ## What the administrator runs
 

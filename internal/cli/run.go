@@ -2,12 +2,14 @@ package cli
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,6 +32,10 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
+	// verify checks a pack and runs no review (ADR-0035 point 3).
+	if len(args) > 0 && args[0] == "verify" {
+		return runVerify(args[1:], getenv, stdout, stderr)
+	}
 	// Settings are resolved and refused before anything is opened, so a bad
 	// value costs nothing and its exit code is the one ADR-0020 §2 names.
 	cfg, err := resolve(args, getenv, fileExists)
@@ -49,11 +55,26 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		printErr(stderr, err)
 		return errorCode(err)
 	}
+	// Standard output is compared with the output files here, not in resolve,
+	// because only Run holds the writer it is open on.
+	if err := refuseStdoutOnAnOutput(cfg, stdout); err != nil {
+		fmt.Fprintln(stderr, err.Error())
+		return errorCode(err)
+	}
 	// Every requested format must have a writer before the review runs: a
 	// review that cannot be written is time spent for an exit 2 anyway.
 	if err := writable(cfg); err != nil {
 		printErr(stderr, err)
 		return exitFatal
+	}
+	// A pack that cannot be signed is refused before the review, not after it.
+	var packKey ed25519.PrivateKey
+	if cfg.evidencePack != "" {
+		packKey, err = loadPackKey(getenv)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return errorCode(err)
+		}
 	}
 	rev, err := openCall(cfg, getenv, open)
 	if err != nil {
@@ -66,6 +87,13 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		}
 		printErr(stderr, err)
 		return exitFatal
+	}
+	// The trace file takes every run's lines; the pack keeps this run's, which begin here.
+	traceStart := int64(0)
+	// The trace is in the log directory resolved at load (PROVEN_LOG_DIR), not
+	// under the working directory.
+	if cfg.evidencePack != "" && cfg.logDir != "" {
+		traceStart = fileSize(filepath.Join(cfg.logDir, traceFile))
 	}
 	// --timeout bounds the whole review; zero means no deadline (ADR-0020 §1).
 	ctx := context.Background()
@@ -96,6 +124,12 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	result.Findings = filterFindings(result.Findings, cfg.severity)
 	if cfg.verbose && !cfg.quiet {
 		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", visible(cfg.target), visible(cfg.baseline), visible(cfg.head))
+	}
+	if cfg.evidencePack != "" {
+		if err := writePack(cfg, getenv, packKey, result, traceStart); err != nil {
+			fmt.Fprintln(stderr, "evidence pack not written: "+err.Error())
+			return exitFatal
+		}
 	}
 	if err := writeOutputs(cfg, result, stdout); err != nil {
 		printErr(stderr, err)
@@ -169,6 +203,7 @@ func openCall(cfg config, getenv func(string) string, open opener) (rev review.R
 func openReviewer(cfg config, getenv func(string) string, open opener) (review.Reviewer, error) {
 	opts := review.Options{
 		ConfigPath: cfg.configPath,
+		PolicyPath: cfg.policyPath,
 		Sample:     cfg.sample,
 		LogDir:     cfg.logDir,
 		Env:        getenv,
@@ -202,6 +237,7 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		return err
 	}
 	type extraFile struct {
+		flag string
 		path string
 		body []byte
 	}
@@ -211,35 +247,74 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.textOutput, body})
+		extras = append(extras, extraFile{"--text-output", cfg.textOutput, body})
 	}
 	if cfg.jsonOutput != "" {
 		body, err := render("json", result)
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.jsonOutput, body})
+		extras = append(extras, extraFile{"--json-output", cfg.jsonOutput, body})
 	}
 	if cfg.sarifOutput != "" {
 		body, err := render("sarif", result)
 		if err != nil {
 			return err
 		}
-		extras = append(extras, extraFile{cfg.sarifOutput, body})
+		extras = append(extras, extraFile{"--sarif-output", cfg.sarifOutput, body})
 	}
+	files := extras
 	if cfg.output == "" {
 		if _, err := stdout.Write(primary); err != nil {
 			return err
 		}
-	} else if err := os.WriteFile(cfg.output, primary, 0o644); err != nil {
-		return err
+	} else {
+		files = append([]extraFile{{"-o", cfg.output, primary}}, extras...)
 	}
-	for _, one := range extras {
+	// WHY a second check beside refuseCollidingOutputs: that one runs at load,
+	// and the disk can change before the write (a link made while the review
+	// ran). Two outputs must never share one file, so each file is compared
+	// with the files already written in this run before it is written, and the
+	// run stops with the first output intact.
+	var written []writtenOutput
+	// The signed pack was written before this point; it is the first file of the
+	// run, so a link made after the load check cannot lead an output onto it.
+	if cfg.evidencePack != "" {
+		if info, err := os.Stat(cfg.evidencePack); err == nil {
+			written = append(written, writtenOutput{"--evidence-pack", info})
+		}
+	}
+	if cfg.output == "" {
+		// Standard output was written above; when it is a regular file it is
+		// the first file of the run.
+		if info := regularFileInfo(stdout); info != nil {
+			written = append(written, writtenOutput{"standard output", info})
+		}
+	}
+	for _, one := range files {
+		if info, err := os.Stat(one.path); err == nil {
+			for _, w := range written {
+				if os.SameFile(info, w.info) {
+					return fmt.Errorf("%s and %s are the same file (%s); %s is left as it was written", w.flag, one.flag, one.path, w.flag)
+				}
+			}
+		}
 		if err := os.WriteFile(one.path, one.body, 0o644); err != nil {
 			return err
 		}
+		info, err := os.Stat(one.path)
+		if err != nil {
+			return err
+		}
+		written = append(written, writtenOutput{one.flag, info})
 	}
 	return nil
+}
+
+// writtenOutput is a file this run has written, kept for os.SameFile.
+type writtenOutput struct {
+	flag string
+	info os.FileInfo
 }
 
 // pullRequestEvent is the part of GitHub's pull_request event payload ci
@@ -357,6 +432,7 @@ func helpText() string {
 usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
+  proven verify [--public-key FILE] PACK
   proven --help
   proven --version
 
@@ -371,7 +447,6 @@ not review.
 flags:
   --text, --json, --sarif
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-        This build writes text. --json and --sarif stop with exit 2 until their writers land.
   --text-output, --json-output, --sarif-output
         also write that format to a file
   -o, --output
@@ -388,6 +463,9 @@ flags:
         lowest severity reported: INFO, WARNING, ERROR (PROVEN_SEVERITY, default INFO)
   --timeout
         the whole review's time limit in seconds (PROVEN_TIMEOUT; default no deadline)
+  --evidence-pack
+        write one signed evidence pack (a tar) for this review; the private key is the file PROVEN_PACK_KEY names.
+        proven verify checks it with the public key in PROVEN_PACK_PUBLIC_KEY, or --public-key
   PROVEN_LOG_DIR
         trace directory (default: the user cache, proven/logs, mode 0700).
         A directory that resolves inside the review target is refused.
@@ -395,6 +473,10 @@ flags:
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
   --help, --version
+
+environment only:
+  PROVEN_POLICY
+        a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
 exit codes:
   0  review done; no findings, or findings without --error

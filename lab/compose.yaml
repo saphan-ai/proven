@@ -1,0 +1,128 @@
+# Judges' lab. Every value comes from the environment (lab/versions.env).
+# Published ports bind to LAB_BIND (default 127.0.0.1) only.
+# The runner talks to the dind service. It does not mount the host's Docker socket.
+# SSH is off. The image's OpenSSH already holds :22, and Gitea's own server
+# on that port exited the container (measured 2026-10-23). No SSH port is published.
+
+name: ${COMPOSE_PROJECT_NAME}
+
+services:
+  gitea:
+    image: gitea/gitea:${GITEA_VERSION}
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__database__PATH: /data/gitea/gitea.db
+      GITEA__server__DOMAIN: ${LAB_BIND}
+      GITEA__server__ROOT_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/
+      GITEA__server__HTTP_PORT: ${GITEA_CONTAINER_HTTP_PORT}
+      GITEA__server__DISABLE_SSH: "${GITEA_DISABLE_SSH}"
+      GITEA__server__START_SSH_SERVER: "${GITEA_START_SSH_SERVER}"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__actions__ENABLED: "true"
+      # A repository made through the API gets these units. The seed also
+      # turns the Actions unit on by name, so a kept volume is repaired.
+      GITEA__repository__DEFAULT_REPO_UNITS: "repo.code,repo.releases,repo.issues,repo.pulls,repo.wiki,repo.projects,repo.packages,repo.actions"
+      GITEA__security__INSTALL_LOCK: "true"
+    ports:
+      - "${LAB_BIND}:${GITEA_HTTP_PORT}:${GITEA_CONTAINER_HTTP_PORT}"
+    volumes:
+      - gitea-data:/data
+    networks:
+      - lab
+
+  dind:
+    image: docker:${DOCKER_VERSION}-dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - --host=tcp://0.0.0.0:${DIND_PORT}
+      - --host=unix:///var/run/docker.sock
+      - --tls=false
+    volumes:
+      - dind-data:/var/lib/docker
+    networks:
+      - lab
+
+  # Grafana's OpenTelemetry stack (ADR-0045). Proven sends its review here as
+  # OTLP; Grafana shows it on the provisioned dashboard. Both ports bind to LAB_BIND.
+  lgtm:
+    image: ${LGTM_IMAGE}:${LGTM_VERSION}
+    environment:
+      # Open on the dashboard, not on Grafana's empty home page.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /proven-dashboards/proven-review.json
+      # No sign-in: the lab binds to LAB_BIND (127.0.0.1). `make trace` also reads through this.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    ports:
+      - "${LAB_BIND}:${LGTM_GRAFANA_PORT}:${LGTM_GRAFANA_CONTAINER_PORT}"
+      - "${LAB_BIND}:${LGTM_OTLP_PORT}:${LGTM_OTLP_CONTAINER_PORT}"
+    volumes:
+      - ./grafana/proven-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/proven.yaml:ro
+      - ./grafana/dashboards:/proven-dashboards:ro
+    networks:
+      - lab
+
+  runner:
+    image: gitea/act_runner:${ACT_RUNNER_VERSION}
+    environment:
+      GITEA_INSTANCE_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
+      GITEA_RUNNER_NAME: ${RUNNER_NAME}
+      GITEA_RUNNER_LABELS: ${RUNNER_LABEL}:docker://docker:${DOCKER_VERSION}-cli
+      DOCKER_HOST: tcp://${DIND_HOST}:${DIND_PORT}
+      CONFIG_FILE: /config.yaml
+    entrypoint: ["/bin/sh", "/start.sh"]
+    volumes:
+      - runner-data:/data
+      - runner-reg:/reg:ro
+      - ./runner/config.yaml:/config.yaml:ro
+      - ./runner/start.sh:/start.sh:ro
+    depends_on:
+      - gitea
+      - dind
+    restart: on-failure
+    networks:
+      - lab
+
+  seed:
+    image: ${SEED_IMAGE}:${SEED_IMAGE_TAG}
+    user: "0:0"
+    environment:
+      GITEA_INTERNAL_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
+      LAB_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/
+      LAB_ADMIN_USER: ${LAB_ADMIN_USER}
+      LAB_ADMIN_EMAIL: ${LAB_ADMIN_EMAIL}
+      LAB_BOT_USER: ${LAB_BOT_USER}
+      LAB_BOT_EMAIL: ${LAB_BOT_EMAIL}
+      LAB_DEMO_REPO: ${LAB_DEMO_REPO}
+      LAB_DEMO_BASE: ${LAB_DEMO_BASE}
+      LAB_DEMO_HEAD: ${LAB_DEMO_HEAD}
+      PROVEN_IMAGE: ${PROVEN_IMAGE}
+      RUNNER_LABEL: ${RUNNER_LABEL}
+      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}
+      # ADR-0045: the seeded workflow exports its review to the lgtm service.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://${LGTM_INTERNAL_HOST}:${LGTM_OTLP_CONTAINER_PORT}
+      OTEL_SERVICE_NAME: ${LAB_OTEL_SERVICE_NAME}
+      OTEL_METRIC_EXPORT_INTERVAL: ${LAB_OTEL_METRIC_EXPORT_INTERVAL}
+      LAB_SPECIAL_REVIEWER: ${LAB_SPECIAL_REVIEWER:-}
+    volumes:
+      - seed-state:/state
+      - runner-reg:/reg
+      - ./workflow/proven.yml:/workflow/proven.yml:ro
+    depends_on:
+      - gitea
+    networks:
+      - lab
+
+networks:
+  lab:
+
+volumes:
+  gitea-data:
+  dind-data:
+  runner-data:
+  runner-reg:
+  seed-state:

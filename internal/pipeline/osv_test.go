@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/saphan-ai/proven/internal/candidate"
 )
 
 // A dependency the change adds is reported from the OSV package table with the
@@ -21,6 +23,14 @@ func TestSampleReviewReportsTheOSVRange(t *testing.T) {
 	}
 	if c.Path != "go.mod" || c.StartLine != 5 || c.RuleID != "osv-affected-package" {
 		t.Fatalf("%#v", c.Risk)
+	}
+	// Sample mode starts no container, so the Go finding is not measured and
+	// is never called unreached (ADR-0043).
+	if c.Ecosystem != "Go" || c.ReachLabel != candidate.ReachNotMeasured || c.CallPath != "" {
+		t.Fatalf("reach %#v", c)
+	}
+	if !strings.Contains(c.Message, "Reachability: not measured") || strings.Contains(c.Message, "imported but not reached") {
+		t.Fatalf("message %s", c.Message)
 	}
 	if !strings.Contains(c.Message, "introduced 1.0.0 <= v1.2.3 < fixed 1.2.4") {
 		t.Fatalf("message %s", c.Message)
@@ -48,5 +58,8 @@ func TestSampleReviewReportsTheOSVRange(t *testing.T) {
 	raw := traceRaw(t, d.TracePath)
 	if !strings.Contains(string(raw), "introduced 1.0.0 <= v1.2.3 < fixed 1.2.4") {
 		t.Fatal("trace has no comparison")
+	}
+	if !strings.Contains(string(raw), "govulncheck was not run: sample mode starts no container") {
+		t.Fatal("trace does not name the unrun tool")
 	}
 }

@@ -1,0 +1,22 @@
+.git
+.github
+.gitea
+bin
+dist
+lab
+fleet
+planning
+tests
+conformance
+demo
+**/.env
+**/.env.*
+**/.DS_Store
+# The documentation site (docs-site/Dockerfile) builds from the repository root:
+# docs/, assets/ and README.md are its input, so they are not ignored. Its own
+# build output stays out of the context.
+**/node_modules
+**/.next
+docs-site/content
+docs-site/public
+docs-site/.source

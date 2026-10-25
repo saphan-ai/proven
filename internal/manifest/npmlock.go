@@ -23,7 +23,9 @@ func NPMLock() Reader {
 		Match: func(path string) bool {
 			return path == "package-lock.json" || strings.HasSuffix(path, "/package-lock.json")
 		},
-		Diff: diffNPMLock,
+		Diff:    diffNPMLock,
+		Compare: semver.Compare,
+		Explain: semver.Explain,
 	}
 }
 

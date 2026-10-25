@@ -11,6 +11,7 @@
 package redact
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
 	"strconv"
@@ -19,20 +20,17 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/store"
 )
 
-// Names lists every variable whose value Proven must never write: the keys it
-// sends (the generator's two, the guardrail's and Zetaris's), and the
-// organisation id it identifies itself with. The generator's NVIDIA key is here
-// so a hosted answer that echoes it never reaches the trace (ADR-0031 point 3).
-var Names = []string{generator.EnvToken, generator.EnvKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID}
-
-// MinLength is the shortest value that is redacted as a substring.
-// A value shorter than this would be found inside ordinary words, numbers and
-// line counts, and replacing it would destroy the text it sits in; no key a
-// service issues is this short. A shorter value is left alone here, and the
-// settings loaders still never print it in a refusal.
-const MinLength = 6
+// Names lists every variable whose value Proven redacts: the keys it sends (the
+// generator's two, the second reviewer's (ADR-0037), the guardrail's, Zetaris's and the CouchDB store's two passwords), and the
+// organisation id it identifies itself with. The generator's NVIDIA key is here so a hosted
+// answer that echoes it never reaches the trace (ADR-0031 point 3). The organisation id is
+// an identifier, not a credential: an id shorter than service.MinSecretBytes is NOT redacted
+// (FromEnv leaves it out), so a short id can appear in a trace.
+var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID, store.EnvCouchPassword, store.EnvRecordsPassword}
 
 // Redactor replaces configured values in text. The zero value and a nil
 // *Redactor leave text unchanged.
@@ -40,14 +38,19 @@ type Redactor struct {
 	// needles is ordered longest value first, so a value that contains another
 	// is replaced whole.
 	needles []needle
+	// lengths is the trimmed length of each configured value, by variable name.
+	lengths map[string]int
 }
 
 type needle struct {
 	value, marker string
 }
 
-// New builds a Redactor from variable name to value. An empty value, and a
-// value shorter than MinLength after trimming white space, is not redacted.
+// New builds a Redactor from variable name to value. A value that is empty
+// after trimming white space is not redacted; every other value is, whatever
+// its length. A secret too short to redact without damaging ordinary text is
+// refused by the settings loaders (service.MinSecretBytes), so none reaches
+// here from the environment.
 // A value is redacted in its raw form and in the escaped forms %q, %+q and JSON give it.
 // When two variables hold the same value the name that sorts first is used,
 // so the marker does not depend on map order.
@@ -58,10 +61,14 @@ func New(values map[string]string) *Redactor {
 	}
 	sort.Strings(names)
 	seen := map[string]bool{}
-	r := &Redactor{}
+	r := &Redactor{lengths: map[string]int{}}
 	for _, name := range names {
 		v := strings.TrimSpace(values[name])
-		if len(v) < MinLength || seen[v] {
+		if v == "" {
+			continue
+		}
+		r.lengths[name] = len(v)
+		if seen[v] {
 			continue
 		}
 		// ADR-0005: an error that quotes a value with %q, or a JSON line that carries it, writes
@@ -78,6 +85,22 @@ func New(values map[string]string) *Redactor {
 	return r
 }
 
+// Shorter returns the names of the configured values shorter than min bytes, sorted.
+// A pack writer uses it to refuse a secret too short to redact without damage.
+func (r *Redactor) Shorter(min int) []string {
+	if r == nil {
+		return nil
+	}
+	var out []string
+	for name, n := range r.lengths {
+		if n < min {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // spellings returns v and the ways Go's %q, %+q and a JSON encoder write it inside quotes, without
 // the quotes, each once. A value with nothing to escape has one spelling.
 func spellings(v string) []string {
@@ -90,21 +113,54 @@ func spellings(v string) []string {
 		}
 		out = append(out, s)
 	}
-	add(strings.Trim(strconv.Quote(v), `"`))
-	add(strings.Trim(strconv.QuoteToASCII(v), `"`))
+	add(inner(strconv.Quote(v)))
+	add(inner(strconv.QuoteToASCII(v)))
 	if b, err := json.Marshal(v); err == nil {
-		add(strings.Trim(string(b), `"`))
+		add(inner(string(b)))
+	}
+	// An encoder with HTML escaping off (the evidence pack's) keeps <, > and &
+	// as written and still leaves what %q escapes, so it spells a value a
+	// fourth way.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err == nil {
+		add(inner(strings.TrimSuffix(buf.String(), "\n")))
 	}
 	return out
 }
 
+// inner drops the one quote at each end of an encoded string. strings.Trim
+// would drop every quote, and a value that ends in a quote ends in an escaped
+// one that must stay.
+func inner(quoted string) string {
+	if len(quoted) < 2 {
+		return quoted
+	}
+	return quoted[1 : len(quoted)-1]
+}
+
 // FromEnv builds a Redactor from the variables in Names, read through env.
 // A nil env reads nothing.
+//
+// The five credentials (the generator's two keys, the second reviewer's, the
+// guardrail's and Zetaris's) are always handed to the redactor: a short one that
+// is in use is refused by its settings loader, so none reaches here. A credential
+// set but unused by the active mode is not checked by a loader and is redacted
+// as it is. The organisation id is
+// an identifier, not a credential, and the loaders accept a short numeric one;
+// handed over as it is, an id of one digit would replace that digit in every
+// commit id and line number. So an id shorter than service.MinSecretBytes is
+// left out here, and New still redacts any value it is given directly.
 func FromEnv(env func(string) string) *Redactor {
 	values := map[string]string{}
 	if env != nil {
 		for _, name := range Names {
-			values[name] = env(name)
+			v := env(name)
+			if name == query.EnvOrgID && service.TooShortSecret(v) {
+				continue
+			}
+			values[name] = v
 		}
 	}
 	return New(values)

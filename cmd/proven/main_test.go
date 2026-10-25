@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/saphan-ai/proven/internal/store"
 	"os"
 	"path/filepath"
 	"strings"
@@ -290,6 +291,7 @@ func shellEnv(t *testing.T) func(string) string {
 		"SEMGREP_BASELINE_COMMIT": {},
 		"SEMGREP_BASELINE_REF":    {},
 		"PROVEN_CONFIG":           {},
+		"PROVEN_POLICY":           {},
 		"PROVEN_INCLUDE":          {},
 		"PROVEN_LOG_DIR":          {},
 		"PROVEN_EXCLUDE":          {},
@@ -298,7 +300,9 @@ func shellEnv(t *testing.T) func(string) string {
 		"SAMPLE_MODE":             {},
 	}
 	return func(k string) string {
-		if _, ok := allowed[k]; !ok {
+		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
+		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+		if _, ok := allowed[k]; !ok && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) {
 			t.Fatalf("unexpected environment key %s", k)
 		}
 		return ""

@@ -5,7 +5,8 @@
 // Besides the seam's types, the package holds what the reviewer decides before and after the six agents run:
 // it loads proven.yaml (config.go), chooses the review class from the changed paths (ADR-0012, ADR-0014),
 // reads the author's model from the change (ADR-0011) and names the reviewer models and their independence
-// from the author (ADR-0008, ADR-0009) (decide.go). Open wires the adapters and the pipeline (open.go).
+// from the author (ADR-0008, ADR-0009) (decide.go). An agreed, unproven claim is an Opinion beside the
+// findings, not one of them (ADR-0041). Open wires the adapters and the pipeline (open.go).
 // The six agents themselves live in internal/agent and run in internal/pipeline.
 package review
 
@@ -13,10 +14,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/saphan-ai/proven/internal/generator"
-	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -61,17 +65,28 @@ func (e *ConfigError) Error() string {
 // Options are what the shell passes to Open.
 type Options struct {
 	ConfigPath string              // --config / PROVEN_CONFIG; "" means the defaults
+	PolicyPath string              // PROVEN_POLICY, read by the shell; "" means no organisation policy (ADR-0036)
 	Sample     bool                // --sample / SAMPLE_MODE=true: every adapter is its sample implementation (ADR-0001)
 	LogDir     string              // the run's logs/ directory; the reviewer writes its JSONL trace here (ADR-0018)
 	Env        func(string) string // environment lookup; keys come from the environment only (ADR-0001)
+	// Now is the review's clock, compared with an exception's expiry date (ADR-0036). nil means time.Now;
+	// a test sets it so an exception expires on a day the test chose.
+	Now func() time.Time
 	// gen, when set, replaces the live generator. A review leaves it unset.
 	// Tests set it so a live review makes no network call.
 	gen generator.Generator
-	// liveQuery, when set, replaces the live query adapter. A review leaves it unset.
-	liveQuery query.Adapter
+	// liveStore, when set, replaces the evidence store. A review leaves it unset.
+	liveStore store.Store
 	// testRun, when set, replaces the container runner. A review leaves it unset,
 	// so a test does not start a container.
 	testRun testrun.Adapter
+	// tel, when set, replaces the telemetry the OTEL_* variables build (ADR-0045).
+	// A test sets it to read the spans and numbers back from memory.
+	tel *telemetry.T
+	// recordsClient, when set, is the HTTP client of the evidence records' writer
+	// and of the viewer check. A review leaves it unset. Tests set it to a
+	// recorded CouchDB, so no test dials one.
+	recordsClient *http.Client
 }
 
 // Request is one review request.
@@ -99,7 +114,8 @@ const (
 type Result struct {
 	Findings []Finding // only findings with evidence (ADR-0002); unresolved ones are marked and counted
 	// ProofCounts counts Findings by ProofLevel (ADR-0044 point 3). Every level is a key, with 0
-	// when none; the counts add up to len(Findings). Findings, unresolved ones included, keep their meaning.
+	// when none; the counts add up to len(Findings). Opinions are not counted (ADR-0041).
+	// Findings, unresolved ones included, keep their meaning.
 	ProofCounts          map[ProofLevel]int
 	FailedServices       []ServiceFailure // the review degraded; the shell names each and still exits 0 or 1
 	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
@@ -115,9 +131,65 @@ type Result struct {
 	AuthorModels         []AuthorModel    // models the change named; empty means none were stated
 	AuthorModelStatement string           // "author model not stated" when the change names no model
 	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
+	GuardrailStatement   string           // set when the guardrail was switched off for this review; empty when it was on
+	// Reviewers names each reviewer that took part, the default one first, with whether it is the
+	// author's own model (ADR-0037 point 5). The shell renders from it, not from the statements.
+	Reviewers []ReviewerInfo
+	// Disagreements counts the findings whose Disagree is true (ADR-0037 point 4).
+	Disagreements int
+	// Opinions lists claims both reviewers reported at the same place that no
+	// evidence proves (ADR-0041). They are not Findings, they are not in
+	// ProofCounts, and they do not change the exit code. Empty when none.
+	Opinions []Opinion
+	// PolicyStatement names the organisation policy file the review ran under (ADR-0036); empty with none.
+	PolicyStatement string
+	// Accepted holds the findings an unexpired exception covers. They are shown with the exception's
+	// reason, owner and expiry and are not in Findings, so they do not count toward failure.
+	Accepted []AcceptedFinding
+	// Expired names each exception that covers a finding in Findings but has expired: the finding counts
+	// again and the review says the exception expired.
+	Expired []ExpiredException
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+	// Autofix is the one whole-change fix attempt of the review (ADR-0050), or nil when none was made.
+	// The evidence pack encodes the Result as it is, so the tag keeps a review with no attempt
+	// byte-identical to one made before the field existed.
+	Autofix *Autofix `json:",omitempty"`
+}
+
+// The roles a reviewer takes in a review. The special role is the second reviewer of ADR-0037.
+const (
+	RoleDefault = "default"
+	RoleSpecial = "special"
+)
+
+// ReviewerInfo is one reviewer of one review (ADR-0037 point 5).
+type ReviewerInfo struct {
+	Role   string // RoleDefault or RoleSpecial
+	Model  string // the name the review gives it
+	Family string // a configured family, or "family unknown"
+	// IsAuthorModel is "yes" when the change named this model or a model of its family as its author,
+	// "no" when it named authors and none match, and "unknown" when the change named none or a
+	// family is unknown. It is never a guess: unknown stays unknown.
+	IsAuthorModel string
+}
+
+// The verdicts one reviewer can give on a finding (ADR-0037 point 4). The strings are carried by
+// JSON and SARIF, so a value never changes once released.
+const (
+	VerdictReported    = "reported"
+	VerdictNotReported = "not reported"
+	VerdictRefuted     = "refuted"
+	VerdictNoAnswer    = "no answer"
+)
+
+// ReviewerVerdict is one reviewer's word on one finding: the verdict and the reviewer's own reason.
+type ReviewerVerdict struct {
+	Role    string // RoleDefault or RoleSpecial
+	Model   string
+	Verdict string // one of the Verdict constants
+	Reason  string
 }
 
 // ProofLevel names how far a reader may trust one finding (ADR-0044). The string is what the
@@ -133,10 +205,31 @@ const (
 	ProvedByTool ProofLevel = "proved-by-tool"
 	// ProvedByData: a query and the rows it returned (ADR-0002).
 	ProvedByData ProofLevel = "proved-by-data"
-	// AgreedNotProven: two models reported it and nothing proves it (ADR-0041).
-	// No finding gets it yet; the ADR-0041 wagon sets it.
+	// AgreedNotProven is the level name ADR-0044 reserved for an opinion.
+	// ADR-0041 does not put that opinion on a finding: it is Result.Opinions,
+	// and ProofCounts keeps this key at 0 so the totals stay the findings.
 	AgreedNotProven ProofLevel = "agreed-by-two-models-not-proven"
 )
+
+// OpinionLevel is the level an opinion carries for JSON and SARIF (ADR-0041).
+// It is note, so a machine does not read the opinion as a proven finding.
+// Those writers are not in this build. The text section is what a reader gets,
+// and a writer that lands later copies this value and does not put the opinion
+// among the findings.
+const OpinionLevel = "note"
+
+// Opinion is one claim both reviewers reported at the same place that no evidence
+// proves (ADR-0041). It is not a Finding. ProofCounts does not count it, and the
+// exit code does not see it. Reasons holds both reviewers' own words, the default
+// reviewer first.
+type Opinion struct {
+	ID       string
+	Title    string
+	Location Location
+	// Level is OpinionLevel. It is not a proof level and not a severity.
+	Level   string
+	Reasons []ReviewerVerdict
+}
 
 // ProofLevels lists every level, strongest first. Counts and renderers walk this order.
 var ProofLevels = []ProofLevel{ProvedByTest, ProvedByTool, ProvedByData, AgreedNotProven}
@@ -182,6 +275,27 @@ func ProofLevelOf(ev []Evidence) (ProofLevel, error) {
 	return level, nil
 }
 
+// AcceptedFinding is a finding an exception of the organisation policy accepts until its expiry date
+// (ADR-0036 point 2). The four fields the policy names are carried with it, never dropped.
+type AcceptedFinding struct {
+	Finding     Finding
+	ExceptionID string // the exception's id in the policy file
+	Reason      string
+	Owner       string
+	Expires     string // YYYY-MM-DD, the last day the exception holds
+}
+
+// ExpiredException is an exception past its expiry date that covers a finding of this review.
+type ExpiredException struct {
+	ExceptionID string
+	Finding     string // the finding's name: its id, else its rule
+	Rule        string
+	Location    string // the location as the policy wrote it
+	Reason      string
+	Owner       string
+	Expires     string // YYYY-MM-DD
+}
+
 // AuthorModel is one model the change named (ADR-0011).
 type AuthorModel struct {
 	Agent  string // the part before the first colon
@@ -205,6 +319,145 @@ type Finding struct {
 	// Models names the reviewer models that reported this finding.
 	// One name when one run found it. Both names, the default reviewer first, when both did.
 	Models []string
+	// Verdicts holds each reviewer's verdict and reason, the default reviewer first. It is empty when
+	// one reviewer ran. The verdicts are never combined (ADR-0037 point 4).
+	Verdicts []ReviewerVerdict
+	// Disagree is true when the reviewers who answered gave different verdicts. A reviewer that did not
+	// answer (VerdictNoAnswer) is not a disagreement.
+	Disagree bool
+	// Fix is the fix Proven proposes for the finding, or nil when it proposed none (ADR-0042).
+	// It is a suggestion for a person to apply; Proven never writes it to the change.
+	Fix *Fix
+	// EvidenceRecordURL is the address of the finding's evidence record in the
+	// read-only viewer page CouchDB serves. It is set only when the records
+	// setting and the link base URL setting are both set and the record was
+	// stored; otherwise it is empty and the comment shows no link. The pull
+	// request comment's renderer reads it.
+	EvidenceRecordURL string
+}
+
+// The kinds of Fix.
+const (
+	// FixPatch is a patch to the change, proved by the test that proved the finding.
+	FixPatch = "patch"
+	// FixDependency is a version of a package that leaves the advisory's affected range.
+	FixDependency = "dependency"
+)
+
+// Fix is a proposed fix for one finding (ADR-0042).
+// A patch is shown (Edits) only when Proved is true: it passed the proving test on the change with
+// the patch applied, the test failed on the change and passed on the base, and the other tests of the
+// package still passed. A patch that was not proved carries no Edits, and Note says the attempt failed.
+// Runs is the record of the proof, with the command and exit code of each run, so a reader can run it
+// again (point 7). A dependency fix has Dependency set and no Runs: no test proves a version change.
+type Fix struct {
+	Kind     string
+	Proved   bool
+	Attempts int
+	// What the fix changes and Why that closes the problem, as the model explained it.
+	What       string
+	Why        string
+	Edits      []FixEdit
+	Runs       []FixRun
+	Note       string
+	Dependency *DependencyFix
+}
+
+// FixEdit is one edit of a proposed patch: the one place where Old stands in the file at Path is
+// replaced by New. It is the whole patch in a form a person can apply by hand.
+type FixEdit struct {
+	Path string
+	Old  string
+	New  string
+}
+
+// FixRun is one run of the proof of a fix. Label names the tree it ran in (base, change,
+// change+patch, or the package on change+patch) and Result how it ended: passed, failed,
+// could not run or timed out. ExitCode is -1 when the run ended without one.
+type FixRun struct {
+	Label    string
+	Command  string
+	Result   string
+	ExitCode int
+	Output   string
+}
+
+// DependencyFix is the smallest version of Package that leaves the advisory's affected range (point 5).
+// AdvisoryColumns and AdvisoryRow are the row of the OSV table whose fixed version To is, so a reader
+// can check the choice against the table.
+type DependencyFix struct {
+	Ecosystem       string
+	Package         string
+	From            string
+	To              string
+	AdvisoryID      string
+	AdvisoryColumns []string
+	AdvisoryRow     []string
+}
+
+// The verdicts of the whole-change fix attempt (ADR-0050 point 3), in the words a person reads.
+const (
+	// AutofixFixed: every proved finding closed when its own evidence was run again on the patched change,
+	// and every package the patch touched still passes its tests. A person decides whether to apply the patch.
+	AutofixFixed = "fixed automatically, waiting for a person"
+	// AutofixRejected: after the one attempt a proved finding is still open, something broke, or the patch
+	// was refused before it ran. There is no second attempt.
+	AutofixRejected = "rejected"
+)
+
+// The kinds of proof a finding is judged by again on the patched change (ADR-0050 point 2).
+const (
+	AutofixProofTest = "test"
+	AutofixProofData = "data"
+	AutofixProofTool = "tool"
+	// AutofixProofBreakage is the run of every package the patch touched.
+	AutofixProofBreakage = "breakage"
+)
+
+// Autofix is the record of the one automated fix attempt for the whole change (ADR-0050). It is nil when no
+// attempt was made: the setting is off, or no finding was proved by a test, by data or by a tool.
+//
+// Edits and Diff are the patch the generator wrote, in two forms: Edits are exact replacements, and Diff is
+// the same change as a unified diff for a review comment to publish as suggested changes (point 4). They are
+// kept whatever the verdict, for the record, but ONLY a patch whose Verdict is AutofixFixed is a suggestion:
+// a renderer must not show a rejected patch as a fix (ADR-0042 point 3). Proven never commits the patch to the
+// author's branch. Findings has one row per proved finding with each re-run's command and output, open or closed.
+// Refused names why the patch was refused before any code ran, and is empty otherwise.
+type Autofix struct {
+	Verdict  string
+	What     string
+	Why      string
+	Edits    []FixEdit
+	Diff     string
+	Findings []AutofixFinding
+	// Breakage is the run of every package the patch touched, on the patched change, or nil when no
+	// code ran. A verdict of AutofixFixed needs it closed.
+	Breakage *AutofixProof `json:",omitempty"`
+	Refused  string
+}
+
+// Suggested reports whether the patch is a suggestion a person may apply: the verdict is AutofixFixed.
+func (a *Autofix) Suggested() bool { return a != nil && a.Verdict == AutofixFixed }
+
+// AutofixFinding is the verdict on one proved finding, named by its ID: Closed is true only when every one
+// of its proofs closed.
+type AutofixFinding struct {
+	ID     string
+	Closed bool
+	Proofs []AutofixProof
+}
+
+// AutofixProof is one of a finding's own pieces of evidence run again on the patched change. Kind is one of
+// the AutofixProof constants. Closed is true only when the run happened and the evidence no longer shows the
+// problem; Reason says why it is open. Command and Output are what Proven ran and printed, so a reader can run
+// it again. Runs holds the four runs of a test proof, each with its exit code.
+type AutofixProof struct {
+	Kind    string
+	Closed  bool
+	Reason  string
+	Command string
+	Output  string
+	Runs    []FixRun
 }
 
 // Location is where a finding is.
@@ -257,7 +510,8 @@ type TestEvidence struct {
 // QueryEvidence is a query and the rows it returned.
 type QueryEvidence struct {
 	SQL      string
-	Engine   string // "zetaris" or "local-sample"
+	Form     string // "sql", or "mango" for CouchDB (ADR-0047)
+	Engine   string // "zetaris", "local", "couchdb", or "local-sample"
 	Snapshot string // which snapshot of each source was read
 	Columns  []string
 	Rows     [][]string

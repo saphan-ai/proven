@@ -119,8 +119,8 @@ func Environment() []envdoc.Setting {
 }
 
 // agents is the closed set a require-NVIDIA list may name.
-// The names are the six agents of the review, as they call the generator.
-var agents = []string{"planner", "investigator", "prover", "skeptic", "judge", "writer"}
+// The names are the six agents of the review and the Fixer (ADR-0042), as they call the generator.
+var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
 type ConfigError struct {
@@ -158,6 +158,7 @@ type Settings struct {
 	Token         string
 	Timeout       time.Duration
 	SkepticModel  string
+	plain         bool
 	requireAll    bool
 	requireNone   bool
 	requireNVIDIA map[string]bool
@@ -219,8 +220,10 @@ func Load(env func(string) string) (Settings, error) {
 	// A line break or an over-long token is a wrong value, refused before any
 	// review. The value is not echoed: it is a secret. An empty token is
 	// handled after the other settings, so a bad URL is still refused.
-	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 {
-		return Settings{}, refuse(secretEnv, "", "the live generator needs a secret", "a non-empty secret in the environment, at most 4096 characters, with no line break")
+	// A secret too short to be redacted is refused too: the redactor has no
+	// length floor, so the loader holds the floor (service.MinSecretBytes).
+	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 || service.TooShortSecret(token) {
+		return Settings{}, refuse(secretEnv, "", "the live generator needs a secret", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
 	// ADR-0031 point 3: each mode reads its own address, as it reads its own secret.
 	// The key must never follow a base meant for Nightshift, because in nvidia mode
@@ -395,12 +398,12 @@ func parseRequire(raw string) (all, none bool, set map[string]bool, err error) {
 	for _, part := range strings.Split(raw, ",") {
 		name := strings.TrimSpace(part)
 		if !known[name] {
-			return false, false, nil, refuse(EnvRequireNVIDIA, raw, "unknown agent", "all, none, or a comma-separated list of planner, investigator, prover, skeptic, judge, writer")
+			return false, false, nil, refuse(EnvRequireNVIDIA, raw, "unknown agent", "all, none, or a comma-separated list of planner, investigator, prover, fixer, skeptic, judge, writer")
 		}
 		set[name] = true
 	}
 	if len(set) == 0 {
-		return false, false, nil, refuse(EnvRequireNVIDIA, raw, "empty agent list", "all, none, or a comma-separated list of planner, investigator, prover, skeptic, judge, writer")
+		return false, false, nil, refuse(EnvRequireNVIDIA, raw, "empty agent list", "all, none, or a comma-separated list of planner, investigator, prover, fixer, skeptic, judge, writer")
 	}
 	return false, false, set, nil
 }
@@ -413,4 +416,10 @@ func endpoint(base, method string) string {
 		return b + method
 	}
 	return b + "/v1" + method
+}
+
+// checkBaseFor checks the address in the setting named field, so the second reviewer's address
+// is refused under its own name and never under Nightshift's (ADR-0037).
+func checkBaseFor(field, raw string) (string, error) {
+	return checkBase(field, raw, false)
 }

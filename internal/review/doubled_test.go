@@ -250,14 +250,19 @@ func risks(rows ...riskRow) string {
 	return string(b)
 }
 
-// promptID returns the risk id an agent's prompt carries on its "id: " line.
+// promptID returns the risk id an agent's prompt carries in its data section.
 func promptID(prompt string) string {
-	for _, line := range strings.Split(prompt, "\n") {
-		if strings.HasPrefix(line, "id: ") {
-			return strings.TrimPrefix(line, "id: ")
-		}
+	_, data, ok := strings.Cut(prompt, "DATA:\n")
+	if !ok {
+		return ""
 	}
-	return ""
+	var rec struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(data), &rec); err != nil {
+		return ""
+	}
+	return rec.ID
 }
 
 // called reports whether agent called the generator g.

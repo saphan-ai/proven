@@ -1,0 +1,32 @@
+# act_runner config for the judges' lab.
+# Jobs are started on the lab's dind daemon (tcp), never on the host socket.
+# force_pull is false so the locally loaded proven image is the one that runs.
+
+log:
+  level: info
+
+runner:
+  file: /data/.runner
+  capacity: 1
+  timeout: 3h
+  shutdown_timeout: 30s
+  fetch_timeout: 5s
+  fetch_interval: 2s
+  labels: []
+
+cache:
+  enabled: false
+
+container:
+  network: host
+  privileged: false
+  options: "--env DOCKER_HOST=tcp://127.0.0.1:2375 --env PROVEN_LAB=1"
+  workdir_parent:
+  valid_volumes:
+    - '**'
+  docker_host: ""
+  force_pull: false
+  force_rebuild: false
+
+host:
+  workdir_parent:

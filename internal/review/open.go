@@ -7,7 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
@@ -18,9 +22,13 @@ import (
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
+	"github.com/saphan-ai/proven/internal/tool"
 )
 
 // open is Open. It refuses a missing LogDir, loads proven.yaml when the shell named one, and in live
@@ -51,17 +59,31 @@ func open(opts Options) (Reviewer, error) {
 		reads = loaded
 	}
 	change.UseLimits(reads)
-	cfg := defaultSettings()
+	// ADR-0036: the organisation policy is read first, once, and refused here when it is missing or
+	// malformed. Whether it lies inside the repository is known only when a review names its target.
+	var pol *policy
+	if opts.PolicyPath != "" {
+		loaded, err := loadPolicy(opts.PolicyPath)
+		if err != nil {
+			return nil, err
+		}
+		pol = loaded
+	}
+	cfg := pol.base()
 	explicit := false
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
 	// change's baseline (see runner.Review).
 	if opts.ConfigPath != "" {
-		loaded, err := loadConfigFile(opts.ConfigPath)
+		loaded, err := loadConfigFileUnder(opts.ConfigPath, pol)
 		if err != nil {
 			return nil, err
 		}
 		cfg = loaded
 		explicit = true
+	}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
 	}
 	popts := pipeline.Options{
 		Sample: opts.Sample,
@@ -70,6 +92,9 @@ func open(opts Options) (Reviewer, error) {
 	}
 	var kevView string
 	var adapterLimit time.Duration
+	var localFile string
+	// secondModel is the connected second reviewer's model; empty when none is connected (ADR-0037).
+	var secondModel string
 	// In sample mode the pipeline uses its recorded adapters, so none of the live settings are read.
 	if !opts.Sample {
 		env := opts.Env
@@ -93,6 +118,17 @@ func open(opts Options) (Reviewer, error) {
 			// so the review does not dial. A review leaves gen unset.
 			popts.Generator = opts.gen
 		}
+		// ADR-0037: a key for a second reviewer connects it. Its settings are checked here, so a wrong
+		// address stops Open before any review. With no key nothing is connected and the review has
+		// one reviewer, as before.
+		sec, connected, serr := generator.LoadSecond(env)
+		if serr != nil {
+			return nil, generatorConfig(serr)
+		}
+		if connected {
+			popts.Special = generator.NewSecond(sec, nil)
+			secondModel = sec.Model
+		}
 		// ADR-0005, ADR-0013 point 4: the redactor holds the value of every secret this review loads, so no key
 		// a service echoes back reaches the trace or the result.
 		popts.Redactor = redact.FromEnv(env)
@@ -115,18 +151,48 @@ func open(opts Options) (Reviewer, error) {
 			}
 			popts.Guardrail = rail
 		}
-		zset, zerr := query.Load(env)
-		if d, ok := service.As(zerr); ok {
-			popts.Down = append(popts.Down, *d)
-			popts.LiveQuery = query.Absent{Reason: d.Reason}
-		} else if zerr != nil {
-			return nil, queryConfig(zerr)
-		} else {
-			popts.LiveQuery = query.NewLive(zset, nil)
+		// ADR-0047: one setting chooses the store. The default is Zetaris, and
+		// that path is the client this review already used. local skips the
+		// Zetaris settings, so a review with no Zetaris key still runs.
+		choice, serr := store.Load(env)
+		if serr != nil {
+			return nil, storeConfig(serr)
 		}
-		if opts.liveQuery != nil {
-			// A test supplies the query adapter. The live client above is not called.
-			popts.LiveQuery = opts.liveQuery
+		if choice.Name == store.NameLocal {
+			// ADR-0047: the file is opened on the first query, after Review has
+			// checked it is not inside the target. Opening creates it, and the
+			// target is not known until a review starts. The seam is the store,
+			// so a query is a template request and the file runs the sql form.
+			localFile = choice.File
+			popts.LiveStore = &lazyLocal{path: choice.File}
+		} else if choice.Name == store.NameCouchDB {
+			// ADR-0047, ADR-0013: a wrong CouchDB value stops Open; an empty
+			// address, user or password is a down store the review names.
+			// The Zetaris variables are not read. A configured store is
+			// installed on the seam and runs the mango form.
+			cfg, cerr := store.LoadCouch(env)
+			if d, ok := service.As(cerr); ok {
+				popts.Down = append(popts.Down, *d)
+				popts.LiveStore = downStore{service: "couchdb", reason: d.Reason}
+			} else if cerr != nil {
+				return nil, storeConfig(cerr)
+			} else {
+				popts.LiveStore = store.NewCouchDB(cfg, nil)
+			}
+		} else {
+			zset, zerr := query.Load(env)
+			if d, ok := service.As(zerr); ok {
+				popts.Down = append(popts.Down, *d)
+				popts.LiveStore = downStore{service: "zetaris", reason: d.Reason}
+			} else if zerr != nil {
+				return nil, queryConfig(zerr)
+			} else {
+				popts.LiveStore = store.NewZetaris(zset)
+			}
+		}
+		if opts.liveStore != nil {
+			// A test supplies the store. The live client above is not called.
+			popts.LiveStore = opts.liveStore
 		}
 		table, terr := osv.LoadTable(env)
 		if terr != nil {
@@ -163,6 +229,20 @@ func open(opts Options) (Reviewer, error) {
 				popts.TestRun = box
 			}
 		}
+		// ADR-0043: the govulncheck database and the tool time limit are settings.
+		// A wrong value stops Open. An empty database is allowed: the tool is
+		// named as not run and Go findings stay not measured. Sample mode
+		// skips this block and does not read either variable.
+		db, derr := tool.LoadDB(env)
+		if derr != nil {
+			return nil, toolConfig(derr)
+		}
+		popts.GovulnDB = db
+		tlim, terr2 := tool.Load(env)
+		if terr2 != nil {
+			return nil, toolConfig(terr2)
+		}
+		popts.ToolTimeout = tlim
 		// ADR-0013: the KEV view and the adapter bound are settings. A wrong
 		// value stops Open before any review. Sample mode skips this block
 		// and does not read either variable.
@@ -177,11 +257,188 @@ func open(opts Options) (Reviewer, error) {
 		}
 		adapterLimit = bound
 	}
+	// ADR-0045: telemetry is off unless the standard OTEL_* variables name an endpoint. A wrong value
+	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
+	// the lab's pull-request review is a sample review, and it is the one the dashboard shows. Setup
+	// reads only OTEL_* names.
+	// ADR-0013: the evidence records and their link are settings. A wrong value stops Open. Sample mode
+	// reads them too, as it reads OTEL_*: the lab's pull-request review is a sample review, and the
+	// lab's CouchDB is where its records go. Unset, nothing is written and no link is made.
+	rec, rcerr := openRecorder(opts)
+	if rcerr != nil {
+		return nil, rcerr
+	}
+	tel := opts.tel
+	if tel == nil {
+		set, terr := telemetry.Setup(context.Background(), opts.Env)
+		if terr != nil {
+			return nil, telemetryConfig(terr)
+		}
+		tel = set
+	}
+	popts.Telemetry = tel
 	p, err := pipeline.Build(popts)
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec}, nil
+}
+
+// openRecorder loads the records settings and the link base address. It returns a nil recorder
+// when PROVEN_COUCHDB_RECORDS is unset: a link needs a stored record, so the link base alone
+// makes no link.
+func openRecorder(opts Options) (*recorder, error) {
+	env := opts.Env
+	if env == nil {
+		env = func(string) string { return "" }
+	}
+	rset, err := store.LoadRecords(env)
+	if err != nil {
+		return nil, storeConfig(err)
+	}
+	link, err := store.LoadLinkBase(env)
+	if err != nil {
+		return nil, storeConfig(err)
+	}
+	if !rset.Enabled() {
+		return nil, nil
+	}
+	rc := &recorder{
+		writer:   store.NewRecorder(rset, opts.recordsClient),
+		linkBase: link,
+		pr:       store.PullOf(env(envGitHubRef)),
+		now:      time.Now,
+	}
+	// The read-only account is the one the viewer is opened with. When it is not configured the
+	// viewer cannot be checked, and the link is shown unchecked with a failed service that says so.
+	if cfg, cerr := store.LoadCouch(env); cerr == nil {
+		rc.reader = store.NewCouchDB(cfg, opts.recordsClient)
+	}
+	return rc, nil
+}
+
+// lazyLocal opens the local store on its first use, so nothing is written
+// before the review has checked where the file is (ADR-0047).
+type lazyLocal struct {
+	path string
+	once sync.Once
+	loc  *store.Local
+	err  error
+}
+
+// Register opens the file once and writes the table into it.
+func (l *lazyLocal) Register(ctx context.Context, table store.Table) error {
+	l.open()
+	if l.err != nil {
+		return l.err
+	}
+	return l.loc.Register(ctx, table)
+}
+
+// Run opens the file once and runs the template on it. The file speaks SQL,
+// so the evidence names that form (ADR-0047).
+func (l *lazyLocal) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (store.Evidence, error) {
+	l.open()
+	if l.err != nil {
+		return store.Evidence{}, l.err
+	}
+	return l.loc.Run(ctx, req, rel)
+}
+
+// open loads the file on the first call. Later calls see the same store.
+func (l *lazyLocal) open() {
+	l.once.Do(func() { l.loc, l.err = store.OpenLocal(l.path) })
+}
+
+// downStore is a store that names itself down and does not dial.
+// A request that cannot be built is refused first, so a bad template is the
+// same answer whether or not the store is up (ADR-0032).
+type downStore struct {
+	service string
+	reason  string
+}
+
+// Register names the store down. Nothing is written.
+func (d downStore) Register(context.Context, store.Table) error {
+	return d.down()
+}
+
+// Run refuses a request that cannot be built, and otherwise names the store down.
+func (d downStore) Run(_ context.Context, req querytpl.Request, rel querytpl.Relations) (store.Evidence, error) {
+	if _, err := querytpl.BuildForms(req, rel); err != nil {
+		return store.Evidence{}, err
+	}
+	return store.Evidence{}, d.down()
+}
+
+func (d downStore) down() error {
+	reason := d.reason
+	if reason == "" {
+		reason = "not configured"
+	}
+	return &service.Down{Service: d.service, Reason: reason}
+}
+
+// checkLocalFile refuses a local evidence file that resolves inside the
+// review's target (ADR-0047). The refusal names the setting.
+func checkLocalFile(file, target string) error {
+	if file == "" {
+		return nil
+	}
+	inside, err := store.Within(file, target)
+	if err != nil {
+		return err
+	}
+	if inside {
+		return &ConfigError{
+			Field:   store.EnvFile,
+			Value:   file,
+			Reason:  "the file is inside the repository under review",
+			Allowed: []string{"a path outside the review target"},
+		}
+	}
+	return nil
+}
+
+// telemetryFlushBound bounds the push of a review's telemetry to the exporter, so an unreachable
+// collector never holds a finished review back for long.
+const telemetryFlushBound = 5 * time.Second
+
+// telemetryConfig turns a refused OTEL_* setting into the seam's *ConfigError.
+func telemetryConfig(err error) error {
+	var cfg *telemetry.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// withSecond makes the connected second reviewer the special reviewer (ADR-0037 point 2) and widens
+// the doubled classes (point 3): with a second reviewer connected every class is doubled, unless
+// proven.yaml names the classes, and security is doubled either way. With none connected cfg is
+// returned as it is, so one reviewer reviews exactly as before.
+func withSecond(cfg fileSettings, model string) fileSettings {
+	if model == "" {
+		return cfg
+	}
+	cfg.SpecialReviewer = model
+	doubled := map[string]bool{}
+	if cfg.DoubledSet {
+		for class, on := range cfg.Doubled {
+			doubled[class] = on
+		}
+	} else {
+		for _, class := range classNames() {
+			doubled[class] = true
+		}
+	}
+	// Security is always doubled, even under "doubled_classes: off".
+	doubled["security"] = true
+	cfg.Doubled = doubled
+	return cfg
 }
 
 // runner is the seam's Reviewer. It copies the writer's draft into Result.
@@ -193,10 +450,63 @@ type runner struct {
 	explicit     bool
 	kevView      string
 	adapterLimit time.Duration
+	localFile    string
+	// secondModel is the second reviewer's model when one is connected; empty otherwise.
+	secondModel string
+	// tel is the review's telemetry; nil is off (ADR-0045).
+	tel *telemetry.T
+	// sample is true when the adapters are the recorded ones.
+	sample bool
+	// records writes the review's evidence records; nil when none are written.
+	records *recorder
+	pol     *policy          // the organisation policy, or nil (ADR-0036)
+	now     func() time.Time // the review's clock; nil in a runner built by a test means time.Now
 }
 
-// Review runs one review: settings, deadline, class, the six agents, then the decision lines.
+// Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
+// only observe: what the review decides is what review returns.
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
+	if r.tel == nil {
+		return r.review(ctx, req)
+	}
+	ctx, root := r.tel.StartReview(ctx,
+		attribute.Bool("proven.sample", r.sample),
+	)
+	res, err := r.review(ctx, req)
+	counts := map[string]int{}
+	for level, n := range res.ProofCounts {
+		counts[string(level)] = n
+	}
+	r.tel.Findings(ctx, counts)
+	root.End(err,
+		attribute.Int("proven.findings", len(res.Findings)),
+		attribute.Bool("proven.partial", res.Partial),
+		attribute.String("proven.class", res.Class),
+		attribute.Bool("proven.doubled", res.Doubled),
+		attribute.Int("proven.failed_services", len(res.FailedServices)),
+	)
+	// The caller's context may be over by now (a deadline); the push has its own bound.
+	flush, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryFlushBound)
+	defer cancel()
+	// A failed push is not a failed review. It is not hidden either: the shell's stderr has it.
+	if ferr := r.tel.Flush(flush); ferr != nil {
+		fmt.Fprintf(os.Stderr, "proven: telemetry not exported: %v\n", ferr)
+	}
+	return res, err
+}
+
+// review runs one review: settings, deadline, class, the six agents, then the decision lines.
+func (r *runner) review(ctx context.Context, req Request) (Result, error) {
+	// ADR-0047: before anything reads or writes, the local evidence file must
+	// be outside the tree under review.
+	if err := checkLocalFile(r.localFile, req.Target); err != nil {
+		return Result{}, err
+	}
+	// A policy inside the repository under review is refused before anything else is read: the change
+	// could have edited it.
+	if err := r.pol.refuseInside(req.Target); err != nil {
+		return Result{}, err
+	}
 	cfg := r.cfg
 	// Settings come from the baseline commit, not from the change, so a change cannot loosen its
 	// own review. With no baseline there is only the working tree to read.
@@ -204,15 +514,16 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		var loaded fileSettings
 		var err error
 		if req.BaselineCommit != "" {
-			loaded, err = loadSettingsAtBaseline(req.Target, req.BaselineCommit)
+			loaded, err = loadSettingsAtBaselineUnder(req.Target, req.BaselineCommit, r.pol)
 		} else {
-			loaded, err = loadSettingsInTarget(req.Target)
+			loaded, err = loadSettingsInTargetUnder(req.Target, r.pol)
 		}
 		if err != nil {
 			return Result{}, err
 		}
 		cfg = loaded
 	}
+	cfg = withSecond(cfg, r.secondModel)
 	// The timeout setting applies only when the shell set no deadline: --timeout wins.
 	// Zero means no deadline from the settings.
 	timeout := cfg.Timeout
@@ -234,6 +545,10 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		}
 		class, _ := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
 		double = cfg.Doubled[class]
+		if double {
+			// The second reviewer shows on the dashboard before it starts.
+			r.tel.ExpectReviewer(ctx, telemetry.ReviewerSpecial)
+		}
 	}
 	// The KEV view and the adapter bound ride the context. The pipeline's
 	// calls do not take them, and this change does not edit that package.
@@ -254,6 +569,16 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		DoubleRun:      double,
 		DefaultModel:   cfg.DefaultReviewer,
 		SpecialModel:   cfg.SpecialReviewer,
+		// ADR-0042: the settings that turn proposed fixes off and bound their attempts.
+		FixesOff:    !cfg.Fixes,
+		FixAttempts: cfg.FixAttempts,
+		// ADR-0050 point 6: the whole-change attempt, the generator that writes its patch and its time limit.
+		Autofix:        cfg.Autofix,
+		AutofixSpecial: cfg.AutofixGenerator == autofixGeneratorSpecial,
+		AutofixTimeout: cfg.AutofixTimeout,
+		// ADR-0013: the evidence scope of each role that can query.
+		InvestigatorScope: cfg.InvestigatorScope,
+		SkepticScope:      cfg.SkepticScope,
 	})
 	if err != nil {
 		return Result{}, err
@@ -265,6 +590,17 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	if err := applyDecision(&out, cfg, req); err != nil {
 		return Result{}, err
 	}
+	if r.pol != nil {
+		out.PolicyStatement = "organisation policy: " + r.pol.path
+		now := r.now
+		if now == nil {
+			now = time.Now
+		}
+		r.pol.applyExceptions(&out, now())
+	}
+	// The records are written last, from the Result the shell will print, so a record holds
+	// what the reader is shown. A failure is named in FailedServices and does not fail the review.
+	r.records.publish(ctx, req, &out)
 	return out, nil
 }
 
@@ -275,7 +611,11 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 // ADR-0044: fill sets each finding's ProofLevel from its strongest evidence and counts the findings by
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
-	out := Result{Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{}}
+	out := Result{
+		Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{},
+		// A guardrail that was off is named in the result, not only in the trace.
+		GuardrailStatement: d.GuardrailStatement,
+	}
 	for _, l := range ProofLevels {
 		out.ProofCounts[l] = 0
 	}
@@ -290,6 +630,14 @@ func fill(d candidate.Draft) (Result, error) {
 		for _, e := range c.Evidence {
 			f.Evidence = append(f.Evidence, toEvidence(e))
 		}
+		f.Fix = toFix(c.Fix)
+		for _, v := range c.Verdicts {
+			f.Verdicts = append(f.Verdicts, ReviewerVerdict{Role: v.Run, Model: v.Model, Verdict: v.Verdict, Reason: v.Reason})
+		}
+		f.Disagree = disagree(f.Verdicts)
+		if f.Disagree {
+			out.Disagreements++
+		}
 		level, err := ProofLevelOf(f.Evidence)
 		if err != nil {
 			return Result{}, fmt.Errorf("finding %s: %w", c.ID, err)
@@ -297,6 +645,18 @@ func fill(d candidate.Draft) (Result, error) {
 		f.ProofLevel = level
 		out.ProofCounts[level]++
 		out.Findings = append(out.Findings, f)
+	}
+	// ADR-0041: an opinion is copied beside the findings. It has no proof level,
+	// so it is not added to ProofCounts and it cannot fail the review.
+	for _, o := range d.Opinions {
+		op := Opinion{
+			ID: o.ID, Title: o.Title, Level: OpinionLevel,
+			Location: Location{Path: o.Path, StartLine: o.StartLine, EndLine: o.EndLine},
+		}
+		for _, v := range o.Reasons {
+			op.Reasons = append(op.Reasons, ReviewerVerdict{Role: v.Run, Model: v.Model, Verdict: v.Verdict, Reason: v.Reason})
+		}
+		out.Opinions = append(out.Opinions, op)
 	}
 	for _, s := range d.Failed {
 		out.FailedServices = append(out.FailedServices, ServiceFailure{Service: s.Service, Reason: s.Reason})
@@ -309,13 +669,96 @@ func fill(d candidate.Draft) (Result, error) {
 	if len(d.SkippedPaths) > 0 {
 		out.SkippedPaths = append([]string(nil), d.SkippedPaths...)
 	}
+	out.Autofix = toAutofix(d.Autofix)
 	if out.Findings == nil {
 		out.Findings = []Finding{}
+	}
+	if out.Opinions == nil {
+		out.Opinions = []Opinion{}
 	}
 	if out.FailedServices == nil {
 		out.FailedServices = []ServiceFailure{}
 	}
 	return out, nil
+}
+
+// toFix copies a proposed fix across the seam, field by field. A nil fix stays nil.
+func toFix(f *candidate.Fix) *Fix {
+	if f == nil {
+		return nil
+	}
+	out := &Fix{
+		Kind: f.Kind, Proved: f.Proved, Attempts: f.Attempts,
+		What: f.What, Why: f.Why, Note: f.Note,
+	}
+	for _, e := range f.Edits {
+		out.Edits = append(out.Edits, FixEdit{Path: e.Path, Old: e.Old, New: e.New})
+	}
+	for _, r := range f.Runs {
+		out.Runs = append(out.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+	}
+	if d := f.Dependency; d != nil {
+		out.Dependency = &DependencyFix{
+			Ecosystem: d.Ecosystem, Package: d.Package, From: d.From, To: d.To,
+			AdvisoryID:      d.AdvisoryID,
+			AdvisoryColumns: append([]string(nil), d.AdvisoryColumns...),
+			AdvisoryRow:     append([]string(nil), d.AdvisoryRow...),
+		}
+	}
+	return out
+}
+
+// toAutofix copies the whole-change fix attempt across the seam, field by field. A nil attempt stays nil
+// (ADR-0050): a review that made none says nothing about one.
+func toAutofix(a *candidate.Autofix) *Autofix {
+	if a == nil {
+		return nil
+	}
+	out := &Autofix{Verdict: a.Verdict, What: a.What, Why: a.Why, Diff: a.Diff, Refused: a.Refused}
+	for _, e := range a.Edits {
+		out.Edits = append(out.Edits, FixEdit{Path: e.Path, Old: e.Old, New: e.New})
+	}
+	for _, f := range a.Findings {
+		nf := AutofixFinding{ID: f.ID, Closed: f.Closed}
+		for _, p := range f.Proofs {
+			nf.Proofs = append(nf.Proofs, toAutofixProof(p))
+		}
+		out.Findings = append(out.Findings, nf)
+	}
+	if a.Breakage != nil {
+		b := toAutofixProof(*a.Breakage)
+		out.Breakage = &b
+	}
+	return out
+}
+
+// toAutofixProof copies one proof across the seam, with its runs.
+func toAutofixProof(p candidate.AutofixProof) AutofixProof {
+	np := AutofixProof{Kind: p.Kind, Closed: p.Closed, Reason: p.Reason, Command: p.Command, Output: p.Output}
+	for _, r := range p.Runs {
+		np.Runs = append(np.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+	}
+	return np
+}
+
+// disagree reports whether the reviewers who answered gave different verdicts on one finding
+// (ADR-0037 point 4). The verdicts are compared, never merged: two different verdicts stay two.
+// A reviewer with no answer is left out, because a failed call says nothing about the finding.
+func disagree(vs []ReviewerVerdict) bool {
+	first := ""
+	for _, v := range vs {
+		if v.Verdict == VerdictNoAnswer {
+			continue
+		}
+		if first == "" {
+			first = v.Verdict
+			continue
+		}
+		if v.Verdict != first {
+			return true
+		}
+	}
+	return false
 }
 
 // toEvidence copies one piece of evidence across the seam, field by field.
@@ -331,7 +774,7 @@ func toEvidence(e candidate.Evidence) Evidence {
 	if e.Query != nil {
 		q := *e.Query
 		out.Query = &QueryEvidence{
-			SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot,
+			SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
 			Rows:    copyRows(q.Rows),
 		}
@@ -350,9 +793,21 @@ func toEvidence(e candidate.Evidence) Evidence {
 
 // queryConfig turns a refused Zetaris query setting into the seam's *ConfigError.
 // The shell exits 7 on that type. Any other error passes through unchanged.
-// The five functions below do the same for the other adapters' settings.
+// The functions below do the same for the other adapters' settings.
 func queryConfig(err error) error {
 	var cfg *query.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// storeConfig turns a refused evidence-store setting into the seam's *ConfigError.
+func storeConfig(err error) error {
+	var cfg *store.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
@@ -377,6 +832,18 @@ func guardrailConfig(err error) error {
 // epssConfig turns a refused EPSS view setting into the seam's *ConfigError.
 func epssConfig(err error) error {
 	var cfg *epss.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// toolConfig turns a refused tool setting into the seam's *ConfigError.
+func toolConfig(err error) error {
+	var cfg *tool.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

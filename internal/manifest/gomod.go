@@ -1,7 +1,13 @@
 // Package manifest reads dependency manifests and lock files and names the
 // packages a change added or raised. Go (go.mod and go.sum), npm
-// (package.json and package-lock.json) and PyPI (requirements.txt and
-// poetry.lock) each have a manifest reader and a lock reader.
+// (package.json and package-lock.json), PyPI (requirements.txt and
+// poetry.lock), Packagist (composer.json and composer.lock), Rust
+// (Cargo.toml and Cargo.lock) and Kotlin (libs.versions.toml,
+// build.gradle.kts and gradle.lockfile) each have a manifest reader and a
+// lock reader. Kotlin has two manifest readers, one per file. Each reader
+// is an Adapter: the
+// files, the diff, the OSV ecosystem name, and the version comparison
+// (ADR-0038).
 //
 // It feeds the dependency check of the review, which runs with no model:
 // osv.Check calls Collect, queries the OSV table once per package it gets
@@ -40,9 +46,9 @@ type Change struct {
 }
 
 // Hit is a Change plus the manifest it came from.
-// Ecosystem is the OSV ecosystem name, Go, npm or PyPI; the query filters
-// the table's ecosystem column on it. File is the slash path of the
-// manifest under the change root.
+// Ecosystem is the OSV ecosystem name the adapter declares. The query
+// filters the table's ecosystem column on it. File is the slash path of
+// the manifest under the change root.
 // Lock is set when the hit came from a lock file.
 type Hit struct {
 	Ecosystem string
@@ -51,7 +57,9 @@ type Hit struct {
 	Change
 }
 
-// Reader reads one manifest kind.
+// Reader reads one manifest kind. It is the adapter of one ecosystem
+// (ADR-0038): which files, how a base and a change differ, the OSV
+// ecosystem name, and how two versions compare. Adapter is the same type.
 // Notes, when set, names lines of the change side that were not dependencies.
 // Each string is one sentence the OSV check writes to the trace.
 // Lock is set for a lock file. preferLock then keeps that hit and drops the
@@ -62,10 +70,19 @@ type Hit struct {
 // this kind; it matches the exact file name, never a suffix like .bak.
 // Diff names what the change side adds or raises over the base side. A
 // file that exists on one side only reaches it as empty bytes on the other.
+// Compare orders two versions by this ecosystem's rules. The bool is false
+// when either string is not a version this adapter compares. It is the same
+// order Diff uses, so a raise and an OSV range cannot disagree.
+// Explain says why a value is not such a version. kind is the bound name
+// (introduced, fixed, last_affected) or empty for the package version.
+// The bool is true when the value parses. A nil Explain means this
+// ecosystem is not compared.
 type Reader struct {
 	Ecosystem string
 	Match     func(path string) bool
 	Diff      func(base, change []byte) ([]Change, error)
+	Compare   func(a, b string) (int, bool)
+	Explain   func(kind, value string) (string, bool)
 	Notes     func(change []byte) []string
 	Lock      bool
 	NoteErr   bool
@@ -78,7 +95,9 @@ func Go() Reader {
 		Match: func(path string) bool {
 			return path == "go.mod" || strings.HasSuffix(path, "/go.mod")
 		},
-		Diff: diffGo,
+		Diff:    diffGo,
+		Compare: semver.Compare,
+		Explain: semver.Explain,
 	}
 }
 
@@ -136,7 +155,7 @@ func Collect(files []change.File, readers []Reader) ([]Hit, []string, error) {
 
 // preferLock drops a manifest hit when a lock file in the same directory
 // already names that package. The lock hit carries the exact version.
-// PyPI names match after PEP 503 normalisation. Go and npm names do not.
+// PyPI names match after PEP 503 normalisation. Go, npm and crate names do not.
 func preferLock(hits []Hit) []Hit {
 	type key struct {
 		dir string
@@ -177,8 +196,8 @@ func dirOf(path string) string {
 
 // foldName gives the name preferLock compares. A PyPI name is the PEP 503
 // form, so Flask and flask are one package, and zope_interface and
-// zope.interface are one package. Go module paths and npm names are compared
-// as written: case folding would merge modules that are not the same.
+// zope.interface are one package. Go module paths, npm names and crate names
+// are compared as written: case folding would merge modules that are not the same.
 func foldName(ecosystem, pkg string) string {
 	if ecosystem == "PyPI" {
 		return pep503.Normalise(pkg)

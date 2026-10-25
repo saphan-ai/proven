@@ -1,0 +1,68 @@
+# The workflow a GitHub user commits, and the workflow the lab seeds.
+# Proven's Action is not on main yet, so this job runs `proven scan --sample`
+# and posts the text. See docs/LAB.md.
+# proven-image: saphan/proven:latest
+
+name: proven
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Every step is POSIX sh: the lab's job image (docker:cli, Alpine) has no bash,
+# and act runs a step with bash unless the workflow names a shell.
+defaults:
+  run:
+    shell: sh
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run the sample review
+        run: |
+          docker run --rm --entrypoint sh saphan/proven:latest -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && proven scan --sample /opt/proven/fixture/discount' > review.txt
+          grep -q 'finding F1' review.txt
+
+      - name: Post the review on the pull request
+        env:
+          PROVEN_TOKEN: ${{ secrets.PROVEN_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API_URL: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_NUMBER: ${{ github.run_number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          token="$PROVEN_TOKEN"
+          if [ -z "$token" ]; then
+            token="$GH_TOKEN"
+          fi
+          if [ -z "$token" ]; then
+            echo "no token to post the review" >&2
+            exit 1
+          fi
+          {
+            printf '<!-- proven-review run=%s sha=%s -->\n' "$RUN_NUMBER" "$HEAD_SHA"
+            cat review.txt
+          } > comment.txt
+          awk '
+            BEGIN { printf "{\"body\":\"" }
+            {
+              gsub(/\\/, "\\\\")
+              gsub(/"/, "\\\"")
+              gsub(/\r/, "")
+              printf "%s\\n", $0
+            }
+            END { printf "\"}" }
+          ' comment.txt > comment.json
+          wget -O post.out \
+            --header="Authorization: token $token" \
+            --header="Content-Type: application/json" \
+            --post-file=comment.json \
+            "$API_URL/repos/$REPO/issues/$PR/comments"
+          cat post.out
+          grep -q '"id"' post.out

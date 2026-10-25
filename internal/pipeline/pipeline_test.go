@@ -75,8 +75,11 @@ func TestUnplugLiveTestRunNamesProverOff(t *testing.T) {
 	}
 }
 
-// Mutated fixture field: tables.sql. An OSV row is added for package billing/note,
-// the package F3's recorded template request names.
+// Property: query rows for a package the change does not require are not
+// evidence about the change, even when the Investigator's recorded request
+// names that package. Mutated fixture field: tables.sql. An OSV row is added for
+// package billing/note, the package F3's recorded template request names; the
+// change requires no such package, so F3 stays dropped.
 func TestNegativeControl_F3RecordedQueryRow(t *testing.T) {
 	dir := copyFixture(t)
 	sql := filepath.Join(dir, "tables.sql")
@@ -102,15 +105,12 @@ func TestNegativeControl_F3RecordedQueryRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f3, ok := kept(d, "F3")
-	if !ok {
-		t.Fatal("F3 should appear once its query returns a row")
+	if _, ok := kept(d, "F3"); ok {
+		t.Fatal("F3 must stay dropped: its rows are about a package the change does not require")
 	}
-	if len(f3.Evidence) != 1 || f3.Evidence[0].Query == nil || len(f3.Evidence[0].Query.Rows) != 1 {
-		t.Fatalf("%#v", f3.Evidence)
-	}
-	if f3.Evidence[0].Query.Rows[0][3] != "billing/note" {
-		t.Fatalf("row %#v", f3.Evidence[0].Query.Rows)
+	// The same review keeps the finding whose rows are about the change's own package.
+	if _, ok := kept(d, "F2"); !ok {
+		t.Fatal("F2 must stay: its rows are about the package the change requires")
 	}
 }
 
@@ -244,8 +244,11 @@ func TestNegativeControl_PackageTheAdvisoryDoesNotName(t *testing.T) {
 	if _, ok := kept(d, "F1"); !ok {
 		t.Fatal("F1 must stay")
 	}
-	if _, ok := kept(d, "F4"); !ok {
-		t.Fatal("F4 is keyed by cve_id, which this mutation does not change")
+	// F4 is keyed by cve_id, which this mutation does not change. But the
+	// change is no longer affected by any advisory row, so the CVE is not about
+	// the change and F4 is dropped too.
+	if _, ok := kept(d, "F4"); ok {
+		t.Fatal("F4 must be absent when no advisory row names a package the change requires")
 	}
 }
 
@@ -356,7 +359,7 @@ func addQueryFinding(dir, title, answer string) error {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
 			Response string `json:"response"`
-		}{Agent: "investigator", Prompt: investigator.Prompt("F5", title, "go.mod"), Response: answer},
+		}{Agent: "investigator", Prompt: investigator.Prompt("F5", title, "go.mod", nil), Response: answer},
 		struct {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
@@ -366,7 +369,7 @@ func addQueryFinding(dir, title, answer string) error {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
 			Response string `json:"response"`
-		}{Agent: "skeptic", Prompt: skeptic.Prompt("F5", title), Response: `{"refuted":false,"reason":"no refutation"}`},
+		}{Agent: "skeptic", Prompt: skeptic.Prompt("F5", title, nil), Response: `{"refuted":false,"reason":"no refutation"}`},
 	)
 	out, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
@@ -534,19 +537,20 @@ func TestKEVFindingGetsItsEPSSRow(t *testing.T) {
 	}
 }
 
-// Mutated field: the OSV row F3's template request selects. Its CVE is not in
-// the EPSS view, so the finding stays and no score is attached.
+// Mutated field: the EPSS row of F4's CVE is removed from tables.sql. F4 stays,
+// bound to the change through its KEV row, and no score is attached.
 func TestCVEWithNoEPSSRowAttachesNothing(t *testing.T) {
 	dir := copyFixture(t)
 	sql := filepath.Join(dir, "tables.sql")
-	f, err := os.OpenFile(sql, os.O_APPEND|os.O_WRONLY, 0)
+	b, err := os.ReadFile(sql)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteString("INSERT INTO px_osvfile.px_osv_pkg VALUES ('GHSA-px-note-0001', 'CVE-2026-0099', 'Go', 'billing/note', '0', '1.0.0', '', 'LOW', '2026-04-01');\n"); err != nil {
-		t.Fatal(err)
+	const row = "INSERT INTO px_evidence.px_epss_cve_rows VALUES ('CVE-2026-0001', '0.50000', '0.90000', '2026-10-20');\n"
+	if bytes.Count(b, []byte(row)) != 1 {
+		t.Fatal("the EPSS row of CVE-2026-0001 is not in tables.sql once")
 	}
-	if err := f.Close(); err != nil {
+	if err := os.WriteFile(sql, bytes.Replace(b, []byte(row), nil, 1), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	p := buildSample(t, t.TempDir(), nil)
@@ -554,14 +558,14 @@ func TestCVEWithNoEPSSRowAttachesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f3, ok := kept(d, "F3")
+	f4, ok := kept(d, "F4")
 	if !ok {
-		t.Fatal("F3 should appear once its query returns a row")
+		t.Fatal("F4 should stay: its KEV row is about the change")
 	}
-	if len(f3.Evidence) != 1 || epssQuery(f3) != nil {
-		t.Fatalf("F3 evidence %#v", f3.Evidence)
+	if len(f4.Evidence) != 1 || epssQuery(f4) != nil {
+		t.Fatalf("F4 evidence %#v", f4.Evidence)
 	}
-	if !traceContains(t, d.TracePath, "F3", "no EPSS row") {
+	if !traceContains(t, d.TracePath, "F4", "no EPSS row") {
 		t.Fatal("trace did not say no EPSS row")
 	}
 }
@@ -686,7 +690,7 @@ type proverSwap struct {
 }
 
 func (g *proverSwap) Complete(ctx context.Context, agent, prompt string) (string, error) {
-	if agent == "prover" && strings.Contains(prompt, "id: F1\n") {
+	if agent == "prover" && strings.Contains(prompt, findingMarker("F1")) {
 		return g.response, nil
 	}
 	return g.inner.Complete(ctx, agent, prompt)
