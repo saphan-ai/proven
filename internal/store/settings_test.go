@@ -113,6 +113,18 @@ func TestLoadCouchEmptyIsADownStoreAndWrongIsRefused(t *testing.T) {
 	if strings.Contains(err.Error(), "u:p") || strings.Contains(err.Error(), "p@") || strings.Contains(cfg.Value, "p@") {
 		t.Fatalf("the refusal printed the user info: %v", err)
 	}
+	// A user name and no password is the same refusal, with an empty value.
+	// The mutated field is the address. Negative control: showing the value
+	// when the address contains @ turns this red.
+	_, err = LoadCouch(couchEnv(map[string]string{
+		EnvCouchURL: "http://user@host", EnvCouchUser: "reader", EnvCouchPassword: "a-long-password",
+	}))
+	if err == nil || !asConfig(err, &cfg) || cfg.Field != EnvCouchURL || cfg.Value != "" {
+		t.Fatalf("user name without a password: %v", err)
+	}
+	if strings.Contains(err.Error(), "user@") {
+		t.Fatalf("the refusal printed the user name: %v", err)
+	}
 }
 
 // TestEnvironmentListsEveryCouchSetting proves the settings page rows hold

@@ -206,6 +206,30 @@ func (ruleDropsAdapter) Rule(source.Evidence) (source.Evidence, bool) {
 	return source.Evidence{}, false
 }
 
+// keepOneAdapter is a registered source whose rule keeps the first row of
+// two and drops the second, with its own column name.
+type keepOneAdapter struct{}
+
+func (keepOneAdapter) ID() string { return "keep-one-probe" }
+func (keepOneAdapter) Load() source.Load {
+	return source.Load{Origin: "test", Refresh: "never", Table: "t"}
+}
+func (keepOneAdapter) Templates() []source.Spec {
+	return []source.Spec{{
+		Template: source.Template{Name: "keep-one-by-name", Answer: "a row", Params: []source.Param{{Name: "n", Format: "any", Match: regexp.MustCompile(`^[a-z]+$`)}}},
+		Build:    func(map[string]string, source.Rel) (string, error) { return "SELECT kept FROM t", nil },
+	}}
+}
+func (keepOneAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
+	if len(in.Rows) < 2 {
+		return source.Evidence{}, false
+	}
+	// One row of the two is the evidence. The other is not.
+	in.Columns = []string{"kept"}
+	in.Rows = [][]string{in.Rows[0]}
+	return in, true
+}
+
 // TestOwningAdaptersRuleDecidesEvidence proves the rule of the adapter that
 // owns the template decides whether rows become evidence: a rule that returns
 // false on a non-empty row set leaves the candidate with no evidence. The
@@ -223,5 +247,30 @@ func TestOwningAdaptersRuleDecidesEvidence(t *testing.T) {
 	}
 	if len(rec.sql) != 1 || len(got.Evidence) != 0 {
 		t.Fatalf("sent %d, evidence %d; the rule was not consulted", len(rec.sql), len(got.Evidence))
+	}
+}
+
+// TestRuleKeepsOneRowOfTwoOnTheEvidence proves the Investigator copies the
+// rows and columns the owning rule kept, not the rows the query returned.
+// The query returns two rows. The rule keeps the first. The mutated line is
+// `res.Columns, res.Rows = kept.Columns, kept.Rows` in Investigate. Deleting
+// it leaves both rows on the evidence and this test goes red.
+func TestRuleKeepsOneRowOfTwoOnTheEvidence(t *testing.T) {
+	if err := source.Register(keepOneAdapter{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { source.Unregister("keep-one-probe") })
+	rec := &recorder{rows: [][]string{{"one"}, {"two"}}}
+	got, err := Investigate(context.Background(), risk, "",
+		scriptGen{text: `{"template":"keep-one-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Evidence) != 1 || got.Evidence[0].Query == nil {
+		t.Fatalf("evidence %#v", got.Evidence)
+	}
+	q := got.Evidence[0].Query
+	if len(q.Rows) != 1 || len(q.Columns) != 1 || q.Columns[0] != "kept" || q.Rows[0][0] != "one" {
+		t.Fatalf("columns %#v rows %#v; want the one row the rule kept", q.Columns, q.Rows)
 	}
 }

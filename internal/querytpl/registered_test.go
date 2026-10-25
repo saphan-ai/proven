@@ -33,10 +33,13 @@ func (a concatAdapter) Templates() []source.Spec {
 func (concatAdapter) Rule(in source.Evidence) (source.Evidence, bool) { return in, len(in.Rows) > 0 }
 
 // TestRegisteredTemplateValueIsHeldToItsFormatByProven proves that Proven, not
-// the adapter, refuses a parameter value that holds a quote, a NUL or a line
-// break, through both Build and Validate, even when the adapter's format admits
-// every text and its builder concatenates. The mutated field is the parameter
-// value; the format is held permissive.
+// the adapter, refuses a parameter value that holds a quote, a NUL, a line
+// break, a backslash or a byte above 0x7e, through both Build and Validate,
+// even when the adapter's format admits every text and its builder
+// concatenates. The mutated field is the parameter value; the format is held
+// permissive. Negative control: deleting the byte floor in source.CheckValue
+// (the backslash and the bytes above 0x7e) turns the new cases red. The quote,
+// NUL and newline cases are the ones that were already here.
 func TestRegisteredTemplateValueIsHeldToItsFormatByProven(t *testing.T) {
 	if err := source.Register(concatAdapter{match: regexp.MustCompile(`(?s)^.*$`)}); err != nil {
 		t.Fatal(err)
@@ -44,9 +47,11 @@ func TestRegisteredTemplateValueIsHeldToItsFormatByProven(t *testing.T) {
 	t.Cleanup(func() { source.Unregister("concat-probe") })
 
 	for name, value := range map[string]string{
-		"quote":   "x' OR '1'='1",
-		"nul":     "x\x00y",
-		"newline": "x\ny",
+		"quote":      "x' OR '1'='1",
+		"nul":        "x\x00y",
+		"newline":    "x\ny",
+		"backslash":  `a\b`,
+		"above 0x7e": "a\x7fb",
 	} {
 		req := querytpl.Request{Template: "concat-by-name", Params: map[string]string{"n": value}}
 		for verb, run := range map[string]func() error{

@@ -25,8 +25,10 @@ const (
 // TestReviewEvidenceNamesTheFormTheStoreRan proves a live review's query
 // evidence names the form the configured store ran, with the rows of that
 // query (ADR-0047, ADR-0032). CouchDB names mango. The same change on the
-// local store names sql. The mutated field is the form the CouchDB store
-// reports for the query it ran: reporting sql turns the couchdb case red.
+// local store and on Zetaris names sql, and Zetaris names its own engine.
+// The mutated field of the couchdb case is the form the CouchDB store
+// reports. The mutated field of the zetaris case is the store Open installs:
+// replacing store.NewZetaris in open.go turns that case red.
 func TestReviewEvidenceNamesTheFormTheStoreRan(t *testing.T) {
 	repo, base, head := moduleCommits(t)
 	t.Run("couchdb", func(t *testing.T) {
@@ -54,6 +56,21 @@ func TestReviewEvidenceNamesTheFormTheStoreRan(t *testing.T) {
 		})
 		res := reviewSeam(t, env, repo, base, head)
 		assertForm(t, res, "sql", "local")
+	})
+	t.Run("zetaris", func(t *testing.T) {
+		var calls int
+		srv := newSeamZetaris(t, &calls)
+		env := liveSecrets(map[string]string{
+			"PROVEN_EVIDENCE_STORE": "zetaris",
+			"PROVEN_GUARDRAIL_MODE": "off",
+			"ZETARIS_REST_URL":      srv.URL,
+			"ZETARIS_TIMEOUT":       "2s",
+		})
+		res := reviewSeam(t, env, repo, base, head)
+		assertForm(t, res, "sql", "zetaris")
+		if calls == 0 {
+			t.Fatal("the review did not dial the recorded Zetaris server")
+		}
 	})
 }
 
@@ -180,6 +197,51 @@ func loadSeamTables(t *testing.T, rawURL string) {
 type seamCouch struct {
 	mu  sync.Mutex
 	dbs map[string][]map[string]any
+}
+
+// newSeamZetaris is a recorded Zetaris. It answers the SQL-editor route
+// with the advisory row the local and CouchDB seams are given, and with
+// the KEV row of the CVE the SQL names. Any other query has no row.
+// calls counts the queries, so a review that never dials this server is
+// visible. It is not a network service.
+func newSeamZetaris(t *testing.T, calls *int) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*calls++
+		if r.URL.Path != "/sql-editor/sqls/run" {
+			http.NotFound(w, r)
+			return
+		}
+		var in struct {
+			SQL string `json:"sql"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(in.SQL, "px_osv_pkg"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"headers": []string{"id", "aliases", "ecosystem", "package", "introduced", "fixed", "last_affected", "severity", "published"},
+				"data":    [][]string{{"GHSA-1", "CVE-2026-0001", "Go", "example.com/mod", "1.0.0", "1.2.4", "", "HIGH", "2026-01-15"}},
+			})
+		case strings.Contains(in.SQL, "px_kev_vulns") && strings.Contains(in.SQL, "CVE-2021-44228"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"headers": []string{"cve_id", "vendor_project", "product", "date_added", "known_ransomware"},
+				"data":    [][]string{{"CVE-2021-44228", "example", "log4j", "2021-12-10", "Known"}},
+			})
+		case strings.Contains(in.SQL, "px_kev_vulns"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"headers": []string{"cve_id", "vendor_project", "product", "date_added", "known_ransomware"},
+				"data":    [][]string{{"CVE-2026-0001", "example", "mod", "2026-01-15", "Known"}},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"headers": []string{},
+				"data":    [][]string{},
+			})
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 func newSeamCouch(t *testing.T) *httptest.Server {
