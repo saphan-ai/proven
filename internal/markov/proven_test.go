@@ -77,16 +77,42 @@ func TestFitBoundsTheStateAndDropsTheOldestDecisionFirst(t *testing.T) {
 	if got.Tokens() > budget || dropped != 1 || strings.Contains(got.Render(), "old established") || !strings.Contains(got.Render(), "a claim that needs file 20") {
 		t.Fatalf("dropped %d:\n%s", dropped, got.Render())
 	}
+	// Fit is the generic bound: at a budget no item fits it keeps only the step counts. For a review that is a loss,
+	// never a correct result, because the awaiting claim goes with the rest; Carry is what a review calls, and it
+	// refuses by name instead of handing on the emptied block.
 	tiny, _ := full.Fit(30)
 	if len(tiny.Decisions)+len(tiny.Context) != 0 || tiny.Completed == "" {
 		t.Fatalf("%+v", tiny)
+	}
+	var full1 *CarryFullError
+	if _, _, err := r.Carry(2, 3, 10, 30); !errors.As(err, &full1) || full1.Open != 1 || full1.Held != 0 {
+		t.Fatalf("a bound that drops the awaiting claim was not refused by name: %v", err)
+	}
+	if b, _, err := r.Carry(2, 3, 10, full.Tokens()-50); err != nil || !strings.Contains(b.Render(), "a claim that needs file 20") {
+		t.Fatalf("a bound that holds the awaiting claim was refused: %v", err)
 	}
 	if same, d := full.Fit(full.Tokens()); d != 0 || same.Render() != full.Render() {
 		t.Fatal("a block within its budget was changed")
 	}
 }
 
-// TestFixBlockCarriesFailuresOnly proves the fix loop's state: the latest failure and its failing run are context,
+// TestTheCarriedBlockListsEveryAwaitingClaim is the negative control for the awaiting list (acceptance 3(b)): every
+// claim awaiting evidence is in the block's context, each under its label, after the suspicions. Leaving the awaiting
+// list out of ReviewState.Block empties this list and the test is red; so does a claim written without its label,
+// which the model could not read back.
+func TestTheCarriedBlockListsEveryAwaitingClaim(t *testing.T) {
+	r := ReviewState{Suspected: []string{"s1"}, Awaiting: []string{"needs file 7", "needs file 9"}}
+	got := r.Block(2, 5).Context
+	want := []string{"suspected: s1", "awaiting evidence: needs file 7", "awaiting evidence: needs file 9"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("context %q, want %q", got, want)
+	}
+	if _, _, err := r.Carry(1, 2, 5, 800); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestFixBlockCarriesFailuresOnlyproves the fix loop's state: the latest failure and its failing run are context,
 // earlier failures are decisions, and the counts are the attempts'.
 func TestFixBlockCarriesFailuresOnly(t *testing.T) {
 	b := FixBlock([]FixFailure{

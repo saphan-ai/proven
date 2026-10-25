@@ -115,6 +115,40 @@ func (r ReviewState) Block(step, steps int) Block {
 	return b
 }
 
+// CarryFullError says the bound could not hold every claim that still awaits evidence (ADR-0048). It is returned
+// instead of dropping the claim: a claim lost from the carried state can never meet its evidence, and a review that
+// goes on without it looks complete when it is not. The caller can run the whole review instead.
+type CarryFullError struct {
+	// Step is the step whose handed-on state overflowed; Open is the number of claims awaiting evidence, Held the
+	// number the bound kept, and Budget the bound in estimated tokens.
+	Step, Open, Held, Budget int
+}
+
+// Error names that the bounded review is incomplete, why, and what to do next.
+func (e *CarryFullError) Error() string {
+	return fmt.Sprintf("the bounded review is incomplete: after step %d the carried state held %d of %d claims awaiting evidence within %d estimated tokens (%s); "+
+		"the claims that did not fit could never meet their evidence, so the review stopped. Run the whole review (%s off), or raise %s",
+		e.Step, e.Held, e.Open, e.Budget, EnvCarry, EnvSwitch, EnvCarry)
+}
+
+// Carry fits the state's block for the step about to run into budget estimated tokens and returns how many items the
+// bound cut. ADR-0048: the bound may cut what is established or only suspected, never a claim awaiting evidence; when
+// it would, Carry returns *CarryFullError and the caller stops the review. afterStep is the step that produced the
+// state, for the error.
+func (r ReviewState) Carry(afterStep, step, steps, budget int) (Block, int, error) {
+	b, dropped := r.Block(step, steps).Fit(budget)
+	held := 0
+	for _, c := range b.Context {
+		if strings.HasPrefix(c, labelAwaiting) {
+			held++
+		}
+	}
+	if held < len(r.Awaiting) {
+		return b, dropped, &CarryFullError{Step: afterStep, Open: len(r.Awaiting), Held: held, Budget: budget}
+	}
+	return b, dropped, nil
+}
+
 // completedText says how many units are done.
 func completedText(n int, unit string) string {
 	if n == 0 {

@@ -133,8 +133,13 @@ func PlanBounded(ctx context.Context, files []change.File, gen generator.Generat
 		// Markovian: the model's answer replaces the state; nothing of this step but that state reaches the next.
 		state = markov.ReviewState{Established: got.Established, Suspected: got.Suspected, Awaiting: got.Awaiting}
 		if n < len(parts) {
-			carried, dropped = state.Block(n+1, len(parts)).Fit(s.Carry)
+			var cerr error
+			carried, dropped, cerr = state.Carry(n, n+1, len(parts), s.Carry)
 			rec.Dropped = dropped
+			if cerr != nil {
+				// ADR-0048: an open claim that does not fit is never dropped; the review stops and says so.
+				return nil, append(steps, rec), cerr
+			}
 		}
 		steps = append(steps, rec)
 	}

@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/saphan-ai/proven/internal/agent/planner"
@@ -54,6 +55,14 @@ func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generato
 			Text: fmt.Sprintf("step %d of %d: prompt %d estimated tokens; carried state %d estimated tokens, %d items; %d dropped by the bound from the state handed on; %d risks named",
 				st.Index, st.Steps, st.PromptTokens, st.CarriedTokens, st.Carried, st.Dropped, st.Risks),
 		}); terr != nil {
+			return nil, terr
+		}
+	}
+	// ADR-0048: a full carried state stops the review by name. The trace says so too, so a reader of the trace alone
+	// sees the review did not finish.
+	var full *markov.CarryFullError
+	if errors.As(err, &full) {
+		if terr := p.boundedLine(run, "bounded steps stopped, the review is incomplete: "+full.Error()); terr != nil {
 			return nil, terr
 		}
 	}
