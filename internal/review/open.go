@@ -436,6 +436,9 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		// ADR-0042: the settings that turn proposed fixes off and bound their attempts.
 		FixesOff:    !cfg.Fixes,
 		FixAttempts: cfg.FixAttempts,
+		// ADR-0013: the evidence scope of each role that can query.
+		InvestigatorScope: cfg.InvestigatorScope,
+		SkepticScope:      cfg.SkepticScope,
 	})
 	if err != nil {
 		return Result{}, err

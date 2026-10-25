@@ -24,21 +24,26 @@ import (
 )
 
 // querySpec is the JSON the investigator asks a model to return.
-// The task lists the templates from the closed list and tells the model not to
+// The task lists the templates of the role's scope and tells the model not to
 // read an absent row as "not exploited": a missing KEV row only means the data
-// does not say. The model is told to give no SQL.
-var querySpec = answer.Spec{
-	Task: "Pick one query template that would confirm this risk, and give the values of its parameters. " +
-		"The templates are: " + querytpl.Describe() +
-		" Do not write SQL: Proven builds the query from the template. Leave template empty when none fits. Do not treat a missing row as not exploited.",
-	Shape:   "one JSON object. It has template (string) and params (an object of strings).",
-	Example: `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`,
+// does not say. The model is told to give no SQL. The list is the scope's, not
+// the whole registry (ADR-0013), so the model is not offered a template the
+// scope would refuse.
+func querySpec(scope querytpl.Scope) answer.Spec {
+	return answer.Spec{
+		Task: "Pick one query template that would confirm this risk, and give the values of its parameters. " +
+			"The templates are: " + scope.Describe() +
+			" Do not write SQL: Proven builds the query from the template. Leave template empty when none fits. Do not treat a missing row as not exploited.",
+		Shape:   "one JSON object. It has template (string) and params (an object of strings).",
+		Example: `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`,
+	}
 }
 
-// Prompt asks for the template and values for one risk.
-func Prompt(id, title, path string) string {
+// Prompt asks for the template and values for one risk. scope is the
+// templates the Investigator may ask; the nil scope is every template.
+func Prompt(id, title, path string, scope querytpl.Scope) string {
 	// The title is model text shaped by the change, so it enters as data.
-	return answer.Instruct(querySpec, answer.Encode(struct {
+	return answer.Instruct(querySpec(scope), answer.Encode(struct {
 		ID    string `json:"id"`
 		Title string `json:"title"`
 		Path  string `json:"path"`
@@ -63,9 +68,16 @@ func (r row) request() (querytpl.Request, error) {
 }
 
 // Execute runs a request the skeptic named. It does not ask a model. A
-// request that fails its format is a *querytpl.Refusal and no query is run.
-// The store builds the form it speaks (ADR-0047); this function does not.
-func Execute(ctx context.Context, q query.Runner, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
+// request that fails its format, or that names a template outside scope, is a
+// *querytpl.Refusal and no query is run. scope is the Skeptic's evidence scope
+// (ADR-0013). The store builds the form it speaks (ADR-0047); this function does not.
+func Execute(ctx context.Context, q query.Runner, req querytpl.Request, rel querytpl.Relations, scope querytpl.Scope) (query.Result, error) {
+	// The scope is checked before the engine is looked at, so a template the
+	// role may not ask is refused the same way whether or not a store is up,
+	// and no store is ever asked for it.
+	if err := scope.Check(querytpl.RoleSkeptic, req); err != nil {
+		return query.Result{}, err
+	}
 	// The refusal comes first: a request that cannot be built is the same
 	// answer whether or not the engine is up. The caller does not keep the
 	// text. A store that is up checks the request again before it runs one.
@@ -81,9 +93,9 @@ func Execute(ctx context.Context, q query.Runner, req querytpl.Request, rel quer
 // Investigate asks for a template and runs the query Proven builds from it. A
 // query with no rows adds no evidence. A refused template adds none either,
 // and the candidate's QueryNote says why.
-func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, gen generator.Generator, q query.Runner, rel querytpl.Relations) (candidate.Candidate, error) {
+func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, gen generator.Generator, q query.Runner, rel querytpl.Relations, scope querytpl.Scope) (candidate.Candidate, error) {
 	var got row
-	if err := answer.Read(ctx, gen, "investigator", Prompt(c.ID, c.Title, c.Path), querySpec, &got); err != nil {
+	if err := answer.Read(ctx, gen, "investigator", Prompt(c.ID, c.Title, c.Path, scope), querySpec(scope), &got); err != nil {
 		return c, err
 	}
 	req, err := got.request()
@@ -93,6 +105,13 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	}
 	// No query proposed means no evidence, not a failure.
 	if req.Empty() {
+		return c, nil
+	}
+	// ADR-0013: a template outside the Investigator's scope is refused before
+	// any store is asked, and the finding goes on without query evidence. The
+	// model was told only of the scope, so this is a model that named another.
+	if err := scope.Check(querytpl.RoleInvestigator, req); err != nil {
+		c.QueryNote = "refused: " + err.Error()
 		return c, nil
 	}
 	// A nil runner panics on Run, and the review would lose the finding

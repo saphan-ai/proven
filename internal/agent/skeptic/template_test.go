@@ -16,7 +16,7 @@ func TestRefutingQueryIsATemplateAndValues(t *testing.T) {
 	risk := candidate.Candidate{Risk: candidate.Risk{ID: "F1", Title: "x"}}
 	got, err := Attempt(context.Background(), risk, textGen{
 		`{"refuted":false,"reason":"check KEV","path":"","name":"","template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func TestRefutingQueryIsATemplateAndValues(t *testing.T) {
 	if q.Template != "kev-by-cve" || q.Params["cve_id"] != "CVE-2021-44228" || got.Refutation.Reason != "check KEV" {
 		t.Fatalf("%#v", got.Refutation)
 	}
-	p := Prompt("F1", "x")
+	p := Prompt("F1", "x", nil)
 	for _, tpl := range querytpl.Catalogue() {
 		if !strings.Contains(p, tpl.Name) {
 			t.Errorf("the prompt does not name template %s", tpl.Name)
@@ -52,7 +52,7 @@ func TestAnswerThatIsNotATemplateProposesNoQuery(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got, err := Attempt(context.Background(), risk, textGen{
 				`{"refuted":true,"reason":"r","path":"a_test.go","name":"TestA",` + c.answer + `}`,
-			})
+			}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
