@@ -94,6 +94,12 @@ func TestPackageFormatsFollowTheEcosystem(t *testing.T) {
 		{"crates.io", "1serde", false},
 		{"crates.io", "-serde", false},
 		{"crates.io", "serde/extra", false},
+		{"Maven", "com.example:widget", true},
+		{"Maven", "org.apache.logging.log4j:log4j-core", true},
+		{"Maven", "com.example", false},
+		{"Maven", ":widget", false},
+		{"Maven", "Com.Example:Widget", true},
+		{"Go", "com.example:widget", false},
 		{"Go", "", false},
 		{"Cargo", "serde", false},
 		{"", "serde", false},
@@ -170,6 +176,23 @@ func mustErr(t *testing.T, pkg string) error {
 		t.Fatalf("%s was accepted", pkg)
 	}
 	return err
+}
+
+// TestMavenNameIsKeptAsWritten proves a Maven coordinate is looked up as
+// group:artifact, with the spelling kept, and that the parameter gate
+// admits the colon.
+func TestMavenNameIsKeptAsWritten(t *testing.T) {
+	got, err := OSVPackageSQL(DefaultOSVTable, "Maven", "com.example:Widget")
+	if err != nil || !strings.HasSuffix(got, "package = 'com.example:Widget'") {
+		t.Errorf("got %q, %v", got, err)
+	}
+	if !strings.Contains(got, "ecosystem = 'Maven'") {
+		t.Errorf("got %q", got)
+	}
+	sql, err := Build(Request{Template: OSVByPackage, Params: map[string]string{ParamEcosystem: "Maven", ParamPackage: "com.example:widget"}}, Relations{})
+	if err != nil || !strings.Contains(sql, "package = 'com.example:widget'") {
+		t.Errorf("build: %q, %v", sql, err)
+	}
 }
 
 // TestPackagistNameIsBuiltInLowerCase proves a Packagist package is looked

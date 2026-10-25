@@ -1,0 +1,11 @@
+[versions]
+widget = "1.2.0"
+quiet = "2.0.0"
+agp = "8.2.0"
+
+[libraries]
+widget = { module = "com.example:widget", version.ref = "widget" }
+quiet = { group = "com.example", name = "quiet", version.ref = "quiet" }
+
+[plugins]
+android = { id = "com.android.application", version.ref = "agp" }

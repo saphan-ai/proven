@@ -98,6 +98,40 @@ func TestOSVPHPComposerReportsTheDependency(t *testing.T) {
 	}
 }
 
+// TestOSVKotlinGradleReportsTheDependency proves the Maven adapter reports
+// the raised Gradle package from gradle.lockfile, inside one sample range
+// and outside the other. build.gradle.kts writes the same coordinate.
+// preferLock keeps the lock file when both files in one directory name the
+// package. The catalog in gradle/ does not raise it. Making
+// mavenver.Compare report every pair as equal turns this test red. Taking
+// GradleKts and GradleLock out of Readers together also turns it red.
+// Taking only GradleLock out does not: the literal in build.gradle.kts is
+// still a raise.
+func TestOSVKotlinGradleReportsTheDependency(t *testing.T) {
+	body, _ := scanScenario(t, "osv-kotlin-gradle")
+	for _, want := range []string{
+		"review class: security",
+		"review rule: build.gradle.kts",
+		"finding osv:com.example:widget ERROR Dependency com.example:widget 1.4.0 is in an OSV affected range",
+		"EPSS 0.27000 (91st percentile, 2026-10-25)",
+		"gradle.lockfile:5-5",
+		"introduced 1.3.0 <= 1.4.0 < fixed 1.5.0",
+		"GHSA-kt-sample-0002 does not match: 1.4.0 < introduced 2.0.0",
+		"alias CVE-2026-9291 is on the KEV list",
+		"Reachability: not measured",
+		"ecosystem = 'Maven' AND package = 'com.example:widget'",
+		"fix named from the advisory table, not run by a test: raise com.example:widget 1.4.0 to 1.5.0",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "com.example:unused") || strings.Contains(body, "Dependency com.example:quiet") {
+		t.Fatalf("a package that was not raised was queried\n%s", body)
+	}
+}
+
 // TestOSVRustCargoReportsTheDependency proves the crates.io adapter reports
 // the raised Cargo package from Cargo.lock, inside one sample range and
 // outside the other. The manifest writes a constraint; the lock file's
