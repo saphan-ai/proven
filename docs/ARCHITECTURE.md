@@ -69,6 +69,70 @@ so it is never marked proved.
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
 `test/conformance/meterless/run.sh`.
 
+## Scout Intent plans each review (ADR-0049)
+
+**Off by default.** It is switched on only once the measurement below holds on recorded reviews, and that switch is a
+change of its own.
+
+**What it does.** Before any agent runs, `internal/scout` (Meterless's Scout Intent in Go) classifies the change from
+its changed files: `change.dependency`, `change.refactor`, `change.feature`, `change.security`, `change.docs` or
+`change.config`. The answer comes with the signals that led there (each file and the pattern it matched) and any
+ambiguity. The kind picks the plan, inside the review classes of ADR-0014:
+
+| kind | class | agents | tools | sources | doubled |
+|---|---|---|---|---|---|
+| `change.docs` | `docs` | none | none | none | as the class |
+| `change.dependency` | configured | Planner, Investigator, Skeptic (no Prover, no Fixer) | govulncheck | OSV, EPSS | as the class |
+| `change.security` | `security` | all | all | all | always |
+| `change.refactor`, `change.feature`, `change.config` | configured | all | all | all | as the class |
+
+Four rules decide which plan runs, and a reader can check each one in the trace:
+
+1. **The floor.** A plan never goes below the class the configured path rules choose (`floorClass` in
+   `internal/review/plan.go`). If the plan's class ranks lower, the configured class runs in full. ADR-0036's
+   organisation policy is not in this build; when it lands, its minimum class is passed to the same function.
+2. **Ambiguity.** A change that is not wholly one kind (documentation beside code, a manifest beside new code) is never
+   planned as a confident class. It runs the class its rules choose, in full.
+3. **Security is never outvoted.** One file with a security signal plans the whole change as security-sensitive.
+   Every security pattern of the configured path rules is a Scout signal too.
+4. **The trace.** Every review writes one `plan` line before any agent runs. It names the class, the confidence and
+   band, the signals, the ambiguity and the plan, or says `no plan chosen (scout_intent is off)`. Each part a plan
+   leaves out gets its own `… is not in the plan` line.
+
+**To switch it on** (a person's act, in the baseline's `proven.yaml`, because a change never chooses its own review):
+
+1. Add `scout_intent: on`.
+2. To change a kind's plan, set its key with all five fields, for example
+   `plan_docs: class=docs, agents=none, tools=none, sources=none, doubled=class`. A wrong field stops Proven with
+   exit 7 and names the field and the values allowed.
+3. Review one documentation-only change and read its trace. The `plan` line names `class change.docs` and
+   `agents none`. If it says `no plan chosen`, the switch is not on in the settings the review read.
+
+**Checked by Meterless's harness.** `test/conformance/meterless/run_scout.sh` runs Meterless's own eval runner,
+unchanged, against the Go engine on Meterless's regression set (`SCORECARD_scout-intent.txt`). It then runs a copy of
+that runner on Proven's change registry and fourteen change fixtures (`SCORECARD_scout-intent-changes.txt`). Both
+scorecards are committed as the runners print them.
+
+remark: measured 2026-10-25 at Meterless commit 1742dec: on Meterless's set, every metric is 1.000 and clarification_rate is 0.188, but each scored prompt appears verbatim among the fixture registry's examples, so the score shows the engine reproduces its seeds, not that it generalises.
+remark: the change set fails the published clarification_rate ceiling (0.429 against 0.25) by its own design (six of fourteen fixtures are ambiguous); clarification_agreement (1.000) is the number that says whether the engine asked at the right time.
+
+**The measurement (ADR-0049 point 5).** One review per scenario, with the plan and without it. The generator is
+scripted, so the call counts are exact and the times are Proven's own overhead with an instant model, never a live
+model's latency. `TestPlanMeasurement` in `internal/review/measure_test.go` prints the table, and it fails if a plan
+loses a finding. Measured 2026-10-25:
+
+| scenario | model calls without plan | model calls with plan | wall without | wall with | findings without | findings with | lost |
+|---|---|---|---|---|---|---|---|
+| documentation only (scripted) | 4 | 0 | 110ms | 82ms | 0 | 0 | 0 |
+| dependency only, one OSV advisory (scripted) | 8 | 6 | 216ms | 220ms | 1 | 1 | 0 |
+| security-sensitive session code (scripted) | 4 | 8 | 118ms | 192ms | 0 | 0 | 0 |
+| feature: one modified Go file (scripted) | 4 | 4 | 131ms | 121ms | 0 | 0 | 0 |
+| ambiguous: documentation beside code (scripted) | 4 | 4 | 130ms | 132ms | 0 | 0 | 0 |
+| the corpus cases | UNMEASURED — no corpus recording (proven-test-corpus record-and-replay not yet landed) | | | | | | |
+
+remark: a scripted planner names one risk and nothing proves it, so "findings 0 / lost 0" on four rows says only that no finding existed to lose; the dependency row is the one case where a finding existed and the plan kept it.
+remark: the security row costs more by design: the plan doubles a change the configured rules did not call sensitive.
+
 ## Modes
 
 - **Sample** (`--sample`): recorded answers, outcomes and rows; no network. See [SAMPLE_MODE.md](SAMPLE_MODE.md).

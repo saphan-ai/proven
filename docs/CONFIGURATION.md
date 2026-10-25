@@ -137,6 +137,8 @@ No environment variable sets these keys.
 | `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
 | `fixes` | `on` | Proposes a fix for a finding a test proved, and a fixed version for a dependency finding (ADR-0042). `off` proposes none, runs none of the three proof runs and names no version. | `on` or `off`. |
 | `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. |
+| `scout_intent` | `off` | Scout Intent classifies the change before the agents run, and the kind picks the review plan (ADR-0049). `off` runs every review in full, and the trace says no plan was chosen. See [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049). | `on` or `off`. |
+| `plan_dependency`, `plan_refactor`, `plan_feature`, `plan_security`, `plan_docs`, `plan_config` | see [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) | The plan for one kind of change: its class, the agents, tools and sources that run, and whether it is doubled. All five fields are required. A plan never goes below the class the path rules choose. | `class=<configured or a class>, agents=<planner+investigator+prover+skeptic+fixer, all or none>, tools=<govulncheck, all or none>, sources=<osv+epss, all or none>, doubled=<class or on>`. |
 
 ### Default path rules
 
