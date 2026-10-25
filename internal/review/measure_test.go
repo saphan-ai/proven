@@ -64,7 +64,9 @@ func TestPlanMeasurement(t *testing.T) {
 		cut      bool
 	}{
 		{"documentation only", docsOnly, false, true},
+		// The dependency plan cuts the Prover only where the rules do not call the manifest security.
 		{"dependency only, one advisory", dependencyOnly, true, true},
+		{"dependency only, manifest called security", dependencyOnly, true, false},
 		{"security-sensitive session code", sensitive, false, false},
 		{"feature: one modified Go file", func(t *testing.T) string {
 			return trees(t, map[string][2]string{"internal/x/run.go": {"package x\n", "package x\n\nvar N = 1\n"}})
@@ -82,6 +84,9 @@ func TestPlanMeasurement(t *testing.T) {
 	for _, s := range scenarios {
 		off := defaultSettings()
 		on := defaultSettings()
+		if s.cut && strings.HasPrefix(s.name, "dependency") {
+			off, on = manifestsNotSecurity(off), manifestsNotSecurity(on)
+		}
 		on.ScoutIntent = true
 		without := measure(t, off, s.target(t), s.advisory)
 		with := measure(t, on, s.target(t), s.advisory)

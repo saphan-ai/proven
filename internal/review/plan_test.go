@@ -188,12 +188,28 @@ func TestPlanDocsOnlyRunsNoModel(t *testing.T) {
 	}
 }
 
-// TestPlanDependencyOnlySkipsTheProver proves ADR-0049 point 2: a dependency-only change runs the
-// dependency evidence (the OSV table is queried for the package the change adds) and no Prover call.
-// With the engine removed the full plan runs the Prover, so this test fails.
+// manifestsNotSecurity returns cfg with every manifest rule moved out of the security class, so a manifest
+// change falls to the fallback class. It is the setting of a team whose rules do not call manifests
+// sensitive, and the only one under which the dependency plan, which cuts the Prover, may run.
+func manifestsNotSecurity(cfg fileSettings) fileSettings {
+	var rules []pathRule
+	for _, r := range cfg.PathRules {
+		if r.Class == "security" && (r.Pattern == "go.mod" || r.Pattern == "go.sum") {
+			continue
+		}
+		rules = append(rules, r)
+	}
+	cfg.PathRules = rules
+	return cfg
+}
+
+// TestPlanDependencyOnlySkipsTheProver proves ADR-0049 point 2: a dependency-only change whose rules do
+// not call the manifest security runs the dependency evidence (the OSV table is queried for the package
+// the change adds) and no Prover call, in the class its rules chose. With the engine removed the full
+// plan runs the Prover, so this test fails.
 func TestPlanDependencyOnlySkipsTheProver(t *testing.T) {
 	rig := newRig()
-	res := rig.review(t, planned(), dependencyOnly(t))
+	res := rig.review(t, manifestsNotSecurity(planned()), dependencyOnly(t))
 	if called(rig.def, "prover") || called(rig.spec, "prover") || rig.run.runs != 0 {
 		t.Fatalf("the Prover ran on a dependency-only change: %d runs", rig.run.runs)
 	}
@@ -209,9 +225,58 @@ func TestPlanDependencyOnlySkipsTheProver(t *testing.T) {
 	if !called(rig.def, "planner") {
 		t.Fatal("the planner did not run")
 	}
-	// The configured rules call go.mod security; the plan keeps that class (ADR-0049 point 3).
-	if res.Class != "security" || !res.Doubled {
+	// The rules no longer call go.mod security, so the plan keeps the class they chose, undoubled.
+	if res.Class != "backend" || res.Doubled {
 		t.Fatalf("class %s doubled %t", res.Class, res.Doubled)
+	}
+}
+
+// TestPlanSecurityFlooredManifestRunsTheProver proves ADR-0049 point 3's execution obligation: the
+// configured rules file go.mod and go.sum under security, so a dependency-only change runs the Prover
+// (asserted by the agents that ran and the test runs asked for, not by the trace's class name), the
+// dependency evidence, and the second reviewer. Unplug control: removing the security signal that
+// scout.ChangeRegistry adds for a manifest the rules call security, and the floor guard in choosePlan,
+// makes the dependency plan run and this test fail on the missing Prover. (With the engine off the full
+// plan runs and the test passes, so -scout-off is not its instrument.)
+func TestPlanSecurityFlooredManifestRunsTheProver(t *testing.T) {
+	rig := newRig()
+	res := rig.review(t, planned(), dependencyOnly(t))
+	if !called(rig.def, "planner") || !called(rig.def, "prover") || !called(rig.def, "skeptic") {
+		t.Fatalf("a security-floored manifest change did not run the full plan: %+v", rig.def.calls)
+	}
+	if !called(rig.spec, "planner") || !res.Doubled || res.Class != "security" {
+		t.Fatalf("the security review was not doubled: class %s doubled %t, second calls %+v", res.Class, res.Doubled, rig.spec.calls)
+	}
+	osvQueried := false
+	for _, s := range rig.queries() {
+		if strings.Contains(s, "px_osv") && strings.Contains(s, "example.com/lib") {
+			osvQueried = true
+		}
+	}
+	if !osvQueried {
+		t.Fatalf("the dependency evidence did not run: %q", rig.queries())
+	}
+}
+
+// TestPlanSecurityFloorKeepsEveryAgentWhateverThePlan proves the floor guard on its own: even when the
+// configuration sets a security plan that names no Prover, a security-floored change runs the Prover.
+// Mutated field: the plan_security setting's agents.
+func TestPlanSecurityFloorKeepsEveryAgentWhateverThePlan(t *testing.T) {
+	if *scoutOff {
+		t.Skip("the floor guard is Scout Intent's; with it off the full plan runs")
+	}
+	cfg := planned()
+	cfg.Plans = defaultPlans()
+	sec := cfg.Plans["change.security"]
+	sec.Agents = []string{"planner", "skeptic"}
+	cfg.Plans["change.security"] = sec
+	rig := newRig()
+	// internal/auth/ is a security path in the shipped rules, so the floor is security.
+	rig.review(t, cfg, trees(t, map[string][2]string{
+		"internal/auth/login.go": {"package auth\n", "package auth\n\nvar TTL = 0\n"},
+	}))
+	if !called(rig.def, "prover") {
+		t.Fatalf("a security-floored change ran without the Prover: %+v", rig.def.calls)
 	}
 }
 

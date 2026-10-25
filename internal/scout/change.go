@@ -33,16 +33,17 @@ func ChangesJSON() []byte { return append([]byte(nil), changesJSON...) }
 // ChangeRegistry returns the change registry with security added: each pattern a review's own
 // configuration files under the security class (ADR-0014) becomes a security signal too, so Scout
 // never calls a file ordinary that the team's rules call sensitive. A pattern already present is not
-// added twice; dependency manifests are left to the dependency kind, which already names them.
+// added twice. A pattern the dependency kind also names is still added to security: when the team's rules
+// call a manifest sensitive, that signal outranks the dependency pattern, so the change is planned as
+// security-sensitive and keeps its full review (ADR-0049 point 3).
 func ChangeRegistry(security []string) (*Registry, error) {
 	reg, err := ParseRegistry(changesJSON)
 	if err != nil {
 		return nil, fmt.Errorf("scout: the shipped change registry: %w", err)
 	}
 	sec, _ := reg.intent(KindSecurity)
-	dep, _ := reg.intent(KindDependency)
 	have := map[string]bool{}
-	for _, t := range append(append([]Trigger(nil), sec.Triggers...), dep.Triggers...) {
+	for _, t := range sec.Triggers {
 		have[t.Path] = true
 	}
 	weight := sec.Triggers[0].Weight

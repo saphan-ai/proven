@@ -137,3 +137,52 @@ func TestProseSuffixesAreCheckedOnLoad(t *testing.T) {
 		}
 	}
 }
+
+// TestProseSuffixesRefuseBuiltSuffixes proves ADR-0049's deny list at the loader: a source, script, build
+// or template suffix named in prose_suffixes is refused by name, whatever its case. Mutated field, one per
+// case: the suffix value only.
+func TestProseSuffixesRefuseBuiltSuffixes(t *testing.T) {
+	for _, suffix := range []string{".go", ".GO", ".py", ".js", ".ts", ".java", ".rs", ".sh", ".mk", ".tmpl", ".gradle", ".ps1"} {
+		_, err := parseConfig([]byte("prose_suffixes: .md, " + suffix + "\n"))
+		var ce *ConfigError
+		if err == nil || !asConfigError(err, &ce) || ce.Field != "prose_suffixes" || !strings.Contains(ce.Error(), suffix) {
+			t.Errorf("%s: %v", suffix, err)
+		}
+	}
+}
+
+// TestProseSettingCannotSkipBuiltSource proves, end to end, that a source file under docs/ gets a model
+// review even when the setting names its suffix: the loader refuses ".go", and a setting built in code
+// that names it anyway is still not believed by the plan. Both halves are checked by the agents that ran.
+// Unplug control: removing the builtSuffixes check in notProse fails the second half; removing the one
+// in parseProseSuffixes fails the first.
+func TestProseSettingCannotSkipBuiltSource(t *testing.T) {
+	if _, err := parseConfig([]byte("prose_suffixes: .md, .go\n")); err == nil {
+		t.Fatal("the loader accepted .go as a prose suffix")
+	}
+	if *scoutOff {
+		t.Skip("the plan guard is Scout Intent's; with it off the full plan runs whatever the file is")
+	}
+	cfg := planned()
+	cfg.ProseSuffixes = append(cfg.ProseSuffixes, ".go")
+	rig := newRig()
+	res := rig.review(t, cfg, trees(t, map[string][2]string{
+		"docs/run.go": {"package docs\n", "package docs\n\nvar N = 1\n"},
+	}))
+	requireFullPlan(t, rig, res, "docs/run.go has no prose suffix")
+}
+
+// TestRemovedScriptHeaderStillGetsModelReview proves that a file with a prose suffix that starts as a
+// script and stops being one is not prose: the shebang on the base side counts, so the full plan runs
+// with a planner, a prover and a skeptic. Mutated field: the first line of the base side. Unplug
+// control: reading the shebang from the change side only (as d3d17ab did) makes this test fail.
+func TestRemovedScriptHeaderStillGetsModelReview(t *testing.T) {
+	if *scoutOff {
+		t.Skip("the guard is Scout Intent's; with it off the full plan runs whatever the file is")
+	}
+	rig := newRig()
+	res := rig.review(t, planned(), trees(t, map[string][2]string{
+		"docs/tool.md": {"#!/bin/sh\necho old\n", "plain text now\n"},
+	}))
+	requireFullPlan(t, rig, res, "docs/tool.md starts with a shebang line")
+}

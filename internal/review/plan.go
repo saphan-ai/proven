@@ -51,6 +51,23 @@ func defaultPlans() map[string]planSetting {
 	}
 }
 
+// classSecurity is the review class whose execution obligations no plan may cut (ADR-0049 point 3).
+const classSecurity = "security"
+
+// cutsWork reports whether a plan leaves out any agent, tool or source the full plan runs.
+func cutsWork(ps planSetting) bool {
+	for _, side := range []struct{ have, all []string }{
+		{ps.Agents, pipeline.PlanAgents}, {ps.Tools, pipeline.PlanTools}, {ps.Sources, pipeline.PlanSources},
+	} {
+		for _, name := range side.all {
+			if !containsName(side.have, name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // planKind is the kind a plan_ key sets: plan_docs is change.docs.
 func planKind(key string) string { return "change." + strings.TrimPrefix(key, "plan_") }
 
@@ -225,6 +242,12 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 	if classRank(cfg.ClassOrder, class) > classRank(cfg.ClassOrder, floor) {
 		return full(head + "; the configured class " + floor + " outranks the plan's class " + class), nil
 	}
+	// ADR-0049 point 3: the floor keeps its execution obligations, not only its rank. A security-floored
+	// change runs every agent, tool and source whatever plan the kind proposes: a class label that stays
+	// "security" while the Prover is cut is a weaker review under a name that claims the stronger one.
+	if floor == classSecurity && cutsWork(ps) {
+		return full(head + "; the configured class " + floor + " keeps every agent, tool and source, so the plan's cuts are not used"), nil
+	}
 	rule := floorRule
 	if class != floor {
 		rule = "scout-intent: " + kind
@@ -240,6 +263,25 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 
 // allowedProseSuffixes is the value list a refused prose_suffixes key names.
 const allowedProseSuffixes = "a comma-separated list of file suffixes, each starting with a dot, such as .md, .rst, .txt"
+
+// builtSuffixes is the closed deny list of suffixes that name source, scripts, build files or templates:
+// every language Proven's adapters read, the common languages beside them, shell and Windows scripts,
+// Makefile-like and build-tool files, and template languages. None of them can be listed as prose.
+var builtSuffixes = set([]string{
+	// Go, Python, JavaScript and TypeScript, Java and JVM, Rust, C family, C#, Ruby, PHP.
+	".go", ".py", ".pyi", ".pyw", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx",
+	".java", ".kt", ".kts", ".scala", ".groovy", ".clj", ".rs", ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp",
+	".hh", ".cs", ".fs", ".vb", ".rb", ".php", ".swift", ".m", ".mm", ".dart", ".lua", ".pl", ".pm", ".r",
+	".ex", ".exs", ".erl", ".hs", ".ml", ".zig", ".nim", ".vue", ".svelte", ".sql", ".proto",
+	// Shell and other scripts.
+	".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh", ".ps1", ".psm1", ".bat", ".cmd", ".awk", ".sed", ".tcl",
+	// Makefile-like and build files.
+	".mk", ".mak", ".make", ".cmake", ".gradle", ".bazel", ".bzl", ".just", ".ninja", ".rake", ".gemspec",
+	".mod", ".sum", ".lock", ".toml", ".cfg", ".ini", ".yml", ".yaml", ".json", ".xml",
+	// Templates and markup that runs code.
+	".tmpl", ".tpl", ".gotmpl", ".j2", ".jinja", ".jinja2", ".erb", ".ejs", ".hbs", ".mustache", ".liquid",
+	".haml", ".pug", ".html", ".htm", ".xhtml", ".svg", ".jsp", ".asp", ".aspx",
+})
 
 // parseProseSuffixes reads the prose_suffixes setting: suffixes are lower-cased, each is a dot and then
 // letters, digits, "+", "-" or "_", and each is named once. A suffix with a second dot is refused, because
@@ -260,6 +302,11 @@ func parseProseSuffixes(val string) ([]string, error) {
 		}
 		if !ok {
 			return nil, configRefused("prose_suffixes", p, "not a file suffix", allowedProseSuffixes)
+		}
+		// ADR-0049: the list says what is inert, and a source, script, build or template suffix is never
+		// inert. Accepting one would let a file the model must read skip every model call.
+		if builtSuffixes[low] {
+			return nil, configRefused("prose_suffixes", p, "a source, script, build or template suffix is never prose", allowedProseSuffixes)
 		}
 		if containsName(out, low) {
 			return nil, configRefused("prose_suffixes", p, "named twice", allowedProseSuffixes)
@@ -293,7 +340,9 @@ func notProse(cfg fileSettings, req Request, changed []scout.ChangedFile) string
 		facts = change.TreeFacts(req.Target, paths)
 	}
 	for _, p := range paths {
-		if !containsName(cfg.ProseSuffixes, strings.ToLower(path.Ext(p))) {
+		ext := strings.ToLower(path.Ext(p))
+		// The loader refuses a built suffix, but settings can also be built in code; the guard holds either way.
+		if builtSuffixes[ext] || !containsName(cfg.ProseSuffixes, ext) {
 			return p + " has no prose suffix"
 		}
 		f, ok := facts[p]
