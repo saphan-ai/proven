@@ -11,6 +11,7 @@
 package redact
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
 	"strconv"
@@ -37,6 +38,8 @@ type Redactor struct {
 	// needles is ordered longest value first, so a value that contains another
 	// is replaced whole.
 	needles []needle
+	// lengths is the trimmed length of each configured value, by variable name.
+	lengths map[string]int
 }
 
 type needle struct {
@@ -58,10 +61,14 @@ func New(values map[string]string) *Redactor {
 	}
 	sort.Strings(names)
 	seen := map[string]bool{}
-	r := &Redactor{}
+	r := &Redactor{lengths: map[string]int{}}
 	for _, name := range names {
 		v := strings.TrimSpace(values[name])
-		if v == "" || seen[v] {
+		if v == "" {
+			continue
+		}
+		r.lengths[name] = len(v)
+		if seen[v] {
 			continue
 		}
 		// ADR-0005: an error that quotes a value with %q, or a JSON line that carries it, writes
@@ -78,6 +85,22 @@ func New(values map[string]string) *Redactor {
 	return r
 }
 
+// Shorter returns the names of the configured values shorter than min bytes, sorted.
+// A pack writer uses it to refuse a secret too short to redact without damage.
+func (r *Redactor) Shorter(min int) []string {
+	if r == nil {
+		return nil
+	}
+	var out []string
+	for name, n := range r.lengths {
+		if n < min {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // spellings returns v and the ways Go's %q, %+q and a JSON encoder write it inside quotes, without
 // the quotes, each once. A value with nothing to escape has one spelling.
 func spellings(v string) []string {
@@ -90,12 +113,31 @@ func spellings(v string) []string {
 		}
 		out = append(out, s)
 	}
-	add(strings.Trim(strconv.Quote(v), `"`))
-	add(strings.Trim(strconv.QuoteToASCII(v), `"`))
+	add(inner(strconv.Quote(v)))
+	add(inner(strconv.QuoteToASCII(v)))
 	if b, err := json.Marshal(v); err == nil {
-		add(strings.Trim(string(b), `"`))
+		add(inner(string(b)))
+	}
+	// An encoder with HTML escaping off (the evidence pack's) keeps <, > and &
+	// as written and still leaves what %q escapes, so it spells a value a
+	// fourth way.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err == nil {
+		add(inner(strings.TrimSuffix(buf.String(), "\n")))
 	}
 	return out
+}
+
+// inner drops the one quote at each end of an encoded string. strings.Trim
+// would drop every quote, and a value that ends in a quote ends in an escaped
+// one that must stay.
+func inner(quoted string) string {
+	if len(quoted) < 2 {
+		return quoted
+	}
+	return quoted[1 : len(quoted)-1]
 }
 
 // FromEnv builds a Redactor from the variables in Names, read through env.

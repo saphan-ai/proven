@@ -126,6 +126,15 @@ Telemetry is off unless an endpoint is set. It only observes: once a review has 
 | `PROVEN_MAX_RECORD_BYTES` | `1048576` | the most the author record may hold, summed over the files `author_record` names |
 
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
+
+## The evidence pack
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_PACK_KEY` | none (required with `--evidence-pack`) | path to the PEM file of the organisation's Ed25519 private key (PKCS #8) that signs a pack. A missing or unreadable file, or one that group or others can reach (fix: `chmod 600`), is named and the review does not start |
+| `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
+
+The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
 <!-- end generated -->
 
 ## Counting guardrail checks
