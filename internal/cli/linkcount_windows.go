@@ -9,8 +9,8 @@ import (
 
 // linkCount is how many directory names a file has: NumberOfLinks from
 // GetFileInformationByHandle. Windows has no other way to tell a second hard
-// link from one name, and a trace file with a second name inside the review
-// target must be refused (security review piece 8). The handle is opened for
+// link from one name, and a log file with a second name must be refused
+// (security review piece 8). The handle is opened for
 // its attributes only; nothing is read, written, started or dialled, which is
 // why this file is a syscall exemption in internal/pipeline/imports_test.go.
 func linkCount(path string) (uint64, error) {

@@ -221,7 +221,7 @@ func TestTraceFileHardLinkIntoTheTargetIsRefused(t *testing.T) {
 	linked := victim
 	if cross := os.Link(victim, tracePath); cross != nil {
 		if !errors.Is(cross, syscall.EXDEV) {
-			t.Fatal(cross)
+			t.Skipf("hard link not available here: %v", cross)
 		}
 		// The OS refused a link whose names are in different directories.
 		// The second name is created in the log directory instead.
@@ -231,7 +231,7 @@ func TestTraceFileHardLinkIntoTheTargetIsRefused(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := os.Link(linked, tracePath); err != nil {
-			t.Fatal(err)
+			t.Skipf("hard link not available here: %v", err)
 		}
 		t.Logf("measured cross-directory link: %v", cross)
 	}
@@ -279,14 +279,14 @@ func TestTraceFileSymlinkToALinkedFileIsRefused(t *testing.T) {
 	second := insideName
 	if cross := os.Link(outsideFile, insideName); cross != nil {
 		if !errors.Is(cross, syscall.EXDEV) {
-			t.Fatal(cross)
+			t.Skipf("hard link not available here: %v", cross)
 		}
 		// The OS refused a link whose names are in different directories.
 		// The second name is created beside the outside file instead.
 		// The load reads the link count of the landing and not the other path.
 		second = filepath.Join(outside, "kept-link.txt")
 		if err := os.Link(outsideFile, second); err != nil {
-			t.Fatal(err)
+			t.Skipf("hard link not available here: %v", err)
 		}
 		t.Logf("measured cross-directory link: %v", cross)
 	}
@@ -305,6 +305,113 @@ func TestTraceFileSymlinkToALinkedFileIsRefused(t *testing.T) {
 	msg := stderr.String()
 	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, "trace file has 2 names") || !strings.Contains(msg, "remove or rename "+traceFile) {
 		t.Fatalf("stderr %q", msg)
+	}
+}
+
+// siblingLogFiles are the names, other than trace.jsonl, that Proven opens
+// directly in the log directory. world.Store.audit writes world.jsonl.
+// hmem.Store.audit writes hmem.jsonl. Both opens follow a final symlink.
+var siblingLogFiles = []string{"world.jsonl", "hmem.jsonl"}
+
+// TestSiblingLogFileSymlinkIntoTheTargetIsRefused proves a world.jsonl or
+// hmem.jsonl symlink in a directory outside the target is refused when the
+// link lands inside the target. The directory check alone follows that link
+// on open.
+// Unplug: the symlink-landing check for that file name. The load exits 0.
+// For world.jsonl the target file is created. For hmem.jsonl the sample
+// fixture writes no audit line, so the target file stays absent and the
+// exit code is the difference.
+// Mutated field: that file name in PROVEN_LOG_DIR.
+func TestSiblingLogFileSymlinkIntoTheTargetIsRefused(t *testing.T) {
+	for _, name := range siblingLogFiles {
+		t.Run(name, func(t *testing.T) {
+			target := t.TempDir()
+			copyTree(t, filepath.Join(moduleRoot(t), "testdata", "fixture", "discount"), target)
+			outside := t.TempDir()
+			victim := filepath.Join(target, name)
+			if err := os.Symlink(victim, filepath.Join(outside, name)); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"scan", "--sample", target}, envOf(map[string]string{EnvLogDir: outside}), &stdout, &stderr, nil)
+			_, statErr := os.Lstat(victim)
+			nbytes := 0
+			if statErr == nil {
+				body, readErr := os.ReadFile(victim)
+				if readErr == nil {
+					nbytes = len(body)
+				}
+			}
+			if code != exitConfig {
+				t.Fatalf("exit %d target file exists=%v bytes=%d stat %v stderr %s", code, statErr == nil, nbytes, statErr, stderr.String())
+			}
+			if _, err := os.Lstat(victim); !os.IsNotExist(err) {
+				body, _ := os.ReadFile(victim)
+				t.Fatalf("log file inside the target: err %v bytes %d body %q", err, len(body), body)
+			}
+			root, err := filepath.EvalSymlinks(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg := stderr.String()
+			if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, name) || !strings.Contains(msg, root) {
+				t.Fatalf("stderr %q", msg)
+			}
+		})
+	}
+}
+
+// TestSiblingLogFileHardLinkIntoTheTargetIsRefused proves a regular
+// world.jsonl or hmem.jsonl outside the target is refused when that file
+// has a second name. An append through the outside name writes every name.
+// Unplug: the link-count check for that file name. The load exits 0.
+// Mutated field: the link count of that file in PROVEN_LOG_DIR.
+func TestSiblingLogFileHardLinkIntoTheTargetIsRefused(t *testing.T) {
+	for _, name := range siblingLogFiles {
+		t.Run(name, func(t *testing.T) {
+			parent := t.TempDir()
+			target := filepath.Join(parent, "target")
+			copyTree(t, filepath.Join(moduleRoot(t), "testdata", "fixture", "discount"), target)
+			before := []byte{}
+			victim := filepath.Join(target, "kept-"+name)
+			if err := os.WriteFile(victim, before, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			outside := filepath.Join(parent, "outside")
+			if err := os.MkdirAll(outside, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			logPath := filepath.Join(outside, name)
+			linked := victim
+			if cross := os.Link(victim, logPath); cross != nil {
+				if !errors.Is(cross, syscall.EXDEV) {
+					t.Skipf("hard link not available here: %v", cross)
+				}
+				linked = filepath.Join(outside, "kept-"+name)
+				if err := os.WriteFile(linked, before, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Link(linked, logPath); err != nil {
+					t.Skipf("hard link not available here: %v", err)
+				}
+				t.Logf("measured cross-directory link: %v", cross)
+			}
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"scan", "--sample", target}, envOf(map[string]string{EnvLogDir: outside}), &stdout, &stderr, nil)
+			after, readErr := os.ReadFile(linked)
+			changed := readErr == nil && !bytes.Equal(before, after)
+			if code != exitConfig || changed {
+				t.Fatalf("exit %d linked bytes changed=%v read %v stderr %s", code, changed, readErr, stderr.String())
+			}
+			root, err := filepath.EvalSymlinks(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg := stderr.String()
+			if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, name) || !strings.Contains(msg, root) || !strings.Contains(msg, "remove or rename "+name) {
+				t.Fatalf("stderr %q", msg)
+			}
+		})
 	}
 }
 

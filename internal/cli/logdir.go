@@ -18,7 +18,7 @@ func Environment() []envdoc.Setting {
 	return []envdoc.Setting{{
 		Name:        EnvLogDir,
 		Default:     envdoc.Tick("<user cache>/proven/logs"),
-		Description: "where the trace is written. The directory is created with mode 0700. An existing configured directory is narrowed to 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Sample mode reads this",
+		Description: "where the trace is written. The directory is created with mode 0700. An existing configured directory is narrowed to 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Each file written in that directory, trace.jsonl, hmem.jsonl and world.jsonl, is refused when it is a symlink into the review target or has more than one name. The link count is read on every OS. Sample mode reads this",
 	}}
 }
 
@@ -60,13 +60,13 @@ func resolveLogDir(getenv func(string) string, target string) (string, error) {
 		// target would put the review's record in the repository it reviews.
 		return "", refuse(EnvLogDir, raw, "log directory resolves inside the review target "+root, logDirAllowed)
 	}
-	// The directory can sit outside the target while trace.jsonl is a symlink
-	// into it, or a name of a file that has another name. Opening the trace
-	// follows the symlink and writes every name of that file, so the file
-	// the open would reach is checked before anything is written.
-	reason, err := traceFileRefusal(resolved, root)
+	// The directory can sit outside the target while a file Proven writes in
+	// it is a symlink into the target, or one name of a file that has another
+	// name. Each open follows a symlink and writes every name of that file,
+	// so every such file is checked before anything is written.
+	reason, err := logDirFilesRefusal(resolved, root)
 	if err != nil {
-		return "", refuse(EnvLogDir, raw, "trace file cannot be resolved", logDirAllowed)
+		return "", refuse(EnvLogDir, raw, err.Error(), logDirAllowed)
 	}
 	if reason != "" {
 		return "", refuse(EnvLogDir, raw, reason, logDirAllowed)
@@ -131,16 +131,40 @@ func resolvePath(path string) (string, error) {
 // followed by that open.
 const traceFile = "trace.jsonl"
 
-// traceFileRefusal is the reason opening trace.jsonl must be refused, or
+// logDirFileNames are the files Proven opens directly in the log directory,
+// in the order the pipeline opens them. trace.Open writes trace.jsonl.
+// hmem.Store.audit writes hmem.jsonl. world.Store.audit writes world.jsonl.
+// Each open follows a final symlink. Measured 2026-10-25 by reading every
+// production OpenFile and WriteFile that joins a log directory: these three
+// names, and no others. State files are written under the state directory.
+var logDirFileNames = []string{traceFile, "hmem.jsonl", "world.jsonl"}
+
+// logDirFilesRefusal is the reason opening a file in the log directory must
+// be refused, or empty when every open may proceed. The first file that
+// must be refused ends the check.
+func logDirFilesRefusal(logDir, root string) (string, error) {
+	for _, name := range logDirFileNames {
+		reason, err := logFileRefusal(logDir, root, name)
+		if err != nil {
+			return "", fmt.Errorf("%s cannot be resolved", name)
+		}
+		if reason != "" {
+			return reason, nil
+		}
+	}
+	return "", nil
+}
+
+// logFileRefusal is the reason opening name in logDir must be refused, or
 // empty when the open may proceed. A missing file is allowed: the open
 // would create it in logDir, which was already checked. A symlink is
 // followed to the file the open would write. That landing is refused when
-// it is inside the target. A landing, or a regular trace file, with more
-// than one name is the same file as that other name, and the other name
-// can sit inside the target. The kernel reports the count and not the
-// other path, so any count above one is refused.
-func traceFileRefusal(logDir, root string) (string, error) {
-	path := filepath.Join(logDir, traceFile)
+// it is inside the target. A landing, or a regular file, with more than one
+// name is the same file as that other name, and the other name can sit
+// inside the target. The kernel reports the count and not the other path,
+// so any count above one is refused.
+func logFileRefusal(logDir, root, name string) (string, error) {
+	path := filepath.Join(logDir, name)
 	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {
 		return "", nil
@@ -149,7 +173,7 @@ func traceFileRefusal(logDir, root string) (string, error) {
 		return "", err
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		landing, err := symlinkLanding(path)
+		landing, err := symlinkLanding(path, name)
 		if err != nil {
 			return "", err
 		}
@@ -158,21 +182,31 @@ func traceFileRefusal(logDir, root string) (string, error) {
 			return "", err
 		}
 		if inside {
-			return "trace file resolves inside the review target " + root, nil
+			return logFileInside(name) + " resolves inside the review target " + root, nil
 		}
-		return manyNames(landing)
+		return manyNames(landing, name, root)
 	}
 	if !info.Mode().IsRegular() {
 		return "", nil
 	}
-	return manyNames(path)
+	return manyNames(path, name, root)
+}
+
+// logFileInside is the subject of a refusal sentence. The trace file keeps
+// the wording the trace checks already match.
+func logFileInside(name string) string {
+	if name == traceFile {
+		return "trace file"
+	}
+	return name
 }
 
 // manyNames refuses path when it is a regular file with more than one name.
 // A missing file has no second name: the open would create it. The sentence
-// names the count that was read and the next act. It does not claim where
-// the other name is, because the count does not say.
-func manyNames(path string) (string, error) {
+// names the count that was read, the file to remove or rename, and the
+// review target the scan was about to write beside. It does not claim that
+// the other name is inside that target, because the count does not say.
+func manyNames(path, name, root string) (string, error) {
 	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {
 		return "", nil
@@ -188,14 +222,14 @@ func manyNames(path string) (string, error) {
 		return "", err
 	}
 	if n > 1 {
-		return fmt.Sprintf("trace file has %d names; remove or rename %s", n, traceFile), nil
+		return fmt.Sprintf("%s has %d names; remove or rename %s (review target %s)", logFileInside(name), n, name, root), nil
 	}
 	return "", nil
 }
 
 // symlinkLanding returns the path a symlink chain names, including a final
 // component that does not exist yet. The open would create that component.
-func symlinkLanding(path string) (string, error) {
+func symlinkLanding(path, name string) (string, error) {
 	const maxLinks = 64
 	cur := path
 	seen := make(map[string]struct{})
@@ -206,7 +240,7 @@ func symlinkLanding(path string) (string, error) {
 		}
 		abs = filepath.Clean(abs)
 		if _, ok := seen[abs]; ok {
-			return "", fmt.Errorf("trace file symlink loop")
+			return "", fmt.Errorf("%s symlink loop", name)
 		}
 		seen[abs] = struct{}{}
 		info, err := os.Lstat(abs)
@@ -228,7 +262,7 @@ func symlinkLanding(path string) (string, error) {
 		}
 		cur = dest
 	}
-	return "", fmt.Errorf("trace file symlink loop")
+	return "", fmt.Errorf("%s symlink loop", name)
 }
 
 // pathInside reports whether dir is root or a path below root.
