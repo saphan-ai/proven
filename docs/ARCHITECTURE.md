@@ -132,7 +132,7 @@ evidence), `TestALongOpenClaimIsCarriedWholeToItsEvidence` (a claim over 400 byt
 reaches that evidence whole) and `TestALongOpenClaimThatCannotBeHeldWholeStopsTheReviewBeforeAnyCut` (when the bound
 cannot hold it whole, the review stops by name at the step that raised it). A claim still open after the last step is not lost either: no part is left to supply its evidence, so the review stops
 with `*markov.OpenClaimsError` (its message gives the number of steps and of open claims, never the claim text), and the
-trace carries the same sentence. The review does not fall back by itself. Test:
+trace carries the same sentence. A bounded review that stops ends with that named error; Proven does not yet fall back to a whole review, so the caller sees an incomplete review, never a silent success. Test:
 `TestAClaimStillOpenAfterTheLastStepStopsTheReviewByName` (two files, the last answer holds one open claim and no risk).
 A model that leaves a claim out of the state it returns is a model error this bound cannot see.
 
