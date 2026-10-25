@@ -134,6 +134,8 @@ func Audit(receipts io.Reader, key ed25519.PublicKey, traces map[string]io.Reade
 		return Report{}, fmt.Errorf("reading receipts: %w", err)
 	}
 
+	// counted maps a response id to the source of the answer it vouched for.
+	counted := map[string]string{}
 	names := make([]string, 0, len(traces))
 	for name := range traces {
 		names = append(names, name)
@@ -148,7 +150,7 @@ func Audit(receipts io.Reader, key ed25519.PublicKey, traces map[string]io.Reade
 		for _, a := range answers {
 			d := day(dayOf(parseTime(a.Time)))
 			d.Answers++
-			judge(d, a, good, bad)
+			judge(d, a, good, bad, counted)
 		}
 	}
 
@@ -162,7 +164,7 @@ func Audit(receipts io.Reader, key ed25519.PublicKey, traces map[string]io.Reade
 // judge applies the three checks to one answer and records the outcome on the
 // day. The checks run in the order a reader would ask them; the first that
 // fails names the reason, so one answer is one failure.
-func judge(d *Day, a Answer, good map[string]Receipt, bad map[string]refusal) {
+func judge(d *Day, a Answer, good map[string]Receipt, bad map[string]refusal, counted map[string]string) {
 	fail := func(reason string) { d.Failures = append(d.Failures, Failure{Answer: a, Reason: reason}) }
 	if a.ReceiptID == generator.NoReceipt {
 		fail("no receipt: the answer came from an API that signs nothing")
@@ -181,6 +183,18 @@ func judge(d *Day, a Answer, good map[string]Receipt, bad map[string]refusal) {
 		fail("no receipt matches response id " + a.ResponseID)
 		return
 	}
+	// A receipt that verifies but says the request failed vouches for nothing.
+	if r.Status != "ok" {
+		fail(fmt.Sprintf("receipt status is %q, not \"ok\"", r.Status))
+		return
+	}
+	// One receipt vouches for one answer: a second answer on the same
+	// response id is not a second answer in custody.
+	if first, dup := counted[a.ResponseID]; dup {
+		fail("response id already counted at " + first)
+		return
+	}
+	counted[a.ResponseID] = a.Source
 	d.Matched++
 	routed := a.Routed
 	if routed == "" || routed == "unknown" {

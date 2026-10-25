@@ -8,8 +8,10 @@ A model answer counts only when it is in custody. Three things must hold:
 3. The answer's trace line names its response id, so the join can be made at all.
 
 Each live model call writes one `model` event to `logs/trace.jsonl`. The event carries the requested model, the
-routed model, the receipt id and the response id. Older traces lack the requested model and the response id; the
-audit fails their answers by name, it does not guess.
+routed model, the receipt id and the response id. Older traces lack the requested model and the response id. An older event that carries a receipt id is a live
+answer, and the audit fails it by name (`no response id recorded`); it does not guess. An older event that carries
+neither a requested model nor a receipt id cannot be told from a sample call, so the audit skips it and counts it
+under "trace events skipped". Such an answer is not judged either way.
 
 ## What a receipt looks like
 
@@ -50,6 +52,8 @@ Then it prints every answer that fails, with its reason, and every receipts line
 | `receipt refused: signature does not verify` | the receipt body was changed after it was signed |
 | `receipt refused: unknown key` | the receipt is signed under a key other than the pinned one |
 | `receipt refused: malformed receipt` | the line is not a receipt |
+| `receipt status is "failed", not "ok"` | the receipt verifies, but it records a request that did not succeed |
+| `response id already counted at <source>` | one receipt vouches for one answer; this answer repeats a response id already counted |
 | `model mismatch: requested A, answered by B` | the answering model is not the one asked for |
 | `model mismatch: the stream names A, the signed receipt names B` | the trace and the signed receipt disagree |
 | `no receipt: the answer came from an API that signs nothing` | a `nvidia` mode answer; the hosted API gives no receipt |
