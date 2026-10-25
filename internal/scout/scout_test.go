@@ -51,11 +51,11 @@ func decide(t *testing.T, e *Engine, prompt string) Decision {
 // a path trigger in a text registry.
 func TestRegistryRefusals(t *testing.T) {
 	cases := map[string]struct{ from, to, want string }{
-		"no examples":   {`"examples":["Show me the Acme deal"]`, `"examples":[]`, "no examples"},
-		"risk class":    {`"riskClass":"high"`, `"riskClass":"severe"`, "risk class"},
-		"id grammar":    {`"id":"deal.query"`, `"id":"DealQuery"`, "category.name"},
-		"no general":    {`"id":"GENERAL"`, `"id":"general.fallback"`, "no GENERAL"},
-		"duplicate":     {`"id":"deal.update"`, `"id":"deal.query"`, "twice"},
+		"no examples": {`"examples":["Show me the Acme deal"]`, `"examples":[]`, "no examples"},
+		"risk class":  {`"riskClass":"high"`, `"riskClass":"severe"`, "risk class"},
+		"id grammar":  {`"id":"deal.query"`, `"id":"DealQuery"`, "category.name"},
+		"no general":  {`"id":"GENERAL"`, `"id":"general.fallback"`, "no GENERAL"},
+		"duplicate":   {`"id":"deal.update"`, `"id":"deal.query"`, "twice"},
 		"wrong trigger": {`"version":1}
   ]`, `"version":1,"triggers":[{"path":"**/*.go","weight":1}]}
   ]`, "phrase and no path"},
