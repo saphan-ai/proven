@@ -59,18 +59,7 @@ func (s *Store) SleepPreview() SleepPreview {
 func (s *Store) sleepPlan() SleepPreview {
 	now := s.now()
 	all := s.snapshot()
-	referenced := map[string]bool{}
-	for _, m := range all {
-		for _, r := range m.RelatedTo {
-			referenced[r] = true
-		}
-		if m.Supersedes != "" {
-			referenced[m.Supersedes] = true
-		}
-		for _, d := range m.DerivedFrom {
-			referenced[d] = true
-		}
-	}
+	guard := protections(all)
 	plan := SleepPreview{ToConsolidate: []string{}, ToArchive: []string{}, ToSynthesize: [][]string{}}
 	for _, m := range all {
 		if m.Layer == LayerShort && now-m.LastAccessed >= consolidationDays*dayMillis {
@@ -78,18 +67,19 @@ func (s *Store) sleepPlan() SleepPreview {
 		}
 	}
 	for _, m := range all {
-		if now-m.Timestamp < archiveMinDays*dayMillis || m.AccessCount > archiveMaxAccess || referenced[m.ID] {
-			continue
+		if archiveEligible(m, now, guard) {
+			plan.ToArchive = append(plan.ToArchive, m.ID)
 		}
-		// Guardrails (H-MEM section 8.2): a record that supersedes another, a
-		// record derived from others and a relationship hub are never archived,
-		// because losing one loses the reason for something else.
-		if m.Supersedes != "" || len(m.DerivedFrom) > 0 || len(m.RelatedTo) >= hubThreshold {
-			continue
-		}
-		plan.ToArchive = append(plan.ToArchive, m.ID)
 	}
+	// A record that is itself derived, or already a source of a derived
+	// record, is not synthesized again: sources stay in the store, so without
+	// this every cycle would add another synthesis of the same memories.
 	used := map[string]bool{}
+	for _, m := range all {
+		if len(m.DerivedFrom) > 0 || guard.sources[m.ID] {
+			used[m.ID] = true
+		}
+	}
 	for i := range all {
 		if used[all[i].ID] {
 			continue
@@ -113,9 +103,70 @@ func (s *Store) sleepPlan() SleepPreview {
 	return plan
 }
 
+// guards is what keeps a record out of the archive, computed from the whole
+// store at one moment.
+type guards struct {
+	// referenced holds every id another record names: as a relation, as a
+	// supersession partner or as a derivation source.
+	referenced map[string]bool
+	// sources holds the ids a derived record was made from.
+	sources map[string]bool
+	// conflicted holds the ids of both sides of an unresolved conflict.
+	conflicted map[string]bool
+}
+
+// protections computes the guards over all records. A resolved conflict is a
+// supersession link, so checkConflict no longer reports it and the link guards
+// both sides instead.
+func protections(all []Record) guards {
+	g := guards{referenced: map[string]bool{}, sources: map[string]bool{}, conflicted: map[string]bool{}}
+	for _, m := range all {
+		for _, r := range m.RelatedTo {
+			g.referenced[r] = true
+		}
+		if m.Supersedes != "" {
+			g.referenced[m.Supersedes] = true
+		}
+		if m.SupersededBy != "" {
+			g.referenced[m.SupersededBy] = true
+		}
+		for _, d := range m.DerivedFrom {
+			g.referenced[d] = true
+			g.sources[d] = true
+		}
+	}
+	for i := range all {
+		for j := i + 1; j < len(all); j++ {
+			if _, ok := checkConflict(all[i], all[j]); ok {
+				g.conflicted[all[i].ID] = true
+				g.conflicted[all[j].ID] = true
+			}
+		}
+	}
+	return g
+}
+
+// archiveEligible reports whether sleep may archive m now. Guardrails (H-MEM
+// section 8.2): a record that supersedes or is superseded, a record derived
+// from others, a derivation source, a related record, a conflict member and
+// a relationship hub are never archived, because losing one loses the reason
+// for something else. Preview and Execute both ask it, so a supplied plan
+// gets no way around the guard.
+func archiveEligible(m Record, now int64, g guards) bool {
+	if now-m.Timestamp < archiveMinDays*dayMillis || m.AccessCount > archiveMaxAccess {
+		return false
+	}
+	if g.referenced[m.ID] || g.conflicted[m.ID] {
+		return false
+	}
+	return m.Supersedes == "" && m.SupersededBy == "" && len(m.DerivedFrom) == 0 && len(m.RelatedTo) < hubThreshold
+}
+
 // SleepExecute carries out a plan, after writing a backup of the whole store.
 // A nil plan means the plan computed now. An id in the plan that is no longer
-// in the store is skipped. Every step writes a ledger line; a failed write
+// in the store is skipped. An id that is no longer eligible for archive (the
+// record changed since the preview, or the caller supplied it) is kept and
+// logged: the guard is checked here, under the lock, for every id. Every step writes a ledger line; a failed write
 // puts the records and the sequence back as they were.
 func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 	s.mu.Lock()
@@ -161,9 +212,16 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		rep.Consolidated++
 		rep.ActionLog = append(rep.ActionLog, "consolidated "+id)
 	}
+	// Guards are computed once, before any archive, from the store as it is
+	// now: archiving one record must not unprotect another in the same cycle.
+	guard := protections(s.snapshot())
 	for _, id := range plan.ToArchive {
 		rec, ok := s.records[id]
 		if !ok {
+			continue
+		}
+		if !archiveEligible(rec, s.now(), guard) {
+			rep.ActionLog = append(rep.ActionLog, "kept "+id+": protected or not old enough")
 			continue
 		}
 		// The backup above is the way back: archiving removes the record from
@@ -180,7 +238,8 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 	for _, group := range plan.ToSynthesize {
 		var members []Record
 		for _, id := range group {
-			if rec, ok := s.records[id]; ok {
+			// A record already derived or already a source stays out, as in the plan.
+			if rec, ok := s.records[id]; ok && len(rec.DerivedFrom) == 0 && !guard.sources[id] {
 				members = append(members, rec)
 			}
 		}
@@ -196,9 +255,8 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		}); err != nil {
 			return rollback(err)
 		}
-		for _, m := range members {
-			delete(s.records, m.ID)
-		}
+		// The sources stay: a synthesis is lineage, not replacement, and the
+		// derived record's DerivedFrom must name live records.
 		rep.Synthesized++
 		rep.ActionLog = append(rep.ActionLog, fmt.Sprintf("synthesized %s from %s", merged.ID, strings.Join(group, ", ")))
 	}
@@ -209,7 +267,7 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 }
 
 // synthesize merges members into one long-term record with lineage. The caller
-// holds s.mu and removes the members.
+// holds s.mu. The members stay in the store.
 func (s *Store) synthesize(members []Record) (Record, error) {
 	contents := make([]string, 0, len(members))
 	ids := make([]string, 0, len(members))

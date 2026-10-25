@@ -118,7 +118,7 @@ func checkConflict(a, b Record) (Conflict, bool) {
 
 // AutoResolve decides a conflict by weighted heuristics (section 10.2). At a
 // decision confidence of 0.70 or more the loser is marked supersededBy the
-// winner and both records stay, because ranking penalizes a superseded record
+// winner, the winner is marked supersedes the loser and both records stay, because ranking penalizes a superseded record
 // and a deletion could not be taken back. Below the gate it returns "queued"
 // and changes nothing. It returns the conflict as resolved or as given.
 func (s *Store) AutoResolve(c Conflict) (string, Conflict, error) {
@@ -153,8 +153,13 @@ func (s *Store) AutoResolve(c Conflict) (string, Conflict, error) {
 	}
 	before := ledgerState(loser)
 	prev := loser
+	// Both links, as MarkSuperseded sets them: a later sleep then protects
+	// the winner and the loser, so the conflict history stays readable.
+	prevWinner := winner
 	loser.SupersededBy = winner.ID
+	winner.Supersedes = loser.ID
 	s.records[loser.ID] = loser
+	s.records[winner.ID] = winner
 	extra := map[string]any{
 		"previousState": before,
 		"newState":      ledgerState(loser),
@@ -163,7 +168,7 @@ func (s *Store) AutoResolve(c Conflict) (string, Conflict, error) {
 			"decisionConfidence": math.Round(decision*1000) / 1000,
 		},
 	}
-	if err := s.publishWith("conflict_resolved", loser.ID, "conflicts", extra, s.seq, map[string]Record{loser.ID: prev}, nil); err != nil {
+	if err := s.publishWith("conflict_resolved", loser.ID, "conflicts", extra, s.seq, map[string]Record{loser.ID: prev, winner.ID: prevWinner}, nil); err != nil {
 		return "", c, err
 	}
 	c.Resolved = true
