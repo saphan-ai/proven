@@ -40,9 +40,13 @@ inputs:
     required: false
     default: "false"
   comment:
-    description: true asks for the review to be posted on the pull request; a separate step posts it, this one does not.
+    description: true posts the review on the pull request through reviewdog (needs pull-requests write); false posts nothing and reads no token.
     required: false
     default: "false"
+  github-token:
+    description: The token reviewdog posts with; read only when comment is true. Needs pull-requests write.
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   results-file:
@@ -71,3 +75,4 @@ runs:
     INPUT_BASELINE_COMMIT: ${{ inputs.baseline-commit }}
     INPUT_SAMPLE_MODE: ${{ inputs.sample-mode }}
     INPUT_COMMENT: ${{ inputs.comment }}
+    INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}

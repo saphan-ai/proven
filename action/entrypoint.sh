@@ -35,6 +35,7 @@ strict=${INPUT_STRICT:-true}
 baseline=${INPUT_BASELINE_COMMIT:-}
 sample=${INPUT_SAMPLE_MODE:-false}
 comment=${INPUT_COMMENT:-false}
+reviewdog=${REVIEWDOG_BIN:-reviewdog}
 
 bool strict "$strict"
 bool sample-mode "$sample"
@@ -83,18 +84,29 @@ case "$output_format" in
 esac
 
 # include and exclude are comma-separated globs; each becomes one flag.
+# set -f: a glob is for Proven to match against changed paths, never for this shell
+# to expand against the checkout it happens to run in.
 oldifs=$IFS
 IFS=,
+set -f
 for glob in $include; do
   [ -z "$glob" ] || set -- "$@" "--include=$glob"
 done
 for glob in $exclude; do
   [ -z "$glob" ] || set -- "$@" "--exclude=$glob"
 done
+set +f
 IFS=$oldifs
 
+# The write token is read only when comment is true, and before anything runs.
+reporter=
 if [ "$comment" = true ]; then
-  echo "proven action: comment is true; the pull request comment is posted by a separate step, not by this one." >&2
+  token=${INPUT_GITHUB_TOKEN:-}
+  [ -n "$token" ] || fail "comment is true but github-token is empty; set github-token to a token that may write pull requests, and give the job pull-requests: write."
+  # Gitea Actions sets GITHUB_SERVER_URL to its own address and GITEA_ACTIONS=true;
+  # GitHub (and GitHub Enterprise Server) set no GITEA_ACTIONS.
+  if [ "${GITEA_ACTIONS:-}" = true ]; then reporter=gitea-pr-review; else reporter=github-pr-review; fi
+  command -v "$reviewdog" >/dev/null 2>&1 || fail "comment is true but reviewdog '$reviewdog' was not found in the image; rebuild action/Dockerfile."
 fi
 
 # A file left by an earlier run must not be counted as this run's.
@@ -119,6 +131,21 @@ fi
   echo "findings-count=$findings"
   echo "unresolved-count=$unresolved"
 } >>"$GITHUB_OUTPUT"
+
+# comment: post Proven's SARIF on the pull request through reviewdog (ADR-0020 §7).
+# A review that could not run wrote no SARIF, and there is nothing to post then.
+if [ "$comment" = true ] && [ -f "$workspace/$sarif_file" ]; then
+  postrc=0
+  (
+    cd "$workspace"
+    REVIEWDOG_GITHUB_API_TOKEN=$token REVIEWDOG_GITEA_API_TOKEN=$token \
+      "$reviewdog" -f=sarif -name=proven "-reporter=$reporter" -fail-level=none <"$sarif_file"
+  ) || postrc=$?
+  if [ "$postrc" -ne 0 ]; then
+    echo "proven action: posting the review on the pull request failed: reviewdog ($reporter) exited $postrc. Check that github-token may write pull requests (pull-requests: write) and that this run is a pull request." >&2
+    [ "$rc" -ne 0 ] || rc=2
+  fi
+fi
 
 rm -rf "$scratch"
 exit "$rc"

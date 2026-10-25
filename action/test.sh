@@ -37,7 +37,7 @@ names() { # section file: the keys one indent under a top-level section
   ' "$2" | sort | tr '\n' ' '
 }
 check "action.yml inputs" \
-  "baseline-commit comment config exclude include output-format sample-mode severity strict target timeout " \
+  "baseline-commit comment config exclude github-token include output-format sample-mode severity strict target timeout " \
   "$(names inputs "$root/action.yml")"
 check "action.yml outputs" \
   "findings-count json-file results-file sarif-file unresolved-count " \
@@ -54,10 +54,14 @@ run() {
   out=$tmp/$name/out
   mkdir -p "$ws"
   : >"$out"
-  env -i PATH="$PATH" HOME="$tmp" TMPDIR="$tmp" PROVEN_BIN="$PROVEN_BIN" \
-    GITHUB_WORKSPACE="$ws" GITHUB_OUTPUT="$out" \
-    INPUT_TARGET="$fixture" INPUT_SAMPLE_MODE=true "$@" \
-    sh "$here/entrypoint.sh" >"$tmp/$name/stdout" 2>"$tmp/$name/stderr"
+  # RUNDIR is the script's working directory: the runner starts the container in the checkout.
+  (
+    cd "${RUNDIR:-.}" &&
+      env -i PATH="$PATH" HOME="$tmp" TMPDIR="$tmp" PROVEN_BIN="$PROVEN_BIN" \
+        GITHUB_WORKSPACE="$ws" GITHUB_OUTPUT="$out" \
+        INPUT_TARGET="$fixture" INPUT_SAMPLE_MODE=true "$@" \
+        sh "${ENTRYPOINT:-$here/entrypoint.sh}" >"$tmp/$name/stdout" 2>"$tmp/$name/stderr"
+  )
   rc=$?
 }
 output() { sed -n "s/^$1=//p" "$out"; }
@@ -154,9 +158,68 @@ run noconfig INPUT_CONFIG=does-not-exist.yaml
 check "missing config: Proven's refusal is the step's exit code (7)" 7 "$rc"
 check "missing config: counts are 0" "0 0" "$(output findings-count) $(output unresolved-count)"
 
-run comment INPUT_COMMENT=true INPUT_STRICT=false
-check "comment=true: accepted, exit 0" 0 "$rc"
-check "comment=true: says a separate step posts" 1 "$(grep -c 'posted by a separate step' "$tmp/comment/stderr")"
+# A glob is Proven's to match: a path in the working directory that fits it must not
+# turn it into other words. The runner starts the container in the checkout.
+mkdir -p "$tmp/cwd/vendor/a" "$tmp/cwd/vendor/b"
+RUNDIR=$tmp/cwd stubrun globs INPUT_EXCLUDE='vendor/*' INPUT_INCLUDE='*,vendor/*'
+check "exclude glob reaches Proven verbatim" 1 "$(hasarg '--exclude=vendor/*')"
+check "exclude glob is not expanded against the working directory" 0 "$(contains '--exclude=vendor/a')"
+check "include glob '*' reaches Proven verbatim" 1 "$(hasarg '--include=*')"
+
+# comment: reviewdog posts Proven's SARIF. A stub records its arguments, its
+# stdin, and the token and server it was given.
+cat >"$tmp/reviewdog.sh" <<'EOF'
+#!/bin/sh
+for a in "$@"; do printf '%s\n' "$a"; done >"$RD_ARGS"
+cat >"$RD_STDIN"
+printf '%s|%s\n' "${REVIEWDOG_GITHUB_API_TOKEN:-}" "${REVIEWDOG_GITEA_API_TOKEN:-}" >"$RD_TOKEN"
+exit "${RD_RC:-0}"
+EOF
+chmod +x "$tmp/reviewdog.sh"
+rdrun() {
+  name=$1
+  shift
+  RD_ARGS=$tmp/$name.rdargs
+  RD_STDIN=$tmp/$name.rdstdin
+  RD_TOKEN=$tmp/$name.rdtoken
+  rm -f "$RD_ARGS" "$RD_STDIN" "$RD_TOKEN"
+  run "$name" REVIEWDOG_BIN="$tmp/reviewdog.sh" RD_ARGS="$RD_ARGS" RD_STDIN="$RD_STDIN" RD_TOKEN="$RD_TOKEN" "$@"
+  args=
+  [ ! -f "$RD_ARGS" ] || args=$(tr '\n' ' ' <"$RD_ARGS")
+}
+
+rdrun postgh INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
+check "comment=true: exit 0" 0 "$rc"
+check "comment=true: reviewdog reads SARIF" 1 "$(hasarg -f=sarif)"
+check "comment=true: reporter on GitHub" 1 "$(hasarg -reporter=github-pr-review)"
+check "comment=true: reviewdog is given Proven's SARIF, byte for byte" 1 "$(cmp -s "$ws/proven-results.sarif" "$RD_STDIN" && echo 1)"
+check "comment=true: the token reaches reviewdog" "tok-1|tok-1" "$(cat "$RD_TOKEN")"
+
+rdrun postgitea INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=https://gitea.example
+check "comment=true on Gitea: reporter" 1 "$(hasarg -reporter=gitea-pr-review)"
+
+rdrun poststrict INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true
+check "comment=true, strict, findings: still posted" 1 "$(hasarg -reporter=github-pr-review)"
+check "comment=true, strict, findings: exit is Proven's 1" 1 "$rc"
+
+rdrun postfail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false RD_RC=1
+check "comment=true, reviewdog fails: the step fails (2)" 2 "$rc"
+check "comment=true, reviewdog fails: the message names the post" 1 "$(grep -c 'posting the review on the pull request failed' "$tmp/postfail/stderr")"
+check "comment=true, reviewdog fails: outputs still written" 4 "$(output findings-count)"
+
+rdrun notoken INPUT_COMMENT=true INPUT_GITHUB_TOKEN=
+check "comment=true, no token: refused, exit 2" 2 "$rc"
+check "comment=true, no token: names github-token" 1 "$(grep -c 'github-token is empty' "$tmp/notoken/stderr")"
+check "comment=true, no token: Proven did not run" 0 "$(test -e "$tmp/notoken/ws/proven-results.json" && echo 1 || echo 0)"
+
+rdrun nocomment INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
+check "comment=false: reviewdog not run" 0 "$(test -e "$RD_ARGS" && echo 1 || echo 0)"
+
+rdrun nocommentnotoken INPUT_GITHUB_TOKEN= INPUT_STRICT=false
+check "comment=false: no token needed" 0 "$rc"
+
+rdrun nofail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_CONFIG=does-not-exist.yaml
+check "comment=true, Proven refused (7): nothing posted, exit 7" "7 0" "$rc $(test -e "$RD_ARGS" && echo 1 || echo 0)"
 
 echo "passed $pass, failed $failed"
 [ "$failed" -eq 0 ]
