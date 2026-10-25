@@ -198,6 +198,11 @@ func defaultPathRules() []pathRule {
 
 // loadConfigFile reads an explicit configuration path. A missing path is refused.
 func loadConfigFile(path string) (fileSettings, error) {
+	return loadConfigFileUnder(path, nil)
+}
+
+// loadConfigFileUnder is loadConfigFile under an organisation policy; nil means none.
+func loadConfigFileUnder(path string, pol *policy) (fileSettings, error) {
 	st, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -225,30 +230,41 @@ func loadConfigFile(path string) (fileSettings, error) {
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	return parseConfig(b)
+	return pol.parseLocal(b)
 }
 
 // loadSettingsAtBaseline reads proven.yaml as it is in the baseline commit.
 // The change's copy is not consulted. A change must not choose how strictly
 // it is reviewed. A baseline with no proven.yaml is the defaults.
 func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
+	return loadSettingsAtBaselineUnder(target, baseline, nil)
+}
+
+// loadSettingsAtBaselineUnder is loadSettingsAtBaseline under an organisation policy; nil means none.
+// A baseline with no proven.yaml is the policy's settings, or the defaults with no policy.
+func loadSettingsAtBaselineUnder(target, baseline string, pol *policy) (fileSettings, error) {
 	b, ok, err := change.Blob(target, baseline, "proven.yaml")
 	if err != nil {
 		return fileSettings{}, err
 	}
 	if !ok {
-		return defaultSettings(), nil
+		return pol.base(), nil
 	}
 	// Blob is bounded by the file limit; proven.yaml has a smaller bound of its own.
 	if bound := change.Bounds().Config; int64(len(b)) > bound {
 		return fileSettings{}, change.OverBound("proven.yaml", bound, change.EnvMaxConfigBytes)
 	}
-	return parseConfig(b)
+	return pol.parseLocal(b)
 }
 
 // loadSettingsInTarget reads proven.yaml in the review target when Open was
 // given no path and the request has no baseline commit. A missing file is the defaults.
 func loadSettingsInTarget(target string) (fileSettings, error) {
+	return loadSettingsInTargetUnder(target, nil)
+}
+
+// loadSettingsInTargetUnder is loadSettingsInTarget under an organisation policy; nil means none.
+func loadSettingsInTargetUnder(target string, pol *policy) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
 	// ADR-0013, ADR-0025: the target's copy is repository content, so a link is refused by name
 	// before it is opened. Stat and ReadFile would follow it to a file outside the checkout, and
@@ -256,7 +272,7 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 	st, err := os.Lstat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return defaultSettings(), nil
+			return pol.base(), nil
 		}
 		return fileSettings{}, err
 	}
@@ -277,7 +293,7 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 	if err != nil {
 		return fileSettings{}, err
 	}
-	return parseConfig(b)
+	return pol.parseLocal(b)
 }
 
 // parseConfig reads one flat YAML mapping. It is a small reader of its own, not a YAML library,
@@ -285,13 +301,26 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 // An empty file is the defaults. Comments, quotes and one document are read.
 // A nested value is refused. An unknown key is refused.
 func parseConfig(b []byte) (fileSettings, error) {
-	cfg := defaultSettings()
+	cfg, _, err := parseConfigOver(b, defaultSettings(), nil)
+	return cfg, err
+}
+
+// keyHook lets a reader of the same flat format take keys of its own (the organisation policy's
+// exceptions, ADR-0036). It reports whether it took the key; a key it does not take is read as a
+// proven.yaml key.
+type keyHook func(key, val string) (bool, error)
+
+// parseConfigOver is parseConfig on a base other than the defaults: a key the file does not set keeps
+// the base's value, which is how a repository inherits the organisation policy. It also returns the
+// raw value of every key the file set, so a caller can compare the file with a policy.
+func parseConfigOver(b []byte, base fileSettings, hook keyHook) (fileSettings, map[string]string, error) {
+	cfg := base
+	given := map[string]string{}
 	// An editor may save a UTF-8 byte order mark; it is not part of the first key.
 	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
 	if len(bytes.TrimSpace(b)) == 0 {
-		return cfg, nil
+		return cfg, given, nil
 	}
-	seen := map[string]bool{}
 	seenDoc := false
 	for _, raw := range bytes.Split(b, []byte("\n")) {
 		line := strings.TrimRight(string(raw), "\r")
@@ -301,7 +330,7 @@ func parseConfig(b []byte) (fileSettings, error) {
 		}
 		if trimmed == "---" {
 			if seenDoc {
-				return fileSettings{}, configRefused("proven.yaml", trimmed, "more than one document", "one flat mapping")
+				return fileSettings{}, nil, configRefused("proven.yaml", trimmed, "more than one document", "one flat mapping")
 			}
 			seenDoc = true
 			continue
@@ -311,31 +340,45 @@ func parseConfig(b []byte) (fileSettings, error) {
 			continue
 		}
 		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
-			return fileSettings{}, configRefused("proven.yaml", trimmed, "nested value", "a flat mapping of scalar values")
+			return fileSettings{}, nil, configRefused("proven.yaml", trimmed, "nested value", "a flat mapping of scalar values")
 		}
 		if strings.HasPrefix(trimmed, "- ") || trimmed == "-" {
-			return fileSettings{}, configRefused("proven.yaml", trimmed, "the file must be a mapping", "a flat mapping of scalar values")
+			return fileSettings{}, nil, configRefused("proven.yaml", trimmed, "the file must be a mapping", "a flat mapping of scalar values")
 		}
 		key, val, err := splitField(trimmed)
 		if err != nil {
-			return fileSettings{}, err
+			return fileSettings{}, nil, err
 		}
-		if !knownKey(key) {
-			return fileSettings{}, &ConfigError{
+		taken := false
+		if hook != nil {
+			taken, err = hook(key, val)
+			if err != nil {
+				return fileSettings{}, nil, err
+			}
+		}
+		if !taken && !knownKey(key) {
+			// An exception is not a repository's to write: it lives in the organisation policy file only (ADR-0036).
+			if strings.HasPrefix(key, exceptionPrefix) {
+				return fileSettings{}, nil, configRefused(key, val, "exceptions live in the organisation policy file only", "a key from: "+strings.Join(configKeys, ", "))
+			}
+			return fileSettings{}, nil, &ConfigError{
 				Field: key, Value: val, Reason: "unknown key",
 				Allowed: append([]string(nil), configKeys...),
 			}
 		}
 		// A key set twice is refused, so a reader of the file never has to guess which line wins.
-		if seen[key] {
-			return fileSettings{}, configRefused(key, val, "duplicate key", allowedText(key))
+		if _, dup := given[key]; dup {
+			return fileSettings{}, nil, configRefused(key, val, "duplicate key", allowedText(key))
 		}
-		seen[key] = true
+		given[key] = val
+		if taken {
+			continue
+		}
 		if err := applyKey(&cfg, key, val); err != nil {
-			return fileSettings{}, err
+			return fileSettings{}, nil, err
 		}
 	}
-	return cfg, nil
+	return cfg, given, nil
 }
 
 // knownKey reports whether key is in the closed key set.

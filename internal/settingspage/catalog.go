@@ -17,6 +17,7 @@ import (
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/review"
 	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -24,6 +25,9 @@ import (
 )
 
 //go:generate go run ../../cmd/settings-doc
+
+// policyAfter follows the policy table. It is not a setting.
+const policyAfter = "A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036)."
 
 // guardrailAfter is the sentence that follows the guardrail table. It is
 // not a setting. It stays inside the generated block so the one marker pair
@@ -104,6 +108,11 @@ func Catalog() []envdoc.Section {
 			Heading: "Reads of the repository under review",
 			Rows:    change.Environment(),
 			After:   readsAfter,
+		},
+		{
+			Heading: "The organisation policy",
+			Rows:    review.EnvironmentPolicy(),
+			After:   policyAfter,
 		},
 		{
 			Heading: "The evidence pack",

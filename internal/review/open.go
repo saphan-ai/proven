@@ -59,17 +59,31 @@ func open(opts Options) (Reviewer, error) {
 		reads = loaded
 	}
 	change.UseLimits(reads)
-	cfg := defaultSettings()
+	// ADR-0036: the organisation policy is read first, once, and refused here when it is missing or
+	// malformed. Whether it lies inside the repository is known only when a review names its target.
+	var pol *policy
+	if opts.PolicyPath != "" {
+		loaded, err := loadPolicy(opts.PolicyPath)
+		if err != nil {
+			return nil, err
+		}
+		pol = loaded
+	}
+	cfg := pol.base()
 	explicit := false
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
 	// change's baseline (see runner.Review).
 	if opts.ConfigPath != "" {
-		loaded, err := loadConfigFile(opts.ConfigPath)
+		loaded, err := loadConfigFileUnder(opts.ConfigPath, pol)
 		if err != nil {
 			return nil, err
 		}
 		cfg = loaded
 		explicit = true
+	}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
 	}
 	popts := pipeline.Options{
 		Sample: opts.Sample,
@@ -260,7 +274,7 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now}, nil
 }
 
 // lazyLocal opens the local store on its first use, so nothing is written
@@ -403,6 +417,8 @@ type runner struct {
 	tel *telemetry.T
 	// sample is true when the adapters are the recorded ones.
 	sample bool
+	pol    *policy          // the organisation policy, or nil (ADR-0036)
+	now    func() time.Time // the review's clock; nil in a runner built by a test means time.Now
 }
 
 // Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
@@ -444,6 +460,11 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	if err := checkLocalFile(r.localFile, req.Target); err != nil {
 		return Result{}, err
 	}
+	// A policy inside the repository under review is refused before anything else is read: the change
+	// could have edited it.
+	if err := r.pol.refuseInside(req.Target); err != nil {
+		return Result{}, err
+	}
 	cfg := r.cfg
 	// Settings come from the baseline commit, not from the change, so a change cannot loosen its
 	// own review. With no baseline there is only the working tree to read.
@@ -451,9 +472,9 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		var loaded fileSettings
 		var err error
 		if req.BaselineCommit != "" {
-			loaded, err = loadSettingsAtBaseline(req.Target, req.BaselineCommit)
+			loaded, err = loadSettingsAtBaselineUnder(req.Target, req.BaselineCommit, r.pol)
 		} else {
-			loaded, err = loadSettingsInTarget(req.Target)
+			loaded, err = loadSettingsInTargetUnder(req.Target, r.pol)
 		}
 		if err != nil {
 			return Result{}, err
@@ -526,6 +547,14 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	}
 	if err := applyDecision(&out, cfg, req); err != nil {
 		return Result{}, err
+	}
+	if r.pol != nil {
+		out.PolicyStatement = "organisation policy: " + r.pol.path
+		now := r.now
+		if now == nil {
+			now = time.Now
+		}
+		r.pol.applyExceptions(&out, now())
 	}
 	return out, nil
 }

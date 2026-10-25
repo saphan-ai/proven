@@ -38,6 +38,20 @@ func WorkTree(target string) (bool, error) {
 	return false, nil
 }
 
+// TopLevel returns the top level of the git working tree that holds target, as git prints it. A target
+// that is not in a working tree is "", false. A missing git binary is an error.
+func TopLevel(target string) (string, bool, error) {
+	in, err := WorkTree(target)
+	if err != nil || !in {
+		return "", false, err
+	}
+	top, err := gitZText([]string{"-C", target, "rev-parse", "--show-toplevel"})
+	if err != nil {
+		return "", false, err
+	}
+	return top, top != "", nil
+}
+
 // gitArchive returns the tar of rev's tracked files. It reads the commit and
 // does not run the change. The git directory is not in the archive. The
 // stream is bounded by the archive limit.
