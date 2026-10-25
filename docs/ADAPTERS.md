@@ -226,6 +226,22 @@ That scenario labels the reached module with the call path and the quiet module 
 
 Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four answers above, a recorded scenario, and tests for three outcomes: a result only on the change, the same result on the base, and a run that does not answer. It uses the same container and the same time-limit setting. It does not grow a second way to start a process.
 
+
+### Worked example: a fixed detector
+
+[`examples/tool`](../examples/tool) is a small adapter inside this module. `Detector` answers the four questions above from a fixed rule: it applies to changed Go files, `Argv` builds `go test -race ./<package>` for each package of a changed file and refuses a path that would mean something else to the command, and `Read` reports the race banner `WARNING: DATA RACE`. Its version is fixed, so the runner never guesses it.
+
+```go
+var _ tool.Adapter = Detector{}
+```
+
+The assignment fails the build when `internal/tool.Adapter` changes. Its test runs the adapter over canned output through `tool.Runner` with a fake host: a banner only on the change proves it, the same banner on both sides does not, and a run that did not answer is named and is not evidence (`examples/tool/tool_test.go`). Sample mode does not read `PROVEN_TOOL_TIMEOUT`: `tool.Sample` in `internal/tool/sample.go` replays one recorded outcome and starts no container, and a live run that does not ask the container for a version records `unknown`. It starts no container, reads no secret and no environment variable.
+
+```text
+go test -count=1 ./examples/tool
+```
+
+
 ## Adding a source
 
 A source adapter feeds the evidence store and plugs into the decision ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). It declares four things.
@@ -352,3 +368,208 @@ go test -count=1 ./examples/formatter
 ```
 
 `go test ./...` runs the same test. No separate job is required.
+## Adding a guardrail
+
+### The interface
+
+A guardrail checks a prompt and an answer before a review uses them. An unsafe
+verdict stops the step; a guardrail that cannot answer refuses the step by name
+(ADR-0005). The interface is `Adapter` in `internal/guardrail/guardrail.go:49`:
+
+```go
+type Adapter interface {
+	Check(ctx context.Context, prompt, answer string) (Verdict, error)
+}
+```
+
+`answer` is empty when only the prompt is judged. `Verdict` carries `User`,
+`Response`, `Categories`, `Latency`, `Backend`, `Model` and `Down`; `Unsafe()`
+is true when either side is `"unsafe"` (`internal/guardrail/guardrail.go`).
+`Refuse(reason)` returns `*service.Down` and names the refusal
+(`internal/guardrail/guardrail.go` and `internal/service/down.go`). An adapter
+that can name itself also implements `Identity`
+(`internal/guardrail/guardrail.go:57`): `Identity() (backend, model string)`;
+`Wrap` reports an adapter without it as `"unknown"`.
+
+### The settings that select an implementation
+
+`PROVEN_GUARDRAIL_MODE` chooses `server` (your own model server, the default),
+`nvidia` (NVIDIA's hosted API) or `off` (no guardrail; the trace says so).
+`PROVEN_GUARDRAIL_BASE_URL`, `PROVEN_GUARDRAIL_MODEL`, `PROVEN_GUARDRAIL_KEY`
+and `PROVEN_GUARDRAIL_TIMEOUT` are read and validated by `Load` in
+`internal/guardrail/settings.go`; a wrong value is refused before any check
+runs. An empty key is not off: every check is refused and nothing dials
+(ADR-0005 point 5).
+
+### How sample mode treats it
+
+Sample mode (`--sample` / `SAMPLE_MODE=true`, ADR-0001) reads no guardrail
+setting: the pipeline falls back to `guardrail.Safe{}`
+(`internal/pipeline/pipeline.go`), which answers safe for every prompt and
+answer and opens no network. A fixture may record verdicts instead, through
+`guardrail.Sample` (`internal/guardrail/sample.go`); a prompt the fixture has
+not recorded is a refusal, not a safe verdict.
+
+### Worked example: a fixed word list
+
+`examples/guardrail` is a small adapter inside this module. `List` answers
+`Check` from a fixed word list: a barred word in the prompt or the answer
+makes that side unsafe, with the category the row names; everything else is
+safe, and a canceled context is the error path.
+
+```go
+var _ guardrail.Adapter = List{}
+```
+
+The assignment fails the build when `internal/guardrail.Adapter` changes.
+`NewList` builds the list from rows and refuses a duplicate word. `Check`
+starts no network, reads no secret and no environment variable.
+
+The test checks one answer and one refusal: a clean prompt and answer return a
+safe verdict, and a barred word returns an unsafe verdict whose `Unsafe` is
+true (`examples/guardrail/guardrail_test.go`).
+
+```text
+go test -count=1 ./examples/guardrail
+```
+
+## Adding a reviewer
+
+### The interface
+
+A reviewer reviews one change. The interface is `Reviewer` in
+`internal/review/review.go:26`:
+
+```go
+type Reviewer interface {
+	// Review returns a Result for every review that ran, also a degraded or partial one.
+	// A non-nil error means Proven could not review at all: the shell exits 2.
+	Review(ctx context.Context, req Request) (Result, error)
+}
+```
+
+`Request` names the target, the baseline and head commits, the globs to
+include and exclude, the minimum severity and the description
+(`internal/review/review.go`). `Result` holds the findings with their evidence
+and proof level, the proof counts, the failed services, the models used, the
+review class, the opinions and more (`internal/review/review.go`).
+
+### The settings that select an implementation
+
+`review.Open(opts Options)` in `internal/review/open.go` loads the reviewer's
+settings and returns a `Reviewer`. `Options` carries `ConfigPath`
+(`--config` / `PROVEN_CONFIG`), `PolicyPath` (`PROVEN_POLICY`), `Sample`
+(`--sample` / `SAMPLE_MODE=true`), `LogDir` and `Env`
+(`internal/review/review.go`). A wrong non-empty value returns `*ConfigError`
+and the shell exits 7 before any review starts; sample mode reads none of
+these settings.
+
+### How sample mode treats it
+
+Sample mode is every adapter's sample implementation (ADR-0001): `Open` with
+`Sample` true reads no live setting, and the pipeline runs the recorded
+adapters instead, so a sample review opens no network.
+
+### Worked example: a fixed verdict
+
+`examples/reviewer` is a small adapter inside this module. `Table` returns a
+fixed `Result` from a table keyed by review target:
+
+```go
+var _ review.Reviewer = Table{}
+```
+
+The assignment fails the build when `internal/review.Reviewer` changes.
+`NewTable` builds the table from rows and refuses a duplicate target. `Review`
+returns the recorded result for the target, or `ErrUnknownTarget` for one the
+table has not recorded; a canceled context is the error path. It starts no
+network, reads no secret and no environment variable.
+
+The test checks one answer and one refusal: a known target returns its
+recorded result, and an unknown target returns `ErrUnknownTarget`
+(`examples/reviewer/reviewer_test.go`).
+
+```text
+go test -count=1 ./examples/reviewer
+```
+
+## Adding a test run
+
+A test run proves a finding: a test that fails on the change and passes on
+the base (ADR-0002). It is also how a proposed fix is proved (ADR-0042). Two
+interfaces:
+
+`Adapter` in `internal/testrun/testrun.go:50`:
+
+```go
+type Adapter interface {
+	Run(ctx context.Context, req Request) (Outcome, error)
+}
+```
+
+`Request` names the test (`Path`, `Name`, `Content`, `FindingID`) and the
+base and change checkouts (`internal/testrun/testrun.go`). `Outcome.Found` is
+false when nothing was recorded, and a finding is proven only when
+`FailsOnChange` and `PassesOnBase` are both true
+(`internal/testrun/testrun.go`); a `*service.Down` error means the Prover is
+off.
+
+`FixRunner` in `internal/testrun/fix.go:92`:
+
+```go
+type FixRunner interface {
+	RunFix(ctx context.Context, req FixRequest) (FixOutcome, error)
+}
+```
+
+`FixRequest` names the proving test, the edits and the attempt number;
+`FixOutcome.Runs` holds the proving-test runs on the base, on the change and
+on the change with the patch applied, then the package's tests
+(`internal/testrun/fix.go`), labeled `base`, `change`, `change+patch` and
+`package on change+patch`. `FixOutcome.Refused` names why a patch was refused
+and no code ran.
+
+### The settings that select an implementation
+
+`PROVEN_TEST_RUNTIME`, `PROVEN_TEST_IMAGE`, `PROVEN_TEST_CPUS`,
+`PROVEN_TEST_MEMORY`, `PROVEN_TEST_TIMEOUT`, `PROVEN_TEST_MAX_WRITTEN_BYTES`,
+`PROVEN_TEST_USER`, `PROVEN_TEST_PIDS` and `PROVEN_TEST_TMP_SIZE` are read and
+validated by `Load` in `internal/testrun/settings.go`. Sample mode reads none
+of them (`internal/review/open.go` skips the block). A missing container
+runtime turns the Prover off — `testrun.Off` names the reason — and does not
+stop the review.
+
+### How sample mode treats it
+
+`testrun.Sample` in `internal/testrun/sample.go` replays outcomes recorded in
+a fixture and executes no code: a finding with no recording reports `Found:
+false`, and an attempt with no recording is refused by name. The sample still
+checks the patch's edits against the real change trees before replaying
+(`internal/testrun/sample.go`).
+
+### Worked example: canned results
+
+`examples/testrun` is a small adapter inside this module. `Runner` returns
+canned test outcomes and canned fix runs; it executes no code and starts no
+container:
+
+```go
+var _ testrun.Adapter = Runner{}
+var _ testrun.FixRunner = Runner{}
+```
+
+Both assignments fail the build when the internal interfaces change. `New`
+indexes recorded outcomes by finding id and recorded fix attempts by finding
+id and attempt number, and refuses a duplicate. `Run` returns the recorded
+outcome (`Found: false` when nothing was recorded); `RunFix` returns the
+recorded runs or refuses with a named reason when no attempt was recorded. A
+canceled context is the error path.
+
+The test checks one answer and one refusal: a recorded outcome that fails on
+the change and passes on the base proves the finding, and an unknown finding
+is not found (`examples/testrun/testrun_test.go`).
+
+```text
+go test -count=1 ./examples/testrun
+```
+
