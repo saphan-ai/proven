@@ -17,6 +17,15 @@ import (
 // interval, so the write is refused and the caller decides which one is true.
 var ErrEdgeConflict = errors.New("world: another target already starts at that instant")
 
+// ErrEdgeOverlap is returned, wrapped, when a write would leave two edges of
+// the same from, type and context valid at one instant, and no renewal or
+// supersession can resolve it. Rule: a chain holds at most one valid edge at
+// any instant. An open write resolves an overlap with an edge in the chain
+// (renewal, or closing the old edge); an edge the caller bounded with an
+// explicit valid_to is a recorded fact and is never rewritten, so a write
+// that overlaps it is refused and the caller decides which one is true.
+var ErrEdgeOverlap = errors.New("world: the edge overlaps another valid edge of the same from, type and context")
+
 // Edge is one bitemporal relationship between two entities. ValidTo empty
 // means the edge is open. A superseding edge closes the old one by setting
 // ValidTo and SupersededBy; an edge is never deleted (ADR-0018 point 1,
@@ -68,6 +77,11 @@ func sameChain(a, b Edge) bool {
 //   - If nothing is valid at its start but a later edge exists, the new edge
 //     ends where that later edge begins; it never covers it.
 //
+// A chain never holds two edges valid at one instant. A write, open or
+// bounded, that still overlaps an edge after the steps above (typically one
+// the caller bounded with valid_to) is refused with ErrEdgeOverlap and
+// changes nothing.
+//
 // An edge already stored under the same content address is returned as it is.
 // A failed audit or persist puts the edge map back as it was.
 func (s *Store) Relate(e Edge) (Edge, error) {
@@ -111,6 +125,15 @@ func (s *Store) Relate(e Edge) (Edge, error) {
 		if found {
 			return renewed, nil
 		}
+	}
+	// A bounded write skips place, and place skips edges the caller bounded,
+	// so the invariant is checked here, after place has made its closings: no
+	// other edge of the chain may be valid at any instant e is. A refusal puts
+	// back what place changed.
+	if clash, ok := s.overlapping(e); ok {
+		s.edges = snap
+		return Edge{}, fmt.Errorf("%w: %s [%s, %s) meets %s [%s, %s)", ErrEdgeOverlap,
+			e.To, e.ValidFrom, openEnd(e.ValidTo), clash.To, clash.ValidFrom, openEnd(clash.ValidTo))
 	}
 	s.edges[e.ID] = e
 	actor := e.Source.By
@@ -186,6 +209,43 @@ func (s *Store) place(e *Edge) (Edge, bool, error) {
 		e.ValidTo, e.SupersededBy = next.ValidFrom, next.ID
 	}
 	return Edge{}, false, nil
+}
+
+// overlapping returns a stored edge of e's from, type and context whose
+// interval [ValidFrom, ValidTo) shares an instant with e's, an empty ValidTo
+// being open-ended. Edges that only touch (one ends where the other starts)
+// do not overlap. An edge whose time cannot be read is skipped, as Neighbors
+// skips it.
+func (s *Store) overlapping(e Edge) (Edge, bool) {
+	start := mustInstant(e.ValidFrom)
+	for _, o := range s.edges {
+		if o.From != e.From || o.Type != e.Type || o.Context != e.Context {
+			continue
+		}
+		of, ok := instantOf(o.ValidFrom)
+		if !ok {
+			continue
+		}
+		// o must start before e ends, and e must start before o ends.
+		if e.ValidTo != "" && !of.Before(mustInstant(e.ValidTo)) {
+			continue
+		}
+		if o.ValidTo != "" {
+			if end, ok := instantOf(o.ValidTo); ok && !start.Before(end) {
+				continue
+			}
+		}
+		return o, true
+	}
+	return Edge{}, false
+}
+
+// openEnd names an empty ValidTo for an error message.
+func openEnd(validTo string) string {
+	if validTo == "" {
+		return "open"
+	}
+	return validTo
 }
 
 // mustInstant parses a timestamp that Relate has already canonicalised.
