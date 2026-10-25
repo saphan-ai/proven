@@ -55,6 +55,31 @@ After the last attempt the review says "fix not proved" and shows no patch. A pa
 proved by the test that showed the problem, so a patch that could rewrite it would prove nothing. The patch is a
 suggestion for a person to apply. `fixes: off` in `proven.yaml` turns proposed fixes off.
 
+### The one whole-change attempt (ADR-0050)
+
+With `autofix: on`, a review makes one more step after every finding is final: the **autofix** step
+(`internal/agent/autofix`). It takes every kept finding that a test, a query or a tool proved, and sends the generator one
+prompt that holds all of them with their evidence, as escaped data. The generator answers with one patch: edits that name
+a file, the exact old text and the new text, never a command. The patch passes the same checks as any patch (a path
+outside the change, a test file, text that is not in the file once, and an answer that carries a command are each refused
+by name) and is applied to copies of the change only. Proven then runs each finding's own evidence again, in the places
+where the change's code may run, and no model is asked:
+
+| proof | closed when |
+|---|---|
+| test | the test passes on the patched change and the package's other tests still pass |
+| data | the dependency check, run again on the patched change, no longer returns the row |
+| tool | the same tool, run again in the container on the patched change, no longer reports it |
+
+A finding with several proofs closes only when each of them closes, and a run that could not happen (a store down, a tool
+that timed out, no container) leaves the finding open. If every proved finding closed, `Result.Autofix.Verdict` is
+`fixed automatically, waiting for a person`; otherwise it is `rejected`, with each open finding and the evidence of its
+re-run. There is no second attempt, so `fix_attempts` is not read and the per-finding suggestions above are not made while
+the attempt is on. The patch is carried on the Result as edits and as a unified diff for a review comment to publish as
+suggested changes; a rejected patch is kept for the record and is never shown as a fix. Nothing is committed to the
+author's branch. `autofix`, `autofix_generator` and `autofix_timeout` in `proven.yaml` configure it
+([CONFIGURATION.md](CONFIGURATION.md)).
+
 A dependency finding gets the smallest fixed version that leaves every affected range of the advisory rows the query
 returned, with the row that shows it. It is compared in Go, from the same `osv-by-package` rows, and no test proves it,
 so it is never marked proved.

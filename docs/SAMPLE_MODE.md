@@ -349,6 +349,30 @@ A patch that is not proved is not shown: there is no `fix edit` for F2, only the
 in `proven.yaml` change this ([CONFIGURATION.md](CONFIGURATION.md)): `fixes: off` shows no fix at all, and
 `fix_attempts: 1` ends F2 after its first patch.
 
+## The scenarios: `testdata/fixture/autofix-fixed` and `testdata/fixture/autofix-rejected`
+
+Both are the `fix` change (F1: the discount is taken off twice; F2: shipping is always free) with the whole-change
+attempt of ADR-0050 recorded. Neither prints the attempt in the review text: the attempt is on the `Result`, and the
+review comment that shows it is the shell's. Turn it on with a `proven.yaml` that holds `autofix: on`, then read the
+trace, where each verdict and each re-run is a line of `kind autofix`:
+
+```sh
+printf 'autofix: on\n' > autofix.yaml
+proven scan --sample --config autofix.yaml testdata/fixture/autofix-fixed
+```
+
+- `autofix-fixed` records one patch for both findings: subtract the discount once, and charge 500 cents below 5000. Each
+  finding's test, run again on the patched change, passes, and so do the tests of its package. The verdict is
+  `fixed automatically, waiting for a person`, and the patch is the diff of `billing/discount.go` and
+  `shipping/shipping.go`.
+- `autofix-rejected` records a patch that returns 500 for every order. F1 closes. F2's own test passes, but the package's
+  `TestFreeShipping` fails (the trace says `test proof open: go test -json ./shipping: the patch breaks another test of
+  the package`), so F2 stays open and the verdict is `rejected`. The patch is kept in the record and is not a suggestion.
+
+Both fixtures hold one recorded answer for the `autofix` agent and one recorded run of the proof per finding. The sample
+applies the patch's edits to the real trees, so a stale recording whose edits no longer apply is refused as it would be
+live. Without `autofix: on`, the same fixtures make no attempt, and the review text is the review text of `fix`.
+
 ## The scenario: `testdata/fixture/osv-php-composer`
 
 `composer.json` and `composer.lock` raise `monolog/monolog` from 2.0.0 to 2.9.1. 2.9.1 is inside one sample OSV range and outside another. The lock file's version is the one reported. The alias `CVE-2026-9090` has an EPSS row. The row for `other/unused` is not returned.
