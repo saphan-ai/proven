@@ -121,7 +121,7 @@ What else came in today:
 | Sponsor | What works, measured | In a review |
 |---|---|---|
 | **Zetaris** | The platform runs on our own machine and its checks pass 9 of 9. Proven's own key reads over REST and is refused every write. OSV by package answers from a file in Zetaris storage, 0.10 to 0.15 s per query. | The Investigator's evidence (KEV, EPSS, OSV) is shaped as Zetaris queries; sample mode runs the same SQL over local tables. [setup](hackathon/fleet/infra/zetaris/README.md) |
-| **Meterless** | Nightshift answers every model call with a signed receipt: 206 receipts, all 206 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 7 of 8; the rest are sections not built yet. | H-MEM and the World Model run in every review, sample mode included. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) |
+| **Meterless** | Nightshift answers every model call with a signed receipt: 206 receipts, all 206 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 13 of 13 and 7 of 8; the one World Model check that fails is a section not built yet. | H-MEM and the World Model run in every review, sample mode included. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) |
 | **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. In the fleet, Nemotron now reviews changes beside OpenAI and Anthropic, straight on NVIDIA's API. |
 | **Cursor** | The command line was written by Cursor agents on Grok 4.7 and landed today; up to four agents code at once on one Linux machine, each inside its own jail, and every run's model traffic is recorded. | Cursor is how Proven is built. [how it works](hackathon/fleet/infra/cursor/README.md) |
 
@@ -160,7 +160,7 @@ What Proven can do at the end of day one, in sample mode (recorded data, no netw
 - **The Prover writes the test that proves a finding** and runs it only inside a container, once on the base and once on the change.
 - **The Investigator's evidence comes through Zetaris**: KEV, EPSS and OSV queries over REST, and the same queries run locally over samples in sample mode.
 - **Every prompt and every answer passes a guardrail**, on by default, with two backends: NVIDIA's safety model on our own machine, or NVIDIA's hosted API. An unsafe prompt or answer stops the step and is recorded with its categories.
-- **A minimum of Meterless's H-MEM and World Model in Go**, so a finding refuted once does not come back in the next review. Meterless's own conformance suites run against it, and the scorecard is recorded as it is: H-MEM 9 of 13, World Model 7 of 8. The failures are the sections not built yet.
+- **A minimum of Meterless's H-MEM and World Model in Go**, so a finding refuted once does not come back in the next review. Meterless's own conformance suites run against it, and the scorecard is recorded as it is: H-MEM 13 of 13, World Model 7 of 8. The one failure is the World Model section not built yet.
 - **The live generator calls Meterless Nightshift**, reads which model answered, and refuses an answer that did not come from NVIDIA.
 - **One command checks every live service a review needs** before a demo, and names each one that is not ready, without printing a secret.
 

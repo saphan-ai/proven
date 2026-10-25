@@ -67,7 +67,10 @@ so it is never marked proved.
 - **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
 
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
-`test/conformance/meterless/run.sh`.
+`test/conformance/meterless/run.sh`. H-MEM passes all 13 of its checks, including sleep (archiving), conflict
+auto-resolve, the learning audit and dreaming with approval; the committed scorecard is
+`test/conformance/meterless/SCORECARD_hmem.txt`. No part of it calls a model: dreaming clusters what the store holds,
+and a proposal becomes a record only when a person approves it.
 
 ## Modes
 
