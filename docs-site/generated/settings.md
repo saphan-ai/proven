@@ -15,7 +15,7 @@ description: Every setting, its environment variable and its default.
 | `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it |
 | `PROVEN_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031) |
 | `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
-| `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/llama-3.3-nemotron-super-49b-v1.5` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default is from NVIDIA's published list and is not yet confirmed by a live call |
+| `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/nemotron-3.5-super-vl-120b-a12b` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | the limit for one model call |
 | `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
 | `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's) |
@@ -46,8 +46,18 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris` or `local`. `couchdb` is refused by name because it is not built yet. Empty means `zetaris`. Sample mode uses the local store and does not read this variable |
+| `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable |
 | `PROVEN_EVIDENCE_FILE` | none (required when the store is `local`) | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
+| `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_PREFIX` | `proven_` | the start of every database name. One database holds one registered table, named the prefix, then the table name in lower case with `.` written as `-`. A lower-case letter, then at most 31 lower-case letters, digits or `_` |
+| `PROVEN_COUCHDB_USER` | none (required when the store is `couchdb`) | the CouchDB user Proven reads as. One line of printable ASCII with no `:`. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_PASSWORD` | none (required when the store is `couchdb`) | that user's password. Secret: never printed. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_ROW_LIMIT` | `100` | the most rows one query returns |
+| `PROVEN_COUCHDB_TIMEOUT` | `60s` | the limit for one request to CouchDB |
+| `PROVEN_COUCHDB_RECORDS` | none (records are not written) | the CouchDB database that holds a review's evidence records, on the server `PROVEN_COUCHDB_URL` names. Set: each finding of a review is written to it as one document, with the design document and the viewer page. Empty: nothing is written. A lower-case letter, then at most 63 lower-case letters, digits, `_` or `-` |
+| `PROVEN_COUCHDB_RECORDS_USER` | none (required when `PROVEN_COUCHDB_RECORDS` is set) | the CouchDB user Proven writes the records as. It must be a different user from `PROVEN_COUCHDB_USER`, the read-only account the viewer is opened with. One line of printable ASCII with no `:` |
+| `PROVEN_COUCHDB_RECORDS_PASSWORD` | none (required when `PROVEN_COUCHDB_RECORDS` is set) | that writing user's password. Secret: never printed |
+| `PROVEN_EVIDENCE_LINK_BASE_URL` | none (no evidence-record link) | the address a reader reaches CouchDB at, as an absolute `http` or `https` URL with no user info, query or fragment. Set, with `PROVEN_COUCHDB_RECORDS`: each finding carries a link to its record in the viewer page. Empty: no link. It is never `/_utils`, the admin console |
 | `ZETARIS_REST_URL` | none (required live) | Zetaris's REST address; an absolute `http` or `https` URL with no user info, query or fragment |
 | `ZETARIS_API_KEY` | none (required live) | Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it |
 | `ZETARIS_ORG_ID` | none (required live) | the organisation id sent with each query |
@@ -58,7 +68,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. couchdb is named and refused until it is built. Sample mode uses the local store on the fixture file and reads none of these.
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
 
 ## The Prover's container
 
@@ -91,6 +101,20 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 |---|---|---|
 | `PROVEN_ADAPTER_TIMEOUT` | `5s` | the limit on one adapter call when the caller set no shorter deadline. Sample mode uses the default and does not read this variable |
 
+## Telemetry: OpenTelemetry (ADR-0045)
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | none (telemetry is off) | the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | none | the full URL the trace is sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the trace and, set alone, turns the trace on |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | none | the full URL the metrics are sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the metrics and, set alone, turns the metrics on |
+| `OTEL_SDK_DISABLED` | none | `true` turns telemetry off even when an endpoint is set |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | the OTLP transport. Only `http/protobuf` is built in; any other value is refused by name. `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` and `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` are read the same way |
+| `OTEL_SERVICE_NAME` | `proven` | the service name a backend shows |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | how often the metrics are pushed, in milliseconds. The lab sets it low so a dashboard moves while a review runs |
+
+Telemetry is off unless an endpoint is set. It only observes: once a review has started it never changes what the review decides, and a collector that cannot be reached never fails a review (the export is bounded at 5 seconds, and the failure goes to stderr). The one refusal is at the start: a malformed `OTEL_*` setting stops `Open` by name, like any other setting. No secret is put in an attribute, an event or a span status: the same redactor that cleans the trace file cleans the span events and the text of every failed review and failed agent, so a status carries the redactor's marker where a configured secret stood. The headers, timeout and certificates of the exporter are the SDK's own variables (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_CERTIFICATE`), read from the process environment. Sample mode reads the `OTEL_*` variables and no other.
+
 ## Reads of the repository under review
 
 | Environment variable | Default | What it changes |
@@ -101,3 +125,20 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 | `PROVEN_MAX_RECORD_BYTES` | `1048576` | the most the author record may hold, summed over the files `author_record` names |
 
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
+
+## The organisation policy
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_POLICY` | none | a path to the organisation policy file, read before each repository's `proven.yaml`; see [POLICY.md](POLICY.md). A path inside the repository under review is refused, and so is a missing or unreadable file. Sample mode reads it too |
+
+A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036).
+
+## The evidence pack
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_PACK_KEY` | none (required with `--evidence-pack`) | path to the PEM file of the organisation's Ed25519 private key (PKCS #8) that signs a pack. A missing or unreadable file, or one that group or others can reach (fix: `chmod 600`), is named and the review does not start |
+| `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
+
+The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.

@@ -206,7 +206,7 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	if !use.FromReceipt {
 		return "", l.down("answer carries no receipt, refused: the model cannot be shown to be NVIDIA's")
 	}
-	if !nvidiaModel(use.Model) {
+	if !nvidiaAnswer(use.Model, use.Requested) {
 		return "", l.down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
 	return text, nil
@@ -240,10 +240,27 @@ func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error)
 	if use.Model == "unknown" {
 		return "", l.down("answer names no model, refused: the model cannot be shown to be NVIDIA's")
 	}
-	if !nvidiaModel(use.Model) {
+	if !nvidiaAnswer(use.Model, use.Requested) {
 		return "", l.down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
 	return text, nil
+}
+
+// modelAliases maps a name the hosted API answers under to the model asked
+// for that it stands for (the owner's ruling of 2026-10-26: asked for the
+// VL model, the API names its answer with this private alias). An alias counts
+// only for the model it stands for, and only when that model was asked for.
+var modelAliases = map[string]string{
+	"private/nvidia/nemotron-3.5-super-120b-a12b": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+}
+
+// nvidiaAnswer reports whether model, answering a request for requested, is
+// NVIDIA's: a nvidia/* name, or a listed alias of the model asked for.
+func nvidiaAnswer(model, requested string) bool {
+	if stands, ok := modelAliases[model]; ok {
+		return stands == requested
+	}
+	return nvidiaModel(model)
 }
 
 // nvidiaModel reports whether model is "nvidia/" followed by a name.
