@@ -61,6 +61,22 @@ What else came in today:
 - **The level of proof in JSON and SARIF**, so a pipeline can tell a proved finding from an opinion.
 - **The documentation site** is built, served from its own container; its public address comes with the next update.
 - **The held-out test set**: six cases frozen before Proven ever ran on them.
+- **Each review can be planned before a model runs, and it is switched OFF.** Meterless's Scout Intent, built in Go
+  (`internal/scout`), classifies a change as dependency, refactor, feature, security-sensitive, documentation only or
+  configuration, and picks the plan inside the configured review classes. It never lowers a configured class, and a
+  configured class keeps every agent it requires. The setting is `scout_intent` and it is **off by default**: a person
+  turns it on in `proven.yaml`, and until then every review runs the full plan. Its **benefit is UNMEASURED**: the model
+  calls and the time saved per review on the test corpus cannot be stated until the corpus recordings exist. The call
+  counts in [the architecture page](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) are scripted, not live,
+  and are labelled so ([ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
+- **Its evaluation, as it is.** Meterless's eval harness, pinned at upstream commit `1742dec5`, ran twice.
+  [On Meterless's own regression set](test/conformance/meterless/SCORECARD_scout-intent.txt) (32 examples) every metric is
+  1.000 and `clarification_rate` is 0.188; it shows the engine reproduces the set's seeds, not that it generalises.
+  [On Proven's change set](test/conformance/meterless/SCORECARD_scout-intent-changes.txt) (14 fixtures) the gate **fails**:
+  `clarification_rate` is 0.429 against the 0.25 ceiling, by design, because 6 of the 14 fixtures ask for clarification;
+  `clarification_agreement` is 1.000, so it asked at the right times on this small authored set. `injection_precision` and
+  `override_frequency` have no positive examples there, so they measure nothing. Neither scorecard measures cost, speed or
+  whether a plan keeps its findings on real changes.
 
 **How the fleet got faster.** The median time from an order's signature to its agent starting work fell from 220
 minutes on 22 October to 74, then 32, then 21 today. By midday the agents had exchanged 165 messages among themselves;
@@ -156,7 +172,7 @@ What else came in today:
 | Sponsor | What works, measured | In a review |
 |---|---|---|
 | **Zetaris** | The platform runs on our own machine and its checks pass 9 of 9. Proven's own key reads over REST and is refused every write. OSV by package answers from a file in Zetaris storage, 0.10 to 0.15 s per query. | The Investigator's evidence (KEV, EPSS, OSV) is shaped as Zetaris queries; sample mode runs the same SQL over local tables. [setup](hackathon/fleet/infra/zetaris/README.md) |
-| **Meterless** | Nightshift answers every model call with a signed receipt: 206 receipts, all 206 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 7 of 8; the rest are sections not built yet. | H-MEM and the World Model run in every review, sample mode included. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) |
+| **Meterless** | Nightshift answers every model call with a signed receipt: 206 receipts, all 206 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 7 of 8; the rest are sections not built yet. **Scout Intent**, which plans each review, runs Meterless's own eval harness (pinned at upstream commit `1742dec5`): on Meterless's regression set every metric is 1.000 and `clarification_rate` is 0.188; on Proven's 14 change fixtures `clarification_rate` is 0.429 against a ceiling of 0.25, so that gate fails, because 6 of the 14 are ambiguous on purpose. | H-MEM and the World Model run in every review, sample mode included; the fleet's own reviews also go through Nightshift. **Scout Intent is OFF by default** (`scout_intent`), so no review plans itself unless a person switches it on; its benefit, the model calls and time saved per review on the test corpus, is **UNMEASURED** until the corpus recordings exist. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) · [how it plans](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) |
 | **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. In the fleet, Nemotron now reviews changes beside OpenAI and Anthropic, straight on NVIDIA's API. |
 | **Cursor** | The command line was written by Cursor agents on Grok 4.7 and landed today; up to four agents code at once on one Linux machine, each inside its own jail, and every run's model traffic is recorded. | Cursor is how Proven is built. [how it works](hackathon/fleet/infra/cursor/README.md) |
 
@@ -258,7 +274,8 @@ How one review is meant to run, and where each sponsor's technology does the wor
   │  OSV         │  │ (Power)                  │  │  findings, rulings   │
   │  CISA KEV    │  │   └─▶ NVIDIA NEMOTRON    │  │ World Model: claims, │
   │  FIRST EPSS  │  │       reviewer, Skeptic  │  │  evidence, verdicts  │
-  │  git history │  │                          │  │                      │
+  │  git history │  │                          │  │ Scout Intent: plans  │
+  │              │  │                          │  │  each review, OFF    │
   └──────┬───────┘  └──────────────────────────┘  └──────────┬───────────┘
          │ the query and its rows                            │ JSONL
          ▼                                                   ▼

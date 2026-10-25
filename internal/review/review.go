@@ -121,9 +121,9 @@ type Result struct {
 	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
 	Partial              bool             // the deadline was reached
 	TracePath            string           // the JSONL trace in LogDir
-	Class                string           // review class the path rules chose (ADR-0012, ADR-0014)
-	ClassRule            string           // path pattern that chose Class, or "fallback"
-	Doubled              bool             // Class is one of the doubled classes
+	Class                string           // review class the path rules chose (ADR-0012, ADR-0014), or that Scout Intent's plan raised it to (ADR-0049)
+	ClassRule            string           // path pattern that chose Class, "fallback", or "scout-intent: <kind>" when the plan raised it
+	Doubled              bool             // Class is one of the doubled classes, or the plan doubled the review (ADR-0049)
 	DefaultReviewer      string           // configured default reviewer
 	SpecialReviewer      string           // configured special-review model; empty means not configured
 	ReviewerModels       []string         // models this review uses, the default reviewer first

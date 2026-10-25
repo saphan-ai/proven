@@ -185,7 +185,7 @@ func treeWith(t *testing.T, rel, body string) string {
 func decideOn(t *testing.T, cfg fileSettings, req Request) Result {
 	t.Helper()
 	var out Result
-	if err := applyDecision(&out, cfg, req); err != nil {
+	if err := applyDecision(&out, cfg, req, nil); err != nil {
 		t.Fatal(err)
 	}
 	return out

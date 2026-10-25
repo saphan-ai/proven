@@ -273,7 +273,46 @@ type Request struct {
 	// setting. A role is told only of its scope and refused outside it.
 	InvestigatorScope querytpl.Scope
 	SkepticScope      querytpl.Scope
+	// Plan is the review plan chosen before the agents run (ADR-0049 point 2). Nil runs every agent,
+	// tool and source, as a review did before plans existed, and writes no plan line.
+	Plan *Plan
 }
+
+// The names a Plan uses for the parts of a review it can leave out. The Judge and the Writer run no
+// model and are always part of a review, so they are not on the list.
+const (
+	AgentPlanner      = "planner"
+	AgentInvestigator = "investigator"
+	AgentProver       = "prover"
+	AgentSkeptic      = "skeptic"
+	AgentFixer        = "fixer"
+	ToolGovulncheck   = "govulncheck"
+	SourceOSV         = "osv"
+	SourceEPSS        = "epss"
+)
+
+// PlanAgents, PlanTools and PlanSources list every name a Plan can hold, in the order a review runs them.
+var (
+	PlanAgents  = []string{AgentPlanner, AgentInvestigator, AgentProver, AgentSkeptic, AgentFixer}
+	PlanTools   = []string{ToolGovulncheck}
+	PlanSources = []string{SourceOSV, SourceEPSS}
+)
+
+// Plan is one review's plan: which agents, tools (ADR-0040) and sources (ADR-0046) run. Full runs them
+// all. Note is the plan's line in the trace: the class, its signals, the ambiguity and the plan, or why
+// no plan was chosen; it is written whatever the plan is, so a reader of the trace sees the choice.
+type Plan struct {
+	Full    bool
+	Agents  map[string]bool
+	Tools   map[string]bool
+	Sources map[string]bool
+	Note    string
+}
+
+// agent, tool and source report whether a part runs under the plan. A nil or full plan runs everything.
+func (pl *Plan) agent(name string) bool  { return pl == nil || pl.Full || pl.Agents[name] }
+func (pl *Plan) tool(name string) bool   { return pl == nil || pl.Full || pl.Tools[name] }
+func (pl *Plan) source(name string) bool { return pl == nil || pl.Full || pl.Sources[name] }
 
 // Review runs planner, investigator, prover, skeptic, judge, the fixer (ADR-0042) and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
@@ -476,6 +515,17 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}); err != nil {
 		return candidate.Draft{}, err
 	}
+	// ADR-0049: the plan is on the trace before any agent runs, so the trace says what was left out and why.
+	if req.Plan != nil {
+		if err := p.trace.Append(trace.Event{Kind: "plan", Agent: "scout-intent", Text: req.Plan.Note}); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
+	plan := req.Plan
+	// leftOut names a part the plan leaves out on the trace, once, so its absence is never mistaken for a failure.
+	leftOut := func(part string) error {
+		return p.trace.Append(trace.Event{Kind: "plan", Agent: "scout-intent", Text: part + " is not in the plan"})
+	}
 	allow := make(map[string]struct{}, len(selected))
 	for _, f := range selected {
 		allow[f] = struct{}{}
@@ -566,7 +616,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	var special generator.Generator
 	// specialOwn holds the special run's own risk for each risk both runs named, by merged id.
 	specialOwn := map[string]candidate.Risk{}
-	if req.DoubleRun {
+	// A plan without the Planner has no risks for a second Planner to add to, so it is not doubled either.
+	if req.DoubleRun && plan.agent(AgentPlanner) {
 		second := p.secondGenerator(req.SpecialModel, raw)
 		if second != nil {
 			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace, redactor: p.redactor, tel: p.tel}, rail)
@@ -578,9 +629,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// defaultFailed is why the default reviewer has no word on the second reviewer's risks; empty when it answered.
 	defaultFailed := ""
-	pctx, stage := p.tel.StartStage(ctx, "planner", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
-	risks, err := planner.Plan(pctx, fx.Root, gen)
-	stage.End(err)
+	// ADR-0049: a plan without the Planner names no risk, so no model is asked anything; the deterministic
+	// checks the plan keeps still run below.
+	var risks []candidate.Risk
+	if plan.agent(AgentPlanner) {
+		pctx, stage := p.tel.StartStage(ctx, "planner", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
+		risks, err = planner.Plan(pctx, fx.Root, gen)
+		stage.End(err)
+	} else if err = leftOut(AgentPlanner); err != nil {
+		return candidate.Draft{}, err
+	}
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
 		// the service; any other Planner error stops the review.
@@ -678,11 +736,23 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// Investigator's query rows to the change. addOSV reports its findings later.
 	var checked osv.Outcome
 	var checkErr error
-	if ctx.Err() == nil {
+	if !plan.source(SourceOSV) {
+		if err := leftOut("the OSV dependency check"); err != nil {
+			return candidate.Draft{}, err
+		}
+	} else if ctx.Err() == nil {
 		checked, checkErr = osv.Check(ctx, q, fx.Root, p.osvTable, fx.Snapshot)
+	}
+	if !plan.agent(AgentInvestigator) && len(cands) > 0 {
+		if err := leftOut(AgentInvestigator); err != nil {
+			return candidate.Draft{}, err
+		}
 	}
 	ictx, istage := p.tel.StartStage(ctx, "investigator", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
+		if !plan.agent(AgentInvestigator) {
+			break
+		}
 		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, q, rel, req.InvestigatorScope)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -700,8 +770,18 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if ctx.Err() != nil {
 		return p.cut(st, cands, allow)
 	}
+	// ADR-0049 point 2: a dependency-only plan runs the dependency evidence without the Prover, so no
+	// test is written or run; a finding then stands on its query rows or not at all.
+	if !plan.agent(AgentProver) {
+		if err := leftOut(AgentProver); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	prctx, prstage := p.tel.StartStage(ctx, "prover", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
+		if !plan.agent(AgentProver) {
+			break
+		}
 		// ADR-0025: the Prover's test runs in the container on the fixture's
 		// base and change trees, with no network and no secret.
 		next, err := prover.Prove(prctx, cands[i], gen, run, prover.Options{
@@ -739,7 +819,17 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	for i := range outcomes {
 		outcomes[i] = map[string]string{}
 	}
+	if !plan.agent(AgentSkeptic) && len(cands) > 0 {
+		if err := leftOut(AgentSkeptic); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	for i := range cands {
+		// A plan without the Skeptic leaves each finding unrefuted and says why, as a failed attempt does.
+		if !plan.agent(AgentSkeptic) {
+			cands[i].Refutation = candidate.Refutation{Attempted: false, Reason: "not in the plan"}
+			continue
+		}
 		if hasRun(cands[i], runDefault) {
 			kctx, kstage := p.tel.StartStage(ctx, "skeptic", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
 			next, err := skeptic.Attempt(kctx, cleared(cands[i]), gen, req.SkepticScope)
@@ -845,8 +935,13 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	jstage.End(nil)
 	// ADR-0042: a kept finding that a test proved gets a fix proved by the same test. It
 	// comes after the Judge, so no fix is written for a finding that is dropped.
+	if !req.FixesOff && !plan.agent(AgentFixer) {
+		if err := leftOut(AgentFixer); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	// ADR-0050: with the whole-change attempt on, it is the one loop; the per-finding retries are not made.
-	if !req.FixesOff && !req.Autofix {
+	if !req.FixesOff && !req.Autofix && plan.agent(AgentFixer) {
 		if err := p.fix(ctx, st, gen, run, fx.Root, req.FixAttempts, cands); err != nil {
 			if errors.Is(err, errPartial) {
 				return p.cut(st, cands, allow)
@@ -856,7 +951,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// ADR-0043: label dependency findings from govulncheck before they are judged.
 	// A tool that did not answer leaves every Go finding "not measured".
-	if checkErr == nil {
+	if !plan.tool(ToolGovulncheck) {
+		// The plan leaves the tool out: every dependency finding stays "not measured", never "not reached".
+		checked.Notes = append(checked.Notes, "govulncheck was not run: it is not in the plan")
+		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
+	} else if checkErr == nil {
 		var rerr error
 		checked, rerr = p.measureReach(ctx, checked, selected, filepath.Join(fx.Root, "base"), filepath.Join(fx.Root, "change"))
 		if rerr != nil {
@@ -877,7 +976,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, fatal
 		}
 	}
-	cands, err = p.attachEPSS(ctx, st, q, fx.Snapshot, cands)
+	if plan.source(SourceEPSS) {
+		cands, err = p.attachEPSS(ctx, st, q, fx.Snapshot, cands)
+	} else {
+		err = leftOut("the EPSS scores")
+	}
 	if err != nil {
 		if _, fatal := st.soften(ctx, err); fatal != nil {
 			if errors.Is(fatal, errPartial) {
