@@ -7,8 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
@@ -23,6 +26,7 @@ import (
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
 )
@@ -239,11 +243,24 @@ func open(opts Options) (Reviewer, error) {
 		}
 		adapterLimit = bound
 	}
+	// ADR-0045: telemetry is off unless the standard OTEL_* variables name an endpoint. A wrong value
+	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
+	// the lab's pull-request review is a sample review, and it is the one the dashboard shows. Setup
+	// reads only OTEL_* names.
+	tel := opts.tel
+	if tel == nil {
+		set, terr := telemetry.Setup(context.Background(), opts.Env)
+		if terr != nil {
+			return nil, telemetryConfig(terr)
+		}
+		tel = set
+	}
+	popts.Telemetry = tel
 	p, err := pipeline.Build(popts)
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample}, nil
 }
 
 // lazyLocal opens the local store on its first use, so nothing is written
@@ -329,6 +346,22 @@ func checkLocalFile(file, target string) error {
 	return nil
 }
 
+// telemetryFlushBound bounds the push of a review's telemetry to the exporter, so an unreachable
+// collector never holds a finished review back for long.
+const telemetryFlushBound = 5 * time.Second
+
+// telemetryConfig turns a refused OTEL_* setting into the seam's *ConfigError.
+func telemetryConfig(err error) error {
+	var cfg *telemetry.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
 // withSecond makes the connected second reviewer the special reviewer (ADR-0037 point 2) and widens
 // the doubled classes (point 3): with a second reviewer connected every class is doubled, unless
 // proven.yaml names the classes, and security is doubled either way. With none connected cfg is
@@ -366,10 +399,46 @@ type runner struct {
 	localFile    string
 	// secondModel is the second reviewer's model when one is connected; empty otherwise.
 	secondModel string
+	// tel is the review's telemetry; nil is off (ADR-0045).
+	tel *telemetry.T
+	// sample is true when the adapters are the recorded ones.
+	sample bool
 }
 
-// Review runs one review: settings, deadline, class, the six agents, then the decision lines.
+// Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
+// only observe: what the review decides is what review returns.
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
+	if r.tel == nil {
+		return r.review(ctx, req)
+	}
+	ctx, root := r.tel.StartReview(ctx,
+		attribute.Bool("proven.sample", r.sample),
+	)
+	res, err := r.review(ctx, req)
+	counts := map[string]int{}
+	for level, n := range res.ProofCounts {
+		counts[string(level)] = n
+	}
+	r.tel.Findings(ctx, counts)
+	root.End(err,
+		attribute.Int("proven.findings", len(res.Findings)),
+		attribute.Bool("proven.partial", res.Partial),
+		attribute.String("proven.class", res.Class),
+		attribute.Bool("proven.doubled", res.Doubled),
+		attribute.Int("proven.failed_services", len(res.FailedServices)),
+	)
+	// The caller's context may be over by now (a deadline); the push has its own bound.
+	flush, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryFlushBound)
+	defer cancel()
+	// A failed push is not a failed review. It is not hidden either: the shell's stderr has it.
+	if ferr := r.tel.Flush(flush); ferr != nil {
+		fmt.Fprintf(os.Stderr, "proven: telemetry not exported: %v\n", ferr)
+	}
+	return res, err
+}
+
+// review runs one review: settings, deadline, class, the six agents, then the decision lines.
+func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	// ADR-0047: before anything reads or writes, the local evidence file must
 	// be outside the tree under review.
 	if err := checkLocalFile(r.localFile, req.Target); err != nil {
@@ -413,6 +482,10 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		}
 		class, _ := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
 		double = cfg.Doubled[class]
+		if double {
+			// The second reviewer shows on the dashboard before it starts.
+			r.tel.ExpectReviewer(ctx, telemetry.ReviewerSpecial)
+		}
 	}
 	// The KEV view and the adapter bound ride the context. The pipeline's
 	// calls do not take them, and this change does not edit that package.

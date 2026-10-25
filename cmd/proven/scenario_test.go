@@ -237,7 +237,8 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 	code := cli.Run(
 		[]string{"scan", "--sample", filepath.Join(root, "testdata", "fixture", name)},
 		func(k string) string {
-			if cli.KnownCLIEnv(k) {
+			// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
+			if cli.KnownCLIEnv(k) || strings.HasPrefix(k, "OTEL_") {
 				return ""
 			}
 			t.Fatalf("sample mode read %s", k)

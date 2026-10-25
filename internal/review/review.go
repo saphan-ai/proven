@@ -18,6 +18,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -73,6 +74,9 @@ type Options struct {
 	// testRun, when set, replaces the container runner. A review leaves it unset,
 	// so a test does not start a container.
 	testRun testrun.Adapter
+	// tel, when set, replaces the telemetry the OTEL_* variables build (ADR-0045).
+	// A test sets it to read the spans and numbers back from memory.
+	tel *telemetry.T
 }
 
 // Request is one review request.

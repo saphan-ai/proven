@@ -6,6 +6,11 @@ need_docker
 
 lab_url="http://${LAB_BIND}:${GITEA_HTTP_PORT}/"
 echo "lab: $lab_url"
+if service_running lgtm; then
+  echo "dashboard: http://${LAB_BIND}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
+else
+  echo "dashboard: not running"
+fi
 echo
 echo "containers:"
 compose ps
