@@ -196,7 +196,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LAB_DEMO_BASE` | `main` | Base branch |
 | `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |
 | `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
-| `SEED_IMAGE_TAG` | `1` | Pin for that image. It is not tagged `latest` |
+| `SEED_IMAGE_TAG` | `2` | Pin for that image. It is not tagged `latest` |
 | `E2E_WAIT_SECONDS` | `180` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 
