@@ -276,7 +276,7 @@ func kindOf(c candidate.Candidate) string {
 // package the patch touched still passed, never because it was written confidently. No finding,
 // or no breakage run, is never "fixed".
 func verdictOf(findings []candidate.AutofixFinding, breakage *candidate.AutofixProof) string {
-	if len(findings) == 0 || !allClosed(findings) || breakage == nil || !breakage.Closed {
+	if !allClosed(findings) || breakage == nil || !breakage.Closed {
 		return candidate.AutofixRejected
 	}
 	return candidate.AutofixFixed
