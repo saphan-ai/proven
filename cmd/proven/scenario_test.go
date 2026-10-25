@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/saphan-ai/proven/internal/store"
 	"os"
 	"path/filepath"
 	"strings"
@@ -238,7 +239,8 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 		[]string{"scan", "--sample", filepath.Join(root, "testdata", "fixture", name)},
 		func(k string) string {
 			// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
-			if cli.KnownCLIEnv(k) || strings.HasPrefix(k, "OTEL_") {
+			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+			if cli.KnownCLIEnv(k) || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink {
 				return ""
 			}
 			t.Fatalf("sample mode read %s", k)

@@ -35,6 +35,12 @@ var exemptBanned = map[string]map[string]string{
 	"internal/store/couchdb.go": {
 		"net/http": "the CouchDB store calls CouchDB's HTTP API (ADR-0047) and no other address",
 	},
+	"internal/review/review.go": {
+		"net/http": "Options holds the HTTP client a test gives the records store; this file dials nothing",
+	},
+	"internal/store/records.go": {
+		"net/http": "the evidence records are written to and read from CouchDB's HTTP API, the configured address only",
+	},
 }
 
 // No production file under internal/ or cmd/ imports a package that dials the

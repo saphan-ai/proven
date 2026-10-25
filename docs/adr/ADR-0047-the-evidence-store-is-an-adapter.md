@@ -26,6 +26,10 @@ local query engine exists. An organisation, and Saphan Studio itself, may want P
    runs one scenario on every store and compares the evidence they produce.
 5. **Source adapters (ADR-0046) load into the configured store**, whichever it is.
 6. **The local store works fully air-gapped** (ADR-0034).
+7. **A review's evidence records go to CouchDB when configured, in sample mode too** (the owner, 2026-10-25): the
+   judges' lab runs a sample review and its records belong in the lab's CouchDB. Sample mode therefore reads
+   `PROVEN_COUCHDB_RECORDS` and `PROVEN_EVIDENCE_LINK_BASE_URL` besides ADR-0020 §1's keys and ADR-0045's `OTEL_*`;
+   with both unset it reads nothing more and writes nothing.
 
 ## Consequences
 
