@@ -20,6 +20,7 @@ import (
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // querySpec is the JSON the investigator asks a model to return.
@@ -119,10 +120,24 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	if len(res.Rows) == 0 {
 		return c, nil
 	}
-	// The engine's own snapshot, when it reports one, names the data the rows came from more exactly.
+	// The snapshot is the engine's own, when it reports one: it names the data
+	// the rows came from more exactly.
 	snap := snapshot
 	if res.Snapshot != "" {
 		snap = res.Snapshot
+	}
+	// ADR-0046: the adapter that owns the template decides whether these rows
+	// are evidence. The built-in rules keep any row; an organisation's rule may
+	// keep fewer or none.
+	if owner, _, found := source.Lookup(strings.TrimSpace(req.Template)); found {
+		kept, ok := owner.Rule(source.Evidence{
+			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
+			Columns: res.Columns, Rows: res.Rows,
+		})
+		if !ok {
+			return c, nil
+		}
+		res.Columns, res.Rows = kept.Columns, kept.Rows
 	}
 	c.Evidence = append(c.Evidence, candidate.Evidence{
 		Kind: candidate.KindQuery,
