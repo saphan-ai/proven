@@ -51,8 +51,14 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris` or `local`. `couchdb` is refused by name because it is not built yet. Empty means `zetaris`. Sample mode uses the local store and does not read this variable |
+| `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. With `couchdb` a live review names `couchdb` down on every query until the query seam passes templates (see docs/ADAPTERS.md). Sample mode uses the local store and does not read this variable |
 | `PROVEN_EVIDENCE_FILE` | none (required when the store is `local`) | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
+| `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_PREFIX` | `proven_` | the start of every database name. One database holds one registered table, named the prefix, then the table name in lower case with `.` written as `-`. A lower-case letter, then at most 31 lower-case letters, digits or `_` |
+| `PROVEN_COUCHDB_USER` | none (required when the store is `couchdb`) | the CouchDB user Proven reads as. One line of printable ASCII with no `:`. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_PASSWORD` | none (required when the store is `couchdb`) | that user's password. Secret: never printed. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_ROW_LIMIT` | `100` | the most rows one query returns |
+| `PROVEN_COUCHDB_TIMEOUT` | `60s` | the limit for one request to CouchDB |
 | `ZETARIS_REST_URL` | none (required live) | Zetaris's REST address; an absolute `http` or `https` URL with no user info, query or fragment |
 | `ZETARIS_API_KEY` | none (required live) | Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it |
 | `ZETARIS_ORG_ID` | none (required live) | the organisation id sent with each query |
@@ -63,7 +69,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. couchdb is named and refused until it is built. Sample mode uses the local store on the fixture file and reads none of these.
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones, and the store runs a Mango query, but a live review does not reach it yet: with couchdb a live review names couchdb down on every query until the query seam passes templates (docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these.
 
 ## The Prover's container
 

@@ -208,21 +208,63 @@ func TestEmptyLogDirIsRefused(t *testing.T) {
 	}
 }
 
-// TestCouchDBIsRefusedByName proves PROVEN_EVIDENCE_STORE=couchdb stops Open
-// before a review, and the refusal names the field. The mutated field is
-// PROVEN_EVIDENCE_STORE.
-func TestCouchDBIsRefusedByName(t *testing.T) {
+// TestCouchDBIsAccepted proves PROVEN_EVIDENCE_STORE=couchdb opens a review
+// with the CouchDB settings given, builds no Zetaris client, and reads no
+// Zetaris variable (ADR-0047). The mutated field is PROVEN_EVIDENCE_STORE;
+// the Zetaris key is left empty, which would be a down Zetaris on that path.
+func TestCouchDBIsAccepted(t *testing.T) {
+	before := query.LiveBuilt()
+	rev, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_EVIDENCE_STORE":   "couchdb",
+			"PROVEN_COUCHDB_URL":      "http://127.0.0.1:9",
+			"PROVEN_COUCHDB_USER":     "proven",
+			"PROVEN_COUCHDB_PASSWORD": "couch-test-password",
+			"ZETARIS_API_KEY":         "",
+		}),
+	})
+	if err != nil || rev == nil {
+		t.Fatalf("%v", err)
+	}
+	if query.LiveBuilt() != before {
+		t.Fatalf("couchdb store built %d Zetaris clients", query.LiveBuilt()-before)
+	}
+}
+
+// TestCouchDBWrongValueIsRefusedByName proves a CouchDB setting that is set
+// wrongly stops Open before a review and the refusal names the variable and
+// does not print the password (ADR-0013). The mutated field is
+// PROVEN_COUCHDB_URL, then PROVEN_COUCHDB_PASSWORD (too short).
+func TestCouchDBWrongValueIsRefusedByName(t *testing.T) {
+	for field, extra := range map[string]map[string]string{
+		store.EnvCouchURL:      {"PROVEN_COUCHDB_URL": "ftp://host"},
+		store.EnvCouchPassword: {"PROVEN_COUCHDB_URL": "http://127.0.0.1:9", "PROVEN_COUCHDB_PASSWORD": "short"},
+	} {
+		extra["PROVEN_EVIDENCE_STORE"] = "couchdb"
+		_, err := review.Open(review.Options{Sample: false, LogDir: t.TempDir(), Env: liveEnv("http://127.0.0.1:9", extra)})
+		var cfg *review.ConfigError
+		if err == nil || !errorAs(err, &cfg) || cfg.Field != field {
+			t.Fatalf("%s: %v", field, err)
+		}
+		if strings.Contains(err.Error(), "short") {
+			t.Fatalf("%s: the refusal printed the value: %v", field, err)
+		}
+	}
+}
+
+// TestCouchDBEmptyAddressIsADownStore proves an empty CouchDB address does
+// not stop Open: the review names couchdb down (ADR-0013 point 4a). The
+// mutated field is PROVEN_COUCHDB_URL, left empty.
+func TestCouchDBEmptyAddressIsADownStore(t *testing.T) {
 	_, err := review.Open(review.Options{
 		Sample: false,
 		LogDir: t.TempDir(),
 		Env:    liveEnv("http://127.0.0.1:9", map[string]string{"PROVEN_EVIDENCE_STORE": "couchdb"}),
 	})
-	var cfg *review.ConfigError
-	if err == nil || !errorAs(err, &cfg) || cfg.Field != store.EnvStore || cfg.Value != "couchdb" {
-		t.Fatal(err)
-	}
-	if !strings.Contains(err.Error(), "not built") {
-		t.Fatal(err)
+	if err != nil {
+		t.Fatalf("an empty CouchDB address stopped Open: %v", err)
 	}
 }
 

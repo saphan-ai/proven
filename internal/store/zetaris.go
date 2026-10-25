@@ -21,8 +21,9 @@ type Zetaris struct {
 
 // NewZetaris builds the store on a validated live client.
 // The HTTP client is the one NewLive builds, which does not follow
-// redirects. This package does not import net/http: the only file that
-// dials Zetaris is internal/query/live.go.
+// redirects. This file does not import net/http: the only file that dials
+// Zetaris is internal/query/live.go. The only file of this package that
+// dials is couchdb.go, and it dials CouchDB alone.
 func NewZetaris(cfg query.Settings) *Zetaris {
 	return &Zetaris{live: query.NewLive(cfg, nil), tables: map[string]string{}}
 }

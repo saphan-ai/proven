@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-links clean
+.PHONY: help build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-links clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -20,6 +20,9 @@ build-all: ## Cross-compile darwin and linux, amd64 and arm64, into ./dist
 
 image: ## Build Proven's image for this machine and load it (one platform; a local engine cannot load a manifest list)
 	@sh $(ROOT)/lab/scripts/image.sh
+
+image-check: build image ## Check that the image prints the same version and sample review as ./bin/proven, and print its size
+	@sh $(ROOT)/lab/scripts/image-check.sh
 
 seed-image: ## Build the lab seed for this machine and load it (one platform; make push publishes both)
 	@sh $(ROOT)/lab/scripts/seed-image.sh
