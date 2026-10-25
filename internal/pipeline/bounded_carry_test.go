@@ -67,6 +67,10 @@ func (h *hoardingPlanner) Complete(_ context.Context, agent, prompt string) (str
 	case n >= 3 && n <= 12:
 		carried = append(carried, openClaim(n))
 	}
+	if isLastStep(prompt) {
+		// Nothing is left to read, so the model gives up every claim; an open claim here would stop the review.
+		carried = nil
+	}
 	ans["awaiting_evidence"] = carried
 	b, _ := json.Marshal(ans)
 	return string(b), nil

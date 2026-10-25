@@ -151,6 +151,9 @@ func stepAnswer(prompt string) string {
 	carried := strings.Contains(prompt, "awaiting evidence: "+sinkClaim)
 	ans := map[string]any{"risks": []any{}, "established": []string{}, "suspected": []string{}, "awaiting_evidence": []string{}}
 	switch {
+	case isLastStep(prompt):
+		// No part is left to supply evidence, so a model that is done leaves nothing open (the terminal check of
+		// ADR-0048 stops a review that ends with an open claim).
 	case strings.Contains(prompt, unique(3)):
 		ans["awaiting_evidence"] = []string{sinkClaim}
 	case strings.Contains(prompt, unique(20)) && carried:
@@ -165,6 +168,12 @@ func stepAnswer(prompt string) string {
 	b, _ := json.Marshal(ans)
 	return string(b)
 }
+
+// lastStepRe matches the carried block's line for the last part.
+var lastStepRe = regexp.MustCompile(`REMAINING: 1 of \d+ parts?, this one included`)
+
+// isLastStep reports whether the prompt is the last bounded step's.
+func isLastStep(prompt string) bool { return lastStepRe.MatchString(prompt) }
 
 // boundedReview reviews the fixture at root in sample mode with the bounded-steps setting s and returns the draft,
 // the scripted Planner and the trace's lines.
