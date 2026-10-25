@@ -705,6 +705,105 @@ console.log(JSON.stringify([process.env.IN, null, undefined, 42].map(esc)));`
 	}
 }
 
+// viewerRender runs the viewer page's own script in Node with a stub document,
+// location and fetch, calls showRecord and showReview on markup-bearing data,
+// and returns the HTML each one wrote.
+func viewerRender(t *testing.T, record map[string]any, rows []map[string]any, pr, commit string) (recordHTML, reviewHTML string) {
+	t.Helper()
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed: the page's rendering is UNRUN")
+	}
+	page := string(ViewerPage())
+	begin := strings.Index(page, "<script>")
+	end := strings.Index(page, "</script>")
+	if begin < 0 || end < begin {
+		t.Fatal("the page's script is missing")
+	}
+	data, _ := json.Marshal(map[string]any{"record": record, "rows": rows, "pr": pr, "commit": commit})
+	script := `const data = JSON.parse(process.env.DATA);
+const out = { innerHTML: "" };
+const document = { getElementById: function () { return out; } };
+const location = { pathname: "/proven_records/_design/evidence/viewer.html", search: "" };
+const fetch = function (url) {
+  const body = url.indexOf("_view") >= 0 ? { rows: data.rows } : data.record;
+  return Promise.resolve({ ok: true, json: function () { return Promise.resolve(body); } });
+};
+const page = new Function("document", "location", "fetch", process.env.CODE + "; return { showRecord: showRecord, showReview: showReview };")(document, location, fetch);
+const settle = function () { return new Promise(function (r) { setTimeout(r, 20); }); };
+(async function () {
+  out.innerHTML = "";
+  page.showRecord("rec-1");
+  await settle();
+  const one = out.innerHTML;
+  out.innerHTML = "";
+  page.showReview(data.pr, data.commit);
+  await settle();
+  console.log(JSON.stringify([one, out.innerHTML]));
+})();`
+	cmd := exec.Command(node, "-e", script)
+	cmd.Env = append(os.Environ(), "DATA="+string(data), "CODE="+page[begin+len("<script>"):end])
+	raw, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("node: %v", err)
+	}
+	var got []string
+	if err := json.Unmarshal(raw, &got); err != nil || len(got) != 2 {
+		t.Fatalf("node output %q: %v", raw, err)
+	}
+	return got[0], got[1]
+}
+
+// TestViewerShowsEveryRecordValueAsText proves the page, rendered the way a
+// browser would run it, writes no markup that came from a record. Every text
+// field of a record, of each kind of its evidence and of a review's list rows
+// is wrapped in an <i> tag, a tag the page never writes itself, and the title
+// also carries an element with an event attribute. The test fails when any <i>
+// or the event element is in the written HTML, and when the escaped text of a
+// field is not. The mutated line of the negative control is any one esc(...) call
+// in showRecord, evidenceHTML or showReview: dropping it lets that field's <i>
+// through.
+func TestViewerShowsEveryRecordValueAsText(t *testing.T) {
+	mark := func(name string) string { return "<i>" + name + "</i>" }
+	record := map[string]any{
+		"title": `Rounds <b onmouseover="x">down</b>`, "message": mark("message"), "severity": mark("severity"),
+		"path": mark("path"), "start_line": mark("line"), "proof_level": mark("level"),
+		"pr": mark("pr"), "commit": mark("commit"), "run": mark("run"), "finding_id": mark("finding"),
+		"evidence": []map[string]any{
+			{"kind": "query", "form": mark("form"), "engine": mark("engine"), "snapshot": mark("snapshot"), "query": mark("query"),
+				"columns": []string{mark("column")}, "rows": [][]string{{mark("cell")}}},
+			{"kind": "test", "path": mark("testpath"), "name": mark("testname"), "command": mark("testcommand"), "output": mark("testoutput")},
+			{"kind": "tool", "tool": mark("tool"), "version": mark("version"), "command": mark("toolcommand"), "output": mark("tooloutput"), "base_output": mark("baseoutput")},
+			{"kind": mark("kind")},
+		},
+	}
+	rows := []map[string]any{{"id": mark("rowid"), "value": map[string]any{"title": record["title"], "severity": mark("rowseverity"), "proof_level": mark("rowlevel"), "path": mark("rowpath")}}}
+	one, many := viewerRender(t, record, rows, mark("askpr"), mark("askcommit"))
+	for name, html := range map[string]string{"showRecord": one, "showReview": many} {
+		if html == "" {
+			t.Fatalf("%s wrote nothing", name)
+		}
+		if strings.Contains(html, "<i>") || strings.Contains(html, "<i ") || strings.Contains(html, "<b onmouseover") {
+			t.Errorf("%s wrote markup from a record:\n%s", name, html)
+		}
+		if !strings.Contains(html, "&lt;b onmouseover=&quot;x&quot;&gt;down&lt;/b&gt;") {
+			t.Errorf("%s did not show the title as text:\n%s", name, html)
+		}
+	}
+	// Each field reached the page and was shown as its characters.
+	for _, field := range []string{"message", "severity", "path", "line", "level", "pr", "commit", "run", "finding", "form", "engine", "snapshot", "query", "column", "cell", "testpath", "testname", "testcommand", "testoutput", "tool", "version", "toolcommand", "tooloutput", "baseoutput", "kind"} {
+		if !strings.Contains(one, "&lt;i&gt;"+field+"&lt;/i&gt;") {
+			t.Errorf("showRecord did not show %q as text", field)
+		}
+	}
+	// The row id goes only into a link's address, percent-encoded, so it is not shown as text.
+	for _, field := range []string{"askpr", "askcommit", "rowseverity", "rowlevel", "rowpath"} {
+		if !strings.Contains(many, "&lt;i&gt;"+field+"&lt;/i&gt;") {
+			t.Errorf("showReview did not show %q as text", field)
+		}
+	}
+}
+
 // TestQueryKeysPullOfAndRecordID covers the small readers of a record: the
 // CVEs and packages a query's rows name, the pull request of a ref, and the
 // document id.
