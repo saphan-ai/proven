@@ -27,6 +27,10 @@ func (Safe) Check(ctx context.Context, prompt, answer string) (Verdict, error) {
 	return v, nil
 }
 
+// Identity names this adapter "sample", the name the pipeline gives the
+// guardrail sample mode falls back to. It calls no model.
+func (Safe) Identity() (backend, model string) { return "sample", "" }
+
 // Record is one recorded verdict. Answer is empty for a prompt-only check.
 type Record struct {
 	Prompt     string
@@ -109,6 +113,10 @@ func (s *Sample) Check(ctx context.Context, prompt, answer string) (Verdict, err
 	v.Categories = append([]string(nil), v.Categories...)
 	return v, nil
 }
+
+// Identity names this adapter "sample-recorded", so a count can tell recorded
+// verdicts from the always-safe sample. It calls no model.
+func (*Sample) Identity() (backend, model string) { return "sample-recorded", "" }
 
 // recordKey joins prompt and answer with a NUL byte, so two different pairs never share a key.
 func recordKey(prompt, answer string) string {
