@@ -70,7 +70,7 @@ Francisco, and the fleet at home keeps working, reached over the same private ne
 
 | machine | specification | what runs on it |
 |---|---|---|
-| **Apple MacBook Pro** (macm5) | Apple M5 Max, 18 cores, 128 GB unified memory, 4 TB SSD | Saphan Studio itself: the engine, the record and the console (one app served from one binary); the masters' sessions; Meterless Nightshift in its own macOS virtual machine |
+| **Apple MacBook Pro** (macm5) | Apple M5 Max, 18 cores, 128 GB unified memory, 4 TB SSD | Saphan Studio itself: the engine, the record and the console (one app served from one binary); the fleet's standing heads: the masters, the scribe and the advisor; Meterless Nightshift in its own macOS virtual machine |
 | **Apple Mac mini** (macmini) | Apple M4, 10 cores, 16 GB, 1 TB external SSD | agent runs and reviews that need Apple's platform |
 | **AMD Ryzen AI Max+ 395 mini PC** | 32 threads, 128 GB memory shared with the integrated Radeon GPU, 2 TB NVMe | local inference on the AMD GPU: NVIDIA's Nemotron Content Safety (Proven's guardrail), three more guard models, and local coding and reasoning models |
 | **AMD Ryzen 9 9950X workstation** | 16 cores / 32 threads, 128 GB, 2 × 2 TB NVMe on ZFS, Proxmox | every Linux virtual machine of the fleet: the agent runners (Cursor, Claude Code, Codex, NVIDIA Nemotron, Qwen), the builders, Zetaris in its own virtual machine, and the judges' lab Gitea |
