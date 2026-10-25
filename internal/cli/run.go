@@ -313,7 +313,7 @@ func writeOutputFile(flag, path string, body []byte, dir *os.Root) error {
 	if err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%s %s: final component is a symbolic link; the file it names is not written", flag, path)
 	}
-	rel, inside, err := outputRelativeToWorkingDirectory(path)
+	_, inside, err := outputRelativeToWorkingDirectory(path)
 	if err != nil {
 		return err
 	}
@@ -324,7 +324,7 @@ func writeOutputFile(flag, path string, body []byte, dir *os.Root) error {
 		// WHY no second resolution: a directory that did not exist when the
 		// run started can be created during the review as a link to another
 		// directory of the checkout, and a root follows that link.
-		return fmt.Errorf("%s %s: directory %s did not exist when the run started; the report is not written", flag, path, filepath.Dir(rel))
+		return fmt.Errorf("%s %s: its directory could not be opened when the run started; the report is not written", flag, path)
 	}
 	return writeOutputOutsideWorkingDirectory(flag, path, body)
 }
@@ -387,7 +387,14 @@ func openOutputDirectories(cfg config) outputDirectories {
 			}
 			defer wdRoot.Close()
 		}
-		r, err := wdRoot.OpenRoot(filepath.Dir(rel))
+		// The directory part as spelled, not cleaned: "missing/.." must be
+		// walked by the filesystem, which cannot pass through an absent name.
+		dirPart, _ := filepath.Split(rel)
+		dirPart = strings.TrimRight(dirPart, string(filepath.Separator))
+		if dirPart == "" {
+			dirPart = "."
+		}
+		r, err := wdRoot.OpenRoot(dirPart)
 		if err != nil {
 			continue
 		}
