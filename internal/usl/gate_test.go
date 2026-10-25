@@ -147,9 +147,16 @@ done
 cat > "$STUB_DIR/config"
 cat "$data" >> "$STUB_DIR/requests"
 printf '\n' >> "$STUB_DIR/requests"
+if [ -f "$STUB_DIR/transport_error" ]; then
+  cat "$STUB_DIR/transport_error" >&2
+  exit 7
+fi
 body=$(cat "$data")
 case $body in
-  *'COUNT(*) AS violations'*) cp "$STUB_DIR/count.json" "$out"; printf 200; exit 0 ;;
+  *'COUNT(*) AS violations'*)
+    cp "$STUB_DIR/count.json" "$out"
+    if [ -f "$STUB_DIR/gate_status" ]; then cat "$STUB_DIR/gate_status"; else printf 200; fi
+    exit 0 ;;
   *'LIMIT 20'*) cp "$STUB_DIR/rows.json" "$out"; printf 200; exit 0 ;;
 esac
 if [ -f "$STUB_DIR/refuse_on" ] && printf '%s' "$body" | grep -qF -- "$(cat "$STUB_DIR/refuse_on")"; then
@@ -343,7 +350,23 @@ func TestApplyToleratesOnlyTheMarkedRefusals(t *testing.T) {
 
 // An answer that cannot be read is not a pass.
 func TestApplyRefusesAnUnreadableGateAnswer(t *testing.T) {
-	for _, body := range []string{`{}`, `{"headers":["violations"],"data":[]}`, `not json`, `{"data":[["many"]]}`} {
+	for _, body := range []string{
+		`{}`, `{"headers":["violations"],"data":[]}`, `not json`, `{"data":[["many"]]}`,
+		// Law #27, one field each from the valid answer {"headers":["violations"],"data":[[0]]}.
+		`{"headers":["violations"],"data":[[0],[7]]}`, // data: a second row
+		`{"headers":["violations"],"data":[[0,7]]}`,   // data: a second cell
+		`{"headers":["violations"],"data":[[-1]]}`,    // data: a negative count
+		`{"headers":["violations"],"data":[[1.5]]}`,   // data: not a whole number
+		`{"headers":["violations"],"data":[[true]]}`,  // data: not a number
+		`{"headers":["violations"],"data":[[null]]}`,  // data: no value
+		`{"data":[[0]]}`, // headers: absent
+		`{"headers":["something_else"],"data":[[0]]}`,                      // headers: another name
+		`{"headers":["violations","extra"],"data":[[0]]}`,                  // headers: two names
+		`{"message":"partial","headers":["violations"],"data":[[0]]}`,      // an added message field
+		`{"error":"boom","headers":["violations"],"data":[[0]]}`,           // an added error field
+		`{"errors":["boom"],"headers":["violations"],"data":[[0]]}`,        // an added errors field
+		`{"headers":["violations"],"data":[[0]]} {"headers":[],"data":[]}`, // a second document
+	} {
 		s := newStub(t, stubCurl)
 		s.set(t, "count.json", body)
 		stdout, stderr, code := s.apply(t, allSettings)
@@ -356,6 +379,76 @@ func TestApplyRefusesAnUnreadableGateAnswer(t *testing.T) {
 		if !strings.Contains(stderr, "usl-epss-score-valid") {
 			t.Errorf("%s: the refusal does not name the rule:\n%s", body, stderr)
 		}
+	}
+}
+
+// A readable answer passes whether the count is a number or a string of digits.
+func TestApplyReadsAWellFormedCount(t *testing.T) {
+	for _, body := range []string{
+		`{"headers":["violations"],"data":[[0]]}`,
+		`{"headers":["VIOLATIONS"],"data":[["0"]]}`,
+		"{\n \"headers\": [\"violations\"],\n \"data\": [ [ 0 ] ]\n}",
+	} {
+		s := newStub(t, stubCurl)
+		s.set(t, "count.json", body)
+		if _, stderr, code := s.apply(t, allSettings); code != 0 {
+			t.Errorf("%s: exit %d\n%s", body, code, stderr)
+		}
+	}
+}
+
+// No diagnostic prints the organisation id. Mutated field: the id echoed by the
+// remote, in a refusal of a statement, in a refusal of the gate query and in a
+// transport error. The key is echoed in each too.
+func TestApplyRedactsTheOrganisationIdEverywhere(t *testing.T) {
+	const org = "7391825"
+	env := map[string]string{}
+	for k, v := range allSettings {
+		env[k] = v
+	}
+	env[query.EnvOrgID] = org
+	echo := `{"msg":"org ` + org + ` is not allowed (key ` + testKey + `, X-Org-ID: ` + org + `)"}`
+	for _, c := range []struct {
+		name string
+		prep func(s stub)
+		code int
+	}{
+		{"statement refusal", func(s stub) {
+			s.set(t, "refuse_on", "CREATE SCHEMASTORE VIEW px_epss_score")
+			s.set(t, "refusal.json", echo)
+		}, 3},
+		{"transport error", func(s stub) {
+			s.set(t, "transport_error", "curl: (7) failed to connect, X-Org-ID: "+org+", Bearer "+testKey+"\n")
+		}, 3},
+	} {
+		s := newStub(t, stubCurl)
+		c.prep(s)
+		stdout, stderr, code := s.apply(t, env)
+		if code != c.code {
+			t.Errorf("%s: exit %d, want %d\n%s", c.name, code, c.code, stderr)
+		}
+		if strings.Contains(stdout+stderr, org) || strings.Contains(stdout+stderr, testKey) {
+			t.Errorf("%s: the organisation id or the key reached the output:\n%s\n%s", c.name, stdout, stderr)
+		}
+		if !strings.Contains(stderr, "[org]") {
+			t.Errorf("%s: the refusal is not shown with the id redacted:\n%s", c.name, stderr)
+		}
+	}
+
+	// The gate query's own refusal, and a refusal body the gate prints with the violating rows.
+	s := newStub(t, stubCurl)
+	s.set(t, "gate_status", "500")
+	s.set(t, "count.json", echo)
+	stdout, stderr, code := s.apply(t, env)
+	if code != 3 || strings.Contains(stdout+stderr, org) || strings.Contains(stdout+stderr, testKey) {
+		t.Errorf("gate refusal: exit %d, id or key in the output:\n%s\n%s", code, stdout, stderr)
+	}
+	s = newStub(t, stubCurl)
+	s.set(t, "count.json", `{"headers":["violations"],"data":[[1]]}`)
+	s.set(t, "rows.json", `{"headers":["cve_id"],"data":[["`+org+`"]]}`)
+	stdout, stderr, code = s.apply(t, env)
+	if code != 4 || strings.Contains(stdout+stderr, org) {
+		t.Errorf("rows of a refused gate: exit %d, id in the output:\n%s\n%s", code, stdout, stderr)
 	}
 }
 

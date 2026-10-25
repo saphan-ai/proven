@@ -8,7 +8,8 @@
 # DRY=1 prints every statement it would send and sends nothing.
 #
 # Exit codes: 0 applied and the gate passed (or DRY) · 2 a setting is missing or malformed ·
-#             3 Zetaris refused a call · 4 the gate returned rows · 5 the gate's answer could not be read.
+#             3 Zetaris refused a call · 4 the gate returned rows · 5 the gate's answer was not exactly one count (count.py).
+# The key and the organisation id are removed from every refusal and transport error before it is printed.
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
@@ -83,6 +84,7 @@ esac
 case $ZETARIS_API_KEY in
   *[!A-Za-z0-9._~+/=:-]*) die 2 "apply.sh: the Zetaris key holds a character outside letters, digits and . _ ~ + / = : -. Nothing was sent." ;;
 esac
+command -v python3 > /dev/null 2>&1 || die 2 "apply.sh: python3 is not on the path; it reads the gate's answer. Nothing was sent."
 base=${ZETARIS_REST_URL%/}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/zetaris-usl.XXXXXX")
@@ -97,11 +99,15 @@ uuid() {
     "$(printf '%s' "$hex" | cut -c14-16)" "$v" "$(printf '%s' "$hex" | cut -c18-20)" "$(printf '%s' "$hex" | cut -c21-32)"
 }
 
-# redact prints stdin with every occurrence of the key removed, and only printable bytes.
+# redact prints stdin with every occurrence of the key and of the organisation id removed, and only printable bytes.
+# Every diagnostic goes through it: a remote error may echo either one.
 redact() {
-  KEYTEXT=$ZETARIS_API_KEY awk '
-    BEGIN { k = ENVIRON["KEYTEXT"] }
-    { line = $0; while (k != "" && (i = index(line, k)) > 0) line = substr(line, 1, i - 1) "[key]" substr(line, i + length(k)); print line }
+  KEYTEXT=$ZETARIS_API_KEY ORGTEXT=$ZETARIS_ORG_ID awk '
+    function scrub(line, needle, mark,   i) {
+      while (needle != "" && (i = index(line, needle)) > 0) line = substr(line, 1, i - 1) mark substr(line, i + length(needle))
+      return line
+    }
+    { print scrub(scrub($0, ENVIRON["KEYTEXT"], "[key]"), ENVIRON["ORGTEXT"], "[org]") }
   ' | tr -cd '[:print:]\n'
 }
 
@@ -149,8 +155,8 @@ if [ "$status" != 200 ]; then
   printf '\n' >&2
   die 3 "apply.sh: Proven is not pointed at the layer."
 fi
-count=$(tr -d '\n' < "$work/body" | sed -n 's/.*"data"[ ]*:[ ]*\[[ ]*\[[ ]*"\{0,1\}\([0-9][0-9]*\)"\{0,1\}[ ]*\].*/\1/p')
-[ -n "$count" ] || die 5 "apply.sh: the answer of gate $rule could not be read, so the gate does not pass. Proven is not pointed at the layer."
+count=$(python3 -I "$here/count.py" "$work/body" violations 2> "$work/shape") ||
+  die 5 "apply.sh: the answer of gate $rule could not be read ($(redact < "$work/shape")), so the gate does not pass. Proven is not pointed at the layer."
 if [ "$count" -gt 0 ]; then
   printf 'apply.sh: REFUSED. Gate %s returned %s violating row(s). Proven is not pointed at the layer.\n' "$rule" "$count" >&2
   if send "$rows_sql LIMIT 20" && [ "$(cat "$work/status")" = 200 ]; then
