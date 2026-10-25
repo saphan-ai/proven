@@ -31,9 +31,11 @@ const (
 // documents for the command line. The table names PROVEN_OUTPUT_FORMAT,
 // PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT, SEMGREP_BASELINE_COMMIT,
 // SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE, PROVEN_EXCLUDE,
-// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY. That section's ci paragraph
-// names GITHUB_EVENT_PATH, GITHUB_BASE_REF and GITHUB_SHA. GITHUB_WORKSPACE is
-// not in the section. Adapter secrets are not in this set.
+// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY.
+// PROVEN_LOG_DIR is the trace directory; sample mode reads it too. That
+// section's ci paragraph names GITHUB_EVENT_PATH, GITHUB_BASE_REF and
+// GITHUB_SHA. GITHUB_WORKSPACE is not in the section. Adapter secrets are not
+// in this set.
 func KnownCLIEnv(name string) bool {
 	switch name {
 	case "GITHUB_BASE_REF",
@@ -44,6 +46,7 @@ func KnownCLIEnv(name string) bool {
 		"PROVEN_ERROR",
 		"PROVEN_EXCLUDE",
 		"PROVEN_INCLUDE",
+		"PROVEN_LOG_DIR",
 		"PROVEN_OUTPUT",
 		"PROVEN_OUTPUT_FORMAT",
 		"PROVEN_POLICY",
@@ -71,6 +74,7 @@ type config struct {
 	baseline        string
 	configPath      string
 	policyPath      string
+	logDir          string
 	include         []string
 	exclude         []string
 	severity        review.Severity
@@ -437,6 +441,11 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.sample = sample
 	cfg.quiet = h.quiet.set && h.quiet.v
 	cfg.verbose = h.verbose.set && h.verbose.v
+	logDir, err := resolveLogDir(getenv, cfg.target)
+	if err != nil {
+		return config{}, err
+	}
+	cfg.logDir = logDir
 	return cfg, nil
 }
 

@@ -90,10 +90,10 @@ so it is never marked proved.
 
 ## What is kept, and where
 
-- **The trace** (`logs/trace.jsonl`): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
+- **The trace** (`<user cache>/proven/logs/trace.jsonl`, or the directory `PROVEN_LOG_DIR` names): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
   call, with the run id and the time. A reader follows any finding from claim to verdict.
-- **H-MEM** (`state/hmem`): what earlier reviews refuted, so a refuted finding does not come back.
-- **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
+- **H-MEM** (`<user cache>/proven/state/hmem`, `<user cache>/proven/logs/hmem.jsonl`): what earlier reviews refuted, so a refuted finding does not come back.
+- **The World Model** (`<user cache>/proven/state/world`, `<user cache>/proven/logs/world.jsonl`): the entities a review has seen.
 - **Scout Intent** (`internal/scout`, ADR-0049): the plan chosen for a review, written as one `plan` line to the trace
   before any agent runs. Off by default; its eval harness is described below.
 

@@ -22,6 +22,7 @@ import (
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
+	"github.com/saphan-ai/proven/internal/trace"
 )
 
 //go:generate go run ../../cmd/settings-doc
@@ -118,6 +119,11 @@ func Catalog() []envdoc.Section {
 			Heading: "The evidence pack",
 			Rows:    evidence.Environment(),
 			After:   packAfter,
+		},
+		{
+			Heading: "The trace",
+			Rows:    trace.Environment(),
+			After:   "The default is the user cache directory, with proven/logs under it, created so only that user can read it. An existing configured directory is narrowed to 0700. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. The link count of each file written in that directory is read on every OS. Sample mode reads this setting.",
 		},
 	}
 }

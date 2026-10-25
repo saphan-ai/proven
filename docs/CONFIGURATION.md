@@ -147,6 +147,14 @@ A repository's `proven.yaml` may make a policy setting stricter, never weaker, a
 | `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
 
 The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
+
+## The trace
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_LOG_DIR` | `<user cache>/proven/logs` | where the trace is written. The directory is created with mode 0700. An existing configured directory is narrowed to 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Each file written in that directory, trace.jsonl, hmem.jsonl and world.jsonl, is refused when it is a symlink (wherever it points) or has more than one name. The link count is read on every OS. Sample mode reads this |
+
+The default is the user cache directory, with proven/logs under it, created so only that user can read it. An existing configured directory is narrowed to 0700. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. The link count of each file written in that directory is read on every OS. Sample mode reads this setting.
 <!-- end generated -->
 
 ## Counting guardrail checks

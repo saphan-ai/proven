@@ -13,14 +13,14 @@ with this page's four new scenarios added. Long output is shortened where marked
 | The six agents in order: Planner, Investigator, Prover, Skeptic, Judge, Writer | Live model calls through Nightshift |
 | The Judge's rule: a finding without evidence is dropped | The Prover running a test in a container: the outcome is recorded |
 | The Skeptic's refutation step and the Judge's verdict | Live Zetaris queries: the same SQL runs over local sample tables |
-| The trace (`logs/trace.jsonl`), H-MEM and the World Model on disk | The live guardrail: the sample guardrail answers `safe`, or the verdict a fixture records |
+| The trace (`<user cache>/proven/logs/trace.jsonl`), H-MEM and the World Model on disk | The live guardrail: the sample guardrail answers `safe`, or the verdict a fixture records |
 
 To check that the live services are ready instead, run `go run ./cmd/livecheck` (it never prints a secret).
 
 ## Run it
 
-Run Proven from a directory **outside** the repository. Proven keeps its memory in `./state` and its trace in `./logs`,
-and it refuses to write its memory inside the repository it reviews.
+The trace is written to the user cache, in `proven/logs`, created so only that user can read it. `PROVEN_LOG_DIR`
+overrides that directory. A path that resolves inside the repository under review is refused when Proven loads.
 
 ```bash
 git clone https://github.com/saphan-ai/proven.git
@@ -93,14 +93,10 @@ failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
-Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `logs/trace.jsonl`
-in the directory it starts from.
-
-Run from inside the repository, it refuses (exit code 2):
-
-```text
-hmem: state directory <repository>/state/hmem is inside the repository
-```
+Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `trace.jsonl`
+in the user cache, under `proven/logs`, unless `PROVEN_LOG_DIR` names another directory. A path that resolves inside
+the repository under review is refused at load (exit 7). The `trace:` lines in the recorded output on this page are
+from the run that wrote the page.
 
 ## The scenario: `testdata/fixture/discount`
 
@@ -139,7 +135,7 @@ F3 is the point of the scenario: a plausible risk with no evidence never reaches
 
 ## Read the trace
 
-`logs/trace.jsonl` holds one JSON line per event. The run above wrote 62 lines: 5 `claim`, 8 `evidence` (with the
+`<user cache>/proven/logs/trace.jsonl` holds one JSON line per event. The run above wrote 62 lines: 5 `claim`, 8 `evidence` (with the
 EPSS rows), 4 `refutation`, 5 `verdict`, 13 `model` (one per model call, with its route, model and Nightshift receipt id
 when live), 26 `guardrail` (each prompt and each answer checked) and 1 `selection`. F3's last line:
 

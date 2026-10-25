@@ -90,10 +90,10 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	}
 	// The trace file takes every run's lines; the pack keeps this run's, which begin here.
 	traceStart := int64(0)
-	if cfg.evidencePack != "" {
-		if wd, werr := os.Getwd(); werr == nil {
-			traceStart = fileSize(filepath.Join(wd, "logs", "trace.jsonl"))
-		}
+	// The trace is in the log directory resolved at load (PROVEN_LOG_DIR), not
+	// under the working directory.
+	if cfg.evidencePack != "" && cfg.logDir != "" {
+		traceStart = fileSize(filepath.Join(cfg.logDir, traceFile))
 	}
 	// --timeout bounds the whole review; zero means no deadline (ADR-0020 §1).
 	ctx := context.Background()
@@ -198,19 +198,14 @@ func openCall(cfg config, getenv func(string) string, open opener) (rev review.R
 	return openReviewer(cfg, getenv, open)
 }
 
-// openReviewer builds the reviewer's options. The trace goes to logs/ in
-// the directory the command starts from, which is where docs/SAMPLE_MODE.md
-// tells a reader to look.
+// openReviewer builds the reviewer's options. The trace directory was chosen
+// and refused, when it had to be, while the configuration loaded.
 func openReviewer(cfg config, getenv func(string) string, open opener) (review.Reviewer, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
 	opts := review.Options{
 		ConfigPath: cfg.configPath,
 		PolicyPath: cfg.policyPath,
 		Sample:     cfg.sample,
-		LogDir:     filepath.Join(wd, "logs"),
+		LogDir:     cfg.logDir,
 		Env:        getenv,
 	}
 	// Sample mode always takes the real review.Open, never a test's opener:
@@ -471,6 +466,9 @@ flags:
   --evidence-pack
         write one signed evidence pack (a tar) for this review; the private key is the file PROVEN_PACK_KEY names.
         proven verify checks it with the public key in PROVEN_PACK_PUBLIC_KEY, or --public-key
+  PROVEN_LOG_DIR
+        trace directory (default: the user cache, proven/logs, mode 0700).
+        A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
