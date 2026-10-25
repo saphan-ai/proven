@@ -54,8 +54,19 @@ func (r *countingRun) Run(context.Context, testrun.Request) (testrun.Outcome, er
 // so a test reads afterwards which of them the review used.
 type planRig struct {
 	def, spec *scriptGen
-	q         *countingQuery
+	q         query.Adapter
 	run       *countingRun
+}
+
+// queries returns the SQL the review asked, whichever counting adapter the rig holds.
+func (rig *planRig) queries() []string {
+	switch q := rig.q.(type) {
+	case *countingQuery:
+		return q.sql
+	case *advisoryQuery:
+		return q.sql
+	}
+	return nil
 }
 
 // newRig scripts a planner that names one risk, so a full plan reaches every agent after it.
@@ -71,6 +82,12 @@ func newRig() *planRig {
 // review runs one live review of target with cfg, through the rig's stubs: no network, no container,
 // no model. A special reviewer is configured, so a doubled review calls the second generator.
 func (rig *planRig) review(t *testing.T, cfg fileSettings, target string) Result {
+	t.Helper()
+	return rig.reviewWith(t, cfg, target)
+}
+
+// reviewWith is review; the measurement calls it with settings it chose itself, not planned()'s.
+func (rig *planRig) reviewWith(t *testing.T, cfg fileSettings, target string) Result {
 	t.Helper()
 	cfg.SpecialReviewer = "qwen-special"
 	p, err := pipeline.Build(pipeline.Options{
@@ -181,13 +198,13 @@ func TestPlanDependencyOnlySkipsTheProver(t *testing.T) {
 		t.Fatalf("the Prover ran on a dependency-only change: %d runs", rig.run.runs)
 	}
 	osvQueried := false
-	for _, s := range rig.q.sql {
+	for _, s := range rig.queries() {
 		if strings.Contains(s, "px_osv") && strings.Contains(s, "example.com/lib") {
 			osvQueried = true
 		}
 	}
 	if !osvQueried {
-		t.Fatalf("the dependency evidence did not run: %q", rig.q.sql)
+		t.Fatalf("the dependency evidence did not run: %q", rig.queries())
 	}
 	if !called(rig.def, "planner") {
 		t.Fatal("the planner did not run")
