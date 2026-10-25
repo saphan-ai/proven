@@ -9,8 +9,10 @@
 // names, labels each dependency finding from govulncheck when the change is
 // Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. With the setting on, it makes
 // the one whole-change fix attempt once every finding is final, and judges it by running each finding's own
-// evidence again (ADR-0050, autofix.go); the attempt replaces the per-finding suggestions. Every step writes
-// to the trace, which is then folded into H-MEM and the World Model.
+// evidence again (ADR-0050, autofix.go); the attempt replaces the per-finding suggestions. With the bounded-steps
+// engine on, a change above its threshold reaches the Planner one part per step with a carried state, and the trace
+// says per review whether that ran (ADR-0048). Every step writes to the trace, which is then folded into H-MEM and
+// the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
 // and answer (ADR-0005), the record of every model call, the doubled review
@@ -40,7 +42,6 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/fixer"
 	"github.com/saphan-ai/proven/internal/agent/investigator"
 	"github.com/saphan-ai/proven/internal/agent/judge"
-	"github.com/saphan-ai/proven/internal/agent/planner"
 	"github.com/saphan-ai/proven/internal/agent/prover"
 	"github.com/saphan-ai/proven/internal/agent/skeptic"
 	"github.com/saphan-ai/proven/internal/agent/writer"
@@ -51,6 +52,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/hmem"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
@@ -121,6 +123,9 @@ type Options struct {
 	// Telemetry carries the review's spans and metrics (ADR-0045). Nil is off.
 	// It only observes: nothing a review decides reads it.
 	Telemetry *telemetry.T
+	// Markov is the bounded-steps setting (ADR-0048). The zero value is off: the Planner reads the change whole
+	// and the Fixer sees every earlier attempt, as before. Sample mode leaves it unset.
+	Markov markov.Settings
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
@@ -155,6 +160,8 @@ type Pipeline struct {
 	logDir, stateDir string
 	// tel is the review's telemetry; nil is off and every call on it does nothing.
 	tel *telemetry.T
+	// markov is the bounded-steps setting (ADR-0048); off unless Options set it.
+	markov markov.Settings
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -207,7 +214,8 @@ func Build(opts Options) (*Pipeline, error) {
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
 		down:    append([]service.Down(nil), opts.Down...),
 		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
-		tel: opts.Telemetry,
+		tel:    opts.Telemetry,
+		markov: opts.Markov,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -634,7 +642,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	var risks []candidate.Risk
 	if plan.agent(AgentPlanner) {
 		pctx, stage := p.tel.StartStage(ctx, "planner", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
-		risks, err = planner.Plan(pctx, fx.Root, gen)
+		risks, err = p.plan(pctx, fx.Root, gen, runDefault)
 		stage.End(err)
 	} else if err = leftOut(AgentPlanner); err != nil {
 		return candidate.Draft{}, err
@@ -673,7 +681,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		// secondFailed is why the second reviewer has no word on the default run's risks; empty when it answered.
 		secondFailed := ""
 		sctx, sstage := p.tel.StartStage(ctx, "planner", telemetry.ReviewerSpecial, reviewerModel(req, runSpecial))
-		more, err := planner.Plan(sctx, fx.Root, special)
+		more, err := p.plan(sctx, fx.Root, special, runSpecial)
 		sstage.End(err)
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
@@ -1463,6 +1471,7 @@ func (p *Pipeline) fix(ctx context.Context, st *state, gen generator.Generator, 
 			BaseDir:   filepath.Join(root, "base"),
 			ChangeDir: filepath.Join(root, "change"),
 			Attempts:  attempts,
+			Carry:     p.fixCarry(),
 		})
 		// The best result is kept even when an error came with it: a failed attempt
 		// the review already made is not hidden by a service that went down after it.

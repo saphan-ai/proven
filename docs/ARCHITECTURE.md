@@ -8,7 +8,10 @@ are in [DESIGN.md](../hackathon/DESIGN.md) and in the decisions under [fleet/dec
 ```mermaid
 flowchart LR
     C[change: base and head] --> SI[Scout Intent<br/>plans the review, off by default]
-    SI --> P[Planner<br/>names the risks]
+    SI --> P
+    subgraph PL[Planner reads the change]
+        M[large change: bounded steps,<br/>off by default] -.->|only when switched on| P[Planner<br/>names the risks]
+    end
     P --> I[Investigator<br/>picks a query template]
     P --> V[Prover<br/>writes a test]
     I -->|template and values,<br/>Proven builds the SQL| Z[(Zetaris<br/>KEV · EPSS · OSV)]
@@ -96,11 +99,15 @@ so it is never marked proved.
 - **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
 - **Scout Intent** (`internal/scout`, ADR-0049): the plan chosen for a review, written as one `plan` line to the trace
   before any agent runs. Off by default; its eval harness is described below.
+- **Markovian** (`internal/markov`, OFF by default): the state carried from one step to the next when a large change is
+  reviewed in bounded steps. It is kept in memory for the length of one review, and each step's size is in the trace.
+  See "Bounded steps" below.
 
-H-MEM and the World Model follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run
-through `test/conformance/meterless/run.sh`. Scout Intent follows Meterless's specification too (ADR-0049), and
-Meterless's eval harness, pinned at upstream commit `1742dec5`, runs through `test/conformance/meterless/run_scout.sh`.
-It is switched off by default and its benefit is UNMEASURED until the corpus recordings exist.
+H-MEM, the World Model and Markovian follow the Meterless specifications (ADR-0003, ADR-0018, ADR-0048); their own
+conformance suites run through `test/conformance/meterless/run.sh`: H-MEM 9 of 13, World Model 7 of 8, Markovian 8 of
+8 (runner pinned at upstream commit `1742dec5`). Scout Intent follows Meterless's specification too (ADR-0049), and
+Meterless's eval harness, pinned at the same commit, runs through `test/conformance/meterless/run_scout.sh`. Markovian
+and Scout Intent are switched off by default, and their benefit is UNMEASURED until the corpus recordings exist.
 
 ## Scout Intent plans each review (ADR-0049)
 
@@ -178,6 +185,92 @@ loses a finding. Measured 2026-10-25:
 remark: a scripted planner names one risk and nothing proves it, so "findings 0 / lost 0" on four rows says only that no finding existed to lose; the dependency row is the one case where a finding existed and the plan kept it.
 remark: the two dependency rows differ only in the path rules: where the rules call the manifest security (the default), the plan keeps the floor's full agent set and doubles the review, so it cuts nothing; the cut applies only where the rules leave the manifest in a lower class. Re-measured 2026-10-25 on a loaded machine, so the wall times of all rows are not comparable with the older ones.
 remark: the security row costs more by design: the plan doubles a change the configured rules did not call sensitive.
+
+## Bounded steps: Meterless's Markovian engine (ADR-0048)
+
+`internal/markov` is Meterless's Markovian engine in Go, built to its specification (Meterless `engines/markovian`,
+`AGENTS.md`, at commit `1742dec56a66e58eef9dda2d2b865823758ca8cd`): the chunk configuration and its bounds, the marker
+protocol, the carryover cascade, the two mode prompts with the overlap window, the orchestrator loop and its reflection
+pass, and the efficiency model. Meterless's own runner checks it through `run.sh`, beside H-MEM and the World Model; the
+scorecard, `test/conformance/meterless/SCORECARD_markovian.txt`, is published as it is: 8 of 8 checks pass.
+
+**What it does in Proven, and only when switched on.** Today only the Planner reads the change, and it reads all of it
+in one prompt; the Investigator, the Prover and the Skeptic see a finding's id and title, and the Fixer one file. So the
+engine stands in two places:
+
+1. **The Planner.** A change whose whole Planner prompt is above the threshold is read one part per step. Each step's
+   prompt holds one part and the carried state, never the rest of the change. The model answers with the risks this part
+   shows and the state to carry on: what is established, what is suspected, and which claims await evidence from a part
+   not yet read. A claim carried as awaiting evidence becomes a risk at the step that reads its evidence.
+2. **The proved-fix loop (ADR-0042).** Each new attempt carries only what failed and why, within the same bound, and
+   nothing an earlier attempt proposed.
+
+At or below the threshold, or with the switch off, the review is exactly what it was. The trace says, per Planner run,
+whether bounded steps ran and why not, and gives each step's part, prompt size and carried-state size.
+
+**How the spec's unit maps onto Proven's.** The spec's step is a chunk of generation whose size the model decides, ended
+by a `[STATE_CHECKPOINT]` marker. A review's steps are fixed in advance: one per file, or one per hunk. The mapping:
+
+| spec | Proven's review |
+|---|---|
+| one chunk | one part: a file (its base and change) or a hunk (a changed region, three lines of context) |
+| `[STATE_CHECKPOINT]` + state block | the step's JSON answer: `risks`, and `established`, `suspected`, `awaiting_evidence` |
+| `COMPLETED` / `REMAINING` | parts read / parts left, counted by Proven, not written by the model |
+| `DECISIONS` | what is established |
+| `CONTEXT` | what is suspected, then what awaits evidence (the bound cuts it last, and never in silence: see below) |
+| `carryoverTokens` | `PROVEN_MARKOVIAN_CARRY_TOKENS`, with the spec's bounds (128 to 32768) |
+| `[TASK_COMPLETE]` | the last part read |
+| cascade level 1 (the model's own state) | the step's answer, cut to the bound |
+| cascade level 2 (a second model call to compress) | not used in the review: it would add a model call to every step |
+| `maxChunks` (at most 32) | not applied to the review: its chain is closed, one step per part, so a 60-file change takes 60 steps |
+
+The generic loop (`markov.Execute`, and the machine the conformance runner drives) keeps every rule of the spec,
+`maxChunks` included. The history service, the engine tab and the telemetry panel of the spec are user-interface and
+storage parts Proven does not have; they are not built.
+
+**When the carried state is full (ADR-0048).** The bound first cuts what is established, oldest first, then what is
+only suspected. A claim that awaits evidence is never cut and never dropped, however long it is: it is carried whole,
+as a pinned line that the 400-byte limit on other items does not touch. A claim that is shortened can no longer name
+the evidence it needs, and a claim lost can never meet its evidence, and the review would go on looking complete. If
+the bound cannot hold every open claim whole, the review stops before anything is cut, with `*markov.CarryFullError`.
+Its message says the bounded review is incomplete, after which step, how many of the open claims fit whole, and the
+two ways on: run the whole review (`PROVEN_MARKOVIAN=off`) or raise
+`PROVEN_MARKOVIAN_CARRY_TOKENS`. The trace carries the same sentence on a `bounded-steps` line. The review does not
+fall back by itself: the caller decides. Tests: `TestAnOverflowingCarryStopsTheReviewByName` (the stop) and
+`TestTheEarliestOpenClaimReachesItsEvidenceWhenTheBoundHoldsThem` (the same claim, with room, becomes a risk at its
+evidence), `TestALongOpenClaimIsCarriedWholeToItsEvidence` (a claim over 400 bytes, its evidence named at the end,
+reaches that evidence whole) and `TestALongOpenClaimThatCannotBeHeldWholeStopsTheReviewBeforeAnyCut` (when the bound
+cannot hold it whole, the review stops by name at the step that raised it). A claim still open after the last step is not lost either: no part is left to supply its evidence, so the review stops
+with `*markov.OpenClaimsError` (its message gives the number of steps and of open claims, never the claim text), and the
+trace carries the same sentence. A bounded review that stops ends with that named error; Proven does not yet fall back to a whole review, so the caller sees an incomplete review, never a silent success. Test:
+`TestAClaimStillOpenAfterTheLastStepStopsTheReviewByName` (two files, the last answer holds one open claim and no risk).
+A model that leaves a claim out of the state it returns is a model error this bound cannot see.
+
+**Settings** (environment, live mode only; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`off` by
+default), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
+`PROVEN_MARKOVIAN_STEP_UNIT` (`file` or `hunk`), `PROVEN_MARKOVIAN_CARRY_TOKENS` (default 800). A wrong value stops the
+review before it starts, naming the variable and the values allowed.
+
+**The measurement (ADR-0048 point 4).** Planner model tokens, prompt plus answer, estimated as characters / 4, from
+`go test -count=1 -run TestBoundedStepsMeasurement -v ./internal/pipeline` on 2026-10-25. The sample scenarios run a
+scripted generator, not a model: they measure the size of what Proven sends and receives, never a model's findings.
+
+| scenario | whole: steps | whole: tokens per step | whole: tokens per review | bounded: steps | bounded: largest step | bounded: mean step | bounded: tokens per review | same findings |
+|---|---|---|---|---|---|---|---|---|
+| 24 files, file steps (scripted) | 1 | 36169 | 36169 | 24 | 1977 | 1899 | 45586 | yes |
+| 24 files, hunk steps (scripted) | 1 | 36169 | 36169 | 26 | 577 | 509 | 13250 | yes |
+| 60 files, file steps (scripted) | 1 | 90061 | 90061 | 60 | 1977 | 1876 | 112619 | yes |
+| 3 files, below the threshold (scripted) | 1 | 4659 | 4659 | 1 | 4659 | 4659 | 4659 | yes |
+| corpus PV-001 to PV-021 | UNMEASURED — no corpus recording (proven-test-corpus record-and-replay not yet landed) | | | | | | | |
+
+What it shows: in these scripted scenarios, whose files are all about the same size, the step stays under 2,000 estimated
+tokens however many files the change has, where the whole step grows with the change. This is not a general bound. The
+carry bound caps the carried state only, never a part's own size: in file mode a whole file is one part, and in hunk mode
+a large changed region is one hunk, so a step over a very large file or region is as large as that part. With file steps the review as a whole costs more,
+about a quarter more, because every step repeats the instruction and the carried state; with hunk steps it costs less,
+because a step carries the changed region and not both whole copies of the file. Whether a model keeps the same findings
+across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row, and
+until it is measured the engine stays off (ADR-0048 point 4).
 
 ## Modes
 
