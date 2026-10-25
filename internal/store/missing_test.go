@@ -56,13 +56,16 @@ func TestLocalMissingTableIsADownSource(t *testing.T) {
 // TestStoresAgreeOnAMissingTable proves a table the source never registered is
 // a named down source on every store, never an empty answer and never an
 // error that ends the review (ADR-0047). Zetaris is a recorded server that
-// answers 404 for the missing view. The mutated field is the table: neither
-// store holds it. Negative control: the local down conversion removed turns
-// the local half red.
+// answers 404 for the missing view, and the down source is named zetaris.
+// CouchDB is a recorded server with no database, and the reason starts with
+// "no table", as it does on the local store. The requests are kev-by-cve and
+// mal-by-package, so a new source table is the same kind of miss. The mutated
+// field is the table: no store holds it. Negative control: the local down
+// conversion removed turns the local half red.
 func TestStoresAgreeOnAMissingTable(t *testing.T) {
-	req := querytpl.Request{
-		Template: querytpl.KEVByCVE,
-		Params:   map[string]string{querytpl.ParamCVEID: "CVE-2021-44228"},
+	reqs := []querytpl.Request{
+		{Template: querytpl.KEVByCVE, Params: map[string]string{querytpl.ParamCVEID: "CVE-2021-44228"}},
+		{Template: querytpl.MalByPackage, Params: map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "evil.example/drop"}},
 	}
 	ctx := context.Background()
 	local, err := OpenLocal(filepath.Join(t.TempDir(), "evidence.sql"))
@@ -77,12 +80,21 @@ func TestStoresAgreeOnAMissingTable(t *testing.T) {
 		BaseURL: srv.URL, APIKey: "conform-key", OrgID: "1",
 		RowLimit: 100, Timeout: time.Second,
 	})
-	stores := map[string]Store{"local": local, "zetaris": z}
+	_, couchSrv := newFakeCouch(t)
+	stores := map[string]Store{"local": local, "zetaris": z, "couchdb": couchStore(couchSrv)}
 	for name, s := range stores {
-		_, err := s.Run(ctx, req, querytpl.Relations{})
-		d, ok := service.As(err)
-		if !ok || d.Service != name {
-			t.Fatalf("%s: want a down source naming it, got %v", name, err)
+		for _, req := range reqs {
+			_, err := s.Run(ctx, req, querytpl.Relations{})
+			d, ok := service.As(err)
+			if !ok || d.Service != name {
+				t.Fatalf("%s %s: want a down source naming it, got %v", name, req.Template, err)
+			}
+			// Local and CouchDB say which table is missing. Zetaris answers
+			// 404 for the view and the reason is that status; the service
+			// name is still zetaris.
+			if name != "zetaris" && !strings.HasPrefix(d.Reason, "no table ") {
+				t.Fatalf("%s %s: reason %q", name, req.Template, d.Reason)
+			}
 		}
 	}
 }

@@ -252,15 +252,18 @@ func TestCVEFormatIsAnchored(t *testing.T) {
 }
 
 // TestCatalogueFollowsTheSourceRegistry proves Catalogue is the source
-// registry in the fixed order OSV, then KEV, then EPSS. The mutated field
+// registry in the fixed order of the built-in adapters. The mutated field
 // is which adapter owns a template name.
 func TestCatalogueFollowsTheSourceRegistry(t *testing.T) {
 	if builtinErr != nil {
 		t.Fatal(builtinErr)
 	}
 	got := Catalogue()
-	want := []string{OSVByPackage, OSVByAdvisory, KEVByCVE, EPSSByCVE}
-	owners := []string{"osv", "osv", "kev", "epss"}
+	want := []string{
+		OSVByPackage, OSVByAdvisory, KEVByCVE, EPSSByCVE,
+		MalByPackage, ScorecardByPackage, CVSSByCVE, SPDXByPackage,
+	}
+	owners := []string{"osv", "osv", "kev", "epss", "mal", "scorecard", "cvss", "spdx"}
 	if len(got) != len(want) {
 		t.Fatalf("catalogue has %d templates, want %d", len(got), len(want))
 	}

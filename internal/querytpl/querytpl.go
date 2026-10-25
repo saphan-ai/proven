@@ -1,9 +1,10 @@
 // Package querytpl is the closed list of questions Proven can ask a store, and
 // the only place the built-in query text is written (ADR-0032).
 //
-// The list is the source-adapter registry (ADR-0046). OSV, KEV and EPSS
-// register their templates from this package, and Catalogue and Build read
-// that registry, so each template is written once. A model never writes a
+// The list is the source-adapter registry (ADR-0046). OSV, KEV, EPSS and the
+// four sources of ADR-0039 (malicious packages, project health, CVSS, SPDX
+// licences) register their templates from this package, and Catalogue and
+// Build read that registry, so each template is written once. A model never writes a
 // query. The Investigator and the Skeptic name one template and give the
 // values of its parameters; Proven checks each value against the strict
 // format of that parameter and builds the query itself. A value outside its
@@ -26,21 +27,32 @@ import (
 	"github.com/saphan-ai/proven/internal/source"
 )
 
-// The defaults of the three settings that name a table or a view (ADR-0013).
-// osv, epss and the review settings refer to these, so a name is written once.
+// The defaults of the three settings that name a table or a view (ADR-0013),
+// and the four ADR-0039 tables, which are the adapters' own names.
+// osv, epss and the review settings refer to the first four, so a name is written once.
 const (
 	DefaultOSVTable  = "px_osvfile.px_osv_pkg"
 	DefaultKEVView   = "px_evidence.px_kev_vulns"
 	DefaultEPSSView  = "px_evidence.px_epss_cve_rows"
 	DefaultOSVIDView = "px_evidence.px_osv_id"
+	// The four ADR-0039 tables are the adapters' own names, not review
+	// settings. An organisation that wants another name writes another adapter.
+	DefaultMalTable       = "px_evidence.px_mal_pkg"
+	DefaultScorecardTable = "px_evidence.px_scorecard"
+	DefaultCVSSTable      = "px_evidence.px_cvss_cve"
+	DefaultSPDXTable      = "px_evidence.px_spdx_lic"
 )
 
 // The names of the templates. The list is closed: a name not here is refused.
 const (
-	OSVByPackage  = "osv-by-package"
-	OSVByAdvisory = "osv-by-advisory"
-	KEVByCVE      = "kev-by-cve"
-	EPSSByCVE     = "epss-by-cve"
+	OSVByPackage       = "osv-by-package"
+	OSVByAdvisory      = "osv-by-advisory"
+	KEVByCVE           = "kev-by-cve"
+	EPSSByCVE          = "epss-by-cve"
+	MalByPackage       = "mal-by-package"
+	ScorecardByPackage = "scorecard-by-package"
+	CVSSByCVE          = "cvss-by-cve"
+	SPDXByPackage      = "spdx-by-package"
 )
 
 // The names of the parameters.
@@ -350,10 +362,18 @@ func OSVPackageSQL(table, ecosystem, pkg string) (string, error) {
 // by. The sql form and the mango form both call it, so they match the same
 // rows (ADR-0047).
 func osvKey(ecosystem, pkg string) (string, string, error) {
+	return ecosystemKey(OSVByPackage, ecosystem, pkg)
+}
+
+// ecosystemKey is osvKey for any template that looks a package up the same
+// way. template is the name a refusal cites. A PyPI name is put in its PEP
+// 503 form, and a Packagist name in lower case, because those tables are
+// keyed that way. A crates.io name is kept as written.
+func ecosystemKey(template, ecosystem, pkg string) (string, string, error) {
 	switch ecosystem {
 	case "Go", "npm", "PyPI", "Packagist", "crates.io":
 	default:
-		return "", "", &Refusal{Reason: ReasonBadValue, Detail: OSVByPackage + " " + ParamEcosystem}
+		return "", "", &Refusal{Reason: ReasonBadValue, Detail: template + " " + ParamEcosystem}
 	}
 	if ecosystem == "PyPI" {
 		pkg = pep503.Normalise(pkg)
@@ -363,7 +383,7 @@ func osvKey(ecosystem, pkg string) (string, string, error) {
 	if ecosystem == "Packagist" {
 		pkg = strings.ToLower(pkg)
 	}
-	name, err := checked(OSVByPackage, ParamPackage, pkg, packageFormat(ecosystem))
+	name, err := checked(template, ParamPackage, pkg, packageFormat(ecosystem))
 	if err != nil {
 		return "", "", err
 	}

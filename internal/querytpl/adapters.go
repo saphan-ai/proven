@@ -14,6 +14,10 @@ func init() {
 		osvAdapter{},
 		kevAdapter{},
 		epssAdapter{},
+		malAdapter{},
+		scorecardAdapter{},
+		cvssAdapter{},
+		spdxAdapter{},
 	})
 }
 

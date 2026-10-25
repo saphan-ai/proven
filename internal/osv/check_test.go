@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -555,6 +556,35 @@ func writeMods(t *testing.T, root, base, change string) {
 		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(side.body), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// TestRaisedPackageBindsTheADR0039Templates proves a package the change
+// added binds the malicious, scorecard and licence templates, and does not
+// bind osv-by-package until a range matches. CVSS binds only a CVE that
+// match recorded. The mutated field is the raised set.
+func TestRaisedPackageBindsTheADR0039Templates(t *testing.T) {
+	var f Facts
+	f.noteRaised("Go", "evil.example/drop")
+	pkg := map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "evil.example/drop"}
+	for _, name := range []string{querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage} {
+		if !f.Binds(querytpl.Request{Template: name, Params: pkg}) {
+			t.Errorf("%s did not bind a raised package", name)
+		}
+	}
+	if f.Binds(querytpl.Request{Template: querytpl.OSVByPackage, Params: pkg}) {
+		t.Fatal("a raised package bound osv-by-package with no affected row")
+	}
+	cve := map[string]string{querytpl.ParamCVEID: "CVE-2026-7777"}
+	if f.Binds(querytpl.Request{Template: querytpl.CVSSByCVE, Params: cve}) {
+		t.Fatal("cvss bound a CVE the check had not recorded")
+	}
+	f.add("Go", "evil.example/drop", Row{Aliases: "CVE-2026-7777"})
+	if !f.Binds(querytpl.Request{Template: querytpl.CVSSByCVE, Params: cve}) {
+		t.Fatal("cvss did not bind a CVE of an affected advisory")
+	}
+	if !f.Binds(querytpl.Request{Template: querytpl.EPSSByCVE, Params: cve}) {
+		t.Fatal("epss did not bind the same CVE")
 	}
 }
 

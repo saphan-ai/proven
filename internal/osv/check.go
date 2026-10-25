@@ -90,12 +90,16 @@ type Outcome struct {
 }
 
 // Facts is what the dependency check established about the change: the
-// packages whose changed version lies inside an advisory range, and the ids
-// (advisory ids and aliases such as CVE ids) of those advisories. A model's
-// words are not in it.
+// packages the change added or raised, the packages whose changed version
+// lies inside an advisory range, and the ids (advisory ids and aliases such
+// as CVE ids) of those advisories. A model's words are not in it.
 type Facts struct {
 	packages map[string]bool
 	ids      map[string]bool
+	// raised is every package the change added or raised, whether or not an
+	// OSV range matched. The ADR-0039 templates bind to it. packages stays
+	// the affected set, so a raised package does not become an OSV hit.
+	raised map[string]bool
 }
 
 func (f *Facts) add(ecosystem, pkg string, row Row) {
@@ -125,8 +129,26 @@ func (f Facts) Binds(req querytpl.Request) bool {
 		return f.ids[req.Params[querytpl.ParamAdvisoryID]]
 	case querytpl.KEVByCVE, querytpl.EPSSByCVE:
 		return f.ids[req.Params[querytpl.ParamCVEID]]
+	case querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage:
+		// These name a package the change added or raised. They do not need
+		// an OSV range: a malicious package may have no vulnerability row.
+		return f.raised[req.Params[querytpl.ParamEcosystem]+"\x00"+req.Params[querytpl.ParamPackage]]
+	case querytpl.CVSSByCVE:
+		// CVSS is read beside EPSS, for a CVE the dependency check already
+		// tied to the change. A CVE only a model typed does not bind.
+		return f.ids[req.Params[querytpl.ParamCVEID]]
 	}
 	return false
+}
+
+// noteRaised records a package the change added or raised.
+// Check calls it for every hit, including one with no OSV row, so the
+// ADR-0039 templates can bind. It does not mark the package affected.
+func (f *Facts) noteRaised(ecosystem, pkg string) {
+	if f.raised == nil {
+		f.raised = map[string]bool{}
+	}
+	f.raised[ecosystem+"\x00"+pkg] = true
 }
 
 // Check reads the packages the registered adapters report, queries the OSV
@@ -175,6 +197,9 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
+		// Recorded before the OSV query, so a package with no advisory row
+		// still binds a malicious-package, scorecard or licence template.
+		out.Facts.noteRaised(hit.Ecosystem, hit.Package)
 		next, note, err := oneModule(ctx, q, table, snapshot, hit, &out.Facts)
 		if note != "" {
 			out.Notes = append(out.Notes, note)
