@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
 // recorder is a query adapter that keeps every statement it is asked to run and
@@ -15,9 +16,13 @@ type recorder struct {
 	sql []string
 }
 
-func (r *recorder) Query(_ context.Context, sql string) (query.Result, error) {
-	r.sql = append(r.sql, sql)
-	return query.Result{Engine: "mem", Columns: Columns, Rows: [][]string{}}, nil
+func (r *recorder) Run(_ context.Context, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
+	forms, err := querytpl.BuildForms(req, rel)
+	if err != nil {
+		return query.Result{}, err
+	}
+	r.sql = append(r.sql, forms.SQL)
+	return query.Result{SQL: forms.SQL, Form: querytpl.FormSQL, Engine: "mem", Columns: Columns, Rows: [][]string{}}, nil
 }
 
 // TestCheckSendsNoQueryForAPackageOutsideItsFormat proves ADR-0032 point 2 and

@@ -54,6 +54,7 @@ import (
 	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
 	"github.com/saphan-ai/proven/internal/trace"
@@ -74,8 +75,10 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
-	// LiveQuery, when set, is the Zetaris adapter. Sample mode does not use it.
-	LiveQuery query.Adapter
+	// LiveStore, when set, is the evidence store a live review queries.
+	// Sample mode does not use it. The seam passes a template request; the
+	// store runs the form of its own language (ADR-0047).
+	LiveStore store.Store
 	// StateDir is the durable directory for H-MEM and the world model.
 	// Empty uses a state directory beside the logs, never a path inside the module.
 	StateDir string
@@ -121,7 +124,7 @@ type Pipeline struct {
 	proverIdle   string
 	gen          generator.Generator
 	special      generator.Generator
-	liveQuery    query.Adapter
+	liveStore    store.Store
 	trace        *trace.Writer
 	rail         guardrail.Adapter
 	guardOff     bool
@@ -188,7 +191,7 @@ func Build(opts Options) (*Pipeline, error) {
 	// opens them (see begin) after it has compared them with the target.
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
-		gen: opts.Generator, special: opts.Special, liveQuery: opts.LiveQuery, rail: opts.Guardrail, guardOff: opts.GuardOff,
+		gen: opts.Generator, special: opts.Special, liveStore: opts.LiveStore, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
 		down:    append([]service.Down(nil), opts.Down...),
@@ -838,7 +841,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 // attachEPSS scores every kept finding whose evidence names a CVE.
 // A missing row is a trace line and adds no evidence.
-func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Adapter, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
+func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Runner, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
 	// ADR-0013: the view is a setting; empty means the named default.
 	view := p.epssView
 	if view == "" {
@@ -1004,7 +1007,7 @@ func (p *Pipeline) relations(ctx context.Context) querytpl.Relations {
 // A proposal with no test and no query is not evidence. The caller writes the
 // refutation to the trace, and H-MEM learns it from the trace when the review is
 // folded in.
-func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Adapter, run testrun.Adapter) error {
+func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Runner, run testrun.Adapter) error {
 	r := &c.Refutation
 	if r.TestName != "" {
 		out, err := prover.Execute(ctx, run, testrun.Request{
@@ -1094,13 +1097,34 @@ func (p *Pipeline) noteFamily(st *state) error {
 	return st.event("review", "family", "skeptic", sentence)
 }
 
-// adapters picks the generator, the query adapter and the test runner for this
+// storeRunner is the pipeline's evidence seam over one store (ADR-0047).
+// It passes the template request through and returns the form that ran.
+// The text is not built here: the store builds the form of its own language.
+type storeRunner struct{ s store.Store }
+
+// Run asks the store to run the request. A nil store names Zetaris down and
+// does not dial, which is what an unconfigured live client did.
+func (r storeRunner) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
+	if r.s == nil {
+		return query.Result{}, &service.Down{Service: "zetaris", Reason: "not configured"}
+	}
+	ev, err := r.s.Run(ctx, req, rel)
+	if err != nil {
+		return query.Result{}, err
+	}
+	return query.Result{
+		SQL: ev.Query, Form: ev.Form, Engine: ev.Engine, Snapshot: ev.Snapshot,
+		Columns: ev.Columns, Rows: ev.Rows,
+	}, nil
+}
+
+// adapters picks the generator, the evidence seam and the test runner for this
 // review. Sample mode uses the fixture's recorded answers, tables and test
-// outcomes; live mode uses the adapters Build was given, and loads the container
+// outcomes; live mode uses the store Build was given, and loads the container
 // settings only when no runner was given.
-func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Adapter, testrun.Adapter, error) {
+func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Runner, testrun.Adapter, error) {
 	var gen generator.Generator
-	var q query.Adapter
+	var q query.Runner
 	var err error
 	if p.sample {
 		if p.gen != nil {
@@ -1115,19 +1139,22 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Ada
 		}
 		// ADR-0047: sample mode opens the fixture file as the local store.
 		// The engine name stays local-sample, so a sample review reads as it did.
+		// Run builds the sql form, which is the only form the fixture file speaks.
 		q, err = query.OpenSample(fx.Tables)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 	} else if p.gen != nil {
 		gen = p.gen
-		q = p.liveQuery
+		q = storeRunner{p.liveStore}
 	} else {
 		gen = &generator.Live{}
-		q = p.liveQuery
+		q = storeRunner{p.liveStore}
 	}
-	if !p.sample && q == nil {
-		q = &query.Live{}
+	if !p.sample && p.liveStore == nil {
+		// A live review with no store names Zetaris down, as an unconfigured
+		// client did, and does not dial.
+		q = storeRunner{}
 	}
 	run := p.testRun
 	if run == nil {
