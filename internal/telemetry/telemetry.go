@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/saphan-ai/proven/internal/redact"
 	ptrace "github.com/saphan-ai/proven/internal/trace"
 )
 
@@ -60,6 +61,27 @@ const (
 	ReviewerShared  = "shared"
 )
 
+// SetRedactor sets the redactor every error text passes through before it becomes a span status. The
+// pipeline sets it to the one the trace file uses (ADR-0005, ADR-0045 point 2); until it is set nothing is
+// replaced. A nil *T ignores it.
+func (t *T) SetRedactor(r *redact.Redactor) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	t.redactor = r
+	t.mu.Unlock()
+}
+
+// errorText is err's text with the configured secrets replaced. A status description is exported, so no
+// error text reaches one except through here.
+func (t *T) errorText(err error) string {
+	t.mu.Lock()
+	rd := t.redactor
+	t.mu.Unlock()
+	return rd.Text(err.Error())
+}
+
 // Flusher is what a provider offers to push what it holds to the exporter.
 type Flusher interface {
 	ForceFlush(ctx context.Context) error
@@ -86,9 +108,10 @@ type T struct {
 	guardUnsafe   metric.Int64Counter
 	agentState    metric.Int64Gauge
 
-	mu      sync.Mutex
-	current trace.Span // the span a trace-file event is attached to
-	open    []*Stage   // stages not yet ended, ended with the review
+	mu       sync.Mutex
+	redactor *redact.Redactor // applied to every error text that becomes a span status
+	current  trace.Span       // the span a trace-file event is attached to
+	open     []*Stage         // stages not yet ended, ended with the review
 }
 
 // New builds a T over the given providers. A provider that also implements
@@ -216,7 +239,7 @@ func (r *Review) End(err error, attrs ...attribute.KeyValue) {
 	}
 	r.span.SetAttributes(attrs...)
 	if err != nil {
-		r.span.SetStatus(codes.Error, err.Error())
+		r.span.SetStatus(codes.Error, r.t.errorText(err))
 	}
 	r.span.End()
 	r.t.mu.Lock()
@@ -279,7 +302,7 @@ func (s *Stage) End(err error) {
 		st := int64(StateDone)
 		if err != nil {
 			st = StateFailed
-			s.span.SetStatus(codes.Error, err.Error())
+			s.span.SetStatus(codes.Error, s.t.errorText(err))
 		}
 		s.t.state(context.Background(), s.agent, s.reviewer, st)
 		s.span.End()

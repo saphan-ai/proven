@@ -179,6 +179,8 @@ func Build(opts Options) (*Pipeline, error) {
 	// setting; with none given, nothing is redacted.
 	rd := opts.Redactor
 	tw.SetRedactor(rd)
+	// The same redactor stands at the one place telemetry turns an error into exported text.
+	opts.Telemetry.SetRedactor(rd)
 	stateDir := opts.StateDir
 	if stateDir == "" {
 		var derr error
