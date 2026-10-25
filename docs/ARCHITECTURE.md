@@ -72,7 +72,10 @@ where the change's code may run, and no model is asked:
 | tool | the same tool, run again in the container on the patched change, no longer reports it |
 
 A finding with several proofs closes only when each of them closes, and a run that could not happen (a store down, a tool
-that timed out, no container) leaves the finding open. If every proved finding closed, `Result.Autofix.Verdict` is
+that timed out, no container) leaves the finding open. Nothing else may have broken either: when every finding closed,
+Proven runs `go test` on the patched copy for every package a patched file belongs to (the whole module for a module
+file), and `Result.Autofix.Breakage` records those runs; a failure, or a run that did not happen, is `rejected`. If every
+proved finding closed and those runs passed, `Result.Autofix.Verdict` is
 `fixed automatically, waiting for a person`; otherwise it is `rejected`, with each open finding and the evidence of its
 re-run. There is no second attempt, so `fix_attempts` is not read and the per-finding suggestions above are not made while
 the attempt is on. The patch is carried on the Result as edits and as a unified diff for a review comment to publish as
