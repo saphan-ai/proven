@@ -96,7 +96,8 @@ type Manifest struct {
 	Files   []FileRef `json:"files"`
 	// RedactionMoved names the findings whose outcome the rule gives differently for the redacted
 	// text than for the text the review had: redaction wrote one marker where the review had two
-	// different values, or the other way round. verify names them not re-derived, because the pack
+	// different values, or the other way round. verify runs the rule with the text read both ways
+	// and names only the components those readings disagree on not re-derived, because the pack
 	// no longer holds the text the Judge read.
 	RedactionMoved []string `json:"redaction_moved,omitempty"`
 }
