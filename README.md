@@ -195,7 +195,7 @@ Passing tests do not always prove what they claim to prove. A reviewer that asks
 
 ## What Proven is meant to do
 
-*The intent, as planned before the build window. What already works is listed under [Where things stand](#where-things-stand-end-of-day-1-22-october-2026).*
+*The intent, as planned before the build window. What already works is listed under [Where things stand](#where-things-stand).*
 
 - **Every finding carries evidence.** A test that fails on the change and passes without it, or a recorded query and its results, with sources. This applies to every finding, including when two reviewers agree. Agreement is never a substitute for proof.
 - **The reviewer should come from a different AI model family than the one that wrote the code.** A reviewer from the same family tends to share the author's assumptions; another family can challenge them. The change's own commit or pull request says which model wrote it, and by default an NVIDIA model reviews it. Every model is configurable, and no setup is blocked; each review says which model reviewed it and whether that is the author's.
@@ -298,11 +298,31 @@ week** ([ADR-0030](docs/adr/ADR-0030-the-product-and-the-hackathon-live-apart.md
 |---|---|
 | `cmd/`, `internal/` | Proven's code: the command line and the reviewer |
 | `docs/` | how to install, run and configure Proven; `docs/adr/` holds the design decisions, `docs/security/` the security review |
+| `docs-site/` | the documentation website, built from this repository's Markdown and from the code |
 | `SECURITY.md` | what Proven protects, and how to report a vulnerability |
 | `test/` | the test corpus (`test/corpus/`) and the Meterless conformance runner (`test/conformance/`) |
 | `testdata/`, `demo/`, `assets/` | sample scenarios, the live demo, images |
 | `hackathon/` | the build week's record: `fleet/` (every change's order, report, review and decision), `planning/` (the topic, the daily conversations), `SAPHAN.md`, `DESIGN.md` |
 | `metadata.json`, `metadata.schema.json` | the hackathon's submission metadata, at the root until the hackathon ends |
+
+## Documentation site
+
+The documentation website is built from this repository's own Markdown and from the code, and packaged as one container image. Run it locally:
+
+```bash
+docker build -f docs-site/Dockerfile -t proven-docs .
+docker run -p 3000:3000 proven-docs
+```
+
+Then open `http://localhost:3000/docs`. The command-line, settings and adapter pages are written from the code during the build, and the build fails when a link is broken, a page matches a known shape of an internal path, a private host name or a credential (the list is in `docs-site/scripts/guards.mjs`; a value outside those shapes is not caught), or a generated page is out of date. After a flag, a setting or an adapter interface changes, regenerate the committed copies with `sh docs-site/scripts/generate.sh docs-site/generated`.
+
+Deploy it to Cloudflare, from `docs-site/`, with one command:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=<your account id> CLOUDFLARE_API_TOKEN=<a token that may edit Workers, Containers and DNS> npx wrangler@4.45.0 deploy
+```
+
+It needs Docker running, and it serves `proven.saphan.ai`: the route in `docs-site/wrangler.jsonc` and its `DOCS_HOST` setting name that host, and a different host is changed in both.
 
 ## For technical readers
 
