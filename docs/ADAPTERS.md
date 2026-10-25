@@ -1,6 +1,6 @@
 # Adapters
 
-An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)). An output format writes the review result. Each has one worked example below.
+An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)); a source adapter loads a table and turns a query's rows into evidence ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). An output format writes the review result. Each has one worked example below.
 
 ## Adding a language
 
@@ -128,6 +128,39 @@ That scenario labels the reached module with the call path and the quiet module 
 ### Adding the next tool
 
 Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four answers above, a recorded scenario, and tests for three outcomes: a result only on the change, the same result on the base, and a run that does not answer. It uses the same container and the same time-limit setting. It does not grow a second way to start a process.
+
+## Adding a source
+
+A source adapter feeds the evidence store and plugs into the decision ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). It declares four things.
+
+1. **How it loads.** Where the data comes from, how often it is refreshed, the table name it is registered as, and the snapshot date of that load. The adapter does not name a store ([ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md)). `PROVEN_EVIDENCE_STORE` runs the query.
+2. **Its query templates.** Each one is a template the Investigator may pick, plus the builder that writes the query. Each parameter carries a format as a pattern; `Register` refuses a parameter with none. A model never writes the query ([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)). `Catalogue` and `Build` in `internal/querytpl` read the registry, so the template is written in one place.
+3. **Its rule.** What a returned row means. Rows that mean a finding become evidence: the query and those rows. Rows that mean nothing are not evidence. The Judge decides, as it does for any other finding. On the Investigator's path the rule of the adapter that owns the template decides whether the rows become evidence.
+4. **A sample table and a test.** The test adds the adapter by registering it.
+
+The type is `Adapter` in `internal/source`. The built-in adapters are OSV, KEV and EPSS, in that order. OSV owns `osv-by-package` and `osv-by-advisory`. KEV owns `kev-by-cve`. EPSS owns `epss-by-cve`. Their query text stays in `internal/querytpl`, beside the check that refuses a value outside its format. `internal/source` does not import `internal/querytpl`. The catalogue reads the registry, so the import goes the other way.
+
+OSV, KEV and EPSS are not loaded by this program. An administrator puts the table where the store can read it. A finding cites the date the store stamps on the read. The load's own snapshot date is empty for those three, because this program did not load them.
+
+The OSV rule does not decide the dependency finding. A returned row is an advisory range. The dependency check compares the change's version, and a version outside every range is a trace line, not a finding. The rule does not see the version. KEV and EPSS use their rules: a row is evidence, and no row is not.
+
+### Worked example: a banned-package list
+
+An organisation keeps a table of packages it does not allow. The adapter id is `banned-package`. The table name is `banned_pkg`. The snapshot date in the example is `2026-10-24`. The origin is the organisation's own list. The refresh is whenever that list changes.
+
+The template is `banned-by-package`. It takes `package`. The builder writes:
+
+```sql
+SELECT name, reason FROM banned_pkg WHERE name = '<package>'
+```
+
+The parameter declares its format as a pattern, `^[A-Za-z0-9._-]{1,200}$`. Proven holds every value to that pattern, and to a floor of its own, before the builder runs: no quote, no backslash, no control byte and nothing outside printable ASCII. A value outside either is refused with a named reason and never escaped. The builder is not the only guard. A builder that refuses a value for its own reason returns a `*querytpl.Refusal`; any other error it returns is turned into one, so the review records a query note and goes on. The table name is the adapter's own. `Register` refuses it unless it is a plain name, one identifier or `schema.name`.
+
+The rule is: a row means the package is banned, and the evidence is that query and the row. No row means the package is not on the list, and there is no finding.
+
+The columns of the sample table are `name` and `reason`. One sample row is `left-pad` with reason `not allowed`.
+
+The test `TestAddedSourceShowsItsTemplateItsQueryAndItsRule` registers this adapter, sees `banned-by-package` in the catalogue, runs the query on the local store, and checks that the rule returns the row. It also queries `right-pad`, which is not in the table, and checks that the rule returns nothing. Taking `bannedPackage` out of the added list makes that test fail. The adapter is not one of the built-in sources. Adding a new public source is a later change. There is no plugin loader: `Register` is the door, and this program calls it from the test.
 
 ## The evidence store
 
