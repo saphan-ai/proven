@@ -81,16 +81,17 @@ type outcomeKey struct {
 }
 
 // recordedOutcomes reads the outcome the pack's files give, by a path that does not go through
-// Verify: from findings.json, and again from the evidence tests.json and queries.json record. It
+// Verify: from findings.json as recorded, from the rule's own outcome for that evidence read whole
+// (level, reported and open state), and again from the evidence tests.json and queries.json record. It
 // returns false when a file cannot be read.
-func recordedOutcomes(files map[string][]byte) (map[string][2]outcomeKey, map[review.ProofLevel]int, bool) {
+func recordedOutcomes(files map[string][]byte) (map[string][3]outcomeKey, map[review.ProofLevel]int, bool) {
 	var res review.Result
 	var tr []TestRun
 	var qr []QueryRun
 	if json.Unmarshal(files[FindingsName], &res) != nil || json.Unmarshal(files[TestsName], &tr) != nil || json.Unmarshal(files[QueriesName], &qr) != nil {
 		return nil, nil, false
 	}
-	out := map[string][2]outcomeKey{}
+	out := map[string][3]outcomeKey{}
 	for _, f := range res.Findings {
 		own, err := review.Rederive(f)
 		if err != nil {
@@ -118,9 +119,11 @@ func recordedOutcomes(files map[string][]byte) (map[string][2]outcomeKey, map[re
 		if err != nil {
 			again = review.Outcome{}
 		}
-		out[f.ID] = [2]outcomeKey{
+		out[f.ID] = [3]outcomeKey{
 			{f.ProofLevel, own.Reported, f.Unresolved},
 			{again.Level, again.Reported, again.Unresolved},
+			// The rule's own outcome for the evidence findings.json holds, read whole.
+			{own.Level, own.Reported, own.Unresolved},
 		}
 	}
 	return out, res.ProofCounts, true
