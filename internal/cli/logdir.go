@@ -172,19 +172,12 @@ func logFileRefusal(logDir, root, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Any symbolic link is refused, wherever it points. Following one to its
+	// landing and judging that landing is how a link written as sub/../x, with
+	// sub itself a link into the target, passed: the text was cleaned before
+	// the kernel would resolve it. Proven writes these files only as files.
 	if info.Mode()&os.ModeSymlink != 0 {
-		landing, err := symlinkLanding(path, name)
-		if err != nil {
-			return "", err
-		}
-		inside, err := pathInside(landing, root)
-		if err != nil {
-			return "", err
-		}
-		if inside {
-			return logFileInside(name) + " resolves inside the review target " + root, nil
-		}
-		return manyNames(landing, name, root)
+		return fmt.Sprintf("%s is a symbolic link; Proven writes %s only as a regular file, so remove the link (review target %s)", logFileInside(name), name, root), nil
 	}
 	if !info.Mode().IsRegular() {
 		return "", nil
@@ -225,44 +218,6 @@ func manyNames(path, name, root string) (string, error) {
 		return fmt.Sprintf("%s has %d names; remove or rename %s (review target %s)", logFileInside(name), n, name, root), nil
 	}
 	return "", nil
-}
-
-// symlinkLanding returns the path a symlink chain names, including a final
-// component that does not exist yet. The open would create that component.
-func symlinkLanding(path, name string) (string, error) {
-	const maxLinks = 64
-	cur := path
-	seen := make(map[string]struct{})
-	for i := 0; i < maxLinks; i++ {
-		abs, err := filepath.Abs(cur)
-		if err != nil {
-			return "", err
-		}
-		abs = filepath.Clean(abs)
-		if _, ok := seen[abs]; ok {
-			return "", fmt.Errorf("%s symlink loop", name)
-		}
-		seen[abs] = struct{}{}
-		info, err := os.Lstat(abs)
-		if os.IsNotExist(err) {
-			return resolvePath(abs)
-		}
-		if err != nil {
-			return "", err
-		}
-		if info.Mode()&os.ModeSymlink == 0 {
-			return resolvePath(abs)
-		}
-		dest, err := os.Readlink(abs)
-		if err != nil {
-			return "", err
-		}
-		if !filepath.IsAbs(dest) {
-			dest = filepath.Join(filepath.Dir(abs), dest)
-		}
-		cur = dest
-	}
-	return "", fmt.Errorf("%s symlink loop", name)
 }
 
 // pathInside reports whether dir is root or a path below root.

@@ -303,7 +303,7 @@ func TestTraceFileSymlinkToALinkedFileIsRefused(t *testing.T) {
 		t.Fatalf("exit %d outside changed=%v second changed=%v read %v %v stderr %s", code, outsideChanged, secondChanged, outsideErr, secondErr, stderr.String())
 	}
 	msg := stderr.String()
-	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, "trace file has 2 names") || !strings.Contains(msg, "remove or rename "+traceFile) {
+	if !strings.Contains(msg, EnvLogDir) || !strings.Contains(msg, "trace file is a symbolic link") || !strings.Contains(msg, "remove the link") {
 		t.Fatalf("stderr %q", msg)
 	}
 }
@@ -644,4 +644,38 @@ func insideTarget(t *testing.T, dir, root string) bool {
 		t.Fatal(err)
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+// TestLogFileLinkThroughDotDotIsRefused proves a log-directory file that is a
+// symbolic link is refused even when its text, cleaned as text, points
+// outside the target: sub/../x with sub a link into the target lands inside
+// once the kernel resolves sub first. Mutated field: the symlink branch of
+// logFileRefusal (judge the cleaned landing instead of refusing).
+func TestLogFileLinkThroughDotDotIsRefused(t *testing.T) {
+	target := t.TempDir()
+	outside := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, "deep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(target, "deep"), filepath.Join(outside, "sub")); err != nil {
+		t.Skipf("symlinks not available here: %v", err)
+	}
+	for _, name := range logDirFileNames {
+		if err := os.Symlink(filepath.Join("sub", "..", "x-"+name), filepath.Join(outside, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sample", target}, envOf(map[string]string{EnvLogDir: outside}), &stdout, &stderr, nil)
+	if code != exitConfig {
+		t.Fatalf("exit %d, want %d; stderr %s", code, exitConfig, stderr.String())
+	}
+	for _, name := range logDirFileNames {
+		if _, err := os.Stat(filepath.Join(target, "x-"+name)); err == nil {
+			t.Fatalf("%s was written inside the target", name)
+		}
+	}
+	if !strings.Contains(stderr.String(), "is a symbolic link") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
 }
