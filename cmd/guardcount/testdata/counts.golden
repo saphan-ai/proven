@@ -1,0 +1,12 @@
+day         side    verdict            backend          count  median_ms
+2026-10-24  answer  down:http-503      nvidia           1      220
+2026-10-24  answer  safe               server           1      80
+2026-10-24  answer  unsafe             server           1      95
+2026-10-24  prompt  down:timeout       server           1      5000
+2026-10-24  prompt  safe               nvidia           2      355
+2026-10-24  prompt  safe               server           3      100
+2026-10-25  -       down:unstructured  -                1      0
+2026-10-25  answer  safe               sample           1      0
+2026-10-25  prompt  down:no-key        absent           1      0
+2026-10-25  prompt  safe               sample           1      0
+2026-10-25  prompt  unsafe             sample-recorded  1      0
