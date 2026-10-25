@@ -13,9 +13,10 @@
 #   2. the admin password is not printed when stdout is not a terminal, and is
 #      kept in a file at mode 0600.
 #   3. with Docker Scout missing, make scan fails and builds nothing.
-#   4. with Docker Scout missing or reporting a finding, make push fails, makes
-#      no final tag and builds only staging tags.
+#   4. with Docker Scout missing or reporting a finding, make push fails, writes
+#      nothing to any registry and builds only local layouts.
 #   5. the build context does not carry the .saphan work area.
+#   6. the admin password is not in the Compose file's environment.
 set -u
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 ROOT=${ROOT:-$(CDPATH= cd -- "$here/../.." && pwd)}
@@ -28,11 +29,12 @@ LOG=$work/docker.log
 export LOG
 
 cp "$ROOT/lab/scripts/stub-docker.sh" "$work/bin/docker"
+cp "$ROOT/lab/scripts/stub-docker.sh" "$work/bin/skopeo"
 cat >"$work/bin/git" <<'STUB'
 #!/bin/sh
 echo stub
 STUB
-chmod +x "$work/bin/docker" "$work/bin/git"
+chmod +x "$work/bin/docker" "$work/bin/skopeo" "$work/bin/git"
 
 # tree DIR  — a copy of the files the scripts read. The scripts run against the
 # copy, so a mutated line never touches the checkout.
@@ -130,11 +132,20 @@ a4() {
   run_script "$1" absent push.sh
   [ "$rc" -ne 0 ] || return 1
   ! grep -q -e 'buildx build' -e 'buildx create' -e 'imagetools create' "$LOG" || return 1
+  ! [ -s "$LOG.state/writes" ] || return 1
   run_script "$1" fail push.sh
   [ "$rc" -ne 0 ] || return 1
-  ! grep -q 'imagetools create' "$LOG" || return 1
-  # Every build names a staging tag, never a final one.
-  ! grep 'buildx build' "$LOG" | grep -vq -e '--tag [^ ]*:staging-' || return 1
+  # Not one registry write: no push, no copy, no tag of any kind.
+  ! [ -s "$LOG.state/writes" ] || return 1
+  # Every build writes a local layout and none pushes.
+  grep -q 'buildx build' "$LOG" || return 1
+  ! grep 'buildx build' "$LOG" | grep -vq 'type=oci,dest=' || return 1
+  ! grep 'buildx build' "$LOG" | grep -q -e '--push' || return 1
+}
+
+# --- 6. the password stays out of the Compose environment -------------------
+a6() {
+  ! grep -q 'LAB_ADMIN_PASSWORD' "$1/lab/compose.yaml"
 }
 
 # --- 5. the build context ignores the work area ---------------------------
@@ -195,6 +206,8 @@ name=push_requires_scan
 check a4 "$work/real"
 name=build_context_ignores_work_area
 check a5 "$ROOT/.dockerignore"
+name=password_not_in_compose
+check a6 "$work/real"
 
 # Negative controls. Each copy changes exactly the line the assertion guards.
 tree "$work/n1"
@@ -233,6 +246,16 @@ tree "$work/n4"
 sed '/^\[ "\$refused" -eq 0 \]/d' "$work/n4/lab/scripts/push.sh" >"$work/n4/new"
 mv "$work/n4/new" "$work/n4/lab/scripts/push.sh"
 control a4_push_without_scan a4 "$work/n4"
+
+tree "$work/n6"
+awk '{ print } /^    environment:$/ && !done { print "      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}"; done = 1 }' "$work/n6/lab/compose.yaml" >"$work/n6/new"
+mv "$work/n6/new" "$work/n6/lab/compose.yaml"
+control a6_password_interpolated a6 "$work/n6"
+
+tree "$work/n4b"
+sed 's/--provenance=mode=max/--provenance=mode=max --push/' "$work/n4b/lab/scripts/push.sh" >"$work/n4b/new"
+mv "$work/n4b/new" "$work/n4b/lab/scripts/push.sh"
+control a4_build_pushes a4 "$work/n4b"
 
 printf '*\n!go.mod\n!.saphan\n' >"$work/di1"
 control a5_work_area_re_included a5 "$work/di1"
