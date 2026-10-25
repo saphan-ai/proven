@@ -588,6 +588,35 @@ func TestRaisedPackageBindsTheADR0039Templates(t *testing.T) {
 	}
 }
 
+// TestBindsKeysBothSidesOnTheNormalisedPyPIName proves a raised PyPI package
+// binds the malicious, scorecard and licence templates when the manifest
+// spelling and the model's spelling differ and PEP 503 makes them one name.
+// Go is not folded. The mutated field is the package key: comparing either
+// side as written turns this red.
+func TestBindsKeysBothSidesOnTheNormalisedPyPIName(t *testing.T) {
+	var f Facts
+	f.noteRaised("PyPI", "Django_REST.framework")
+	model := map[string]string{querytpl.ParamEcosystem: "PyPI", querytpl.ParamPackage: "django.rest-framework"}
+	for _, name := range []string{querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage} {
+		if !f.Binds(querytpl.Request{Template: name, Params: model}) {
+			t.Errorf("%s did not bind the normalised PyPI name", name)
+		}
+	}
+	other := map[string]string{querytpl.ParamEcosystem: "PyPI", querytpl.ParamPackage: "flask"}
+	if f.Binds(querytpl.Request{Template: querytpl.MalByPackage, Params: other}) {
+		t.Fatal("flask bound a different package")
+	}
+	f.noteRaised("Go", "Example.com/Mod")
+	folded := map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "example.com/mod"}
+	if f.Binds(querytpl.Request{Template: querytpl.MalByPackage, Params: folded}) {
+		t.Fatal("a Go module path was folded")
+	}
+	same := map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "Example.com/Mod"}
+	if !f.Binds(querytpl.Request{Template: querytpl.MalByPackage, Params: same}) {
+		t.Fatal("the Go path as written did not bind")
+	}
+}
+
 // labelledQuery answers every request with one form and one text.
 type labelledQuery struct {
 	form string

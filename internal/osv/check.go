@@ -27,6 +27,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/manifest"
+	"github.com/saphan-ai/proven/internal/pep503"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
@@ -120,8 +121,10 @@ func (f *Facts) add(ecosystem, pkg string, row Row) {
 
 // Binds reports whether a query request is about the change: an OSV package
 // lookup of a package the change is affected by, or a lookup by an advisory
-// id or CVE id of an advisory that affects it. A template or a value that
-// names anything else binds nothing.
+// id or CVE id of an advisory that affects it. A malicious-package, scorecard
+// or licence lookup binds a package the change added or raised, on the
+// ecosystem's normalised name, so two spellings of one PyPI package bind.
+// A template or a value that names anything else binds nothing.
 func (f Facts) Binds(req querytpl.Request) bool {
 	switch req.Template {
 	case querytpl.OSVByPackage:
@@ -133,7 +136,8 @@ func (f Facts) Binds(req querytpl.Request) bool {
 	case querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage:
 		// These name a package the change added or raised. They do not need
 		// an OSV range: a malicious package may have no vulnerability row.
-		return f.raised[req.Params[querytpl.ParamEcosystem]+"\x00"+req.Params[querytpl.ParamPackage]]
+		// The key is raisedKey, the same one noteRaised wrote.
+		return f.raised[raisedKey(req.Params[querytpl.ParamEcosystem], req.Params[querytpl.ParamPackage])]
 	case querytpl.CVSSByCVE:
 		// CVSS is read beside EPSS, for a CVE the dependency check already
 		// tied to the change. A CVE only a model typed does not bind.
@@ -142,14 +146,29 @@ func (f Facts) Binds(req querytpl.Request) bool {
 	return false
 }
 
-// noteRaised records a package the change added or raised.
-// Check calls it for every hit, including one with no OSV row, so the
-// ADR-0039 templates can bind. It does not mark the package affected.
+// noteRaised records a package the change added or raised, under the
+// ecosystem's normalised name, the same key Binds reads. Check calls it for
+// every hit, including one with no OSV row, so the ADR-0039 templates can
+// bind. It does not mark the package affected.
 func (f *Facts) noteRaised(ecosystem, pkg string) {
 	if f.raised == nil {
 		f.raised = map[string]bool{}
 	}
-	f.raised[ecosystem+"\x00"+pkg] = true
+	f.raised[raisedKey(ecosystem, pkg)] = true
+}
+
+// raisedKey is the key a raised package is stored and bound under. PyPI
+// names are the PEP 503 form and Packagist names are lower case, which is
+// how those tables are keyed. Go, npm and crates.io keep the spelling: folding
+// them would merge packages that are not the same.
+func raisedKey(ecosystem, pkg string) string {
+	switch ecosystem {
+	case "PyPI":
+		pkg = pep503.Normalise(pkg)
+	case "Packagist":
+		pkg = strings.ToLower(pkg)
+	}
+	return ecosystem + "\x00" + pkg
 }
 
 // Check reads the packages the registered adapters report, queries the OSV

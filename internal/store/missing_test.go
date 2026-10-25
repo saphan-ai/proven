@@ -42,15 +42,12 @@ func TestLocalMissingTableIsADownSource(t *testing.T) {
 // error that ends the review (ADR-0047). Zetaris is a recorded server that
 // answers 404 for the missing view, and the down source is named zetaris.
 // CouchDB is a recorded server with no database, and the reason starts with
-// "no table", as it does on the local store. The requests are kev-by-cve and
-// mal-by-package, so a new source table is the same kind of miss. The mutated
-// field is the table: no store holds it. Negative control: the local down
-// conversion removed turns the local half red.
+// "no table", as it does on the local store. Every template in the catalogue
+// is asked, so a new source table is the same kind of miss. The mutated
+// field is the request set: asking only mal-by-package turns the count red.
+// Negative control: the local down conversion removed turns the local half red.
 func TestStoresAgreeOnAMissingTable(t *testing.T) {
-	reqs := []querytpl.Request{
-		{Template: querytpl.KEVByCVE, Params: map[string]string{querytpl.ParamCVEID: "CVE-2021-44228"}},
-		{Template: querytpl.MalByPackage, Params: map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "evil.example/drop"}},
-	}
+	reqs := requestsForEveryTemplate(t)
 	ctx := context.Background()
 	local, err := OpenLocal(filepath.Join(t.TempDir(), "evidence.sql"))
 	if err != nil {
@@ -66,8 +63,10 @@ func TestStoresAgreeOnAMissingTable(t *testing.T) {
 	})
 	_, couchSrv := newFakeCouch(t)
 	stores := map[string]Store{"local": local, "zetaris": z, "couchdb": couchStore(couchSrv)}
+	seen := map[string]int{}
 	for name, s := range stores {
 		for _, req := range reqs {
+			seen[req.Template]++
 			_, err := s.Run(ctx, req, querytpl.Relations{})
 			d, ok := service.As(err)
 			if !ok || d.Service != name {
@@ -81,4 +80,37 @@ func TestStoresAgreeOnAMissingTable(t *testing.T) {
 			}
 		}
 	}
+	if len(seen) != len(reqs) {
+		t.Fatalf("ran %d templates, the catalogue gave %d", len(seen), len(reqs))
+	}
+}
+
+// requestsForEveryTemplate is one valid request per template in the catalogue.
+// A parameter this map does not know fails the test, so a new template cannot
+// pass by being skipped.
+func requestsForEveryTemplate(t *testing.T) []querytpl.Request {
+	t.Helper()
+	valid := map[string]string{
+		querytpl.ParamEcosystem:  "Go",
+		querytpl.ParamPackage:    "evil.example/drop",
+		querytpl.ParamCVEID:      "CVE-2021-44228",
+		querytpl.ParamAdvisoryID: "GHSA-jfh8-c2jp-5v3q",
+	}
+	cat := querytpl.Catalogue()
+	reqs := make([]querytpl.Request, 0, len(cat))
+	for _, tpl := range cat {
+		params := map[string]string{}
+		for _, p := range tpl.Params {
+			v, ok := valid[p.Name]
+			if !ok {
+				t.Fatalf("template %s parameter %s has no sample value", tpl.Name, p.Name)
+			}
+			params[p.Name] = v
+		}
+		reqs = append(reqs, querytpl.Request{Template: tpl.Name, Params: params})
+	}
+	if len(reqs) < 3 {
+		t.Fatalf("catalogue has %d templates; a single hard-coded request would still pass", len(reqs))
+	}
+	return reqs
 }
