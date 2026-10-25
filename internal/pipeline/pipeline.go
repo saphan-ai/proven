@@ -55,6 +55,7 @@ import (
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
 	"github.com/saphan-ai/proven/internal/trace"
@@ -115,6 +116,9 @@ type Options struct {
 	// pipeline with none is refused; nil in sample mode redacts nothing, which is
 	// right because sample mode loads no secret.
 	Redactor *redact.Redactor
+	// Telemetry carries the review's spans and metrics (ADR-0045). Nil is off.
+	// It only observes: nothing a review decides reads it.
+	Telemetry *telemetry.T
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
@@ -147,6 +151,8 @@ type Pipeline struct {
 	// logDir and stateDir are where Review opens the trace and the stores,
 	// once it knows the reviewed target.
 	logDir, stateDir string
+	// tel is the review's telemetry; nil is off and every call on it does nothing.
+	tel *telemetry.T
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -174,6 +180,9 @@ func Build(opts Options) (*Pipeline, error) {
 	// Build does not read the environment to make it, so sample mode reads no
 	// setting; with none given, nothing is redacted.
 	rd := opts.Redactor
+	// The same redactor stands at the one place telemetry turns an error into exported text.
+	// The trace takes it in begin, where the trace is opened.
+	opts.Telemetry.SetRedactor(rd)
 	stateDir := opts.StateDir
 	if stateDir == "" {
 		var derr error
@@ -196,6 +205,7 @@ func Build(opts Options) (*Pipeline, error) {
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
 		down:    append([]service.Down(nil), opts.Down...),
 		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
+		tel: opts.Telemetry,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -502,7 +512,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if err != nil {
 		return candidate.Draft{}, err
 	}
-	st := &state{trace: p.trace, redactor: p.redactor, changeKey: changeKey(req), skipped: skipped}
+	st := &state{trace: p.trace, redactor: p.redactor, tel: p.tel, changeKey: changeKey(req), skipped: skipped}
 	if p.proverIdle != "" {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
@@ -531,7 +541,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// The guardrail wraps the recorder: a call the guardrail refuses never
 	// reaches the model, so it is not recorded as a model call.
-	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace, redactor: p.redactor}, rail)
+	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace, redactor: p.redactor, tel: p.tel}, rail)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -547,7 +557,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if req.DoubleRun {
 		second := p.secondGenerator(req.SpecialModel, raw)
 		if second != nil {
-			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace, redactor: p.redactor}, rail)
+			special, err = p.guard(recording{inner: second, models: &st.models, trace: p.trace, redactor: p.redactor, tel: p.tel}, rail)
 			if err != nil {
 				return candidate.Draft{}, err
 			}
@@ -556,7 +566,9 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// defaultFailed is why the default reviewer has no word on the second reviewer's risks; empty when it answered.
 	defaultFailed := ""
-	risks, err := planner.Plan(ctx, fx.Root, gen)
+	pctx, stage := p.tel.StartStage(ctx, "planner", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
+	risks, err := planner.Plan(pctx, fx.Root, gen)
+	stage.End(err)
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
 		// the service; any other Planner error stops the review.
@@ -590,7 +602,9 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 		// secondFailed is why the second reviewer has no word on the default run's risks; empty when it answered.
 		secondFailed := ""
-		more, err := planner.Plan(ctx, fx.Root, special)
+		sctx, sstage := p.tel.StartStage(ctx, "planner", telemetry.ReviewerSpecial, reviewerModel(req, runSpecial))
+		more, err := planner.Plan(sctx, fx.Root, special)
+		sstage.End(err)
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -655,8 +669,9 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if ctx.Err() == nil {
 		checked, checkErr = osv.Check(ctx, q, fx.Root, p.osvTable, fx.Snapshot)
 	}
+	ictx, istage := p.tel.StartStage(ctx, "investigator", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
-		next, err := investigator.Investigate(ctx, cands[i], fx.Snapshot, gen, q, rel, req.InvestigatorScope)
+		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, q, rel, req.InvestigatorScope)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -668,14 +683,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 		cands[i] = bindQueries(next, checked.Facts)
 	}
+	istage.End(nil)
 	p.boundary("investigated")
 	if ctx.Err() != nil {
 		return p.cut(st, cands, allow)
 	}
+	prctx, prstage := p.tel.StartStage(ctx, "prover", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
 		// ADR-0025: the Prover's test runs in the container on the fixture's
 		// base and change trees, with no network and no secret.
-		next, err := prover.Prove(ctx, cands[i], gen, run, prover.Options{
+		next, err := prover.Prove(prctx, cands[i], gen, run, prover.Options{
 			BaseDir:         filepath.Join(fx.Root, "base"),
 			ChangeDir:       filepath.Join(fx.Root, "change"),
 			MaxWrittenBytes: p.writtenLimit(),
@@ -691,6 +708,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 		cands[i] = next
 	}
+	prstage.End(nil)
 	for _, c := range cands {
 		if err := st.evidence(c); err != nil {
 			return candidate.Draft{}, err
@@ -703,9 +721,17 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// ADR-0006: every finding faces the Skeptic, and what it proposes is run
 	// as a test or a query; its word alone is not evidence.
+	// outcomes holds each reviewer's verdict per finding, for the telemetry's
+	// count of disagreements (ADR-0045). It does not change what is decided.
+	outcomes := make([]map[string]string, len(cands))
+	for i := range outcomes {
+		outcomes[i] = map[string]string{}
+	}
 	for i := range cands {
 		if hasRun(cands[i], runDefault) {
-			next, err := skeptic.Attempt(ctx, cleared(cands[i]), gen, req.SkepticScope)
+			kctx, kstage := p.tel.StartStage(ctx, "skeptic", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
+			next, err := skeptic.Attempt(kctx, cleared(cands[i]), gen, req.SkepticScope)
+			kstage.End(err)
 			if err != nil {
 				if _, fatal := st.soften(ctx, err); fatal != nil {
 					if errors.Is(fatal, errPartial) {
@@ -729,6 +755,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			if err := st.refutation(cands[i], runDefault); err != nil {
 				return candidate.Draft{}, err
 			}
+			outcomes[i][runDefault] = verdictOf(cands[i].Refutation)
 		}
 		// The special Skeptic sees only risks its own run named. Its result
 		// is written to the trace under the special run; it becomes the
@@ -738,7 +765,9 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			if r, ok := specialOwn[own.ID]; ok {
 				own.Risk = r
 			}
-			next, err := skeptic.Attempt(ctx, own, special, req.SkepticScope)
+			kctx, kstage := p.tel.StartStage(ctx, "skeptic", telemetry.ReviewerSpecial, reviewerModel(req, runSpecial))
+			next, err := skeptic.Attempt(kctx, own, special, req.SkepticScope)
+			kstage.End(err)
 			ref := candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			if err != nil {
 				if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -770,7 +799,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			if err := st.refutation(traced, runSpecial); err != nil {
 				return candidate.Draft{}, err
 			}
+			outcomes[i][runSpecial] = verdictOf(ref)
 		}
+	}
+	if special != nil {
+		p.noteDisagreements(outcomes)
 	}
 	if err := p.noteFamily(st); err != nil {
 		return candidate.Draft{}, err
@@ -782,6 +815,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// H-MEM is read before the Judge: a finding an earlier review of this
 	// change refuted is dropped and does not come back.
+	_, jstage := p.tel.StartStage(ctx, "judge", telemetry.ReviewerShared, "")
 	for i := range cands {
 		if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
 			cands[i].Dropped = true
@@ -796,6 +830,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
+	jstage.End(nil)
 	// ADR-0042: a kept finding that a test proved gets a fix proved by the same test. It
 	// comes after the Judge, so no fix is written for a finding that is dropped.
 	if !req.FixesOff {
@@ -838,10 +873,39 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, fatal
 		}
 	}
-	return keep(writer.Write(writer.Input{
+	_, wstage := p.tel.StartStage(ctx, "writer", telemetry.ReviewerShared, "")
+	drafted := keep(writer.Write(writer.Input{
 		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
 		SkippedPaths: st.skipped,
-	})), nil
+	}))
+	wstage.End(nil)
+	return drafted, nil
+}
+
+// verdictOf names a reviewer's verdict on one finding, for the telemetry.
+func verdictOf(r candidate.Refutation) string {
+	switch {
+	case !r.Attempted:
+		return "not_attempted"
+	case r.Refuted:
+		return "refuted"
+	}
+	return "upheld"
+}
+
+// noteDisagreements counts the findings on which the two reviewers differ:
+// both ran the finding and judged it differently, or only one of them named it.
+func (p *Pipeline) noteDisagreements(outcomes []map[string]string) {
+	for _, o := range outcomes {
+		def, hasDef := o[runDefault]
+		spec, hasSpec := o[runSpecial]
+		switch {
+		case hasDef && hasSpec && def != spec:
+			p.tel.Disagreement(context.Background(), "verdict")
+		case hasDef != hasSpec:
+			p.tel.Disagreement(context.Background(), "one_reviewer")
+		}
+	}
 }
 
 // attachEPSS scores every kept finding whose evidence names a CVE.
@@ -1307,6 +1371,7 @@ type state struct {
 	// reason in the draft: the trace writer redacts what it writes, and the
 	// draft is a second place that text lands.
 	redactor  *redact.Redactor
+	tel       *telemetry.T
 	failed    []candidate.Failure
 	models    []candidate.ModelUse
 	changeKey string
@@ -1342,6 +1407,7 @@ func (s *state) refutation(c candidate.Candidate, run string) error {
 		text = "no refutation"
 	}
 	r := c.Refutation
+	s.tel.Verdict(context.Background(), run, verdictOf(r))
 	return s.trace.Append(trace.Event{
 		FindingID: c.ID,
 		Kind:      "refutation",
@@ -1507,12 +1573,28 @@ type recording struct {
 	// redactor is applied to the route, model and receipt id a service reported,
 	// before they are kept on the review: a service can echo a configured value there.
 	redactor *redact.Redactor
+	// tel times each call (ADR-0045); nil is off.
+	tel *telemetry.T
 }
 
 // Complete calls the inner generator and records which model answered. A
 // generator that reports its use is recorded even when the call failed, since
 // a call was made. One that does not is recorded as "unknown", never guessed.
 func (g recording) Complete(ctx context.Context, agent, prompt string) (string, error) {
+	cctx, call := g.tel.StartModelCall(ctx, agent)
+	text, err := g.complete(cctx, agent, prompt)
+	model := ""
+	if rep, ok := g.inner.(generator.Reported); ok && call != nil {
+		if u, ok := rep.LastUse(); ok {
+			model = g.redactor.Text(u.Model)
+		}
+	}
+	call.End(ctx, model, err)
+	return text, err
+}
+
+// complete is Complete without the telemetry.
+func (g recording) complete(ctx context.Context, agent, prompt string) (string, error) {
 	text, err := g.inner.Complete(ctx, agent, prompt)
 	if rep, ok := g.inner.(generator.Reported); ok {
 		if u, ok := rep.LastUse(); ok {

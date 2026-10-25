@@ -147,7 +147,18 @@ type Writer struct {
 	f        *os.File
 	runID    string
 	redactor *redact.Redactor
+	observer func(Event)
 	mu       sync.Mutex
+}
+
+// SetObserver sets a function Append calls with each event after the event is
+// redacted and written (ADR-0045: the events ride along as span events). The
+// observer sees what the file holds and never a secret. It must not call
+// Append, and it cannot fail the write.
+func (w *Writer) SetObserver(f func(Event)) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.observer = f
 }
 
 // Open creates the logs directory and opens the trace for appending.
@@ -226,7 +237,13 @@ func (w *Writer) Append(e Event) error {
 		return err
 	}
 	// Sync after each line: a review that dies still leaves every event it wrote.
-	return w.f.Sync()
+	if err := w.f.Sync(); err != nil {
+		return err
+	}
+	if w.observer != nil {
+		w.observer(e)
+	}
+	return nil
 }
 
 // Close closes the trace file. A second call does nothing.
