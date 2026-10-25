@@ -58,6 +58,7 @@ var configKeys = []string{
 	"plan_security",
 	"plan_docs",
 	"plan_config",
+	"prose_suffixes",
 }
 
 // fileSettings is one loaded proven.yaml. A missing file is defaultSettings.
@@ -86,6 +87,10 @@ type fileSettings struct {
 	ScoutIntent bool
 	// Plans is the plan for each kind of change, keyed by the kind's registry id (ADR-0049 point 2).
 	Plans map[string]planSetting
+	// ProseSuffixes is the closed list of file suffixes that count as prose never built or executed
+	// (ADR-0049). A review plans as documentation-only, and runs no model, only when every changed file
+	// has one of these suffixes and is not executable.
+	ProseSuffixes []string
 }
 
 // familyRule maps a model-name pattern to a family, one row of the families table (ADR-0011 point 4).
@@ -136,6 +141,9 @@ func defaultSettings() fileSettings {
 		// ADR-0049: the engine lands switched off; it is switched on only once its measurement holds.
 		ScoutIntent: false,
 		Plans:       defaultPlans(),
+		// ADR-0049: only plain prose may skip the model. Anything else, an unknown suffix included, is
+		// not known to be inert, and a file that is built or executed must be reviewed.
+		ProseSuffixes: []string{".md", ".markdown", ".rst", ".txt", ".adoc"},
 	}
 }
 
@@ -350,6 +358,8 @@ func allowedText(key string) string {
 		return "a model name"
 	case "author_trailer_keys":
 		return "trailer keys, for example Assisted-by"
+	case "prose_suffixes":
+		return allowedProseSuffixes
 	default:
 		return strings.Join(configKeys, ", ")
 	}
@@ -453,6 +463,13 @@ func applyKey(cfg *fileSettings, key, val string) error {
 			return err
 		}
 		cfg.TrailerKeys = keys
+		return nil
+	case "prose_suffixes":
+		sfx, err := parseProseSuffixes(val)
+		if err != nil {
+			return err
+		}
+		cfg.ProseSuffixes = sfx
 		return nil
 	case "raise_class":
 		on, err := parseOnOff(key, val)

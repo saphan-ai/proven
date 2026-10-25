@@ -8,6 +8,7 @@ package review
 import (
 	"bytes"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/change"
@@ -202,6 +203,15 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 		// ADR-0049: an ambiguous change is never planned as a confident class.
 		return full(head + "; ambiguous, so no plan is chosen"), nil
 	}
+	// ADR-0049: the documentation plan runs no model, so it is chosen only for files known to be prose.
+	// Scout reads names, and a name proves nothing: docs/run.go, a script under docs/ or an executable
+	// file with a prose-like suffix would be reviewed by no model at all. A change that is not verified
+	// prose runs the configured class in full.
+	if kind == scout.KindDocs {
+		if why := notProse(cfg, req, changed); why != "" {
+			return full(head + "; " + why + ", so it is not documentation-only"), nil
+		}
+	}
 	ps, ok := cfg.Plans[kind]
 	if !ok {
 		return full(head + "; no plan is set for " + kind), nil
@@ -226,6 +236,79 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 	rp.Plan.Note = head + "; plan: class " + class + " (" + rule + "), agents " + listOr(ps.Agents) + ", tools " + listOr(ps.Tools) +
 		", sources " + listOr(ps.Sources) + ", doubled " + onOff(rp.Doubled)
 	return rp, nil
+}
+
+// allowedProseSuffixes is the value list a refused prose_suffixes key names.
+const allowedProseSuffixes = "a comma-separated list of file suffixes, each starting with a dot, such as .md, .rst, .txt"
+
+// parseProseSuffixes reads the prose_suffixes setting: suffixes are lower-cased, each is a dot and then
+// letters, digits, "+", "-" or "_", and each is named once. A suffix with a second dot is refused, because
+// the suffix of a file is what follows its last dot.
+func parseProseSuffixes(val string) ([]string, error) {
+	parts, err := splitCSV("prose_suffixes", val)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		low := strings.ToLower(p)
+		ok := len(low) > 1 && low[0] == '.'
+		for _, r := range low[1:] {
+			if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '+' || r == '-' || r == '_') {
+				ok = false
+			}
+		}
+		if !ok {
+			return nil, configRefused("prose_suffixes", p, "not a file suffix", allowedProseSuffixes)
+		}
+		if containsName(out, low) {
+			return nil, configRefused("prose_suffixes", p, "named twice", allowedProseSuffixes)
+		}
+		out = append(out, low)
+	}
+	return out, nil
+}
+
+// notProse returns why the change is not verified prose, or "" when every changed file (and, for a rename,
+// its old path) has a suffix on the prose list, carries no executable bit and starts with no shebang.
+// What cannot be verified is not prose: the answer is built from the facts, never from the file name alone.
+func notProse(cfg fileSettings, req Request, changed []scout.ChangedFile) string {
+	if len(changed) == 0 {
+		return "no changed file is named"
+	}
+	var paths []string
+	for _, c := range changed {
+		paths = append(paths, c.Path)
+		if c.From != "" {
+			paths = append(paths, c.From)
+		}
+	}
+	var facts map[string]change.Facts
+	if req.BaselineCommit != "" {
+		var err error
+		if facts, err = change.FactsBetween(req.Target, req.BaselineCommit, req.HeadCommit); err != nil {
+			return "the files' modes could not be read (" + err.Error() + ")"
+		}
+	} else {
+		facts = change.TreeFacts(req.Target, paths)
+	}
+	for _, p := range paths {
+		if !containsName(cfg.ProseSuffixes, strings.ToLower(path.Ext(p))) {
+			return p + " has no prose suffix"
+		}
+		f, ok := facts[p]
+		switch {
+		case !ok:
+			return p + " has no verified mode"
+		case f.Unverified != "":
+			return p + " is unverified (" + f.Unverified + ")"
+		case f.Executable:
+			return p + " is executable"
+		case f.Shebang:
+			return p + " starts with a shebang line"
+		}
+	}
+	return ""
 }
 
 // classified is the start of a plan's trace line: the class Scout chose, its confidence and band, the
