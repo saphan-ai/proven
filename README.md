@@ -48,6 +48,12 @@ Three problems in all. Claude found all three; Codex found one and Nemotron anot
 alone or Nemotron alone would have let two of the three through; the three verdicts did not even agree on whether the
 change could ship. The reviews are published with the change's decision.
 
+**Zero trust, caught in the act.** At 00:21 UTC an agent began building the Markovian engine and, a minute in, tried to
+download Meterless's repository from GitHub. The fleet refused the connection (`CONNECT tunnel failed, response 403`)
+and the run stopped. Nobody had to notice: an agent reaches its own model and its package registries, nothing else,
+and opening anything more is a recorded decision. The engine's files will reach the agent the allowed way, handed to
+the run with a pinned commit.
+
 ### Day three, 24 October
 
 Day three of six, published late. **Thirty-three more changes were merged since the last update**, 68 in three days. The fleet has grown to five agent
