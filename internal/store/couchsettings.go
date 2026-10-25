@@ -177,6 +177,7 @@ func checkCouchBase(raw string) (string, error) {
 		return "", refuse(EnvCouchURL, shown, "not a base URL", allowed)
 	}
 	u, err := url.Parse(raw)
+	// Defensive only: the @ guard above already blanks an address that carries user info.
 	if err != nil {
 		shown = ""
 	}

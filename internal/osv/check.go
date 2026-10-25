@@ -27,6 +27,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/manifest"
+	"github.com/saphan-ai/proven/internal/pep503"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
@@ -120,8 +121,10 @@ func (f *Facts) add(ecosystem, pkg string, row Row) {
 
 // Binds reports whether a query request is about the change: an OSV package
 // lookup of a package the change is affected by, or a lookup by an advisory
-// id or CVE id of an advisory that affects it. A template or a value that
-// names anything else binds nothing.
+// id or CVE id of an advisory that affects it. A malicious-package, scorecard
+// or licence lookup binds a package the change added or raised, on the
+// ecosystem's normalised name, so two spellings of one PyPI package bind.
+// A template or a value that names anything else binds nothing.
 func (f Facts) Binds(req querytpl.Request) bool {
 	switch req.Template {
 	case querytpl.OSVByPackage:
@@ -133,7 +136,8 @@ func (f Facts) Binds(req querytpl.Request) bool {
 	case querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage:
 		// These name a package the change added or raised. They do not need
 		// an OSV range: a malicious package may have no vulnerability row.
-		return f.raised[req.Params[querytpl.ParamEcosystem]+"\x00"+req.Params[querytpl.ParamPackage]]
+		// The key is raisedKey, the same one noteRaised wrote.
+		return f.raised[raisedKey(req.Params[querytpl.ParamEcosystem], req.Params[querytpl.ParamPackage])]
 	case querytpl.CVSSByCVE:
 		// CVSS is read beside EPSS, for a CVE the dependency check already
 		// tied to the change. A CVE only a model typed does not bind.
@@ -142,14 +146,29 @@ func (f Facts) Binds(req querytpl.Request) bool {
 	return false
 }
 
-// noteRaised records a package the change added or raised.
-// Check calls it for every hit, including one with no OSV row, so the
-// ADR-0039 templates can bind. It does not mark the package affected.
+// noteRaised records a package the change added or raised, under the
+// ecosystem's normalised name, the same key Binds reads. Check calls it for
+// every hit, including one with no OSV row, so the ADR-0039 templates can
+// bind. It does not mark the package affected.
 func (f *Facts) noteRaised(ecosystem, pkg string) {
 	if f.raised == nil {
 		f.raised = map[string]bool{}
 	}
-	f.raised[ecosystem+"\x00"+pkg] = true
+	f.raised[raisedKey(ecosystem, pkg)] = true
+}
+
+// raisedKey is the key a raised package is stored and bound under. PyPI
+// names are the PEP 503 form and Packagist names are lower case, which is
+// how those tables are keyed. Go, npm and crates.io keep the spelling: folding
+// them would merge packages that are not the same.
+func raisedKey(ecosystem, pkg string) string {
+	switch ecosystem {
+	case "PyPI":
+		pkg = pep503.Normalise(pkg)
+	case "Packagist":
+		pkg = strings.ToLower(pkg)
+	}
+	return ecosystem + "\x00" + pkg
 }
 
 // Check reads the packages the registered adapters report, queries the OSV
@@ -257,9 +276,11 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 		return nil, "", err
 	}
 	// No row is not proof that the package is safe. The note says the query
-	// returned nothing and carries the SQL, so a reader can run it again.
+	// returned nothing and names the form with the text, so a reader can run
+	// it again. CouchDB's text is Mango JSON; a line that always says SQL
+	// would tell the reader to run that JSON as SQL (ADR-0047).
 	if len(rows) == 0 {
-		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; SQL: %s", hit.Package, hit.Version, res.SQL)
+		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; %s", hit.Package, hit.Version, queryText(res.Form, res.SQL))
 		// A version that could not be compared at all is a second reason,
 		// and the note names it too.
 		if why := Uncompared(hit.Ecosystem, hit.Version); why != "" {
@@ -279,7 +300,7 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 		}
 	}
 	if len(matched) == 0 {
-		return nil, missNote(hit, res.SQL, missed), nil
+		return nil, missNote(hit, res.Form, res.SQL, missed), nil
 	}
 	// The change's version is inside these rows' ranges, so their package and
 	// their advisory ids are facts about the change.
@@ -381,13 +402,19 @@ type compared struct {
 }
 
 // missNote is the trace line for a package whose rows all missed. It names
-// each row and why it missed.
-func missNote(hit manifest.Hit, sqlText string, missed []compared) string {
+// each row and why it missed, and the form of the query text.
+func missNote(hit manifest.Hit, form, sqlText string, missed []compared) string {
 	parts := make([]string, 0, len(missed))
 	for _, item := range missed {
 		parts = append(parts, item.row.ID+": "+item.sentence)
 	}
-	return fmt.Sprintf("%s %s: no affected row; SQL: %s; %s", hit.Package, hit.Version, sqlText, strings.Join(parts, "; "))
+	return fmt.Sprintf("%s %s: no affected row; %s; %s", hit.Package, hit.Version, queryText(form, sqlText), strings.Join(parts, "; "))
+}
+
+// queryText is the query as a trace line names it: the form, then the text.
+// form is "sql" or "mango". The text on CouchDB is Mango JSON (ADR-0047).
+func queryText(form, text string) string {
+	return fmt.Sprintf("query (%s): %s", form, text)
 }
 
 // findingMessage names every row that matched and every row that did not,
