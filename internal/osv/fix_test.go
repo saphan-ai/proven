@@ -100,11 +100,25 @@ func TestSmallestFixUsesTheCargoOrder(t *testing.T) {
 	}
 }
 
+// TestSmallestFixUsesTheMavenOrder proves Maven uses the adapter's order.
+// 1.5.0 is above 1.4.0 and outside the later range, so it is the smallest way out.
+func TestSmallestFixUsesTheMavenOrder(t *testing.T) {
+	hit := manifest.Hit{Ecosystem: "Maven", File: "gradle.lockfile", Change: manifest.Change{Package: "com.example:widget", Version: "1.4.0", Line: 5}}
+	rows := []Row{
+		{ID: "GHSA-kt-sample-0002", Ecosystem: "Maven", Package: "com.example:widget", Introduced: "2.0.0", Fixed: "2.1.0"},
+		{ID: "GHSA-kt-sample-0001", Ecosystem: "Maven", Package: "com.example:widget", Introduced: "1.3.0", Fixed: "1.5.0"},
+	}
+	got := SmallestFix(hit, rows)
+	if got == nil || got.To != "1.5.0" || got.AdvisoryID != "GHSA-kt-sample-0001" || got.From != "1.4.0" {
+		t.Fatalf("%#v", got)
+	}
+}
+
 // TestSmallestFixRefusesAnEcosystemItCannotOrder proves a version is never ranked in an ecosystem
 // the check has no order for.
 func TestSmallestFixRefusesAnEcosystemItCannotOrder(t *testing.T) {
-	hit := manifest.Hit{Ecosystem: "Maven", Change: manifest.Change{Package: "lib", Version: "1.0"}}
-	if got := SmallestFix(hit, []Row{{ID: "X", Ecosystem: "Maven", Introduced: "0", Fixed: "2.0"}}); got != nil {
+	hit := manifest.Hit{Ecosystem: "NuGet", Change: manifest.Change{Package: "lib", Version: "1.0"}}
+	if got := SmallestFix(hit, []Row{{ID: "X", Ecosystem: "NuGet", Introduced: "0", Fixed: "2.0"}}); got != nil {
 		t.Fatalf("%#v", got)
 	}
 }
