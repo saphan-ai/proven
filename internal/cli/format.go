@@ -65,6 +65,11 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 	if _, err := fmt.Fprintf(w, "review rule: %s\n", visible(result.ClassRule)); err != nil {
 		return err
 	}
+	if result.PolicyStatement != "" {
+		if _, err := fmt.Fprintln(w, visible(result.PolicyStatement)); err != nil {
+			return err
+		}
+	}
 	if result.SettingsStatement != "" {
 		if _, err := fmt.Fprintln(w, visible(result.SettingsStatement)); err != nil {
 			return err
@@ -95,6 +100,17 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 	// line that starts with "finding " is never an opinion.
 	if err := writeOpinions(w, result); err != nil {
 		return err
+	}
+	for _, accepted := range result.Accepted {
+		if err := writeAccepted(w, accepted); err != nil {
+			return err
+		}
+	}
+	for _, expired := range result.Expired {
+		if _, err := fmt.Fprintf(w, "exception %s expired on %s: finding %s counts again (rule %s at %s, owner %s, reason: %s)\n",
+			visible(expired.ExceptionID), visible(expired.Expires), visible(expired.Finding), visible(expired.Rule), visible(expired.Location), visible(expired.Owner), visible(expired.Reason)); err != nil {
+			return err
+		}
 	}
 	if len(result.FailedServices) == 0 {
 		if _, err := fmt.Fprintln(w, "failed services: none"); err != nil {
@@ -315,6 +331,29 @@ func attemptWord(n int) string {
 // oneLine folds the line breaks of a model's sentence, so it stays on one line of the review.
 func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// writeAccepted prints a finding an exception of the organisation policy accepts (ADR-0036): where it
+// is and which rule found it, then the exception's reason, owner and expiry. It is shown, never hidden,
+// and it is not counted: it is not in result.Findings.
+func writeAccepted(w io.Writer, accepted review.AcceptedFinding) error {
+	finding := accepted.Finding
+	name := finding.ID
+	if name == "" {
+		name = finding.RuleID
+	}
+	if _, err := fmt.Fprintf(w, "accepted finding %s %s %s\n", visible(name), visible(string(finding.Severity)), visible(finding.Title)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", visible(finding.Location.Path), finding.Location.StartLine, finding.Location.EndLine); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  rule %s\n", visible(finding.RuleID)); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(w, "  accepted by exception %s: reason: %s; owner: %s; expires: %s\n",
+		visible(accepted.ExceptionID), visible(accepted.Reason), visible(accepted.Owner), visible(accepted.Expires))
+	return err
 }
 
 // writeEvidence prints the proof under a finding: the test the Prover wrote,
