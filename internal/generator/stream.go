@@ -27,6 +27,10 @@ type streamMeta struct {
 	receipt    string
 	route      string
 	chunkModel string
+	// responseID is the id of the chat-completion response. Nightshift's
+	// receipt names the same id as its request id, so it is the key that ties
+	// an answer to its receipt.
+	responseID string
 }
 
 // sseChunk is one data event of the stream. Only the fields the review reads
@@ -34,7 +38,9 @@ type streamMeta struct {
 type sseChunk struct {
 	// Model is the chunk's own model field. Nightshift's is not a receipt
 	// (ADR-0019); the hosted API's is the only statement of who answered.
-	Model   string `json:"model"`
+	Model string `json:"model"`
+	// ID is the response id; every chunk of one response carries the same one.
+	ID      string `json:"id"`
 	Choices []struct {
 		Delta struct {
 			Content string `json:"content"`
@@ -78,6 +84,10 @@ func parseStream(r io.Reader) (streamMeta, error) {
 		// The first chunk that names a model wins: a later one cannot change who answered.
 		if meta.chunkModel == "" {
 			meta.chunkModel = chunk.Model
+		}
+		// The first id wins for the same reason: a later chunk cannot change which response this is.
+		if meta.responseID == "" {
+			meta.responseID = chunk.ID
 		}
 		// ADR-0019: in nightshift mode the answering model is read from the receipt, never from the
 		// chunk's own model field, so a chunk without the meterless object adds text only.
