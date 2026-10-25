@@ -2,8 +2,8 @@
 # Scan the images we build with Docker Scout (scout-images.sh), then record the
 # third-party images in docs/LAB.md. Fails closed: Docker Scout missing, a scan
 # that cannot run, or a critical or high finding with a fix refuses the images
-# we build, and this script exits non-zero naming the image. make push runs
-# scout-images.sh before it publishes.
+# we build, and this script exits non-zero naming the image. make push does its
+# own scan of the images it publishes (push.sh).
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker

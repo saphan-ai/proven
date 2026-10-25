@@ -2,7 +2,7 @@
 # Build the images we publish for this machine and scan each with Docker Scout.
 # Fails closed: it exits non-zero, naming the image, when Scout is missing, when
 # a scan cannot run, or when a finding of SCOUT_REFUSE_SEVERITIES has a fix.
-# make scan and make push both run it; make push does so before it publishes.
+# make scan runs it. make push does not: it scans the exact images it publishes.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker

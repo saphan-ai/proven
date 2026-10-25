@@ -63,60 +63,42 @@ func serviceBlock(compose, name string) string {
 	return strings.Join(out, "\n")
 }
 
-var portEntry = regexp.MustCompile(`^\s*-\s*"?([^"]+)"?\s*$`)
-
 var (
-	bindCase = regexp.MustCompile(`case\s+"?\$\{?LAB_BIND\}?"?\s+in`)
-	funcHead = regexp.MustCompile(`(?m)^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{\s*$`)
+	portEntry    = regexp.MustCompile(`^\s*-\s*(.*?)\s*$`)
+	loopbackPort = regexp.MustCompile(`^"?(127(\.[0-9]{1,3}){3}|\[::1\]):[0-9$]`)
+	hostNetwork  = regexp.MustCompile(`(?m)^\s*network_mode:\s*"?host"?\s*$`)
 )
 
-// hasBindGuard: the scripts refuse a LAB_BIND that is not loopback, either with a
-// `case "$LAB_BIND" in` or with a function that reads LAB_BIND, exits non-zero,
-// and is called from somewhere other than its own definition.
-func hasBindGuard(scripts string) bool {
-	if bindCase.MatchString(scripts) {
-		return true
-	}
-	for _, m := range funcHead.FindAllStringSubmatchIndex(scripts, -1) {
-		name := scripts[m[2]:m[3]]
-		rest := scripts[m[1]:]
-		end := strings.Index(rest, "\n}")
-		if end < 0 {
-			continue
-		}
-		body, after := rest[:end], rest[end:]
-		if !strings.Contains(body, "LAB_BIND") || !regexp.MustCompile(`\bexit\s+[1-9]`).MatchString(body) {
-			continue
-		}
-		call := regexp.MustCompile(`(?m)(^|[\s;&|)])` + regexp.QuoteMeta(name) + `\s*($|[;&|\n])`)
-		if call.MatchString(scripts[:m[0]]) || call.MatchString(after) {
-			return true
-		}
-	}
-	return false
-}
-
-// checkLoopbackPorts: every published port names 127.0.0.1 literally, or names
-// ${LAB_BIND} and a lab script refuses a LAB_BIND that is not 127.0.0.1.
-func checkLoopbackPorts(compose, scripts string) []string {
-	guard := hasBindGuard(scripts)
+// checkLoopbackPorts reads lab/compose.yaml alone. The file must be loopback by
+// itself, because `docker compose -f lab/compose.yaml up` does not run any lab
+// script. Every published port names a literal loopback address (127.x.x.x or
+// [::1]) in its own line: no variable, no empty host part, no long form, no inline
+// list. A service on the host network publishes everything and is refused too.
+func checkLoopbackPorts(compose string) []string {
 	var bad []string
+	if hostNetwork.MatchString(compose) {
+		bad = append(bad, "network_mode: host")
+	}
 	lines := strings.Split(compose, "\n")
 	for i, line := range lines {
-		if strings.TrimSpace(line) != "ports:" {
+		t := strings.TrimSpace(line)
+		if !strings.HasPrefix(t, "ports:") {
+			continue
+		}
+		if rest := strings.TrimSpace(strings.TrimPrefix(t, "ports:")); rest != "" && !strings.HasPrefix(rest, "#") {
+			bad = append(bad, t)
 			continue
 		}
 		for j := i + 1; j < len(lines); j++ {
+			if s := strings.TrimSpace(lines[j]); s == "" || strings.HasPrefix(s, "#") {
+				continue
+			}
 			m := portEntry.FindStringSubmatch(lines[j])
 			if m == nil {
 				break
 			}
-			v := m[1]
-			switch {
-			case strings.HasPrefix(v, "127.0.0.1:"):
-			case strings.HasPrefix(v, "${LAB_BIND}:") && guard:
-			default:
-				bad = append(bad, v)
+			if !loopbackPort.MatchString(m[1]) {
+				bad = append(bad, m[1])
 			}
 		}
 	}
@@ -125,26 +107,43 @@ func checkLoopbackPorts(compose, scripts string) []string {
 
 func TestLabPublishesOnlyOnLoopback(t *testing.T) {
 	compose := read(t, "lab/compose.yaml")
-	scripts := read(t, "lab/scripts/lib.sh") + read(t, "lab/scripts/up.sh")
-	if bad := checkLoopbackPorts(compose, scripts); len(bad) > 0 {
-		t.Errorf("published ports not fixed to 127.0.0.1 and no script refuses another LAB_BIND: %v", bad)
+	if bad := checkLoopbackPorts(compose); len(bad) > 0 {
+		t.Errorf("lab/compose.yaml publishes beyond a literal loopback address: %v", bad)
 	}
-	// Negative control: a literal wildcard binding must be refused even with a guard present.
-	mut := strings.Replace(compose, `"${LAB_BIND}:${GITEA_HTTP_PORT}`, `"0.0.0.0:${GITEA_HTTP_PORT}`, 1)
-	if len(checkLoopbackPorts(mut, `case "$LAB_BIND" in`)) == 0 {
-		t.Error("negative control: check accepted a 0.0.0.0 binding")
+	if !strings.Contains(compose, `"127.0.0.1:${GITEA_HTTP_PORT}:`) {
+		t.Error("the check found no published Gitea port: it would pass an empty file")
 	}
-	// Negative control: a ${LAB_BIND} port with no guard in the scripts must be refused.
-	if len(checkLoopbackPorts(compose, "up() {\n  docker compose up\n}\n")) == 0 {
-		t.Error("negative control: check accepted a ${LAB_BIND} port with no guard")
+	if n := strings.Count(compose, "ports:"); n != 2 {
+		t.Errorf("lab/compose.yaml has %d ports: blocks, want 2 (gitea, lgtm)", n)
 	}
-	// Negative control: a guard that is defined and never called guards nothing.
-	if len(checkLoopbackPorts(compose, "guard() {\n  test \"$LAB_BIND\" = 127.0.0.1 || exit 1\n}\n")) == 0 {
-		t.Error("negative control: check accepted a guard that is never called")
+	// Negative controls: each mutates the one port line it names, and must turn red.
+	for name, mut := range map[string]string{
+		"wildcard literal":      strings.Replace(compose, `"127.0.0.1:${GITEA_HTTP_PORT}`, `"0.0.0.0:${GITEA_HTTP_PORT}`, 1),
+		"interpolated address":  strings.Replace(compose, `"127.0.0.1:${GITEA_HTTP_PORT}`, `"${LAB_BIND}:${GITEA_HTTP_PORT}`, 1),
+		"interpolated default":  strings.Replace(compose, `"127.0.0.1:${LGTM_OTLP_PORT}`, `"${LAB_BIND:-127.0.0.1}:${LGTM_OTLP_PORT}`, 1),
+		"no host address":       strings.Replace(compose, `"127.0.0.1:${LGTM_GRAFANA_PORT}`, `"${LGTM_GRAFANA_PORT}`, 1),
+		"private address":       strings.Replace(compose, `"127.0.0.1:${LGTM_OTLP_PORT}`, `"192.168.1.5:${LGTM_OTLP_PORT}`, 1),
+		"lookalike address":     strings.Replace(compose, `"127.0.0.1:${LGTM_OTLP_PORT}`, `"128.0.0.1:${LGTM_OTLP_PORT}`, 1),
+		"long form":             strings.Replace(compose, "    ports:\n", "    ports:\n      - target: 3000\n        published: 3000\n", 1),
+		"inline list":           strings.Replace(compose, "    ports:\n", "    ports: [\"3000:3000\"]\n", 1),
+		"host network":          strings.Replace(compose, "  dind:\n", "  dind:\n    network_mode: host\n", 1),
+		"extra unprefixed port": strings.Replace(compose, "    ports:\n", "    ports:\n      - \"2375:2375\"\n", 1),
+	} {
+		if mut == compose {
+			t.Errorf("negative control %q did not change the file", name)
+			continue
+		}
+		if len(checkLoopbackPorts(mut)) == 0 {
+			t.Errorf("negative control %q: check accepted it", name)
+		}
+	}
+	// The other loopback spellings are accepted.
+	ok := strings.Replace(compose, `"127.0.0.1:${GITEA_HTTP_PORT}`, `"[::1]:${GITEA_HTTP_PORT}`, 1)
+	if bad := checkLoopbackPorts(ok); len(bad) > 0 {
+		t.Errorf("check refused [::1]: %v", bad)
 	}
 }
 
-// checkNoHostSocket: no volume, mount or -v names docker.sock.
 func checkNoHostSocket(texts map[string]string) []string {
 	mount := regexp.MustCompile(`(-v\s|--volume|--mount|^\s*-\s+[^#]*:)[^\n]*docker\.sock`)
 	var bad []string
@@ -163,8 +162,8 @@ func checkNoHostSocket(texts map[string]string) []string {
 
 func labTexts(t *testing.T) map[string]string {
 	texts := map[string]string{
-		"lab/compose.yaml":       read(t, "lab/compose.yaml"),
-		"lab/runner/config.yaml": read(t, "lab/runner/config.yaml"),
+		"lab/compose.yaml":        read(t, "lab/compose.yaml"),
+		"lab/runner/config.yaml":  read(t, "lab/runner/config.yaml"),
 		"lab/workflow/proven.yml": read(t, "lab/workflow/proven.yml"),
 	}
 	entries, err := os.ReadDir(filepath.Join(repoRoot(t), "lab", "scripts"))
@@ -403,9 +402,9 @@ func checkNoCommittedPassword(texts map[string]string) []string {
 
 func TestLabPasswordHasNoCommittedDefault(t *testing.T) {
 	texts := map[string]string{
-		"lab/versions.env":  read(t, "lab/versions.env"),
-		"lab/.env.example":  read(t, "lab/.env.example"),
-		"lab/compose.yaml":  read(t, "lab/compose.yaml"),
+		"lab/versions.env": read(t, "lab/versions.env"),
+		"lab/.env.example": read(t, "lab/.env.example"),
+		"lab/compose.yaml": read(t, "lab/compose.yaml"),
 	}
 	if bad := checkNoCommittedPassword(texts); len(bad) > 0 {
 		t.Errorf("a committed default: %v", bad)

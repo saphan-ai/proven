@@ -30,9 +30,10 @@ and its logs.
 5. **Every image we build is minimal and scanned by Docker Scout** (the owner, 23 October). Proven's image carries the
    static binary and only the two programs Proven runs (`git`, and the container client the Prover calls), on the
    smallest base that holds them, and runs as a user that is not root. The same holds for any helper image of the lab
-   we build (the seed). `make scan` runs Docker Scout on each image we build, and `make push` runs it first and refuses
-   to push while Scout reports a critical or high vulnerability with a fix available; the severities that refuse are a
-   setting. The pinned images of others in the lab (Gitea, its runner, Docker) are scanned too and their result is
+   we build (the seed). `make scan` runs Docker Scout on each image we build, and `make push` builds once, scans every
+   platform of that build by digest, and makes the final tags from those digests only when every scan passes; it makes
+   none while Scout reports a critical or high vulnerability with a fix available on any platform; the severities that
+   refuse are a setting. The pinned images of others in the lab (Gitea, its runner, Docker) are scanned too and their result is
    written in `docs/LAB.md`: we cannot fix them, and a judge should know what they hold.
 6. **Proven's own image is tagged `latest`** (the owner, 23 October). Each push also carries the tag `git describe`
    gives, so the image a judge ran on a given day can still be pulled. Every other image in the lab (Gitea, its

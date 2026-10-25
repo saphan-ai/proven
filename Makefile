@@ -30,7 +30,7 @@ seed-image: ## Build the lab seed for this machine and load it (one platform; ma
 scan: ## Scan our images with Docker Scout; refuses when Scout is missing, fails, or finds a fixable critical or high
 	@sh $(ROOT)/lab/scripts/scan.sh
 
-push: ## Scan first (refuses on a Scout failure), then push linux/amd64 and linux/arm64, one tag per image, with provenance and an SBOM
+push: ## Build once for linux/amd64 and linux/arm64, scan every platform with Docker Scout, then publish those scanned digests as the final tags (refuses, publishing nothing, on any scan failure)
 	@sh $(ROOT)/lab/scripts/push.sh
 
 up: ## Start the judges' lab
@@ -63,13 +63,13 @@ e2e-failed-run: ## Negative control: with an old review comment present and the 
 check-e2e-parse: ## Check e2e's parsers offline against statuses a live Gitea served
 	@sh $(ROOT)/lab/scripts/e2e-parse-check.sh
 
-check-lab-gates: ## Check offline, with a stub docker, that make up refuses a non-loopback bind and make push refuses without a green scan
+check-lab-gates: ## Check offline, with a stub docker, that make up refuses the retired LAB_BIND and that make push publishes only digests that were all scanned
 	@sh $(ROOT)/lab/scripts/check-lab-gates.sh
 
 check-lab-password: ## Check offline, with a stub docker, that the admin password is never printed to a redirected stdout, is kept in a 0600 file, and a supplied one is used and not printed
 	@sh $(ROOT)/lab/scripts/check-lab-password.sh
 
-check-review-gates: ## Check offline five properties of the lab: loopback bind, password handling, Scout failure, push after scan, build context
+check-review-gates: ## Check offline five properties of the lab: loopback in the compose file, password handling, Scout failure, push after scan, build context
 	@sh $(ROOT)/lab/scripts/check-review-gates.sh
 
 check-links: ## Check that every relative Markdown link and metadata.json path resolves

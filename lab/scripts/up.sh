@@ -2,7 +2,7 @@
 # Build the images, start the lab, create the admin when it is missing, seed the demo, start the runner.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
-require_loopback_bind
+refuse_retired_bind
 need_docker
 
 # A password the judge supplies is checked before any container starts. Gitea
@@ -31,7 +31,7 @@ sh "$ROOT/lab/scripts/seed-image.sh"
 compose up -d gitea dind lgtm
 
 internal="http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}"
-lab_url="http://${LAB_BIND}:${GITEA_HTTP_PORT}/"
+lab_url="http://${LAB_HOST}:${GITEA_HTTP_PORT}/"
 
 i=0
 ready=0
@@ -49,7 +49,7 @@ fi
 
 # ADR-0045: the dashboard is up before the pull request's review starts, so the review is exported to it.
 # A Grafana that does not answer is named, and the lab goes on: the review is still posted.
-dashboard_url="http://${LAB_BIND}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
+dashboard_url="http://${LAB_HOST}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
 grafana_internal="http://${LGTM_INTERNAL_HOST}:${LGTM_GRAFANA_CONTAINER_PORT}"
 grafana_ready=0
 waited=0

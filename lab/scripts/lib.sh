@@ -39,21 +39,17 @@ load_versions() {
   done <"$file"
 }
 
-# require_loopback_bind  — the lab publishes its port on LAB_BIND only when that
-# is a loopback address: 127.0.0.0/8 or [::1]. An empty value binds every
-# interface, so it is refused too. LAB_BIND may come from the environment.
-require_loopback_bind() {
-  if ! printf '%s\n' "${LAB_BIND-}" | awk '
-    $0 == "[::1]" { exit 0 }
-    {
-      n = split($0, o, ".")
-      if (n != 4 || o[1] != "127") exit 1
-      for (i = 2; i <= 4; i++) {
-        if (o[i] !~ /^[0-9]+$/ || length(o[i]) > 3 || o[i] + 0 > 255) exit 1
-      }
-      exit 0
-    }'; then
-    echo "LAB_BIND=${LAB_BIND-} is not a loopback address. The lab binds to 127.0.0.0/8 or [::1] only. Unset LAB_BIND or set it to 127.0.0.1." >&2
+# The lab's published ports name 127.0.0.1 in lab/compose.yaml itself, so no
+# setting and no way of starting that file moves them. LAB_HOST is that address,
+# for the URLs the scripts print; it is a constant, never read from the
+# environment. LAB_BIND, which once chose the address, is retired.
+LAB_HOST=127.0.0.1
+
+# refuse_retired_bind  — a LAB_BIND in the environment, empty or not, is refused
+# by name and no container starts: whoever set it expected another address.
+refuse_retired_bind() {
+  if [ "${LAB_BIND+set}" = set ]; then
+    echo "LAB_BIND=${LAB_BIND} is retired. The lab publishes on 127.0.0.1 only and no setting changes that. Unset LAB_BIND." >&2
     exit 1
   fi
 }
@@ -108,7 +104,7 @@ remove_admin_password_file() {
 
 compose() {
   case ${1-} in
-    up | run | create | start) require_loopback_bind ;;
+    up | run | create | start) refuse_retired_bind ;;
   esac
   docker compose \
     --env-file "$ROOT/lab/versions.env" \

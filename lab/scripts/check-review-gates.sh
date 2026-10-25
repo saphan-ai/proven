@@ -7,14 +7,14 @@
 # Each assertion reads the property, not its spelling, and has a negative
 # control: the same assertion run on a copy of the tree with exactly the guarded
 # line changed, which must read FAIL.
-#   1. an environment LAB_BIND that is not loopback does not reach compose.
-#      The guard refuses; it does not reset the value. The assertion reads the
-#      refusal.
+#   1. no setting publishes the lab beyond loopback: the compose file names a
+#      literal loopback address in each port line (read from the file alone), and
+#      the scripts refuse the retired LAB_BIND.
 #   2. the admin password is not printed when stdout is not a terminal, and is
 #      kept in a file at mode 0600.
 #   3. with Docker Scout missing, make scan fails and builds nothing.
-#   4. with Docker Scout missing or reporting a finding, make push fails and
-#      never reaches `--push`.
+#   4. with Docker Scout missing or reporting a finding, make push fails, makes
+#      no final tag and builds only staging tags.
 #   5. the build context does not carry the .saphan work area.
 set -u
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
@@ -27,22 +27,7 @@ mkdir "$work/bin"
 LOG=$work/docker.log
 export LOG
 
-# STUB_SCOUT: absent (no plugin), ok (scan passes), fail (scan reports a finding).
-cat >"$work/bin/docker" <<'STUB'
-#!/bin/sh
-echo "docker $*" >>"$LOG"
-case $1 in
-  scout)
-    [ "${STUB_SCOUT:-absent}" = absent ] && exit 1
-    case $2 in
-      version) exit 0 ;;
-      cves) [ "$STUB_SCOUT" = fail ] && exit 2; exit 0 ;;
-    esac
-    ;;
-  version) echo linux/amd64 ;;
-esac
-exit 0
-STUB
+cp "$ROOT/lab/scripts/stub-docker.sh" "$work/bin/docker"
 cat >"$work/bin/git" <<'STUB'
 #!/bin/sh
 echo stub
@@ -55,6 +40,7 @@ tree() {
   mkdir -p "$1/lab" "$1/docs"
   cp -R "$ROOT/lab/scripts" "$1/lab/scripts"
   cp "$ROOT/lab/versions.env" "$1/lab/versions.env"
+  cp "$ROOT/lab/compose.yaml" "$1/lab/compose.yaml"
   cp "$ROOT/docs/LAB.md" "$1/docs/LAB.md"
   cp "$ROOT/.dockerignore" "$1/.dockerignore"
 }
@@ -62,25 +48,54 @@ tree() {
 # run_script TREE SCOUT SCRIPT  — runs a lab script with the stubs; sets rc.
 run_script() {
   : >"$LOG"
+  rm -rf "$LOG.state"
   rc=0
   sh -c 'ROOT=$1; STUB_SCOUT=$2; PATH=$3/bin:$PATH; export ROOT STUB_SCOUT PATH LOG; sh "$ROOT/lab/scripts/$4"' \
     sh "$1" "$2" "$work" "$3" >"$work/out" 2>"$work/err" </dev/null || rc=$?
 }
 
-# --- 1. LAB_BIND ----------------------------------------------------------
+# --- 1. loopback ----------------------------------------------------------
+# a1 TREE  — the compose file is loopback by itself, because
+# `docker compose -f lab/compose.yaml up` runs no lab script; and the scripts
+# refuse the retired LAB_BIND and take their address from a constant.
+# a1_compose FILE reads only the port lines of the file: each must name a literal
+# 127.x.x.x or [::1] host address, with no variable in it. A port block written
+# inline, a service on the host network, or a file with no port line is FAIL.
+a1_compose() {
+  awk '
+    { sub(/\r$/, "") }
+    /^[ \t]*network_mode:[ \t]*"?host"?[ \t]*$/ { bad = 1 }
+    inports && /^[ \t]*(#|$)/ { next }
+    inports && /^[ \t]*-/ {
+      line = $0; sub(/^[ \t]*-[ \t]*/, "", line)
+      if (line ~ /^"?(127(\.[0-9]+)(\.[0-9]+)(\.[0-9]+)|\[::1\]):[0-9$]/) found++
+      else bad = 1
+      next
+    }
+    { inports = 0 }
+    /^[ \t]*ports:/ {
+      rest = $0; sub(/^[ \t]*ports:[ \t]*/, "", rest)
+      if (rest != "" && rest !~ /^#/) bad = 1
+      inports = 1
+    }
+    END { exit (bad || found < 3) ? 1 : 0 }
+  ' "$1"
+}
+
 a1() {
+  a1_compose "$1/lab/compose.yaml" || return 1
   sh -c '
-    ROOT=$1; LAB_BIND=0.0.0.0; export ROOT LAB_BIND
+    ROOT=$1; LAB_BIND=0.0.0.0; LAB_HOST=0.0.0.0; export ROOT LAB_BIND LAB_HOST
     . "$ROOT/lab/scripts/lib.sh"
-    [ "$LAB_BIND" = 127.0.0.1 ] && exit 0
-    ( require_loopback_bind ) >/dev/null 2>&1 && exit 1
+    [ "$LAB_HOST" = 127.0.0.1 ] || exit 1
+    ( refuse_retired_bind ) >/dev/null 2>&1 && exit 1
     exit 0
   ' sh "$1" || return 1
-  # The default stays loopback and is accepted.
+  # With nothing set the guard lets the lab start.
   sh -c '
     ROOT=$1; export ROOT; unset LAB_BIND
     . "$ROOT/lab/scripts/lib.sh"
-    [ "$LAB_BIND" = 127.0.0.1 ] && ( require_loopback_bind ) >/dev/null 2>&1
+    ( refuse_retired_bind ) >/dev/null 2>&1
   ' sh "$1"
 }
 
@@ -112,12 +127,14 @@ a3() {
 
 # --- 4. push requires a passing scan --------------------------------------
 a4() {
-  for s in absent fail; do
-    run_script "$1" "$s" push.sh
-    [ "$rc" -ne 0 ] || return 1
-    ! grep -q -e ' --push' "$LOG" || return 1
-    ! grep -q 'buildx create' "$LOG" || return 1
-  done
+  run_script "$1" absent push.sh
+  [ "$rc" -ne 0 ] || return 1
+  ! grep -q -e 'buildx build' -e 'buildx create' -e 'imagetools create' "$LOG" || return 1
+  run_script "$1" fail push.sh
+  [ "$rc" -ne 0 ] || return 1
+  ! grep -q 'imagetools create' "$LOG" || return 1
+  # Every build names a staging tag, never a final one.
+  ! grep 'buildx build' "$LOG" | grep -vq -e '--tag [^ ]*:staging-' || return 1
 }
 
 # --- 5. the build context ignores the work area ---------------------------
@@ -168,7 +185,7 @@ control() {
 
 tree "$work/real"
 
-name=localhost_only_when_environment_overrides_default
+name=loopback_in_the_compose_file_and_bind_refused
 check a1 "$work/real"
 name=password_not_printed
 check a2 "$work/real"
@@ -181,9 +198,23 @@ check a5 "$ROOT/.dockerignore"
 
 # Negative controls. Each copy changes exactly the line the assertion guards.
 tree "$work/n1"
-sed 's/"\${LAB_BIND-}" | awk/127.0.0.1 | awk/' "$work/n1/lab/scripts/lib.sh" >"$work/n1/lib.new"
+sed 's/"\${LAB_BIND+set}" = set/"${LAB_BIND+set}" = never/' "$work/n1/lab/scripts/lib.sh" >"$work/n1/lib.new"
 mv "$work/n1/lib.new" "$work/n1/lab/scripts/lib.sh"
-control a1_guard_always_sees_loopback a1 "$work/n1"
+control a1_guard_never_refuses a1 "$work/n1"
+
+# The compose file is the entry point: each copy puts one port line back.
+tree "$work/n1b"
+sed '0,/"127.0.0.1:/s//"0.0.0.0:/' "$work/n1b/lab/compose.yaml" >"$work/n1b/new"
+mv "$work/n1b/new" "$work/n1b/lab/compose.yaml"
+control a1_compose_port_on_all_interfaces a1 "$work/n1b"
+tree "$work/n1c"
+sed '0,/"127.0.0.1:/s//"${LAB_BIND}:/' "$work/n1c/lab/compose.yaml" >"$work/n1c/new"
+mv "$work/n1c/new" "$work/n1c/lab/compose.yaml"
+control a1_compose_port_on_a_variable a1 "$work/n1c"
+tree "$work/n1d"
+sed '0,/"127.0.0.1:/s//"/' "$work/n1d/lab/compose.yaml" >"$work/n1d/new"
+mv "$work/n1d/new" "$work/n1d/lab/compose.yaml"
+control a1_compose_port_without_address a1 "$work/n1d"
 
 tree "$work/n2"
 sed 's/^    store_admin_password_file "\$1"$/    echo "$1"/' "$work/n2/lab/scripts/lib.sh" >"$work/n2/lib.new"
@@ -199,7 +230,7 @@ mv "$work/n3/new" "$work/n3/lab/scripts/scout-images.sh"
 control a3_scout_missing_exits_zero a3 "$work/n3"
 
 tree "$work/n4"
-sed '/scout-images.sh/d' "$work/n4/lab/scripts/push.sh" >"$work/n4/new"
+sed '/^\[ "\$refused" -eq 0 \]/d' "$work/n4/lab/scripts/push.sh" >"$work/n4/new"
 mv "$work/n4/new" "$work/n4/lab/scripts/push.sh"
 control a4_push_without_scan a4 "$work/n4"
 
