@@ -390,16 +390,16 @@ func fromReading(p candidate.AutofixProof, r Reading, still string) candidate.Au
 // (ADR-0050 point 1).
 func Prompt(proved []candidate.Candidate, changeDir string) string {
 	type proofView struct {
-		Kind    string     `json:"kind"`
-		Test    string     `json:"test,omitempty"`
-		Path    string     `json:"test_path,omitempty"`
-		Output  string     `json:"output,omitempty"`
+		Kind    string            `json:"kind"`
+		Test    string            `json:"test,omitempty"`
+		Path    string            `json:"test_path,omitempty"`
+		Output  string            `json:"output,omitempty"`
 		Query   string            `json:"query,omitempty"`
 		Params  map[string]string `json:"params,omitempty"`
 		Columns []string          `json:"columns,omitempty"`
 		Rows    [][]string        `json:"rows,omitempty"`
-		Tool    string     `json:"tool,omitempty"`
-		Command string     `json:"command,omitempty"`
+		Tool    string            `json:"tool,omitempty"`
+		Command string            `json:"command,omitempty"`
 	}
 	type findingView struct {
 		ID       string      `json:"id"`

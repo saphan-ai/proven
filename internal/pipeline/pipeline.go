@@ -7,8 +7,10 @@
 // a fix for each finding a test proved and prove it with the same test (ADR-0042),
 // adds the dependency check against the OSV table, with the fixed version it
 // names, labels each dependency finding from govulncheck when the change is
-// Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
-// the World Model.
+// Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. With the setting on, it makes
+// the one whole-change fix attempt once every finding is final, and judges it by running each finding's own
+// evidence again (ADR-0050, autofix.go); the attempt replaces the per-finding suggestions. Every step writes
+// to the trace, which is then folded into H-MEM and the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
 // and answer (ADR-0005), the record of every model call, the doubled review

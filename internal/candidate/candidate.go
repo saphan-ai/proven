@@ -5,7 +5,8 @@
 // DropReason, and the Writer hands the kept ones to the seam as a Draft.
 // A claim both reviewers reported that the Judge dropped for no evidence is
 // an Opinion on that draft, not a finding (ADR-0041). The Fixer, after the
-// Judge, adds a Fix to a kept finding (ADR-0042). A dependency finding also
+// Judge, adds a Fix to a kept finding (ADR-0042). With the whole-change attempt on, one Autofix on the
+// draft records the single patch for every proved finding and the verdict on it (ADR-0050). A dependency finding also
 // carries its ecosystem and, after govulncheck, a reachability label
 // (ADR-0043). Each agent only adds its own part, so the trace can show who
 // said what.

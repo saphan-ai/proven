@@ -6,6 +6,8 @@
 // "proved". A patch that fails is tried again by the same model with the failure in hand, up to the
 // number of attempts the settings name; after that the review says the fix is not proved and shows
 // no patch. The patch is applied to a scratch copy and is a suggestion: nothing here writes to the change.
+// With the whole-change attempt on (ADR-0050) this loop is not run; the attempt keeps the rule that judges
+// a test-proved finding, through Judge, and has no retry.
 package fixer
 
 import (
