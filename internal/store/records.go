@@ -76,6 +76,29 @@ var designViews = map[string]string{
 }`,
 }
 
+// designVDU is the design document's validate_doc_update, run by CouchDB on
+// every write to the records database. A member of the database's security
+// document may read it and may write any document that is not a design
+// document, so membership alone does not make an account read-only. This
+// function admits a write only from a server admin or a database admin (named
+// in the security document's admins, by name or by role) and refuses every
+// other account, so the read-only account, a member, cannot write a record.
+const designVDU = `function (newDoc, oldDoc, userCtx, secObj) {
+  var roles = userCtx.roles || [];
+  if (roles.indexOf("_admin") !== -1) { return; }
+  var admins = (secObj && secObj.admins) || {};
+  var names = admins.names || [];
+  var adminRoles = admins.roles || [];
+  if (userCtx.name && names.indexOf(userCtx.name) !== -1) { return; }
+  for (var i = 0; i < roles.length; i++) {
+    if (adminRoles.indexOf(roles[i]) !== -1) { return; }
+  }
+  throw({forbidden: "Only a database admin writes evidence records."});
+}`
+
+// ViewVDU returns the validate_doc_update function the design document carries.
+func ViewVDU() string { return designVDU }
+
 // ViewNames lists the design document's views in a fixed order.
 func ViewNames() []string {
 	names := make([]string, 0, len(designViews))
@@ -358,6 +381,7 @@ func designVersion() string {
 	for _, n := range ViewNames() {
 		fmt.Fprintf(h, "%s\x00%s\x00", n, designViews[n])
 	}
+	fmt.Fprintf(h, "vdu\x00%s\x00", designVDU)
 	h.Write(viewerPage)
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -393,10 +417,11 @@ func (r *Recorder) ensureDesign(ctx context.Context) error {
 		views[n] = map[string]string{"map": m}
 	}
 	doc := map[string]any{
-		"_id":            "_design/" + designName,
-		"language":       "javascript",
-		"views":          views,
-		"proven_version": designVersion(),
+		"_id":                 "_design/" + designName,
+		"language":            "javascript",
+		"views":               views,
+		"validate_doc_update": designVDU,
+		"proven_version":      designVersion(),
 		"_attachments": map[string]any{
 			viewerName: map[string]string{
 				"content_type": "text/html; charset=utf-8",

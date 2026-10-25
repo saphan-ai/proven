@@ -19,10 +19,15 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// The two accounts of the recorded CouchDB. The writing account may write; the
-// read-only account may only read, as a CouchDB database's security document
-// makes it. The fake enforces that, so a test that sends a write with the
-// read-only account sees the refusal a real server gives.
+// The two accounts of the recorded CouchDB. The writing account is a database
+// admin; the read-only account is a member of the database's security
+// document. The fake follows CouchDB's own rules: a member reads everything and
+// may write any document that is not a design document, and only an admin may
+// create the database or write a design document. What stops a member writing
+// is therefore the design document's validate_doc_update, which the fake runs
+// (in Node) on every write when the stored design document carries one. A test
+// that sends a write with the read-only account passes only if that function is
+// there and refuses it.
 const (
 	fakeWriter     = "records-writer"
 	fakeWriterPass = "writer-pass-1234"
@@ -86,14 +91,15 @@ func (f *recordsCouch) serve(w http.ResponseWriter, r *http.Request) {
 		reply(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
-	if r.Method != http.MethodGet && role != "writer" {
-		reply(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
-		return
-	}
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	db, rest, _ := strings.Cut(path, "/")
 	if db != fakeDB {
 		reply(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		return
+	}
+	// Only a database admin makes the database or writes a design document.
+	if role != "writer" && r.Method != http.MethodGet && r.Method != http.MethodPost {
+		reply(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 		return
 	}
 	switch {
@@ -147,6 +153,14 @@ func (f *recordsCouch) serve(w http.ResponseWriter, r *http.Request) {
 		var out []map[string]any
 		for _, d := range body.Docs {
 			id := d["_id"].(string)
+			if strings.HasPrefix(id, "_design/") && role != "writer" {
+				out = append(out, map[string]any{"id": id, "error": "forbidden"})
+				continue
+			}
+			if msg := f.validate(d, user); msg != "" {
+				out = append(out, map[string]any{"id": id, "error": "forbidden", "reason": msg})
+				continue
+			}
 			if strings.Contains(id, "refuseme") {
 				out = append(out, map[string]any{"id": id, "error": "forbidden"})
 				continue
@@ -165,6 +179,49 @@ func (f *recordsCouch) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		reply(w, http.StatusBadRequest, map[string]string{"error": "bad_request"})
 	}
+}
+
+// securityObject is the database's security document: the writing account is
+// a database admin and the read-only account a member.
+func securityObject() map[string]any {
+	return map[string]any{
+		"admins":  map[string]any{"names": []string{fakeWriter}, "roles": []string{}},
+		"members": map[string]any{"names": []string{fakeReader}, "roles": []string{}},
+	}
+}
+
+// validate runs the stored design document's validate_doc_update on a write by
+// user, the way CouchDB does, and returns the refusal, or "" when it admits the
+// write or the design document has none. Node runs it; without Node the write is
+// admitted and the tests that depend on the function skip by name.
+func (f *recordsCouch) validate(newDoc map[string]any, user string) string {
+	src, _ := f.docs["_design/"+designName]["validate_doc_update"].(string)
+	if src == "" {
+		return ""
+	}
+	return runVDU(src, newDoc, map[string]any{"name": user, "roles": []string{}}, securityObject())
+}
+
+// runVDU runs one validate_doc_update function in Node over a document, the
+// user's context and the security document. It returns "" when the function
+// returns and the refusal text when it throws.
+func runVDU(src string, newDoc, userCtx, secObj map[string]any) string {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		return ""
+	}
+	script := `const a = JSON.parse(process.env.ARGS);
+const f = eval('(' + process.env.VDU_SRC + ')');
+try { f(a.newDoc, a.oldDoc, a.userCtx, a.secObj); console.log(""); }
+catch (e) { console.log(JSON.stringify(e)); }`
+	args, _ := json.Marshal(map[string]any{"newDoc": newDoc, "oldDoc": nil, "userCtx": userCtx, "secObj": secObj})
+	cmd := exec.Command(node, "-e", script)
+	cmd.Env = append(os.Environ(), "VDU_SRC="+src, "ARGS="+string(args))
+	raw, err := cmd.Output()
+	if err != nil {
+		return "the function did not run: " + err.Error()
+	}
+	return strings.TrimSpace(string(raw))
 }
 
 // records returns the stored evidence records, sorted by id.
@@ -379,17 +436,90 @@ func TestViewerIsServedToTheReadOnlyAccountAndNeedsNoWrite(t *testing.T) {
 	if len(f.log) != 1 || f.log[0] != fakeReader+" GET /"+fakeDB+"/_design/evidence/viewer.html" {
 		t.Fatalf("the viewer check made: %v", f.log)
 	}
-	// A write with the read-only account is refused, so a page opened with it
-	// could not change a record even if it tried.
-	readOnly := writerSettings()
-	readOnly.User, readOnly.Password = fakeReader, fakeReaderPass
+}
+
+// bulkAs posts one record to the records database as the given account and
+// returns the answer's row.
+func bulkAs(t *testing.T, f *recordsCouch, user, pass, id string) map[string]any {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{"docs": []map[string]any{{"_id": id, "type": "evidence-record", "finding_id": id}}})
+	req, _ := http.NewRequest(http.MethodPost, "http://couch.test/"+fakeDB+"/_bulk_docs", bytes.NewReader(body))
+	req.SetBasicAuth(user, pass)
+	resp, err := f.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var rows []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&rows); err != nil || len(rows) != 1 {
+		t.Fatalf("answer %v %v", rows, err)
+	}
+	return rows[0]
+}
+
+// TestReadOnlyAccountCannotWriteARecord proves a member of the records database,
+// the read-only account, is refused a write by the design document itself, while
+// the database admin is admitted. The fake lets a member write any document that
+// is not a design document, as CouchDB does, so only the design document's
+// validate_doc_update can refuse it. The mutated line is the validate_doc_update
+// entry of the design document: with it removed the member's write is admitted
+// and the test fails.
+func TestReadOnlyAccountCannotWriteARecord(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed: the validate_doc_update function is UNRUN")
+	}
+	f := newRecordsCouch()
+	publishSample(t, f)
 	before := len(f.records())
-	_, err := NewRecorder(readOnly, f.client()).Publish(context.Background(), []EvidenceRecord{{FindingID: "x", Run: "r"}})
-	if d, ok := service.As(err); !ok || d.Service != "couchdb" {
-		t.Fatalf("a write with the read-only account: %v", err)
+	if row := bulkAs(t, f, fakeReader, fakeReaderPass, "overwrite-1"); row["error"] != "forbidden" {
+		t.Fatalf("the read-only account's write was admitted: %v", row)
 	}
 	if len(f.records()) != before {
 		t.Fatal("the read-only account wrote a record")
+	}
+	if row := bulkAs(t, f, fakeWriter, fakeWriterPass, "admitted-1"); row["ok"] != true {
+		t.Fatalf("the writing account was refused: %v", row)
+	}
+	if len(f.records()) != before+1 {
+		t.Fatal("the writing account's record is not stored")
+	}
+}
+
+// TestValidateDocUpdateAdmitsOnlyAdmins proves the function on its own, over the
+// shapes of a security document: a server admin and a database admin, by name
+// and by role, are admitted; a member, a member by role, a user in no list, an
+// anonymous user and a database with no security document are refused. The
+// mutated line is the admins.names check: with it removed the admin by name is
+// refused and the test fails.
+func TestValidateDocUpdateAdmitsOnlyAdmins(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed: the validate_doc_update function is UNRUN")
+	}
+	sec := map[string]any{
+		"admins":  map[string]any{"names": []string{"dba"}, "roles": []string{"dba-role"}},
+		"members": map[string]any{"names": []string{"reader"}, "roles": []string{"reader-role"}},
+	}
+	doc := map[string]any{"_id": "x", "type": "evidence-record"}
+	for _, c := range []struct {
+		name  string
+		user  any
+		roles []string
+		sec   map[string]any
+		admit bool
+	}{
+		{"a server admin", "root", []string{"_admin"}, sec, true},
+		{"a database admin by name", "dba", []string{}, sec, true},
+		{"a database admin by role", "someone", []string{"dba-role"}, sec, true},
+		{"a member", "reader", []string{}, sec, false},
+		{"a member by role", "other", []string{"reader-role"}, sec, false},
+		{"a user in no list", "stranger", []string{}, sec, false},
+		{"an anonymous user", nil, []string{}, sec, false},
+		{"no security document", "reader", []string{}, map[string]any{}, false},
+	} {
+		got := runVDU(ViewVDU(), doc, map[string]any{"name": c.user, "roles": c.roles}, c.sec)
+		if c.admit && got != "" || !c.admit && !strings.Contains(got, "forbidden") {
+			t.Errorf("%s: answer %q, admit want %v", c.name, got, c.admit)
+		}
 	}
 }
 
