@@ -109,10 +109,10 @@ To go back, unset the four settings. The defaults read the sources directly.
 | Exit | Meaning |
 |---|---|
 | 0 | applied, and the gate returned no row (or `DRY=1`) |
-| 2 | a setting is missing or malformed; nothing was sent |
+| 2 | a setting is missing or malformed, or `python3` is not on the path; nothing was sent |
 | 3 | Zetaris refused a call; the refusal is printed without the key; the layer may be half applied |
 | 4 | the gate returned rows; Proven is not pointed at the layer |
-| 5 | the gate's answer could not be read, or `python3` is not on the path; Proven is not pointed at the layer |
+| 5 | the gate's answer was not exactly one count (`lab/zetaris/usl/count.py` names what was wrong); Proven is not pointed at the layer |
 
 `DRY` is read by this script only. It is not a Proven setting.
 
@@ -139,7 +139,7 @@ field. Anything else, including a count beside an error field, is not a pass, an
 
 ## What was not run
 
-- Nothing here was sent to Zetaris. The statements are written from the registration runbook and ADR-0023, and the manual of the sponsor is not in this repository. `DROP SCHEMASTORE VIEW`, the `RLIKE`, `CAST ... AS DOUBLE` and `isnan` of the gate, and `LEFT JOIN` across the container are **UNVERIFIED** on our build. The first live apply may refuse one of them. The refusal is printed, the layer may be half applied, and the fix is an edit of `layer.sql` or `gate.sql`.
+- The tests send nothing to Zetaris. On 2026-10-25 the owner's side applied the layer live as administrator: the first apply was refused at `DROP SCHEMASTORE VIEW px_usl.<v>`, Zetaris parses `DROP SCHEMASTORE VIEW <v> FROM px_usl`, and after that fix the apply exited 0 with the gate at 0 rows and `make zetaris-usl-parity` passed. That is the owner's measurement, written here as a report; this repository's tests do not reproduce it. The relation view's `LEFT JOIN`s were created by that apply, but its grain on live data, and the `epss_score_date` column added after it, were not run on Zetaris. The manual of the sponsor is not in this repository.
 - The gate's text is not run offline. The tests run its meaning: the same rule in Go, with the pattern taken from `gate.sql`, over the sample rows.
 - `make zetaris-usl-parity` is skipped in a build with no Zetaris.
 - The tolerated refusals ("exist" for a container that is there and a view that is not yet) assume Zetaris's refusal says so. If it says something else, the first apply stops at that statement.
