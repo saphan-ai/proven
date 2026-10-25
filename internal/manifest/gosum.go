@@ -21,7 +21,9 @@ func GoSum() Reader {
 		Match: func(path string) bool {
 			return path == "go.sum" || strings.HasSuffix(path, "/go.sum")
 		},
-		Diff: diffGoSum,
+		Diff:    diffGoSum,
+		Compare: semver.Compare,
+		Explain: semver.Explain,
 	}
 }
 

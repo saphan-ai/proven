@@ -50,6 +50,30 @@ func reviewRewriting(t *testing.T, marker string, rewrite func(string) string) (
 	return d, err
 }
 
+// TestAnOpinionReasonIsRedacted proves a configured token in an opinion's title
+// or in a reviewer's reason does not reach the draft. The mutated field is the
+// reason string.
+func TestAnOpinionReasonIsRedacted(t *testing.T) {
+	const marker = "marker-w37-opinion-91ab"
+	p := &Pipeline{redactor: redact.FromEnv(secretEnv(map[string]string{generator.EnvToken: marker}))}
+	in := []candidate.Opinion{{
+		ID: "O1", Title: "title " + marker, Path: "a.go",
+		Reasons: []candidate.Verdict{{
+			Run: "default", Model: "NVIDIA", Verdict: candidate.VerdictReported, Reason: "says " + marker,
+		}},
+	}}
+	out := p.redactOpinions(in)
+	if len(out) != 1 {
+		t.Fatalf("%d opinions", len(out))
+	}
+	if strings.Contains(out[0].Title+out[0].Reasons[0].Reason, marker) {
+		t.Fatalf("the token reached the opinion: %+v", out[0])
+	}
+	if strings.Contains(in[0].Reasons[0].Reason, "[redacted:") {
+		t.Fatal("redaction wrote into the input")
+	}
+}
+
 // TestTokenInAFindingDoesNotReachTheDraft proves that a configured token a
 // model echoes in a finding's title and message does not reach the draft the
 // review returns, and that the finding is still reported.
@@ -94,12 +118,13 @@ func TestTokenInAFatalAgentErrorDoesNotReachTheError(t *testing.T) {
 // TestRedactFindingsReachesEvidence proves that the redaction of a finding
 // covers its evidence and its refutation, and leaves the caller's candidates
 // unchanged.
-// Mutated field: the test output, the query rows, the tool output and the refutation reason.
+// Mutated field: the test output, the query rows, the tool output, the call path and the refutation reason.
 func TestRedactFindingsReachesEvidence(t *testing.T) {
 	const marker = "marker-w30-evid-7be1"
 	p := &Pipeline{redactor: redact.New(map[string]string{generator.EnvToken: marker})}
 	in := []candidate.Candidate{{
-		Risk: candidate.Risk{ID: "F1", Title: "t " + marker},
+		Risk:     candidate.Risk{ID: "F1", Title: "t " + marker},
+		CallPath: "path " + marker,
 		Evidence: []candidate.Evidence{
 			{Kind: candidate.KindTest, Test: &candidate.TestEvidence{Output: "out " + marker}},
 			{Kind: candidate.KindQuery, Query: &candidate.QueryEvidence{Rows: [][]string{{"r " + marker}}}},
@@ -110,7 +135,7 @@ func TestRedactFindingsReachesEvidence(t *testing.T) {
 	out := p.redactFindings(in)
 	got := out[0]
 	tool := got.Evidence[2].Tool
-	if strings.Contains(got.Title+got.Evidence[0].Test.Output+got.Evidence[1].Query.Rows[0][0]+tool.Command+tool.Output+tool.BaseOutput+got.Refutation.Reason+got.Refutation.QueryRows[0][0], marker) {
+	if strings.Contains(got.Title+got.CallPath+got.Evidence[0].Test.Output+got.Evidence[1].Query.Rows[0][0]+tool.Command+tool.Output+tool.BaseOutput+got.Refutation.Reason+got.Refutation.QueryRows[0][0], marker) {
 		t.Errorf("a redacted finding still carries the token: %#v", got)
 	}
 	if !strings.Contains(in[0].Evidence[0].Test.Output, marker) {

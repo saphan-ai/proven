@@ -44,6 +44,21 @@ func TestEqualScoresKeepTheirOrder(t *testing.T) {
 	}
 }
 
+// TestReachedRanksAheadOfAHigherScore proves a reached dependency finding
+// sorts ahead of one that is not reached, even when the unreached finding
+// has the higher EPSS score (ADR-0043). A code finding has an empty label
+// and is not part of that comparison.
+func TestReachedRanksAheadOfAHigherScore(t *testing.T) {
+	reached := plain("osv:reached", "ERROR")
+	reached.ReachLabel = candidate.ReachReached
+	quiet := scored("osv:quiet", "ERROR", "0.90")
+	quiet.ReachLabel = candidate.ReachImported
+	got := ids(Write(Input{Candidates: []candidate.Candidate{quiet, reached}}).Findings)
+	if got != "osv:reached,osv:quiet" {
+		t.Fatalf("%s", got)
+	}
+}
+
 // A finding the Judge dropped does not reach the draft.
 func TestDroppedFindingsAreNotOrderedIn(t *testing.T) {
 	in := []candidate.Candidate{

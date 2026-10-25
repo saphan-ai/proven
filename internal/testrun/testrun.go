@@ -8,6 +8,10 @@
 // report the Prover off, so a review without a container runtime never runs
 // the change's code on the host (ADR-0025 point 6). RunCommand runs a command
 // Proven built, such as a tool's argv (ADR-0040), in that same container.
+//
+// The same adapters also prove a proposed fix (ADR-0042): FixRunner runs the
+// proving test on the base, on the change and on the change with a patch applied,
+// then the package's other tests, and records every run with its command and exit code.
 package testrun
 
 import "context"

@@ -50,7 +50,7 @@ func TestWrittenTestIsCopiedAndTheCheckoutStaysUntouched(t *testing.T) {
 		case "change-keep":
 			return "FAIL TestAdd", exitCode(t, 1)
 		case "base-keep":
-			return "ok", nil
+			return passedRun(argv), nil
 		default:
 			t.Fatalf("keep %q in %s", keep, host)
 			return "", nil

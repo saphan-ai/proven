@@ -7,25 +7,31 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
 // Formatter writes one review result in one format.
-// Text is implemented. JSON and SARIF use this same seam and refuse until they are built.
+// text, JSON and SARIF each have a writer in this build (ADR-0020 §1).
 type Formatter interface {
 	Write(w io.Writer, result review.Result) error
 }
 
 // FormatterFor returns the writer for format, one of text, json or sarif.
+// ADR-0020 §1: the same three names are the standard-output format and the --*-output files.
 func FormatterFor(format string) (Formatter, error) {
 	switch format {
 	case "text":
 		return textFormatter{}, nil
-	case "json", "sarif":
-		return nil, fmt.Errorf("format %q has no writer in this build", format)
+	case "json":
+		return jsonFormatter{}, nil
+	case "sarif":
+		return sarifFormatter{}, nil
 	default:
+		// A name the flag parser did not offer still has to refuse, or a caller
+		// inside this package could write an empty file under an unknown format.
 		return nil, fmt.Errorf("format %q has no writer in this build", format)
 	}
 }
@@ -52,24 +58,30 @@ type textFormatter struct{}
 // "failed services: none" is printed rather than left out, so a reader can
 // tell a review that reached everything from one whose failures went unsaid.
 func (textFormatter) Write(w io.Writer, result review.Result) error {
-	if _, err := fmt.Fprintf(w, "review class: %s\n", result.Class); err != nil {
+	if _, err := fmt.Fprintf(w, "review class: %s\n", visible(result.Class)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "review rule: %s\n", result.ClassRule); err != nil {
+	if _, err := fmt.Fprintf(w, "review rule: %s\n", visible(result.ClassRule)); err != nil {
 		return err
 	}
 	if result.SettingsStatement != "" {
-		if _, err := fmt.Fprintln(w, result.SettingsStatement); err != nil {
+		if _, err := fmt.Fprintln(w, visible(result.SettingsStatement)); err != nil {
+			return err
+		}
+	}
+	// A review run without the guardrail says so before any finding.
+	if result.GuardrailStatement != "" {
+		if _, err := fmt.Fprintln(w, result.GuardrailStatement); err != nil {
 			return err
 		}
 	}
 	if result.AuthorModelStatement != "" {
-		if _, err := fmt.Fprintln(w, result.AuthorModelStatement); err != nil {
+		if _, err := fmt.Fprintln(w, visible(result.AuthorModelStatement)); err != nil {
 			return err
 		}
 	}
 	for _, line := range result.ReviewerStatements {
-		if _, err := fmt.Fprintln(w, line); err != nil {
+		if _, err := fmt.Fprintln(w, visible(line)); err != nil {
 			return err
 		}
 	}
@@ -78,13 +90,18 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			return err
 		}
 	}
+	// ADR-0041: the opinion section is its own block, after the findings, so a
+	// line that starts with "finding " is never an opinion.
+	if err := writeOpinions(w, result); err != nil {
+		return err
+	}
 	if len(result.FailedServices) == 0 {
 		if _, err := fmt.Fprintln(w, "failed services: none"); err != nil {
 			return err
 		}
 	} else {
 		for _, failed := range result.FailedServices {
-			if _, err := fmt.Fprintf(w, "failed service: %s: %s\n", failed.Service, failed.Reason); err != nil {
+			if _, err := fmt.Fprintf(w, "failed service: %s: %s\n", visible(failed.Service), visible(failed.Reason)); err != nil {
 				return err
 			}
 		}
@@ -95,12 +112,12 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		}
 	}
 	if sentence := familySentence(result.TracePath); sentence != "" {
-		if _, err := fmt.Fprintln(w, sentence); err != nil {
+		if _, err := fmt.Fprintln(w, visible(sentence)); err != nil {
 			return err
 		}
 	}
 	if result.TracePath != "" {
-		if _, err := fmt.Fprintf(w, "trace: %s\n", result.TracePath); err != nil {
+		if _, err := fmt.Fprintf(w, "trace: %s\n", visible(result.TracePath)); err != nil {
 			return err
 		}
 	}
@@ -137,6 +154,35 @@ func familySentence(path string) string {
 	return ""
 }
 
+// writeOpinions prints the section "Agreed by two models, not proven" (ADR-0041).
+// The section is always there. With one reviewer it says why it is empty: a
+// claim only one model makes stays dropped. Each opinion prints both reviewers'
+// reasons as they wrote them. The lines are indented, so they are not findings.
+func writeOpinions(w io.Writer, result review.Result) error {
+	if _, err := fmt.Fprintln(w, "Agreed by two models, not proven"); err != nil {
+		return err
+	}
+	if len(result.Opinions) == 0 {
+		if len(result.Reviewers) < 2 {
+			_, err := fmt.Fprintln(w, "  none: one reviewer; a claim only one model makes stays dropped")
+			return err
+		}
+		_, err := fmt.Fprintln(w, "  none")
+		return err
+	}
+	for _, op := range result.Opinions {
+		if _, err := fmt.Fprintf(w, "  opinion %s %s:%d-%d\n", visible(op.ID), visible(op.Location.Path), op.Location.StartLine, op.Location.EndLine); err != nil {
+			return err
+		}
+		for _, reason := range op.Reasons {
+			if _, err := fmt.Fprintf(w, "  %s %s: %s\n", visible(reason.Role), visible(reason.Model), visible(reason.Reason)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // writeFinding prints one finding: its name, severity and title, its EPSS
 // lines, an "unresolved" mark when its evidence did not settle it, where it
 // is, why it matters, its rule, and the evidence behind it.
@@ -145,7 +191,7 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	if name == "" {
 		name = finding.RuleID
 	}
-	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", name, finding.Severity, finding.Title); err != nil {
+	if _, err := fmt.Fprintf(w, "finding %s %s %s\n", visible(name), visible(string(finding.Severity)), visible(finding.Title)); err != nil {
 		return err
 	}
 	for _, e := range finding.Evidence {
@@ -153,7 +199,7 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			continue
 		}
 		for _, line := range epss.Phrases(e.Query.Columns, e.Query.Rows) {
-			if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
+			if _, err := fmt.Fprintf(w, "  %s\n", visible(line)); err != nil {
 				return err
 			}
 		}
@@ -163,16 +209,16 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", finding.Location.Path, finding.Location.StartLine, finding.Location.EndLine); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", visible(finding.Location.Path), finding.Location.StartLine, finding.Location.EndLine); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %s\n", finding.Message); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s\n", visible(finding.Message)); err != nil {
 		return err
 	}
 	// The rule line is printed only when it adds something the name line
 	// does not already say.
 	if finding.RuleID != "" && finding.RuleID != name {
-		if _, err := fmt.Fprintf(w, "  rule %s\n", finding.RuleID); err != nil {
+		if _, err := fmt.Fprintf(w, "  rule %s\n", visible(finding.RuleID)); err != nil {
 			return err
 		}
 	}
@@ -181,7 +227,93 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 			return err
 		}
 	}
+	return writeFix(w, finding.Fix)
+}
+
+// writeFix prints the fix under a finding (ADR-0042). A proved patch shows its edits, its
+// explanation and the commands of its proof; a patch that was not proved shows only that the
+// attempt failed and why, never the patch. A dependency fix shows the version and the advisory row.
+// Every fix says it is a suggestion: a person applies it, Proven writes nothing to the change.
+func writeFix(w io.Writer, fix *review.Fix) error {
+	if fix == nil {
+		return nil
+	}
+	switch {
+	case fix.Dependency != nil:
+		return writeDependencyFix(w, fix)
+	case fix.Proved:
+		return writeProvedFix(w, fix)
+	default:
+		if _, err := fmt.Fprintf(w, "  %s\n", fix.Note); err != nil {
+			return err
+		}
+		return writeFixRuns(w, fix.Runs)
+	}
+}
+
+// writeProvedFix prints a patch that the same test proved, with its explanation (point 7).
+func writeProvedFix(w io.Writer, fix *review.Fix) error {
+	if _, err := fmt.Fprintf(w, "  fix proved after %d %s: a suggestion for you to apply; Proven changes nothing\n", fix.Attempts, attemptWord(fix.Attempts)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  fix changes: %s\n  fix closes the problem because: %s\n", oneLine(fix.What), oneLine(fix.Why)); err != nil {
+		return err
+	}
+	for _, edit := range fix.Edits {
+		if _, err := fmt.Fprintf(w, "  fix edit %s\n", edit.Path); err != nil {
+			return err
+		}
+		for _, line := range strings.Split(strings.TrimRight(edit.Old, "\n"), "\n") {
+			if _, err := fmt.Fprintf(w, "  - %s\n", line); err != nil {
+				return err
+			}
+		}
+		for _, line := range strings.Split(strings.TrimRight(edit.New, "\n"), "\n") {
+			if _, err := fmt.Fprintf(w, "  + %s\n", line); err != nil {
+				return err
+			}
+		}
+	}
+	return writeFixRuns(w, fix.Runs)
+}
+
+// writeFixRuns prints the validation steps: each run with its command, exit code and result.
+func writeFixRuns(w io.Writer, runs []review.FixRun) error {
+	for _, run := range runs {
+		if _, err := fmt.Fprintf(w, "  fix run %s: %s exit=%d %s\n", run.Label, run.Command, run.ExitCode, run.Result); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// writeDependencyFix prints the smallest version that leaves the affected range, with the
+// advisory row that shows it (point 5). It says no test ran, so it is not read as a proved fix.
+func writeDependencyFix(w io.Writer, fix *review.Fix) error {
+	dep := fix.Dependency
+	if _, err := fmt.Fprintf(w, "  fix named from the advisory table, not run by a test: raise %s %s to %s\n", dep.Package, dep.From, dep.To); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  fix closes the problem because: %s\n", oneLine(fix.Why)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  fix advisory %s columns: %s\n  fix advisory row: %s\n", dep.AdvisoryID, strings.Join(dep.AdvisoryColumns, ", "), strings.Join(dep.AdvisoryRow, " | ")); err != nil {
+		return err
+	}
+	return nil
+}
+
+// attemptWord is "attempt" for one and "attempts" for any other number.
+func attemptWord(n int) string {
+	if n == 1 {
+		return "attempt"
+	}
+	return "attempts"
+}
+
+// oneLine folds the line breaks of a model's sentence, so it stays on one line of the review.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // writeEvidence prints the proof under a finding: the test the Prover wrote,
@@ -195,13 +327,13 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		test := evidence.Test
-		if _, err := fmt.Fprintf(w, "  evidence test %s %s fails_on_change=%t passes_on_base=%t\n", test.Path, test.Name, test.FailsOnChange, test.PassesOnBase); err != nil {
+		if _, err := fmt.Fprintf(w, "  evidence test %s %s fails_on_change=%t passes_on_base=%t\n", visible(test.Path), visible(test.Name), test.FailsOnChange, test.PassesOnBase); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  command: %s\n", test.Command); err != nil {
+		if _, err := fmt.Fprintf(w, "  command: %s\n", visible(test.Command)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  output: %s\n", strings.TrimSpace(test.Output)); err != nil {
+		if _, err := fmt.Fprintf(w, "  output: %s\n", visibleLines(strings.TrimSpace(test.Output))); err != nil {
 			return err
 		}
 	case review.EvidenceQuery:
@@ -209,17 +341,17 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		query := evidence.Query
-		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", query.Engine, query.Snapshot); err != nil {
+		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s\n", visible(query.Engine), visible(query.Snapshot)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  SQL: %s\n", query.SQL); err != nil {
+		if _, err := fmt.Fprintf(w, "  SQL: %s\n", visible(query.SQL)); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "  columns: %s\n", strings.Join(query.Columns, ", ")); err != nil {
+		if _, err := fmt.Fprintf(w, "  columns: %s\n", visible(strings.Join(query.Columns, ", "))); err != nil {
 			return err
 		}
 		for _, row := range query.Rows {
-			if _, err := fmt.Fprintf(w, "  row: %s\n", strings.Join(row, " | ")); err != nil {
+			if _, err := fmt.Fprintf(w, "  row: %s\n", visible(strings.Join(row, " | "))); err != nil {
 				return err
 			}
 		}
@@ -244,6 +376,61 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 		}
 	}
 	return nil
+}
+
+// continuationPrefix starts every line after the first of a multi-line field.
+// Every line Proven writes itself starts at column 0 or with exactly two
+// spaces, and none starts with four spaces and a bar, so a line carrying this
+// prefix is always read as the continuation of the field above it.
+const continuationPrefix = "    | "
+
+// visible returns s with every byte that could act on a terminal shown as a
+// visible escape. The byte contract, which ADR-0027 asks to be written once:
+//
+//   - C0 (U+0000 to U+001F), tab and newline included, DEL (U+007F) and C1
+//     (U+0080 to U+009F) are shown as \xNN of the code point, e.g. \x1b, \x09.
+//   - A byte that is not part of valid UTF-8 is shown as \xNN of the original
+//     byte, so what the change held is what the reader sees, not U+FFFD.
+//   - Everything else is written unchanged.
+//
+// Every text the writer prints that can come from the change goes through it,
+// so the change cannot move the cursor, recolour or rewrite the reader's
+// terminal. This is the text writer's contract only: encoding/json escapes C0
+// but leaves DEL and C1 bytes raw, so a JSON or SARIF writer must not assume
+// its encoder covers this range.
+func visible(s string) string {
+	return escapeControls(s, false)
+}
+
+// visibleLines is visible for a field that is several lines long, such as a
+// test's output. Its newlines are kept, and each one is followed by
+// continuationPrefix: otherwise a line inside the field, such as
+// "failed services: none", would be indistinguishable from one Proven wrote.
+func visibleLines(s string) string {
+	return escapeControls(s, true)
+}
+
+func escapeControls(s string, keepNewline bool) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, `\x%02x`, s[i])
+		case r == '\n' && keepNewline:
+			b.WriteString("\n" + continuationPrefix)
+		case isControl(r):
+			fmt.Fprintf(&b, `\x%02x`, r)
+		default:
+			b.WriteString(s[i : i+size])
+		}
+		i += size
+	}
+	return b.String()
+}
+
+func isControl(r rune) bool {
+	return r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f)
 }
 
 // filterFindings keeps the findings at or above min.

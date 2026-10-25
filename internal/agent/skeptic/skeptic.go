@@ -33,7 +33,11 @@ var refuteSpec = answer.Spec{
 
 // Prompt asks for one refutation of a finding.
 func Prompt(id, title string) string {
-	return answer.Instruct(refuteSpec, "id: "+id+"\ntitle: "+title+"\n")
+	// The title is model text shaped by the change, so it enters as data.
+	return answer.Instruct(refuteSpec, answer.Encode(struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}{id, title}))
 }
 
 // row is the refutation as the model returns it. The prompt does not ask for

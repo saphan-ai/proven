@@ -2,7 +2,7 @@
 
 - incident: I07 (an incident of several review rounds; this case is the earliest one reconstructed; later rounds give PV-010 and PV-011)
 - intended fixture language: Go (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built 2026-10-22, declared built inside the build window · checks: run 2026-10-22 · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -83,7 +83,7 @@ receives only those and the description of the change in §1 — never the check
   2^63. Two further findings were shown by planted mutations that stayed green. The reviewer did not show that any
   published note carries such a number (the hole was latent). Its verdict label, accept with conditions, sits oddly
   with a finding it called blocking.
-- Newly reconstructed evidence: none yet; it is built with the case code.
+- Newly reconstructed evidence: the case code and its nine-input output are recorded in §8.
 
 ## 7. Expected outcome
 
@@ -91,8 +91,23 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Toolchain: `go version go1.26.5 linux/amd64` (Go standard library only). Run at 2026-10-23 09:16:00 UTC on Linux.
+
+Command: `bash test/corpus/cases/PV-009/check.sh` (runs base, change and the independent reference on each input). Exit code: 0.
+
+The repository requires Go 1.26 or later. On a host with an older Go, `GOTOOLCHAIN=auto` may download the required toolchain and needs network access. The literal command has not been run on macOS; its exit code and output there are unverified.
+
+```text
+one-current base=pass change=pass reference=pass
+one-stale base=fail:LANGUAGES 41 -> 43 change=fail:LANGUAGES 41 -> 43 reference=fail:LANGUAGES 41 -> 43
+stale-after-current base=pass change=fail:LANGUAGES 41 -> 42; 42 -> 43 reference=fail:LANGUAGES 41 -> 42; 42 -> 43
+current-after-stale base=fail:LANGUAGES 41 -> 43; 43 -> 42 change=fail:LANGUAGES 41 -> 43; 43 -> 42 reference=fail:LANGUAGES 41 -> 43; 43 -> 42
+three-pairs base=pass change=fail:LANGUAGES 40 -> 42; 41 -> 42; 42 -> 43 reference=fail:LANGUAGES 40 -> 42; 41 -> 42; 42 -> 43
+no-arrow base=pass change=pass reference=pass
+max-int64 base=fail:LANGUAGES 41 -> 9223372036854775807 change=fail:LANGUAGES 41 -> 9223372036854775807 reference=fail:LANGUAGES 41 -> 9223372036854775807
+overflow-int64 base=pass change=pass reference=fail:LANGUAGES 41 -> 9223372036854775808
+twenty-digits base=pass change=pass reference=fail:LANGUAGES 41 -> 10000000000000000000
+```
 
 ## 9. Limits
 

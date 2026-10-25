@@ -118,6 +118,10 @@ type Refutation struct {
 	Attempted bool   `json:"attempted"`
 	Refuted   bool   `json:"refuted"`
 	Reason    string `json:"reason"`
+	// Evidenced is set only when the refutation carries evidence of its own: a
+	// refuting test or contradicting query rows. Refuted alone is the model's
+	// word, and a store never learns from it.
+	Evidenced bool `json:"evidenced,omitempty"`
 }
 
 // Writer appends events to logs/trace.jsonl.

@@ -75,6 +75,19 @@ func Compare(a, b string) (int, bool) {
 	return av.cmp(bv), true
 }
 
+// Explain says why value is not a semantic version.
+// kind names the bound the value came from, and is empty for the package's
+// own version. The bool is true when Parse accepts value.
+func Explain(kind, value string) (string, bool) {
+	if _, ok := Parse(value); ok {
+		return "", true
+	}
+	if kind == "" {
+		return value + " is not a semantic version", false
+	}
+	return kind + " " + value + " is not a semantic version", false
+}
+
 // cmp orders two versions by SemVer precedence: the numbers first, then a
 // release above any of its pre-releases, then the pre-release identifiers
 // one by one. A numeric identifier is below a word; numbers compare as
