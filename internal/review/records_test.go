@@ -159,6 +159,27 @@ func TestFailedRecordsAreNamedAndLeaveNoLink(t *testing.T) {
 	}
 }
 
+// TestUncheckedViewerIsNamed proves a review with records and a link base but
+// no read-only account does not show its links without a word: a failed service
+// named couchdb says the link was not checked, and the records and links are
+// still made. The mutated line is the `rc.reader == nil` branch in publish:
+// removed, the failed service is gone and the test fails.
+func TestUncheckedViewerIsNamed(t *testing.T) {
+	c := &recordedCouch{page: store.ViewerPage()}
+	rc := testRecorder(c, "http://couch.test:5984")
+	rc.reader = nil
+	res := Result{Findings: sampleFindings()}
+	rc.publish(context.Background(), Request{HeadCommit: "0123456789abcdef"}, &res)
+	if len(res.FailedServices) != 1 || res.FailedServices[0].Service != "couchdb" || !strings.Contains(res.FailedServices[0].Reason, "not checked") {
+		t.Fatalf("failed services %v", res.FailedServices)
+	}
+	for _, f := range res.Findings {
+		if f.EvidenceRecordURL == "" {
+			t.Fatalf("finding %s has no link", f.ID)
+		}
+	}
+}
+
 // TestRecordOfCopiesTheEvidenceAndNamesItsKeys proves a finding's record holds
 // the query as it ran with its rows, the test command with its base and change
 // result, and the CVE and package its rows name.

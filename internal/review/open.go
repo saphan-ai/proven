@@ -296,7 +296,7 @@ func openRecorder(opts Options) (*recorder, error) {
 		now:      time.Now,
 	}
 	// The read-only account is the one the viewer is opened with. When it is not configured the
-	// viewer cannot be checked, and the link is shown unchecked.
+	// viewer cannot be checked, and the link is shown unchecked with a failed service that says so.
 	if cfg, cerr := store.LoadCouch(env); cerr == nil {
 		rc.reader = store.NewCouchDB(cfg, opts.recordsClient)
 	}

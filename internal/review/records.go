@@ -30,7 +30,7 @@ type recorder struct {
 	// reader opens the viewer page as the read-only account, to see that the
 	// reader's own account is served it before a link to it is shown. It is
 	// nil when the read-only account is not configured, and the link is then
-	// shown unchecked.
+	// shown unchecked, with a failed service that says so.
 	reader *store.CouchDB
 	// linkBase is PROVEN_EVIDENCE_LINK_BASE_URL; empty means no link.
 	linkBase string
@@ -62,7 +62,11 @@ func (rc *recorder) publish(ctx context.Context, req Request, res *Result) {
 	if rc.linkBase == "" {
 		return
 	}
-	if rc.reader != nil {
+	if rc.reader == nil {
+		// The link is shown, but the page could not be checked as the read-only account because
+		// that account is not configured. Say so, so a reader is not left to find out by a dead link.
+		res.FailedServices = append(res.FailedServices, ServiceFailure{Service: recordsService, Reason: "viewer: link not checked, the read-only account is not configured"})
+	} else {
 		if cerr := rc.reader.CheckViewer(ctx, rc.writer.Database()); cerr != nil {
 			res.FailedServices = append(res.FailedServices, ServiceFailure{Service: recordsService, Reason: "viewer: " + reasonOf(cerr)})
 			return
