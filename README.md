@@ -34,6 +34,41 @@ Now that fleet takes on something new. At the hackathon it will build **Proven**
 
 Updated every evening. The newest day comes first.
 
+### Day four, 25 October
+
+Day four of six. **Twenty-three more changes were merged**, 91 in four days.
+
+**NVIDIA's model now writes Proven's code, not only reviews it.** NVIDIA made its hosted API free for us, and the fleet
+added NVIDIA executor seats beside the Cursor, Claude and OpenAI ones. The first piece of Proven written by Nemotron, a
+small, tested example of a model-provider adapter, took 16 minutes and is merged (`3beaaab`). Thank you, NVIDIA.
+
+**A pull request that fixes itself** ([ADR-0050](docs/adr/ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md)).
+After a review, Proven makes one fix attempt for every proved finding, judges it only by the same tests and queries that
+proved the findings, and ends with "fixed automatically, waiting for a person" or "rejected". Proven never commits to
+the author's branch. The review result now carries the patch and the verdict; the pull-request comment shows them next.
+
+What else came in today:
+- **Proven as a GitHub Action**, so it can run on every pull request of a repository.
+- **One signed evidence pack per review**, and an **organisation policy** that sets the floor for every repository.
+- **Each agent sees only the evidence its role allows**, set in configuration.
+- **A custody check on model answers**: an answer counts only when its signed receipt verifies and names the model that
+  was asked.
+- **Kotlin and Gradle**, the third language added as one small adapter, and **four small, tested adapter examples** in
+  [`examples/`](examples/).
+- **Evidence in CouchDB as well as Zetaris**, with a read-only viewer of a review's evidence records.
+- **More evidence through Zetaris**: packages published to do harm, and project health.
+- **A review you can watch**: OpenTelemetry traces and metrics, with a Grafana dashboard in the judges' lab.
+- **The level of proof in JSON and SARIF**, so a pipeline can tell a proved finding from an opinion.
+- **The documentation site** is built, served from its own container; its public address comes with the next update.
+- **The held-out test set**: six cases frozen before Proven ever ran on them.
+
+**How the fleet got faster.** The median time from an order's signature to its agent starting work fell from 220
+minutes on 22 October to 74, then 32, then 21 today. By midday the agents had exchanged 165 messages among themselves;
+of the 40 that required an answer, 31 were answered, with a median of 9.3 minutes. The day's log shows how they talk:
+[CONVERSATION_2026-10-25_advisor.md](hackathon/planning/CONVERSATION_2026-10-25_advisor.md).
+
+**The hardware**, all of it in one home office, no cloud: [SAPHAN.md](hackathon/SAPHAN.md#the-hardware-this-fleet-runs-on).
+
 ### Day three, extra time: three model families, one commit
 
 Just after midnight UTC, NVIDIA's Nemotron returned its first review in the fleet. The change was the held-out test set:
@@ -129,24 +164,25 @@ What else came in today:
 
 Each day, what lands moves from this list to the day's summary.
 
+- **NVIDIA's models, already local.** Today NVIDIA's safety model runs on our own AMD Ryzen AI Max+ 395 machine with 128 GB of memory and checks every prompt and answer of Proven's reviews, while Nemotron reviews and writes code through NVIDIA's API. A DGX Spark is the same class of machine, built on NVIDIA's own silicon: on it the same fleet could run Nemotron for reviewing and coding locally beside the guardrail, tune NeMo Guardrails on the fleet's own record of what it refused and why, and keep every line of code in the room.
 - **A score anyone can recompute, on two sets**: one command runs Proven over the cases it was built on and, separately, over a held-out set frozen before Proven ever saw it; the two scores are never merged into one number.
 - **Each review planned before a model runs**: Meterless's Scout Intent reads the change first; a documentation-only change runs no model, a dependency bump skips the test writer, a security-sensitive change is reviewed twice. Kept only if it saves cost and loses no finding ([ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
 - **Extending Proven, documented with examples**: a worked, tested example for every kind of adapter (a model provider, the guardrail, a reviewer, a language, a tool, a data source, an output format), and the documentation as a site at proven.saphan.ai.
 - **The coding sessions, published**: excerpts of the Cursor agents' recorded sessions next to the change they built, each tied to its original by a hash ([ADR-0024](docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md)).
 - **Run Proven live with a single free NVIDIA key** ([ADR-0031](docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
 - **Reports people can read**, in HTML and Markdown, next to JSON and SARIF for machines ([ADR-0033](docs/adr/ADR-0033-the-text-review-is-written-for-a-person.md)).
-- **Comments on the pull request**, in GitHub and in Gitea, and a GitHub Action to add Proven to any pipeline.
-- **More sources**: packages published on purpose to do harm, project health, severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)), and **your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
-- **More languages**: Java, C# and Ruby, after PHP and Rust, through the same small adapter ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
+- **A readable comment on the pull request**, in GitHub and in Gitea, with a plain-language summary first and the automated fix as suggested changes.
+- **More sources**: severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)), and **your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
+- **More languages**: Java, C# and Ruby, after PHP, Rust and Kotlin, through the same small adapter ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
 - **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
-- **Features for compliance audits**: a signed record of every review that an auditor can check ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)).
-- **One security policy for a whole organisation**, and accepted risks that expire ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
+- **An evidence pack an auditor can check offline**: `proven verify` re-derives every finding from the recorded evidence instead of trusting the stored verdict ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)).
+- **Accepted risks that expire**, shown in every output, on top of today's organisation policy ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
 - **Watch a review live**: a dashboard of the agents and the two reviewers working side by side, their verdicts and where they disagree; the numbers go to any monitoring you already use, through OpenTelemetry ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
 - **Large pull requests at a flat cost**: the review goes file by file and carries only what it has established, using Meterless's Markovian engine. Saphan Studio has its own, patent pending; for the hackathon we use Meterless's. We keep it only if it finds the same problems for less ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md)).
 - **NVIDIA's model in every review of the fleet's work**, beside OpenAI's and Anthropic's, now that its first review is in.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 
-Three days to go.
+Two days to go.
 
 ### Day one, 22 October
 
@@ -284,6 +320,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
 | 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding given a level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. [What shipped, in a terminal](hackathon/SHIPPED_DAY_3.md). |
+| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 23 changes merged: NVIDIA's Nemotron writes its first Proven code, one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 
