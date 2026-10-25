@@ -150,10 +150,10 @@ if [ "$comment" = true ] && [ -f "$workspace/$sarif_file" ]; then
   postrc=0
   (
     cd "$workspace"
-    # reviewdog's API base: GITHUB_API for GitHub Enterprise Server, GITEA_API_URL for
-    # Gitea; on github.com the runner's GITHUB_API_URL is reviewdog's default anyway.
-    if [ "$reporter" = gitea-pr-review ]; then export GITEA_API_URL="${GITHUB_SERVER_URL:-}"; fi
-    if [ -n "${GITHUB_API_URL:-}" ]; then export GITHUB_API="$GITHUB_API_URL/"; fi
+    # reviewdog 0.21.2 reads the Gitea server from GITEA_ADDRESS and refuses
+    # without it (cmd/reviewdog/main.go, giteaService); on GitHub and GitHub
+    # Enterprise Server it reads the runner's own GITHUB_API_URL.
+    if [ "$reporter" = gitea-pr-review ]; then export GITEA_ADDRESS="${GITHUB_SERVER_URL:-}"; fi
     REVIEWDOG_GITHUB_API_TOKEN=$token REVIEWDOG_GITEA_API_TOKEN=$token \
       "$reviewdog" -f=sarif -name=proven "-reporter=$reporter" -fail-level=none <"$sarif_file"
   ) || postrc=$?

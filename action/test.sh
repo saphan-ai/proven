@@ -176,7 +176,7 @@ cat >"$tmp/reviewdog.sh" <<'EOF'
 for a in "$@"; do printf '%s\n' "$a"; done >"$RD_ARGS"
 cat >"$RD_STDIN"
 printf '%s|%s\n' "${REVIEWDOG_GITHUB_API_TOKEN:-}" "${REVIEWDOG_GITEA_API_TOKEN:-}" >"$RD_TOKEN"
-printf '%s|%s\n' "${GITHUB_API:-}" "${GITEA_API_URL:-}" >"$RD_TOKEN.api"
+printf '%s|%s\n' "${GITHUB_API_URL:-}" "${GITEA_ADDRESS:-}" >"$RD_TOKEN.api"
 exit "${RD_RC:-0}"
 EOF
 chmod +x "$tmp/reviewdog.sh"
@@ -202,10 +202,10 @@ check "comment=true: the token reaches reviewdog" "tok-1|tok-1" "$(cat "$RD_TOKE
 rdrun postgitea INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=https://gitea.example
 check "comment=true on Gitea: reporter" 1 "$(hasarg -reporter=gitea-pr-review)"
 
-check "comment=true on Gitea: reviewdog's API base is the server" "|https://gitea.example" "$(cat "$RD_TOKEN.api")"
+check "comment=true on Gitea: reviewdog is given the server as GITEA_ADDRESS" "|https://gitea.example" "$(cat "$RD_TOKEN.api")"
 
 rdrun postghes INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://ghe.example/api/v3
-check "comment=true on GHES: reviewdog's API base is the runner's" "https://ghe.example/api/v3/|" "$(cat "$RD_TOKEN.api")"
+check "comment=true on GHES: reviewdog reads the runner's GITHUB_API_URL" "https://ghe.example/api/v3|" "$(cat "$RD_TOKEN.api")"
 
 rdrun poststrict INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true
 check "comment=true, strict, findings: still posted" 1 "$(hasarg -reporter=github-pr-review)"
