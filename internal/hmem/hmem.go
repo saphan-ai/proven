@@ -1,5 +1,6 @@
-// Package hmem is the minimum memory store and retrieval service.
-// Dreaming, sleep and conflict resolution are not in this package.
+// Package hmem is the memory store and retrieval service, with sleep
+// (sleep.go), conflict resolution (conflict.go), the trust ledger (ledger.go)
+// and dreaming with approval (dream.go). None of them calls a model.
 //
 // It is the reviewer's memory across pull requests (ADR-0003 point 1), built
 // to the Meterless H-MEM specification (ADR-0018 point 1). In a review it
@@ -93,7 +94,10 @@ type AddInput struct {
 	Origin     string
 	Label      string
 	ChatID     string
-	At         int64
+	// DerivedFrom names the records a synthesized or dreamed record came from.
+	// Sleep never archives a record that carries lineage.
+	DerivedFrom []string
+	At          int64
 }
 
 // RefutationKey names a finding a skeptic refuted on one change. ChangeKey,
@@ -266,6 +270,12 @@ func (s *Store) Generator() generator.Generator { return s.gen }
 func (s *Store) Add(in AddInput) (Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.addLocked(in)
+}
+
+// addLocked is Add for a caller that already holds s.mu: sleep synthesis and
+// an approved dream both create a record inside their own locked step.
+func (s *Store) addLocked(in AddInput) (Record, error) {
 	if strings.TrimSpace(in.Source) == "" {
 		return Record{}, fmt.Errorf("hmem: a record with no source is refused")
 	}
@@ -311,6 +321,10 @@ func (s *Store) Add(in AddInput) (Record, error) {
 		Entities:     extractEntities(in.Content),
 		RelatedTo:    []string{},
 		ChatID:       in.ChatID,
+		DerivedFrom:  append([]string(nil), in.DerivedFrom...),
+	}
+	if len(rec.DerivedFrom) == 0 {
+		rec.DerivedFrom = nil
 	}
 	rec.Namespace = namespace(rec.Domain, rec.Type)
 	// A refused record gives its sequence number back, so ids stay dense.
@@ -491,7 +505,13 @@ func (s *Store) now() int64 {
 // puts seq and saved records back and drops the new ids, so a refused write
 // leaves memory equal to the state file.
 func (s *Store) publish(action, id, actor string, seq int, saved map[string]Record, dropped []string) error {
-	err := s.audit(action, id, actor)
+	return s.publishWith(action, id, actor, nil, seq, saved, dropped)
+}
+
+// publishWith is publish with extra fields on the audit line: the ledger
+// states (previousState, newState) and details a history is rebuilt from.
+func (s *Store) publishWith(action, id, actor string, extra map[string]any, seq int, saved map[string]Record, dropped []string) error {
+	err := s.auditWith(action, id, actor, extra)
 	if err == nil {
 		err = s.persist()
 	}
@@ -525,12 +545,20 @@ func (s *Store) persist() error {
 // audit appends one line to hmem.jsonl and syncs it (ADR-0018 point 3:
 // audit is append-only JSONL in the run's logs).
 func (s *Store) audit(action, id, actor string) error {
-	line := map[string]any{
-		"memoryId":  id,
-		"action":    action,
-		"actor":     actor,
-		"timestamp": s.now(),
+	return s.auditWith(action, id, actor, nil)
+}
+
+// auditWith is audit with extra fields. The four base fields cannot be
+// overwritten by extra, so every line stays readable as a ledger entry.
+func (s *Store) auditWith(action, id, actor string, extra map[string]any) error {
+	line := map[string]any{}
+	for k, v := range extra {
+		line[k] = v
 	}
+	line["memoryId"] = id
+	line["action"] = action
+	line["actor"] = actor
+	line["timestamp"] = s.now()
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)

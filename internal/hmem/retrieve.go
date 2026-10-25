@@ -196,7 +196,10 @@ func (s *Store) Feedback(id, kind string) error {
 		rec.Tags = append(append([]string(nil), rec.Tags...), "review")
 	}
 	s.records[id] = rec
-	if err := s.publish("feedback", id, "retrieval", s.seq, map[string]Record{id: prev}, nil); err != nil {
+	// The ledger keeps the state before and after, so a history can show what
+	// the feedback changed (the trust ledger, Meterless H-MEM section 9.1).
+	states := map[string]any{"previousState": ledgerState(prev), "newState": ledgerState(rec)}
+	if err := s.publishWith("feedback", id, "retrieval", states, s.seq, map[string]Record{id: prev}, nil); err != nil {
 		return err
 	}
 	return nil
