@@ -3,7 +3,8 @@ package review
 // This file reads proven.yaml, the reviewer's own settings (ADR-0013): the timeout, the two reviewer
 // models (ADR-0009, ADR-0010), the family table and author sources (ADR-0011), and the class rules
 // (ADR-0014), the two settings of proposed fixes: whether they are made and how many attempts one
-// gets (ADR-0042), and the query templates the Investigator and the Skeptic may each ask (ADR-0013).
+// gets (ADR-0042), the three settings of the one whole-change fix attempt: whether it is made, which
+// generator writes its patch and how long it may take (ADR-0050), and the query templates the Investigator and the Skeptic may each ask (ADR-0013).
 // Every key is closed: an unknown key or value is refused with the values allowed.
 
 import (
@@ -35,6 +36,19 @@ const (
 // allowedFixAttempts is the value list a refused fix_attempts names.
 const allowedFixAttempts = "a whole number from 1 to 5"
 
+// The settings of the whole-change fix attempt (ADR-0050 point 6). It is off unless a setting turns it
+// on, and the judges' lab turns it on; the generator is the review's own unless the second one is named;
+// and the attempt has a time limit that is never zero, because an attempt that may run for ever is not one.
+const (
+	// The generator names of autofix_generator: the review's own generator (NVIDIA's Nemotron by
+	// default, ADR-0019) or the second reviewer's (ADR-0037).
+	autofixGeneratorDefault = "default"
+	autofixGeneratorSpecial = "special"
+	defaultAutofixTimeout   = 10 * time.Minute
+	allowedAutofixGenerator = "default or special"
+	allowedAutofixTimeout   = "a Go duration greater than zero, for example 90s or 10m"
+)
+
 // configKeys is the closed key set, in the order a refusal lists them.
 var configKeys = []string{
 	"timeout",
@@ -52,6 +66,9 @@ var configKeys = []string{
 	"raise_class",
 	"fixes",
 	"fix_attempts",
+	"autofix",
+	"autofix_generator",
+	"autofix_timeout",
 	"investigator_templates",
 	"skeptic_templates",
 }
@@ -78,6 +95,11 @@ type fileSettings struct {
 	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
 	Fixes       bool
 	FixAttempts int
+	// Autofix turns the one whole-change fix attempt on or off, AutofixGenerator names the generator
+	// that writes its patch and AutofixTimeout is the time limit of the attempt (ADR-0050 point 6).
+	Autofix          bool
+	AutofixGenerator string
+	AutofixTimeout   time.Duration
 	// InvestigatorScope and SkepticScope are the query templates each of the two roles that can ask a
 	// store may ask (ADR-0013). Nil is every template: an unset key narrows nothing.
 	InvestigatorScope querytpl.Scope
@@ -129,6 +151,10 @@ func defaultSettings() fileSettings {
 		// ADR-0042: proposed fixes are on by default, with one try and one retry.
 		Fixes:       true,
 		FixAttempts: defaultFixAttempts,
+		// ADR-0050 point 6: the whole-change attempt is off until measured. The judges' lab turns it on.
+		Autofix:          false,
+		AutofixGenerator: autofixGeneratorDefault,
+		AutofixTimeout:   defaultAutofixTimeout,
 	}
 }
 
@@ -370,10 +396,14 @@ func allowedText(key string) string {
 	switch key {
 	case configKeyTimeout:
 		return allowedTimeout
-	case "author_commit_trailers", "author_description", "raise_class", "fixes":
+	case "author_commit_trailers", "author_description", "raise_class", "fixes", "autofix":
 		return "on, off"
 	case "fix_attempts":
 		return allowedFixAttempts
+	case "autofix_generator":
+		return allowedAutofixGenerator
+	case "autofix_timeout":
+		return allowedAutofixTimeout
 	case "fallback_class", "doubled_classes", "class_order", "path_rules":
 		return strings.Join(classNames(), ", ")
 	case "families":
@@ -511,6 +541,26 @@ func applyKey(cfg *fileSettings, key, val string) error {
 			return configRefused(key, val, "not a number of attempts in range", allowedFixAttempts)
 		}
 		cfg.FixAttempts = n
+		return nil
+	case "autofix":
+		on, err := parseOnOff(key, val)
+		if err != nil {
+			return err
+		}
+		cfg.Autofix = on
+		return nil
+	case "autofix_generator":
+		if val != autofixGeneratorDefault && val != autofixGeneratorSpecial {
+			return configRefused(key, val, "not a generator name", allowedAutofixGenerator)
+		}
+		cfg.AutofixGenerator = val
+		return nil
+	case "autofix_timeout":
+		d, err := time.ParseDuration(val)
+		if err != nil || d <= 0 {
+			return configRefused(key, val, "not a Go duration greater than zero", allowedAutofixTimeout)
+		}
+		cfg.AutofixTimeout = d
 		return nil
 	case "investigator_templates", "skeptic_templates":
 		scope, err := parseTemplateScope(key, val)

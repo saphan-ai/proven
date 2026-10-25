@@ -312,6 +312,14 @@ func (o Off) Run(ctx context.Context, _ Request) (Outcome, error) {
 	return Outcome{}, &service.Down{Service: "prover", Reason: o.Reason}
 }
 
+// RunBreakage reports the Prover down and starts nothing, as Run does.
+func (o Off) RunBreakage(ctx context.Context, _ BreakageRequest) (BreakageOutcome, error) {
+	if err := ctx.Err(); err != nil {
+		return BreakageOutcome{}, err
+	}
+	return BreakageOutcome{}, &service.Down{Service: "prover", Reason: o.Reason}
+}
+
 // RunFix reports the Prover down and starts nothing, as Run does.
 func (o Off) RunFix(ctx context.Context, _ FixRequest) (FixOutcome, error) {
 	if err := ctx.Err(); err != nil {
