@@ -32,7 +32,7 @@ A container action runs on Linux runners only: a macOS or Windows runner runs th
 | `comment` | `false` | `true` posts the review on the pull request through reviewdog ([below](#the-comment)); `false` posts nothing and reads no token; with either value the scan itself runs with no token in its environment |
 | `github-token` | the workflow's token (`github.token`) | the token reviewdog posts with; read only when `comment` is `true` |
 
-`github-token` is an input beyond the eleven ADR-0020 §3 lists: §7 says the comment is posted through reviewdog, and reviewdog needs a token. The ADR owes an amendment.
+`github-token` is the twelfth input: ADR-0020 §3 gained it on 2026-10-25, because §7 posts the comment through reviewdog and reviewdog needs a token.
 
 `true` and `false` are the only values `strict`, `sample-mode` and `comment` take; any other value, and any other `output-format`, ends the step with exit 2 and a message naming the input.
 
