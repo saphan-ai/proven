@@ -52,7 +52,11 @@ CREATE SCHEMASTORE VIEW px_epss_score WITH CONTAINER px_usl AS
 SELECT cve_id, epss, percentile, score_date
 FROM px_evidence.px_epss_cve_rows;
 
--- RELATIONS. One row per package range, with what follows from it.
+-- RELATIONS. One row per package range, per alias of its advisory, per EPSS score date. That is the grain: the
+-- relation view does not collapse aliases or score dates, it shows each one, so a package range with two aliases
+-- is two rows. A package range with no advisory row, an alias that is not a CVE and a CVE with no score are each
+-- one row with empty columns. The grain assumes px_kev_cve holds one row per CVE; a repeated KEV row repeats the
+-- rows of that CVE. docs/ZETARIS_USL.md, "The grain of the relation view".
 -- package has advisories:  px_package.id = px_advisory.id
 -- advisory names CVEs:     px_advisory.alias = cve id
 -- CVE may be in KEV:       cve id = px_kev_cve.cve_id
@@ -65,7 +69,7 @@ FROM px_evidence.px_epss_cve_rows;
 -- tolerate: exist
 DROP SCHEMASTORE VIEW px_package_evidence FROM px_usl;
 CREATE SCHEMASTORE VIEW px_package_evidence WITH CONTAINER px_usl AS
-SELECT p.ecosystem AS ecosystem, p.package AS package, p.id AS advisory_id, p.introduced AS introduced, p.fixed AS fixed, a.alias AS cve_id, k.date_added AS kev_date_added, k.known_ransomware AS kev_known_ransomware, e.epss AS epss, e.percentile AS epss_percentile
+SELECT p.ecosystem AS ecosystem, p.package AS package, p.id AS advisory_id, p.introduced AS introduced, p.fixed AS fixed, a.alias AS cve_id, k.date_added AS kev_date_added, k.known_ransomware AS kev_known_ransomware, e.epss AS epss, e.percentile AS epss_percentile, e.score_date AS epss_score_date
 FROM px_usl.px_package p
 LEFT JOIN px_usl.px_advisory a ON p.id = a.id
 LEFT JOIN px_usl.px_kev_cve k ON a.alias = k.cve_id

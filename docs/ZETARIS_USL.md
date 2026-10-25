@@ -28,7 +28,7 @@ our build, so none of it is used.
 
 Each entity view keeps the column names of its source, so the template SQL is the same text with another name in `FROM`.
 
-The relations are in `px_usl.px_package_evidence`, one row per package range:
+The relations are in `px_usl.px_package_evidence`. Its grain is described under "The grain of the relation view" below:
 
 | Relation | Join key |
 |---|---|
@@ -40,6 +40,19 @@ The relations are in `px_usl.px_package_evidence`, one row per package range:
 Every join is a `LEFT JOIN`. A join is an inner join by default, and an inner join drops a CVE that has no KEV row, which
 reads as "not exploited". Proven does not read this view; it is for people and tools that ask the layer a question of
 their own.
+
+### The grain of the relation view
+
+One row is one package range, one alias of its advisory and one EPSS score date. The view does not collapse aliases or
+score dates; it shows each. So a range whose advisory has three aliases is three rows, and a CVE with two score dates
+doubles the rows of its alias. A range with no advisory row, an alias that is not a CVE (`GHSA-…`, `GO-…`) and a CVE with
+no score are each one row with empty columns. The view adds `epss_score_date`, so a reader can tell the rows of one CVE
+apart. To count package ranges, count distinct `(ecosystem, package, advisory_id, introduced, fixed)`; to read the latest
+score, filter on the greatest `epss_score_date` of the CVE. The grain assumes `px_kev_cve` has one row per CVE: a
+repeated KEV row repeats the rows of that CVE.
+
+`TestRelationViewGrainIsPerAliasPerScoreDate` checks this on a fixture with two aliases and two score dates. It runs the
+view's own SELECT in `python3`'s sqlite3, not in Zetaris, and is skipped without `python3`.
 
 The other four templates (`mal-by-package`, `scorecard-by-package`, `cvss-by-cve`, `spdx-by-package`) are not served.
 Their table names are the source adapters' own and are not settings ([QUERIES.md](QUERIES.md)), and the order for this
@@ -74,8 +87,9 @@ nothing about a row the source publishes later. A count that cannot be read is a
 
 The registration is the administrator's act: Proven's own key is refused for it (ADR-0023, point 2). The script reads the
 Zetaris address, the numeric organisation id and the key from the environment, with the names
-[CONFIGURATION.md](CONFIGURATION.md) lists for Zetaris. It takes no argument and no file. It prints none of the three,
-and it hands the key to `curl` on a pipe, so it is never on a command line.
+[CONFIGURATION.md](CONFIGURATION.md) lists for Zetaris. It takes no argument and no file. It prints none of the three:
+the key and the organisation id are removed from every refusal and every transport error before it is shown (`[key]`, `[org]`).
+It hands the key to `curl` on a pipe, so it is never on a command line.
 
 1. Source the settings of the **administrator** in your shell, from the mode 600 file that holds them. Never put them in a repository.
 2. Read what would be sent: `DRY=1 sh lab/zetaris/usl/apply.sh`. It sends nothing and needs no setting.
@@ -98,7 +112,7 @@ To go back, unset the four settings. The defaults read the sources directly.
 | 2 | a setting is missing or malformed; nothing was sent |
 | 3 | Zetaris refused a call; the refusal is printed without the key; the layer may be half applied |
 | 4 | the gate returned rows; Proven is not pointed at the layer |
-| 5 | the gate's answer could not be read; Proven is not pointed at the layer |
+| 5 | the gate's answer could not be read, or `python3` is not on the path; Proven is not pointed at the layer |
 
 `DRY` is read by this script only. It is not a Proven setting.
 
@@ -119,7 +133,9 @@ Parity means Proven gets the same rows through the layer as it gets without it.
 4. Run `apply.sh` again. It replaces the views and runs the gate again.
 5. Until it exits 0, leave Proven's four settings unset. A layer that is already applied is not in use until they are set.
 
-Exit 5 means the gate's answer had no readable count. Read what Zetaris returned for the query: `DRY=1` prints the exact text, and the SQL editor of the console runs it. Exit 3 names the statement Zetaris refused; its refusal is printed.
+Exit 5 means the gate's answer was not exactly the expected shape: a JSON object with `headers` of one name (`violations`),
+`data` of exactly one row with one non-negative whole number, and no `error`, `errors`, `exception`, `message` or `msg`
+field. Anything else, including a count beside an error field, is not a pass, and the message names what was wrong. Read what Zetaris returned for the query: `DRY=1` prints the exact text, and the SQL editor of the console runs it. Exit 3 names the statement Zetaris refused; its refusal is printed.
 
 ## What was not run
 
