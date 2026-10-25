@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/cli"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 func TestRefutedScenarioDropsTheFinding(t *testing.T) {
@@ -140,6 +141,84 @@ func TestUnknownAuthorSaysTheDefaultReviewer(t *testing.T) {
 	}
 	if strings.Contains(body, "from commit") || strings.Contains(body, "from description") || strings.Contains(body, "\nfinding ") {
 		t.Fatalf("stdout\n%s", body)
+	}
+}
+
+// TestMaliciousPackageReportsTheAdvisory proves a raised package with a
+// MAL- row is a finding. An empty row list is not evidence: the mutated
+// line is the empty-list return in malAdapter.Rule, in
+// internal/querytpl/adr0039.go. Making that return accept the empty list
+// turns the check below red.
+func TestMaliciousPackageReportsTheAdvisory(t *testing.T) {
+	body, _ := scanScenario(t, "malicious-package")
+	for _, want := range []string{
+		"finding F1 ERROR Dependency evil.example/drop was published to do harm",
+		"SELECT id, ecosystem, package, summary FROM px_evidence.px_mal_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/drop'",
+		"row: MAL-2024-1001 | Go | evil.example/drop | published to take credentials",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+	ad, ok := source.ByID("mal")
+	if !ok {
+		t.Fatal("mal adapter is not registered")
+	}
+	if _, ruled := ad.Rule(source.Evidence{SQL: "SELECT 1", Rows: nil}); ruled {
+		t.Fatal("an empty row list was evidence")
+	}
+}
+
+// TestProjectHealthReportsNoMaintainers proves a raised package whose
+// maintained score is 0 is a finding. The mutated field is that score:
+// a maintained, signed, old release is not this finding.
+func TestProjectHealthReportsNoMaintainers(t *testing.T) {
+	body, _ := scanScenario(t, "project-health")
+	for _, want := range []string{
+		"finding F1 ERROR Dependency evil.example/young has no maintainers",
+		"SELECT ecosystem, package, maintained, signed, release_age_days FROM px_evidence.px_scorecard WHERE ecosystem = 'Go' AND package = 'evil.example/young'",
+		"row: Go | evil.example/young | 0 | true | 400",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+}
+
+// TestCVSSScoreSitsBesideEPSS proves a CVE the change is affected by shows
+// its CVSS row and the EPSS score of the same CVE on one finding. The
+// mutated field is the CVE id.
+func TestCVSSScoreSitsBesideEPSS(t *testing.T) {
+	body, _ := scanScenario(t, "cvss-score")
+	for _, want := range []string{
+		"finding F1 ERROR CVE-2026-7777 severity is critical",
+		"EPSS 0.15000 (80th percentile, 2026-10-25)",
+		"SELECT cve_id, cvss_score, severity, source FROM px_evidence.px_cvss_cve WHERE cve_id = 'CVE-2026-7777'",
+		"row: CVE-2026-7777 | 9.8 | CRITICAL | nvd",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+}
+
+// TestSPDXLicenceReportsADisallowedLicence proves a raised package whose
+// licence is outside the permissive set is a finding. The mutated field is
+// the licence cell.
+func TestSPDXLicenceReportsADisallowedLicence(t *testing.T) {
+	body, _ := scanScenario(t, "spdx-licence")
+	for _, want := range []string{
+		"finding F1 ERROR Dependency evil.example/copyleft has a licence the policy does not allow",
+		"SELECT ecosystem, package, licence FROM px_evidence.px_spdx_lic WHERE ecosystem = 'Go' AND package = 'evil.example/copyleft'",
+		"row: Go | evil.example/copyleft | GPL-3.0-only",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
 	}
 }
 

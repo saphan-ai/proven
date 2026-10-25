@@ -12,6 +12,10 @@ var formRequests = []Request{
 	{Template: OSVByAdvisory, Params: map[string]string{ParamAdvisoryID: "GHSA-aaaa-bbbb-cccc"}},
 	{Template: KEVByCVE, Params: map[string]string{ParamCVEID: "CVE-2021-44228"}},
 	{Template: EPSSByCVE, Params: map[string]string{ParamCVEID: "CVE-2021-44228"}},
+	{Template: MalByPackage, Params: map[string]string{ParamEcosystem: "Go", ParamPackage: "evil.example/drop"}},
+	{Template: ScorecardByPackage, Params: map[string]string{ParamEcosystem: "Go", ParamPackage: "evil.example/young"}},
+	{Template: CVSSByCVE, Params: map[string]string{ParamCVEID: "CVE-2026-7777"}},
+	{Template: SPDXByPackage, Params: map[string]string{ParamEcosystem: "Go", ParamPackage: "evil.example/copyleft"}},
 }
 
 // selectList returns the column names of a SELECT built by this package.

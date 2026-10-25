@@ -138,9 +138,13 @@ A source adapter feeds the evidence store and plugs into the decision ([ADR-0046
 3. **Its rule.** What a returned row means. Rows that mean a finding become evidence: the query and those rows. Rows that mean nothing are not evidence. The Judge decides, as it does for any other finding. On the Investigator's path the rule of the adapter that owns the template decides whether the rows become evidence.
 4. **A sample table and a test.** The test adds the adapter by registering it.
 
-The type is `Adapter` in `internal/source`. The built-in adapters are OSV, KEV and EPSS, in that order. OSV owns `osv-by-package` and `osv-by-advisory`. KEV owns `kev-by-cve`. EPSS owns `epss-by-cve`. Their query text stays in `internal/querytpl`, beside the check that refuses a value outside its format. `internal/source` does not import `internal/querytpl`. The catalogue reads the registry, so the import goes the other way.
+The type is `Adapter` in `internal/source`. The built-in adapters are OSV, KEV, EPSS, then the four of [ADR-0039](adr/ADR-0039-more-evidence-sources.md): malicious packages (`mal`), project health (`scorecard`), CVSS (`cvss`) and SPDX licences (`spdx`), in that order. OSV owns `osv-by-package` and `osv-by-advisory`. KEV owns `kev-by-cve`. EPSS owns `epss-by-cve`. `mal` owns `mal-by-package`. `scorecard` owns `scorecard-by-package`. `cvss` owns `cvss-by-cve`. `spdx` owns `spdx-by-package`. Their query text stays in `internal/querytpl`, beside the check that refuses a value outside its format. `internal/source` does not import `internal/querytpl`. The catalogue reads the registry, so the import goes the other way.
 
-OSV, KEV and EPSS are not loaded by this program. An administrator puts the table where the store can read it. A finding cites the date the store stamps on the read. The load's own snapshot date is empty for those three, because this program did not load them.
+None of these is loaded by this program. An administrator puts the table where the store can read it. A finding cites the date the store stamps on the read. The load's own snapshot date is empty, because this program did not load the table.
+
+A malicious-package row is evidence only when its advisory id starts with `MAL-`. A project-health row is evidence when maintainers score `0`, releases are unsigned (`signed` is `false`), or `release_age_days` is under 14. A CVSS row is a severity score and is evidence; the Investigator's finding then receives the EPSS score of the same CVE, so the two sit on one finding. A licence row is evidence when the `licence` cell is outside a closed permissive set (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Unlicense). The cell is compared whole. That set stands in for an organisation policy, which this program does not store. A missing table is a down source named for the store, on the local store, on Zetaris and on CouchDB.
+
+The sample scenarios are `testdata/fixture/malicious-package`, `testdata/fixture/project-health`, `testdata/fixture/cvss-score` and `testdata/fixture/spdx-licence`. Each scenario's test fails when that finding is absent from the review. The malicious-package test also fails when an empty row list is treated as evidence.
 
 The OSV rule does not decide the dependency finding. A returned row is an advisory range. The dependency check compares the change's version, and a version outside every range is a trace line, not a finding. The rule does not see the version. KEV and EPSS use their rules: a row is evidence, and no row is not.
 
@@ -160,7 +164,7 @@ The rule is: a row means the package is banned, and the evidence is that query a
 
 The columns of the sample table are `name` and `reason`. One sample row is `left-pad` with reason `not allowed`.
 
-The test `TestAddedSourceShowsItsTemplateItsQueryAndItsRule` registers this adapter, sees `banned-by-package` in the catalogue, runs the query on the local store, and checks that the rule returns the row. It also queries `right-pad`, which is not in the table, and checks that the rule returns nothing. Taking `bannedPackage` out of the added list makes that test fail. The adapter is not one of the built-in sources. Adding a new public source is a later change. There is no plugin loader: `Register` is the door, and this program calls it from the test.
+The test `TestAddedSourceShowsItsTemplateItsQueryAndItsRule` registers this adapter, sees `banned-by-package` in the catalogue, runs the query on the local store, and checks that the rule returns the row. It also queries `right-pad`, which is not in the table, and checks that the rule returns nothing. Taking `bannedPackage` out of the added list makes that test fail. The adapter is not one of the built-in sources. There is no plugin loader: `Register` is the door, and this program calls it from the test.
 
 ## The evidence store
 

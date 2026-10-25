@@ -13,6 +13,10 @@ var (
 	osvAdvisoryColumns = []string{"id", "alias", "published", "severity"}
 	kevColumns         = []string{"cve_id", "vendor_project", "product", "date_added", "known_ransomware"}
 	epssColumns        = []string{"cve_id", "epss", "percentile", "score_date"}
+	malColumns         = []string{"id", "ecosystem", "package", "summary"}
+	scorecardColumns   = []string{"ecosystem", "package", "maintained", "signed", "release_age_days"}
+	cvssColumns        = []string{"cve_id", "cvss_score", "severity", "source"}
+	spdxColumns        = []string{"ecosystem", "package", "licence"}
 )
 
 // Find is one template built as a CouchDB Mango query (ADR-0047).
@@ -58,11 +62,37 @@ func buildFind(name string, params map[string]string, rel Relations) (Find, erro
 		return cveFind(name, rel.KEVView, params[ParamCVEID], kevColumns)
 	case EPSSByCVE:
 		return cveFind(name, rel.EPSSView, params[ParamCVEID], epssColumns)
+	case MalByPackage:
+		return packageFind(name, DefaultMalTable, params, malColumns)
+	case ScorecardByPackage:
+		return packageFind(name, DefaultScorecardTable, params, scorecardColumns)
+	case CVSSByCVE:
+		return cveFind(name, DefaultCVSSTable, params[ParamCVEID], cvssColumns)
+	case SPDXByPackage:
+		return packageFind(name, DefaultSPDXTable, params, spdxColumns)
 	default:
 		// ADR-0046: a template a source adapter registered carries the sql
 		// form only, so it has no Mango form and the CouchDB store names it.
 		return Find{}, nil
 	}
+}
+
+// packageFind builds the query of a template that reads one package.
+// The ecosystem and the package are held to the same spelling osvKey uses,
+// so a PyPI name and a Packagist name match the sql form.
+func packageFind(name, table string, params map[string]string, fields []string) (Find, error) {
+	if !ValidRelation(table) {
+		return Find{}, &Refusal{Reason: ReasonBadRelation, Detail: name}
+	}
+	eco, pkg, err := ecosystemKey(name, params[ParamEcosystem], params[ParamPackage])
+	if err != nil {
+		return Find{}, err
+	}
+	return Find{
+		Table:    table,
+		Selector: map[string]string{"ecosystem": eco, "package": pkg},
+		Fields:   fields,
+	}, nil
 }
 
 // cveFind builds the query of a template that reads one row by CVE id.
