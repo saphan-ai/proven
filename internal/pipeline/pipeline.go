@@ -8,7 +8,8 @@
 // adds the dependency check against the OSV table, with the fixed version it
 // names, labels each dependency finding from govulncheck when the change is
 // Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
-// the World Model.
+// the World Model. With the bounded-steps engine on, a change above its threshold reaches the Planner one part per
+// step with a carried state, and the trace says per review whether that ran (ADR-0048).
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
 // and answer (ADR-0005), the record of every model call, the doubled review
@@ -38,7 +39,6 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/fixer"
 	"github.com/saphan-ai/proven/internal/agent/investigator"
 	"github.com/saphan-ai/proven/internal/agent/judge"
-	"github.com/saphan-ai/proven/internal/agent/planner"
 	"github.com/saphan-ai/proven/internal/agent/prover"
 	"github.com/saphan-ai/proven/internal/agent/skeptic"
 	"github.com/saphan-ai/proven/internal/agent/writer"
@@ -49,6 +49,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/hmem"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
@@ -112,6 +113,9 @@ type Options struct {
 	// pipeline with none is refused; nil in sample mode redacts nothing, which is
 	// right because sample mode loads no secret.
 	Redactor *redact.Redactor
+	// Markov is the bounded-steps setting (ADR-0048). The zero value is off: the Planner reads the change whole
+	// and the Fixer sees every earlier attempt, as before. Sample mode leaves it unset.
+	Markov markov.Settings
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
@@ -144,6 +148,8 @@ type Pipeline struct {
 	// logDir and stateDir are where Review opens the trace and the stores,
 	// once it knows the reviewed target.
 	logDir, stateDir string
+	// markov is the bounded-steps setting (ADR-0048); off unless Options set it.
+	markov markov.Settings
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -193,6 +199,7 @@ func Build(opts Options) (*Pipeline, error) {
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
 		down:    append([]service.Down(nil), opts.Down...),
 		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
+		markov: opts.Markov,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -548,7 +555,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// defaultFailed is why the default reviewer has no word on the second reviewer's risks; empty when it answered.
 	defaultFailed := ""
-	risks, err := planner.Plan(ctx, fx.Root, gen)
+	risks, err := p.plan(ctx, fx.Root, gen, runDefault)
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
 		// the service; any other Planner error stops the review.
@@ -582,7 +589,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 		// secondFailed is why the second reviewer has no word on the default run's risks; empty when it answered.
 		secondFailed := ""
-		more, err := planner.Plan(ctx, fx.Root, special)
+		more, err := p.plan(ctx, fx.Root, special, runSpecial)
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -1222,6 +1229,7 @@ func (p *Pipeline) fix(ctx context.Context, st *state, gen generator.Generator, 
 			BaseDir:   filepath.Join(root, "base"),
 			ChangeDir: filepath.Join(root, "change"),
 			Attempts:  attempts,
+			Carry:     p.fixCarry(),
 		})
 		// The best result is kept even when an error came with it: a failed attempt
 		// the review already made is not hidden by a service that went down after it.

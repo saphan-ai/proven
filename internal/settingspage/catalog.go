@@ -14,6 +14,7 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/store"
@@ -42,6 +43,9 @@ const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the
 
 // evidenceAfter follows the evidence table. It is not a setting.
 const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. couchdb is named and refused until it is built. Sample mode uses the local store on the fixture file and reads none of these."
+
+// boundedAfter follows the bounded-steps table. It is not a setting.
+const boundedAfter = "ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
@@ -82,6 +86,11 @@ func Catalog() []envdoc.Section {
 			Heading: "Deterministic tools",
 			Rows:    tool.Environment(),
 			After:   toolAfter,
+		},
+		{
+			Heading: "Bounded steps: Meterless's Markovian engine",
+			Rows:    markov.Environment(),
+			After:   boundedAfter,
 		},
 		{
 			Heading: "One adapter call",
