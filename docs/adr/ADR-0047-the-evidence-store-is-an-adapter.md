@@ -29,7 +29,9 @@ local query engine exists. An organisation, and Saphan Studio itself, may want P
 7. **A review's evidence records go to CouchDB when configured, in sample mode too** (the owner, 2026-10-25): the
    judges' lab runs a sample review and its records belong in the lab's CouchDB. Sample mode therefore reads
    `PROVEN_COUCHDB_RECORDS` and `PROVEN_EVIDENCE_LINK_BASE_URL` besides ADR-0020 §1's keys and ADR-0045's `OTEL_*`;
-   with both unset it reads nothing more and writes nothing.
+   with both unset it reads nothing more and writes nothing. When `PROVEN_COUCHDB_RECORDS` is set it also reads the other
+   `PROVEN_COUCHDB_*` variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and
+   `GITHUB_REF`, and nothing else; the set is pinned by a test.
 
 ## Consequences
 

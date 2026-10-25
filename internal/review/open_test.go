@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/query"
@@ -119,6 +122,73 @@ func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 	}
 	if _, err := rev.Review(context.Background(), review.Request{Target: fixturePath(t)}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestSampleReviewWithRecordsReadsExactlyTheDocumentedSet proves the set of
+// variables sample mode reads once PROVEN_COUCHDB_RECORDS is set: the records
+// and link variables, the other PROVEN_COUCHDB_* variables and GITHUB_REF, and
+// no other, OTEL_* aside. The docs state this same set, so a variable added to
+// the read path without a docs change, or the reverse, turns the test red. The
+// mutated field is the set below: dropping one name fails it, and so does
+// reading one more.
+func TestSampleReviewWithRecordsReadsExactlyTheDocumentedSet(t *testing.T) {
+	values := map[string]string{
+		store.EnvRecordsDB: "proven_records", store.EnvRecordsUser: "writer-user", store.EnvRecordsPassword: "writer-pass-1234",
+		store.EnvCouchURL: "http://couch.test:5984", store.EnvCouchUser: "reader-user", store.EnvCouchPassword: "reader-pass-1234",
+		store.EnvEvidenceLink: "http://couch.test:5984", "GITHUB_REF": "refs/pull/7/merge",
+	}
+	var mu sync.Mutex
+	read := map[string]bool{}
+	_, err := review.Open(review.Options{
+		Sample: true,
+		LogDir: t.TempDir(),
+		Env: func(k string) string {
+			if !strings.HasPrefix(k, "OTEL_") {
+				mu.Lock()
+				read[k] = true
+				mu.Unlock()
+			}
+			return values[k]
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"GITHUB_REF",
+		"PROVEN_COUCHDB_PASSWORD", "PROVEN_COUCHDB_PREFIX", "PROVEN_COUCHDB_RECORDS", "PROVEN_COUCHDB_RECORDS_PASSWORD",
+		"PROVEN_COUCHDB_RECORDS_USER", "PROVEN_COUCHDB_ROW_LIMIT", "PROVEN_COUCHDB_TIMEOUT", "PROVEN_COUCHDB_URL",
+		"PROVEN_COUCHDB_USER", "PROVEN_EVIDENCE_LINK_BASE_URL",
+	}
+	var got []string
+	for k := range read {
+		got = append(got, k)
+	}
+	sort.Strings(got)
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("sample mode with records set read\n got %v\nwant %v", got, want)
+	}
+}
+
+// TestOpenRefusesAWrongRecordsDatabaseByName proves a wrong
+// PROVEN_COUCHDB_RECORDS value stops Open with a named config error, in sample
+// mode too, before any review runs. The mutated line is the return of the
+// records error in Open: replaced by a no-op, Open succeeds and the test fails.
+func TestOpenRefusesAWrongRecordsDatabaseByName(t *testing.T) {
+	_, err := review.Open(review.Options{
+		Sample: true,
+		LogDir: t.TempDir(),
+		Env: func(k string) string {
+			if k == store.EnvRecordsDB {
+				return "Not_Valid"
+			}
+			return ""
+		},
+	})
+	var cfg *review.ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != store.EnvRecordsDB {
+		t.Fatalf("Open with a wrong records database: %v", err)
 	}
 }
 
