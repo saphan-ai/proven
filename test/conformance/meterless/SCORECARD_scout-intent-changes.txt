@@ -1,0 +1,23 @@
+Scout Intent eval: Proven's change registry (internal/scout/changes.json) and change set v1
+runner: test/conformance/meterless/scout-intent/runner/index.ts, a copy of engines/scout-intent/evals/runner/index.ts at commit 1742dec56a66e58eef9dda2d2b865823758ca8cd
+
+Loaded 14 examples
+Report written: /Users/Sources/saphan/saphan-studio/artifacts/scout-intent-plans-the-review/run-20261025-013811-26064717/tmp/tmp.JyeRKYqnbI/changes-report.md
+┌─────────────────────────┬─────────────────────┐
+│ (index)                 │ Values              │
+├─────────────────────────┼─────────────────────┤
+│ intent_top1             │ 1                   │
+│ intent_top3_recall      │ 1                   │
+│ injection_precision     │ 1                   │
+│ injection_recall        │ 1                   │
+│ tool_precision          │ 1                   │
+│ clarification_rate      │ 0.42857142857142855 │
+│ override_frequency      │ 0                   │
+│ clarification_agreement │ 1                   │
+└─────────────────────────┴─────────────────────┘
+note: override_frequency = 0.000 by definition of the corpus, not by measurement: no override data in corpus v1. Overrides are user corrections captured in telemetry ("No, I meant…" + intent switch within the same trace) ÷ contracts issued — measure this in production telemetry (docs/telemetry-and-learning.md).
+
+❌ Eval gate failed:
+  - clarification_rate=0.429 above ceiling 0.25
+
+exit 1
