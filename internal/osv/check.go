@@ -257,9 +257,11 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 		return nil, "", err
 	}
 	// No row is not proof that the package is safe. The note says the query
-	// returned nothing and carries the SQL, so a reader can run it again.
+	// returned nothing and names the form with the text, so a reader can run
+	// it again. CouchDB's text is Mango JSON; a line that always says SQL
+	// would tell the reader to run that JSON as SQL (ADR-0047).
 	if len(rows) == 0 {
-		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; SQL: %s", hit.Package, hit.Version, res.SQL)
+		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; %s", hit.Package, hit.Version, queryText(res.Form, res.SQL))
 		// A version that could not be compared at all is a second reason,
 		// and the note names it too.
 		if why := Uncompared(hit.Ecosystem, hit.Version); why != "" {
@@ -279,7 +281,7 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 		}
 	}
 	if len(matched) == 0 {
-		return nil, missNote(hit, res.SQL, missed), nil
+		return nil, missNote(hit, res.Form, res.SQL, missed), nil
 	}
 	// The change's version is inside these rows' ranges, so their package and
 	// their advisory ids are facts about the change.
@@ -381,13 +383,19 @@ type compared struct {
 }
 
 // missNote is the trace line for a package whose rows all missed. It names
-// each row and why it missed.
-func missNote(hit manifest.Hit, sqlText string, missed []compared) string {
+// each row and why it missed, and the form of the query text.
+func missNote(hit manifest.Hit, form, sqlText string, missed []compared) string {
 	parts := make([]string, 0, len(missed))
 	for _, item := range missed {
 		parts = append(parts, item.row.ID+": "+item.sentence)
 	}
-	return fmt.Sprintf("%s %s: no affected row; SQL: %s; %s", hit.Package, hit.Version, sqlText, strings.Join(parts, "; "))
+	return fmt.Sprintf("%s %s: no affected row; %s; %s", hit.Package, hit.Version, queryText(form, sqlText), strings.Join(parts, "; "))
+}
+
+// queryText is the query as a trace line names it: the form, then the text.
+// form is "sql" or "mango". The text on CouchDB is Mango JSON (ADR-0047).
+func queryText(form, text string) string {
+	return fmt.Sprintf("query (%s): %s", form, text)
 }
 
 // findingMessage names every row that matched and every row that did not,

@@ -588,6 +588,53 @@ func TestRaisedPackageBindsTheADR0039Templates(t *testing.T) {
 	}
 }
 
+// labelledQuery answers every request with one form and one text.
+type labelledQuery struct {
+	form string
+	text string
+	cols []string
+	rows [][]string
+}
+
+func (q labelledQuery) Run(context.Context, querytpl.Request, querytpl.Relations) (query.Result, error) {
+	rows := q.rows
+	if rows == nil {
+		rows = [][]string{}
+	}
+	cols := q.cols
+	if cols == nil {
+		cols = Columns
+	}
+	return query.Result{SQL: q.text, Form: q.form, Engine: "mem", Columns: cols, Rows: rows}, nil
+}
+
+// TestMissNoteNamesTheQueryForm proves a package with no row, and a package
+// whose rows all miss, name the form of the text in the trace. Mango is not
+// labelled SQL. The mutated field is the label in queryText. Restoring
+// "SQL:" turns both cases red.
+func TestMissNoteNamesTheQueryForm(t *testing.T) {
+	root := t.TempDir()
+	writeMods(t, root, "module m\n\ngo 1.26\n", "module m\n\ngo 1.26\n\nrequire example.com/mod v1.0.0\n")
+	mango := `{"table":"px_osvfile.px_osv_pkg","selector":{"package":"example.com/mod"}}`
+	out, err := Check(context.Background(), labelledQuery{form: querytpl.FormMango, text: mango}, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "query (mango): "+mango) || strings.Contains(out.Notes[0], "SQL:") {
+		t.Fatalf("no-rows note %#v", out.Notes)
+	}
+	miss := []string{"GHSA-1", "", "Go", "example.com/mod", "9.0.0", "", "", "LOW", "2026-01-15"}
+	out, err = Check(context.Background(), labelledQuery{
+		form: querytpl.FormSQL, text: "SELECT 1", cols: Columns, rows: [][]string{miss},
+	}, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 0 || len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "query (sql): SELECT 1") || strings.Contains(out.Notes[0], "SQL:") {
+		t.Fatalf("miss note cands %d notes %#v", len(out.Candidates), out.Notes)
+	}
+}
+
 // loadSQL loads the tables into the sample query engine, the one sample
 // mode uses, so the check runs its real SQL with no network.
 func loadSQL(t *testing.T, body string) *query.Sample {
