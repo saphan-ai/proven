@@ -1,0 +1,597 @@
+package store
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"reflect"
+	"sort"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/saphan-ai/proven/internal/service"
+)
+
+// The two accounts of the recorded CouchDB. The writing account may write; the
+// read-only account may only read, as a CouchDB database's security document
+// makes it. The fake enforces that, so a test that sends a write with the
+// read-only account sees the refusal a real server gives.
+const (
+	fakeWriter     = "records-writer"
+	fakeWriterPass = "writer-pass-1234"
+	fakeReader     = "records-reader"
+	fakeReaderPass = "reader-pass-1234"
+	fakeDB         = "proven_records"
+)
+
+// recordsCouch is a recorded CouchDB: it holds one database in memory, checks the
+// account of every request, and logs who asked for what. It is driven through
+// a RoundTripper, so no listener is opened and the tests run where a socket
+// cannot be bound.
+type recordsCouch struct {
+	mu         sync.Mutex
+	exists     bool
+	docs       map[string]map[string]any
+	attach     map[string][]byte
+	designRev  int
+	designPuts int
+	log        []string
+	down       bool
+}
+
+func newRecordsCouch() *recordsCouch {
+	return &recordsCouch{docs: map[string]map[string]any{}, attach: map[string][]byte{}}
+}
+
+// RoundTrip serves the request in process.
+func (f *recordsCouch) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	f.serve(rec, req)
+	return rec.Result(), nil
+}
+
+func (f *recordsCouch) client() *http.Client { return &http.Client{Transport: f} }
+
+func reply(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// serve answers the routes the records need.
+func (f *recordsCouch) serve(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	user, pass, _ := r.BasicAuth()
+	role := ""
+	switch {
+	case user == fakeWriter && pass == fakeWriterPass:
+		role = "writer"
+	case user == fakeReader && pass == fakeReaderPass:
+		role = "reader"
+	}
+	f.log = append(f.log, user+" "+r.Method+" "+r.URL.Path)
+	if f.down {
+		reply(w, http.StatusInternalServerError, map[string]string{"error": "down"})
+		return
+	}
+	if role == "" {
+		reply(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if r.Method != http.MethodGet && role != "writer" {
+		reply(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	db, rest, _ := strings.Cut(path, "/")
+	if db != fakeDB {
+		reply(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		return
+	}
+	switch {
+	case rest == "" && r.Method == http.MethodPut:
+		if f.exists {
+			reply(w, http.StatusPreconditionFailed, map[string]string{"error": "file_exists"})
+			return
+		}
+		f.exists = true
+		reply(w, http.StatusCreated, map[string]bool{"ok": true})
+	case !f.exists:
+		reply(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+	case rest == "_design/"+designName && r.Method == http.MethodGet:
+		d, ok := f.docs["_design/"+designName]
+		if !ok {
+			reply(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+			return
+		}
+		reply(w, http.StatusOK, d)
+	case rest == "_design/"+designName && r.Method == http.MethodPut:
+		var d map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&d)
+		if old, ok := f.docs["_design/"+designName]; ok && d["_rev"] != old["_rev"] {
+			reply(w, http.StatusConflict, map[string]string{"error": "conflict"})
+			return
+		}
+		f.designRev++
+		f.designPuts++
+		d["_rev"] = string(rune('0'+f.designRev)) + "-rev"
+		if atts, ok := d["_attachments"].(map[string]any); ok {
+			for name, a := range atts {
+				raw, _ := base64.StdEncoding.DecodeString(a.(map[string]any)["data"].(string))
+				f.attach[name] = raw
+			}
+		}
+		f.docs["_design/"+designName] = d
+		reply(w, http.StatusCreated, map[string]bool{"ok": true})
+	case rest == "_design/"+designName+"/"+viewerName && r.Method == http.MethodGet:
+		page, ok := f.attach[viewerName]
+		if !ok {
+			reply(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(page)
+	case rest == "_bulk_docs" && r.Method == http.MethodPost:
+		var body struct {
+			Docs []map[string]any `json:"docs"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		var out []map[string]any
+		for _, d := range body.Docs {
+			id := d["_id"].(string)
+			if strings.Contains(id, "refuseme") {
+				out = append(out, map[string]any{"id": id, "error": "forbidden"})
+				continue
+			}
+			f.docs[id] = d
+			out = append(out, map[string]any{"id": id, "ok": true})
+		}
+		reply(w, http.StatusCreated, out)
+	case r.Method == http.MethodGet:
+		d, ok := f.docs[rest]
+		if !ok {
+			reply(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+			return
+		}
+		reply(w, http.StatusOK, d)
+	default:
+		reply(w, http.StatusBadRequest, map[string]string{"error": "bad_request"})
+	}
+}
+
+// records returns the stored evidence records, sorted by id.
+func (f *recordsCouch) records() []map[string]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []map[string]any
+	for id, d := range f.docs {
+		if !strings.HasPrefix(id, "_design/") {
+			out = append(out, d)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i]["_id"].(string) < out[j]["_id"].(string) })
+	return out
+}
+
+func writerSettings() RecordsSettings {
+	return RecordsSettings{BaseURL: "http://couch.test", Database: fakeDB, User: fakeWriter, Password: fakeWriterPass, Timeout: time.Second}
+}
+
+func readerStore(f *recordsCouch) *CouchDB {
+	return NewCouchDB(CouchSettings{BaseURL: "http://couch.test", Prefix: "proven_", User: fakeReader, Password: fakeReaderPass, RowLimit: 10, Timeout: time.Second}, f.client())
+}
+
+const sampleCommit = "0123456789abcdef0123456789abcdef01234567"
+
+// sampleRecords is the sample scenario's records: a finding proved by the
+// known-exploited table's row for Log4Shell, one proved by a package
+// advisory row that carries the same CVE as an alias, and one proved by a test.
+// The test finding's title carries markup on purpose.
+func sampleRecords() []EvidenceRecord {
+	kevCols := []string{"cve_id", "vendor_project", "product", "date_added", "known_ransomware"}
+	kevRows := [][]string{{"CVE-2021-44228", "Apache", "Log4j2", "2021-12-10", "Known"}}
+	osvCols := []string{"id", "aliases", "ecosystem", "package", "introduced", "fixed"}
+	osvRows := [][]string{{"GHSA-jfh8-c2jp-5v3q", "CVE-2021-44228", "Maven", "log4j-core", "2.0", "2.15.0"}}
+	run := RunStamp(time.Date(2026, 10, 25, 7, 0, 0, 0, time.UTC))
+	var out []EvidenceRecord
+	for _, q := range []struct {
+		id, title string
+		cols      []string
+		rows      [][]string
+		query     string
+	}{
+		{"f-kev", "Dependency is known exploited", kevCols, kevRows, `{"table":"px_kev_vulns","selector":{"cve_id":"CVE-2021-44228"}}`},
+		{"f-osv", "Dependency has an advisory", osvCols, osvRows, `{"table":"px_osv","selector":{"package":"log4j-core"}}`},
+	} {
+		cves, pkgs := QueryKeys(q.cols, q.rows)
+		out = append(out, EvidenceRecord{
+			PR: "42", Commit: sampleCommit, Run: run, FindingID: q.id, RuleID: "dependency", Title: q.title,
+			Severity: "ERROR", Path: "go.mod", StartLine: 7, ProofLevel: "proved-by-data", CVEs: cves, Packages: pkgs,
+			Evidence: []RecordProof{{Kind: "query", Form: "mango", Query: q.query, Engine: "couchdb", Snapshot: "2026-10-24T07:00:00Z", Columns: q.cols, Rows: q.rows}},
+		})
+	}
+	out = append(out, EvidenceRecord{
+		PR: "42", Commit: sampleCommit, Run: run, FindingID: "f-test", RuleID: "logic", Title: `Rounds <b onmouseover="x">down</b>`,
+		Severity: "WARNING", Path: "price/discount.go", StartLine: 31, ProofLevel: "proved-by-test",
+		Evidence: []RecordProof{{Kind: "test", Path: "price/discount_test.go", Name: "TestDiscount", Command: "go test ./price -run TestDiscount", FailsOnChange: true, PassesOnBase: true, Output: "FAIL"}},
+	})
+	return out
+}
+
+type viewRow struct {
+	ID    string `json:"id"`
+	Key   []any  `json:"key"`
+	Value any    `json:"value"`
+}
+
+// runMap runs one view's map function in Node over docs, as CouchDB's JavaScript
+// query server would, and returns what it emitted. The map functions are
+// JavaScript and Go cannot run them, so the test uses the same language.
+func runMap(t *testing.T, mapSrc string, docs []map[string]any) []viewRow {
+	t.Helper()
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed: the view map functions are UNRUN")
+	}
+	script := `const docs = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+const rows = []; let cur;
+function emit(k, v) { rows.push({id: cur._id, key: k, value: v}); }
+const f = eval('(' + process.env.MAP_SRC + ')');
+for (const d of docs) { cur = d; f(d); }
+console.log(JSON.stringify(rows));`
+	in, _ := json.Marshal(docs)
+	cmd := exec.Command(node, "-e", script)
+	cmd.Env = append(os.Environ(), "MAP_SRC="+mapSrc)
+	cmd.Stdin = bytes.NewReader(in)
+	raw, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("node: %v", err)
+	}
+	var rows []viewRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatalf("node output %q: %v", raw, err)
+	}
+	return rows
+}
+
+func publishSample(t *testing.T, f *recordsCouch) map[string]string {
+	t.Helper()
+	ids, err := NewRecorder(writerSettings(), f.client()).Publish(context.Background(), sampleRecords())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ids
+}
+
+// TestViewsReturnTheSampleScenarioRecords proves each of the four views emits
+// the sample scenario's records under the keys a reader narrows by: review
+// (pull request and commit), finding, CVE with package, and proof level.
+// The records are the ones Publish stored, so the whole path from a review's
+// record to a view row is run. The mutated field of the negative control is the
+// view's map function: a view whose function emits nothing makes it fail.
+func TestViewsReturnTheSampleScenarioRecords(t *testing.T) {
+	f := newRecordsCouch()
+	publishSample(t, f)
+	docs := f.records()
+	if len(docs) != 3 {
+		t.Fatalf("stored %d records, want 3", len(docs))
+	}
+	keysOf := func(view string) []string {
+		var out []string
+		for _, r := range runMap(t, ViewMap(view), docs) {
+			b, _ := json.Marshal(r.Key)
+			out = append(out, string(b))
+		}
+		sort.Strings(out)
+		return out
+	}
+	run := RunStamp(time.Date(2026, 10, 25, 7, 0, 0, 0, time.UTC))
+	cases := map[string][]string{
+		"by_review": {
+			`["42","` + sampleCommit + `","f-kev","` + run + `"]`,
+			`["42","` + sampleCommit + `","f-osv","` + run + `"]`,
+			`["42","` + sampleCommit + `","f-test","` + run + `"]`,
+		},
+		"by_finding": {
+			`["f-kev","42","` + sampleCommit + `","` + run + `"]`,
+			`["f-osv","42","` + sampleCommit + `","` + run + `"]`,
+			`["f-test","42","` + sampleCommit + `","` + run + `"]`,
+		},
+		// The test finding names no CVE and no package, so it is not in this view.
+		"by_cve_package": {
+			`["CVE-2021-44228","Log4j2","42","` + sampleCommit + `","f-kev"]`,
+			`["CVE-2021-44228","log4j-core","42","` + sampleCommit + `","f-osv"]`,
+		},
+		"by_proof_level": {
+			`["proved-by-data","42","` + sampleCommit + `","f-kev","` + run + `"]`,
+			`["proved-by-data","42","` + sampleCommit + `","f-osv","` + run + `"]`,
+			`["proved-by-test","42","` + sampleCommit + `","f-test","` + run + `"]`,
+		},
+	}
+	if got := ViewNames(); !reflect.DeepEqual(got, []string{"by_cve_package", "by_finding", "by_proof_level", "by_review"}) {
+		t.Fatalf("views %v", got)
+	}
+	for view, want := range cases {
+		t.Run(view, func(t *testing.T) {
+			if got := keysOf(view); !reflect.DeepEqual(got, want) {
+				t.Fatalf("keys\n got %v\nwant %v", got, want)
+			}
+		})
+	}
+	// The design document row is not a record and no view emits it.
+	design := f.docs["_design/"+designName]
+	if rows := runMap(t, ViewMap("by_review"), []map[string]any{design}); len(rows) != 0 {
+		t.Fatalf("the design document was emitted: %v", rows)
+	}
+}
+
+// TestPublishWritesAsTheWritingAccountAndOnce proves Publish makes the database
+// and the design document with the four views and the viewer page as an
+// attachment, writes one document per finding, only with the writing account,
+// and does not write the design document again when it has not changed.
+func TestPublishWritesAsTheWritingAccountAndOnce(t *testing.T) {
+	f := newRecordsCouch()
+	ids := publishSample(t, f)
+	publishSample(t, f)
+	if f.designPuts != 1 {
+		t.Fatalf("design document written %d times, want 1", f.designPuts)
+	}
+	for _, line := range f.log {
+		if !strings.HasPrefix(line, fakeWriter+" ") {
+			t.Fatalf("a request was not made by the writing account: %s", line)
+		}
+	}
+	if !bytes.Equal(f.attach[viewerName], ViewerPage()) {
+		t.Fatal("the viewer page attachment is not the page")
+	}
+	views, _ := f.docs["_design/"+designName]["views"].(map[string]any)
+	if len(views) != 4 {
+		t.Fatalf("views %v", views)
+	}
+	if len(ids) != 3 || ids["f-kev"] == "" || !strings.HasPrefix(ids["f-kev"], "42-0123456789ab-") {
+		t.Fatalf("ids %v", ids)
+	}
+	if n := len(f.records()); n != 3 {
+		t.Fatalf("stored %d records, want one per finding", n)
+	}
+}
+
+// TestViewerIsServedToTheReadOnlyAccountAndNeedsNoWrite proves the viewer page
+// is served by CouchDB to the read-only account, that the check makes only
+// GET requests, and that the read-only account is refused a write. The mutated
+// field of the negative control is the same-user refusal in LoadRecords: with
+// it removed, TestLoadRecordsKeepsTheWriterApart fails.
+func TestViewerIsServedToTheReadOnlyAccountAndNeedsNoWrite(t *testing.T) {
+	f := newRecordsCouch()
+	publishSample(t, f)
+	f.log = nil
+	if err := readerStore(f).CheckViewer(context.Background(), fakeDB); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.log) != 1 || f.log[0] != fakeReader+" GET /"+fakeDB+"/_design/evidence/viewer.html" {
+		t.Fatalf("the viewer check made: %v", f.log)
+	}
+	// A write with the read-only account is refused, so a page opened with it
+	// could not change a record even if it tried.
+	readOnly := writerSettings()
+	readOnly.User, readOnly.Password = fakeReader, fakeReaderPass
+	before := len(f.records())
+	_, err := NewRecorder(readOnly, f.client()).Publish(context.Background(), []EvidenceRecord{{FindingID: "x", Run: "r"}})
+	if d, ok := service.As(err); !ok || d.Service != "couchdb" {
+		t.Fatalf("a write with the read-only account: %v", err)
+	}
+	if len(f.records()) != before {
+		t.Fatal("the read-only account wrote a record")
+	}
+}
+
+// TestCheckViewerNamesAMissingPage proves a records database with no viewer
+// page is a named down store, not a silent pass, so no link is shown for it.
+func TestCheckViewerNamesAMissingPage(t *testing.T) {
+	f := newRecordsCouch()
+	f.exists = true
+	err := readerStore(f).CheckViewer(context.Background(), fakeDB)
+	if d, ok := service.As(err); !ok || d.Service != "couchdb" || !strings.Contains(d.Reason, "404") {
+		t.Fatalf("missing page: %v", err)
+	}
+}
+
+// TestPublishLeavesOutARefusedRecordAndNamesIt proves a record CouchDB refuses
+// is not in the returned ids, so no link is made for it, and the error says how
+// many were refused.
+func TestPublishLeavesOutARefusedRecordAndNamesIt(t *testing.T) {
+	f := newRecordsCouch()
+	recs := sampleRecords()
+	recs[2].FindingID = "refuseme"
+	ids, err := NewRecorder(writerSettings(), f.client()).Publish(context.Background(), recs)
+	if d, ok := service.As(err); !ok || !strings.Contains(d.Reason, "1 of 3") {
+		t.Fatalf("error %v", err)
+	}
+	if _, has := ids["refuseme"]; has || len(ids) != 2 {
+		t.Fatalf("ids %v", ids)
+	}
+}
+
+// TestPublishOnADownServerIsANamedFailure proves a failing CouchDB is a down
+// store named couchdb and that the writing credential is not in the text.
+func TestPublishOnADownServerIsANamedFailure(t *testing.T) {
+	f := newRecordsCouch()
+	f.down = true
+	_, err := NewRecorder(writerSettings(), f.client()).Publish(context.Background(), sampleRecords())
+	d, ok := service.As(err)
+	if !ok || d.Service != "couchdb" || strings.Contains(err.Error(), fakeWriterPass) {
+		t.Fatalf("error %v", err)
+	}
+	if _, err := NewRecorder(writerSettings(), f.client()).Publish(context.Background(), nil); err != nil {
+		t.Fatalf("no records is not a failure: %v", err)
+	}
+}
+
+func recordsEnv(extra map[string]string) func(string) string {
+	m := map[string]string{
+		EnvCouchURL: "http://couch.test:5984/", EnvCouchUser: fakeReader, EnvCouchPassword: fakeReaderPass,
+		EnvRecordsDB: fakeDB, EnvRecordsUser: fakeWriter, EnvRecordsPassword: fakeWriterPass,
+	}
+	for k, v := range extra {
+		m[k] = v
+	}
+	return func(k string) string { return m[k] }
+}
+
+// TestLoadRecordsKeepsTheWriterApart proves the records settings: unset is off,
+// a set one needs its address and writing account, and the writing user may not
+// be the read-only user. The mutated field is EnvRecordsUser, set equal to the
+// read-only user.
+func TestLoadRecordsKeepsTheWriterApart(t *testing.T) {
+	off, err := LoadRecords(func(string) string { return "" })
+	if err != nil || off.Enabled() {
+		t.Fatalf("unset: %+v %v", off, err)
+	}
+	on, err := LoadRecords(recordsEnv(nil))
+	if err != nil || !on.Enabled() || on.BaseURL != "http://couch.test:5984" || on.User != fakeWriter {
+		t.Fatalf("set: %+v %v", on, err)
+	}
+	for name, env := range map[string]map[string]string{
+		"the writing user is the read-only user": {EnvRecordsUser: fakeReader},
+		"no writing user":                        {EnvRecordsUser: ""},
+		"no writing password":                    {EnvRecordsPassword: ""},
+		"a short writing password":               {EnvRecordsPassword: "short"},
+		"no address":                             {EnvCouchURL: ""},
+		"a bad database name":                    {EnvRecordsDB: "Not_Valid"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := LoadRecords(recordsEnv(env))
+			var ce *ConfigError
+			if err == nil || !asConfig(err, &ce) {
+				t.Fatalf("accepted: %v", err)
+			}
+			for _, secret := range []string{fakeWriterPass, fakeReaderPass, fakeWriter} {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("the refusal echoes a credential: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestEvidenceURLExistsOnlyWhenTheBaseIsSet proves the link is built from the
+// configured base, the records database and the document id, is empty when the
+// base is unset, and never goes through the admin console. The mutated line of
+// the negative control is the empty-base check in EvidenceURL.
+func TestEvidenceURLExistsOnlyWhenTheBaseIsSet(t *testing.T) {
+	if got := EvidenceURL("", fakeDB, "42-abc-run-f1"); got != "" {
+		t.Fatalf("unset base gave a link: %q", got)
+	}
+	if got := EvidenceURL("http://couch.test", "", "x"); got != "" {
+		t.Fatalf("no database gave a link: %q", got)
+	}
+	if got := EvidenceURL("http://couch.test", fakeDB, ""); got != "" {
+		t.Fatalf("no id gave a link: %q", got)
+	}
+	got := EvidenceURL("http://couch.test:5984/", fakeDB, "42-abc-run-f1")
+	want := "http://couch.test:5984/proven_records/_design/evidence/viewer.html?doc=42-abc-run-f1"
+	if got != want {
+		t.Fatalf("link %q, want %q", got, want)
+	}
+	if strings.Contains(got, "_utils") {
+		t.Fatal("the link goes through the admin console")
+	}
+	base, err := LoadLinkBase(func(string) string { return "" })
+	if err != nil || base != "" {
+		t.Fatalf("unset link base: %q %v", base, err)
+	}
+	for _, bad := range []string{"couch.test", "ftp://couch.test", "http://u:p@couch.test", "http://couch.test/?a=b", "http://couch.test/#x"} {
+		if _, err := LoadLinkBase(func(string) string { return bad }); err == nil {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+}
+
+// TestViewerPageIsSelfContainedAndReadOnly proves the page loads nothing from
+// outside, never names the admin console, and makes only GET requests.
+func TestViewerPageIsSelfContainedAndReadOnly(t *testing.T) {
+	page := string(ViewerPage())
+	for _, banned := range []string{"http://", "https://", "//cdn", "_utils", "<link", "src=", "@import", `method: "PUT"`, `method: "POST"`, `method: "DELETE"`, "XMLHttpRequest"} {
+		if strings.Contains(page, banned) {
+			t.Errorf("the page contains %q", banned)
+		}
+	}
+	if n := strings.Count(page, "method:"); n != 1 || !strings.Contains(page, `method: "GET"`) {
+		t.Errorf("the page names %d request methods, want one GET", n)
+	}
+}
+
+// TestViewerEscapesRecordValuesAsText proves the page's escaping function turns
+// markup into text: no character that opens a tag or an attribute survives.
+// The function is cut out of the page between its markers and run on its own.
+func TestViewerEscapesRecordValuesAsText(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed: the escaping function is UNRUN")
+	}
+	page := string(ViewerPage())
+	begin := strings.Index(page, "// esc:begin")
+	end := strings.Index(page, "// esc:end")
+	if begin < 0 || end < begin {
+		t.Fatal("the escaping function's markers are missing")
+	}
+	script := `const esc = new Function(process.env.CODE + '; return esc;')();
+console.log(JSON.stringify([process.env.IN, null, undefined, 42].map(esc)));`
+	for _, in := range []string{
+		`<img src=x onerror=alert(1)>`,
+		`"><script>alert('x')</script>`,
+		`a & b`,
+	} {
+		cmd := exec.Command(node, "-e", script)
+		cmd.Env = append(os.Environ(), "CODE="+page[begin:end], "IN="+in)
+		raw, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("node: %v", err)
+		}
+		var got []string
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		if strings.ContainsAny(got[0], `<>"'`) {
+			t.Fatalf("%q escaped to %q", in, got[0])
+		}
+		if got[1] != "" || got[2] != "" || got[3] != "42" {
+			t.Fatalf("null, undefined and a number escaped to %q", got[1:])
+		}
+	}
+	cmd := exec.Command(node, "-e", script)
+	cmd.Env = append(os.Environ(), "CODE="+page[begin:end], "IN=<b>&")
+	raw, _ := cmd.Output()
+	if !strings.Contains(string(raw), `&lt;b&gt;&amp;`) {
+		t.Fatalf("escape of <b>& is %s", raw)
+	}
+}
+
+// TestQueryKeysPullOfAndRecordID covers the small readers of a record: the
+// CVEs and packages a query's rows name, the pull request of a ref, and the
+// document id.
+func TestQueryKeysPullOfAndRecordID(t *testing.T) {
+	cves, pkgs := QueryKeys([]string{"id", "aliases", "package"}, [][]string{{"GHSA-x", "CVE-2021-44228,CVE-2021-45046", "log4j-core"}, {"GHSA-y", "CVE-2021-44228", "log4j-core"}})
+	if !reflect.DeepEqual(cves, []string{"CVE-2021-44228", "CVE-2021-45046"}) || !reflect.DeepEqual(pkgs, []string{"log4j-core"}) {
+		t.Fatalf("keys %v %v", cves, pkgs)
+	}
+	if c, p := QueryKeys([]string{"note"}, [][]string{{"CVE-2021-44228"}}); c != nil || p != nil {
+		t.Fatalf("an unknown column yielded %v %v", c, p)
+	}
+	for ref, want := range map[string]string{"refs/pull/42/merge": "42", "refs/heads/main": "", "": "", "refs/pull//merge": ""} {
+		if got := PullOf(ref); got != want {
+			t.Errorf("PullOf(%q) = %q, want %q", ref, got, want)
+		}
+	}
+	if got := RecordID("", "", "20261025t070000z", "F 1/../x"); got != "local-tree-20261025t070000z-f-1-x" {
+		t.Fatalf("id %q", got)
+	}
+}
