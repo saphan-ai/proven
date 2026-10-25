@@ -217,8 +217,8 @@ func filesIn(prompt string) []string {
 	return out
 }
 
-// on is the engine switched on with a threshold the 24-file fixture is far above (about 22,000 estimated tokens),
-// and the 3-file fixture (about 2,800) far below, so neither sits near the edge.
+// on is the engine switched on with a threshold the 24-file fixture is far above (about 36,000 estimated tokens),
+// and the 3-file fixture (about 4,600) far below, so neither sits near the edge.
 func on(unit string) markov.Settings {
 	return markov.Settings{On: true, Threshold: 6000, Unit: unit, Carry: markov.DefaultCarry}
 }
