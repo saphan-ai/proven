@@ -124,9 +124,12 @@ export function linksOf(text) {
     for (const m of noCode.matchAll(/!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)) {
       out.push({ n: l.n, target: m[1] });
     }
-    for (const m of noCode.matchAll(/<(?:a|img)\b[^>]*?\s(?:href|src)\s*=\s*["']([^"']+)["']/gi)) {
-      out.push({ n: l.n, target: m[1] });
-    }
+  }
+  // Raw HTML tags may span lines, so their href and src are read from the
+  // whole text outside fences, each reported at the line where its tag starts.
+  const outside = lines(text).map((l) => (l.inFence ? '' : l.text.replace(/`[^`]*`/g, (s) => ' '.repeat(s.length)))).join('\n');
+  for (const m of outside.matchAll(/<(?:a|img)\b[^>]*?\s(?:href|src)\s*=\s*["']([^"']+)["']/gi)) {
+    out.push({ n: outside.slice(0, m.index).split('\n').length, target: m[1] });
   }
   return out;
 }

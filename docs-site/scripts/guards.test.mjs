@@ -88,3 +88,8 @@ test('an indented conflict marker fails the page-intact guard; an indented =====
   assert.equal(checkConflicts([{ slug: 'x', text: '  <<<<<<< main\n' }]).length, 1);
   assert.equal(checkConflicts([{ slug: 'x', text: 'Title\n  =======\n' }]).length, 0);
 });
+
+test('a raw HTML link whose tag spans lines is checked (negative control: the line break)', () => {
+  const pages = [{ slug: 'x', text: '<a class="nav"\n   href="/docs/missing">missing</a>\n' }];
+  assert.equal(checkLinks(pages).findings.length, 1);
+});
