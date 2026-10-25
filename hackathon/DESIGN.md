@@ -62,6 +62,7 @@ Proven hardcodes no settings ([ADR-0013](../docs/adr/ADR-0013-no-hardcoded-setti
     │   │ METERLESS ENGINES, implemented in Go                        │
     │   │   H-MEM ............ memory store, retrieval                │
     │   │   World Model ...... world store, ingest, context builder   │
+    │   │   Markovian ........ bounded steps for a large change, OFF  │
     │   │   checked by Meterless's own conformance suites             │
     │   │ ZETARIS adapter .... tested against our Zetaris platform    │
     │   │ NIGHTSHIFT adapter . tested against our Nightshift          │
@@ -90,7 +91,9 @@ Proven hardcodes no settings ([ADR-0013](../docs/adr/ADR-0013-no-hardcoded-setti
   │  OSV         │  │ (Power)                  │  │  findings, rulings   │
   │  CISA KEV    │  │   └─▶ NVIDIA NEMOTRON    │  │ World Model: claims, │
   │  FIRST EPSS  │  │       reviewer, Skeptic  │  │  evidence, verdicts  │
-  │  git history │  │                          │  │                      │
+  │  git history │  │                          │  │ Markovian: OFF by    │
+  │              │  │                          │  │  default, large      │
+  │              │  │                          │  │  change in steps     │
   └──────┬───────┘  └──────────────────────────┘  └──────────┬───────────┘
          │ the query and its rows                            │ JSONL
          ▼                                                   ▼
@@ -123,10 +126,11 @@ The run is bounded: a fixed number of rounds, a timeout on every outside call, a
 ## Where the sponsors' technology does the work
 
 - **Zetaris: the evidence layer** ([ADR-0002](../docs/adr/ADR-0002-evidence-is-a-test-or-a-query-through-zetaris.md)). Every evidence source is one table behind Zetaris, which runs a query where the data already lives, without copying it first. The Investigator asks one question across all of them in one query. For example: *"Which dependency this change adds or upgrades has a published advisory for that exact version, is on the list of vulnerabilities known to be used in attacks, and has a high chance of being used in one?"* The query and its rows go into the review as the proof.
-- **Meterless: the reviewer's memory and state** ([ADR-0003](../docs/adr/ADR-0003-meterless-engines-in-go.md)). Meterless publishes open specifications of agent engines, each with a conformance suite. We build two of them in Go:
+- **Meterless: the reviewer's memory and state** ([ADR-0003](../docs/adr/ADR-0003-meterless-engines-in-go.md)). Meterless publishes open specifications of agent engines, each with a conformance suite. We build three of them in Go:
   - **H-MEM**, the reviewer's memory. A finding that was refuted in one pull request does not come back in the next one. A maintainer's ruling ("we do not validate here, on purpose") is remembered.
   - **World Model**, the state of one review as a stream of events: every claim, piece of evidence, refutation and verdict. The trace in `logs/` is that stream, not text written next to it.
-  - Our Go builds are checked with Meterless's own conformance suites through a thin TypeScript adapter. That this works is not measured yet.
+  - **Markovian**, a large change reviewed in bounded steps ([ADR-0048](../docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md)). Above a configured size, the Planner reads the change one file or hunk at a time and carries only what is established, suspected or awaiting evidence. A claim awaiting evidence is carried whole, or the review stops by name. It is **OFF by default** (`PROVEN_MARKOVIAN`). Its benefit, model tokens per step on the test corpus, is **UNMEASURED** until the corpus recordings exist; the figures on the [architecture page](../docs/ARCHITECTURE.md) come from a scripted generator and are labelled scripted.
+  - Our Go builds are checked with Meterless's own conformance suites through a thin TypeScript adapter. The scorecards are recorded as they are: H-MEM 9 of 13, World Model 7 of 8, and Markovian 8 of 8 (`markovian 8/8 checks passed`, runner pinned at upstream commit `1742dec5`). That the adapter works is measured, then, for the sections those suites cover; that H-MEM and the World Model help a review is not measured yet. For Markovian, the conformance result says the engine follows the specification, not that it finds the same problems for less.
 - **NVIDIA: a second model family** ([ADR-0006](../docs/adr/ADR-0006-a-skeptic-from-another-model-family.md)). The Skeptic runs on an NVIDIA Nemotron model through NVIDIA's hosted API. Hosted NVIDIA embeddings for H-MEM's search are a candidate, not a decision.
 - **NVIDIA: the guardrail, on by default** ([ADR-0005](../docs/adr/ADR-0005-guardrail-on-by-default.md)). Every prompt and answer passes NVIDIA's Nemotron 3.5 Content Safety first. The same model runs in two places behind one adapter: on our own machine, and on NVIDIA's hosted API ([build.nvidia.com](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety)). A judge with an NVIDIA API key keeps the guardrail on; a setting turns it off for anyone without one.
 - **Cursor: the development environment.** The four Cursor agents of the team write the product code.
