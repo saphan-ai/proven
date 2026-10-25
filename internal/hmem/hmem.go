@@ -132,6 +132,9 @@ type Store struct {
 	mu        sync.Mutex
 	seq       int
 	records   map[string]Record
+	// writeHook, when set, runs before each durable write and may refuse it.
+	// It is the seam tests use to inject a failed write; production leaves it nil.
+	writeHook func(op string) error
 }
 
 // disk is the shape of state.json. Seq is kept so Add never reuses an id after
@@ -551,6 +554,11 @@ func (s *Store) audit(action, id, actor string) error {
 // auditWith is audit with extra fields. The four base fields cannot be
 // overwritten by extra, so every line stays readable as a ledger entry.
 func (s *Store) auditWith(action, id, actor string, extra map[string]any) error {
+	if s.writeHook != nil {
+		if err := s.writeHook("audit:" + action); err != nil {
+			return err
+		}
+	}
 	line := map[string]any{}
 	for k, v := range extra {
 		line[k] = v
