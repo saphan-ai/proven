@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -293,8 +295,10 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 // the link names. The link is left in place and the write fails. A regular
 // file is not a link and is overwritten as before.
 //
-// A path inside the working directory is created through that directory
-// opened as a root. A component swapped for a link after the load check
+// A path inside the working directory is written as a new file in the same
+// directory, through that directory opened as a root, and the new file is
+// renamed over the final name. The final name is replaced, never written
+// through. A directory component swapped for a link after the load check
 // cannot then name a file outside the directory: the root refuses the link
 // and this returns an error that names the path. A path outside the working
 // directory is the operator's and is opened as before.
@@ -313,16 +317,28 @@ func writeOutputFile(flag, path string, body []byte) error {
 	return writeOutputOutsideWorkingDirectory(flag, path, body)
 }
 
-// writeOutputInsideWorkingDirectory creates path through a root opened on
-// the working directory. rel is path relative to that directory, with any
-// link inside it still named, so the root sees the link and does not follow
-// one that leaves the directory.
+// beforeRootedOutputCreate, when set, runs after the final-component
+// check and before the rooted create. Tests replace that component in
+// the window a rooted open would follow. Production leaves it nil.
+var beforeRootedOutputCreate func(path string)
+
+// writeOutputInsideWorkingDirectory writes body to a path inside the
+// working directory. rel is path relative to that directory, with any link
+// inside it still named, so the root sees the link.
 //
-// WHY a root, and not an open of the path: the open follows a directory
-// link. The root does not follow a link to a place outside the working
-// directory, including a link swapped in after the load check. The file
-// outside is not created or replaced.
+// WHY the final name is renamed over, not opened: a root follows a symbolic
+// link that stays inside it. Opening the final name would replace the file
+// that link names, including a link swapped in after the check. The report
+// is a new file in the same directory, created with O_EXCL, then renamed
+// over the final name. Rename replaces that directory entry, so a link
+// there is not written through. Go 1.26.10 Root.Rename calls renameat on
+// the parent and the final name. The new file is removed if the write or
+// the rename fails. A directory link that leaves the working directory is
+// still refused by the root, and this returns an error that names the path.
 func writeOutputInsideWorkingDirectory(flag, path, rel string, body []byte) error {
+	if beforeRootedOutputCreate != nil {
+		beforeRootedOutputCreate(path)
+	}
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", flag, path, err)
@@ -332,7 +348,7 @@ func writeOutputInsideWorkingDirectory(flag, path, rel string, body []byte) erro
 		return fmt.Errorf("%s %s: %w", flag, path, err)
 	}
 	defer root.Close()
-	f, err := root.OpenFile(rel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	tmp, f, err := createExclusiveOutput(root, rel)
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", flag, path, err)
 	}
@@ -341,9 +357,61 @@ func writeOutputInsideWorkingDirectory(flag, path, rel string, body []byte) erro
 		werr = cerr
 	}
 	if werr != nil {
+		werr = discardOutputTemp(root, tmp, werr)
 		return fmt.Errorf("%s %s: %w", flag, path, werr)
 	}
+	if err := root.Rename(tmp, rel); err != nil {
+		err = discardOutputTemp(root, tmp, err)
+		return fmt.Errorf("%s %s: %w", flag, path, err)
+	}
 	return nil
+}
+
+// outputTempAttempts bounds how many exclusive names are tried in the
+// output's directory before the write fails.
+const outputTempAttempts = 8
+
+// createExclusiveOutput creates a new file in the same directory as rel.
+// The name is not rel: O_EXCL refuses a name that already exists, and the
+// caller renames this file over rel.
+func createExclusiveOutput(root *os.Root, rel string) (string, *os.File, error) {
+	dir, _ := filepath.Split(rel)
+	var last error
+	for range outputTempAttempts {
+		name, err := exclusiveOutputName(dir)
+		if err != nil {
+			return "", nil, err
+		}
+		f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err == nil {
+			return name, f, nil
+		}
+		if !os.IsExist(err) {
+			return "", nil, err
+		}
+		last = err
+	}
+	return "", nil, last
+}
+
+// exclusiveOutputName is a relative path in dir that is not the final output
+// name. dir is empty or ends with a separator, as filepath.Split returns it.
+func exclusiveOutputName(dir string) (string, error) {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", err
+	}
+	return dir + ".proven-output." + hex.EncodeToString(buf[:]), nil
+}
+
+// discardOutputTemp removes the new file after a failed write or rename.
+// A failed removal is part of the error, so the name does not disappear
+// from the report.
+func discardOutputTemp(root *os.Root, name string, err error) error {
+	if rerr := root.Remove(name); rerr != nil {
+		return fmt.Errorf("%w (removing temporary file %s: %v)", err, name, rerr)
+	}
+	return err
 }
 
 // writeOutputOutsideWorkingDirectory writes a path that does not lie in the

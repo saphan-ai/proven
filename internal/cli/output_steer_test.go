@@ -424,6 +424,81 @@ func TestFinalLinkAppearingAfterLoadExits2(t *testing.T) {
 	}
 }
 
+// TestFinalComponentSwappedAfterTheCheckDoesNotChangeTheOtherFile proves a
+// report does not replace another file of the checkout when the output's
+// final component becomes a symbolic link to that file after the
+// final-component check and before the rooted create. The mutated field is
+// that component. The link target is a relative name inside the checkout.
+// Opening the final name with OpenFile follows the link and the other file
+// changes. The review runs before the check, so a swap there is refused and
+// never reaches this window.
+func TestFinalComponentSwappedAfterTheCheckDoesNotChangeTheOtherFile(t *testing.T) {
+	dir := t.TempDir()
+	checkout := filepath.Join(dir, "checkout")
+	if err := os.MkdirAll(checkout, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(checkout, "kept.txt")
+	if err := os.WriteFile(victim, []byte("kept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(checkout, "proven.sarif")
+	if err := os.WriteFile(out, []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	beforeRootedOutputCreate = func(path string) {
+		if err := os.Remove(path); err != nil {
+			t.Error(err)
+			return
+		}
+		if err := os.Symlink("kept.txt", path); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(func() { beforeRootedOutputCreate = nil })
+	open := func(review.Options) (review.Reviewer, error) {
+		return funcReviewer(func() review.Result {
+			return review.Result{Class: "c", ClassRule: "r"}
+		}), nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=proven.sarif"}, emptyEnv, &stdout, &stderr, open)
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "kept\n" {
+		t.Fatalf("the report was written through the link onto %s:\n%s", victim, b)
+	}
+	if code != exitOK {
+		t.Fatalf("exit %d, want 0; stderr %s", code, stderr.String())
+	}
+	info, err := os.Lstat(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("final name is still a symbolic link")
+	}
+	written, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(written, []byte(`"class": "c"`)) {
+		t.Fatalf("report was not written at the final name:\n%s", written)
+	}
+	entries, err := os.ReadDir(checkout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != "kept.txt" && e.Name() != "proven.sarif" {
+			t.Errorf("temporary file left behind: %s", e.Name())
+		}
+	}
+}
+
 // TestDirectoryLinkSwappedAfterLoadIsNotWrittenThrough proves a directory of
 // the output path that is a real directory at load, and a symbolic link to a
 // directory outside the working directory by the time of the write, does not
