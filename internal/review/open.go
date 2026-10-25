@@ -204,6 +204,11 @@ func open(opts Options) (Reviewer, error) {
 			return nil, epssConfig(verr)
 		}
 		popts.EPSSView = view
+		idView, ierr := osv.LoadIDView(env)
+		if ierr != nil {
+			return nil, osvConfig(ierr)
+		}
+		popts.OSVIDView = idView
 		if opts.testRun != nil {
 			// A test supplies the runner, so Open does not look for a container.
 			// Production leaves testRun unset and uses the container below.
