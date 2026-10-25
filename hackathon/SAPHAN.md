@@ -71,7 +71,17 @@ internet.
 | **AMD Ryzen 9 9950X workstation** | 16 cores / 32 threads, 128 GB, 2 × 2 TB NVMe on ZFS, Proxmox | every Linux virtual machine of the fleet: the agent runners (Cursor, Claude Code, Codex, NVIDIA Nemotron, Qwen), the builders, Zetaris in its own virtual machine, and the judges' lab Gitea |
 | **three Intel NUCs** | Proxmox cluster | observability (Prometheus, Grafana), the model router (LiteLLM), network routing |
 
-In all: about 436 GB of memory and 11 TB of SSD, most of it in three machines.
+In all:
+
+| | total |
+|---|---|
+| CPU | 68 cores, 108 threads |
+| GPU | 50 Apple GPU cores (40 in the M5 Max, 10 in the M4) and an AMD Radeon 8060S (40 compute units by AMD's specification) |
+| memory a GPU can address | about 250 GB: the Macs' unified memory (128 GB and 16 GB) and 114 GB on the AMD machine (2 GB dedicated plus 112 GB shared, measured) |
+| memory | about 436 GB |
+| storage | about 11 TB of SSD |
+
+Most of it sits in three machines.
 
 ## Skills, rules and orchestration
 
