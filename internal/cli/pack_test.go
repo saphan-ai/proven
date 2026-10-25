@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,6 +75,17 @@ func TestSampleReviewWritesAPackThatVerifies(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("verify output has no %q:\n%s", want, stdout.String())
 		}
+	}
+
+	// A review's own pack re-derives every finding.
+	var rd, all int
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if _, err := fmt.Sscanf(line, "outcomes: %d of %d", &rd, &all); err == nil {
+			break
+		}
+	}
+	if all == 0 || rd != all || strings.Contains(stdout.String(), "not re-derived:") {
+		t.Errorf("a review's own pack must re-derive every finding, got %d of %d:\n%s", rd, all, stdout.String())
 	}
 
 	// The public key may come from the setting as well as the flag.

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -218,10 +219,28 @@ func (l ProofLevel) Valid() bool {
 	return false
 }
 
-// ProofLevelOf returns the level of the strongest evidence in ev, or an error when ev holds no
-// evidence of a kind that has a level. ADR-0002: a finding without evidence cannot exist, so
-// there is no level to fall back to, and a guess would show a reader proof that is not there.
+// ProofLevelOf returns the level of the strongest evidence in ev that counts, by the Judge's own
+// predicate (judge.EvidenceCounts): a test that did not fail on the change does not lift a finding
+// above the bound query that does count. When no evidence counts the Judge drops the finding, and
+// the level is that of the strongest kind present, so a refusal can still name it. It returns an
+// error when ev holds no evidence of a kind that has a level. ADR-0002: a finding without
+// evidence cannot exist, so there is no level to fall back to, and a guess would show a reader
+// proof that is not there.
 func ProofLevelOf(ev []Evidence) (ProofLevel, error) {
+	var counting []Evidence
+	for _, e := range ev {
+		if judge.EvidenceCounts(candidateEvidence(e)) {
+			counting = append(counting, e)
+		}
+	}
+	if len(counting) > 0 {
+		ev = counting
+	}
+	return strongestKind(ev)
+}
+
+// strongestKind returns the level of the strongest kind in ev.
+func strongestKind(ev []Evidence) (ProofLevel, error) {
 	level := ProofLevel("")
 	rank := len(ProofLevels)
 	for _, e := range ev {

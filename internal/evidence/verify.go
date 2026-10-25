@@ -224,13 +224,19 @@ func Verify(pack []byte, pub ed25519.PublicKey) (*Report, error) {
 	rep := &Report{
 		Created: m.Created, KeyID: m.KeyID, Commits: m.Commits, Models: m.Models, Files: m.Files,
 		NotChecked:   append([]string(nil), notChecked...),
-		ChecksPassed: []string{"signature", "hash of every file", "no file missing or extra", "receipts", "outcome of every finding re-derived from its recorded evidence"},
+		ChecksPassed: []string{"signature", "hash of every file", "no file missing or extra", "receipts"},
 	}
 	if err := checkReceipts(files, m, rep); err != nil {
 		return nil, err
 	}
-	if err := checkOutcomes(files, rep); err != nil {
+	if err := checkOutcomes(files, m.RedactionMoved, rep); err != nil {
 		return nil, err
+	}
+	// The sentence says "every" only when every finding was re-derived.
+	if len(rep.NotRederived) == 0 {
+		rep.ChecksPassed = append(rep.ChecksPassed, "outcome of every finding re-derived from its recorded evidence")
+	} else {
+		rep.ChecksPassed = append(rep.ChecksPassed, fmt.Sprintf("outcome of the findings the pack records enough for re-derived from its recorded evidence (%d not re-derived)", len(rep.NotRederived)))
 	}
 	if err := describe(files, rep); err != nil {
 		return nil, err

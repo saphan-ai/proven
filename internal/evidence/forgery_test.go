@@ -158,6 +158,11 @@ func variants(v any) []func() any {
 		}}
 	case string:
 		out := []func() any{func() any { return x + "x" }}
+		// A text is also replaced by a word the Judge reads as a denial. In a refutation row it
+		// moves an outcome through judge.QueryContradicts; elsewhere it is one more value.
+		if x != "no" {
+			out = append(out, func() any { return "no" })
+		}
 		// A proof level is also replaced by each other level, which is what a forger who wants a
 		// stronger or weaker level writes.
 		if review.ProofLevel(x).Valid() {
@@ -418,7 +423,8 @@ func TestForgeryBench(t *testing.T) {
 
 	t.Run("b-hashes-recomputed", func(t *testing.T) {
 		var changes, moving, movingRefused, quiet, quietRefused int
-		byCheck := map[string]int{}
+		// movingBy and quietBy tally the refusals by the check that made them.
+		movingBy, quietBy := map[string]int{}, map[string]int{}
 		for _, f := range all {
 			if f.file == SignatureName {
 				continue // signing again makes the signature file the original's
@@ -436,9 +442,6 @@ func TestForgeryBench(t *testing.T) {
 			moves := movesOutcome(files, sealedFiles)
 			_, verr := Verify(b, pub)
 			changes++
-			if r := refusalOf(verr); r != nil {
-				byCheck[r.Check]++
-			}
 			if moves {
 				moving++
 				r := refusalOf(verr)
@@ -446,17 +449,21 @@ func TestForgeryBench(t *testing.T) {
 					t.Errorf("%s %s: moves an outcome and was not refused by the re-derivation (%v)", f.file, f.desc, verr)
 					continue
 				}
+				movingBy[r.Check]++
 				movingRefused++
 				continue
 			}
 			quiet++
-			if verr != nil {
+			if r := refusalOf(verr); r != nil {
+				quietBy[r.Check]++
 				quietRefused++
 			}
 		}
-		t.Logf("forgery bench (b) hashes recomputed and signed again: %d changes, %d move an outcome, %d of those refused by the re-derivation; %d leave every outcome as it was, %d of those refused by another check and %d verify",
-			changes, moving, movingRefused, quiet, quietRefused, quiet-quietRefused)
-		t.Logf("forgery bench (b) refusals by check: %v", byCheck)
+		// The oracle that says which changes move an outcome is review.Rederive, the rule Verify
+		// applies. So this count shows that Verify applies the rule to every recorded value; it
+		// does not show that the rule is right. The rule is pinned by its own tests.
+		t.Logf("forgery bench (b) hashes recomputed and signed again: %d changes, %d move an outcome, %d of those refused (%d by the outcome check, %d by the format check); %d leave every outcome as it was, %d of those refused by another check (%v) and %d verify",
+			changes, moving, movingRefused, movingBy[CheckOutcome], movingBy[CheckFormat], quiet, quietRefused, quietBy, quiet-quietRefused)
 		if moving == 0 {
 			t.Fatal("no change moved an outcome, so the bench measures nothing")
 		}

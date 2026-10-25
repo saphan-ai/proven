@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"github.com/saphan-ai/proven/internal/review"
 )
@@ -15,7 +16,7 @@ import (
 //
 // What it proves is that the verdict follows from the evidence the pack records. It does not
 // prove that the recorded evidence is true.
-func checkOutcomes(files map[string][]byte, rep *Report) error {
+func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report) error {
 	var res review.Result
 	if err := json.Unmarshal(files[FindingsName], &res); err != nil {
 		return refuse(CheckFormat, FindingsName, "not readable: %v", err)
@@ -36,7 +37,22 @@ func checkOutcomes(files map[string][]byte, rep *Report) error {
 	if id, same := firstQueryDifference(gotQueries, queries(res)); !same {
 		return refuse(CheckOutcome, QueriesName, "the queries recorded for finding %s are not the ones findings.json holds", Visible(id))
 	}
-	for _, f := range res.Findings {
+	unbound, err := findingsWithoutBound(files[FindingsName])
+	if err != nil {
+		return refuse(CheckFormat, FindingsName, "not readable: %v", err)
+	}
+	for i, f := range res.Findings {
+		// A pack written before Bound was recorded holds rows whose tie to the change is unknown.
+		// Absent is not false: the rule would drop the finding, but nobody recorded that it should.
+		// The pack is not called forged for it, and the finding is not called re-derived.
+		if slices.Contains(redactionMoved, f.ID) {
+			rep.NotRederived = append(rep.NotRederived, fmt.Sprintf("finding %s: redaction changed the text the rule reads for it, so its outcome is not re-derived", Visible(f.ID)))
+			continue
+		}
+		if unbound[i] {
+			rep.NotRederived = append(rep.NotRederived, fmt.Sprintf("finding %s: the pack does not record whether its query rows are bound to the change, so its outcome is not re-derived", Visible(f.ID)))
+			continue
+		}
 		out, err := review.Rederive(f)
 		if err != nil {
 			return refuse(CheckOutcome, FindingsName, "finding %s: %v", Visible(f.ID), err)
@@ -60,6 +76,31 @@ func checkOutcomes(files map[string][]byte, rep *Report) error {
 		return refuse(CheckOutcome, FindingsName, "the recorded proof counts %v are not the counts %v of the findings recorded", res.ProofCounts, want)
 	}
 	return nil
+}
+
+// findingsWithoutBound reports, per finding in file order, whether findings.json holds a query
+// whose Bound field is absent, as opposed to recorded false.
+func findingsWithoutBound(findings []byte) ([]bool, error) {
+	var raw struct {
+		Findings []struct {
+			Evidence []struct {
+				Kind  string
+				Query *struct{ Bound *bool }
+			}
+		}
+	}
+	if err := json.Unmarshal(findings, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]bool, len(raw.Findings))
+	for i, f := range raw.Findings {
+		for _, e := range f.Evidence {
+			if e.Query != nil && e.Query.Bound == nil {
+				out[i] = true
+			}
+		}
+	}
+	return out, nil
 }
 
 // firstTestDifference returns the finding id of the first run where the two lists differ.
