@@ -19,6 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
@@ -256,6 +257,13 @@ func open(opts Options) (Reviewer, error) {
 			return nil, limitConfig(aerr)
 		}
 		adapterLimit = bound
+		// ADR-0048, ADR-0013: the bounded-steps settings are checked here, so a wrong value stops Open before any
+		// review. Unset, the engine is off and the review is whole. Sample mode skips this block.
+		bounded, merr := markov.Load(env)
+		if merr != nil {
+			return nil, markovConfig(merr)
+		}
+		popts.Markov = bounded
 	}
 	// ADR-0045: telemetry is off unless the standard OTEL_* variables name an endpoint. A wrong value
 	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
@@ -885,6 +893,18 @@ func osvConfig(err error) error {
 // limitConfig turns a refused adapter-bound setting into the seam's *ConfigError.
 func limitConfig(err error) error {
 	var cfg *limit.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// markovConfig turns a refused bounded-steps setting into the seam's *ConfigError.
+func markovConfig(err error) error {
+	var cfg *markov.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
