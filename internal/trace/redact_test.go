@@ -32,7 +32,7 @@ func TestAppendRedactsEveryTextFieldAndLeavesTheCallersEventAlone(t *testing.T) 
 		},
 		Refutation: &Refutation{Reason: secret},
 		Guardrail:  &Check{Side: secret, Verdict: secret, Categories: []string{secret}},
-		Model:      &Model{Route: secret, Model: secret, ReceiptID: secret},
+		Model:      &Model{Route: secret, Model: secret, ReceiptID: secret, Requested: secret, ResponseID: secret},
 	}
 	if err := w.Append(e); err != nil {
 		t.Fatal(err)

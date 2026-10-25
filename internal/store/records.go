@@ -228,7 +228,15 @@ func RecordID(pr, commit, run, findingID string) string {
 	if len(commit) > 12 {
 		commit = commit[:12]
 	}
-	return strings.Join([]string{part(orDefault(pr, "local")), part(orDefault(commit, "tree")), part(run), part(findingID)}, "-")
+	id := part(findingID)
+	// A finding id with a character the document id cannot hold would fold
+	// onto another one ("F.1" and "f-1"), and in one bulk both lose their
+	// record. Such an id keeps a short hash of its original spelling.
+	if idUnsafe.MatchString(strings.ToLower(findingID)) {
+		sum := sha256.Sum256([]byte(findingID))
+		id += "-" + hex.EncodeToString(sum[:4])
+	}
+	return strings.Join([]string{part(orDefault(pr, "local")), part(orDefault(commit, "tree")), part(run), id}, "-")
 }
 
 func orDefault(s, d string) string {
