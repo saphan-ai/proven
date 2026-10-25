@@ -78,3 +78,13 @@ test('a generated page that differs from the generator fails the stale guard (ne
   // the page docs/CONFIGURATION.md must carry the table settings-doc writes
   assert.equal(checkStale(same, dir(body), config.replace('row', 'old row')).length, 1);
 });
+
+test('a raw HTML link with other attributes is checked (negative control: the tag shape)', () => {
+  const pages = [{ slug: 'x', text: '<a class="nav" href="/docs/missing">missing</a>\n' }];
+  assert.equal(checkLinks(pages).findings.length, 1);
+});
+
+test('an indented conflict marker fails the page-intact guard; an indented ======= does not', () => {
+  assert.equal(checkConflicts([{ slug: 'x', text: '  <<<<<<< main\n' }]).length, 1);
+  assert.equal(checkConflicts([{ slug: 'x', text: 'Title\n  =======\n' }]).length, 0);
+});

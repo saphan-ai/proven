@@ -2,7 +2,9 @@
 //
 //   page-intact  a page carries a merge-conflict marker
 //   links        a link inside the site, or to an image, or to an anchor, goes nowhere
-//   public-text  a page names an internal path, a machine name or a credential
+//   public-text  a page matches a known shape of an internal path, a private
+//                host name or address, or a credential format (publicTextRules);
+//                a value outside those shapes is not caught — a guard, not a proof
 //   stale        a generated page differs from what the generator writes now
 //
 // They read docs-site/content/docs, which build-content.mjs wrote, so they see
@@ -44,7 +46,9 @@ export function checkConflicts(pages) {
   const out = [];
   for (const p of pages) {
     for (const l of lines(p.text)) {
-      if (/^(<{7}|={7}|>{7})(\s|$)/.test(l.text)) out.push(`${p.slug}:${l.n}: merge-conflict marker "${l.text.slice(0, 20)}"`);
+      // <<<<<<< and >>>>>>> are markers at any indent; ======= only at column one,
+      // because an indented run of = can be a heading underline.
+      if (/^\s*(<{7}|>{7})(\s|$)|^={7}(\s|$)/.test(l.text)) out.push(`${p.slug}:${l.n}: merge-conflict marker "${l.text.slice(0, 20)}"`);
     }
   }
   return out;

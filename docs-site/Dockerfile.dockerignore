@@ -12,3 +12,11 @@ dist
 **/.env
 **/.env.*
 **/.DS_Store
+# Live work files a checkout of this repository can hold: never in the image.
+.provision
+.saphan
+.saphan-*
+_*
+**/_EXEC_*
+**/_REVIEW_*
+SHOUT_*

@@ -114,13 +114,17 @@ export function headingAnchors(text) {
   return out;
 }
 
-// Markdown links and images outside code, as { n, target }.
+// Links and images outside code, as { n, target }: Markdown links and images,
+// and every href or src in raw HTML, whatever other attributes the tag has.
 export function linksOf(text) {
   const out = [];
   for (const l of lines(text)) {
     if (l.inFence) continue;
     const noCode = l.text.replace(/`[^`]*`/g, (s) => ' '.repeat(s.length));
     for (const m of noCode.matchAll(/!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)) {
+      out.push({ n: l.n, target: m[1] });
+    }
+    for (const m of noCode.matchAll(/<(?:a|img)\b[^>]*?\s(?:href|src)\s*=\s*["']([^"']+)["']/gi)) {
       out.push({ n: l.n, target: m[1] });
     }
   }

@@ -254,7 +254,7 @@ docker build -f docs-site/Dockerfile -t proven-docs .
 docker run -p 3000:3000 proven-docs
 ```
 
-Then open `http://localhost:3000/docs`. The command-line, settings and adapter pages are written from the code during the build, and the build fails when a link is broken, a page names an internal path, machine or credential, or a generated page is out of date. After a flag, a setting or an adapter interface changes, regenerate the committed copies with `sh docs-site/scripts/generate.sh docs-site/generated`.
+Then open `http://localhost:3000/docs`. The command-line, settings and adapter pages are written from the code during the build, and the build fails when a link is broken, a page matches a known shape of an internal path, a private host name or a credential (the list is in `docs-site/scripts/guards.mjs`; a value outside those shapes is not caught), or a generated page is out of date. After a flag, a setting or an adapter interface changes, regenerate the committed copies with `sh docs-site/scripts/generate.sh docs-site/generated`.
 
 Deploy it to Cloudflare, from `docs-site/`, with one command:
 
