@@ -15,7 +15,7 @@ import (
 type Facts struct {
 	// Executable is true when the file is executable on either side of the change, or is not a regular file.
 	Executable bool
-	// Shebang is true when the file's content starts with "#!".
+	// Shebang is true when the file's content starts with "#!" on either side of the change.
 	Shebang bool
 	// Unverified is the reason the facts could not be established, or empty.
 	Unverified string
@@ -29,8 +29,8 @@ var errTruncatedRaw = errors.New("git: a raw diff entry without its path")
 
 // FactsBetween reads the facts of every file changed between baseline and head, keyed by path. An empty
 // head means the working tree. A rename's facts are keyed under both its old and its new path. Modes come
-// from git's own raw diff; the shebang is read from the file's content at head (at baseline for a deleted
-// file, and from disk for the working tree).
+// from git's own raw diff; the shebang is read from the file's content on both sides, as the executable
+// bit is (at baseline unless the file is new, at head unless it is gone, and from disk for the working tree).
 func FactsBetween(target, baseline, head string) (map[string]Facts, error) {
 	if err := ensureCommit(target, baseline, "baseline"); err != nil {
 		return nil, err
@@ -73,13 +73,16 @@ func FactsBetween(target, baseline, head string) (map[string]Facts, error) {
 		if meta[0] == symlinkMode || meta[1] == symlinkMode {
 			f.Unverified = "a symbolic link"
 		}
-		// The side that holds the file's last content: head, or baseline when the file is gone.
-		rev, name := head, paths[len(paths)-1]
-		if letter == "D" {
-			rev, name = baseline, paths[0]
+		// A shebang on either side of the change counts, as an executable bit does: a script that loses its
+		// header is still a script change, and a model must review it. Each side that exists is read: the
+		// baseline unless the file is new, the head unless the file is gone (a rename has both paths).
+		if f.Unverified == "" && letter != "A" {
+			f.Shebang, f.Unverified = gitShebang(target, baseline, paths[0])
 		}
-		if f.Unverified == "" {
-			f.Shebang, f.Unverified = gitShebang(target, rev, name)
+		if f.Unverified == "" && letter != "D" {
+			var sb bool
+			sb, f.Unverified = gitShebang(target, head, paths[len(paths)-1])
+			f.Shebang = f.Shebang || sb
 		}
 		for _, p := range paths {
 			out[p] = f
@@ -104,8 +107,7 @@ func FactsBetween(target, baseline, head string) (map[string]Facts, error) {
 }
 
 // TreeFacts reads the facts of paths in a prepared base/ and change/ pair under root, keyed by path. A
-// file is executable when it is on either side; its shebang is read from the change side, or the base
-// side for a deleted file.
+// file is executable when it is on either side, and has a shebang when either side starts with one.
 func TreeFacts(root string, paths []string) map[string]Facts {
 	out := make(map[string]Facts, len(paths))
 	for _, p := range paths {
@@ -119,7 +121,7 @@ func TreeFacts(root string, paths []string) map[string]Facts {
 			}
 			if df.Unverified == "" {
 				f.Executable = f.Executable || df.Executable
-				f.Shebang, last = df.Shebang, side
+				f.Shebang, last = f.Shebang || df.Shebang, side
 			}
 		}
 		if last == "" && f.Unverified == "" {
