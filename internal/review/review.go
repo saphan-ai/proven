@@ -269,6 +269,9 @@ type Finding struct {
 	// ProofLevel is the finding's one named level of proof (ADR-0044). It is never empty in a Result.
 	ProofLevel ProofLevel
 	Unresolved bool // the evidence did not settle it; counts in findings-count and in unresolved-count
+	// Refutation is the Skeptic's attempt as the Judge read it. Nil means the result does not
+	// record it, and Rederive then cannot say the finding was not refuted.
+	Refutation *Refutation
 	// Models names the reviewer models that reported this finding.
 	// One name when one run found it. Both names, the default reviewer first, when both did.
 	Models []string
@@ -397,6 +400,20 @@ type QueryEvidence struct {
 	Snapshot string // which snapshot of each source was read
 	Columns  []string
 	Rows     [][]string
+	// Bound is set by Proven when the rows are about the change's own package, version or
+	// advisory. The Judge counts rows as evidence only then, so a pack records it (ADR-0035).
+	Bound bool
+}
+
+// Refutation is what the Skeptic's attempt found, reduced to the facts the Judge's rule reads
+// (judge.Decide). A pack records it so that "reported" and "unresolved" can be re-derived
+// without the model (ADR-0035).
+type Refutation struct {
+	TestFound         bool
+	TestFailsOnChange bool
+	TestCannotRun     bool
+	QueryRows         [][]string
+	QueryCannotRun    bool
 }
 
 // ServiceFailure names an outside service that failed and why.
