@@ -1,4 +1,4 @@
-// Command meterless-conform exposes the H-MEM and world stores on stdin.
+// Command meterless-conform exposes the H-MEM and world stores, and Scout Intent, on stdin.
 // One JSON request per line, one JSON answer per line. No network.
 //
 // It lets Meterless's own conformance suites test the Go engines through the
@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/hmem"
+	"github.com/saphan-ai/proven/internal/scout"
 	"github.com/saphan-ai/proven/internal/world"
 )
 
@@ -68,6 +69,12 @@ type request struct {
 	Type         string            `json:"type"`
 	Similarity   float64           `json:"similarity"`
 	Observations []json.RawMessage `json:"observations"`
+	// Registry, PolicyPack, Prompt, User and Surface are Scout's (ADR-0049 point 4).
+	Registry   string          `json:"registry"`
+	PolicyPack json.RawMessage `json:"policyPack"`
+	Prompt     string          `json:"prompt"`
+	User       scout.User      `json:"user"`
+	Surface    string          `json:"surface"`
 }
 
 // handle decodes one line and sends it to its engine. A line that does not
@@ -82,6 +89,8 @@ func handle(line []byte) map[string]any {
 		return hmemOp(req)
 	case "world":
 		return worldOp(req)
+	case "scout":
+		return scoutOp(req)
 	default:
 		return fail(req.ID, "unknown engine "+req.Engine)
 	}
