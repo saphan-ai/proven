@@ -6,6 +6,8 @@
 // "proved". A patch that fails is tried again by the same model with the failure in hand, up to the
 // number of attempts the settings name; after that the review says the fix is not proved and shows
 // no patch. The patch is applied to a scratch copy and is a suggestion: nothing here writes to the change.
+// With the whole-change attempt on (ADR-0050) this loop is not run; the attempt keeps the rule that judges
+// a test-proved finding, through Judge, and has no retry.
 package fixer
 
 import (
@@ -220,6 +222,16 @@ func prove(ctx context.Context, got row, c candidate.Candidate, test *candidate.
 	}
 	ok := judge(&a)
 	return result{Attempt: a, ok: ok}
+}
+
+// Judge decides the runs of one patched change by the rule of ADR-0042 points 2 and 3, which
+// the whole-change attempt keeps for a finding proved by a test (ADR-0050 point 2): the proving
+// test passes on the patched change and the package's other tests still pass. It returns the
+// reason the runs do not prove the fix, or "" when they do. No model is consulted.
+func Judge(runs []candidate.FixRun) (ok bool, reason string) {
+	a := Attempt{Runs: runs}
+	ok = judge(&a)
+	return ok, a.Reason
 }
 
 // judge decides a record. The fix is proved only when the proving test passes on the base,
