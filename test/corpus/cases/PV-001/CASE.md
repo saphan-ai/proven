@@ -2,7 +2,7 @@
 
 - incident: I02 (one incident; this case is its first round)
 - intended fixture language: TypeScript (a hint only; this contract is language-neutral; see `../../manifest.json`)
-- contract written: 2026-10-19 · case code: not built yet — built before the window, declared prior art · checks: not run · independent check: not done
+- contract written: 2026-10-19 · case code: built (2026-10-21, declared prior art) · checks: run (2026-10-21) · independent check: not done
 - the expected outcome is NOT in this file: it is in `expected/EXPECTED.md`, kept apart so an evaluation can withhold it
 
 ## 1. Story
@@ -74,8 +74,55 @@ In `expected/EXPECTED.md`.
 
 ## 8. Reproduction plan
 
-Run the check on base and on change and record each line of its output. **Not run**: the case code is not built
-yet. The exact commands, the toolchain and its version are written here when they exist.
+Run the check on base and on change and record each line of its output.
+
+Ran 2026-10-24 04:03:27 UTC, from `date -u '+%Y-%m-%d %H:%M:%S UTC'`. `check.sh` compiles the case and then runs it.
+
+Toolchain, measured on this run:
+
+- `node --version` printed `v22.23.2`
+- `npm --version` printed `10.9.8`
+- `node test/corpus/cases/PV-001/node_modules/typescript/bin/tsc --version` printed `Version 7.0.2`
+- `package.json` pins typescript `7.0.2` and parse5 `8.0.1` with no range
+- `package-lock.json` locks those pins, and locks parse5's dependency entities at `8.1.0`
+
+Commands, from the repository root:
+
+```
+npm ci --cache .saphan/work/corpus-pv-001/npm-cache --prefix test/corpus/cases/PV-001
+bash test/corpus/cases/PV-001/check.sh
+```
+
+`npm ci --cache .saphan/work/corpus-pv-001/npm-cache --prefix test/corpus/cases/PV-001` exited 0 and printed:
+
+```
+added 4 packages, and audited 5 packages in 1s
+
+2 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+```
+
+`bash test/corpus/cases/PV-001/check.sh` exited 0 and printed:
+
+```
+comment-without-frame base=pass change=fail missing=home reference=fail missing=home base_ids=["home"] change_ids=[] reference_ids=[]
+comment-with-frame base=pass change=pass reference=pass base_ids=["home","home"] change_ids=["home"] reference_ids=["home"]
+script-without-frame base=pass change=fail missing=home reference=fail missing=home base_ids=["home"] change_ids=[] reference_ids=[]
+script-with-frame base=pass change=pass reference=pass base_ids=["home","home"] change_ids=["home"] reference_ids=["home"]
+style-without-frame base=pass change=fail missing=home reference=fail missing=home base_ids=["home"] change_ids=[] reference_ids=[]
+style-with-frame base=pass change=pass reference=pass base_ids=["home","home"] change_ids=["home"] reference_ids=["home"]
+attribute-value-without-frame base=pass change=fail missing=home reference=fail missing=home base_ids=["home"] change_ids=[] reference_ids=[]
+attribute-value-with-frame base=pass change=pass reference=pass base_ids=["home","home"] change_ids=["home"] reference_ids=["home"]
+cdata-without-frame base=pass change=fail missing=home reference=fail missing=home base_ids=["home"] change_ids=[] reference_ids=[]
+cdata-with-frame base=pass change=pass reference=pass base_ids=["home","home"] change_ids=["home"] reference_ids=["home"]
+split-line-without-frame base=pass change=fail missing=home reference=fail missing=home base_ids=["home"] change_ids=[] reference_ids=[]
+split-line-with-frame base=pass change=pass reference=pass base_ids=["home","home"] change_ids=["home"] reference_ids=["home"]
+duplicate-attribute base=pass change=pass reference=fail missing=home base_ids=["other","home"] change_ids=["home"] reference_ids=["other"]
+```
+
+Each line is one input. A result is `pass`, or `fail missing=` and the missing required ids. The three `_ids` fields are the full frame-id lists from each reader, in document order. Every input requires `home`.
 
 ## 9. Limits
 

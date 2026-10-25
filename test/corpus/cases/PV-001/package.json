@@ -1,0 +1,13 @@
+{
+  "name": "pv-001",
+  "private": true,
+  "version": "0.0.0",
+  "description": "PV-001 corpus case: two frame guards and a reference reading.",
+  "type": "module",
+  "dependencies": {
+    "parse5": "8.0.1"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
