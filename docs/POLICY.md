@@ -83,6 +83,8 @@ A class that is doubled is reviewed twice. `doubled_classes` therefore says whic
 fourth key that decides the class of a path: when the policy sets it, the policy's classification (its rules or the
 defaults, its fallback and its order) is the floor above, even if the policy sets no other class key. With a second
 reviewer connected, security is doubled even under `doubled_classes: off`, so the floor holds for `off` as well.
+A policy that fixes the classes but does not name `doubled_classes` still doubles what a connected second reviewer
+doubles (every class), so a repository's `doubled_classes` that doubles fewer is refused by name.
 
 The rule is one sentence: **for every path, a path the policy doubles is doubled under the repository's settings.** A
 repository can fail it in two ways, and both are refused:
@@ -121,7 +123,7 @@ an expiry that is not a `YYYY-MM-DD` date, or a key that is not one of the five.
 In a review:
 
 - **Until it expires** the finding is *accepted*: it is printed with its reason, owner and expiry, it is never hidden, and
-  it does not count. `--error` does not fail for it. The exception holds through the whole of its expiry day, by the
+  it does not count, neither as a finding nor in the proof totals (`ProofCounts` counts active findings only). `--error` does not fail for it. The exception holds through the whole of its expiry day, by the
   UTC date of the review's clock.
 - **After it expires** the finding counts again, as if there were no exception, and the review prints
   `exception <id> expired on <date>: finding <name> counts again (rule …, owner …, reason: …)`.

@@ -292,12 +292,24 @@ func (p *policy) weaker(key string, cfg fileSettings) string {
 			return "it falls back to " + cfg.Fallback + ", above " + pol.Fallback + ", and does not double " + cfg.Fallback + " where the policy doubles " + p.doubledList()
 		}
 	case "doubled_classes":
-		if !polSet {
+		if polSet {
+			for _, c := range classNames() {
+				if pol.Doubled[c] && !cfg.Doubled[c] {
+					return "it stops doubling " + c
+				}
+			}
 			return ""
 		}
+		if !p.fixesClasses() {
+			return ""
+		}
+		// The policy did not name the list, but it fixes the classes, and with a second reviewer
+		// connected an unset list doubles every class: compare what each side then doubles.
+		polDoubled := withSecond(pol, "second").Doubled
+		cfgDoubled := withSecond(cfg, "second").Doubled
 		for _, c := range classNames() {
-			if pol.Doubled[c] && !cfg.Doubled[c] {
-				return "it stops doubling " + c
+			if polDoubled[c] && !cfgDoubled[c] {
+				return "it stops doubling " + c + " when a second reviewer is connected"
 			}
 		}
 	case "author_commit_trailers":
@@ -574,6 +586,15 @@ func (p *policy) applyExceptions(out *Result, now time.Time) {
 		kept = append(kept, f)
 	}
 	out.Findings = kept
+	// An accepted finding is not active: the proof totals count active findings only.
+	for level := range out.ProofCounts {
+		out.ProofCounts[level] = 0
+	}
+	for _, f := range kept {
+		if f.ProofLevel != "" && out.ProofCounts != nil {
+			out.ProofCounts[f.ProofLevel]++
+		}
+	}
 }
 
 // findingName is how a review names a finding: its id, else its rule.
