@@ -282,18 +282,55 @@ func TestScanRefusesWhenNothingIsScanned(t *testing.T) {
 }
 
 // checkDockerignore: the fleet work area, the trace directory and the fleet record stay out of the context.
+// The file is either a deny-list that names each path, or an allow-list: the first
+// rule is `*` and no later `!` rule re-admits a wanted path.
 func checkDockerignore(ignore string) []string {
-	have := map[string]bool{}
+	var rules []string
 	for _, l := range strings.Split(ignore, "\n") {
-		have[strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(l), "/"), "/")] = true
+		if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "#") {
+			rules = append(rules, l)
+		}
+	}
+	allowList := len(rules) > 0 && rules[0] == "*"
+	have := map[string]bool{}
+	for _, l := range rules {
+		have[strings.TrimSuffix(strings.TrimPrefix(l, "/"), "/")] = true
 	}
 	var missing []string
-	for _, want := range []string{".saphan", "logs", "hackathon", ".env"} {
+	for _, want := range []string{".saphan", ".provision", "logs", "hackathon", ".env"} {
+		if allowList {
+			if dockerignoreAdmits(rules, want) {
+				missing = append(missing, want)
+			}
+			continue
+		}
 		if !have[want] && !have["**/"+want] {
 			missing = append(missing, want)
 		}
 	}
 	return missing
+}
+
+// dockerignoreAdmits reports whether the path is sent after the rules are applied in
+// order, the last matching rule winning. A `!` rule for something under the path
+// admits that part of it, so it counts as admitting the path.
+func dockerignoreAdmits(rules []string, want string) bool {
+	admitted := false
+	for _, r := range rules {
+		neg := strings.HasPrefix(r, "!")
+		p := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(r, "!"), "/"), "/")
+		hit := p == want || p == "**" || p == "**/"+want
+		if ok, err := filepath.Match(p, want); err == nil && ok {
+			hit = true
+		}
+		if neg && strings.HasPrefix(p, want+"/") {
+			hit = true
+		}
+		if hit {
+			admitted = neg
+		}
+	}
+	return admitted
 }
 
 func TestDockerignoreKeepsWorkAreaOut(t *testing.T) {
@@ -302,6 +339,19 @@ func TestDockerignoreKeepsWorkAreaOut(t *testing.T) {
 	}
 	if len(checkDockerignore(".saphan\nlogs\nhackathon\n")) == 0 {
 		t.Error("negative control: check accepted a file without .env")
+	}
+	// Negative control: an allow-list that re-admits .saphan must be refused.
+	allow := read(t, ".dockerignore")
+	if m := checkDockerignore(allow + "\n!.saphan\n"); len(m) != 1 || m[0] != ".saphan" {
+		t.Errorf("negative control: an allow-list with !.saphan gave %v, want [.saphan]", m)
+	}
+	// Negative control: an allow-list that re-admits only .provision must be refused.
+	if m := checkDockerignore(allow + "\n!.provision/skills\n"); len(m) != 1 || m[0] != ".provision" {
+		t.Errorf("negative control: an allow-list with !.provision/skills gave %v, want [.provision]", m)
+	}
+	// An allow-list must start with `*`: without it the file is read as a deny-list.
+	if len(checkDockerignore(strings.Replace(allow, "\n*\n", "\n", 1))) == 0 {
+		t.Error("negative control: check accepted an allow-list without its first * rule")
 	}
 }
 
