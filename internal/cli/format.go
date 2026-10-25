@@ -65,7 +65,7 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		return err
 	}
 	if result.PolicyStatement != "" {
-		if _, err := fmt.Fprintln(w, result.PolicyStatement); err != nil {
+		if _, err := fmt.Fprintln(w, visible(result.PolicyStatement)); err != nil {
 			return err
 		}
 	}
@@ -107,7 +107,7 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 	}
 	for _, expired := range result.Expired {
 		if _, err := fmt.Fprintf(w, "exception %s expired on %s: finding %s counts again (rule %s at %s, owner %s, reason: %s)\n",
-			expired.ExceptionID, expired.Expires, expired.Finding, expired.Rule, expired.Location, expired.Owner, expired.Reason); err != nil {
+			visible(expired.ExceptionID), visible(expired.Expires), visible(expired.Finding), visible(expired.Rule), visible(expired.Location), visible(expired.Owner), visible(expired.Reason)); err != nil {
 			return err
 		}
 	}
@@ -341,17 +341,17 @@ func writeAccepted(w io.Writer, accepted review.AcceptedFinding) error {
 	if name == "" {
 		name = finding.RuleID
 	}
-	if _, err := fmt.Fprintf(w, "accepted finding %s %s %s\n", name, finding.Severity, finding.Title); err != nil {
+	if _, err := fmt.Fprintf(w, "accepted finding %s %s %s\n", visible(name), visible(string(finding.Severity)), visible(finding.Title)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", finding.Location.Path, finding.Location.StartLine, finding.Location.EndLine); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", visible(finding.Location.Path), finding.Location.StartLine, finding.Location.EndLine); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  rule %s\n", finding.RuleID); err != nil {
+	if _, err := fmt.Fprintf(w, "  rule %s\n", visible(finding.RuleID)); err != nil {
 		return err
 	}
 	_, err := fmt.Fprintf(w, "  accepted by exception %s: reason: %s; owner: %s; expires: %s\n",
-		accepted.ExceptionID, accepted.Reason, accepted.Owner, accepted.Expires)
+		visible(accepted.ExceptionID), visible(accepted.Reason), visible(accepted.Owner), visible(accepted.Expires))
 	return err
 }
 
