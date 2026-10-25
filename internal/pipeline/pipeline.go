@@ -1461,10 +1461,19 @@ func (p *Pipeline) guard(gen generator.Generator, rail guardrail.Adapter) (gener
 
 // guardEvent is the trace line for one guardrail check: the refusal when the
 // check could not be made, otherwise the side, verdict, latency and categories.
+// Both carry the backend and model that answered, so checks can be counted per
+// backend; a refusal also carries its side and its down value.
 func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.Event {
 	ev := trace.Event{FindingID: "guardrail", Kind: "guardrail", Agent: agent}
 	if refused != "" {
+		// The text stays as it was before the structured fields existed, so a
+		// reader that matches "guardrail: <reason>" keeps working. Down, not the
+		// text, is what a count groups by.
 		ev.Text = "guardrail: " + refused
+		ev.Guardrail = &trace.Check{
+			Side: side, LatencyMS: v.Latency.Milliseconds(),
+			Backend: v.Backend, Model: v.Model, Down: v.Down,
+		}
 		return ev
 	}
 	verdict := "safe"
@@ -1479,6 +1488,7 @@ func guardEvent(agent, side string, v guardrail.Verdict, refused string) trace.E
 	ev.Guardrail = &trace.Check{
 		Side: side, Verdict: verdict, LatencyMS: v.Latency.Milliseconds(),
 		Categories: append([]string(nil), v.Categories...),
+		Backend:    v.Backend, Model: v.Model,
 	}
 	return ev
 }

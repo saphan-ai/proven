@@ -73,6 +73,28 @@ func (n *NVIDIA) Check(ctx context.Context, prompt, answer string) (Verdict, err
 	return n.c.check(ctx, prompt, answer)
 }
 
+// Identity names this backend by its mode and the model id the settings chose.
+func (s *Server) Identity() (backend, model string) {
+	return ModeServer, s.model()
+}
+
+// Identity names this backend by its mode and the model id the settings chose.
+func (n *NVIDIA) Identity() (backend, model string) {
+	if n == nil {
+		return ModeNVIDIA, ""
+	}
+	return ModeNVIDIA, n.c.model()
+}
+
+// model is the configured model id. A nil adapter has none: its Check
+// refuses as not configured, and the trace must not invent a model for it.
+func (s *Server) model() string {
+	if s == nil {
+		return ""
+	}
+	return s.c.model()
+}
+
 // Off is the guardrail switched off. Check refuses, so a caller that forgets
 // the switch cannot treat the prompt as safe.
 type Off struct{}
@@ -82,10 +104,21 @@ func (Off) Check(context.Context, string, string) (Verdict, error) {
 	return Verdict{}, Refuse("off")
 }
 
+// Identity names the switched-off guardrail "off". It calls no model.
+func (Off) Identity() (backend, model string) { return ModeOff, "" }
+
 // client is the HTTP side both backends share.
 type client struct {
 	cfg  Settings
 	http *http.Client
+}
+
+// model is the model id the request sends; empty for a nil client.
+func (c *client) model() string {
+	if c == nil {
+		return ""
+	}
+	return c.cfg.Model
 }
 
 // newClient uses, when httpClient is nil, a client that does not follow
