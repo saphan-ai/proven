@@ -2,7 +2,7 @@ Scout Intent eval: Proven's change registry (internal/scout/changes.json) and ch
 runner: test/conformance/meterless/scout-intent/runner/index.ts, a copy of engines/scout-intent/evals/runner/index.ts at commit 1742dec56a66e58eef9dda2d2b865823758ca8cd
 
 Loaded 14 examples
-Report written: /Users/Sources/saphan/saphan-studio/artifacts/scout-intent-plans-the-review/run-20261025-013811-26064717/tmp/tmp.JyeRKYqnbI/changes-report.md
+Report written: <temp>/changes-report.md
 ┌─────────────────────────┬─────────────────────┐
 │ (index)                 │ Values              │
 ├─────────────────────────┼─────────────────────┤

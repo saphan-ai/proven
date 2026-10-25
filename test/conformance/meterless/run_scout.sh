@@ -33,7 +33,7 @@ fi
 # The scorecards are public, so a printed absolute path is cut to the repository-relative or reference-relative
 # part, and never names the machine or the user that ran it.
 scrub() {
-  sed -i.bak -e "s#${ROOT}/##g" -e "s#${REF}/#engines/#g" "$1" && rm -f "$1.bak"
+  sed -i.bak -e "s#${REF}/#engines/#g" -e "s#${ROOT}/##g" -e "s#${WORK}/#<temp>/#g" "$1" && rm -f "$1.bak"
 }
 
 # 1. Meterless's runner and corpus, unchanged. It writes its report into the reference's own evals/reports, so that

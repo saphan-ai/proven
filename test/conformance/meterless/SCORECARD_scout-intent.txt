@@ -3,7 +3,7 @@ reference: github.com/Meterless/Meterless at commit 1742dec56a66e58eef9dda2d2b86
 implementation: test/conformance/meterless/scout-intent/index.ts -> internal/scout (Stage 1 only; Stage 2 not built)
 
 Loaded 32 examples from v1/all
-Report written: .saphan/work/scout-intent-plans-the-review/meterless/engines/scout-intent/evals/reports/latest.md
+Report written: engines/scout-intent/evals/reports/latest.md
 ┌─────────────────────┬────────┐
 │ (index)             │ Values │
 ├─────────────────────┼────────┤
