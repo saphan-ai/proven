@@ -36,7 +36,7 @@ The model-calling agents (Planner, Investigator, Prover, Skeptic) speak to Meter
 answer passes the NVIDIA content-safety guardrail first.
 
 A dependency the change adds or raises is not named by those agents. Proven reads `go.mod`, `package.json`,
-`requirements.txt` and `composer.json`, and the lock file beside each, queries the OSV package table once per package,
+`requirements.txt`, `composer.json`, `Cargo.toml`, `build.gradle.kts` and `libs.versions.toml`, and the lock file in the same directory, queries the OSV package table once per package,
 and compares the version with that language's adapter. The Judge still decides: a matching range is evidence, and a
 version outside every range is a trace line, not a finding. See [OSV_TABLE.md](OSV_TABLE.md) and
 [ADAPTERS.md](ADAPTERS.md).
@@ -55,16 +55,44 @@ After the last attempt the review says "fix not proved" and shows no patch. A pa
 proved by the test that showed the problem, so a patch that could rewrite it would prove nothing. The patch is a
 suggestion for a person to apply. `fixes: off` in `proven.yaml` turns proposed fixes off.
 
+### The one whole-change attempt (ADR-0050)
+
+With `autofix: on`, a review makes one more step after every finding is final: the **autofix** step
+(`internal/agent/autofix`). It takes every kept finding that a test, a query or a tool proved, and sends the generator one
+prompt that holds all of them with their evidence, as escaped data. The generator answers with one patch: edits that name
+a file, the exact old text and the new text, never a command. The patch passes the same checks as any patch (a path
+outside the change, a test file, text that is not in the file once, and an answer that carries a command are each refused
+by name) and is applied to copies of the change only. Proven then runs each finding's own evidence again, in the places
+where the change's code may run, and no model is asked:
+
+| proof | closed when |
+|---|---|
+| test | the test passes on the patched change and the package's other tests still pass |
+| data | the dependency check, run again on the patched change, no longer returns the row |
+| tool | the same tool, run again in the container on the patched change, no longer reports it |
+
+A finding with several proofs closes only when each of them closes, and a run that could not happen (a store down, a tool
+that timed out, no container) leaves the finding open. Nothing else may have broken either: when every finding closed,
+Proven runs `go test` on the patched copy for every package a patched file belongs to (the whole module for a module
+file), and `Result.Autofix.Breakage` records those runs; a failure, or a run that did not happen, is `rejected`. If every
+proved finding closed and those runs passed, `Result.Autofix.Verdict` is
+`fixed automatically, waiting for a person`; otherwise it is `rejected`, with each open finding and the evidence of its
+re-run. There is no second attempt, so `fix_attempts` is not read and the per-finding suggestions above are not made while
+the attempt is on. The patch is carried on the Result as edits and as a unified diff for a review comment to publish as
+suggested changes; a rejected patch is kept for the record and is never shown as a fix. Nothing is committed to the
+author's branch. `autofix`, `autofix_generator` and `autofix_timeout` in `proven.yaml` configure it
+([CONFIGURATION.md](CONFIGURATION.md)).
+
 A dependency finding gets the smallest fixed version that leaves every affected range of the advisory rows the query
 returned, with the row that shows it. It is compared in Go, from the same `osv-by-package` rows, and no test proves it,
 so it is never marked proved.
 
 ## What is kept, and where
 
-- **The trace** (`logs/trace.jsonl`): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
+- **The trace** (`<user cache>/proven/logs/trace.jsonl`, or the directory `PROVEN_LOG_DIR` names): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
   call, with the run id and the time. A reader follows any finding from claim to verdict.
-- **H-MEM** (`state/hmem`): what earlier reviews refuted, so a refuted finding does not come back.
-- **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
+- **H-MEM** (`<user cache>/proven/state/hmem`, `<user cache>/proven/logs/hmem.jsonl`): what earlier reviews refuted, so a refuted finding does not come back.
+- **The World Model** (`<user cache>/proven/state/world`, `<user cache>/proven/logs/world.jsonl`): the entities a review has seen.
 
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
 `test/conformance/meterless/run.sh`.

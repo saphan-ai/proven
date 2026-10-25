@@ -27,6 +27,12 @@ type Use struct {
 	Route       string
 	ReceiptID   string
 	FromReceipt bool
+	// Requested is the model field the request sent. The routed Model may
+	// differ from it; the custody audit compares the two.
+	Requested string
+	// ResponseID is the id of the completion response, "" when the stream
+	// carried none. A Nightshift receipt names it as its request id.
+	ResponseID string
 }
 
 // Reported names the model of the completion that just finished.
@@ -180,7 +186,10 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	if l.cfg.Mode == ModeNVIDIA {
 		return l.finishHosted(agent, text, meta)
 	}
-	use := Use{Model: "unknown", Route: meta.route, ReceiptID: meta.receipt}
+	use := Use{
+		Model: "unknown", Route: meta.route, ReceiptID: meta.receipt,
+		Requested: l.cfg.ModelFor(agent), ResponseID: meta.responseID,
+	}
 	if meta.model != "" {
 		use.Model = meta.model
 		use.FromReceipt = true
@@ -215,7 +224,10 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error) {
 	// Route carries the host the answer came from, so the trace's model event
 	// names where the trusted model field was read.
-	use := Use{Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt}
+	use := Use{
+		Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt,
+		Requested: l.cfg.ModelFor(agent), ResponseID: meta.responseID,
+	}
 	if meta.chunkModel != "" {
 		use.Model = meta.chunkModel
 	}

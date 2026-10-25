@@ -184,12 +184,21 @@ func moduleRoot(t *testing.T) string {
 }
 
 // sampleScan runs one proven command in a fresh directory.
-// The empty environment keeps the host's variables out of the sample path.
+// The environment is empty but for PROVEN_LOG_DIR, a temporary directory, so
+// the host's variables stay out of the sample path and the trace is not
+// written to the user's real cache directory.
 func sampleScan(t *testing.T, args []string) (stdout []byte, code int, stderr string) {
 	t.Helper()
 	t.Chdir(t.TempDir())
+	logs := t.TempDir()
+	env := func(k string) string {
+		if k == cli.EnvLogDir {
+			return logs
+		}
+		return ""
+	}
 	var out, errBuf bytes.Buffer
-	code = cli.Run(args, emptyEnv, &out, &errBuf, nil)
+	code = cli.Run(args, env, &out, &errBuf, nil)
 	return out.Bytes(), code, errBuf.String()
 }
 

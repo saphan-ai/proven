@@ -31,9 +31,11 @@ const (
 // documents for the command line. The table names PROVEN_OUTPUT_FORMAT,
 // PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT, SEMGREP_BASELINE_COMMIT,
 // SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE, PROVEN_EXCLUDE,
-// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE. That section's ci paragraph
-// names GITHUB_EVENT_PATH, GITHUB_BASE_REF and GITHUB_SHA. GITHUB_WORKSPACE is
-// not in the section. Adapter secrets are not in this set.
+// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY.
+// PROVEN_LOG_DIR is the trace directory; sample mode reads it too. That
+// section's ci paragraph names GITHUB_EVENT_PATH, GITHUB_BASE_REF and
+// GITHUB_SHA. GITHUB_WORKSPACE is not in the section. Adapter secrets are not
+// in this set.
 func KnownCLIEnv(name string) bool {
 	switch name {
 	case "GITHUB_BASE_REF",
@@ -44,8 +46,10 @@ func KnownCLIEnv(name string) bool {
 		"PROVEN_ERROR",
 		"PROVEN_EXCLUDE",
 		"PROVEN_INCLUDE",
+		"PROVEN_LOG_DIR",
 		"PROVEN_OUTPUT",
 		"PROVEN_OUTPUT_FORMAT",
+		"PROVEN_POLICY",
 		"PROVEN_SEVERITY",
 		"PROVEN_TIMEOUT",
 		"SAMPLE_MODE",
@@ -71,6 +75,8 @@ type config struct {
 	errorOnFindings bool
 	baseline        string
 	configPath      string
+	policyPath      string
+	logDir          string
 	include         []string
 	exclude         []string
 	severity        review.Severity
@@ -81,6 +87,7 @@ type config struct {
 	help            bool
 	version         bool
 	head            string
+	evidencePack    string // --evidence-pack: where the signed pack of ADR-0035 is written; "" writes none
 }
 
 // cliError is a refusal that carries its own exit code.
@@ -173,7 +180,7 @@ type holders struct {
 	sample, quiet, verbose, help, ver   boolPresence
 	textOutput, jsonOutput, sarifOutput setString
 	baseline, configPath, severity      setString
-	timeout, output                     setString
+	timeout, output, evidencePack       setString
 	include, exclude                    multiFlag
 }
 
@@ -184,6 +191,7 @@ func knownFlagNames() []string {
 		"--baseline-commit",
 		"--config",
 		"--error",
+		"--evidence-pack",
 		"--exclude",
 		"--help",
 		"--include",
@@ -244,6 +252,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	fs.Var(&h.sample, "sample", "use the sample reviewer")
 	fs.Var(&h.quiet, "quiet", "suppress the progress line")
 	fs.Var(&h.verbose, "verbose", "print the request on standard error")
+	fs.Var(&h.evidencePack, "evidence-pack", "write a signed evidence pack to this file")
 	fs.Var(&h.help, "help", "show help")
 	fs.Var(&h.ver, "version", "show the version")
 	return fs, h
@@ -268,7 +277,7 @@ func refusedBoolFlag(h *holders) (string, string, bool) {
 // which arrange needs to keep a value from being read as the command.
 func isValueFlag(name string) bool {
 	switch name {
-	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout":
+	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout", "evidence-pack":
 		return true
 	default:
 		return false
@@ -385,6 +394,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.textOutput = h.textOutput.v
 	cfg.jsonOutput = h.jsonOutput.v
 	cfg.sarifOutput = h.sarifOutput.v
+	cfg.evidencePack = h.evidencePack.v
 	if h.output.set {
 		cfg.output = h.output.v
 	} else {
@@ -404,6 +414,8 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		return config{}, err
 	}
 	cfg.configPath = configPath
+	// ADR-0036: the organisation policy is named by a variable only; the reviewer reads and checks it.
+	cfg.policyPath = strings.TrimSpace(getenv("PROVEN_POLICY"))
 	if h.include.set {
 		cfg.include = append([]string{}, h.include.v...)
 	} else {
@@ -431,7 +443,26 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.sample = sample
 	cfg.quiet = h.quiet.set && h.quiet.v
 	cfg.verbose = h.verbose.set && h.verbose.v
+	logDir, err := resolveLogDir(getenv, cfg.target)
+	if err != nil {
+		return config{}, err
+	}
+	cfg.logDir = logDir
 	return cfg, nil
+}
+
+// outputFiles lists every file a run writes by a flag, the signed evidence pack
+// among them: a report that replaced the pack would leave the audit nothing to
+// verify while the run exited 0 (ADR-0035). The pack is first, so a collision
+// is named as one with the pack.
+func outputFiles(cfg config) []struct{ flag, path string } {
+	return []struct{ flag, path string }{
+		{"--evidence-pack", cfg.evidencePack},
+		{"-o", cfg.output},
+		{"--text-output", cfg.textOutput},
+		{"--json-output", cfg.jsonOutput},
+		{"--sarif-output", cfg.sarifOutput},
+	}
 }
 
 // refuseCollidingOutputs refuses two outputs that are one file, at load
@@ -448,12 +479,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 // letter case on a case-insensitive volume are not caught: no I/O can tell them
 // apart before the file is made.
 func refuseCollidingOutputs(cfg config) error {
-	named := []struct{ flag, path string }{
-		{"-o", cfg.output},
-		{"--text-output", cfg.textOutput},
-		{"--json-output", cfg.jsonOutput},
-		{"--sarif-output", cfg.sarifOutput},
-	}
+	named := outputFiles(cfg)
 	type seenOutput struct {
 		flag string
 		info os.FileInfo
@@ -638,13 +664,7 @@ func refuseStdoutOnAnOutput(cfg config, stdout io.Writer) error {
 	if std == nil {
 		return nil
 	}
-	named := []struct{ flag, path string }{
-		{"-o", cfg.output},
-		{"--text-output", cfg.textOutput},
-		{"--json-output", cfg.jsonOutput},
-		{"--sarif-output", cfg.sarifOutput},
-	}
-	for _, n := range named {
+	for _, n := range outputFiles(cfg) {
 		if n.path == "" {
 			continue
 		}

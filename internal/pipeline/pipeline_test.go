@@ -359,7 +359,7 @@ func addQueryFinding(dir, title, answer string) error {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
 			Response string `json:"response"`
-		}{Agent: "investigator", Prompt: investigator.Prompt("F5", title, "go.mod"), Response: answer},
+		}{Agent: "investigator", Prompt: investigator.Prompt("F5", title, "go.mod", nil), Response: answer},
 		struct {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
@@ -369,7 +369,7 @@ func addQueryFinding(dir, title, answer string) error {
 			Agent    string `json:"agent"`
 			Prompt   string `json:"prompt"`
 			Response string `json:"response"`
-		}{Agent: "skeptic", Prompt: skeptic.Prompt("F5", title), Response: `{"refuted":false,"reason":"no refutation"}`},
+		}{Agent: "skeptic", Prompt: skeptic.Prompt("F5", title, nil), Response: `{"refuted":false,"reason":"no refutation"}`},
 	)
 	out, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {

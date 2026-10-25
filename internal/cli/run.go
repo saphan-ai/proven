@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -32,6 +33,10 @@ type opener func(review.Options) (review.Reviewer, error)
 func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, open opener) int {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
+	}
+	// verify checks a pack and runs no review (ADR-0035 point 3).
+	if len(args) > 0 && args[0] == "verify" {
+		return runVerify(args[1:], getenv, stdout, stderr)
 	}
 	// Settings are resolved and refused before anything is opened, so a bad
 	// value costs nothing and its exit code is the one ADR-0020 §2 names.
@@ -76,6 +81,15 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		printErr(stderr, err)
 		return exitFatal
 	}
+	// A pack that cannot be signed is refused before the review, not after it.
+	var packKey ed25519.PrivateKey
+	if cfg.evidencePack != "" {
+		packKey, err = loadPackKey(getenv)
+		if err != nil {
+			fmt.Fprintln(stderr, err.Error())
+			return errorCode(err)
+		}
+	}
 	rev, err := openCall(cfg, getenv, open)
 	if err != nil {
 		// A setting the reviewer refuses (its own keys, its proven.yaml) is a
@@ -87,6 +101,13 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		}
 		printErr(stderr, err)
 		return exitFatal
+	}
+	// The trace file takes every run's lines; the pack keeps this run's, which begin here.
+	traceStart := int64(0)
+	// The trace is in the log directory resolved at load (PROVEN_LOG_DIR), not
+	// under the working directory.
+	if cfg.evidencePack != "" && cfg.logDir != "" {
+		traceStart = fileSize(filepath.Join(cfg.logDir, traceFile))
 	}
 	// --timeout bounds the whole review; zero means no deadline (ADR-0020 §1).
 	ctx := context.Background()
@@ -117,6 +138,12 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	result.Findings = filterFindings(result.Findings, cfg.severity)
 	if cfg.verbose && !cfg.quiet {
 		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", visible(cfg.target), visible(cfg.baseline), visible(cfg.head))
+	}
+	if cfg.evidencePack != "" {
+		if err := writePack(cfg, getenv, packKey, result, traceStart); err != nil {
+			fmt.Fprintln(stderr, "evidence pack not written: "+err.Error())
+			return exitFatal
+		}
 	}
 	if err := writeOutputs(cfg, result, stdout); err != nil {
 		printErr(stderr, err)
@@ -185,18 +212,14 @@ func openCall(cfg config, getenv func(string) string, open opener) (rev review.R
 	return openReviewer(cfg, getenv, open)
 }
 
-// openReviewer builds the reviewer's options. The trace goes to logs/ in
-// the directory the command starts from, which is where docs/SAMPLE_MODE.md
-// tells a reader to look.
+// openReviewer builds the reviewer's options. The trace directory was chosen
+// and refused, when it had to be, while the configuration loaded.
 func openReviewer(cfg config, getenv func(string) string, open opener) (review.Reviewer, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
 	opts := review.Options{
 		ConfigPath: cfg.configPath,
+		PolicyPath: cfg.policyPath,
 		Sample:     cfg.sample,
-		LogDir:     filepath.Join(wd, "logs"),
+		LogDir:     cfg.logDir,
 		Env:        getenv,
 	}
 	// Sample mode always takes the real review.Open, never a test's opener:
@@ -268,6 +291,13 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 	// with the files already written in this run before it is written, and the
 	// run stops with the first output intact.
 	var written []writtenOutput
+	// The signed pack was written before this point; it is the first file of the
+	// run, so a link made after the load check cannot lead an output onto it.
+	if cfg.evidencePack != "" {
+		if info, err := os.Stat(cfg.evidencePack); err == nil {
+			written = append(written, writtenOutput{"--evidence-pack", info})
+		}
+	}
 	if cfg.output == "" {
 		// Standard output was written above; when it is a regular file it is
 		// the first file of the run.
@@ -691,6 +721,7 @@ func helpText() string {
 usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
+  proven verify [--public-key FILE] PACK
   proven --help
   proven --version
 
@@ -721,10 +752,20 @@ flags:
         lowest severity reported: INFO, WARNING, ERROR (PROVEN_SEVERITY, default INFO)
   --timeout
         the whole review's time limit in seconds (PROVEN_TIMEOUT; default no deadline)
+  --evidence-pack
+        write one signed evidence pack (a tar) for this review; the private key is the file PROVEN_PACK_KEY names.
+        proven verify checks it with the public key in PROVEN_PACK_PUBLIC_KEY, or --public-key
+  PROVEN_LOG_DIR
+        trace directory (default: the user cache, proven/logs, mode 0700).
+        A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
   --help, --version
+
+environment only:
+  PROVEN_POLICY
+        a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
 exit codes:
   0  review done; no findings, or findings without --error

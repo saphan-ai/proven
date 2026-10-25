@@ -15,7 +15,7 @@ func TestLoadUsesServerDefaults(t *testing.T) {
 	s, err := guardrail.Load(func(k string) string {
 		seen[k]++
 		if k == guardrail.EnvKey {
-			return "tok"
+			return "token-0001"
 		}
 		return ""
 	})
@@ -25,7 +25,7 @@ func TestLoadUsesServerDefaults(t *testing.T) {
 	if s.Mode != guardrail.ModeServer || s.BaseURL != "http://127.0.0.1:8081" || s.Model != "nemotron-3.5-content-safety" {
 		t.Fatalf("%#v", s)
 	}
-	if s.Timeout != 5*time.Second || s.Key != "tok" {
+	if s.Timeout != 5*time.Second || s.Key != "token-0001" {
 		t.Fatalf("%#v", s)
 	}
 	for k := range seen {
@@ -47,7 +47,7 @@ func TestLoadNVIDIADefaults(t *testing.T) {
 		case guardrail.EnvMode:
 			return guardrail.ModeNVIDIA
 		case guardrail.EnvKey:
-			return "tok"
+			return "token-0001"
 		default:
 			return ""
 		}

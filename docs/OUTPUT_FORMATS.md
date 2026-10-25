@@ -14,7 +14,7 @@ DEL (U+007F) and C1 (U+0080 to U+009F) in JSON and SARIF are written as `\u007f`
 
 ## JSON
 
-One object. Every key below is always present.
+One object. Every key below is always present, except `findings[].evidence_record_url`, which is described after the table.
 
 | field | meaning |
 |---|---|
@@ -33,8 +33,10 @@ One object. Every key below is always present.
 | `family_sentence` | the same-family line the trace recorded; empty when it has none or cannot be read |
 | `models` | every model the review used; each has `agent`, `route`, `model`, `receipt_id`, `from_receipt` |
 | `failed_services` | the services that failed; each has `service` and `reason` |
+| `proof_counts` | how many findings are at each level; every level is a key, with 0 when none: `proved-by-test`, `proved-by-tool`, `proved-by-data`, `agreed-by-two-models-not-proven` |
 | `findings` | every reported finding |
 | `findings[].id` | finding id |
+| `findings[].proof_level` | that finding's level of proof, one of the four keys of `proof_counts` |
 | `findings[].rule_id` | kind of finding |
 | `findings[].title` | one line naming the finding |
 | `findings[].message` | what is wrong and why it matters |
@@ -48,6 +50,8 @@ One object. Every key below is always present.
 
 Of one evidence entry, only the object named by its `kind` is present.
 
+`findings[].evidence_record_url` is the one key that is not always present. It is the address of the finding's stored evidence record in the viewer page (docs/ADAPTERS.md, Evidence records and their viewer), and it is left out when the finding has none: records are not set, the record was not stored, or no link base address is set. The text and SARIF outputs do not carry it.
+
 ## SARIF 2.1.0
 
 One log, `version` `2.1.0`, one run. The tool driver `name` is `proven`. One result per finding. `level` is `INFO`→`note`, `WARNING`→`warning`, `ERROR`→`error`; any other severity is `note`. `ruleId` is `rule_id`, or `id` when the finding has no rule. The message is the finding's message, then its title, then its id. A finding with no path has no location; a start line below 1 gives no region; an end line before the start line is left out.
@@ -57,3 +61,5 @@ The artifact `uri` is a relative path inside the repository: no leading `/`, no 
 Each result's `properties` carries `id`, `rule_id`, `title`, `severity`, `unresolved` and `evidence`. `evidence` is the same array as in the JSON.
 
 The run's `properties` carries `class`, `class_rule`, `partial`, `failed_services`, `settings_statement`, `author_model_statement`, `reviewer_statements`, `trace_path` and `family_sentence`. Each has the same value as the JSON key of that name, so the lines the text output prints beside the findings are in a SARIF file too.
+
+Each result's `properties` also carries `proof_level`, and the run's `properties` carries `proof_counts`. Both are the same values as in the JSON.

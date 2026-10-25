@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/saphan-ai/proven/internal/store"
 	"os"
 	"path/filepath"
 	"strings"
@@ -278,9 +279,8 @@ func assertDiscountText(t *testing.T, body string) {
 	}
 }
 
-// shellEnv returns empty for the variables the shell reads while resolving
-// ADR-0020, and fails the test on any other key. The reviewer receives the
-// same function and does not read it.
+// shellEnv returns empty for the variables the shell reads, and fails the test
+// on any other key. The reviewer receives the same function and does not read it.
 func shellEnv(t *testing.T) func(string) string {
 	t.Helper()
 	allowed := map[string]struct{}{
@@ -291,14 +291,18 @@ func shellEnv(t *testing.T) func(string) string {
 		"SEMGREP_BASELINE_COMMIT": {},
 		"SEMGREP_BASELINE_REF":    {},
 		"PROVEN_CONFIG":           {},
+		"PROVEN_POLICY":           {},
 		"PROVEN_INCLUDE":          {},
+		"PROVEN_LOG_DIR":          {},
 		"PROVEN_EXCLUDE":          {},
 		"PROVEN_SEVERITY":         {},
 		"PROVEN_TIMEOUT":          {},
 		"SAMPLE_MODE":             {},
 	}
 	return func(k string) string {
-		if _, ok := allowed[k]; !ok {
+		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
+		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+		if _, ok := allowed[k]; !ok && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) {
 			t.Fatalf("unexpected environment key %s", k)
 		}
 		return ""

@@ -23,6 +23,8 @@ These are product capabilities as the documentation describes them on 19 October
 | **Secrets by reference** | An agent gets a reference to a credential when it needs it; the value is not written into a request, a log or the record. | [secrets](https://docs.saphan.ai/docs/security/9-secrets) |
 | **Guardrails** | A checkpoint on the conversation between an agent and its model, with a plugin for NVIDIA NeMo Guardrails. | [guardrails](https://docs.saphan.ai/docs/security/guardrails) |
 | **Command line and web console** | Everything can be driven and read from the command line or the web console. | [the console](https://docs.saphan.ai/docs/console) |
+| **Forges without webhooks** | Pull requests on a Gitea forge are read by polling, so the forge needs no public endpoint pointing back at the platform. | [pull requests and forges](https://docs.saphan.ai/docs/working-with-git/pull-requests-and-forges) |
+| **Read-only MCP server** | An assistant or an agent can read the record over MCP, so nobody has to relay fleet state by hand. It answers questions and takes no action. | [MCP server](https://docs.saphan.ai/docs/mcp-server) |
 
 What the product does not cover yet is listed chapter by chapter in the **[documented limits](https://docs.saphan.ai/docs/security/11-documented-limits)**.
 
@@ -55,6 +57,38 @@ Saphan Studio is the product. What follows is how *this* fleet is set up to buil
 3. A **reviewer** that did not write the change checks it and writes a *review*. It can say no; it cannot say yes.
 4. The **owner** reads the review and decides: accept, accept with conditions, reject, or close without shipping. His reason is written down.
 5. If the change goes back, it gets a new round. The documents of every round stay.
+
+### The hardware this fleet runs on
+
+**One person, some silicon, and a fleet with rules and orchestration.**
+
+Zero cloud. Everything runs on premises, in one person's home office: the platform, the record, the agents' machines,
+the data layer, the local models. The only things reached over the internet are the model vendors' APIs and the
+package registries. The machines talk to each other over a private Tailscale network, so nothing of the fleet is
+exposed to the internet. That also means the platform travels: the owner can take the MacBook to TechCrunch Disrupt in San
+Francisco, and the fleet at home keeps working, reached over the same private network.
+
+| machine | specification | what runs on it |
+|---|---|---|
+| **Apple MacBook Pro** (macm5) | Apple M5 Max, 18 cores, 128 GB unified memory, 4 TB SSD | Saphan Studio itself: the engine, the record and the console (one app served from one binary); the fleet's standing heads: the masters, the scribe and the advisor; Meterless Nightshift in its own macOS virtual machine |
+| **Apple Mac mini** (macmini) | Apple M4, 10 cores, 16 GB, 1 TB external SSD | agent runs and reviews that need Apple's platform |
+| **AMD Ryzen AI Max+ 395 mini PC** | 32 threads, 128 GB memory shared with the integrated Radeon GPU, 2 TB NVMe | local inference on the AMD GPU: NVIDIA's Nemotron Content Safety (Proven's guardrail), three more guard models, and local coding and reasoning models |
+| **AMD Ryzen 9 9950X workstation** | 16 cores / 32 threads, 128 GB, 2 × 2 TB NVMe on ZFS, Proxmox | every Linux virtual machine of the fleet: the agent runners (Cursor, Claude Code, Codex, NVIDIA Nemotron, Qwen), the builders, Zetaris in its own virtual machine, and the judges' lab Gitea |
+| **three Intel NUCs** | Proxmox cluster | observability (Prometheus, Grafana), the model router (LiteLLM), network routing |
+| **Lenovo ThinkPad** | a separate laptop | fresh-install tests of each Saphan Studio release, on a machine the fleet has never touched |
+| **six UPS units** | battery backup | this is Thailand in the rainy season: power cuts happen, and the fleet rides through them |
+
+In all:
+
+| | total |
+|---|---|
+| CPU | 68 cores, 108 threads |
+| GPU | 50 Apple GPU cores (40 in the M5 Max, 10 in the M4) and an AMD Radeon 8060S (40 compute units by AMD's specification) |
+| memory a GPU can address | about 250 GB: the Macs' unified memory (128 GB and 16 GB) and 114 GB on the AMD machine (2 GB dedicated plus 112 GB shared, measured) |
+| memory | about 436 GB |
+| storage | about 11 TB of SSD |
+
+Most of it sits in three machines.
 
 ## Skills, rules and orchestration
 

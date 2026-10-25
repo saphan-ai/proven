@@ -1,4 +1,6 @@
-package tool
+// This file is an external test. It imports review, and review imports tool,
+// so an internal test would be an import cycle.
+package tool_test
 
 import (
 	"context"
@@ -11,6 +13,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/review"
 	"github.com/saphan-ai/proven/internal/testrun"
+	"github.com/saphan-ai/proven/internal/tool"
 )
 
 // TestRaceToolRunInTheContainerProvesTheChange proves a real run of the race
@@ -62,11 +65,11 @@ func TestRaceToolRunInTheContainerProvesTheChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	limit, err := Load(os.Getenv)
+	limit, err := tool.Load(os.Getenv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := NewRunner(Race{}, ContainerHost{Box: box, Timeout: limit}).Run(context.Background(), Request{
+	out, err := tool.NewRunner(tool.Race{}, tool.ContainerHost{Box: box, Timeout: limit}).Run(context.Background(), tool.Request{
 		Paths: []string{"add.go"}, BaseDir: base, ChangeDir: change,
 	})
 	if err != nil {

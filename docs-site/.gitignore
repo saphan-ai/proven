@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.source/
+next-env.d.ts
+# written by scripts/build-content.mjs from the repository's Markdown
+content/
+public/
+.wrangler/

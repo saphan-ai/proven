@@ -79,6 +79,7 @@ func TestTextOutputShowsEveryPrintedFieldWithoutControlBytes(t *testing.T) {
 				}},
 				{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{
 					Engine:   fieldValue("QueryEngine"),
+					Form:     fieldValue("QueryForm"),
 					Snapshot: fieldValue("QuerySnapshot"),
 					SQL:      fieldValue("QuerySQL"),
 					Columns:  []string{"cve_id", "epss", "percentile", "score_date", fieldValue("QueryColumn")},
@@ -95,7 +96,7 @@ func TestTextOutputShowsEveryPrintedFieldWithoutControlBytes(t *testing.T) {
 	fields := []string{
 		"Class", "ClassRule", "SettingsStatement", "AuthorModelStatement", "ReviewerStatement",
 		"FailedService", "FailedReason", "ID", "RuleID", "Severity", "Title", "Message", "LocationPath",
-		"TestPath", "TestName", "TestCommand", "TestOutput", "QueryEngine", "QuerySnapshot", "QuerySQL",
+		"TestPath", "TestName", "TestCommand", "TestOutput", "QueryEngine", "QueryForm", "QuerySnapshot", "QuerySQL",
 		"QueryColumn", "EPSSScore", "QueryRow",
 	}
 	for _, name := range fields {

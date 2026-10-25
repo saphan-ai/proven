@@ -4,9 +4,12 @@
 // Skeptic fills the Refutation, the Judge sets Dropped, Unresolved and
 // DropReason, and the Writer hands the kept ones to the seam as a Draft.
 // A claim both reviewers reported that the Judge dropped for no evidence is
-// an Opinion on that draft, not a finding (ADR-0041). The
-// Fixer, after the Judge, adds a Fix to a kept finding (ADR-0042). Each
-// agent only adds its own part, so the trace can show who said what.
+// an Opinion on that draft, not a finding (ADR-0041). The Fixer, after the
+// Judge, adds a Fix to a kept finding (ADR-0042). With the whole-change attempt on, one Autofix on the
+// draft records the single patch for every proved finding and the verdict on it (ADR-0050). A dependency finding also
+// carries its ecosystem and, after govulncheck, a reachability label
+// (ADR-0043). Each agent only adds its own part, so the trace can show who
+// said what.
 //
 // The package has no dependency on the seam (internal/review), so the agents
 // never import the shell's types; review.Open converts a Draft to a Result.
@@ -52,6 +55,65 @@ type TestEvidence struct {
 	FailsOnChange bool
 	PassesOnBase  bool
 }
+
+// Verdicts of the whole-change fix attempt (ADR-0050 point 3). They are the words a person reads.
+const (
+	// AutofixFixed means every proved finding closed on the patched change and every package
+	// the patch touched still passes its tests. A person still decides: nothing was committed.
+	AutofixFixed = "fixed automatically, waiting for a person"
+	// AutofixRejected means the one attempt left a proved finding open, broke something, or
+	// was refused before it ran. There is no second attempt.
+	AutofixRejected = "rejected"
+)
+
+// The kinds of proof a finding is judged by again (ADR-0050 point 2).
+const (
+	AutofixTest = "test"
+	AutofixData = "data"
+	AutofixTool = "tool"
+	// AutofixBreakage is the proof that nothing the patch touched broke: the packages it edited, run again.
+	AutofixBreakage = "breakage"
+)
+
+// AutofixProof is one piece of a finding's own evidence, run again on the patched change.
+// Closed is true only when the run happened and the evidence no longer shows the problem;
+// a run that could not happen is never closed (ADR-0050 point 2: no opinion, no silence).
+// Command and Output are what Proven ran and what it printed, so a reader can run it again.
+type AutofixProof struct {
+	Kind    string
+	Closed  bool
+	Reason  string
+	Command string
+	Output  string
+	Runs    []FixRun
+}
+
+// AutofixFinding is the verdict on one proved finding: closed when every one of its proofs closed.
+type AutofixFinding struct {
+	ID     string
+	Closed bool
+	Proofs []AutofixProof
+}
+
+// Autofix is the record of the one whole-change fix attempt (ADR-0050). Edits and Diff are
+// what the generator wrote, kept for the record whatever the verdict. Only a Fixed verdict
+// is a suggestion; a rejected patch is never shown as a fix (ADR-0042 point 3).
+type Autofix struct {
+	Verdict  string
+	What     string
+	Why      string
+	Edits    []FixEdit
+	Diff     string
+	Findings []AutofixFinding
+	// Breakage is the run of every package the patch touched, on the patched change; it is nil when
+	// the attempt never reached the judges. The verdict is Fixed only when it is closed.
+	Breakage *AutofixProof
+	// Refused names why the patch was refused before any code ran, or is empty.
+	Refused string
+}
+
+// Fixed reports whether the attempt ended in the verdict "fixed automatically, waiting for a person".
+func (a *Autofix) Fixed() bool { return a != nil && a.Verdict == AutofixFixed }
 
 // Fix kinds. A patch is proved by a test; a dependency fix is named from an advisory row.
 const (
@@ -112,8 +174,8 @@ type Fix struct {
 }
 
 // QueryEvidence is a query and the rows the engine returned.
-// Engine and Snapshot say where the rows came from, so a reader can run the
-// same SQL again (ADR-0023).
+// Form names the query language that ran. Engine and Snapshot say where the
+// rows came from, so a reader can run the same query again (ADR-0023, ADR-0047).
 //
 // Bound is set by Proven, never by a model: the rows are about the change's own
 // package, version or advisory (the dependency check derives those from the
@@ -123,6 +185,7 @@ type Fix struct {
 // Investigator named, kept so the pipeline can decide Bound; it holds no SQL.
 type QueryEvidence struct {
 	SQL      string
+	Form     string
 	Engine   string
 	Snapshot string
 	Columns  []string
@@ -205,7 +268,31 @@ type Candidate struct {
 	QueryNote string
 	// Fix is the Fixer's proposal for this finding, or nil when it made none (ADR-0042).
 	Fix *Fix
+	// Ecosystem is the OSV ecosystem of a dependency finding, for example "Go".
+	// Empty when the finding did not come from the dependency check.
+	Ecosystem string
+	// ReachLabel is how far the vulnerable function was measured (ADR-0043).
+	// It is ReachReached, ReachImported or ReachNotMeasured, or empty when
+	// the finding is not a dependency finding.
+	ReachLabel string
+	// CallPath is the call path govulncheck printed. It is set only when
+	// ReachLabel is ReachReached.
+	CallPath string
 }
+
+// How far a dependency finding's vulnerable function was measured (ADR-0043).
+// A reached function ranks above one that is only present. A finding is never
+// dropped because it was not reached.
+const (
+	// ReachReached means the vulnerable function is called from the change.
+	ReachReached = "reached"
+	// ReachImported means the dependency is present and the vulnerable function is not called.
+	ReachImported = "imported but not reached"
+	// ReachNotMeasured means no tool measured this finding. Other ecosystems
+	// have no such tool. A Go finding is also not measured when govulncheck
+	// did not answer: that is never reported as not reached.
+	ReachNotMeasured = "not measured"
+)
 
 // The four things one reviewer can say about a risk (ADR-0037 point 4).
 const (
@@ -244,6 +331,8 @@ type ModelUse struct {
 	Model       string // routed model; "unknown" when the stream named none
 	ReceiptID   string // meterless.receipt_id; "" when the stream named none
 	FromReceipt bool   // true only when the stream named a routed model
+	Requested   string // the model field the request sent; "" for a call that sent none
+	ResponseID  string // the completion response id, which the receipt names as its request id; "" when none
 }
 
 // Opinion is a claim both reviewers reported at one place that no evidence
@@ -276,6 +365,9 @@ type Draft struct {
 	// switched off, so the result says so and not only the trace
 	// (ADR-0005). Empty when the guardrail was on.
 	GuardrailStatement string
+	// Autofix is the record of the whole-change fix attempt, or nil when none was made:
+	// the setting is off, or no finding was proved (ADR-0050).
+	Autofix *Autofix
 }
 
 // GuardrailOffStatement is the sentence a review carries when its guardrail

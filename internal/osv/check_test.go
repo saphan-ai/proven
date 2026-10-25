@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -498,7 +499,7 @@ INSERT INTO px_evidence.px_kev_alt VALUES ('CVE-2026-0001', 'example', 'mod', '2
 // downQuery is a query adapter whose service is always down.
 type downQuery struct{}
 
-func (downQuery) Query(context.Context, string) (query.Result, error) {
+func (downQuery) Run(context.Context, querytpl.Request, querytpl.Relations) (query.Result, error) {
 	return query.Result{}, &service.Down{Service: "query", Reason: "unreachable"}
 }
 
@@ -555,6 +556,111 @@ func writeMods(t *testing.T, root, base, change string) {
 		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(side.body), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// TestRaisedPackageBindsTheADR0039Templates proves a package the change
+// added binds the malicious, scorecard and licence templates, and does not
+// bind osv-by-package until a range matches. CVSS binds only a CVE that
+// match recorded. The mutated field is the raised set.
+func TestRaisedPackageBindsTheADR0039Templates(t *testing.T) {
+	var f Facts
+	f.noteRaised("Go", "evil.example/drop")
+	pkg := map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "evil.example/drop"}
+	for _, name := range []string{querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage} {
+		if !f.Binds(querytpl.Request{Template: name, Params: pkg}) {
+			t.Errorf("%s did not bind a raised package", name)
+		}
+	}
+	if f.Binds(querytpl.Request{Template: querytpl.OSVByPackage, Params: pkg}) {
+		t.Fatal("a raised package bound osv-by-package with no affected row")
+	}
+	cve := map[string]string{querytpl.ParamCVEID: "CVE-2026-7777"}
+	if f.Binds(querytpl.Request{Template: querytpl.CVSSByCVE, Params: cve}) {
+		t.Fatal("cvss bound a CVE the check had not recorded")
+	}
+	f.add("Go", "evil.example/drop", Row{Aliases: "CVE-2026-7777"})
+	if !f.Binds(querytpl.Request{Template: querytpl.CVSSByCVE, Params: cve}) {
+		t.Fatal("cvss did not bind a CVE of an affected advisory")
+	}
+	if !f.Binds(querytpl.Request{Template: querytpl.EPSSByCVE, Params: cve}) {
+		t.Fatal("epss did not bind the same CVE")
+	}
+}
+
+// TestBindsKeysBothSidesOnTheNormalisedPyPIName proves a raised PyPI package
+// binds the malicious, scorecard and licence templates when the manifest
+// spelling and the model's spelling differ and PEP 503 makes them one name.
+// Go is not folded. The mutated field is the package key: comparing either
+// side as written turns this red.
+func TestBindsKeysBothSidesOnTheNormalisedPyPIName(t *testing.T) {
+	var f Facts
+	f.noteRaised("PyPI", "Django_REST.framework")
+	model := map[string]string{querytpl.ParamEcosystem: "PyPI", querytpl.ParamPackage: "django.rest-framework"}
+	for _, name := range []string{querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage} {
+		if !f.Binds(querytpl.Request{Template: name, Params: model}) {
+			t.Errorf("%s did not bind the normalised PyPI name", name)
+		}
+	}
+	other := map[string]string{querytpl.ParamEcosystem: "PyPI", querytpl.ParamPackage: "flask"}
+	if f.Binds(querytpl.Request{Template: querytpl.MalByPackage, Params: other}) {
+		t.Fatal("flask bound a different package")
+	}
+	f.noteRaised("Go", "Example.com/Mod")
+	folded := map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "example.com/mod"}
+	if f.Binds(querytpl.Request{Template: querytpl.MalByPackage, Params: folded}) {
+		t.Fatal("a Go module path was folded")
+	}
+	same := map[string]string{querytpl.ParamEcosystem: "Go", querytpl.ParamPackage: "Example.com/Mod"}
+	if !f.Binds(querytpl.Request{Template: querytpl.MalByPackage, Params: same}) {
+		t.Fatal("the Go path as written did not bind")
+	}
+}
+
+// labelledQuery answers every request with one form and one text.
+type labelledQuery struct {
+	form string
+	text string
+	cols []string
+	rows [][]string
+}
+
+func (q labelledQuery) Run(context.Context, querytpl.Request, querytpl.Relations) (query.Result, error) {
+	rows := q.rows
+	if rows == nil {
+		rows = [][]string{}
+	}
+	cols := q.cols
+	if cols == nil {
+		cols = Columns
+	}
+	return query.Result{SQL: q.text, Form: q.form, Engine: "mem", Columns: cols, Rows: rows}, nil
+}
+
+// TestMissNoteNamesTheQueryForm proves a package with no row, and a package
+// whose rows all miss, name the form of the text in the trace. Mango is not
+// labelled SQL. The mutated field is the label in queryText. Restoring
+// "SQL:" turns both cases red.
+func TestMissNoteNamesTheQueryForm(t *testing.T) {
+	root := t.TempDir()
+	writeMods(t, root, "module m\n\ngo 1.26\n", "module m\n\ngo 1.26\n\nrequire example.com/mod v1.0.0\n")
+	mango := `{"table":"px_osvfile.px_osv_pkg","selector":{"package":"example.com/mod"}}`
+	out, err := Check(context.Background(), labelledQuery{form: querytpl.FormMango, text: mango}, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "query (mango): "+mango) || strings.Contains(out.Notes[0], "SQL:") {
+		t.Fatalf("no-rows note %#v", out.Notes)
+	}
+	miss := []string{"GHSA-1", "", "Go", "example.com/mod", "9.0.0", "", "", "LOW", "2026-01-15"}
+	out, err = Check(context.Background(), labelledQuery{
+		form: querytpl.FormSQL, text: "SELECT 1", cols: Columns, rows: [][]string{miss},
+	}, root, "", "snap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Candidates) != 0 || len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "query (sql): SELECT 1") || strings.Contains(out.Notes[0], "SQL:") {
+		t.Fatalf("miss note cands %d notes %#v", len(out.Candidates), out.Notes)
 	}
 }
 

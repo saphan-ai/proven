@@ -2,8 +2,10 @@ package review
 
 // This file reads proven.yaml, the reviewer's own settings (ADR-0013): the timeout, the two reviewer
 // models (ADR-0009, ADR-0010), the family table and author sources (ADR-0011), and the class rules
-// (ADR-0014), and the two settings of proposed fixes: whether they are made and how many attempts one
-// gets (ADR-0042). Every key is closed: an unknown key or value is refused with the values allowed.
+// (ADR-0014), the two settings of proposed fixes: whether they are made and how many attempts one
+// gets (ADR-0042), the three settings of the one whole-change fix attempt: whether it is made, which
+// generator writes its patch and how long it may take (ADR-0050), and the query templates the Investigator and the Skeptic may each ask (ADR-0013).
+// Every key is closed: an unknown key or value is refused with the values allowed.
 
 import (
 	"bytes"
@@ -15,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
 // configKeyTimeout is the timeout key, named once because the refusal text is keyed on it too.
@@ -33,6 +36,19 @@ const (
 // allowedFixAttempts is the value list a refused fix_attempts names.
 const allowedFixAttempts = "a whole number from 1 to 5"
 
+// The settings of the whole-change fix attempt (ADR-0050 point 6). It is off unless a setting turns it
+// on, and the judges' lab turns it on; the generator is the review's own unless the second one is named;
+// and the attempt has a time limit that is never zero, because an attempt that may run for ever is not one.
+const (
+	// The generator names of autofix_generator: the review's own generator (NVIDIA's Nemotron by
+	// default, ADR-0019) or the second reviewer's (ADR-0037).
+	autofixGeneratorDefault = "default"
+	autofixGeneratorSpecial = "special"
+	defaultAutofixTimeout   = 10 * time.Minute
+	allowedAutofixGenerator = "default or special"
+	allowedAutofixTimeout   = "a Go duration greater than zero, for example 90s or 10m"
+)
+
 // configKeys is the closed key set, in the order a refusal lists them.
 var configKeys = []string{
 	"timeout",
@@ -50,6 +66,11 @@ var configKeys = []string{
 	"raise_class",
 	"fixes",
 	"fix_attempts",
+	"autofix",
+	"autofix_generator",
+	"autofix_timeout",
+	"investigator_templates",
+	"skeptic_templates",
 }
 
 // fileSettings is one loaded proven.yaml. A missing file is defaultSettings.
@@ -74,6 +95,15 @@ type fileSettings struct {
 	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
 	Fixes       bool
 	FixAttempts int
+	// Autofix turns the one whole-change fix attempt on or off, AutofixGenerator names the generator
+	// that writes its patch and AutofixTimeout is the time limit of the attempt (ADR-0050 point 6).
+	Autofix          bool
+	AutofixGenerator string
+	AutofixTimeout   time.Duration
+	// InvestigatorScope and SkepticScope are the query templates each of the two roles that can ask a
+	// store may ask (ADR-0013). Nil is every template: an unset key narrows nothing.
+	InvestigatorScope querytpl.Scope
+	SkepticScope      querytpl.Scope
 }
 
 // familyRule maps a model-name pattern to a family, one row of the families table (ADR-0011 point 4).
@@ -121,6 +151,10 @@ func defaultSettings() fileSettings {
 		// ADR-0042: proposed fixes are on by default, with one try and one retry.
 		Fixes:       true,
 		FixAttempts: defaultFixAttempts,
+		// ADR-0050 point 6: the whole-change attempt is off until measured. The judges' lab turns it on.
+		Autofix:          false,
+		AutofixGenerator: autofixGeneratorDefault,
+		AutofixTimeout:   defaultAutofixTimeout,
 	}
 }
 
@@ -150,6 +184,8 @@ func defaultPathRules() []pathRule {
 		"pom.xml",
 		"build.gradle",
 		"build.gradle.kts",
+		"libs.versions.toml",
+		"gradle.lockfile",
 	}
 	out := make([]pathRule, 0, len(sec)+2)
 	for _, p := range sec {
@@ -162,6 +198,11 @@ func defaultPathRules() []pathRule {
 
 // loadConfigFile reads an explicit configuration path. A missing path is refused.
 func loadConfigFile(path string) (fileSettings, error) {
+	return loadConfigFileUnder(path, nil)
+}
+
+// loadConfigFileUnder is loadConfigFile under an organisation policy; nil means none.
+func loadConfigFileUnder(path string, pol *policy) (fileSettings, error) {
 	st, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -189,30 +230,41 @@ func loadConfigFile(path string) (fileSettings, error) {
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	return parseConfig(b)
+	return pol.parseLocal(b)
 }
 
 // loadSettingsAtBaseline reads proven.yaml as it is in the baseline commit.
 // The change's copy is not consulted. A change must not choose how strictly
 // it is reviewed. A baseline with no proven.yaml is the defaults.
 func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
+	return loadSettingsAtBaselineUnder(target, baseline, nil)
+}
+
+// loadSettingsAtBaselineUnder is loadSettingsAtBaseline under an organisation policy; nil means none.
+// A baseline with no proven.yaml is the policy's settings, or the defaults with no policy.
+func loadSettingsAtBaselineUnder(target, baseline string, pol *policy) (fileSettings, error) {
 	b, ok, err := change.Blob(target, baseline, "proven.yaml")
 	if err != nil {
 		return fileSettings{}, err
 	}
 	if !ok {
-		return defaultSettings(), nil
+		return pol.base(), nil
 	}
 	// Blob is bounded by the file limit; proven.yaml has a smaller bound of its own.
 	if bound := change.Bounds().Config; int64(len(b)) > bound {
 		return fileSettings{}, change.OverBound("proven.yaml", bound, change.EnvMaxConfigBytes)
 	}
-	return parseConfig(b)
+	return pol.parseLocal(b)
 }
 
 // loadSettingsInTarget reads proven.yaml in the review target when Open was
 // given no path and the request has no baseline commit. A missing file is the defaults.
 func loadSettingsInTarget(target string) (fileSettings, error) {
+	return loadSettingsInTargetUnder(target, nil)
+}
+
+// loadSettingsInTargetUnder is loadSettingsInTarget under an organisation policy; nil means none.
+func loadSettingsInTargetUnder(target string, pol *policy) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
 	// ADR-0013, ADR-0025: the target's copy is repository content, so a link is refused by name
 	// before it is opened. Stat and ReadFile would follow it to a file outside the checkout, and
@@ -220,7 +272,7 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 	st, err := os.Lstat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return defaultSettings(), nil
+			return pol.base(), nil
 		}
 		return fileSettings{}, err
 	}
@@ -241,7 +293,7 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 	if err != nil {
 		return fileSettings{}, err
 	}
-	return parseConfig(b)
+	return pol.parseLocal(b)
 }
 
 // parseConfig reads one flat YAML mapping. It is a small reader of its own, not a YAML library,
@@ -249,13 +301,26 @@ func loadSettingsInTarget(target string) (fileSettings, error) {
 // An empty file is the defaults. Comments, quotes and one document are read.
 // A nested value is refused. An unknown key is refused.
 func parseConfig(b []byte) (fileSettings, error) {
-	cfg := defaultSettings()
+	cfg, _, err := parseConfigOver(b, defaultSettings(), nil)
+	return cfg, err
+}
+
+// keyHook lets a reader of the same flat format take keys of its own (the organisation policy's
+// exceptions, ADR-0036). It reports whether it took the key; a key it does not take is read as a
+// proven.yaml key.
+type keyHook func(key, val string) (bool, error)
+
+// parseConfigOver is parseConfig on a base other than the defaults: a key the file does not set keeps
+// the base's value, which is how a repository inherits the organisation policy. It also returns the
+// raw value of every key the file set, so a caller can compare the file with a policy.
+func parseConfigOver(b []byte, base fileSettings, hook keyHook) (fileSettings, map[string]string, error) {
+	cfg := base
+	given := map[string]string{}
 	// An editor may save a UTF-8 byte order mark; it is not part of the first key.
 	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
 	if len(bytes.TrimSpace(b)) == 0 {
-		return cfg, nil
+		return cfg, given, nil
 	}
-	seen := map[string]bool{}
 	seenDoc := false
 	for _, raw := range bytes.Split(b, []byte("\n")) {
 		line := strings.TrimRight(string(raw), "\r")
@@ -265,7 +330,7 @@ func parseConfig(b []byte) (fileSettings, error) {
 		}
 		if trimmed == "---" {
 			if seenDoc {
-				return fileSettings{}, configRefused("proven.yaml", trimmed, "more than one document", "one flat mapping")
+				return fileSettings{}, nil, configRefused("proven.yaml", trimmed, "more than one document", "one flat mapping")
 			}
 			seenDoc = true
 			continue
@@ -275,31 +340,45 @@ func parseConfig(b []byte) (fileSettings, error) {
 			continue
 		}
 		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
-			return fileSettings{}, configRefused("proven.yaml", trimmed, "nested value", "a flat mapping of scalar values")
+			return fileSettings{}, nil, configRefused("proven.yaml", trimmed, "nested value", "a flat mapping of scalar values")
 		}
 		if strings.HasPrefix(trimmed, "- ") || trimmed == "-" {
-			return fileSettings{}, configRefused("proven.yaml", trimmed, "the file must be a mapping", "a flat mapping of scalar values")
+			return fileSettings{}, nil, configRefused("proven.yaml", trimmed, "the file must be a mapping", "a flat mapping of scalar values")
 		}
 		key, val, err := splitField(trimmed)
 		if err != nil {
-			return fileSettings{}, err
+			return fileSettings{}, nil, err
 		}
-		if !knownKey(key) {
-			return fileSettings{}, &ConfigError{
+		taken := false
+		if hook != nil {
+			taken, err = hook(key, val)
+			if err != nil {
+				return fileSettings{}, nil, err
+			}
+		}
+		if !taken && !knownKey(key) {
+			// An exception is not a repository's to write: it lives in the organisation policy file only (ADR-0036).
+			if strings.HasPrefix(key, exceptionPrefix) {
+				return fileSettings{}, nil, configRefused(key, val, "exceptions live in the organisation policy file only", "a key from: "+strings.Join(configKeys, ", "))
+			}
+			return fileSettings{}, nil, &ConfigError{
 				Field: key, Value: val, Reason: "unknown key",
 				Allowed: append([]string(nil), configKeys...),
 			}
 		}
 		// A key set twice is refused, so a reader of the file never has to guess which line wins.
-		if seen[key] {
-			return fileSettings{}, configRefused(key, val, "duplicate key", allowedText(key))
+		if _, dup := given[key]; dup {
+			return fileSettings{}, nil, configRefused(key, val, "duplicate key", allowedText(key))
 		}
-		seen[key] = true
+		given[key] = val
+		if taken {
+			continue
+		}
 		if err := applyKey(&cfg, key, val); err != nil {
-			return fileSettings{}, err
+			return fileSettings{}, nil, err
 		}
 	}
-	return cfg, nil
+	return cfg, given, nil
 }
 
 // knownKey reports whether key is in the closed key set.
@@ -317,10 +396,14 @@ func allowedText(key string) string {
 	switch key {
 	case configKeyTimeout:
 		return allowedTimeout
-	case "author_commit_trailers", "author_description", "raise_class", "fixes":
+	case "author_commit_trailers", "author_description", "raise_class", "fixes", "autofix":
 		return "on, off"
 	case "fix_attempts":
 		return allowedFixAttempts
+	case "autofix_generator":
+		return allowedAutofixGenerator
+	case "autofix_timeout":
+		return allowedAutofixTimeout
 	case "fallback_class", "doubled_classes", "class_order", "path_rules":
 		return strings.Join(classNames(), ", ")
 	case "families":
@@ -331,6 +414,8 @@ func allowedText(key string) string {
 		return "a model name"
 	case "author_trailer_keys":
 		return "trailer keys, for example Assisted-by"
+	case "investigator_templates", "skeptic_templates":
+		return strings.Join(querytpl.Names(), ", ")
 	default:
 		return strings.Join(configKeys, ", ")
 	}
@@ -457,9 +542,51 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		}
 		cfg.FixAttempts = n
 		return nil
+	case "autofix":
+		on, err := parseOnOff(key, val)
+		if err != nil {
+			return err
+		}
+		cfg.Autofix = on
+		return nil
+	case "autofix_generator":
+		if val != autofixGeneratorDefault && val != autofixGeneratorSpecial {
+			return configRefused(key, val, "not a generator name", allowedAutofixGenerator)
+		}
+		cfg.AutofixGenerator = val
+		return nil
+	case "autofix_timeout":
+		d, err := time.ParseDuration(val)
+		if err != nil || d <= 0 {
+			return configRefused(key, val, "not a Go duration greater than zero", allowedAutofixTimeout)
+		}
+		cfg.AutofixTimeout = d
+		return nil
+	case "investigator_templates", "skeptic_templates":
+		scope, err := parseTemplateScope(key, val)
+		if err != nil {
+			return err
+		}
+		if key == "investigator_templates" {
+			cfg.InvestigatorScope = scope
+		} else {
+			cfg.SkepticScope = scope
+		}
+		return nil
 	default:
 		return &ConfigError{Field: key, Value: val, Reason: "unknown key", Allowed: append([]string(nil), configKeys...)}
 	}
+}
+
+// parseTemplateScope reads the templates one role may ask (ADR-0013). A name that is not on the
+// list, a name twice and an empty list are refused on load by name, with the list as the allowed
+// values, so a misspelt name never silently narrows a role to nothing it can use.
+func parseTemplateScope(field, value string) (querytpl.Scope, error) {
+	scope, bad, why := querytpl.ParseScope(value)
+	if why != "" {
+		return nil, &ConfigError{Field: field, Value: bad, Reason: why, Allowed: querytpl.Names()}
+	}
+	return scope, nil
 }
 
 // parseOnOff reads a switch. Only "on" and "off" are accepted, not YAML's yes, true or 1, so a

@@ -110,6 +110,8 @@ func sarifFrom(result review.Result) sarifLog {
 				"reviewer_statements":    stringSlice(result.ReviewerStatements),
 				"trace_path":             result.TracePath,
 				"family_sentence":        familySentence(result.TracePath),
+				// Same object the JSON document writes under proof_counts.
+				"proof_counts": proofCountsFrom(result.ProofCounts),
 			},
 		}},
 	}
@@ -124,12 +126,13 @@ func sarifResultFrom(finding review.Finding) sarifResult {
 		// codeFlows would need a path through code. A query has none, so the
 		// proof would be dropped. docs/OUTPUT_FORMATS.md puts evidence here.
 		Properties: map[string]any{
-			"id":         finding.ID,
-			"rule_id":    finding.RuleID,
-			"title":      finding.Title,
-			"severity":   string(finding.Severity),
-			"unresolved": finding.Unresolved,
-			"evidence":   evidenceFrom(finding.Evidence),
+			"id":          finding.ID,
+			"proof_level": string(finding.ProofLevel),
+			"rule_id":     finding.RuleID,
+			"title":       finding.Title,
+			"severity":    string(finding.Severity),
+			"unresolved":  finding.Unresolved,
+			"evidence":    evidenceFrom(finding.Evidence),
 		},
 	}
 	if uri := artifactURI(finding.Location.Path); uri != "" {

@@ -63,6 +63,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0047](ADR-0047-the-evidence-store-is-an-adapter.md) | the evidence store is an adapter: Zetaris or a local one-file store, chosen by one setting; the same templates return the same rows on both | accepted, 2026-10-24 |
 | [0048](ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md) | a large change is reviewed in bounded steps with Meterless's Markovian engine; kept only if it holds the findings and cuts the cost | accepted, 2026-10-24 |
 | [0049](ADR-0049-scout-intent-plans-each-review.md) | Meterless's Scout Intent plans each review before a model runs; never lowers a configured rule; kept only if measured worth it | accepted, 2026-10-24 |
+| [0050](ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md) | after a review, one automated fix attempt for all proved findings, judged only by the same deterministic evidence; then fixed or rejected; Proven never commits to the author's branch | accepted, 2026-10-25 |
 
 **Rules for an ADR**
 
@@ -100,7 +101,7 @@ A decision is the owner's. No agent can merge, and no agent's "yes" counts: a re
 - **One of four outcomes:** `accept`, `accept-with-conditions`, `reject` or `close-without-shipping`.
 - **The reason is written by the person who decides.** The owner writes it himself, in his own words. A decision without a reason is not published.
 - **Conditions are named.** If the owner accepts with conditions, each one says what closes it and in which later change.
-- **Every decision states what the change cost**, to the cent, over all its rounds: who built it on which model, how many repair rounds it took, and how many BLOCKING and OWED conditions the reviews found. The same line goes into [`../LEDGER.md`](../../hackathon/fleet/LEDGER.md).
+- **Every decision states how the change went**, over all its rounds: who built it on which model, how many repair rounds it took, and how many BLOCKING and OWED conditions the reviews found. From 25 October it states no cost. The same line goes into [`../LEDGER.md`](../../hackathon/fleet/LEDGER.md).
 - **A rejected change keeps its documents.** The order, the status report and the review of every round stay in this repository, including the ones that were sent back.
 
 **Template**
@@ -116,7 +117,6 @@ A decision is the owner's. No agent can merge, and no agent's "yes" counts: a re
 - built by: <model per round, e.g. r1 model-a · r2 model-a>
 - reviewed by: <model per round>
 - conditions over all rounds: <n> BLOCKING · <n> OWED · <n> NOTE
-- cost of the change: <$0.00> = <$0.00> building + <$0.00> reviewing
 - decided: <date and time, UTC>
 
 ## Reason

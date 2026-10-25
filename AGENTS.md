@@ -17,7 +17,7 @@ This repository is a sub-repository of our workspace. The fleet keeps working ex
    | decision | `fleet/decisions/DECISION_<slug>_r<n>.md` | [`fleet/decisions/README.md`](docs/adr/README.md) |
 
 3. **The public copy says the same thing as the original.** Same findings, same verdict, same numbers. Translate our internal format into the public template; do not soften, shorten or improve it.
-4. **Every document carries its model and its cost**, to the cent, as recorded by Saphan Studio. A decision adds up the whole change and adds its row to [`fleet/LEDGER.md`](hackathon/fleet/LEDGER.md): models, rounds, repair rounds, BLOCKING / OWED / NOTE, cost of building and of reviewing.
+4. **Every document carries its model.** From 25 October 2026 public documents carry no cost and no subscription share (the owner, 24 October); documents published before then keep theirs as written. A decision adds up the whole change and adds its row to [`fleet/LEDGER.md`](hackathon/fleet/LEDGER.md): models, rounds, repair rounds, BLOCKING / OWED / NOTE.
 5. **The copy lands in the same change as the work it describes.** A change without its documents is not finished.
 
 ## 2. What never goes into this repository
@@ -55,7 +55,7 @@ The reviewer sits behind `internal/review`. `review.Open` wires the packages bel
 | `internal/generator` | one generator interface; the sample answers are recorded by agent and prompt |
 | `internal/query` | query adapter; sample mode runs SQL on a local engine over `tables.sql` |
 | `internal/testrun` | test-run adapter; sample mode returns recorded outcomes and executes no code; the live adapter runs the test in a container, or names the Prover off when no runtime is on the path |
-| `internal/trace` | append-only JSONL trace at `logs/trace.jsonl` |
+| `internal/trace` | append-only JSONL trace at `<user cache>/proven/logs/trace.jsonl`, or under `PROVEN_LOG_DIR` |
 | `internal/candidate` | the finding record the agents pass along |
 | `internal/agent/planner` | reads the change and names the risks |
 | `internal/agent/investigator` | turns a risk into a query and runs it |
