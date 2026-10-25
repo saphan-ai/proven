@@ -65,7 +65,7 @@ Saphan Studio is the product. What follows is how *this* fleet is set up to buil
 Zero cloud. Everything runs on premises, in one person's home office: the platform, the record, the agents' machines,
 the data layer, the local models. The only things reached over the internet are the model vendors' APIs and the
 package registries. The machines talk to each other over a private Tailscale network, so nothing of the fleet is
-exposed to the internet. That also means the platform travels: the owner can take the MacBook to a conference in San
+exposed to the internet. That also means the platform travels: the owner can take the MacBook to TechCrunch Disrupt in San
 Francisco, and the fleet at home keeps working, reached over the same private network.
 
 | machine | specification | what runs on it |
