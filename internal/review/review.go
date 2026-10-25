@@ -134,6 +134,10 @@ type Result struct {
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+	// Autofix is the one whole-change fix attempt of the review (ADR-0050), or nil when none was made.
+	// The evidence pack encodes the Result as it is, so the tag keeps a review with no attempt
+	// byte-identical to one made before the field existed.
+	Autofix *Autofix `json:",omitempty"`
 }
 
 // The roles a reviewer takes in a review. The special role is the second reviewer of ADR-0037.
@@ -344,6 +348,66 @@ type DependencyFix struct {
 	AdvisoryID      string
 	AdvisoryColumns []string
 	AdvisoryRow     []string
+}
+
+// The verdicts of the whole-change fix attempt (ADR-0050 point 3), in the words a person reads.
+const (
+	// AutofixFixed: every proved finding closed when its own evidence was run again on the patched change,
+	// and nothing the evidence covers broke. A person decides whether to apply the patch.
+	AutofixFixed = "fixed automatically, waiting for a person"
+	// AutofixRejected: after the one attempt a proved finding is still open, something broke, or the patch
+	// was refused before it ran. There is no second attempt.
+	AutofixRejected = "rejected"
+)
+
+// The kinds of proof a finding is judged by again on the patched change (ADR-0050 point 2).
+const (
+	AutofixProofTest = "test"
+	AutofixProofData = "data"
+	AutofixProofTool = "tool"
+)
+
+// Autofix is the record of the one automated fix attempt for the whole change (ADR-0050). It is nil when no
+// attempt was made: the setting is off, or no finding was proved by a test, by data or by a tool.
+//
+// Edits and Diff are the patch the generator wrote, in two forms: Edits are exact replacements, and Diff is
+// the same change as a unified diff for a review comment to publish as suggested changes (point 4). They are
+// kept whatever the verdict, for the record, but ONLY a patch whose Verdict is AutofixFixed is a suggestion:
+// a renderer must not show a rejected patch as a fix (ADR-0042 point 3). Proven never commits the patch to the
+// author's branch. Findings has one row per proved finding with each re-run's command and output, open or closed.
+// Refused names why the patch was refused before any code ran, and is empty otherwise.
+type Autofix struct {
+	Verdict  string
+	What     string
+	Why      string
+	Edits    []FixEdit
+	Diff     string
+	Findings []AutofixFinding
+	Refused  string
+}
+
+// Suggested reports whether the patch is a suggestion a person may apply: the verdict is AutofixFixed.
+func (a *Autofix) Suggested() bool { return a != nil && a.Verdict == AutofixFixed }
+
+// AutofixFinding is the verdict on one proved finding, named by its ID: Closed is true only when every one
+// of its proofs closed.
+type AutofixFinding struct {
+	ID     string
+	Closed bool
+	Proofs []AutofixProof
+}
+
+// AutofixProof is one of a finding's own pieces of evidence run again on the patched change. Kind is one of
+// the AutofixProof constants. Closed is true only when the run happened and the evidence no longer shows the
+// problem; Reason says why it is open. Command and Output are what Proven ran and printed, so a reader can run
+// it again. Runs holds the four runs of a test proof, each with its exit code.
+type AutofixProof struct {
+	Kind    string
+	Closed  bool
+	Reason  string
+	Command string
+	Output  string
+	Runs    []FixRun
 }
 
 // Location is where a finding is.

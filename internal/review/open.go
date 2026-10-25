@@ -509,6 +509,10 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		// ADR-0042: the settings that turn proposed fixes off and bound their attempts.
 		FixesOff:    !cfg.Fixes,
 		FixAttempts: cfg.FixAttempts,
+		// ADR-0050 point 6: the whole-change attempt, the generator that writes its patch and its time limit.
+		Autofix:        cfg.Autofix,
+		AutofixSpecial: cfg.AutofixGenerator == autofixGeneratorSpecial,
+		AutofixTimeout: cfg.AutofixTimeout,
 		// ADR-0013: the evidence scope of each role that can query.
 		InvestigatorScope: cfg.InvestigatorScope,
 		SkepticScope:      cfg.SkepticScope,
@@ -591,6 +595,7 @@ func fill(d candidate.Draft) (Result, error) {
 	if len(d.SkippedPaths) > 0 {
 		out.SkippedPaths = append([]string(nil), d.SkippedPaths...)
 	}
+	out.Autofix = toAutofix(d.Autofix)
 	if out.Findings == nil {
 		out.Findings = []Finding{}
 	}
@@ -625,6 +630,30 @@ func toFix(f *candidate.Fix) *Fix {
 			AdvisoryColumns: append([]string(nil), d.AdvisoryColumns...),
 			AdvisoryRow:     append([]string(nil), d.AdvisoryRow...),
 		}
+	}
+	return out
+}
+
+// toAutofix copies the whole-change fix attempt across the seam, field by field. A nil attempt stays nil
+// (ADR-0050): a review that made none says nothing about one.
+func toAutofix(a *candidate.Autofix) *Autofix {
+	if a == nil {
+		return nil
+	}
+	out := &Autofix{Verdict: a.Verdict, What: a.What, Why: a.Why, Diff: a.Diff, Refused: a.Refused}
+	for _, e := range a.Edits {
+		out.Edits = append(out.Edits, FixEdit{Path: e.Path, Old: e.Old, New: e.New})
+	}
+	for _, f := range a.Findings {
+		nf := AutofixFinding{ID: f.ID, Closed: f.Closed}
+		for _, p := range f.Proofs {
+			np := AutofixProof{Kind: p.Kind, Closed: p.Closed, Reason: p.Reason, Command: p.Command, Output: p.Output}
+			for _, r := range p.Runs {
+				np.Runs = append(np.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+			}
+			nf.Proofs = append(nf.Proofs, np)
+		}
+		out.Findings = append(out.Findings, nf)
 	}
 	return out
 }
