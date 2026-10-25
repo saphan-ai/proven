@@ -31,3 +31,8 @@ modes open to two readings ("leaves the rest as it was"), which an independent r
 unfair. The amendment fixes the reference as literals (files `0644`, directories `0755`). Nothing else changed, and nothing
 may change after the first run. Generic names of languages, operating systems and version-control commands (a Go program,
 a Unix-like system, `git mv`) are not product names in the sense of this set's rule.
+
+HO-002's answer key was amended in a further commit, also before any run: two independent reviews (codex and claude)
+found that the key demanded `fail` on a state that the frozen contract builds with a valid current bot marker, where the
+change correctly passes. The key now asks for `pass` on that state. The contract was not changed. Nothing may change after
+the first run.

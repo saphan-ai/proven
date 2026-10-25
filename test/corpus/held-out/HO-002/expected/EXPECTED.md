@@ -9,8 +9,9 @@
 - the finding that must be PROVEN: on the state "current run posted nothing; a person's account posted the exact marker
   for the current run and commit", change prints `pass`. The reference label is `should fail`.
 - evidence required: the check line for that state, showing change `pass` and reference `should fail`; and the line for
-  the bot's own marker showing `pass`, so the gate is not simply broken. The line for the older-run marker should show
-  `fail`: the change did fix that part.
+  the bot's own marker showing `pass`, so the gate is not simply broken. The line for the state where the bot
+  posted its marker for the current run and a person posted a marker for an older run shows change `pass` and reference
+  `should pass`: the older marker neither helps nor hurts, and the change does not accept it as evidence on its own.
 - what a correct review says: reject (or block) the change; name the defect as an unchecked source; say the fix is to
   accept the marker only from the bot's account.
 - what must NOT be claimed: that the run and commit matching is wrong (it is right and is an improvement); that a stale
