@@ -71,11 +71,11 @@ else
   echo "up: the tag resolved to ${pulled:-an unknown digest}. Set TEST_IMAGE_DIGEST in lab/versions.env to pin it." >&2
 fi
 
-pass=$(compose run --rm --no-deps -T --user 0:0 --entrypoint cat seed /state/password 2>/dev/null || true)
+pass=$(compose run --rm --no-deps -T --entrypoint cat seed /state/password 2>/dev/null || true)
 if [ -z "$pass" ]; then
   pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
-  printf '%s' "$pass" | compose run --rm --no-deps -T --user 0:0 --entrypoint sh seed -c \
-    'mkdir -p /state /reg && cat > /state/password && chmod 600 /state/password && chown proven:proven /state /reg /state/password && chmod 700 /state /reg'
+  printf '%s' "$pass" | compose run --rm --no-deps -T --entrypoint sh seed -c \
+    'umask 077 && cat > /state/password'
   echo "lab admin user: $LAB_ADMIN_USER"
   echo "lab admin password: $pass"
   echo "lab url: $lab_url"

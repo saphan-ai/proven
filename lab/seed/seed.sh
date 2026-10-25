@@ -3,12 +3,7 @@
 # The admin user already exists. The password arrives in LAB_ADMIN_PASSWORD.
 set -eu
 
-if [ "$(id -u)" -eq 0 ]; then
-  mkdir -p /state /reg
-  chown proven:proven /state /reg
-  chmod 700 /state /reg
-  exec su-exec proven "$0" "$@"
-fi
+umask 077
 
 : "${GITEA_INTERNAL_URL:?}"
 : "${LAB_ADMIN_USER:?}"

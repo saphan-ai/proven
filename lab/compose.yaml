@@ -69,7 +69,6 @@ services:
 
   seed:
     image: ${SEED_IMAGE}:${SEED_IMAGE_TAG}
-    user: "0:0"
     environment:
       GITEA_INTERNAL_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
       LAB_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/

@@ -18,6 +18,8 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 
 `make logs` follows every service. `make logs SERVICE=gitea` follows one of `gitea`, `dind`, `runner`.
 
+The seed always runs as a user that is not root, and that user owns the state volume, mode 700, with the password and tokens at mode 600. A state volume made by an older lab is owned by root and the seed cannot write to it: run `make clean`, then `make up`.
+
 `make down` stops the lab and removes its containers. The volume, the admin user and the password remain. `make clean` removes the volumes, the local images, `./bin` and `./dist`.
 
 ## The keys a live review needs
