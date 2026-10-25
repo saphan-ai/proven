@@ -47,7 +47,10 @@ type jsonDocument struct {
 	FamilySentence       string            `json:"family_sentence"`
 	Models               []jsonModelUse    `json:"models"`
 	FailedServices       []jsonService     `json:"failed_services"`
-	Findings             []jsonFinding     `json:"findings"`
+	// ProofCounts is the totals by level (ADR-0044). Every level is a key,
+	// with 0 when none, in the order review.ProofLevels lists them.
+	ProofCounts jsonProofCounts `json:"proof_counts"`
+	Findings    []jsonFinding   `json:"findings"`
 }
 
 type jsonAuthorModel struct {
@@ -71,7 +74,10 @@ type jsonService struct {
 }
 
 type jsonFinding struct {
-	ID         string         `json:"id"`
+	ID string `json:"id"`
+	// ProofLevel is this finding's one level of proof (ADR-0044). The string
+	// is the core's, and it is always written, including when it is empty.
+	ProofLevel string         `json:"proof_level"`
 	RuleID     string         `json:"rule_id"`
 	Title      string         `json:"title"`
 	Message    string         `json:"message"`
@@ -155,13 +161,36 @@ func documentFrom(result review.Result) jsonDocument {
 		FamilySentence:       familySentence(result.TracePath),
 		Models:               uses,
 		FailedServices:       services,
+		ProofCounts:          proofCountsFrom(result.ProofCounts),
 		Findings:             findings,
+	}
+}
+
+// jsonProofCounts is the totals by level. The names are review.ProofLevel.
+// A level with no findings is 0, so a reader can add the four numbers and
+// get the number of findings. Opinions stay in the agreed key at 0.
+type jsonProofCounts struct {
+	ProvedByTest    int `json:"proved-by-test"`
+	ProvedByTool    int `json:"proved-by-tool"`
+	ProvedByData    int `json:"proved-by-data"`
+	AgreedNotProven int `json:"agreed-by-two-models-not-proven"`
+}
+
+// proofCountsFrom copies the core's totals. A missing map reads as zeros,
+// which is the same document the core writes when it has counted nothing.
+func proofCountsFrom(counts map[review.ProofLevel]int) jsonProofCounts {
+	return jsonProofCounts{
+		ProvedByTest:    counts[review.ProvedByTest],
+		ProvedByTool:    counts[review.ProvedByTool],
+		ProvedByData:    counts[review.ProvedByData],
+		AgreedNotProven: counts[review.AgreedNotProven],
 	}
 }
 
 func findingFrom(finding review.Finding) jsonFinding {
 	return jsonFinding{
 		ID:         finding.ID,
+		ProofLevel: string(finding.ProofLevel),
 		RuleID:     finding.RuleID,
 		Title:      finding.Title,
 		Message:    finding.Message,
