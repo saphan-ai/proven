@@ -61,10 +61,41 @@ func serviceBlock(compose, name string) string {
 
 var portEntry = regexp.MustCompile(`^\s*-\s*"?([^"]+)"?\s*$`)
 
+var (
+	bindCase = regexp.MustCompile(`case\s+"?\$\{?LAB_BIND\}?"?\s+in`)
+	funcHead = regexp.MustCompile(`(?m)^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{\s*$`)
+)
+
+// hasBindGuard: the scripts refuse a LAB_BIND that is not loopback, either with a
+// `case "$LAB_BIND" in` or with a function that reads LAB_BIND, exits non-zero,
+// and is called from somewhere other than its own definition.
+func hasBindGuard(scripts string) bool {
+	if bindCase.MatchString(scripts) {
+		return true
+	}
+	for _, m := range funcHead.FindAllStringSubmatchIndex(scripts, -1) {
+		name := scripts[m[2]:m[3]]
+		rest := scripts[m[1]:]
+		end := strings.Index(rest, "\n}")
+		if end < 0 {
+			continue
+		}
+		body, after := rest[:end], rest[end:]
+		if !strings.Contains(body, "LAB_BIND") || !regexp.MustCompile(`\bexit\s+[1-9]`).MatchString(body) {
+			continue
+		}
+		call := regexp.MustCompile(`(?m)(^|[\s;&|)])` + regexp.QuoteMeta(name) + `\s*($|[;&|\n])`)
+		if call.MatchString(scripts[:m[0]]) || call.MatchString(after) {
+			return true
+		}
+	}
+	return false
+}
+
 // checkLoopbackPorts: every published port names 127.0.0.1 literally, or names
 // ${LAB_BIND} and a lab script refuses a LAB_BIND that is not 127.0.0.1.
 func checkLoopbackPorts(compose, scripts string) []string {
-	guard := regexp.MustCompile(`case\s+"?\$\{?LAB_BIND\}?"?\s+in`).MatchString(scripts)
+	guard := hasBindGuard(scripts)
 	var bad []string
 	lines := strings.Split(compose, "\n")
 	for i, line := range lines {
@@ -98,6 +129,14 @@ func TestLabPublishesOnlyOnLoopback(t *testing.T) {
 	mut := strings.Replace(compose, `"${LAB_BIND}:${GITEA_HTTP_PORT}`, `"0.0.0.0:${GITEA_HTTP_PORT}`, 1)
 	if len(checkLoopbackPorts(mut, `case "$LAB_BIND" in`)) == 0 {
 		t.Error("negative control: check accepted a 0.0.0.0 binding")
+	}
+	// Negative control: a ${LAB_BIND} port with no guard in the scripts must be refused.
+	if len(checkLoopbackPorts(compose, "up() {\n  docker compose up\n}\n")) == 0 {
+		t.Error("negative control: check accepted a ${LAB_BIND} port with no guard")
+	}
+	// Negative control: a guard that is defined and never called guards nothing.
+	if len(checkLoopbackPorts(compose, "guard() {\n  test \"$LAB_BIND\" = 127.0.0.1 || exit 1\n}\n")) == 0 {
+		t.Error("negative control: check accepted a guard that is never called")
 	}
 }
 
