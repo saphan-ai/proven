@@ -7,7 +7,8 @@ are in [DESIGN.md](../hackathon/DESIGN.md) and in the decisions under [fleet/dec
 
 ```mermaid
 flowchart LR
-    C[change: base and head] --> P[Planner<br/>names the risks]
+    C[change: base and head] --> SI[Scout Intent<br/>plans the review, off by default]
+    SI --> P[Planner<br/>names the risks]
     P --> I[Investigator<br/>picks a query template]
     P --> V[Prover<br/>writes a test]
     I -->|template and values,<br/>Proven builds the SQL| Z[(Zetaris<br/>KEV · EPSS · OSV)]
@@ -65,9 +66,13 @@ so it is never marked proved.
   call, with the run id and the time. A reader follows any finding from claim to verdict.
 - **H-MEM** (`state/hmem`): what earlier reviews refuted, so a refuted finding does not come back.
 - **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
+- **Scout Intent** (`internal/scout`, ADR-0049): the plan chosen for a review, written as one `plan` line to the trace
+  before any agent runs. Off by default; its eval harness is described below.
 
-Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
-`test/conformance/meterless/run.sh`.
+H-MEM and the World Model follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run
+through `test/conformance/meterless/run.sh`. Scout Intent follows Meterless's specification too (ADR-0049), and
+Meterless's eval harness, pinned at upstream commit `1742dec5`, runs through `test/conformance/meterless/run_scout.sh`.
+It is switched off by default and its benefit is UNMEASURED until the corpus recordings exist.
 
 ## Scout Intent plans each review (ADR-0049)
 
