@@ -346,7 +346,23 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	// With no special model configured there is nothing to double, so the class is not needed here;
 	// applyDecision still states it and says the special model is not configured.
 	double := false
-	if cfg.SpecialReviewer != "" {
+	// ADR-0049: with Scout Intent on, the plan is chosen here, before any agent runs, and it decides the
+	// class and the doubling. Off, nothing is classified and the review runs as before, its trace saying
+	// that no plan was chosen.
+	var planned *reviewPlan
+	plan := offPlan()
+	if cfg.ScoutIntent {
+		files, ferr := changedPaths(req)
+		if ferr != nil {
+			return Result{}, ferr
+		}
+		rp, perr := choosePlan(cfg, req, files)
+		if perr != nil {
+			return Result{}, perr
+		}
+		planned, plan = &rp, rp.Plan
+		double = cfg.SpecialReviewer != "" && rp.Doubled
+	} else if cfg.SpecialReviewer != "" {
 		files, ferr := changedPaths(req)
 		if ferr != nil {
 			return Result{}, ferr
@@ -376,6 +392,7 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		// ADR-0042: the settings that turn proposed fixes off and bound their attempts.
 		FixesOff:    !cfg.Fixes,
 		FixAttempts: cfg.FixAttempts,
+		Plan:        plan,
 	})
 	if err != nil {
 		return Result{}, err
@@ -384,7 +401,7 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := applyDecision(&out, cfg, req); err != nil {
+	if err := applyDecision(&out, cfg, req, planned); err != nil {
 		return Result{}, err
 	}
 	return out, nil

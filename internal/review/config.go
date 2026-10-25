@@ -2,8 +2,9 @@ package review
 
 // This file reads proven.yaml, the reviewer's own settings (ADR-0013): the timeout, the two reviewer
 // models (ADR-0009, ADR-0010), the family table and author sources (ADR-0011), and the class rules
-// (ADR-0014), and the two settings of proposed fixes: whether they are made and how many attempts one
-// gets (ADR-0042). Every key is closed: an unknown key or value is refused with the values allowed.
+// (ADR-0014), the two settings of proposed fixes: whether they are made and how many attempts one
+// gets (ADR-0042), and Scout Intent's switch and its plan for each kind of change (ADR-0049). Every key
+// is closed: an unknown key or value is refused with the values allowed.
 
 import (
 	"bytes"
@@ -50,6 +51,13 @@ var configKeys = []string{
 	"raise_class",
 	"fixes",
 	"fix_attempts",
+	"scout_intent",
+	"plan_dependency",
+	"plan_refactor",
+	"plan_feature",
+	"plan_security",
+	"plan_docs",
+	"plan_config",
 }
 
 // fileSettings is one loaded proven.yaml. A missing file is defaultSettings.
@@ -74,6 +82,10 @@ type fileSettings struct {
 	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
 	Fixes       bool
 	FixAttempts int
+	// ScoutIntent switches the review plan on (ADR-0049). Off, every review runs the full plan.
+	ScoutIntent bool
+	// Plans is the plan for each kind of change, keyed by the kind's registry id (ADR-0049 point 2).
+	Plans map[string]planSetting
 }
 
 // familyRule maps a model-name pattern to a family, one row of the families table (ADR-0011 point 4).
@@ -121,6 +133,9 @@ func defaultSettings() fileSettings {
 		// ADR-0042: proposed fixes are on by default, with one try and one retry.
 		Fixes:       true,
 		FixAttempts: defaultFixAttempts,
+		// ADR-0049: the engine lands switched off; it is switched on only once its measurement holds.
+		ScoutIntent: false,
+		Plans:       defaultPlans(),
 	}
 }
 
@@ -321,6 +336,10 @@ func allowedText(key string) string {
 		return "on, off"
 	case "fix_attempts":
 		return allowedFixAttempts
+	case "scout_intent":
+		return "on, off"
+	case "plan_dependency", "plan_refactor", "plan_feature", "plan_security", "plan_docs", "plan_config":
+		return allowedPlan()
 	case "fallback_class", "doubled_classes", "class_order", "path_rules":
 		return strings.Join(classNames(), ", ")
 	case "families":
@@ -456,6 +475,26 @@ func applyKey(cfg *fileSettings, key, val string) error {
 			return configRefused(key, val, "not a number of attempts in range", allowedFixAttempts)
 		}
 		cfg.FixAttempts = n
+		return nil
+	case "scout_intent":
+		on, err := parseOnOff(key, val)
+		if err != nil {
+			return err
+		}
+		cfg.ScoutIntent = on
+		return nil
+	case "plan_dependency", "plan_refactor", "plan_feature", "plan_security", "plan_docs", "plan_config":
+		ps, err := parsePlanSetting(key, val)
+		if err != nil {
+			return err
+		}
+		// The map is copied before the change, so the shared defaults are never written to.
+		plans := make(map[string]planSetting, len(cfg.Plans))
+		for k, v := range cfg.Plans {
+			plans[k] = v
+		}
+		plans[planKind(key)] = ps
+		cfg.Plans = plans
 		return nil
 	default:
 		return &ConfigError{Field: key, Value: val, Reason: "unknown key", Allowed: append([]string(nil), configKeys...)}
