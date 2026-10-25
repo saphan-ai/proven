@@ -262,7 +262,7 @@ func TestRuleKeepsOneRowOfTwoOnTheEvidence(t *testing.T) {
 	t.Cleanup(func() { source.Unregister("keep-one-probe") })
 	rec := &recorder{rows: [][]string{{"one"}, {"two"}}}
 	got, err := Investigate(context.Background(), risk, "",
-		scriptGen{text: `{"template":"keep-one-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+		scriptGen{text: `{"template":"keep-one-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
