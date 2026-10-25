@@ -35,7 +35,7 @@ func TestEmptyNVIDIAKeyNamesNVIDIAOnEveryRefusedCall(t *testing.T) {
 		Sample:    false,
 		LogDir:    t.TempDir(),
 		Env:       nvidiaEnv(nil),
-		liveQuery: quietQuery{},
+		liveStore: quietQuery{},
 		testRun:   quietRun{},
 	})
 	if err != nil {
@@ -80,7 +80,7 @@ func TestNVIDIAKeyEchoedInTheModelFieldIsNotWritten(t *testing.T) {
 		LogDir:    t.TempDir(),
 		Env:       nvidiaEnv(map[string]string{generator.EnvKey: key}),
 		gen:       hostedEcho{model: "other/" + key},
-		liveQuery: quietQuery{},
+		liveStore: quietQuery{},
 		testRun:   quietRun{},
 	})
 	if err != nil {

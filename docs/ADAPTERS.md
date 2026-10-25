@@ -1,6 +1,6 @@
 # Adapters
 
-An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)). An output format writes the review result. Each has one worked example below.
+An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)); a source adapter loads a table and turns a query's rows into evidence ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). An output format writes the review result. Each has one worked example below.
 
 ## Adding a language
 
@@ -129,15 +129,56 @@ That scenario labels the reached module with the call path and the quiet module 
 
 Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four answers above, a recorded scenario, and tests for three outcomes: a result only on the change, the same result on the base, and a run that does not answer. It uses the same container and the same time-limit setting. It does not grow a second way to start a process.
 
+## Adding a source
+
+A source adapter feeds the evidence store and plugs into the decision ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). It declares four things.
+
+1. **How it loads.** Where the data comes from, how often it is refreshed, the table name it is registered as, and the snapshot date of that load. The adapter does not name a store ([ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md)). `PROVEN_EVIDENCE_STORE` runs the query.
+2. **Its query templates.** Each one is a template the Investigator may pick, plus the builder that writes the query. Each parameter carries a format as a pattern; `Register` refuses a parameter with none. A model never writes the query ([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)). `Catalogue` and `Build` in `internal/querytpl` read the registry, so the template is written in one place.
+3. **Its rule.** What a returned row means. Rows that mean a finding become evidence: the query and those rows. Rows that mean nothing are not evidence. The Judge decides, as it does for any other finding. On the Investigator's path the rule of the adapter that owns the template decides whether the rows become evidence.
+4. **A sample table and a test.** The test adds the adapter by registering it.
+
+The type is `Adapter` in `internal/source`. The built-in adapters are OSV, KEV, EPSS, then the four of [ADR-0039](adr/ADR-0039-more-evidence-sources.md): malicious packages (`mal`), project health (`scorecard`), CVSS (`cvss`) and SPDX licences (`spdx`), in that order. OSV owns `osv-by-package` and `osv-by-advisory`. KEV owns `kev-by-cve`. EPSS owns `epss-by-cve`. `mal` owns `mal-by-package`. `scorecard` owns `scorecard-by-package`. `cvss` owns `cvss-by-cve`. `spdx` owns `spdx-by-package`. Their query text stays in `internal/querytpl`, beside the check that refuses a value outside its format. `internal/source` does not import `internal/querytpl`. The catalogue reads the registry, so the import goes the other way.
+
+None of these is loaded by this program. An administrator puts the table where the store can read it. A finding cites the date the store stamps on the read. The load's own snapshot date is empty, because this program did not load the table.
+
+A malicious-package row is evidence only when its advisory id starts with `MAL-`. A project-health row is evidence when maintainers score `0`, releases are unsigned (`signed` is `false`), or `release_age_days` is under 14. A CVSS row is a severity score and is evidence; the Investigator's finding then receives the EPSS score of the same CVE, so the two sit on one finding. A licence row is evidence when the `licence` cell is outside a closed permissive set (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Unlicense). The cell is compared whole. That set stands in for an organisation policy, which this program does not store. A missing table is a down source named for the store, on the local store, on Zetaris and on CouchDB.
+
+The sample scenarios are `testdata/fixture/malicious-package`, `testdata/fixture/project-health`, `testdata/fixture/cvss-score` and `testdata/fixture/spdx-licence`. Each scenario's test fails when that finding is absent from the review. The malicious-package test also fails when an empty row list is treated as evidence.
+
+The OSV rule does not decide the dependency finding. A returned row is an advisory range. The dependency check compares the change's version, and a version outside every range is a trace line, not a finding. The rule does not see the version. KEV and EPSS use their rules: a row is evidence, and no row is not.
+
+### Worked example: a banned-package list
+
+An organisation keeps a table of packages it does not allow. The adapter id is `banned-package`. The table name is `banned_pkg`. The snapshot date in the example is `2026-10-24`. The origin is the organisation's own list. The refresh is whenever that list changes.
+
+The template is `banned-by-package`. It takes `package`. The builder writes:
+
+```sql
+SELECT name, reason FROM banned_pkg WHERE name = '<package>'
+```
+
+The parameter declares its format as a pattern, `^[A-Za-z0-9._-]{1,200}$`. Proven holds every value to that pattern, and to a floor of its own, before the builder runs: no quote, no backslash, no control byte and nothing outside printable ASCII. A value outside either is refused with a named reason and never escaped. The builder is not the only guard. A builder that refuses a value for its own reason returns a `*querytpl.Refusal`; any other error it returns is turned into one, so the review records a query note and goes on. The table name is the adapter's own. `Register` refuses it unless it is a plain name, one identifier or `schema.name`.
+
+The rule is: a row means the package is banned, and the evidence is that query and the row. No row means the package is not on the list, and there is no finding.
+
+The columns of the sample table are `name` and `reason`. One sample row is `left-pad` with reason `not allowed`.
+
+The test `TestAddedSourceShowsItsTemplateItsQueryAndItsRule` registers this adapter, sees `banned-by-package` in the catalogue, runs the query on the local store, and checks that the rule returns the row. It also queries `right-pad`, which is not in the table, and checks that the rule returns nothing. Taking `bannedPackage` out of the added list makes that test fail. The adapter is not one of the built-in sources. There is no plugin loader: `Register` is the door, and this program calls it from the test.
+
 ## The evidence store
 
-[ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md). A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it. The default is `zetaris`. `local` is one file and no server, and it opens no network. `couchdb` is refused by name until it is built. The file of the local store is `PROVEN_EVIDENCE_FILE`. It is required when the store is `local`: an empty value is refused by name, because a default would sit in the repository under review. A path that resolves inside that repository, links included, is refused by name too. A table the file does not hold is a down source named `local`, as a missing view on Zetaris is a down source named `zetaris`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
+[ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md). A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it: `zetaris` (the default), `local` or `couchdb`. `local` is one file and no server, and it opens no network. The file of the local store is `PROVEN_EVIDENCE_FILE`. It is required when the store is `local`: an empty value is refused by name, because a default would sit in the repository under review. A path that resolves inside that repository, links included, is refused by name too. A table the file does not hold is a down source named `local`, as a missing view on Zetaris is a down source named `zetaris`, and a missing database on CouchDB is a down source named `couchdb`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
 
-A source registers a table on the configured store, then runs a query Proven built from a template. Zetaris keeps the rule that Proven's key only reads: registering a table there is the administrator's act, and Proven records the name and sends no statement. The local store writes the table into its file.
+`couchdb` runs a Mango selector over CouchDB's HTTP API. One registered table is one database. Its name is `PROVEN_COUCHDB_PREFIX` (default `proven_`), then the table name in lower case with `.` written as `-`, so `px_evidence.px_kev_vulns` is `proven_px_evidence-px_kev_vulns`. The address is `PROVEN_COUCHDB_URL`; the user and password are `PROVEN_COUCHDB_USER` and `PROVEN_COUCHDB_PASSWORD`, sent as HTTP Basic. The password is a secret: it is read from the environment only, a refusal never prints it, and the redactor removes it from the trace and the result. A value that is set wrongly is refused by name. An empty address, user or password is a down store named `couchdb`, and the review goes on without it. The client does not follow redirects, so the credential goes to the configured address and nowhere else. Rows come back in the column order of the `sql` form, though CouchDB returns the fields of a document in no fixed order. Each cell is text.
 
-A template has one form for each query language. This wagon fills the `sql` form, which Zetaris and the local store both run. The `mango` form is empty until CouchDB. The evidence of a query names the form that ran, with the text of that form and the rows it returned.
+A source registers a table on the configured store, then runs a query Proven built from a template. Zetaris keeps the rule that Proven's key only reads: registering a table there is the administrator's act, and Proven records the name and sends no statement. The local store writes the table into its file. The CouchDB store creates the table's database and writes one document for each row; registering the same table twice is refused.
 
-One scenario runs on every store that is built. The form, the query text, the columns and the rows match. Zetaris is played by a recorded HTTP server in that test. The local store is the real file.
+A template has one form for each query language: `sql` for Zetaris and the local store, and `mango` for CouchDB. Both are built from the same validated values (ADR-0032), by the same checks, so a value one form refuses the other refuses. A `mango` form is one JSON object: the table, a selector with one equality for each parameter, and the fields in column order. The evidence of a query names the form that ran, with the text of that form and the rows it returned.
+
+The review's query seam passes a template request and the relation names. The configured store builds the form of its own language and runs it: `sql` on Zetaris and the local store, `mango` on CouchDB. The evidence names that form, the text that ran and the rows. A template a source adapter registered has the sql form only, so CouchDB names itself down for that template (`no mango form`) instead of sending SQL. Sample mode does not read the store setting: it opens the fixture file and runs the sql form.
+
+One scenario runs on every store that is built. The columns, the rows and the snapshot match on all three; the form differs as the language does. Zetaris and CouchDB are played by recorded HTTP servers in that test, and the local store is the real file. A second test runs against a real CouchDB when `PROVEN_COUCHDB_LIVE_URL` names one (with the user and password set), and skips by name otherwise.
 
 ## Adding an output format
 

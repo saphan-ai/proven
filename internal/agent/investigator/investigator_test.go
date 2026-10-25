@@ -2,6 +2,8 @@ package investigator
 
 import (
 	"context"
+	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // scriptGen is a generator that always returns text.
@@ -25,9 +28,13 @@ type recorder struct {
 	rows [][]string
 }
 
-func (r *recorder) Query(_ context.Context, sql string) (query.Result, error) {
-	r.sql = append(r.sql, sql)
-	return query.Result{SQL: sql, Engine: "mem", Columns: []string{"cve_id"}, Rows: r.rows}, nil
+func (r *recorder) Run(_ context.Context, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
+	forms, err := querytpl.BuildForms(req, rel)
+	if err != nil {
+		return query.Result{}, err
+	}
+	r.sql = append(r.sql, forms.SQL)
+	return query.Result{SQL: forms.SQL, Form: querytpl.FormSQL, Engine: "mem", Columns: []string{"cve_id"}, Rows: r.rows}, nil
 }
 
 var risk = candidate.Candidate{
@@ -141,5 +148,129 @@ func TestExecuteRefusesBeforeItSends(t *testing.T) {
 		querytpl.Request{Template: querytpl.KEVByCVE, Params: map[string]string{querytpl.ParamCVEID: "x' OR '1'='1"}}, querytpl.Relations{})
 	if err == nil || len(rec.sql) != 0 {
 		t.Fatalf("err %v, sent %q", err, rec.sql)
+	}
+}
+
+// refusingAdapter is a registered source whose builder refuses with a plain
+// error, as an organisation's builder would.
+type refusingAdapter struct{}
+
+func (refusingAdapter) ID() string { return "refusing-probe" }
+func (refusingAdapter) Load() source.Load {
+	return source.Load{Origin: "test", Refresh: "never", Table: "t"}
+}
+func (refusingAdapter) Templates() []source.Spec {
+	return []source.Spec{{
+		Template: source.Template{Name: "refusing-by-name", Answer: "a row", Params: []source.Param{{Name: "n", Format: "any", Match: regexp.MustCompile(`^[a-z]+$`)}}},
+		Build: func(map[string]string, source.Rel) (string, error) {
+			return "", errors.New("refusing-by-name: n is outside its format")
+		},
+	}}
+}
+func (refusingAdapter) Rule(in source.Evidence) (source.Evidence, bool) { return in, len(in.Rows) > 0 }
+
+// TestRefusalByARegisteredBuilderIsAQueryNote proves a value a registered
+// builder refuses becomes the candidate's QueryNote and adds no evidence; the
+// review does not fail. The mutated field is the builder's error.
+func TestRefusalByARegisteredBuilderIsAQueryNote(t *testing.T) {
+	if err := source.Register(refusingAdapter{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { source.Unregister("refusing-probe") })
+	rec := &recorder{rows: [][]string{{"x"}}}
+	got, err := Investigate(context.Background(), risk, "",
+		scriptGen{text: `{"template":"refusing-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+	if err != nil {
+		t.Fatalf("the review failed on a refused value: %v", err)
+	}
+	if !strings.HasPrefix(got.QueryNote, "refused: ") || len(got.Evidence) != 0 || len(rec.sql) != 0 {
+		t.Fatalf("note %q evidence %d sent %d", got.QueryNote, len(got.Evidence), len(rec.sql))
+	}
+}
+
+// ruleDropsAdapter is a registered source whose rule keeps no evidence even
+// when the query returns rows.
+type ruleDropsAdapter struct{}
+
+func (ruleDropsAdapter) ID() string { return "rule-drops-probe" }
+func (ruleDropsAdapter) Load() source.Load {
+	return source.Load{Origin: "test", Refresh: "never", Table: "t"}
+}
+func (ruleDropsAdapter) Templates() []source.Spec {
+	return []source.Spec{{
+		Template: source.Template{Name: "rule-drops-by-name", Answer: "a row", Params: []source.Param{{Name: "n", Format: "any", Match: regexp.MustCompile(`^[a-z]+$`)}}},
+		Build:    func(map[string]string, source.Rel) (string, error) { return "SELECT 1", nil },
+	}}
+}
+func (ruleDropsAdapter) Rule(source.Evidence) (source.Evidence, bool) {
+	return source.Evidence{}, false
+}
+
+// keepOneAdapter is a registered source whose rule keeps the first row of
+// two and drops the second, with its own column name.
+type keepOneAdapter struct{}
+
+func (keepOneAdapter) ID() string { return "keep-one-probe" }
+func (keepOneAdapter) Load() source.Load {
+	return source.Load{Origin: "test", Refresh: "never", Table: "t"}
+}
+func (keepOneAdapter) Templates() []source.Spec {
+	return []source.Spec{{
+		Template: source.Template{Name: "keep-one-by-name", Answer: "a row", Params: []source.Param{{Name: "n", Format: "any", Match: regexp.MustCompile(`^[a-z]+$`)}}},
+		Build:    func(map[string]string, source.Rel) (string, error) { return "SELECT kept FROM t", nil },
+	}}
+}
+func (keepOneAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
+	if len(in.Rows) < 2 {
+		return source.Evidence{}, false
+	}
+	// One row of the two is the evidence. The other is not.
+	in.Columns = []string{"kept"}
+	in.Rows = [][]string{in.Rows[0]}
+	return in, true
+}
+
+// TestOwningAdaptersRuleDecidesEvidence proves the rule of the adapter that
+// owns the template decides whether rows become evidence: a rule that returns
+// false on a non-empty row set leaves the candidate with no evidence. The
+// mutated field is the rule's verdict.
+func TestOwningAdaptersRuleDecidesEvidence(t *testing.T) {
+	if err := source.Register(ruleDropsAdapter{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { source.Unregister("rule-drops-probe") })
+	rec := &recorder{rows: [][]string{{"x"}}}
+	got, err := Investigate(context.Background(), risk, "",
+		scriptGen{text: `{"template":"rule-drops-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.sql) != 1 || len(got.Evidence) != 0 {
+		t.Fatalf("sent %d, evidence %d; the rule was not consulted", len(rec.sql), len(got.Evidence))
+	}
+}
+
+// TestRuleKeepsOneRowOfTwoOnTheEvidence proves the Investigator copies the
+// rows and columns the owning rule kept, not the rows the query returned.
+// The query returns two rows. The rule keeps the first. The mutated line is
+// `res.Columns, res.Rows = kept.Columns, kept.Rows` in Investigate. Deleting
+// it leaves both rows on the evidence and this test goes red.
+func TestRuleKeepsOneRowOfTwoOnTheEvidence(t *testing.T) {
+	if err := source.Register(keepOneAdapter{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { source.Unregister("keep-one-probe") })
+	rec := &recorder{rows: [][]string{{"one"}, {"two"}}}
+	got, err := Investigate(context.Background(), risk, "",
+		scriptGen{text: `{"template":"keep-one-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Evidence) != 1 || got.Evidence[0].Query == nil {
+		t.Fatalf("evidence %#v", got.Evidence)
+	}
+	q := got.Evidence[0].Query
+	if len(q.Rows) != 1 || len(q.Columns) != 1 || q.Columns[0] != "kept" || q.Rows[0][0] != "one" {
+		t.Fatalf("columns %#v rows %#v; want the one row the rule kept", q.Columns, q.Rows)
 	}
 }

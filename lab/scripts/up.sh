@@ -28,7 +28,7 @@ fi
 sh "$ROOT/lab/scripts/image.sh"
 sh "$ROOT/lab/scripts/seed-image.sh"
 
-compose up -d gitea dind
+compose up -d gitea dind lgtm
 
 internal="http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}"
 lab_url="http://${LAB_BIND}:${GITEA_HTTP_PORT}/"
@@ -45,6 +45,24 @@ while [ "$i" -lt 40 ]; do
 done
 if [ "$ready" -ne 1 ]; then
   die "up: Gitea did not become healthy"
+fi
+
+# ADR-0045: the dashboard is up before the pull request's review starts, so the review is exported to it.
+# A Grafana that does not answer is named, and the lab goes on: the review is still posted.
+dashboard_url="http://${LAB_BIND}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
+grafana_internal="http://${LGTM_INTERNAL_HOST}:${LGTM_GRAFANA_CONTAINER_PORT}"
+grafana_ready=0
+waited=0
+while [ "$waited" -lt "$LGTM_WAIT_SECONDS" ]; do
+  if compose run --rm --no-deps -T --entrypoint curl seed -fsS --max-time 3 "$grafana_internal/api/health" >/dev/null 2>&1; then
+    grafana_ready=1
+    break
+  fi
+  waited=$((waited + 5))
+  sleep 5
+done
+if [ "$grafana_ready" -ne 1 ]; then
+  echo "up: Grafana did not answer within ${LGTM_WAIT_SECONDS}s; the dashboard may be empty at first (make logs SERVICE=lgtm)" >&2
 fi
 
 dind_id=$(compose ps -q dind)
@@ -150,3 +168,4 @@ rm -f "$users" "$err"
 LAB_ADMIN_PASSWORD=$pass compose run --rm -T seed
 compose up -d runner
 echo "lab: $lab_url"
+echo "dashboard: $dashboard_url"

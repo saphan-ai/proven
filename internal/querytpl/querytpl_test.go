@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // hostile is one byte or spelling a value must never carry into a query.
@@ -246,6 +248,37 @@ func TestCVEFormatIsAnchored(t *testing.T) {
 	}
 	if !ValidCVE("CVE-2021-44228") {
 		t.Error("a CVE id was refused")
+	}
+}
+
+// TestCatalogueFollowsTheSourceRegistry proves Catalogue is the source
+// registry in the fixed order of the built-in adapters. The mutated field
+// is which adapter owns a template name.
+func TestCatalogueFollowsTheSourceRegistry(t *testing.T) {
+	if builtinErr != nil {
+		t.Fatal(builtinErr)
+	}
+	got := Catalogue()
+	want := []string{
+		OSVByPackage, OSVByAdvisory, KEVByCVE, EPSSByCVE,
+		MalByPackage, ScorecardByPackage, CVSSByCVE, SPDXByPackage,
+	}
+	owners := []string{"osv", "osv", "kev", "epss", "mal", "scorecard", "cvss", "spdx"}
+	if len(got) != len(want) {
+		t.Fatalf("catalogue has %d templates, want %d", len(got), len(want))
+	}
+	for i, name := range want {
+		if got[i].Name != name {
+			t.Errorf("catalogue[%d] = %s, want %s", i, got[i].Name, name)
+		}
+		ad, _, ok := source.Lookup(name)
+		if !ok || ad.ID() != owners[i] {
+			id := ""
+			if ad != nil {
+				id = ad.ID()
+			}
+			t.Errorf("template %s: owner %s, ok %v, want %s", name, id, ok, owners[i])
+		}
 	}
 }
 

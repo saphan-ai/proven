@@ -8,7 +8,9 @@
 make up
 ```
 
-`make up` builds Proven and starts the judges' lab on this machine. It prints the lab address and a generated admin password, once. Open that address, then the open pull request: the sample review is a comment on it. The steps are in [docs/LAB.md](docs/LAB.md). `make down` stops the lab.
+**Step by step, with what you need first and what to do if something fails: [docs/LAB.md](docs/LAB.md).**
+
+`make up` builds Proven and starts the judges' lab on this machine. It prints the lab address and a generated admin password, once. Open that address, then the open pull request: the sample review is a comment on it. `make down` stops the lab.
 
 Proven will review pull requests: proposed changes to a codebase. Every problem it reports must come with evidence you can check yourself, such as a test you can run or a data query you can repeat. If it cannot show the evidence, it does not report the problem.
 
@@ -32,6 +34,28 @@ Now that fleet takes on something new. At the hackathon it will build **Proven**
 
 Updated every evening. The newest day comes first.
 
+### Day three, extra time: three model families, one commit
+
+Just after midnight UTC, NVIDIA's Nemotron returned its first review in the fleet. The change was the held-out test set:
+six new cases, frozen before Proven ever runs on them. Three reviewers from three model families read the same commit,
+each from a fresh context, none seeing the others' verdict:
+
+| reviewer | verdict | what it found |
+|---|---|---|
+| OpenAI (Codex) | reject | one case's frozen answer key contradicts its own frozen contract |
+| Anthropic (Claude) | accept with BLOCKING conditions | the same answer-key problem, and in two more cases the check's label contradicts the answer key |
+| NVIDIA (Nemotron) | accept with conditions | one of those two label mismatches, judged non-blocking; it also re-ran one case's Go test live and confirmed it fails exactly as the case says |
+
+Three problems in all. Claude found all three; Codex found one and Nemotron another, each also found by Claude. Codex
+alone or Nemotron alone would have let two of the three through; the three verdicts did not even agree on whether the
+change could ship. The reviews are published with the change's decision.
+
+**Zero trust, caught in the act.** At 00:21 UTC an agent began building the Markovian engine and, a minute in, tried to
+download Meterless's repository from GitHub. The fleet refused the connection (`CONNECT tunnel failed, response 403`)
+and the run stopped. Nobody had to notice: an agent reaches its own model and its package registries, nothing else,
+and opening anything more is a recorded decision. The engine's files will reach the agent the allowed way, handed to
+the run with a pinned commit.
+
 ### Day three, 24 October
 
 Day three of six, published late. **Thirty-three more changes were merged since the last update**, 68 in three days. The fleet has grown to five agent
@@ -47,8 +71,9 @@ one small adapter, not a change to the reviewer:
   fails when two stores answer differently.
 
 What else came in today:
-- **Every finding names its level of proof**: proved by a test, proved by a query, or only an opinion. When both
-  reviewers name the same place without evidence, Proven shows it apart as an agreed opinion and never counts it.
+- **Every finding gets a level of proof**: proved by a test, proved by a query, or only an opinion. The reviewer
+  computes it; the outputs do not print it yet, and that fix is under way. When both reviewers name the same place
+  without evidence, Proven shows it apart as an agreed opinion and never counts it.
 - **A proposed fix is proved by the same test** that proved the finding: it must pass on the base, fail on the change,
   and pass on the change with the fix, without breaking any other test. It stays a suggestion, never a commit.
 - **The second reviewer can be any model**, and the generator can call NVIDIA's hosted API directly as well as through
@@ -62,6 +87,8 @@ What else came in today:
 
 **Privacy, in one sentence:** every prompt and every answer is checked by NVIDIA's safety model, which can run on your
 own machine, so that check need not send your code anywhere.
+
+**See it run:** [what shipped on day three, step by step in a terminal](hackathon/SHIPPED_DAY_3.md).
 
 ### Day two, 23 October
 
@@ -94,34 +121,32 @@ What else came in today:
 | Sponsor | What works, measured | In a review |
 |---|---|---|
 | **Zetaris** | The platform runs on our own machine and its checks pass 9 of 9. Proven's own key reads over REST and is refused every write. OSV by package answers from a file in Zetaris storage, 0.10 to 0.15 s per query. | The Investigator's evidence (KEV, EPSS, OSV) is shaped as Zetaris queries; sample mode runs the same SQL over local tables. [setup](hackathon/fleet/infra/zetaris/README.md) |
-| **Meterless** | Nightshift answers every model call with a signed receipt: 206 receipts, all 206 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 7 of 8; the rest are sections not built yet. | H-MEM and the World Model run in every review, sample mode included; the fleet's own reviews also go through Nightshift. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) |
-| **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. |
+| **Meterless** | Nightshift answers every model call with a signed receipt: 206 receipts, all 206 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 7 of 8; the rest are sections not built yet. | H-MEM and the World Model run in every review, sample mode included. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) |
+| **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. In the fleet, Nemotron now reviews changes beside OpenAI and Anthropic, straight on NVIDIA's API. |
 | **Cursor** | The command line was written by Cursor agents on Grok 4.7 and landed today; up to four agents code at once on one Linux machine, each inside its own jail, and every run's model traffic is recorded. | Cursor is how Proven is built. [how it works](hackathon/fleet/infra/cursor/README.md) |
 
 ### Next: everything still in the plan
 
 Each day, what lands moves from this list to the day's summary.
 
-- **Connect your own second reviewer**, for example Grok, OpenAI or Claude, and see where the two disagree; what both agree on without proof is shown apart, as an opinion ([ADR-0037](docs/adr/ADR-0037-bring-your-own-second-reviewer.md), [ADR-0041](docs/adr/ADR-0041-agreed-by-two-models-is-shown-apart.md)).
+- **A score anyone can recompute, on two sets**: one command runs Proven over the cases it was built on and, separately, over a held-out set frozen before Proven ever saw it; the two scores are never merged into one number.
+- **Each review planned before a model runs**: Meterless's Scout Intent reads the change first; a documentation-only change runs no model, a dependency bump skips the test writer, a security-sensitive change is reviewed twice. Kept only if it saves cost and loses no finding ([ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
+- **Extending Proven, documented with examples**: a worked, tested example for every kind of adapter (a model provider, the guardrail, a reviewer, a language, a tool, a data source, an output format), and the documentation as a site at proven.saphan.ai.
+- **The coding sessions, published**: excerpts of the Cursor agents' recorded sessions next to the change they built, each tied to its original by a hash ([ADR-0024](docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md)).
 - **Run Proven live with a single free NVIDIA key** ([ADR-0031](docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
 - **Reports people can read**, in HTML and Markdown, next to JSON and SARIF for machines ([ADR-0033](docs/adr/ADR-0033-the-text-review-is-written-for-a-person.md)).
 - **Comments on the pull request**, in GitHub and in Gitea, and a GitHub Action to add Proven to any pipeline.
-- **A ready-to-run Docker environment with a local Gitea**, where you can watch Proven review a pull request ([ADR-0026](docs/adr/ADR-0026-one-makefile-builds-proven-and-runs-the-judges-lab.md)).
-- **More proof, not only tests**: a data race or a crash found by running real tools on the old and the new code ([ADR-0040](docs/adr/ADR-0040-a-tool-run-is-evidence.md)).
 - **More sources**: packages published on purpose to do harm, project health, severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)), and **your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
-- **More languages**: PHP, Rust, Java, C# and Ruby, next to Go, JavaScript and Python, and a simple adapter so anyone can add theirs ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
+- **More languages**: Java, C# and Ruby, after PHP and Rust, through the same small adapter ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
 - **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
 - **Features for compliance audits**: a signed record of every review that an auditor can check ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)).
 - **One security policy for a whole organisation**, and accepted risks that expire ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
-- **A fix you can trust**: for a problem proved by a test, Proven proposes a fix, and the same test proves the fix works ([ADR-0042](docs/adr/ADR-0042-a-proposed-fix-is-proved-by-the-same-test.md)).
-- **Is the vulnerable code actually called?** For Go, each vulnerable dependency says whether your code reaches the vulnerable function ([ADR-0043](docs/adr/ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md)).
-- **How far to trust each finding, in one word**: proved by a test, by a tool, by data, or only agreed by two models ([ADR-0044](docs/adr/ADR-0044-every-finding-names-its-level-of-proof.md)).
 - **Watch a review live**: a dashboard of the agents and the two reviewers working side by side, their verdicts and where they disagree; the numbers go to any monitoring you already use, through OpenTelemetry ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
 - **Large pull requests at a flat cost**: the review goes file by file and carries only what it has established, using Meterless's Markovian engine. Saphan Studio has its own, patent pending; for the hackathon we use Meterless's. We keep it only if it finds the same problems for less ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md)).
-- **NVIDIA's model joins our security review** as a third reviewer.
+- **NVIDIA's model in every review of the fleet's work**, beside OpenAI's and Anthropic's, now that its first review is in.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 
-Four days to go. It will be tough, but we will make it.
+Three days to go.
 
 ### Day one, 22 October
 
@@ -150,6 +175,7 @@ What Proven can do at the end of day one, in sample mode (recorded data, no netw
 | Meterless Nightshift and NVIDIA Nemotron | running in its own VM; 206 signed receipts checked, every signature verifies, and a receipt ties each answer to the model that gave it | [NVIDIA page](hackathon/fleet/infra/nvidia/README.md) · [runbook](hackathon/fleet/infra/nightshift-vm/README.md) · [ADR-0019](docs/adr/ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) |
 | A local NVIDIA safety model | done: running on our own machine, used by the guardrail | [order](hackathon/fleet/orders/TRAIN_ORDER_nemotron-content-safety.md) |
 | A test corpus from 28 real review disagreements | the 21 case contracts are prior art, written before 22 October; their code is written inside the build window: the first five cases are coded on branches, not merged yet, and the other 16 are ordered, one agent per case | [tests](test/README.md) · [order](hackathon/fleet/orders/TRAIN_ORDER_proven-test-corpus.md) |
+| A held-out set of six fresh cases | frozen in commit `0fabc62` and amended before any run in `b4bab25` (HO-003's reference modes made exact) and `31ab87c` (HO-002's answer key aligned with its contract), both after independent reviews: contracts and answer keys, written before Proven is run on any of them; one run follows, misses published | [held-out set 1](test/corpus/held-out/README.md) |
 | Reviews of the fleet's own changes | every change is checked again by its master; independent reviews run in parallel by two model families. NVIDIA Nemotron reviews resume once they run on Saphan Studio's own agent loop (planned for 23 October); the trains keep a list of the changes waiting for one | [conversation logs](hackathon/planning/CONVERSATIONS.md) |
 | Public updates | daily, 15:00 UTC | this repository |
 
@@ -257,7 +283,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 00:03 UTC: **coding starts** | [`start`](https://github.com/saphan-ai/proven/compare/prior-art...start) (`3a1a9f0`) | The first line of product code: the agreed seam between the command-line shell and the reviewer, types only |
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
-| 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding naming its level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. |
+| 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding given a level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. [What shipped, in a terminal](hackathon/SHIPPED_DAY_3.md). |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 

@@ -128,6 +128,22 @@ ensure_actions_unit() {
 render_workflow() {
   sed "s|saphan/proven:latest|${PROVEN_IMAGE}:latest|g; s|runs-on: ubuntu-latest|runs-on: ${RUNNER_LABEL}|; s|\${{ github.api_url }}|${GITEA_INTERNAL_URL}/api/v1|" \
     /workflow/proven.yml >/tmp/proven.yml
+  # ADR-0045: the review in the lab is exported to the lab's collector. The job's `docker run` starts
+  # Proven on the inner daemon, whose default network cannot resolve the lab's service names, so the
+  # container joins the daemon's own network, which is on the lab network. Proven reads the standard
+  # OTEL_* variables and nothing else. Without an endpoint the workflow is left as it is.
+  if [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]; then
+    sed "s|docker run --rm --entrypoint sh|docker run --rm --network host -e OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT} -e OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-proven} -e OTEL_METRIC_EXPORT_INTERVAL=${OTEL_METRIC_EXPORT_INTERVAL:-1000} --entrypoint sh|" \
+      /tmp/proven.yml >/tmp/proven.otel
+    mv /tmp/proven.otel /tmp/proven.yml
+  fi
+  # ADR-0009, ADR-0045: the lab's review runs a second reviewer model, so the dashboard shows two.
+  # The sample generator answers for both, so the findings do not change; the review names the second reviewer.
+  if [ -n "${LAB_SPECIAL_REVIEWER:-}" ]; then
+    sed "s|proven scan --sample /opt|echo special_reviewer: ${LAB_SPECIAL_REVIEWER} > lab.yaml \&\& proven scan --sample --config lab.yaml /opt|" \
+      /tmp/proven.yml >/tmp/proven.two
+    mv /tmp/proven.two /tmp/proven.yml
+  fi
 }
 
 ensure_workflow() {

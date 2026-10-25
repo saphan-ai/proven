@@ -51,8 +51,14 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris` or `local`. `couchdb` is refused by name because it is not built yet. Empty means `zetaris`. Sample mode uses the local store and does not read this variable |
+| `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable |
 | `PROVEN_EVIDENCE_FILE` | none (required when the store is `local`) | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
+| `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_PREFIX` | `proven_` | the start of every database name. One database holds one registered table, named the prefix, then the table name in lower case with `.` written as `-`. A lower-case letter, then at most 31 lower-case letters, digits or `_` |
+| `PROVEN_COUCHDB_USER` | none (required when the store is `couchdb`) | the CouchDB user Proven reads as. One line of printable ASCII with no `:`. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_PASSWORD` | none (required when the store is `couchdb`) | that user's password. Secret: never printed. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_ROW_LIMIT` | `100` | the most rows one query returns |
+| `PROVEN_COUCHDB_TIMEOUT` | `60s` | the limit for one request to CouchDB |
 | `ZETARIS_REST_URL` | none (required live) | Zetaris's REST address; an absolute `http` or `https` URL with no user info, query or fragment |
 | `ZETARIS_API_KEY` | none (required live) | Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it |
 | `ZETARIS_ORG_ID` | none (required live) | the organisation id sent with each query |
@@ -63,7 +69,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. couchdb is named and refused until it is built. Sample mode uses the local store on the fixture file and reads none of these.
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these.
 
 ## The Prover's container
 
@@ -96,6 +102,20 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 |---|---|---|
 | `PROVEN_ADAPTER_TIMEOUT` | `5s` | the limit on one adapter call when the caller set no shorter deadline. Sample mode uses the default and does not read this variable |
 
+## Telemetry: OpenTelemetry (ADR-0045)
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | none (telemetry is off) | the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | none | the full URL the trace is sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the trace and, set alone, turns the trace on |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | none | the full URL the metrics are sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the metrics and, set alone, turns the metrics on |
+| `OTEL_SDK_DISABLED` | none | `true` turns telemetry off even when an endpoint is set |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | the OTLP transport. Only `http/protobuf` is built in; any other value is refused by name. `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` and `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` are read the same way |
+| `OTEL_SERVICE_NAME` | `proven` | the service name a backend shows |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | how often the metrics are pushed, in milliseconds. The lab sets it low so a dashboard moves while a review runs |
+
+Telemetry is off unless an endpoint is set. It only observes: once a review has started it never changes what the review decides, and a collector that cannot be reached never fails a review (the export is bounded at 5 seconds, and the failure goes to stderr). The one refusal is at the start: a malformed `OTEL_*` setting stops `Open` by name, like any other setting. No secret is put in an attribute, an event or a span status: the same redactor that cleans the trace file cleans the span events and the text of every failed review and failed agent, so a status carries the redactor's marker where a configured secret stood. The headers, timeout and certificates of the exporter are the SDK's own variables (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_CERTIFICATE`), read from the process environment. Sample mode reads the `OTEL_*` variables and no other.
+
 ## Reads of the repository under review
 
 | Environment variable | Default | What it changes |
@@ -107,6 +127,49 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
 <!-- end generated -->
+
+## Counting guardrail checks
+
+The guardrail's settings are in the generated table above; this section is what its checks leave on the trace.
+
+Each check is one `kind: "guardrail"` line in `logs/trace.jsonl`. Its `guardrail` object carries:
+
+| field | meaning |
+|---|---|
+| `side` | `prompt` or `answer` |
+| `verdict` | `safe` or `unsafe`; empty when the check could not be made |
+| `categories` | the categories the guardrail named |
+| `latency_ms` | how long the check took |
+| `backend` | the adapter that answered: `server`, `nvidia`, `sample` (sample mode, answers safe), `sample-recorded` (a fixture's recorded verdicts), `absent` (no key), `off`, or `unknown` for an adapter that does not name itself |
+| `model` | the configured model id (`PROVEN_GUARDRAIL_MODEL` or its default). Empty for every backend that calls no model: `sample`, `sample-recorded`, `absent`, `off` |
+| `down` | set only when the check could not be made: `not-configured`, `no-key`, `off`, `bad-verdict`, `timeout`, `unauthorized`, `empty-answer`, `unreachable`, `no-recorded-verdict`, `http-<status>`, or `other` for any error outside that set |
+
+The line's `text` is unchanged: a check that could not be made still reads `guardrail: <reason>`, and an error outside the set keeps its text there only. The key is never written to the trace. A review with the guardrail off writes one `no guardrail` line and no checks.
+
+`guardcount` reads one or more traces and counts the checks per UTC day, side, verdict and backend, with the median latency. A down check's verdict is `down:<reason>`. An older down line with no `guardrail` object counts as `down:unstructured`, and a field an older line lacks prints as `-`.
+
+```bash
+go run ./cmd/guardcount logs/trace.jsonl [more traces...]
+```
+
+Its output on the sample traces in `cmd/guardcount/testdata` (the golden file `counts.golden`, which the test compares byte for byte):
+
+```text
+day         side    verdict            backend          count  median_ms
+2026-10-24  answer  down:http-503      nvidia           1      220
+2026-10-24  answer  safe               server           1      80
+2026-10-24  answer  unsafe             server           1      95
+2026-10-24  prompt  down:timeout       server           1      5000
+2026-10-24  prompt  safe               nvidia           2      355
+2026-10-24  prompt  safe               server           3      100
+2026-10-25  -       down:unstructured  -                1      0
+2026-10-25  answer  safe               sample           1      0
+2026-10-25  prompt  down:no-key        absent           1      0
+2026-10-25  prompt  safe               sample           1      0
+2026-10-25  prompt  unsafe             sample-recorded  1      0
+```
+
+The sample traces are written for the test, not taken from a live review. A trace of a review with the guardrail off prints the header line only, and exits 0.
 
 ## `proven.yaml`
 
@@ -173,7 +236,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
 | `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run; `make push` scans before it publishes |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. This is the only published port |
+| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `LAB_BIND`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
 | `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
@@ -182,6 +245,19 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `GITEA_RUN_USER` | `git` | Account `make up` uses for every `gitea` command in the container. The image refuses that command as root, and `compose exec` is root when no user is named |
 | `DIND_HOST` | `dind` | Name of the Docker-in-Docker service |
 | `DIND_PORT` | `2375` | Port that daemon listens on inside the lab network. Not published on the host |
+| `LGTM_IMAGE` | `grafana/otel-lgtm` | The dashboard's image: collector, Prometheus, Tempo, Loki and Grafana in one container (ADR-0045). It is not part of Proven's image |
+| `LGTM_VERSION` | `0.11.0` | That image's tag. Not pulled when it was written; the first `make up` is the check |
+| `LGTM_INTERNAL_HOST` | `lgtm` | Name of that service on the lab network. The workflow's `OTEL_EXPORTER_OTLP_ENDPOINT` is built from it |
+| `LGTM_GRAFANA_PORT` | `3001` | Host port for Grafana, and so for the dashboard |
+| `LGTM_GRAFANA_CONTAINER_PORT` | `3000` | Port Grafana listens on inside the lab network |
+| `LGTM_OTLP_PORT` | `4318` | Host port for the collector's OTLP/HTTP endpoint, so a review run on the host can be exported to the lab too: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` |
+| `LGTM_OTLP_CONTAINER_PORT` | `4318` | Port the collector listens on inside the lab network |
+| `LGTM_DASHBOARD_UID` | `proven-review` | The dashboard's uid, from `lab/grafana/dashboards/proven-review.json`. `make up` prints the address built from it |
+| `LAB_OTEL_SERVICE_NAME` | `proven` | `OTEL_SERVICE_NAME` the lab's pull-request review is given |
+| `LAB_OTEL_METRIC_EXPORT_INTERVAL` | `1000` | `OTEL_METRIC_EXPORT_INTERVAL` it is given, in milliseconds. Short, so the dashboard moves while the review runs |
+| `LAB_SPECIAL_REVIEWER` | `qwen` | `special_reviewer` in the `proven.yaml` the lab's review runs with, so the dashboard has two reviewer models to show side by side (ADR-0009). Empty: one reviewer. The sample generator answers for both, so the findings do not change |
+| `LGTM_WAIT_SECONDS` | `120` | How long `make up` waits for Grafana before it goes on and names the delay |
+| `TRACE_WAIT_SECONDS` | `90` | How long `make trace` waits for the review's trace to reach the store |
 | `ACT_RUNNER_VERSION` | `0.2.11` | Gitea Actions runner image tag |
 | `DOCKER_VERSION` | `29.9.1` | Tag of the `docker` dind and cli images |
 | `PROVEN_TEST_IMAGE` | `golang:1.26` | The image the Prover runs each test in (also in the table above). `make up` pulls it into the lab's inner Docker daemon before the first review, so the Prover does not meet `No such image` there |
@@ -199,7 +275,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |
 | `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
 | `SEED_IMAGE_TAG` | `2` | Pin for that image. It is not tagged `latest` |
-| `E2E_WAIT_SECONDS` | `180` | How long `make e2e` waits for the review comment |
+| `E2E_WAIT_SECONDS` | `600` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 
 `make livecheck` reads these keys from `lab/.env` when the file exists, and ignores an empty value: `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY`, `ZETARIS_API_KEY`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`.
