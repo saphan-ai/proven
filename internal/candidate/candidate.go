@@ -331,6 +331,8 @@ type ModelUse struct {
 	Model       string // routed model; "unknown" when the stream named none
 	ReceiptID   string // meterless.receipt_id; "" when the stream named none
 	FromReceipt bool   // true only when the stream named a routed model
+	Requested   string // the model field the request sent; "" for a call that sent none
+	ResponseID  string // the completion response id, which the receipt names as its request id; "" when none
 }
 
 // Opinion is a claim both reviewers reported at one place that no evidence

@@ -1643,11 +1643,13 @@ func (g recording) complete(ctx context.Context, agent, prompt string) (string, 
 			m := candidate.ModelUse{
 				Agent: agent, Route: u.Route, Model: u.Model,
 				ReceiptID: u.ReceiptID, FromReceipt: u.FromReceipt,
+				Requested: u.Requested, ResponseID: u.ResponseID,
 			}
 			// Each place the use lands redacts for itself: the trace writer redacts what it
 			// writes, and the copy kept on the review is redacted here.
 			kept := m
 			kept.Route, kept.Model, kept.ReceiptID = g.redactor.Text(m.Route), g.redactor.Text(m.Model), g.redactor.Text(m.ReceiptID)
+			kept.Requested, kept.ResponseID = g.redactor.Text(m.Requested), g.redactor.Text(m.ResponseID)
 			*g.models = append(*g.models, kept)
 			if terr := g.record(m); terr != nil && err == nil {
 				return "", terr
@@ -1679,6 +1681,7 @@ func (g recording) record(m candidate.ModelUse) error {
 		Text:  "model call",
 		Model: &trace.Model{
 			Route: m.Route, Model: m.Model, ReceiptID: m.ReceiptID, FromReceipt: m.FromReceipt,
+			Requested: m.Requested, ResponseID: m.ResponseID,
 		},
 	})
 }
