@@ -114,17 +114,23 @@ var notChecked = []string{
 
 // VerifyFile reads the pack at path and verifies it against pub.
 func VerifyFile(packPath string, pub ed25519.PublicKey) (*Report, error) {
+	return verifyFileWithin(packPath, pub, maxPack)
+}
+
+// verifyFileWithin is VerifyFile with the whole-file bound as a parameter, so
+// a test can hold a pack to a smaller bound and see the refusal.
+func verifyFileWithin(packPath string, pub ed25519.PublicKey, limit int64) (*Report, error) {
 	f, err := os.Open(packPath)
 	if err != nil {
 		return nil, refuse(CheckFormat, "", "the pack cannot be read: %v", err)
 	}
 	defer f.Close()
-	body, err := io.ReadAll(io.LimitReader(f, maxPack+1))
+	body, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, refuse(CheckFormat, "", "the pack cannot be read: %v", err)
 	}
-	if len(body) > maxPack {
-		return nil, refuse(CheckFormat, "", "larger than the %d byte bound", maxPack)
+	if int64(len(body)) > limit {
+		return nil, refuse(CheckFormat, "", "larger than the %d byte bound", limit)
 	}
 	return Verify(body, pub)
 }
