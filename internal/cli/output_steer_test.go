@@ -773,3 +773,45 @@ func TestDirectoryRenamedAndLinkedInsideTheCheckoutDoesNotRedirectTheReport(t *t
 		t.Fatalf("report was not written in the directory opened at load:\n%s", written)
 	}
 }
+
+// TestAbsentDirectoryLinkedDuringTheReviewDoesNotReceiveTheReport proves an
+// output whose directory does not exist at load is not written when the
+// review creates that directory as a relative link to another directory of
+// the checkout. The mutated field is the absent directory. Resolving the
+// path again at the write follows the link inside the root, replaces
+// redirected/proven.sarif and exits 0.
+func TestAbsentDirectoryLinkedDuringTheReviewDoesNotReceiveTheReport(t *testing.T) {
+	dir := t.TempDir()
+	checkout := filepath.Join(dir, "checkout")
+	if err := os.MkdirAll(filepath.Join(checkout, "redirected"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(checkout, "redirected", "proven.sarif")
+	if err := os.WriteFile(victim, []byte("committed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	open := func(review.Options) (review.Reviewer, error) {
+		return funcReviewer(func() review.Result {
+			if err := os.Symlink("redirected", "reports"); err != nil {
+				t.Skipf("symlinks are not available here: %v", err)
+			}
+			return review.Result{Class: "c", ClassRule: "r"}
+		}), nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=reports/proven.sarif"}, emptyEnv, &stdout, &stderr, open)
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "committed\n" {
+		t.Fatalf("exit %d; the report replaced %s:\n%s", code, victim, b)
+	}
+	if code == exitOK {
+		t.Fatalf("exit 0, want non-zero; stderr %s", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "reports/proven.sarif") {
+		t.Fatalf("the error does not name the path: %s", stderr.String())
+	}
+}

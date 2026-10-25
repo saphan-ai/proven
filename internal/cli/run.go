@@ -320,7 +320,10 @@ func writeOutputFile(flag, path string, body []byte, dir *os.Root) error {
 		return writeOutputThroughDirectory(flag, path, dir, body)
 	}
 	if inside {
-		return writeOutputInsideWorkingDirectory(flag, path, rel, body)
+		// WHY no second resolution: a directory that did not exist when the
+		// run started can be created during the review as a link to another
+		// directory of the checkout, and a root follows that link.
+		return fmt.Errorf("%s %s: directory %s did not exist when the run started; the report is not written", flag, path, filepath.Dir(rel))
 	}
 	return writeOutputOutsideWorkingDirectory(flag, path, body)
 }
@@ -329,52 +332,6 @@ func writeOutputFile(flag, path string, body []byte, dir *os.Root) error {
 // check and before the rooted create. Tests replace that component in
 // the window a rooted open would follow. Production leaves it nil.
 var beforeRootedOutputCreate func(path string)
-
-// writeOutputInsideWorkingDirectory writes body to a path inside the
-// working directory. rel is path relative to that directory, with any link
-// inside it still named, so the root sees the link.
-//
-// WHY the final name is renamed over, not opened: a root follows a symbolic
-// link that stays inside it. Opening the final name would replace the file
-// that link names, including a link swapped in after the check. The report
-// is a new file in the same directory, created with O_EXCL, then renamed
-// over the final name. Rename replaces that directory entry, so a link
-// there is not written through. On the openat root (unix, windows and
-// wasip1 in Go 1.26.10) Root.Rename calls renameat on the parent and the
-// final name. The new file is removed if the write or the rename fails.
-// A directory link that leaves the working directory is
-// still refused by the root, and this returns an error that names the path.
-func writeOutputInsideWorkingDirectory(flag, path, rel string, body []byte) error {
-	if beforeRootedOutputCreate != nil {
-		beforeRootedOutputCreate(path)
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", flag, path, err)
-	}
-	root, err := os.OpenRoot(wd)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", flag, path, err)
-	}
-	defer root.Close()
-	tmp, f, err := createExclusiveOutput(root, rel)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", flag, path, err)
-	}
-	_, werr := f.Write(body)
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr != nil {
-		werr = discardOutputTemp(root, tmp, werr)
-		return fmt.Errorf("%s %s: %w", flag, path, werr)
-	}
-	if err := root.Rename(tmp, rel); err != nil {
-		err = discardOutputTemp(root, tmp, err)
-		return fmt.Errorf("%s %s: %w", flag, path, err)
-	}
-	return nil
-}
 
 // outputDirectories holds, per output path inside the working directory,
 // that path's directory opened at load.
@@ -397,7 +354,7 @@ func (d outputDirectories) close() {
 // the load check saw: a later rename or link at its name does not move the
 // handle, and a directory removed meanwhile fails the write with its path.
 // A directory that cannot be opened here (absent, or not a directory) is
-// left out, and the write resolves the path as before and fails the same way.
+// left out, and the write of that output fails with exit 2 naming the path.
 func openOutputDirectories(cfg config) outputDirectories {
 	dirs := outputDirectories{}
 	wd, err := os.Getwd()
@@ -430,7 +387,13 @@ func openOutputDirectories(cfg config) outputDirectories {
 
 // writeOutputThroughDirectory writes body as the final name of path in dir,
 // the directory opened at load: a new file created there with O_EXCL, then
-// renamed over the final name, as writeOutputInsideWorkingDirectory does.
+// renamed over the final name.
+//
+// WHY the final name is renamed over, not opened: a root follows a symbolic
+// link that stays inside it, so opening the final name would replace the
+// file a link there names, including a link swapped in after the check.
+// Rename replaces the directory entry, so a link there is not written
+// through. The new file is removed if the write or the rename fails.
 func writeOutputThroughDirectory(flag, path string, dir *os.Root, body []byte) error {
 	if beforeRootedOutputCreate != nil {
 		beforeRootedOutputCreate(path)
