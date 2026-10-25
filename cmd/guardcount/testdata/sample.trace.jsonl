@@ -1,0 +1,4 @@
+{"run_id":"r6","time":"2026-10-25T10:00:00Z","finding_id":"guardrail","kind":"guardrail","agent":"planner","text":"prompt safe latency=0ms","guardrail":{"side":"prompt","verdict":"safe","latency_ms":0,"backend":"sample"}}
+{"run_id":"r6","time":"2026-10-25T10:00:00Z","finding_id":"guardrail","kind":"guardrail","agent":"planner","text":"answer safe latency=0ms","guardrail":{"side":"answer","verdict":"safe","latency_ms":0,"backend":"sample"}}
+{"run_id":"r7","time":"2026-10-25T10:05:00Z","finding_id":"guardrail","kind":"guardrail","agent":"planner","text":"prompt unsafe latency=0ms categories=Criminal Planning/Confessions, Other","guardrail":{"side":"prompt","verdict":"unsafe","categories":["Criminal Planning/Confessions","Other"],"latency_ms":0,"backend":"sample-recorded"}}
+

@@ -71,8 +71,9 @@ one small adapter, not a change to the reviewer:
   fails when two stores answer differently.
 
 What else came in today:
-- **Every finding names its level of proof**: proved by a test, proved by a query, or only an opinion. When both
-  reviewers name the same place without evidence, Proven shows it apart as an agreed opinion and never counts it.
+- **Every finding gets a level of proof**: proved by a test, proved by a query, or only an opinion. The reviewer
+  computes it; the outputs do not print it yet, and that fix is under way. When both reviewers name the same place
+  without evidence, Proven shows it apart as an agreed opinion and never counts it.
 - **A proposed fix is proved by the same test** that proved the finding: it must pass on the base, fail on the change,
   and pass on the change with the fix, without breaking any other test. It stays a suggestion, never a commit.
 - **The second reviewer can be any model**, and the generator can call NVIDIA's hosted API directly as well as through
@@ -86,6 +87,8 @@ What else came in today:
 
 **Privacy, in one sentence:** every prompt and every answer is checked by NVIDIA's safety model, which can run on your
 own machine, so that check need not send your code anywhere.
+
+**See it run:** [what shipped on day three, step by step in a terminal](hackathon/SHIPPED_DAY_3.md).
 
 ### Day two, 23 October
 
@@ -279,7 +282,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 00:03 UTC: **coding starts** | [`start`](https://github.com/saphan-ai/proven/compare/prior-art...start) (`3a1a9f0`) | The first line of product code: the agreed seam between the command-line shell and the reviewer, types only |
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
-| 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding naming its level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. |
+| 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding given a level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. [What shipped, in a terminal](hackathon/SHIPPED_DAY_3.md). |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 

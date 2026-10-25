@@ -17,3 +17,6 @@ func (a Absent) Check(context.Context, string, string) (Verdict, error) {
 	}
 	return Verdict{}, Refuse(reason)
 }
+
+// Identity names this adapter "absent": no backend was configured, so no model is.
+func (Absent) Identity() (backend, model string) { return "absent", "" }

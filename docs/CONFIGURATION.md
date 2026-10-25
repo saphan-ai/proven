@@ -114,6 +114,49 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
 <!-- end generated -->
 
+## Counting guardrail checks
+
+The guardrail's settings are in the generated table above; this section is what its checks leave on the trace.
+
+Each check is one `kind: "guardrail"` line in `logs/trace.jsonl`. Its `guardrail` object carries:
+
+| field | meaning |
+|---|---|
+| `side` | `prompt` or `answer` |
+| `verdict` | `safe` or `unsafe`; empty when the check could not be made |
+| `categories` | the categories the guardrail named |
+| `latency_ms` | how long the check took |
+| `backend` | the adapter that answered: `server`, `nvidia`, `sample` (sample mode, answers safe), `sample-recorded` (a fixture's recorded verdicts), `absent` (no key), `off`, or `unknown` for an adapter that does not name itself |
+| `model` | the configured model id (`PROVEN_GUARDRAIL_MODEL` or its default). Empty for every backend that calls no model: `sample`, `sample-recorded`, `absent`, `off` |
+| `down` | set only when the check could not be made: `not-configured`, `no-key`, `off`, `bad-verdict`, `timeout`, `unauthorized`, `empty-answer`, `unreachable`, `no-recorded-verdict`, `http-<status>`, or `other` for any error outside that set |
+
+The line's `text` is unchanged: a check that could not be made still reads `guardrail: <reason>`, and an error outside the set keeps its text there only. The key is never written to the trace. A review with the guardrail off writes one `no guardrail` line and no checks.
+
+`guardcount` reads one or more traces and counts the checks per UTC day, side, verdict and backend, with the median latency. A down check's verdict is `down:<reason>`. An older down line with no `guardrail` object counts as `down:unstructured`, and a field an older line lacks prints as `-`.
+
+```bash
+go run ./cmd/guardcount logs/trace.jsonl [more traces...]
+```
+
+Its output on the sample traces in `cmd/guardcount/testdata` (the golden file `counts.golden`, which the test compares byte for byte):
+
+```text
+day         side    verdict            backend          count  median_ms
+2026-10-24  answer  down:http-503      nvidia           1      220
+2026-10-24  answer  safe               server           1      80
+2026-10-24  answer  unsafe             server           1      95
+2026-10-24  prompt  down:timeout       server           1      5000
+2026-10-24  prompt  safe               nvidia           2      355
+2026-10-24  prompt  safe               server           3      100
+2026-10-25  -       down:unstructured  -                1      0
+2026-10-25  answer  safe               sample           1      0
+2026-10-25  prompt  down:no-key        absent           1      0
+2026-10-25  prompt  safe               sample           1      0
+2026-10-25  prompt  unsafe             sample-recorded  1      0
+```
+
+The sample traces are written for the test, not taken from a live review. A trace of a review with the guardrail off prints the header line only, and exits 0.
+
 ## `proven.yaml`
 
 `proven.yaml` is one flat mapping of scalar values. A missing file is the defaults below. An unknown key, a nested value, or a bad value is refused on load and proven exits 7. The refusal names the field and the allowed values. A key that is set replaces that setting. It does not merge with the default list.
