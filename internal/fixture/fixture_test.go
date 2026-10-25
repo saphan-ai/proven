@@ -20,18 +20,18 @@ func TestRecordedPromptsFollowTheAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{
-		"investigator\x00" + investigator.Prompt("F1", "Discount is applied twice", "billing/discount.go"):                   "",
-		"investigator\x00" + investigator.Prompt("F2", "Dependency leftpad v1.2.3 is on the known-exploited list", "go.mod"): "",
-		"investigator\x00" + investigator.Prompt("F3", "note may include a payment token", "billing/discount.go"):            "",
-		"investigator\x00" + investigator.Prompt("F4", "CVE-2026-0001 for leftpad v1.2.3 is on the KEV list", "go.mod"):      "",
-		"prover\x00" + prover.Prompt("F1", "Discount is applied twice"):                                                      "",
-		"prover\x00" + prover.Prompt("F2", "Dependency leftpad v1.2.3 is on the known-exploited list"):                       "",
-		"prover\x00" + prover.Prompt("F3", "note may include a payment token"):                                               "",
-		"prover\x00" + prover.Prompt("F4", "CVE-2026-0001 for leftpad v1.2.3 is on the KEV list"):                            "",
-		"skeptic\x00" + skeptic.Prompt("F1", "Discount is applied twice"):                                                    "",
-		"skeptic\x00" + skeptic.Prompt("F2", "Dependency leftpad v1.2.3 is on the known-exploited list"):                     "",
-		"skeptic\x00" + skeptic.Prompt("F3", "note may include a payment token"):                                             "",
-		"skeptic\x00" + skeptic.Prompt("F4", "CVE-2026-0001 for leftpad v1.2.3 is on the KEV list"):                          "",
+		"investigator\x00" + investigator.Prompt("F1", "Discount is applied twice", "billing/discount.go", nil):                   "",
+		"investigator\x00" + investigator.Prompt("F2", "Dependency leftpad v1.2.3 is on the known-exploited list", "go.mod", nil): "",
+		"investigator\x00" + investigator.Prompt("F3", "note may include a payment token", "billing/discount.go", nil):            "",
+		"investigator\x00" + investigator.Prompt("F4", "CVE-2026-0001 for leftpad v1.2.3 is on the KEV list", "go.mod", nil):      "",
+		"prover\x00" + prover.Prompt("F1", "Discount is applied twice"):                                                           "",
+		"prover\x00" + prover.Prompt("F2", "Dependency leftpad v1.2.3 is on the known-exploited list"):                            "",
+		"prover\x00" + prover.Prompt("F3", "note may include a payment token"):                                                    "",
+		"prover\x00" + prover.Prompt("F4", "CVE-2026-0001 for leftpad v1.2.3 is on the KEV list"):                                 "",
+		"skeptic\x00" + skeptic.Prompt("F1", "Discount is applied twice", nil):                                                    "",
+		"skeptic\x00" + skeptic.Prompt("F2", "Dependency leftpad v1.2.3 is on the known-exploited list", nil):                     "",
+		"skeptic\x00" + skeptic.Prompt("F3", "note may include a payment token", nil):                                             "",
+		"skeptic\x00" + skeptic.Prompt("F4", "CVE-2026-0001 for leftpad v1.2.3 is on the KEV list", nil):                          "",
 	}
 	got := map[string]bool{}
 	for _, a := range f.Answers {

@@ -250,6 +250,20 @@ func ensureCommit(target, rev, which string) error {
 	return fmt.Errorf("%s commit %q does not exist", which, rev)
 }
 
+// ResolveCommit returns the full commit id rev names in target's repository.
+// It is empty when rev is empty or git cannot resolve it: the caller keeps the
+// name it was given and records no resolution.
+func ResolveCommit(target, rev string) string {
+	if rev == "" {
+		return ""
+	}
+	out, err := gitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // gitZ runs git with args and splits its NUL-separated output into slash
 // paths. A failure carries git's own message.
 func gitZ(args []string) ([]string, error) {

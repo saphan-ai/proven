@@ -10,6 +10,7 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/epss"
+	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
@@ -47,6 +48,9 @@ const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the
 // evidenceAfter follows the evidence table. It is not a setting.
 const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md)."
 
+// packAfter follows the evidence-pack table. It is not a setting.
+const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
+
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
 // beside PROVEN_OSV_TABLE. PROVEN_EVIDENCE_VIEW is declared in livecheck.
@@ -55,8 +59,8 @@ const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says lo
 // The evidence table joins the store choice, the Zetaris adapter, OSV, EPSS
 // and livecheck.
 func Catalog() []envdoc.Section {
-	evidence := append(store.Environment(), query.Environment()...)
-	evidence = append(append(append(evidence, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
+	evidenceRows := append(store.Environment(), query.Environment()...)
+	evidenceRows = append(append(append(evidenceRows, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
 		{
 			Heading: "The model generator: Meterless Nightshift or NVIDIA's hosted API",
@@ -74,7 +78,7 @@ func Catalog() []envdoc.Section {
 		},
 		{
 			Heading: "Evidence: the store, and Zetaris over REST",
-			Rows:    evidence,
+			Rows:    evidenceRows,
 			After:   evidenceAfter,
 		},
 		{
@@ -100,6 +104,11 @@ func Catalog() []envdoc.Section {
 			Heading: "Reads of the repository under review",
 			Rows:    change.Environment(),
 			After:   readsAfter,
+		},
+		{
+			Heading: "The evidence pack",
+			Rows:    evidence.Environment(),
+			After:   packAfter,
 		},
 	}
 }

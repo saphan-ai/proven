@@ -43,7 +43,7 @@ func (osvAdapter) Templates() []source.Spec {
 				Name:   OSVByPackage,
 				Answer: "the OSV advisory rows of one package",
 				Params: []source.Param{
-					{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io", Match: ecosystemFormat},
+					{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io, Maven", Match: ecosystemFormat},
 					{Name: ParamPackage, Format: "a package name in the ecosystem's own spelling", Match: anyPackageFormat},
 				},
 			},

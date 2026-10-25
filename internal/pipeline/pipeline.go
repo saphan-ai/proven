@@ -257,6 +257,11 @@ type Request struct {
 	FixesOff bool
 	// FixAttempts is the most attempts at one fix; zero means fixer.DefaultAttempts.
 	FixAttempts int
+	// InvestigatorScope and SkepticScope are the templates each role may ask
+	// (ADR-0013). The nil scope is every template, which is a review with no
+	// setting. A role is told only of its scope and refused outside it.
+	InvestigatorScope querytpl.Scope
+	SkepticScope      querytpl.Scope
 }
 
 // Review runs planner, investigator, prover, skeptic, judge, the fixer (ADR-0042) and writer.
@@ -666,7 +671,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	ictx, istage := p.tel.StartStage(ctx, "investigator", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
-		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, q, rel)
+		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, q, rel, req.InvestigatorScope)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -725,7 +730,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	for i := range cands {
 		if hasRun(cands[i], runDefault) {
 			kctx, kstage := p.tel.StartStage(ctx, "skeptic", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
-			next, err := skeptic.Attempt(kctx, cleared(cands[i]), gen)
+			next, err := skeptic.Attempt(kctx, cleared(cands[i]), gen, req.SkepticScope)
 			kstage.End(err)
 			if err != nil {
 				if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -737,7 +742,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				cands[i].Refutation = candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			} else {
 				cands[i] = next
-				if err := p.runRefutation(ctx, &cands[i], q, run); err != nil {
+				if err := p.runRefutation(ctx, &cands[i], q, run, req.SkepticScope); err != nil {
 					if _, fatal := st.soften(ctx, err); fatal != nil {
 						if errors.Is(fatal, errPartial) {
 							return p.cut(st, cands, allow)
@@ -761,7 +766,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				own.Risk = r
 			}
 			kctx, kstage := p.tel.StartStage(ctx, "skeptic", telemetry.ReviewerSpecial, reviewerModel(req, runSpecial))
-			next, err := skeptic.Attempt(kctx, own, special)
+			next, err := skeptic.Attempt(kctx, own, special, req.SkepticScope)
 			kstage.End(err)
 			ref := candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			if err != nil {
@@ -772,7 +777,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 					return candidate.Draft{}, fatal
 				}
 			} else {
-				if err := p.runRefutation(ctx, &next, q, run); err != nil {
+				if err := p.runRefutation(ctx, &next, q, run, req.SkepticScope); err != nil {
 					if _, fatal := st.soften(ctx, err); fatal != nil {
 						if errors.Is(fatal, errPartial) {
 							return p.cut(st, cands, allow)
@@ -1071,7 +1076,7 @@ func (p *Pipeline) relations(ctx context.Context) querytpl.Relations {
 // A proposal with no test and no query is not evidence. The caller writes the
 // refutation to the trace, and H-MEM learns it from the trace when the review is
 // folded in.
-func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Runner, run testrun.Adapter) error {
+func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Runner, run testrun.Adapter, scope querytpl.Scope) error {
 	r := &c.Refutation
 	if r.TestName != "" {
 		out, err := prover.Execute(ctx, run, testrun.Request{
@@ -1102,7 +1107,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 		}
 	}
 	if !r.Query.Empty() {
-		res, err := investigator.Execute(ctx, q, r.Query, p.relations(ctx))
+		res, err := investigator.Execute(ctx, q, r.Query, p.relations(ctx), scope)
 		if err != nil {
 			// ADR-0032: a request Proven refuses was checked by the Skeptic
 			// already, so this is a settings refusal. It is not a query that

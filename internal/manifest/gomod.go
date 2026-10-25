@@ -1,9 +1,11 @@
 // Package manifest reads dependency manifests and lock files and names the
 // packages a change added or raised. Go (go.mod and go.sum), npm
 // (package.json and package-lock.json), PyPI (requirements.txt and
-// poetry.lock), Packagist (composer.json and composer.lock) and Rust
-// (Cargo.toml and Cargo.lock) each have
-// a manifest reader and a lock reader. Each reader is an Adapter: the
+// poetry.lock), Packagist (composer.json and composer.lock), Rust
+// (Cargo.toml and Cargo.lock) and Kotlin (libs.versions.toml,
+// build.gradle.kts and gradle.lockfile) each have a manifest reader and a
+// lock reader. Kotlin has two manifest readers, one per file. Each reader
+// is an Adapter: the
 // files, the diff, the OSV ecosystem name, and the version comparison
 // (ADR-0038).
 //

@@ -423,6 +423,45 @@ finding osv:regex ERROR Dependency regex 1.9.1 is in an OSV affected range
 failed services: none
 ```
 
+## The scenario: `testdata/fixture/osv-kotlin-gradle`
+
+`build.gradle.kts` and `gradle.lockfile` raise `com.example:widget` from 1.2.0 to 1.4.0. The catalog `gradle/libs.versions.toml` leaves the library versions as they were and changes a plugin version, which is a note. 1.4.0 is inside one sample OSV range and outside another. The lock file's version is the one reported. `com.example:quiet` goes from 2.0.0 to 1.9.0 and is not a finding. The alias `CVE-2026-9291` has an EPSS row. The row for `com.example:unused` is not returned. 1.5.0 is the smallest fixed version that leaves every returned range.
+
+The lines below are the stdout of `scan --sample testdata/fixture/osv-kotlin-gradle`, captured on 25 October 2026 with Go 1.26.10 by the scenario test, which runs that command. The trace path is the directory the scan starts from, so it is not copied here. The fix lines are in this capture because the fix chooser uses the language adapter's version order.
+
+```text
+review class: security
+review rule: build.gradle.kts
+author model not stated; default reviewer NVIDIA
+reviewer NVIDIA; role default; family NVIDIA; author model not stated
+special-review model: not configured
+finding osv:com.example:widget ERROR Dependency com.example:widget 1.4.0 is in an OSV affected range
+  EPSS 0.27000 (91st percentile, 2026-10-25)
+  gradle.lockfile:5-5
+  com.example:widget 1.4.0 matches GHSA-kt-sample-0001: introduced 1.3.0 <= 1.4.0 < fixed 1.5.0. GHSA-kt-sample-0002 does not match: 1.4.0 < introduced 2.0.0. alias CVE-2026-9291 is on the KEV list Reachability: not measured.
+  rule osv-affected-package
+  evidence query local-sample snapshot=sample-2026-10-25 form=sql
+  SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Maven' AND package = 'com.example:widget'
+  columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  row: GHSA-kt-sample-0001 | CVE-2026-9291 | Maven | com.example:widget | 1.3.0 | 1.5.0 |  | HIGH | 2026-10-01
+  row: GHSA-kt-sample-0002 |  | Maven | com.example:widget | 2.0.0 | 2.1.0 |  | LOW | 2026-10-02
+  evidence query local-sample snapshot=sample-2026-10-25 form=sql
+  SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-9291'
+  columns: cve_id, vendor_project, product, date_added, known_ransomware
+  row: CVE-2026-9291 | example.com | widget | 2026-10-25 | Unknown
+  evidence query local-sample snapshot=sample-2026-10-25 form=sql
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-9291'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-9291 | 0.27000 | 0.91000 | 2026-10-25
+  fix named from the advisory table, not run by a test: raise com.example:widget 1.4.0 to 1.5.0
+  fix closes the problem because: 1.5.0 is the fixed version of advisory GHSA-kt-sample-0001, and it is the smallest fixed version of the rows returned that no affected range of those rows holds. No test proves a version change, so this fix is named from the table, not run.
+  fix advisory GHSA-kt-sample-0001 columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  fix advisory row: GHSA-kt-sample-0001 | CVE-2026-9291 | Maven | com.example:widget | 1.3.0 | 1.5.0 |  | HIGH | 2026-10-01
+Agreed by two models, not proven
+  none: one reviewer; a claim only one model makes stays dropped
+failed services: none
+```
+
 ## The scenario: `testdata/fixture/unknown-author`
 
 Sample mode does not read commit history on this command: the scan sets no baseline commit, and the fixture is two

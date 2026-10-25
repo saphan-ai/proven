@@ -18,6 +18,7 @@ func TestReadersCarryTheComparison(t *testing.T) {
 		{"PyPI", "1.2.0", "1.2", 0},
 		{"Packagist", "1.0.0-RC1", "1.0.0", -1},
 		{"crates.io", "1.2.4", "1.2.3", 1},
+		{"Maven", "1.0", "1.0-alpha", 1},
 	}
 	for _, tc := range cases {
 		r, ok := ByEcosystem(tc.eco)
@@ -32,7 +33,7 @@ func TestReadersCarryTheComparison(t *testing.T) {
 			t.Fatalf("%s Explain %q %t", tc.eco, why, parsed)
 		}
 	}
-	if _, ok := ByEcosystem("Maven"); ok {
-		t.Fatal("Maven was compared")
+	if _, ok := ByEcosystem("NuGet"); ok {
+		t.Fatal("NuGet was compared")
 	}
 }
