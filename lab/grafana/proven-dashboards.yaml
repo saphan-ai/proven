@@ -1,0 +1,16 @@
+# Grafana's provider for Proven's dashboard (ADR-0045 point 3).
+# compose.yaml mounts this file beside the image's own provider, and the folder
+# of JSON files at the path below. Nothing is drawn by hand: Grafana reads the
+# JSON on start and again every few seconds, and the UI cannot change it.
+apiVersion: 1
+
+providers:
+  - name: proven
+    orgId: 1
+    folder: Proven
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 10
+    options:
+      path: /proven-dashboards

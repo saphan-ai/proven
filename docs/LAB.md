@@ -1,6 +1,6 @@
 # The judges' lab
 
-One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. The only published port is the web UI.
+One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. It publishes three ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318).
 
 You need GNU make and Docker. Docker Compose v2 is the `docker compose` command. Windows is not a target. On macOS the `make` from Homebrew is GNU make; the make that ships with the system is not.
 
@@ -14,11 +14,50 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 4. Open the `discount` repository. It has one open pull request.
 5. The pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review, and the marker names the run that posted it.
 
+6. `make up` also prints the dashboard's address, `http://127.0.0.1:3001/d/proven-review` by default. See [The dashboard](#the-dashboard).
+
 `make status` prints the containers, Gitea's health, whether the runner is registered, whether that comment is present, and the URL.
 
-`make logs` follows every service. `make logs SERVICE=gitea` follows one of `gitea`, `dind`, `runner`.
+`make logs` follows every service. `make logs SERVICE=gitea` follows one of `gitea`, `dind`, `runner`, `lgtm`.
 
 `make down` stops the lab and removes its containers. The volume, the admin user and the password remain. `make clean` removes the volumes, the local images, `./bin` and `./dist`.
+
+## The dashboard
+
+A review is observable while it runs ([ADR-0045](adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)). Proven sends an OpenTelemetry trace and metrics. The lab runs `grafana/otel-lgtm` as one more container, `lgtm`: an OpenTelemetry collector, Prometheus, Tempo, Loki and Grafana in one image, pinned by `LGTM_VERSION`. It is not part of Proven's code or image. `make up` starts it, waits for Grafana, and prints the dashboard's address. `make down` removes the container with the others, and `make clean` removes it with the lab's volumes.
+
+The lab's pull-request review is told where to send its data, with the standard variables and nothing of Proven's own: the seeded workflow starts Proven on the lab network with `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` and `OTEL_METRIC_EXPORT_INTERVAL` set from `lab/versions.env`. It also runs the review with a second reviewer model (`LAB_SPECIAL_REVIEWER`), so there are two reviewers to show. The sample generator answers for both; the findings are the same as with one.
+
+### Watch a review
+
+1. Run `make up`. Open the dashboard address it printed. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`. If you set `LAB_BIND` to another address, anyone who can reach it can use Grafana.
+2. Leave the dashboard open. It refreshes every 5 seconds and shows the last 30 minutes.
+3. Start a review of the pull request: push a commit to the `change` branch of `discount`, or close and reopen the pull request in Gitea. The workflow runs on the runner (`make logs SERVICE=runner`).
+4. Watch the first panel. Each agent is a row, and the planner and the skeptic have one row per reviewer model. A row is grey while it waits, blue while it works, green when done, red when it failed. A review is short in sample mode: a live review, with a model behind each call, is the one where a reviewer finishes while the other still works.
+5. When the review is done, the other panels hold its numbers. The **Review** menu at the top picks one review; the default is all of them in the time range.
+6. `make trace` asks the trace store for the latest review's trace, the same query the last panel runs, and prints its span names and the reviewers they name. It exits 1 when the trace is missing a span or a reviewer.
+
+### What each panel shows
+
+| Panel | What it shows | Where it comes from |
+|---|---|---|
+| The agents and the two reviewers | A state timeline: every agent, and each reviewer model's planner and skeptic, waiting, working, done or failed | the `proven.agent.state` gauge, one value per agent and reviewer |
+| Verdicts, side by side | What each reviewer's skeptic said of each finding (refuted, upheld, not attempted), one column per reviewer | the `proven.reviewer.verdicts` counter |
+| Where the reviewers disagree | Findings on which they differ: `verdict` (both ran it and judged it differently) or `one_reviewer` (only one named it) | the `proven.reviewer.disagreements` counter |
+| Claims dropped | What the Judge did not keep, by reason: `no_evidence`, `refuted`, `suppressed` | the `proven.review.claims.dropped` counter |
+| Findings by level of proof | What the review kept: proved by test, by tool, by data, or agreed by two models and not proven (ADR-0044) | the `proven.review.findings` counter |
+| Model latency | The mean time of a call to a model, by agent and reviewer | the `gen_ai.client.operation.duration` histogram |
+| Model calls | Calls made, by reviewer and outcome | the `proven.model.calls` counter |
+| Guardrail checks | Every prompt and answer that was checked, by side and verdict; red for `unsafe` and `refused` | the `proven.guardrail.checks` counter |
+| Unsafe verdicts | How many checks said unsafe | the `proven.guardrail.unsafe` counter |
+| Reviews seen | How many reviews reported in the time range | the `proven.agent.state` gauge |
+| The spans | The trace of each review from Tempo: one trace, one span per agent, one per model call under it, with its reviewer and model. A trace ID opens the waterfall, where the two reviewers sit side by side | the trace; TraceQL `{ span.proven.agent != "" }` |
+
+The dashboard is the JSON file `lab/grafana/dashboards/proven-review.json`, provisioned on start. Nothing in it is drawn by hand, and Grafana does not let the page change it. To change it, edit the file; Grafana reads it again within 10 seconds.
+
+### Use it outside the lab
+
+The same data goes to any OpenTelemetry backend. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to its OTLP/HTTP address, and Proven exports; leave it unset and Proven exports nothing and opens no connection. For a review run on the host against the lab's collector: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 proven scan --sample <path>`. The settings are listed in [CONFIGURATION.md](CONFIGURATION.md#telemetry-opentelemetry-adr-0045). The collector's Prometheus is inside the container and is not published; to scrape Proven's numbers from an existing monitoring stack, point `OTEL_EXPORTER_OTLP_ENDPOINT` at that stack's own collector.
 
 ## The keys a live review needs
 
@@ -115,7 +154,7 @@ Proven's Action is not on main yet, so the workflow does not use it. It runs:
 proven scan --sample /opt/proven/fixture/discount
 ```
 
-That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no network, no keys and no Docker. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
+That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
 
 The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that. Docker Scout for that image is read on Docker Hub after the push. This repository does not push it for you.
 
@@ -152,9 +191,9 @@ Read that result on the image's page on Docker Hub, for the tag `make push` wrot
 
 ## The runner and Docker
 
-The lab has four services: Gitea, a Docker daemon that lives only inside the lab (`dind`), the Gitea Actions runner, and a one-shot seed.
+The lab has five services: Gitea, a Docker daemon that lives only inside the lab (`dind`), the Gitea Actions runner, the dashboard stack (`lgtm`), and a one-shot seed.
 
-Gitea does not serve SSH (`GITEA_DISABLE_SSH`, and `GITEA_START_SSH_SERVER` is false). The image already runs OpenSSH on port 22, and Gitea's own SSH server on that same port exited the container. The lab does not need SSH. The web UI is the only published port. `GITEA_SSH_PORT` is kept in the settings and is not published.
+Gitea does not serve SSH (`GITEA_DISABLE_SSH`, and `GITEA_START_SSH_SERVER` is false). The image already runs OpenSSH on port 22, and Gitea's own SSH server on that same port exited the container. The lab does not need SSH. The web UI and the dashboard's two ports are the only published ports. `GITEA_SSH_PORT` is kept in the settings and is not published.
 
 Every `gitea` command `make up` runs inside the container uses `GITEA_RUN_USER`. That account is `git` in this image. The same command as root is refused, and `compose exec` is root when no user is named. `make down` keeps the volume, so a second `make up` finds the password already stored. It still repairs a missing admin user, a missing runner registration and a missing pull request, then starts the runner.
 
@@ -211,5 +250,5 @@ These pins are not built here. `make scan` replaces the block below with Docker 
 <!-- scout-third-party:start -->
 Not scanned in the change that added the lab. The seat that wrote this page could not run Docker Scout. `make scan` fills this block.
 
-Images: `gitea/gitea:1.22.6`, `gitea/act_runner:0.2.11`, `docker:29.9.1-dind`, `docker:29.9.1-cli`.
+Images: `gitea/gitea:1.22.6`, `gitea/act_runner:0.2.11`, `grafana/otel-lgtm:0.11.0`, `docker:29.9.1-dind`, `docker:29.9.1-cli`.
 <!-- scout-third-party:end -->

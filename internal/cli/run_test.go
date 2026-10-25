@@ -708,7 +708,9 @@ func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
 				return "decoy"
 			}
 		}
-		if !KnownCLIEnv(k) {
+		// ADR-0045: the OTEL_* variables are the one family sample mode reads besides ADR-0020 §1's.
+		// They name no secret of Proven's; with none set, a review exports nothing.
+		if !KnownCLIEnv(k) && !strings.HasPrefix(k, "OTEL_") {
 			t.Errorf("sample mode read %s, which ADR-0020 §1 does not name", k)
 		}
 		return ""
