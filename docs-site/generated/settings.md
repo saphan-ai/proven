@@ -18,7 +18,7 @@ description: Every setting, its environment variable and its default.
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/nemotron-3.5-super-vl-120b-a12b` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | the limit for one model call |
 | `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
-| `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's) |
+| `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family |
 
 Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these.
 
@@ -95,6 +95,17 @@ Each test runs with no network and no secret (ADR-0025). With no container runti
 
 Each tool runs in the Prover's container with no network and no secret (ADR-0025, ADR-0040). A tool that cannot run is named. Sample mode reads none of these.
 
+## Bounded steps: Meterless's Markovian engine
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_MARKOVIAN` | `off` | `on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. Off until its measurement holds |
+| `PROVEN_MARKOVIAN_THRESHOLD` | `8000` | the size, in estimated tokens (characters / 4) of the Planner's whole prompt, above which a change is reviewed in bounded steps; at or below it the review is one whole step |
+| `PROVEN_MARKOVIAN_STEP_UNIT` | `file` | what one step reads: `file` (one changed file, its base and its change) or `hunk` (one changed region of a file) |
+| `PROVEN_MARKOVIAN_CARRY_TOKENS` | `800` | the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from 128 to 32768. When it cannot hold every claim that awaits evidence, the review stops and names itself incomplete; it never drops such a claim |
+
+ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these.
+
 ## One adapter call
 
 | Environment variable | Default | What it changes |
@@ -142,3 +153,11 @@ A repository's `proven.yaml` may make a policy setting stricter, never weaker, a
 | `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
 
 The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
+
+## The trace
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_LOG_DIR` | `<user cache>/proven/logs` | where the trace is written. The directory is created with mode 0700. An existing configured directory is narrowed to 0700. A path that resolves inside the review target, including through a symlink, is refused. A letter-case alias of the target is refused on a volume that ignores case. That check is exercised only on darwin and Windows, and the skip on other volumes is measured, not assumed. Each file written in that directory, trace.jsonl, hmem.jsonl and world.jsonl, is refused when it is a symlink (wherever it points) or has more than one name. The link count is read on every OS. Sample mode reads this |
+
+The default is the user cache directory, with proven/logs under it, created so only that user can read it. An existing configured directory is narrowed to 0700. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. The link count of each file written in that directory is read on every OS. Sample mode reads this setting.

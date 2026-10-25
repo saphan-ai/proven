@@ -114,7 +114,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvSkepticModel,
 			Default:     envdoc.Tick(DefaultSkepticModel),
-			Description: "the Skeptic's model (ADR-0006: another family than the finder's)",
+			Description: "the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family",
 		},
 	}
 }

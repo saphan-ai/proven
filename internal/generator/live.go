@@ -206,7 +206,10 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	if !use.FromReceipt {
 		return "", l.down("answer carries no receipt, refused: the model cannot be shown to be NVIDIA's")
 	}
-	if !nvidiaAnswer(use.Model, use.Requested) {
+	// The alias is a name the hosted API gives; Nightshift's signed receipt
+	// names the model itself, and the custody audit checks that name. So no
+	// alias counts here, and the gate and the audit agree.
+	if !nvidiaModel(use.Model) {
 		return "", l.down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
 	return text, nil
@@ -249,7 +252,8 @@ func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error)
 // modelAliases maps a name the hosted API answers under to the model asked
 // for that it stands for (the owner's ruling of 2026-10-26: asked for the
 // VL model, the API names its answer with this private alias). An alias counts
-// only for the model it stands for, and only when that model was asked for.
+// only for the model it stands for, only when that model was asked for, and
+// only in nvidia mode.
 var modelAliases = map[string]string{
 	"private/nvidia/nemotron-3.5-super-120b-a12b": "nvidia/nemotron-3.5-super-vl-120b-a12b",
 }

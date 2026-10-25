@@ -553,3 +553,20 @@ func moduleRoot(t *testing.T) string {
 		dir = parent
 	}
 }
+
+// Property: in nightshift mode no alias counts, because the signed receipt
+// names the model itself: an answer whose receipt names the hosted API's
+// alias is refused, even for the Skeptic, whose requested model is the one
+// the alias stands for. Mutated field: the receipt's routed model.
+func TestLiveRefusesTheHostedAliasInAReceipt(t *testing.T) {
+	const alias = "private/nvidia/nemotron-3.5-super-120b-a12b"
+	body := strings.Replace(streamFixture(t), `"routed_model":"`+routedNVIDIA+`"`, `"routed_model":"`+alias+`"`, 1)
+	srv := httptest.NewServer(replay(body))
+	defer srv.Close()
+	for _, agent := range []string{"skeptic", "planner"} {
+		_, err := liveAt(t, srv.URL, nil).Complete(context.Background(), agent, "prompt")
+		if err == nil || !strings.Contains(err.Error(), "not an NVIDIA model") {
+			t.Errorf("%s: err %v, want a refusal", agent, err)
+		}
+	}
+}
