@@ -41,11 +41,15 @@ exits 0. The full output and what each line means: [SAMPLE_MODE.md](SAMPLE_MODE.
 This needs Docker (with buildx) as well as Go. `make image` builds Proven's image for this machine. `make image-check` builds
 the binary and the image and checks that they
 print the same version line and the same sample review, then prints the image's size; it fails and names the first difference.
-The same check by hand, for any image and binary, after `make build` and `make image`:
+The same check by hand, from the repository, after `make build` and `make image`:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 sh scripts/image-check.sh saphan/proven:latest ./bin/proven
 ```
+
+In a git checkout the image must carry this checkout's commit as its `org.opencontainers.image.revision` label, or the check
+fails and names both commits; the binary is compared by its output only.
 
 Inside the image the sample fixture is at `/opt/proven/fixture/discount`:
 

@@ -9,7 +9,7 @@
 # Both runs start in an empty directory outside the checkout, because a scan
 # writes its state and trace where it is started from. The one line that may
 # differ only because the two runs write to different places, the trace path,
-# is normalised before the outputs are compared.
+# is normalised before the outputs are compared, and only on the last line.
 set -eu
 
 image=${1:?usage: image-check.sh IMAGE BINARY}
@@ -25,7 +25,18 @@ mkdir -p "$work/bin" "$work/img"
 # The trace path names where each run wrote its trace, which is not the same
 # inside the container and on the host. Only a line that IS the trace line
 # ("trace: <path>") is rewritten; any other line is compared as printed.
-normalise() { sed -E 's#^trace: .*$#trace: <trace path>#'; }
+# normalise FIXTURE: the run's own fixture path becomes <fixture> (a fixed
+# string, never a pattern), and the LAST line, when it is the trace line, has
+# its path replaced. No other line is changed, so no other difference can hide.
+normalise() {
+  awk -v fx="$1" '
+    { line = $0
+      out = ""
+      while ((i = index(line, fx)) > 0) { out = out substr(line, 1, i - 1) "<fixture>"; line = substr(line, i + length(fx)) }
+      held[NR] = out line }
+    END { if (NR > 0 && held[NR] ~ /^trace: /) held[NR] = "trace: <trace path>"
+          for (n = 1; n <= NR; n++) print held[n] }'
+}
 
 fail() {
   echo "image-check: FAIL — $1" >&2
@@ -48,8 +59,8 @@ cmp -s "$work/bin/version" "$work/img/version" \
   || fail "the binary's sample review exited $?" "$work/bin/out"
 docker run --rm --pull=never "$image" scan --sample /opt/proven/fixture/discount > "$work/img/out" 2>&1 \
   || fail "the image's sample review exited $?" "$work/img/out"
-normalise < "$work/bin/out" | sed "s#$fixture#<fixture>#g" > "$work/bin/out.n"
-normalise < "$work/img/out" | sed 's#/opt/proven/fixture/discount#<fixture>#g' > "$work/img/out.n"
+normalise "$fixture" < "$work/bin/out" > "$work/bin/out.n"
+normalise /opt/proven/fixture/discount < "$work/img/out" > "$work/img/out.n"
 cmp -s "$work/bin/out.n" "$work/img/out.n" \
   || fail "the sample reviews differ (trace path and fixture path normalised)" "$work/bin/out.n" "$work/img/out.n"
 
