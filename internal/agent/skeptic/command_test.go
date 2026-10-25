@@ -20,7 +20,7 @@ func TestAnswerThatCarriesACommandProposesNoTest(t *testing.T) {
 	risk := candidate.Candidate{Risk: candidate.Risk{ID: "F1", Title: "Discount is applied twice"}}
 	carried, err := Attempt(context.Background(), risk, textGen{
 		`{"refuted":true,"reason":"it passes","path":"billing/a_test.go","name":"TestA","command":"make proof","sql":""}`,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestAnswerThatCarriesACommandProposesNoTest(t *testing.T) {
 	}
 	plain, err := Attempt(context.Background(), risk, textGen{
 		`{"refuted":true,"reason":"it passes","path":"billing/a_test.go","name":"TestA","sql":""}`,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,7 +13,9 @@
 // template has one form per query language (ADR-0047): sql for Zetaris and
 // the local store, and a mango selector for CouchDB. The OSV
 // check and the EPSS check build their queries from the same registry, so
-// every query Proven sends has one author. docs/QUERIES.md lists the templates.
+// every query Proven sends has one author. A review's settings may narrow the
+// list for one role (Scope): the Investigator and the Skeptic are each told of
+// and held to the templates their scope allows. docs/QUERIES.md lists the templates.
 package querytpl
 
 import (
@@ -161,8 +163,14 @@ func Catalogue() []Template {
 // each, with its parameters. It is written from Catalogue, so what a model is
 // told and what Build accepts cannot part.
 func Describe() string {
+	return describe(Catalogue())
+}
+
+// describe writes the prompt line for each template given, so the whole list
+// and a role's scope read in one form.
+func describe(templates []Template) string {
 	var b strings.Builder
-	for i, t := range Catalogue() {
+	for i, t := range templates {
 		if i > 0 {
 			b.WriteString(" ")
 		}

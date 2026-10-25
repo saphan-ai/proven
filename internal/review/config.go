@@ -2,8 +2,9 @@ package review
 
 // This file reads proven.yaml, the reviewer's own settings (ADR-0013): the timeout, the two reviewer
 // models (ADR-0009, ADR-0010), the family table and author sources (ADR-0011), and the class rules
-// (ADR-0014), and the two settings of proposed fixes: whether they are made and how many attempts one
-// gets (ADR-0042). Every key is closed: an unknown key or value is refused with the values allowed.
+// (ADR-0014), the two settings of proposed fixes: whether they are made and how many attempts one
+// gets (ADR-0042), and the query templates the Investigator and the Skeptic may each ask (ADR-0013).
+// Every key is closed: an unknown key or value is refused with the values allowed.
 
 import (
 	"bytes"
@@ -15,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
 // configKeyTimeout is the timeout key, named once because the refusal text is keyed on it too.
@@ -50,6 +52,8 @@ var configKeys = []string{
 	"raise_class",
 	"fixes",
 	"fix_attempts",
+	"investigator_templates",
+	"skeptic_templates",
 }
 
 // fileSettings is one loaded proven.yaml. A missing file is defaultSettings.
@@ -74,6 +78,10 @@ type fileSettings struct {
 	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
 	Fixes       bool
 	FixAttempts int
+	// InvestigatorScope and SkepticScope are the query templates each of the two roles that can ask a
+	// store may ask (ADR-0013). Nil is every template: an unset key narrows nothing.
+	InvestigatorScope querytpl.Scope
+	SkepticScope      querytpl.Scope
 }
 
 // familyRule maps a model-name pattern to a family, one row of the families table (ADR-0011 point 4).
@@ -333,6 +341,8 @@ func allowedText(key string) string {
 		return "a model name"
 	case "author_trailer_keys":
 		return "trailer keys, for example Assisted-by"
+	case "investigator_templates", "skeptic_templates":
+		return strings.Join(querytpl.Names(), ", ")
 	default:
 		return strings.Join(configKeys, ", ")
 	}
@@ -459,9 +469,31 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		}
 		cfg.FixAttempts = n
 		return nil
+	case "investigator_templates", "skeptic_templates":
+		scope, err := parseTemplateScope(key, val)
+		if err != nil {
+			return err
+		}
+		if key == "investigator_templates" {
+			cfg.InvestigatorScope = scope
+		} else {
+			cfg.SkepticScope = scope
+		}
+		return nil
 	default:
 		return &ConfigError{Field: key, Value: val, Reason: "unknown key", Allowed: append([]string(nil), configKeys...)}
 	}
+}
+
+// parseTemplateScope reads the templates one role may ask (ADR-0013). A name that is not on the
+// list, a name twice and an empty list are refused on load by name, with the list as the allowed
+// values, so a misspelt name never silently narrows a role to nothing it can use.
+func parseTemplateScope(field, value string) (querytpl.Scope, error) {
+	scope, bad, why := querytpl.ParseScope(value)
+	if why != "" {
+		return nil, &ConfigError{Field: field, Value: bad, Reason: why, Allowed: querytpl.Names()}
+	}
+	return scope, nil
 }
 
 // parseOnOff reads a switch. Only "on" and "off" are accepted, not YAML's yes, true or 1, so a
