@@ -1,6 +1,6 @@
 # The judges' lab
 
-One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. It publishes three ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318).
+One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. It publishes five ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001), the start page (`LAB_PAGE_PORT`, 3002), the documentation site (`LAB_DOCS_PORT`, 3003) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318).
 
 You need GNU make and Docker. Docker Compose v2 is the `docker compose` command. Windows is not a target. On macOS the `make` from Homebrew is GNU make; the make that ships with the system is not.
 
@@ -9,14 +9,56 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 ## Start
 
 1. From a checkout of this repository, run `make up`.
-2. The first run prints the admin user, a generated password, and the lab URL. The password is printed once. It is kept in the lab's volume until `make clean`. A later `make up` does not print it again. It does not stop because the volume is already there. It creates the admin user, the runner registration and the pull request when any of those is missing.
-3. Open the URL in a browser. Sign in with that user and password.
-4. Open the `discount` repository. It has one open pull request.
-5. The pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review, and the marker names the run that posted it.
+2. Every run of `make up`, the first and each one after it, ends with the same block, and prints nothing after it:
 
-6. `make up` also prints the dashboard's address, `http://127.0.0.1:3001/d/proven-review` by default. See [The dashboard](#the-dashboard).
+   ```text
+   Start here: http://127.0.0.1:3002/lab
+   ########################################
+   ####    Your proven lab is ready    ####
+   ########################################
 
-`make status` prints the containers, Gitea's health, whether the runner is registered, whether that comment is present, and the URL.
+   To see demo pull requests scanned by proven please open:
+
+   Gitea: http://127.0.0.1:3000/login
+   Username: proven
+   Password: <password>
+
+   Grafana dashboard: http://127.0.0.1:3001/d/proven-review
+   ```
+
+   On a terminal the Password line carries the password, read from the lab's state file. When the output is redirected (a pipe, a file, a log) the line names the file that holds it instead, and the password is written nowhere. The password is generated at the first start and kept in the lab's volume until `make clean`. `make password` prints the same block again, and so does `make status`. A later `make up` does not stop because the volume is already there: it creates the admin user, the runner registration and the pull requests when any of those is missing.
+3. Open the start page, `http://127.0.0.1:3002/lab`. It holds the login with copy buttons, and links to Gitea, the dashboard and the documentation. Or open Gitea's address and sign in with that user and password.
+4. Open the `discount` repository. It has the demo pull requests, listed under [The demo pull requests](#the-demo-pull-requests).
+5. Each pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review of that pull request, and the marker names the run that posted it. Reviews take a few minutes each, and the runner works on up to three at a time, so a pull request without a comment is still waiting.
+6. The dashboard is at `http://127.0.0.1:3001/d/proven-review` by default. See [The dashboard](#the-dashboard).
+
+`make status` prints the containers, Gitea's health, whether the runner is registered, which pull requests have their review comment, and the login block.
+
+`make demo-check` is the check that the demo is whole. It needs the running lab. It requires every pull request of the list to have Proven's comment, a clean one to say clean and a defective one to carry a finding, and the trace store to hold at least one review trace per pull request.
+
+### The start page and the documentation
+
+The start page is one static page. A small web server (`LAB_PAGE_IMAGE`, a build of nginx that runs as a user that is not root, with a read-only filesystem) serves it at `LAB_PAGE_PATH` on `LAB_PAGE_PORT`, bound to `LAB_BIND`. The seed renders it from `lab/page/lab.html.tmpl` into the lab's page volume each time `make up` runs. The login is filled in there and nowhere else: the template holds a placeholder, the password is not in any file of this repository, and it is not in an image. The table of pull requests is written from the pull requests the seed really made. Every link on the page opens in a new tab. The page needs no network: it has no web font and no outside script.
+
+The documentation site, the same `docs-site/Dockerfile` that builds Proven's documentation, is a lab service on `LAB_DOCS_PORT` (3003 by default), also bound to `LAB_BIND`. `make up` builds it. A build that fails is named and the lab goes on without it; the page's documentation link then does not open.
+
+### The demo pull requests
+
+The seed makes the repository's `main` from the base of the discount sample set, then one branch and one pull request for each line of `lab/seed/prs.tsv`. The branch is named `demo-<set>`, and the lab's workflow reviews it with that sample set (see [What the workflow runs](#what-the-workflow-runs)). Each change is the change tree of its sample set in `testdata/fixture`, so nothing is invented: the review a pull request gets is the review the sample set records.
+
+| Pull request | Sample set | What Proven says |
+|---|---|---|
+| Round the discount down to a whole cent | `discount-clean` | Clean. The change is the correct version of the change below; nothing is reported. |
+| Reword the draft note | `unknown-author` | Clean. Only a string changed; nothing is reported. |
+| Apply a discount (it is taken off twice) | `discount` | A test that fails on the change and passes before it: 100 at 20 percent becomes 60, not 80. The same change adds a dependency that is on the known-exploited list. |
+| Add a padding helper from evil.example/drop | `malicious-package` | The new dependency has a malicious-package advisory. |
+| Bump the widget library | `osv-go-module` | The dependency version is inside an OSV affected range, with the advisory row as evidence. |
+| Add a copyleft helper | `spdx-licence` | The new dependency has a licence the project's policy does not allow. |
+| Add a very young dependency | `project-health` | The new dependency has no maintainers, by its project-health score. |
+
+A clean pull request is reviewed like the others. Its comment starts with one line, `clean: Proven kept no finding on this change.`, and the lines of the review below it say who reviewed (the default reviewer and the second one) and `failed services: none`, which means every check ran. Its run is on the dashboard beside the others. The first two rows are a clean change and the botched version of the same change, so the lab shows what a score compares: a defect caught, and a clean change left alone. The check `lab/lab_test.go` keeps the list honest: every row names an existing sample set, the image holds it, and no two defective rows show the same class.
+
+The sample generator answers for every reviewer, so the reviewers do not disagree here: that panel shows a zero, which is the true count. Sample mode reviews the sample set the branch names, not the diff itself; any other branch is reviewed with the discount sample set. A live review, with a model behind each call, is the one that reads a diff.
 
 `make logs` follows every service. `make logs SERVICE=gitea` follows one of `gitea`, `dind`, `runner`, `lgtm`.
 
@@ -31,8 +73,8 @@ The lab's pull-request review is told where to send its data, with the standard 
 ### Watch a review
 
 1. Run `make up`. Open the dashboard address it printed. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`. If you set `LAB_BIND` to another address, anyone who can reach it can use Grafana.
-2. Leave the dashboard open. It refreshes every 5 seconds and shows the last 30 minutes.
-3. Start a review of the pull request: push a commit to the `change` branch of `discount`, or close and reopen the pull request in Gitea. The workflow runs on the runner (`make logs SERVICE=runner`).
+2. Leave the dashboard open. It refreshes every 5 seconds and shows the last 24 hours, so the reviews `make up` started are still there when you come back to it.
+3. Start a review again: close and reopen a pull request in Gitea. The workflow runs on the runner (`make logs SERVICE=runner`).
 4. Watch the first panel. Each agent is a row, and the planner and the skeptic have one row per reviewer model. A row is grey while it waits, blue while it works, green when done, red when it failed. A review is short in sample mode: a live review, with a model behind each call, is the one where a reviewer finishes while the other still works.
 5. When the review is done, the other panels hold its numbers. The **Review** menu at the top picks one review; the default is all of them in the time range.
 6. `make trace` asks the trace store for the latest review's trace, the same query the last panel runs, and prints its span names and the reviewers they name. It exits 1 when the trace is missing a span or a reviewer.
@@ -43,8 +85,8 @@ The lab's pull-request review is told where to send its data, with the standard 
 |---|---|---|
 | The agents and the two reviewers | A state timeline: every agent, and each reviewer model's planner and skeptic, waiting, working, done or failed | the `proven.agent.state` gauge, one value per agent and reviewer |
 | Verdicts, side by side | What each reviewer's skeptic said of each finding (refuted, upheld, not attempted), one column per reviewer | the `proven.reviewer.verdicts` counter |
-| Where the reviewers disagree | Findings on which they differ: `verdict` (both ran it and judged it differently) or `one_reviewer` (only one named it) | the `proven.reviewer.disagreements` counter |
-| Claims dropped | What the Judge did not keep, by reason: `no_evidence`, `refuted`, `suppressed` | the `proven.review.claims.dropped` counter |
+| Where the reviewers disagree | Findings on which they differ: `verdict` (both ran it and judged it differently) or `one_reviewer` (only one named it). `none` with a zero when they never differed, which is every sample review | the `proven.reviewer.disagreements` counter |
+| Claims dropped | What the Judge did not keep, by reason: `no_evidence`, `refuted`, `suppressed`. `none` with a zero when nothing was dropped | the `proven.review.claims.dropped` counter |
 | Findings by level of proof | What the review kept: proved by test, by tool, by data, or agreed by two models and not proven (ADR-0044) | the `proven.review.findings` counter |
 | Model latency | The mean time of a call to a model, by agent and reviewer | the `gen_ai.client.operation.duration` histogram |
 | Model calls | Calls made, by reviewer and outcome | the `proven.model.calls` counter |
@@ -151,10 +193,10 @@ under `second-reviewer` in the review's failed services, and the findings show t
 Proven's Action is not on main yet, so the workflow does not use it. It runs:
 
 ```text
-proven scan --sample /opt/proven/fixture/discount
+proven scan --sample /opt/proven/fixture/<set>
 ```
 
-That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
+`<set>` is the name after `demo-` in the pull request's branch, and `discount` for any other branch. Each set is a recorded sample in `testdata/fixture`, baked into Proven's image (the Dockerfile copies the ones the demo uses). It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
 
 The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that. Docker Scout for that image is read on Docker Hub after the push. This repository does not push it for you.
 
@@ -191,11 +233,11 @@ Read that result on the image's page on Docker Hub, for the tag `make push` wrot
 
 ## The runner and Docker
 
-The lab has five services: Gitea, a Docker daemon that lives only inside the lab (`dind`), the Gitea Actions runner, the dashboard stack (`lgtm`), and a one-shot seed.
+The lab has seven services: Gitea, a Docker daemon that lives only inside the lab (`dind`), the Gitea Actions runner, the dashboard stack (`lgtm`), the start page (`page`), the documentation site (`docs`), and a one-shot seed. The runner takes up to three jobs at a time, so the demo's pull requests are reviewed side by side.
 
-Gitea does not serve SSH (`GITEA_DISABLE_SSH`, and `GITEA_START_SSH_SERVER` is false). The image already runs OpenSSH on port 22, and Gitea's own SSH server on that same port exited the container. The lab does not need SSH. The web UI and the dashboard's two ports are the only published ports. `GITEA_SSH_PORT` is kept in the settings and is not published.
+Gitea does not serve SSH (`GITEA_DISABLE_SSH`, and `GITEA_START_SSH_SERVER` is false). The image already runs OpenSSH on port 22, and Gitea's own SSH server on that same port exited the container. The lab does not need SSH. The web UI, the dashboard's two ports, the start page and the documentation site are the only published ports. `GITEA_SSH_PORT` is kept in the settings and is not published.
 
-Every `gitea` command `make up` runs inside the container uses `GITEA_RUN_USER`. That account is `git` in this image. The same command as root is refused, and `compose exec` is root when no user is named. `make down` keeps the volume, so a second `make up` finds the password already stored. It still repairs a missing admin user, a missing runner registration and a missing pull request, then starts the runner.
+Every `gitea` command `make up` runs inside the container uses `GITEA_RUN_USER`. That account is `git` in this image. The same command as root is refused, and `compose exec` is root when no user is named. `make down` keeps the volume, so a second `make up` finds the password already stored. It still repairs a missing admin user, a missing runner registration and a missing pull request, then starts the runner. A branch that already exists gets the current workflow, which starts that pull request's review again; a branch that is already current is left alone.
 
 The runner's Docker host is `tcp://dind:2375`. No service mounts the host's Docker socket. Job containers are started on that inner daemon. The inner daemon is privileged, because Docker-in-Docker needs it. That privilege stays inside the lab. The daemon's port is not published on the host.
 

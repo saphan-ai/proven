@@ -327,10 +327,20 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LAB_BOT_EMAIL` | `proven-bot@lab.local` | That account's email |
 | `LAB_DEMO_REPO` | `discount` | Demo repository name |
 | `LAB_DEMO_BASE` | `main` | Base branch |
-| `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |
+| `LAB_DEMO_HEAD` | `demo-discount` | Branch of the first demo pull request, the logic-bug change. The others are listed in `lab/seed/prs.tsv`; each branch is named `demo-<fixture>` |
+| `LAB_PAGE_PORT` | `3002` | Port of the lab's start page on `LAB_BIND`. The page is the one address to hand out: `http://127.0.0.1:3002/lab` |
+| `LAB_PAGE_PATH` | `/lab` | Path the page is served at. It is also written in `lab/page/nginx.conf`; a test holds the two together |
+| `LAB_PAGE_IMAGE` | `nginxinc/nginx-unprivileged` | The page's web server. It runs as a user that is not root |
+| `LAB_PAGE_IMAGE_VERSION` | `1.27-alpine` | Its tag. Not pulled when this file was written; the first `make up` is the check |
+| `LAB_PAGE_CONTAINER_PORT` | `8080` | The port that image serves on |
+| `LAB_DOCS_PORT` | `3003` | Port of the documentation site on `LAB_BIND` |
+| `LAB_DOCS_CONTAINER_PORT` | `3000` | The port the documentation image serves on |
+| `DOCS_IMAGE` | `saphan/proven-docs` | Name of the documentation image `make up` builds from `docs-site/Dockerfile` |
+| `DOCS_IMAGE_TAG` | `1` | Its tag |
+| `NODE_IMAGE` | `node:22-alpine` | The Node image the documentation build uses |
 | `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
 | `SEED_IMAGE_TAG` | `1` | Pin for that image. It is not tagged `latest` |
-| `E2E_WAIT_SECONDS` | `600` | How long `make e2e` waits for the review comment |
+| `E2E_WAIT_SECONDS` | `900` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 
 `make livecheck` reads these keys from `lab/.env` when the file exists, and ignores an empty value: `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY`, `ZETARIS_API_KEY`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`.

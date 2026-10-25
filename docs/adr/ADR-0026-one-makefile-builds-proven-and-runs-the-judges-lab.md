@@ -37,9 +37,16 @@ and its logs.
 6. **Proven's own image is tagged `latest`** (the owner, 23 October). Each push also carries the tag `git describe`
    gives, so the image a judge ran on a given day can still be pulled. Every other image in the lab (Gitea, its
    runner, `golang`, Docker) stays pinned to a version, as ADR-0017 point 6 says.
-7. **`make up` starts the lab of ADR-0017; `make down` stops it.** One Compose file: Gitea, a Gitea Actions runner, and a
-   one-time seed that creates the admin (password generated and printed once), the demo repository with an open pull
-   request and Proven's workflow, and registers the runner. Everything binds to localhost.
+7. **`make up` starts the lab of ADR-0017; `make down` stops it.** One Compose file: Gitea, a Gitea Actions runner, the
+   dashboard stack, a start page, the documentation site, and a one-time seed that creates the admin (password
+   generated once), the demo repository with its demo pull requests and Proven's workflow, the start page, and
+   registers the runner. Everything binds to localhost. *(Amended 25 October 2026, the owner: the password is no longer
+   printed once at first start. Every run of `make up`, the first and each one after it, ends with the same block and
+   prints nothing after it: the start page's address, the Gitea login URL, the user, the password and the dashboard's
+   address. On a terminal the Password line carries the password, read from the lab's state file; when stdout is
+   redirected it names the file instead, and the password is written to no log. `make password` and `make status` print
+   the same lines. The demo repository holds several pull requests, each reviewed by the lab's workflow: clean changes
+   that get a "clean" comment, and changes that each carry a different class of defect. See [LAB.md](../LAB.md).)*
 8. **The runner starts the Prover's containers in Docker in Docker** inside the lab, never through the host's Docker
    socket (the owner, 23 October). The lab's jobs get no control of the judge's Docker.
 9. **`make status`** shows the containers, Gitea's health, whether the runner is registered, the last workflow result on
