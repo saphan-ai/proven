@@ -86,7 +86,7 @@ ambiguity. The kind picks the plan, inside the review classes of ADR-0014:
 | `change.security` | `security` | all | all | all | always |
 | `change.refactor`, `change.feature`, `change.config` | configured | all | all | all | as the class |
 
-Four rules decide which plan runs, and a reader can check each one in the trace:
+Five rules decide which plan runs, and a reader can check each one in the trace:
 
 1. **The floor.** A plan never goes below the class the configured path rules choose (`floorClass` in
    `internal/review/plan.go`). If the plan's class ranks lower, the configured class runs in full. ADR-0036's
@@ -95,7 +95,13 @@ Four rules decide which plan runs, and a reader can check each one in the trace:
    planned as a confident class. It runs the class its rules choose, in full.
 3. **Security is never outvoted.** One file with a security signal plans the whole change as security-sensitive.
    Every security pattern of the configured path rules is a Scout signal too.
-4. **The trace.** Every review writes one `plan` line before any agent runs. It names the class, the confidence and
+4. **Only verified prose runs no model.** A name proves nothing: `docs/run.go` matches the documentation trigger by its
+   directory, and a script or a template under `docs/` does too. The documentation plan is chosen only when every
+   changed file (and the old path of a rename) has a suffix on the `prose_suffixes` list, carries no executable bit
+   and starts with no shebang line (`notProse` in `internal/review/plan.go`; the modes come from `change.FactsBetween`
+   and `change.TreeFacts`). A file whose facts cannot be read is not prose. Anything else runs the class its rules
+   choose in full, and the plan line says which file failed and why.
+5. **The trace.** Every review writes one `plan` line before any agent runs. It names the class, the confidence and
    band, the signals, the ambiguity and the plan, or says `no plan chosen (scout_intent is off)`. Each part a plan
    leaves out gets its own `… is not in the plan` line.
 
@@ -114,6 +120,7 @@ that runner on Proven's change registry and fourteen change fixtures (`SCORECARD
 scorecards are committed as the runners print them.
 
 remark: measured 2026-10-25 at Meterless commit 1742dec: on Meterless's set, every metric is 1.000 and clarification_rate is 0.188, but each scored prompt appears verbatim among the fixture registry's examples, so the score shows the engine reproduces its seeds, not that it generalises.
+remark: in the change set `injection_precision` (1.000) and `override_frequency` (0) have no positive examples (their denominators are empty and the runner supplies those defaults), so they measure nothing there and are not evidence of injection or override quality.
 remark: the change set fails the published clarification_rate ceiling (0.429 against 0.25) by its own design (six of fourteen fixtures are ambiguous); clarification_agreement (1.000) is the number that says whether the engine asked at the right time.
 
 **The measurement (ADR-0049 point 5).** One review per scenario, with the plan and without it. The generator is
