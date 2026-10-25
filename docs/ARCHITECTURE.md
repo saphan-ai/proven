@@ -7,7 +7,10 @@ are in [DESIGN.md](../hackathon/DESIGN.md) and in the decisions under [fleet/dec
 
 ```mermaid
 flowchart LR
-    C[change: base and head] --> P[Planner<br/>names the risks]
+    C[change: base and head] --> P
+    subgraph PL[Planner reads the change]
+        M[large change: bounded steps,<br/>off by default] -.->|only when switched on| P[Planner<br/>names the risks]
+    end
     P --> I[Investigator<br/>picks a query template]
     P --> V[Prover<br/>writes a test]
     I -->|template and values,<br/>Proven builds the SQL| Z[(Zetaris<br/>KEV · EPSS · OSV)]
@@ -65,9 +68,13 @@ so it is never marked proved.
   call, with the run id and the time. A reader follows any finding from claim to verdict.
 - **H-MEM** (`state/hmem`): what earlier reviews refuted, so a refuted finding does not come back.
 - **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
+- **Markovian** (`internal/markov`, OFF by default): the state carried from one step to the next when a large change is
+  reviewed in bounded steps. It is kept in memory for the length of one review, and each step's size is in the trace.
+  See "Bounded steps" below.
 
-Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
-`test/conformance/meterless/run.sh`.
+All three engines follow the Meterless specifications (ADR-0003, ADR-0018, ADR-0048); their own conformance suites run
+through `test/conformance/meterless/run.sh`: H-MEM 9 of 13, World Model 7 of 8, Markovian 8 of 8 (runner pinned at
+upstream commit `1742dec5`). Markovian is switched off by default and its benefit on the corpus is UNMEASURED.
 
 ## Bounded steps: Meterless's Markovian engine (ADR-0048)
 
