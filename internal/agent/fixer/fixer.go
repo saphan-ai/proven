@@ -222,6 +222,16 @@ func prove(ctx context.Context, got row, c candidate.Candidate, test *candidate.
 	return result{Attempt: a, ok: ok}
 }
 
+// Judge decides the runs of one patched change by the rule of ADR-0042 points 2 and 3, which
+// the whole-change attempt keeps for a finding proved by a test (ADR-0050 point 2): the proving
+// test passes on the patched change and the package's other tests still pass. It returns the
+// reason the runs do not prove the fix, or "" when they do. No model is consulted.
+func Judge(runs []candidate.FixRun) (ok bool, reason string) {
+	a := Attempt{Runs: runs}
+	ok = judge(&a)
+	return ok, a.Reason
+}
+
 // judge decides a record. The fix is proved only when the proving test passes on the base,
 // fails on the change and passes on the patched change, and the package's other tests pass on
 // the patched change (ADR-0042 points 2 and 3). It fills the reason and the failing run otherwise.
