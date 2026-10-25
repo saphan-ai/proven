@@ -716,3 +716,60 @@ func TestRegularOutputFileIsStillOverwritten(t *testing.T) {
 		t.Fatalf("regular file was not overwritten:\n%s", b)
 	}
 }
+
+// TestDirectoryRenamedAndLinkedInsideTheCheckoutDoesNotRedirectTheReport
+// proves a directory of the output path that the review renames away and
+// replaces with a relative link to another directory of the checkout does
+// not receive the report under that other directory. The mutated field is
+// the directory component, swapped for an in-root link the root would
+// follow. Resolving the path again at the write replaces
+// redirected/proven.sarif and the run exits 0.
+func TestDirectoryRenamedAndLinkedInsideTheCheckoutDoesNotRedirectTheReport(t *testing.T) {
+	dir := t.TempDir()
+	checkout := filepath.Join(dir, "checkout")
+	for _, d := range []string{"reports", "redirected"} {
+		if err := os.MkdirAll(filepath.Join(checkout, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	victim := filepath.Join(checkout, "redirected", "proven.sarif")
+	if err := os.WriteFile(victim, []byte("committed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	swapped := false
+	open := func(review.Options) (review.Reviewer, error) {
+		return funcReviewer(func() review.Result {
+			if err := os.Rename("reports", "reports.before"); err != nil {
+				t.Error(err)
+			}
+			if err := os.Symlink("redirected", "reports"); err != nil {
+				t.Skipf("symlinks are not available here: %v", err)
+			}
+			swapped = true
+			return review.Result{Class: "c", ClassRule: "r"}
+		}), nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=reports/proven.sarif"}, emptyEnv, &stdout, &stderr, open)
+	if !swapped {
+		t.Fatal("the load check refused the path, so the swap never ran")
+	}
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "committed\n" {
+		t.Fatalf("exit %d; the report replaced %s:\n%s", code, victim, b)
+	}
+	if code != exitOK {
+		t.Fatalf("exit %d, want 0; stderr %s", code, stderr.String())
+	}
+	written, err := os.ReadFile(filepath.Join(checkout, "reports.before", "proven.sarif"))
+	if err != nil {
+		t.Fatalf("the report is not in the directory the load check saw: %v", err)
+	}
+	if !bytes.Contains(written, []byte(`"class": "c"`)) {
+		t.Fatalf("report was not written in the directory opened at load:\n%s", written)
+	}
+}

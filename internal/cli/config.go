@@ -59,6 +59,8 @@ func KnownCLIEnv(name string) bool {
 
 // config is one resolved invocation. Flag wins over variable, variable over default.
 type config struct {
+	// outputDirs is set by Run after the load checks; resolve leaves it nil.
+	outputDirs      outputDirectories
 	command         string
 	target          string
 	format          string

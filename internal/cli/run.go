@@ -65,6 +65,11 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		fmt.Fprintln(stderr, err.Error())
 		return errorCode(err)
 	}
+	// The directory of each output inside the working directory is opened
+	// here, after the checks and before the review runs, and the write goes
+	// through that handle (openOutputDirectories).
+	cfg.outputDirs = openOutputDirectories(cfg)
+	defer cfg.outputDirs.close()
 	// Every requested format must have a writer before the review runs: a
 	// review that cannot be written is time spent for an exit 2 anyway.
 	if err := writable(cfg); err != nil {
@@ -278,7 +283,7 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 				}
 			}
 		}
-		if err := writeOutputFile(one.flag, one.path, one.body); err != nil {
+		if err := writeOutputFile(one.flag, one.path, one.body, cfg.outputDirs[one.path]); err != nil {
 			return err
 		}
 		info, err := os.Stat(one.path)
@@ -302,7 +307,7 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 // cannot then name a file outside the directory: the root refuses the link
 // and this returns an error that names the path. A path outside the working
 // directory is the operator's and is opened as before.
-func writeOutputFile(flag, path string, body []byte) error {
+func writeOutputFile(flag, path string, body []byte, dir *os.Root) error {
 	info, err := os.Lstat(path)
 	if err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%s %s: final component is a symbolic link; the file it names is not written", flag, path)
@@ -310,6 +315,9 @@ func writeOutputFile(flag, path string, body []byte) error {
 	rel, inside, err := outputRelativeToWorkingDirectory(path)
 	if err != nil {
 		return err
+	}
+	if inside && dir != nil {
+		return writeOutputThroughDirectory(flag, path, dir, body)
 	}
 	if inside {
 		return writeOutputInsideWorkingDirectory(flag, path, rel, body)
@@ -363,6 +371,85 @@ func writeOutputInsideWorkingDirectory(flag, path, rel string, body []byte) erro
 	}
 	if err := root.Rename(tmp, rel); err != nil {
 		err = discardOutputTemp(root, tmp, err)
+		return fmt.Errorf("%s %s: %w", flag, path, err)
+	}
+	return nil
+}
+
+// outputDirectories holds, per output path inside the working directory,
+// that path's directory opened at load.
+type outputDirectories map[string]*os.Root
+
+func (d outputDirectories) close() {
+	for _, r := range d {
+		r.Close()
+	}
+}
+
+// openOutputDirectories opens the directory of each output that lies inside
+// the working directory, through the working directory opened as a root.
+//
+// WHY at load: the review runs between the load check and the write, and
+// the code under review can replace a directory of the output path with a
+// link to another directory of the checkout. A root follows a link that
+// stays inside it, so a write that resolves the path again would land in
+// the directory the link names. A directory opened here is the directory
+// the load check saw: a later rename or link at its name does not move the
+// handle, and a directory removed meanwhile fails the write with its path.
+// A directory that cannot be opened here (absent, or not a directory) is
+// left out, and the write resolves the path as before and fails the same way.
+func openOutputDirectories(cfg config) outputDirectories {
+	dirs := outputDirectories{}
+	wd, err := os.Getwd()
+	if err != nil {
+		return dirs
+	}
+	var wdRoot *os.Root
+	for _, path := range []string{cfg.output, cfg.textOutput, cfg.jsonOutput, cfg.sarifOutput} {
+		if path == "" || dirs[path] != nil {
+			continue
+		}
+		rel, inside, err := outputRelativeToWorkingDirectory(path)
+		if err != nil || !inside {
+			continue
+		}
+		if wdRoot == nil {
+			if wdRoot, err = os.OpenRoot(wd); err != nil {
+				return dirs
+			}
+			defer wdRoot.Close()
+		}
+		r, err := wdRoot.OpenRoot(filepath.Dir(rel))
+		if err != nil {
+			continue
+		}
+		dirs[path] = r
+	}
+	return dirs
+}
+
+// writeOutputThroughDirectory writes body as the final name of path in dir,
+// the directory opened at load: a new file created there with O_EXCL, then
+// renamed over the final name, as writeOutputInsideWorkingDirectory does.
+func writeOutputThroughDirectory(flag, path string, dir *os.Root, body []byte) error {
+	if beforeRootedOutputCreate != nil {
+		beforeRootedOutputCreate(path)
+	}
+	name := filepath.Base(path)
+	tmp, f, err := createExclusiveOutput(dir, name)
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", flag, path, err)
+	}
+	_, werr := f.Write(body)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		werr = discardOutputTemp(dir, tmp, werr)
+		return fmt.Errorf("%s %s: %w", flag, path, werr)
+	}
+	if err := dir.Rename(tmp, name); err != nil {
+		err = discardOutputTemp(dir, tmp, err)
 		return fmt.Errorf("%s %s: %w", flag, path, err)
 	}
 	return nil
