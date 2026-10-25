@@ -74,7 +74,7 @@ In `expected/EXPECTED.md`.
 
 Recorded 2026-10-24T16:04Z on Linux. Toolchain: POSIX `sh` (here `dash`) with `grep`, `cut` and `mktemp`. No other tool. macOS was not run: no macOS host was available.
 
-The check writes its four recorded states under `.saphan/work/corpus-ho-002/` inside the checkout and removes them on exit. Each state records the bot account's name in `bot.txt`. The reference labels are literals in `check.sh`; neither gate reads them or `bot.txt`.
+The check writes its four recorded states under a temporary directory made by `mktemp` (in `$TMPDIR`, else `/tmp`) and removes them on exit. Each state records the bot account's name in `bot.txt`. The reference labels are literals in `check.sh`; neither gate reads them or `bot.txt`.
 
 Command, from the repository root:
 

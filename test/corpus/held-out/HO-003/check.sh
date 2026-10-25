@@ -8,10 +8,7 @@
 set -euo pipefail
 
 case_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$case_dir/../../../.." && pwd)
-scratch="$repo/.saphan/work/corpus-ho-003"
-mkdir -p "$scratch"
-work=$(mktemp -d "$scratch/run.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/corpus-ho-003.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 export GOPROXY=off

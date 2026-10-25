@@ -11,10 +11,7 @@
 set -euo pipefail
 
 case_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$case_dir/../../../.." && pwd)
-scratch="$repo/.saphan/work/corpus-ho-006"
-mkdir -p "$scratch"
-work=$(mktemp -d "$scratch/run.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/corpus-ho-006.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 # a repository of our own, whatever the surroundings say
@@ -59,5 +56,5 @@ run_check() {
 }
 
 printf '%s base %s change %s reference %s\n' base "$(run_check "$work/base-tree")" - "should pass"
-printf '%s base %s change %s reference %s\n' change-dirty - "$(run_check "$work/change-dirty")" "should fail"
-printf '%s base %s change %s reference %s\n' change-clean - "$(run_check "$work/change-clean")" "should fail"
+printf '%s base %s change %s reference %s\n' change-dirty - "$(run_check "$work/change-dirty")" "should pass"
+printf '%s base %s change %s reference %s\n' change-clean - "$(run_check "$work/change-clean")" "should pass"

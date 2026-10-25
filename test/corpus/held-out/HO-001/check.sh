@@ -9,10 +9,7 @@ tab=$(printf '\t')
 
 # mkstate NAME RUNS... : write runs.txt from the arguments, one run per argument.
 # The comments are written by the caller into comments.txt.
-repo=$(CDPATH= cd -- "$case_dir/../../../.." && pwd)
-scratch="$repo/.saphan/work/corpus-ho-001"
-mkdir -p "$scratch"
-work=$(mktemp -d "$scratch/run.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/corpus-ho-001.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 mkstate() {

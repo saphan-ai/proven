@@ -4,14 +4,13 @@
 # model logged, model that really served, reference label.
 # The model that really served is read from the answer text, by this check,
 # from the stand-in's table; neither the tool nor the wrapper computes it.
-# The reference label is a literal here; nothing else reads it.
+# The reference label is the model that really served the job, which the case
+# knows because it built the stand-in (none when the tool refused the job); it
+# is a literal here; nothing else reads it.
 set -eu
 
 case_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$case_dir/../../../.." && pwd)
-scratch="$repo/.saphan/work/corpus-ho-005"
-mkdir -p "$scratch"
-work=$(mktemp -d "$scratch/run.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/corpus-ho-005.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 export SERVICE_CMD="$case_dir/service.sh"
@@ -41,6 +40,6 @@ for version in base change; do
     logged=$(grep "^$job " "$work/$version-log.txt" | cut -d ' ' -f 2)
     printf '%s %s asked %s exit %s logged %s served %s reference %s\n' \
       "$version" "$job" "$model" "$code" "${logged:--}" "$(really_served "$answer")" \
-      "$(case "$job" in (job-1) echo "should serve model-b" ;; (*) echo "should not be served" ;; esac)"
+      "$(case "$version $job" in ("base job-2") echo none ;; ("change job-2") echo model-a ;; (*) echo model-b ;; esac)"
   done < "$work/jobs.txt"
 done

@@ -6,10 +6,7 @@
 set -eu
 
 case_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$case_dir/../../../.." && pwd)
-scratch="$repo/.saphan/work/corpus-ho-002"
-mkdir -p "$scratch"
-work=$(mktemp -d "$scratch/run.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/corpus-ho-002.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 tab=$(printf '\t')
@@ -33,11 +30,11 @@ comment bot-marker-current ci-bot "verified: run 7 commit c0ffee7"
 mkstate no-marker "7 c0ffee7 failure"
 
 mkstate person-marker-current "7 c0ffee7 failure"
-comment person-marker-current alice "verified: run 7 commit c0ffee7"
+comment person-marker-current reviewer "verified: run 7 commit c0ffee7"
 
 mkstate person-marker-older "7 c0ffee7 success"
 comment person-marker-older ci-bot "verified: run 7 commit c0ffee7"
-comment person-marker-older alice "verified: run 6 commit badf00d"
+comment person-marker-older reviewer "verified: run 6 commit badf00d"
 
 run_gate() {
   # prints the gate's word; a failing exit is a result, not a script error

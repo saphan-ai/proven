@@ -77,7 +77,7 @@ In `expected/EXPECTED.md`.
 
 Recorded 2026-10-24T16:04Z on Linux. Toolchain: POSIX `sh` (here `dash`) with `grep`, `cut`, `tail` and `mktemp`. No other tool. macOS was not run: no macOS host was available.
 
-The check writes its four recorded states under `.saphan/work/corpus-ho-001/` inside the checkout and removes them on exit. The reference labels are literals in `check.sh`; neither gate reads them.
+The check writes its four recorded states under a temporary directory made by `mktemp` (in `$TMPDIR`, else `/tmp`) and removes them on exit. The reference labels are literals in `check.sh`; neither gate reads them.
 
 Command, from the repository root:
 

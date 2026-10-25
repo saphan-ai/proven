@@ -6,10 +6,7 @@
 set -eu
 
 case_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$case_dir/../../../.." && pwd)
-scratch="$repo/.saphan/work/corpus-ho-004"
-mkdir -p "$scratch"
-work=$(mktemp -d "$scratch/run.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/corpus-ho-004.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 # run_setup VERSION INPUT USER EMAIL EXISTING: a fresh API state for each run;
@@ -29,9 +26,9 @@ run_setup() {
 }
 
 for entry in \
-  "new-user-good-email:alice:alice@example.org:-:should succeed" \
-  "user-exists:bob:bob@example.org:bob:should succeed" \
-  "new-user-refused-email:carol:carol@blocked.example:-:should fail at create"
+  "new-user-good-email:user-a:user-a@example.org:-:should succeed" \
+  "user-exists:user-b:user-b@example.org:user-b:should succeed" \
+  "new-user-refused-email:user-c:user-c@blocked.example:-:should fail at create"
 do
   input=${entry%%:*}
   rest=${entry#*:}
