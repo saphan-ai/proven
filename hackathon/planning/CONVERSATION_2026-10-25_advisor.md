@@ -1,108 +1,110 @@
 # CONVERSATION — the advisor, build day 4, 25 October 2026
 
-This page continues [`CONVERSATION_2026-10-24_advisor.md`](CONVERSATION_2026-10-24_advisor.md).
+This page continues [`CONVERSATION_2026-10-24_advisor.md`](CONVERSATION_2026-10-24_advisor.md). From today it is about
+the fleet: how its agents talk to each other, divide the work and check it. The owner's part is one line per hop.
 
-**How to read it.** Marcin, the owner, talks to the **advisor**. The advisor never builds; it passes work to the
-**masters**, agents that each run one train of work, and to the **scribe**, which keeps the record. They talk by
-messages with ids; an answer is a message that points back. For every hop: what the owner said, what the advisor did,
-each message sent (→) and each answer (←) with its time in UTC. Seat names and private hosts are blacked out; security
-findings stay private until fixed.
+**How to read it.** The **masters** each run one train of work. The **scribe** keeps the record and measures it. The
+**advisor** works with the owner and routes work between them; it never builds. They talk by messages with ids; an
+answer is a message that points back. → is a message sent, ← an answer, times in UTC. Everything below, every order,
+report, review and message, is kept in the fleet's git record.
+
+## The day in numbers
+
+Measured by the scribe from the fleet's run record:
+
+| | 22 Oct | 23 Oct | 24 Oct | 25 Oct (to 11:30) |
+|---|---|---|---|---|
+| median time from an order's signature to its agent starting | 220 min | 74 min | 32 min | 21 min |
+| most agents working at once | 12 | 8 | 9 | 12 |
+| merges on Proven's main | 22 | 20 | 27 | 16 |
+
+By 11:30 UTC on day four the agents had sent each other 165 messages: masters 70, the advisor 50, the scribe 45. Of the
+40 that required an answer, 31 were answered, with a median first answer of 9.3 minutes.
 
 ## Hop by hop
 
-### 1 · owner → advisor: NVIDIA's API is free and unlimited now; NVIDIA writes code too
+### 1 · NVIDIA's model starts writing code
 
-> *"We now have an unlimited number of free NVIDIAs. We can scale the fleet, and maybe even run an executor on a new
-> NVIDIA seat?"*
+The owner asked to put NVIDIA's free hosted API to work on code, not only reviews.
 
-Until today NVIDIA's Nemotron only reviewed in the fleet. The fleet's rule on which agent may do which kind of work was
-amended by the owner: NVIDIA executors (and QwenCloud seats) may also write code, as long as it is not security work and
-not user-interface work.
+- → the master who runs the agent seats: seat one NVIDIA executor and prove it on a small wagon. It asked the Proven
+  masters for a wagon to try; when none answered for a while, the advisor chose one: a worked example of a
+  model-provider adapter, from the Meterless-engines train.
+- ← **the Meterless-engines master** (05:15) cut it as its own order, signed it itself, and told the seat master the
+  stream to measure.
+- The seat master measured the machines' load before choosing where the seats go, and seated four.
+- The NVIDIA executor finished in 16 minutes; its master verified it; it is merged (`3beaaab`).
 
-**→ to the master who runs the agent seats:** seat one NVIDIA executor, prove it on one small wagon, then three more.
-That master asked the Proven masters for a small wagon to try; nobody answered for a while, so **the advisor chose one
-itself**: a worked example of a model-provider adapter, `examples/generator`, from the new Meterless-engines train.
+### 2 · a held-out test set, proposed by the master who builds it
 
-**← the Meterless-engines master** (05:15Z): cut as its own order, placed on an NVIDIA seat.
+The owner asked for a test set the system has never seen.
 
-> *"W53 waits on its NVIDIA seat. We must add more NVIDIA seats. They are free and the servers are there; nothing may
-> wait for NVIDIA. Two? Four seats?"*
+- → the test-corpus master: build one, frozen before Proven ever runs on it.
+- ← the master measured that the old pool had no fair unused case left and **proposed seven new cases** from real
+  disagreements between reviewers this week. The advisor picked six.
+- Three reviewers from three model families then reviewed the set; between them they found three problems, and the
+  master asked to correct the answer keys before the first run, as a second freeze commit. Approved.
 
-The advisor recommended four, on the machine with the most headroom. Seated. The first piece of Proven written by
-NVIDIA's model, the generator example, took 16 minutes and was merged (`3beaaab`).
+### 3 · two masters agree on a shape, through the advisor
 
-> *"A signal that something waits for a seat should go at once to Slack and the console. It is the owner who must
-> decide: more capacity, or stop something else. I just have to know."*
+The owner asked for a pull request that fixes itself ([ADR-0050](../../docs/adr/ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md)).
 
-**→ two engine masters:** a waiting-for-a-seat notice, raised after two minutes, with both choices ready.
+- → master core: build it.
+- ← **master core** (11:21), addressed to the advisor for the command-line master: *"W59 puts, on the review result, one
+  patch for the whole change and a verdict with each finding open or closed. The renderer is yours. Tell me the field
+  shape you want before the leg starts."*
+- → the advisor relayed it to the command-line master, who renders the pull-request comment.
+- The change merged the same day (`c9d1c7d`); the comment that shows the patch follows.
 
-### 2 · owner → advisor: a run, then every review, until it is clean
+### 4 · a master refuses work that is not its own
 
-> *"At the end of the hackathon, to show why Proven is needed and why the impact is huge: for each change, the run with
-> its task and final commit and which model; then every review: which model, what it found; and so on until it is clean
-> because everything was fixed. Classified: security, other, BLOCKING, OWED, NOTE, trivia."*
+Two orders meant for other masters reached the infrastructure master by mistake.
 
-**→ the scribe:** a generator that rebuilds this from the record, rerunnable at every push, and a public page with no
-costs and no private names.
+- ← **the infrastructure master** (05:55, 05:56): *"Not my track: this head holds proven-cursor-infra, proven-test-corpus
+  and proven-zetaris-local; this belongs to … please resend once its master holds the track, or ask the scribe."*
+- The scribe then delivered both to their masters. A master that does only its own work, and says so, is a rule of the
+  fleet.
 
-**← the scribe** (06:50Z), first draft ahead of time: 112 changes; 240 reviews; 48 changes came back at least once;
-116 BLOCKING conditions caught before merge; 9 times a second reviewer from another model family caught what the first
-had passed. One question for the owner, about how to count conditions found in security reviews; the advisor
-recommended showing two numbers side by side rather than one inflated one.
+### 5 · a master splits a goal into wagons and asks for numbers
 
-### 3 · owner → advisor: QuakeWatch, and Proven reviewing it
+The owner asked for Meterless's engines to pass their own conformance suites in full (today 9 of 13 and 7 of 8).
 
-> *"We have QuakeWatch Android to do. We can start writing it slowly. We will send pull requests to Proven."*
-> *"QuakeWatch server is already done, in sources and pushed to GitHub."*
+- ← **the Meterless-engines master** (13:24) measured which checks fail (four in H-MEM, one in the World Model), split
+  the work into two parallel wagons and asked the advisor for their numbers.
+- → the advisor approved them, and asked the master to name the train beside each number, because another train also
+  has a W55.
 
-The advisor pointed out that Proven could not yet read a Kotlin project, so Android pull requests would show little.
-Three orders followed:
+### 6 · one master asks another for evidence
 
-- **→ master core:** Kotlin and Gradle through one language adapter, before the freeze. **Merged** (`32cf6a6`).
-- **→ the test-corpus master:** run Proven over every merged change of the public QuakeWatch server, and set what
-  Proven finds beside what the fleet's reviewers found at the time.
-- **The advisor wrote the kickoff** of a new master for the Android app, starting with its train order for the owner
-  to sign.
+The owner asked for a custody check on model answers: an answer counts only when its signed receipt verifies and names
+the model that was asked.
 
-### 4 · owner → advisor: the bug harvester
+- Master core built the instrument and needed today's receipts and the provider's public key from the infrastructure
+  master. It asked twice, then sent the request again through the advisor.
+- → the advisor asked the scribe, who had read the same receipts read-only two days earlier, to hand core a read-only
+  copy and the public key. The custody check is merged (`c4060cf`).
 
-> *"Look at the Bugs feature in the console. That is where I should be able to set it: who fixes what, from their own
-> track or something else, which class, when, how long, well parameterised with defaults. The engine is treated the same
-> as Proven and other apps written in the studio."*
+### 7 · the advisor asks the scribe to measure the day
 
-The advisor found the console's mock-up and an earlier design (agents report the bugs they notice), and designed the
-missing half: fixing, with settings and defaults per project.
+- → the scribe: throughput per day, messages between agents, NVIDIA's share, and one exact sentence on what is
+  recorded and what the guardrail checks. ← the scribe (11:45) measured all four; the numbers at the top of this page are
+  its numbers.
+- The guardrail sentence came back narrower than hoped: the fleet's model exchanges are recorded, but not yet judged by
+  NVIDIA's safety model. The owner asked to switch judging on; the agent-seat master took it as two wagons, and the
+  switch is the owner's act once they land. Until then this page does not claim it.
 
-> *"We could also give a master an automatic delegation for a special kind of order without the owner's signature,
-> which only measures. Zero commits. It prepares an exact repair order which, after the owner's acceptance, flies like a
-> rocket."* · *"The engine enforces it even more strictly: the leg gets a special grant, not executor but
-> bug-measurement, with git commit and even writing in the code forbidden. At its first mistake it wakes up."*
+### 8 · masters that never stand
 
-Both were written into the design and signed into the fleet's rules the same morning. **→ two engine masters** (the
-engine side, the console page) and the scribe (the rules).
+The owner asked that a master waiting for him should not stand idle.
 
-### 5 · owner → advisor: a pull request that fixes itself
+- The advisor watched the fleet every quarter of an hour and, when a master waited, sent it its own open conditions or
+  a bug from the backlog to fix.
+- The masters raised and placed: by noon 12 agents were working at once, the most of any day.
 
-> *"What if Proven had a feedback loop from the pull request's result to the coding agent on NVIDIA? Once it knows
-> exactly what is wrong, it will manage. Pull request plus automated fix. If it does not manage, too bad. After it
-> fixes, only the deterministic evidence is run again. If it is still wrong after that one try, the pull request is
-> rejected. We have everything already."* · *"Agreed. That will be magic."*
+### 9 · what else the owner asked for today
 
-**Written:** [ADR-0050](../../docs/adr/ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md): one fix
-attempt for all proved findings, judged only by the same tests, queries and tools, then "fixed automatically, waiting for
-a person" or "rejected"; Proven never commits to the author's branch.
-
-**→ master core:** build it before the freeze.
-
-**Two masters agree on a shape, through the advisor.** Master core builds the patch and the verdict; the command-line
-master renders the pull-request comment. **← master core** (11:21Z), addressed to the advisor for the command-line
-master: *"W59 puts, on the review result, one patch for the whole change and a verdict with each finding open or closed.
-The renderer is yours. Tell me the field shape you want before the leg starts."* **→ the advisor relayed it** to the
-command-line master, asking for the field shape (a patch per file or per hunk for suggested-change blocks, the verdict
-values, the per-finding list), to fold into the readable review comment it is already building.
-
-### 6 · along the way
-
-- Two changes waited at the owner's merge while the shared record was busy; the owner retried, and both landed.
-- The owner went for a massage after hours at the desk; the advisor watched the fleet every quarter of an hour and kept
-  a log for his return. *"You have to look after yourself."*
+The owner asked for: the four NVIDIA executor seats; a notice to him when work waits for a seat; a bug harvester that
+measures and fixes from the backlog on its own; Proven run over the whole history of the public QuakeWatch server; a
+Kotlin adapter so QuakeWatch's Android pull requests can be reviewed; an impact report of every change and every review
+round; colourful screenshots for the documentation; and Proven as a container anyone can put in a pipeline. Each went to
+the master whose train it belongs to.
