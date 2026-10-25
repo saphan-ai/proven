@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
+	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -187,12 +188,15 @@ func (g *recordingGen) Complete(_ context.Context, agent, prompt string) (string
 	return "[]", nil
 }
 
-// quietQuery is the stub query adapter. It returns no rows and dials nothing.
+// quietQuery is the stub evidence store. It returns no rows and dials nothing.
 type quietQuery struct{}
 
-// Query returns no rows.
-func (quietQuery) Query(context.Context, string) (query.Result, error) {
-	return query.Result{}, nil
+// Register writes nothing.
+func (quietQuery) Register(context.Context, store.Table) error { return nil }
+
+// Run returns no rows. A review that asks a query adds no evidence.
+func (quietQuery) Run(context.Context, querytpl.Request, querytpl.Relations) (store.Evidence, error) {
+	return store.Evidence{}, nil
 }
 
 // quietRun is the stub test runner. It runs no container.
@@ -224,7 +228,7 @@ func openLive(t *testing.T, logDir string, gen *recordingGen) Reviewer {
 		LogDir:    logDir,
 		Env:       liveTestEnv(),
 		gen:       gen,
-		liveQuery: quietQuery{},
+		liveStore: quietQuery{},
 		testRun:   quietRun{},
 	})
 	if err != nil {

@@ -1,8 +1,9 @@
 // Package osv is the dependency check of the review. It takes the packages
 // a change added or raised (package manifest), queries the OSV package table
-// through the query adapter once per package, and compares the version in
-// Go, not in SQL. It runs with no model, and the OSV source adapter builds the
-// query from the osv-by-package template (ADR-0032, ADR-0046). A matching range
+// through the evidence seam once per package, and compares the version in
+// Go, not in the query. It runs with no model. The seam takes the
+// osv-by-package request, and the store builds the form it speaks
+// (ADR-0032, ADR-0046, ADR-0047). A matching range
 // is a candidate whose evidence is the query and the rows it returned
 // (ADR-0002), and the Judge keeps or drops it like any other finding. A version outside every range is
 // a trace line, never a finding. The candidate also carries the smallest fixed version that leaves
@@ -90,12 +91,16 @@ type Outcome struct {
 }
 
 // Facts is what the dependency check established about the change: the
-// packages whose changed version lies inside an advisory range, and the ids
-// (advisory ids and aliases such as CVE ids) of those advisories. A model's
-// words are not in it.
+// packages the change added or raised, the packages whose changed version
+// lies inside an advisory range, and the ids (advisory ids and aliases such
+// as CVE ids) of those advisories. A model's words are not in it.
 type Facts struct {
 	packages map[string]bool
 	ids      map[string]bool
+	// raised is every package the change added or raised, whether or not an
+	// OSV range matched. The ADR-0039 templates bind to it. packages stays
+	// the affected set, so a raised package does not become an OSV hit.
+	raised map[string]bool
 }
 
 func (f *Facts) add(ecosystem, pkg string, row Row) {
@@ -125,8 +130,26 @@ func (f Facts) Binds(req querytpl.Request) bool {
 		return f.ids[req.Params[querytpl.ParamAdvisoryID]]
 	case querytpl.KEVByCVE, querytpl.EPSSByCVE:
 		return f.ids[req.Params[querytpl.ParamCVEID]]
+	case querytpl.MalByPackage, querytpl.ScorecardByPackage, querytpl.SPDXByPackage:
+		// These name a package the change added or raised. They do not need
+		// an OSV range: a malicious package may have no vulnerability row.
+		return f.raised[req.Params[querytpl.ParamEcosystem]+"\x00"+req.Params[querytpl.ParamPackage]]
+	case querytpl.CVSSByCVE:
+		// CVSS is read beside EPSS, for a CVE the dependency check already
+		// tied to the change. A CVE only a model typed does not bind.
+		return f.ids[req.Params[querytpl.ParamCVEID]]
 	}
 	return false
+}
+
+// noteRaised records a package the change added or raised.
+// Check calls it for every hit, including one with no OSV row, so the
+// ADR-0039 templates can bind. It does not mark the package affected.
+func (f *Facts) noteRaised(ecosystem, pkg string) {
+	if f.raised == nil {
+		f.raised = map[string]bool{}
+	}
+	f.raised[ecosystem+"\x00"+pkg] = true
 }
 
 // Check reads the packages the registered adapters report, queries the OSV
@@ -136,7 +159,7 @@ func (f Facts) Binds(req querytpl.Request) bool {
 // A lock file that cannot be parsed adds a trace note and no finding.
 // A matching range becomes a candidate whose evidence is the query, its rows
 // and the comparison. A CVE alias is also looked up in the KEV view.
-func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (Outcome, error) {
+func Check(ctx context.Context, q query.Runner, root, table, snapshot string) (Outcome, error) {
 	// An empty name means the default, as the setting documents.
 	if table == "" {
 		table = DefaultTable
@@ -175,6 +198,9 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
+		// Recorded before the OSV query, so a package with no advisory row
+		// still binds a malicious-package, scorecard or licence template.
+		out.Facts.noteRaised(hit.Ecosystem, hit.Package)
 		next, note, err := oneModule(ctx, q, table, snapshot, hit, &out.Facts)
 		if note != "" {
 			out.Notes = append(out.Notes, note)
@@ -198,34 +224,29 @@ func Check(ctx context.Context, q query.Adapter, root, table, snapshot string) (
 // oneModule runs the OSV query for one package and compares its version with
 // every row. It returns a candidate when at least one row matches, and
 // otherwise a trace note that says why.
-func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit manifest.Hit, facts *Facts) (*candidate.Candidate, string, error) {
-	// ADR-0032, ADR-0046: the OSV adapter builds the query from the
-	// osv-by-package template. A package name outside its ecosystem's format
-	// has no query: the check says so in a trace note and goes on to the next
-	// package, as it does for a package with no affected row. The name is the
-	// one thing the note must show a reader, and it is quoted with %q so a
-	// control byte or invalid UTF-8 in it reaches the trace and the terminal
-	// as an escape, not raw.
-	sqlText, found, err := source.Build(querytpl.OSVByPackage, map[string]string{
-		querytpl.ParamEcosystem: hit.Ecosystem,
-		querytpl.ParamPackage:   hit.Package,
-	}, source.Rel{OSVTable: table})
-	if !found {
-		return nil, "", fmt.Errorf("osv: template %s is not registered", querytpl.OSVByPackage)
-	}
+func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit manifest.Hit, facts *Facts) (*candidate.Candidate, string, error) {
+	// ADR-0032, ADR-0046, ADR-0047: the seam takes the osv-by-package
+	// request. The store builds the form. A package name outside its
+	// ecosystem's format has no query: the check says so in a trace note
+	// and goes on to the next package, as it does for a package with no
+	// affected row. The name is the one thing the note must show a reader,
+	// and it is quoted with %q so a control byte or invalid UTF-8 in it
+	// reaches the trace and the terminal as an escape, not raw.
+	res, err := q.Run(ctx, querytpl.Request{
+		Template: querytpl.OSVByPackage,
+		Params: map[string]string{
+			querytpl.ParamEcosystem: hit.Ecosystem,
+			querytpl.ParamPackage:   hit.Package,
+		},
+	}, querytpl.Relations{OSVTable: table})
 	if err != nil {
 		var refusal *querytpl.Refusal
 		if errors.As(err, &refusal) {
+			if refusal.Reason == querytpl.ReasonUnknownTemplate {
+				return nil, "", fmt.Errorf("osv: template %s is not registered", querytpl.OSVByPackage)
+			}
 			return nil, fmt.Sprintf("%q %q: osv query refused: %s", hit.Package, hit.Version, refusal.Error()), nil
 		}
-		var bad *source.ValueError
-		if errors.As(err, &bad) {
-			return nil, fmt.Sprintf("%q %q: osv query refused: %s", hit.Package, hit.Version, bad.Error()), nil
-		}
-		return nil, "", err
-	}
-	res, err := q.Query(ctx, sqlText)
-	if err != nil {
 		if d, ok := service.As(err); ok {
 			return nil, fmt.Sprintf("%s %s: osv query did not run: %s", hit.Package, hit.Version, d.Error()), err
 		}
@@ -238,7 +259,7 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 	// No row is not proof that the package is safe. The note says the query
 	// returned nothing and carries the SQL, so a reader can run it again.
 	if len(rows) == 0 {
-		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; SQL: %s", hit.Package, hit.Version, sqlText)
+		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; SQL: %s", hit.Package, hit.Version, res.SQL)
 		// A version that could not be compared at all is a second reason,
 		// and the note names it too.
 		if why := Uncompared(hit.Ecosystem, hit.Version); why != "" {
@@ -258,7 +279,7 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 		}
 	}
 	if len(matched) == 0 {
-		return nil, missNote(hit, sqlText, missed), nil
+		return nil, missNote(hit, res.SQL, missed), nil
 	}
 	// The change's version is inside these rows' ranges, so their package and
 	// their advisory ids are facts about the change.
@@ -306,18 +327,17 @@ func oneModule(ctx context.Context, q query.Adapter, table, snapshot string, hit
 				continue
 			}
 			seen[id] = struct{}{}
-			// ADR-0046: the KEV adapter owns kev-by-cve.
-			sql, found, serr := source.Build(querytpl.KEVByCVE, map[string]string{
-				querytpl.ParamCVEID: id,
-			}, source.Rel{KEVView: view})
-			if !found {
-				return nil, "", fmt.Errorf("osv: template %s is not registered", querytpl.KEVByCVE)
-			}
-			if serr != nil {
-				return nil, "", serr
-			}
-			kres, kerr := q.Query(ctx, sql)
+			// ADR-0046, ADR-0047: the KEV adapter owns kev-by-cve. The seam
+			// passes the request; the store builds the form.
+			kres, kerr := q.Run(ctx, querytpl.Request{
+				Template: querytpl.KEVByCVE,
+				Params:   map[string]string{querytpl.ParamCVEID: id},
+			}, querytpl.Relations{KEVView: view})
 			if kerr != nil {
+				var refusal *querytpl.Refusal
+				if errors.As(kerr, &refusal) && refusal.Reason == querytpl.ReasonUnknownTemplate {
+					return nil, "", fmt.Errorf("osv: template %s is not registered", querytpl.KEVByCVE)
+				}
 				if d, ok := service.As(kerr); ok {
 					kevNotes = append(kevNotes, "alias "+id+" was not looked up in KEV: "+d.Error())
 					// The OSV match is already evidence, so the candidate is kept and the

@@ -2,8 +2,9 @@
 //
 // A source declares how it loads, the query templates the Investigator may
 // pick, and the rule that turns returned rows into finding evidence or
-// nothing. OSV, KEV and EPSS are the first three. An organisation adds its
-// own the same way: one adapter, registered beside them. The adapter names
+// nothing. OSV, KEV and EPSS are the first three. Malicious packages, project
+// health, CVSS and SPDX licences are the four of ADR-0039, registered the
+// same way. An organisation adds its own beside them. The adapter names
 // no store (ADR-0047). The configured evidence store runs whatever form the
 // template carries, and a model never writes the query (ADR-0032).
 //

@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/generator"
-	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
@@ -69,8 +69,8 @@ type Options struct {
 	// gen, when set, replaces the live generator. A review leaves it unset.
 	// Tests set it so a live review makes no network call.
 	gen generator.Generator
-	// liveQuery, when set, replaces the live query adapter. A review leaves it unset.
-	liveQuery query.Adapter
+	// liveStore, when set, replaces the evidence store. A review leaves it unset.
+	liveStore store.Store
 	// testRun, when set, replaces the container runner. A review leaves it unset,
 	// so a test does not start a container.
 	testRun testrun.Adapter

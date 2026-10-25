@@ -22,6 +22,7 @@ import (
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/store"
@@ -146,36 +147,38 @@ func open(opts Options) (Reviewer, error) {
 		if choice.Name == store.NameLocal {
 			// ADR-0047: the file is opened on the first query, after Review has
 			// checked it is not inside the target. Opening creates it, and the
-			// target is not known until a review starts.
+			// target is not known until a review starts. The seam is the store,
+			// so a query is a template request and the file runs the sql form.
 			localFile = choice.File
-			popts.LiveQuery = &lazyLocal{path: choice.File}
+			popts.LiveStore = &lazyLocal{path: choice.File}
 		} else if choice.Name == store.NameCouchDB {
 			// ADR-0047, ADR-0013: a wrong CouchDB value stops Open; an empty
 			// address, user or password is a down store the review names.
-			// The Zetaris variables are not read.
-			_, cerr := store.LoadCouch(env)
+			// The Zetaris variables are not read. A configured store is
+			// installed on the seam and runs the mango form.
+			cfg, cerr := store.LoadCouch(env)
 			if d, ok := service.As(cerr); ok {
 				popts.Down = append(popts.Down, *d)
-				popts.LiveQuery = couchdbSQL{reason: d.Reason}
+				popts.LiveStore = downStore{service: "couchdb", reason: d.Reason}
 			} else if cerr != nil {
 				return nil, storeConfig(cerr)
 			} else {
-				popts.LiveQuery = couchdbSQL{reason: couchdbSQLReason}
+				popts.LiveStore = store.NewCouchDB(cfg, nil)
 			}
 		} else {
 			zset, zerr := query.Load(env)
 			if d, ok := service.As(zerr); ok {
 				popts.Down = append(popts.Down, *d)
-				popts.LiveQuery = query.Absent{Reason: d.Reason}
+				popts.LiveStore = downStore{service: "zetaris", reason: d.Reason}
 			} else if zerr != nil {
 				return nil, queryConfig(zerr)
 			} else {
-				popts.LiveQuery = query.NewLive(zset, nil)
+				popts.LiveStore = store.NewZetaris(zset)
 			}
 		}
-		if opts.liveQuery != nil {
-			// A test supplies the query adapter. The live client above is not called.
-			popts.LiveQuery = opts.liveQuery
+		if opts.liveStore != nil {
+			// A test supplies the store. The live client above is not called.
+			popts.LiveStore = opts.liveStore
 		}
 		table, terr := osv.LoadTable(env)
 		if terr != nil {
@@ -260,8 +263,8 @@ func open(opts Options) (Reviewer, error) {
 	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample}, nil
 }
 
-// lazyLocal opens the local store on its first query, so nothing is written
-// before the review has checked where the file is.
+// lazyLocal opens the local store on its first use, so nothing is written
+// before the review has checked where the file is (ADR-0047).
 type lazyLocal struct {
 	path string
 	once sync.Once
@@ -269,30 +272,57 @@ type lazyLocal struct {
 	err  error
 }
 
-// Query opens the store once and runs the SQL on it.
-func (l *lazyLocal) Query(ctx context.Context, sql string) (query.Result, error) {
-	l.once.Do(func() { l.loc, l.err = store.OpenLocal(l.path) })
+// Register opens the file once and writes the table into it.
+func (l *lazyLocal) Register(ctx context.Context, table store.Table) error {
+	l.open()
 	if l.err != nil {
-		return query.Result{}, l.err
+		return l.err
 	}
-	return l.loc.Query(ctx, sql)
+	return l.loc.Register(ctx, table)
 }
 
-// couchdbSQLReason is why the pipeline's query seam cannot reach CouchDB yet.
-const couchdbSQLReason = "the review's query seam sends SQL and CouchDB runs a Mango form; the seam is not moved to templates yet"
-
-// couchdbSQL is the pipeline's query adapter while the store is couchdb.
-// The pipeline hands its adapter SQL text, and Proven never turns SQL into a
-// Mango selector: a store runs a form built from a template (ADR-0032,
-// ADR-0047). Until the seam passes the template, every query names couchdb
-// down, so the review degrades and says why instead of reading another store.
-type couchdbSQL struct {
-	reason string
+// Run opens the file once and runs the template on it. The file speaks SQL,
+// so the evidence names that form (ADR-0047).
+func (l *lazyLocal) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (store.Evidence, error) {
+	l.open()
+	if l.err != nil {
+		return store.Evidence{}, l.err
+	}
+	return l.loc.Run(ctx, req, rel)
 }
 
-// Query names couchdb down and does not use the network.
-func (c couchdbSQL) Query(context.Context, string) (query.Result, error) {
-	return query.Result{}, &service.Down{Service: "couchdb", Reason: c.reason}
+// open loads the file on the first call. Later calls see the same store.
+func (l *lazyLocal) open() {
+	l.once.Do(func() { l.loc, l.err = store.OpenLocal(l.path) })
+}
+
+// downStore is a store that names itself down and does not dial.
+// A request that cannot be built is refused first, so a bad template is the
+// same answer whether or not the store is up (ADR-0032).
+type downStore struct {
+	service string
+	reason  string
+}
+
+// Register names the store down. Nothing is written.
+func (d downStore) Register(context.Context, store.Table) error {
+	return d.down()
+}
+
+// Run refuses a request that cannot be built, and otherwise names the store down.
+func (d downStore) Run(_ context.Context, req querytpl.Request, rel querytpl.Relations) (store.Evidence, error) {
+	if _, err := querytpl.BuildForms(req, rel); err != nil {
+		return store.Evidence{}, err
+	}
+	return store.Evidence{}, d.down()
+}
+
+func (d downStore) down() error {
+	reason := d.reason
+	if reason == "" {
+		reason = "not configured"
+	}
+	return &service.Down{Service: d.service, Reason: reason}
 }
 
 // checkLocalFile refuses a local evidence file that resolves inside the

@@ -1,0 +1,16 @@
+{
+  "set": "held-out set 1",
+  "prepared": "2026-10-24",
+  "frozen": true,
+  "base_commit": "492f03b72e84888282db64b445403340afdaf409",
+  "run_before_freeze": false,
+  "answer_key_location": "<id>/expected/ (withhold from a reviewer under evaluation)",
+  "cases": [
+    {"id": "HO-001", "slug": "stale-evidence", "fixture_language": "sh", "defect": "evidence from an earlier run accepted as proof of the current one"},
+    {"id": "HO-002", "slug": "forged-author", "fixture_language": "sh", "defect": "the source of the evidence is unchecked"},
+    {"id": "HO-003", "slug": "umask-dependent-mode", "fixture_language": "go", "defect": "a result that depends on the environment's umask"},
+    {"id": "HO-004", "slug": "conflated-status", "fixture_language": "sh", "defect": "one status code that stands for two causes is read as one"},
+    {"id": "HO-005", "slug": "silent-fallback", "fixture_language": "sh", "defect": "a silent substitution reported as success"},
+    {"id": "HO-006", "slug": "retired-path", "fixture_language": "sh", "defect": "a stale reference that only a clean checkout reveals"}
+  ]
+}

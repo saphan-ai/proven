@@ -28,9 +28,13 @@ type recorder struct {
 	rows [][]string
 }
 
-func (r *recorder) Query(_ context.Context, sql string) (query.Result, error) {
-	r.sql = append(r.sql, sql)
-	return query.Result{SQL: sql, Engine: "mem", Columns: []string{"cve_id"}, Rows: r.rows}, nil
+func (r *recorder) Run(_ context.Context, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
+	forms, err := querytpl.BuildForms(req, rel)
+	if err != nil {
+		return query.Result{}, err
+	}
+	r.sql = append(r.sql, forms.SQL)
+	return query.Result{SQL: forms.SQL, Form: querytpl.FormSQL, Engine: "mem", Columns: []string{"cve_id"}, Rows: r.rows}, nil
 }
 
 var risk = candidate.Candidate{

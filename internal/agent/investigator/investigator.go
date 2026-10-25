@@ -2,11 +2,11 @@
 //
 // The Investigator gets each risk from the Planner and asks the model to pick
 // one query template and give its values (ADR-0032). The model never writes
-// SQL: Proven checks each value against its format and builds the SQL from the
-// template (internal/querytpl) over the evidence tables behind Zetaris
-// (ADR-0002, ADR-0004). A query and the rows it returned are evidence the Judge
-// can keep; the form and the text that ran are kept with them so any reader
-// can run the query again (ADR-0047).
+// a query: Proven checks each value against its format and passes the request
+// to the evidence seam. The store builds the form of its own language
+// (ADR-0047) over the evidence tables (ADR-0002, ADR-0004). A query and the
+// rows it returned are evidence the Judge can keep; the form and the text
+// that ran are kept with them so any reader can run the query again.
 package investigator
 
 import (
@@ -62,26 +62,26 @@ func (r row) request() (querytpl.Request, error) {
 	return querytpl.Request{Template: r.Template, Params: r.Params}, nil
 }
 
-// Execute builds the query for a request the skeptic named, and runs it. It
-// does not ask a model. A request that fails its format is refused as a
-// *querytpl.Refusal and nothing is sent.
-func Execute(ctx context.Context, q query.Adapter, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
+// Execute runs a request the skeptic named. It does not ask a model. A
+// request that fails its format is a *querytpl.Refusal and no query is run.
+// The store builds the form it speaks (ADR-0047); this function does not.
+func Execute(ctx context.Context, q query.Runner, req querytpl.Request, rel querytpl.Relations) (query.Result, error) {
 	// The refusal comes first: a request that cannot be built is the same
-	// answer whether or not the engine is up.
-	sql, err := querytpl.Build(req, rel)
-	if err != nil {
-		return query.Result{}, err
-	}
+	// answer whether or not the engine is up. The caller does not keep the
+	// text. A store that is up checks the request again before it runs one.
 	if q == nil {
+		if err := querytpl.Validate(req); err != nil {
+			return query.Result{}, err
+		}
 		return query.Result{}, &service.Down{Service: "query", Reason: "no query engine"}
 	}
-	return q.Query(ctx, sql)
+	return q.Run(ctx, req, rel)
 }
 
 // Investigate asks for a template and runs the query Proven builds from it. A
 // query with no rows adds no evidence. A refused template adds none either,
 // and the candidate's QueryNote says why.
-func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, gen generator.Generator, q query.Adapter, rel querytpl.Relations) (candidate.Candidate, error) {
+func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, gen generator.Generator, q query.Runner, rel querytpl.Relations) (candidate.Candidate, error) {
 	var got row
 	if err := answer.Read(ctx, gen, "investigator", Prompt(c.ID, c.Title, c.Path), querySpec, &got); err != nil {
 		return c, err
@@ -95,25 +95,31 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	if req.Empty() {
 		return c, nil
 	}
-	// ADR-0032: Proven validates each value and builds the SQL. A refusal is
-	// the finding having no query evidence, named in the trace; the Judge
-	// decides as it does for any finding without evidence.
-	sql, err := querytpl.Build(req, rel)
+	// A nil runner panics on Run, and the review would lose the finding
+	// instead of naming the query engine down. A request that cannot be
+	// built is a note, the same answer whether or not the engine is up.
+	if q == nil {
+		if err := querytpl.Validate(req); err != nil {
+			var refusal *querytpl.Refusal
+			if errors.As(err, &refusal) {
+				c.QueryNote = "refused: " + refusal.Error()
+				return c, nil
+			}
+			return c, err
+		}
+		return c, &service.Down{Service: "query", Reason: "no query engine"}
+	}
+	// ADR-0032, ADR-0047: the seam checks the request and the store builds
+	// the form it speaks. A refusal is the finding having no query evidence,
+	// named in the trace; the Judge decides as it does for any finding
+	// without evidence.
+	res, err := q.Run(ctx, req, rel)
 	if err != nil {
 		var refusal *querytpl.Refusal
 		if errors.As(err, &refusal) {
 			c.QueryNote = "refused: " + refusal.Error()
 			return c, nil
 		}
-		return c, err
-	}
-	// The same refusal as Execute. A nil adapter panics on Query, and the
-	// review would lose the finding instead of naming the query engine down.
-	if q == nil {
-		return c, &service.Down{Service: "query", Reason: "no query engine"}
-	}
-	res, err := q.Query(ctx, sql)
-	if err != nil {
 		return c, err
 	}
 	// ADR-0002: a query with no rows proves nothing, so it adds no evidence.

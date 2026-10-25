@@ -14,6 +14,10 @@ Proven sends has one author. The list lives in `internal/querytpl`; a test holds
 | `osv-by-advisory` | the OSV advisory with one advisory id | `advisory_id` |
 | `kev-by-cve` | the CISA known-exploited entry of one CVE | `cve_id` |
 | `epss-by-cve` | the EPSS score of one CVE | `cve_id` |
+| `mal-by-package` | the malicious-package advisory of one package | `ecosystem`, `package` |
+| `scorecard-by-package` | the project-health scores of one package | `ecosystem`, `package` |
+| `cvss-by-cve` | the CVSS score of one CVE | `cve_id` |
+| `spdx-by-package` | the SPDX licence of one package | `ecosystem`, `package` |
 
 A template that is not in this table is refused. A request names its template and gives exactly its parameters: a
 missing parameter and an extra one are each refused.
@@ -41,10 +45,10 @@ Go by the dependency check, never in SQL.
 
 ## The names of tables and views
 
-A table or view name is a setting ([CONFIGURATION.md](CONFIGURATION.md)), not a value from a model or from the change.
-It goes into the SQL unquoted, so it is checked again when the query is built: one identifier, or `schema.name`, of
-letters, digits and underscores. A setting that is not a plain name is refused at load and again at build. The names
-and their defaults:
+The OSV, KEV and EPSS names are settings ([CONFIGURATION.md](CONFIGURATION.md)), not values from a model or from the change.
+The four tables of ADR-0039 are the adapters' own names. Either way the name goes into the SQL unquoted, so it is
+checked again when the query is built: one identifier, or `schema.name`, of letters, digits and underscores. A setting
+that is not a plain name is refused at load and again at build. The names and their defaults:
 
 | Template | Name | Setting | Default |
 |---|---|---|---|
@@ -52,6 +56,12 @@ and their defaults:
 | `kev-by-cve` | view | `PROVEN_KEV_VIEW` | `px_evidence.px_kev_vulns` |
 | `epss-by-cve` | view | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` |
 | `osv-by-advisory` | view | none | `px_evidence.px_osv_id` |
+| `mal-by-package` | table | none; the adapter's own name | `px_evidence.px_mal_pkg` |
+| `scorecard-by-package` | table | none; the adapter's own name | `px_evidence.px_scorecard` |
+| `cvss-by-cve` | table | none; the adapter's own name | `px_evidence.px_cvss_cve` |
+| `spdx-by-package` | table | none; the adapter's own name | `px_evidence.px_spdx_lic` |
+
+The four tables of [ADR-0039](adr/ADR-0039-more-evidence-sources.md) are not settings. Each name is the source adapter's load table. A review cannot point them at another name: an organisation that wants another name writes another adapter.
 
 ## What a refusal does
 
