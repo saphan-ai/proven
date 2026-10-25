@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/epss"
+	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -431,6 +432,8 @@ const continuationPrefix = "    | "
 //
 //   - C0 (U+0000 to U+001F), tab and newline included, DEL (U+007F) and C1
 //     (U+0080 to U+009F) are shown as \xNN of the code point, e.g. \x1b, \x09.
+//   - A bidirectional control or an invisible mark (evidence.IsBidi) is shown
+//     as a backslash, u and four hex digits of the code point.
 //   - A byte that is not part of valid UTF-8 is shown as \xNN of the original
 //     byte, so what the change held is what the reader sees, not U+FFFD.
 //   - Everything else is written unchanged.
@@ -463,6 +466,8 @@ func escapeControls(s string, keepNewline bool) string {
 			b.WriteString("\n" + continuationPrefix)
 		case isControl(r):
 			fmt.Fprintf(&b, `\x%02x`, r)
+		case evidence.IsBidi(r):
+			fmt.Fprintf(&b, `\u%04x`, r)
 		default:
 			b.WriteString(s[i : i+size])
 		}

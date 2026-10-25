@@ -134,6 +134,15 @@ A read over its bound is refused by name before the review goes on; the refusal 
 | `PROVEN_POLICY` | none | a path to the organisation policy file, read before each repository's `proven.yaml`; see [POLICY.md](POLICY.md). A path inside the repository under review is refused, and so is a missing or unreadable file. Sample mode reads it too |
 
 A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036).
+
+## The evidence pack
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_PACK_KEY` | none (required with `--evidence-pack`) | path to the PEM file of the organisation's Ed25519 private key (PKCS #8) that signs a pack. A missing or unreadable file, or one that group or others can reach (fix: `chmod 600`), is named and the review does not start |
+| `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
+
+The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
 <!-- end generated -->
 
 ## Counting guardrail checks
@@ -208,6 +217,17 @@ No environment variable sets these keys.
 | `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
 | `fixes` | `on` | Proposes a fix for a finding a test proved, and a fixed version for a dependency finding (ADR-0042). `off` proposes none, runs none of the three proof runs and names no version. | `on` or `off`. |
 | `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. |
+| `investigator_templates` | every template | The query templates the Investigator may ask (ADR-0013, ADR-0032). Its prompt lists only these, and a request for any other is refused before a store is asked: the finding goes on with no query evidence and the trace says `refused: query template is outside the evidence scope of this role: <template> for the investigator`. Unset narrows nothing. | A comma-separated list of template names from `docs/QUERIES.md`, each once. A name that is not on the list, a name twice or an empty entry is refused on load. |
+| `skeptic_templates` | every template | The query templates the Skeptic may ask. Its prompt lists only these, and a refuting query for any other is refused before a store is asked: the proposal is dropped, the finding is judged on the rest of the attempt, and the refutation says `refused: query template is outside the evidence scope of this role: <template> for the skeptic`. The two lists are independent, so the Skeptic can be held to fewer templates than the Investigator. Unset narrows nothing. | The same as `investigator_templates`. |
+
+The Planner, the Prover, the Judge, the Writer and the Fixer have no query path, so they have no scope key. A template name is the only thing a scope names: it does not narrow the tables or views a template reads.
+
+For example, an Investigator that may ask every KEV, EPSS and OSV template and a Skeptic that may ask only KEV:
+
+```yaml
+investigator_templates: kev-by-cve, epss-by-cve, osv-by-package, osv-by-advisory
+skeptic_templates: kev-by-cve
+```
 
 ### Default path rules
 
