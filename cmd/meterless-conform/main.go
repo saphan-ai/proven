@@ -68,6 +68,10 @@ type request struct {
 	Type         string            `json:"type"`
 	Similarity   float64           `json:"similarity"`
 	Observations []json.RawMessage `json:"observations"`
+	View         string            `json:"view"`
+	Entity       string            `json:"entity"`
+	Via          string            `json:"via"`
+	AtTime       string            `json:"atTime"`
 }
 
 // handle decodes one line and sends it to its engine. A line that does not
@@ -171,10 +175,6 @@ func worldOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"session": id})
-	// ADR-0018, point 1: the graph is outside the minimum, so it is refused by
-	// name.
-	case "relate", "neighbors":
-		return fail(req.ID, "world: bitemporal graph is outside the minimum (ADR-0018)")
 	}
 	st, err := openW(req.Session)
 	if err != nil {
@@ -193,6 +193,18 @@ func worldOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"changed": rep.Changed})
+	case "relate":
+		edge, err := relateW(st, req.Input)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"edge": edge})
+	case "neighbors":
+		// ADR-0018 point 1: the graph is the one view the suite reads.
+		if req.View != "" && req.View != "graph" {
+			return fail(req.ID, "world: unknown view "+req.View)
+		}
+		return ok(req.ID, map[string]any{"neighbors": st.Neighbors(req.Entity, req.Via, req.AtTime)})
 	case "canonical":
 		return ok(req.ID, map[string]any{"canonical": st.Canonical()})
 	case "audit":
@@ -356,6 +368,34 @@ func upsertW(st *world.Store, raw json.RawMessage) (world.Entity, error) {
 		return world.Entity{}, err
 	}
 	return e, nil
+}
+
+// relateW decodes an edge and relates it. The ends are entity ids as the
+// suite names them.
+func relateW(st *world.Store, raw json.RawMessage) (world.Edge, error) {
+	var in struct {
+		From      string `json:"from"`
+		Type      string `json:"type"`
+		To        string `json:"to"`
+		Context   string `json:"context"`
+		ValidFrom string `json:"validFrom"`
+		ValidTo   string `json:"validTo"`
+		Source    *struct {
+			Kind string `json:"kind"`
+			At   string `json:"at"`
+			By   string `json:"by"`
+		} `json:"source"`
+	}
+	if len(bytes.TrimSpace(raw)) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &in); err != nil {
+			return world.Edge{}, err
+		}
+	}
+	e := world.Edge{From: in.From, Type: in.Type, To: in.To, Context: in.Context, ValidFrom: in.ValidFrom, ValidTo: in.ValidTo}
+	if in.Source != nil {
+		e.Source = world.Provenance{Kind: in.Source.Kind, At: in.Source.At, By: in.Source.By}
+	}
+	return st.Relate(e)
 }
 
 // ingestW writes the observations as JSONL and ingests them. A blank
