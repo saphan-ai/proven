@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image seed-image scan push up down status logs sample livecheck e2e e2e-failed-run check-e2e-parse check-lab-gates check-links clean
+.PHONY: help build build-all image seed-image scan push up down status logs sample livecheck e2e e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates check-links clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -59,6 +59,12 @@ check-e2e-parse: ## Check e2e's parsers offline against statuses a live Gitea se
 
 check-lab-gates: ## Check offline, with a stub docker, that make up refuses a non-loopback bind and make push refuses without a green scan
 	@sh $(ROOT)/lab/scripts/check-lab-gates.sh
+
+check-lab-password: ## Check offline, with a stub docker, that the admin password is never printed to a redirected stdout, is kept in a 0600 file, and a supplied one is used and not printed
+	@sh $(ROOT)/lab/scripts/check-lab-password.sh
+
+check-review-gates: ## Check offline five properties of the lab: loopback bind, password handling, Scout failure, push after scan, build context
+	@sh $(ROOT)/lab/scripts/check-review-gates.sh
 
 check-links: ## Check that every relative Markdown link and metadata.json path resolves
 	@cd $(ROOT) && sh scripts/check-links.sh
