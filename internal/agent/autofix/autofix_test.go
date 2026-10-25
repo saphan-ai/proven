@@ -44,6 +44,28 @@ func (r *scriptedRunner) RunFix(_ context.Context, req testrun.FixRequest) (test
 	return r.outcome, r.err
 }
 
+// scriptedBreakage returns one recorded outcome for every request and keeps the requests.
+type scriptedBreakage struct {
+	outcome  testrun.BreakageOutcome
+	err      error
+	requests []testrun.BreakageRequest
+}
+
+func (b *scriptedBreakage) RunBreakage(_ context.Context, req testrun.BreakageRequest) (testrun.BreakageOutcome, error) {
+	b.requests = append(b.requests, req)
+	return b.outcome, b.err
+}
+
+// breakageRun is one run of a package the patch touched.
+func breakageRun(pkg, result string, code int) testrun.FixRun {
+	return testrun.FixRun{Label: testrun.RunBreakage + " " + pkg, Command: "go test -json " + pkg, Result: result, ExitCode: code, Output: "output of " + pkg}
+}
+
+// untouched is the record of a package run that passed: the patch broke nothing it touched.
+func untouched() testrun.BreakageOutcome {
+	return testrun.BreakageOutcome{Runs: []testrun.FixRun{breakageRun("./billing", testrun.ResultPassed, 0)}}
+}
+
 // fakeRerun is a data or a tool judge with one fixed reading.
 type fakeRerun struct {
 	reading Reading
@@ -168,17 +190,20 @@ func TestOneGeneratorCallCarriesEveryProvedFinding(t *testing.T) {
 // each closed, and each judge was asked once per finding with the patch the model wrote.
 func TestFixedNeedsEveryEvidenceToCloseAgain(t *testing.T) {
 	dir := changeTree(t)
-	run, data, tl := &scriptedRunner{outcome: closing()}, &fakeRerun{reading: Reading{Ran: true}}, &fakeTool{fakeRerun{reading: Reading{Ran: true}}}
+	run, data, tl, br := &scriptedRunner{outcome: closing()}, &fakeRerun{reading: Reading{Ran: true}}, &fakeTool{fakeRerun{reading: Reading{Ran: true}}}, &scriptedBreakage{outcome: untouched()}
 	cands := []candidate.Candidate{testFinding("F1"), dataFinding("F2"), toolFinding("F3")}
-	got, err := Attempt(context.Background(), cands, &scriptedModel{replies: []string{goodAnswer}}, Judges{Test: run, Data: data, Tool: tl}, options(dir))
+	got, err := Attempt(context.Background(), cands, &scriptedModel{replies: []string{goodAnswer}}, Judges{Test: run, Data: data, Tool: tl, Breakage: br}, options(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got == nil || got.Verdict != candidate.AutofixFixed || !got.Fixed() || len(got.Findings) != 3 {
 		t.Fatalf("%#v", got)
 	}
-	if len(run.requests) != 1 || data.calls != 1 || tl.calls != 1 {
-		t.Fatalf("judge calls: test %d data %d tool %d", len(run.requests), data.calls, tl.calls)
+	if len(run.requests) != 1 || data.calls != 1 || tl.calls != 1 || len(br.requests) != 1 {
+		t.Fatalf("judge calls: test %d data %d tool %d breakage %d", len(run.requests), data.calls, tl.calls, len(br.requests))
+	}
+	if r := br.requests[0]; len(r.Edits) != 1 || r.Edits[0].Path != "billing/price.go" || r.ChangeDir != dir || got.Breakage == nil || !got.Breakage.Closed {
+		t.Fatalf("the breakage run was not asked for the patch: %#v %#v", r, got.Breakage)
 	}
 	if r := run.requests[0]; r.FindingID != "F1" || r.Name != "TestPrice" || len(r.Edits) != 1 || r.Edits[0].New != "return 80" {
 		t.Fatalf("%#v", r)
@@ -276,6 +301,116 @@ func TestAFindingWithTwoProofsClosesOnlyWhenBothClose(t *testing.T) {
 		Judges{Test: &scriptedRunner{outcome: closing()}, Data: data}, options(dir))
 	if err != nil || got.Findings[0].Closed || len(got.Findings[0].Proofs) != 2 || !got.Findings[0].Proofs[0].Closed {
 		t.Fatalf("%v %#v", err, got)
+	}
+}
+
+// TestADataOnlyFindingThatClosesStillNeedsTheTouchedPackagesToPass proves ADR-0050 point 3, "nothing
+// else broke": a finding proved by data closes, but a package the patch touched fails its tests,
+// so the verdict is "rejected" and the record names the failing run. Unplugging the breakage gate
+// in Attempt turns this test red, because the verdict then reads only the closed finding.
+func TestADataOnlyFindingThatClosesStillNeedsTheTouchedPackagesToPass(t *testing.T) {
+	dir := changeTree(t)
+	br := &scriptedBreakage{outcome: testrun.BreakageOutcome{Runs: []testrun.FixRun{
+		breakageRun("./billing", testrun.ResultPassed, 0),
+		breakageRun("./other", testrun.ResultFailed, 1),
+	}}}
+	got, err := Attempt(context.Background(), []candidate.Candidate{dataFinding("F1")}, &scriptedModel{replies: []string{goodAnswer}},
+		Judges{Data: &fakeRerun{reading: Reading{Ran: true}}, Breakage: br}, options(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Findings[0].Closed {
+		t.Fatalf("the data finding should have closed: %#v", got.Findings[0])
+	}
+	if got.Verdict != candidate.AutofixRejected || got.Fixed() {
+		t.Fatalf("a patch that breaks a touched package was %q", got.Verdict)
+	}
+	b := got.Breakage
+	if b == nil || b.Closed || !strings.Contains(b.Reason, "breakage ./other") || !strings.Contains(b.Reason, "failed") || b.Command != "go test -json ./other" || len(b.Runs) != 2 {
+		t.Fatalf("the failing run is not named: %#v", b)
+	}
+}
+
+// TestABreakageRunThatDidNotHappenIsNeverAPass proves the positive assertion for point 3: a missing
+// runner, a refused request, an error, no run at all, and a run that could not start each leave the
+// attempt "rejected" with a reason, so the absence of a run is not read as nothing broke.
+func TestABreakageRunThatDidNotHappenIsNeverAPass(t *testing.T) {
+	dir := changeTree(t)
+	notRun := breakageRun("./billing", testrun.ResultNotRun, -1)
+	cases := map[string]testrun.BreakageRunner{
+		"no runner":                nil,
+		"the request refused":      &scriptedBreakage{outcome: testrun.BreakageOutcome{Refused: "the patch has no edit"}},
+		"the prover is off":        &scriptedBreakage{err: &service.Down{Service: "prover", Reason: "off"}},
+		"no run at all":            &scriptedBreakage{},
+		"a run that did not start": &scriptedBreakage{outcome: testrun.BreakageOutcome{Runs: []testrun.FixRun{notRun}}},
+		"a run that timed out":     &scriptedBreakage{outcome: testrun.BreakageOutcome{Runs: []testrun.FixRun{breakageRun("./billing", testrun.ResultTimedOut, -1)}}},
+	}
+	for name, runner := range cases {
+		got, err := Attempt(context.Background(), []candidate.Candidate{dataFinding("F1")}, &scriptedModel{replies: []string{goodAnswer}},
+			Judges{Data: &fakeRerun{reading: Reading{Ran: true}}, Breakage: runner}, options(dir))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got.Verdict != candidate.AutofixRejected || got.Breakage == nil || got.Breakage.Closed || got.Breakage.Reason == "" {
+			t.Fatalf("%s: %#v", name, got)
+		}
+	}
+}
+
+// TestAnOpenFindingSkipsTheBreakageRun proves the breakage runs are asked only of a patch whose
+// findings all closed: with a finding open the verdict is already "rejected", and no container
+// time is spent on the packages.
+func TestAnOpenFindingSkipsTheBreakageRun(t *testing.T) {
+	br := &scriptedBreakage{outcome: untouched()}
+	got, err := Attempt(context.Background(), []candidate.Candidate{dataFinding("F1")}, &scriptedModel{replies: []string{goodAnswer}},
+		Judges{Data: &fakeRerun{reading: Reading{Ran: true, Present: true}}, Breakage: br}, options(changeTree(t)))
+	if err != nil || got.Verdict != candidate.AutofixRejected || len(br.requests) != 0 || got.Breakage != nil {
+		t.Fatalf("%v %#v %d", err, got, len(br.requests))
+	}
+}
+
+// TestARefusedRunnerLeavesTheTestProofOpen proves a FixRunner that refuses the patch leaves the
+// test proof open with the refusal as its reason, runs nothing else, and so ends the attempt
+// "rejected". Making the refusal close the proof turns this test red.
+func TestARefusedRunnerLeavesTheTestProofOpen(t *testing.T) {
+	br := &scriptedBreakage{outcome: untouched()}
+	run := &scriptedRunner{outcome: testrun.FixOutcome{Refused: testrun.ReasonEditNotFound}}
+	got, err := Attempt(context.Background(), []candidate.Candidate{testFinding("F1")}, &scriptedModel{replies: []string{goodAnswer}},
+		Judges{Test: run, Breakage: br}, options(changeTree(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := got.Findings[0].Proofs[0]
+	if got.Verdict != candidate.AutofixRejected || got.Findings[0].Closed || p.Closed || !strings.Contains(p.Reason, testrun.ReasonEditNotFound) || len(p.Runs) != 0 {
+		t.Fatalf("%#v", got)
+	}
+}
+
+// TestTheVerdictIsRejectedUnlessEverythingClosed proves verdictOf directly: no findings, an open
+// finding, a missing breakage record and an open one are each "rejected", and only closed findings
+// with a closed breakage record are "fixed". A finding with no proof never closes either.
+func TestTheVerdictIsRejectedUnlessEverythingClosed(t *testing.T) {
+	closed := []candidate.AutofixFinding{{ID: "F1", Closed: true}}
+	open := []candidate.AutofixFinding{{ID: "F1", Closed: true}, {ID: "F2"}}
+	pass, fail := &candidate.AutofixProof{Closed: true}, &candidate.AutofixProof{}
+	for name, tc := range map[string]struct {
+		findings []candidate.AutofixFinding
+		breakage *candidate.AutofixProof
+		want     string
+	}{
+		"no findings":          {nil, pass, candidate.AutofixRejected},
+		"an open finding":      {open, pass, candidate.AutofixRejected},
+		"no breakage record":   {closed, nil, candidate.AutofixRejected},
+		"an open breakage":     {closed, fail, candidate.AutofixRejected},
+		"everything is closed": {closed, pass, candidate.AutofixFixed},
+	} {
+		if got := verdictOf(tc.findings, tc.breakage); got != tc.want {
+			t.Fatalf("%s: %q, want %q", name, got, tc.want)
+		}
+	}
+	f, err := judgeFinding(context.Background(), candidate.Candidate{Risk: candidate.Risk{ID: "F9"}}, nil, Judges{}, Options{})
+	if err != nil || f.Closed {
+		t.Fatalf("a finding with no proof closed: %v %#v", err, f)
 	}
 }
 

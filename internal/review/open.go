@@ -676,15 +676,24 @@ func toAutofix(a *candidate.Autofix) *Autofix {
 	for _, f := range a.Findings {
 		nf := AutofixFinding{ID: f.ID, Closed: f.Closed}
 		for _, p := range f.Proofs {
-			np := AutofixProof{Kind: p.Kind, Closed: p.Closed, Reason: p.Reason, Command: p.Command, Output: p.Output}
-			for _, r := range p.Runs {
-				np.Runs = append(np.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
-			}
-			nf.Proofs = append(nf.Proofs, np)
+			nf.Proofs = append(nf.Proofs, toAutofixProof(p))
 		}
 		out.Findings = append(out.Findings, nf)
 	}
+	if a.Breakage != nil {
+		b := toAutofixProof(*a.Breakage)
+		out.Breakage = &b
+	}
 	return out
+}
+
+// toAutofixProof copies one proof across the seam, with its runs.
+func toAutofixProof(p candidate.AutofixProof) AutofixProof {
+	np := AutofixProof{Kind: p.Kind, Closed: p.Closed, Reason: p.Reason, Command: p.Command, Output: p.Output}
+	for _, r := range p.Runs {
+		np.Runs = append(np.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+	}
+	return np
 }
 
 // disagree reports whether the reviewers who answered gave different verdicts on one finding

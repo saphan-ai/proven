@@ -6,7 +6,9 @@
 // where the change's code may run (ADR-0025): a finding proved by a test closes when that test
 // passes and the package's other tests still pass; a finding proved by data closes when the same
 // query no longer returns the row; a finding proved by a tool closes when the same tool run no
-// longer reports it. If every proved finding closed, the verdict is "fixed automatically, waiting
+// longer reports it. Then nothing else may have broken: every package a patched file belongs to is
+// run on the patched change, and a failure, or a run that did not happen, is not "fixed". If every
+// proved finding closed and those runs passed, the verdict is "fixed automatically, waiting
 // for a person"; otherwise it is "rejected", with each open finding and its re-run evidence. There
 // is no second attempt (point 3), and nothing here writes to the change or to the author's branch
 // (point 4): the patch is applied to copies only, and it is a suggestion a person decides on.
@@ -84,6 +86,9 @@ type Judges struct {
 	Test testrun.FixRunner
 	Data DataRerun
 	Tool ToolRerun
+	// Breakage runs every package the patch touched on the patched change. A nil one means the
+	// attempt cannot show nothing broke, and the verdict is "rejected" (ADR-0050 point 3).
+	Breakage testrun.BreakageRunner
 }
 
 // Options are the checkouts the attempt runs on and its limits. Timeout is the time limit of the
@@ -210,7 +215,22 @@ func Attempt(ctx context.Context, cands []candidate.Candidate, gen generator.Gen
 		}
 		a.Findings = append(a.Findings, f)
 	}
-	a.Verdict = verdictOf(a.Findings)
+	// ADR-0050 point 3: "nothing else broke" is its own condition. It is asked only of a patch whose
+	// findings all closed, since any open finding already makes the verdict "rejected".
+	if allClosed(a.Findings) {
+		b, err := judgeBreakage(ctx, edits, j.Breakage, opts)
+		if err != nil {
+			if parent.Err() != nil {
+				return nil, parent.Err()
+			}
+			if !timedOut(parent, ctx) {
+				return nil, err
+			}
+			b = candidate.AutofixProof{Kind: candidate.AutofixBreakage, Reason: "the time limit of the attempt ended before the touched packages were run"}
+		}
+		a.Breakage = &b
+	}
+	a.Verdict = verdictOf(a.Findings, a.Breakage)
 	return &a, nil
 }
 
@@ -250,20 +270,67 @@ func kindOf(c candidate.Candidate) string {
 	return ""
 }
 
-// verdictOf is the whole attempt's verdict from the findings' closures (ADR-0050 point 3).
-// It is the only place a verdict is decided, and it reads nothing but the closures: a patch is
-// "fixed" because every finding's evidence ran again and closed, never because it was written
-// confidently.
-func verdictOf(findings []candidate.AutofixFinding) string {
-	if len(findings) == 0 {
+// verdictOf is the whole attempt's verdict from the findings' closures and the breakage run
+// (ADR-0050 point 3). It is the only place a verdict is decided, and it reads nothing but the
+// closures: a patch is "fixed" because every finding's evidence ran again and closed and every
+// package the patch touched still passed, never because it was written confidently. No finding,
+// or no breakage run, is never "fixed".
+func verdictOf(findings []candidate.AutofixFinding, breakage *candidate.AutofixProof) string {
+	if len(findings) == 0 || !allClosed(findings) || breakage == nil || !breakage.Closed {
 		return candidate.AutofixRejected
 	}
+	return candidate.AutofixFixed
+}
+
+// allClosed reports whether there is at least one finding and every one of them closed.
+func allClosed(findings []candidate.AutofixFinding) bool {
 	for _, f := range findings {
 		if !f.Closed {
-			return candidate.AutofixRejected
+			return false
 		}
 	}
-	return candidate.AutofixFixed
+	return len(findings) > 0
+}
+
+// judgeBreakage runs every package the patch touched on the patched change and closes only when
+// each run ended passed (ADR-0050 point 3). A run that did not happen, a refused request and a
+// missing runner leave it open with the reason: a package that was not run is not a package that
+// did not break. An error that is not the context ending leaves it open too.
+func judgeBreakage(ctx context.Context, edits []testrun.Edit, run testrun.BreakageRunner, opts Options) (candidate.AutofixProof, error) {
+	p := candidate.AutofixProof{Kind: candidate.AutofixBreakage}
+	if run == nil {
+		p.Reason = "this review cannot run the packages the patch touched"
+		return p, nil
+	}
+	out, err := run.RunBreakage(ctx, testrun.BreakageRequest{ChangeDir: opts.ChangeDir, Edits: edits})
+	if err != nil {
+		if ctx.Err() != nil {
+			return p, ctx.Err()
+		}
+		p.Reason = "the packages the patch touched could not be run: " + err.Error()
+		return p, nil
+	}
+	if out.Refused != "" {
+		p.Reason = "the patch was refused: " + out.Refused
+		return p, nil
+	}
+	for _, r := range out.Runs {
+		p.Runs = append(p.Runs, candidate.FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+	}
+	if len(p.Runs) == 0 {
+		p.Reason = "no package of the patch was run"
+		return p, nil
+	}
+	p.Command, p.Output = p.Runs[0].Command, p.Runs[0].Output
+	for _, r := range p.Runs {
+		if r.Result != testrun.ResultPassed {
+			p.Command, p.Output = r.Command, r.Output
+			p.Reason = fmt.Sprintf("the run %q ended %s (exit code %d): the patch is not shown to leave this package working", r.Label, r.Result, r.ExitCode)
+			return p, nil
+		}
+	}
+	p.Closed = true
+	return p, nil
 }
 
 // judgeFinding runs every proof of c again on the patched change. The finding closes only when

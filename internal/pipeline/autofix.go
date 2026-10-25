@@ -47,6 +47,9 @@ func (p *Pipeline) autofix(ctx context.Context, st *state, req Request, root, sn
 	if runner, ok := run.(testrun.FixRunner); ok {
 		judges.Test = runner
 	}
+	if runner, ok := run.(testrun.BreakageRunner); ok {
+		judges.Breakage = runner
+	}
 	a, err := autofix.Attempt(ctx, cands, gen, judges, autofix.Options{
 		BaseDir:         filepath.Join(root, "base"),
 		ChangeDir:       filepath.Join(root, "change"),
@@ -76,20 +79,30 @@ func redactAutofix(rd *redact.Redactor, a *candidate.Autofix) *candidate.Autofix
 	for _, f := range a.Findings {
 		nf := candidate.AutofixFinding{ID: rd.Text(f.ID), Closed: f.Closed}
 		for _, p := range f.Proofs {
-			np := candidate.AutofixProof{
-				Kind: p.Kind, Closed: p.Closed,
-				Reason: rd.Text(p.Reason), Command: rd.Text(p.Command), Output: rd.Text(p.Output),
-			}
-			for _, r := range p.Runs {
-				np.Runs = append(np.Runs, candidate.FixRun{
-					Label: r.Label, Command: rd.Text(r.Command), Result: r.Result, ExitCode: r.ExitCode, Output: rd.Text(r.Output),
-				})
-			}
-			nf.Proofs = append(nf.Proofs, np)
+			nf.Proofs = append(nf.Proofs, redactProof(rd, p))
 		}
 		cp.Findings = append(cp.Findings, nf)
 	}
+	cp.Breakage = nil
+	if a.Breakage != nil {
+		b := redactProof(rd, *a.Breakage)
+		cp.Breakage = &b
+	}
 	return &cp
+}
+
+// redactProof returns a copy of p with rd applied to every string a test run or a tool wrote.
+func redactProof(rd *redact.Redactor, p candidate.AutofixProof) candidate.AutofixProof {
+	np := candidate.AutofixProof{
+		Kind: p.Kind, Closed: p.Closed,
+		Reason: rd.Text(p.Reason), Command: rd.Text(p.Command), Output: rd.Text(p.Output),
+	}
+	for _, r := range p.Runs {
+		np.Runs = append(np.Runs, candidate.FixRun{
+			Label: r.Label, Command: rd.Text(r.Command), Result: r.Result, ExitCode: r.ExitCode, Output: rd.Text(r.Output),
+		})
+	}
+	return np
 }
 
 // containerOf returns the Prover's container behind a test runner, or nil when the runner is not one:
@@ -134,6 +147,16 @@ func (s *state) autofixEvents(a *candidate.Autofix) error {
 				return err
 			}
 		}
+	}
+	if b := a.Breakage; b != nil {
+		line := fmt.Sprintf("breakage proof %s", map[bool]string{true: "closed", false: "open"}[b.Closed])
+		for _, r := range b.Runs {
+			line += fmt.Sprintf("; %s: %s", r.Command, r.Result)
+		}
+		if b.Reason != "" {
+			line += ": " + b.Reason
+		}
+		return s.event("review", "autofix", "autofix", line)
 	}
 	return nil
 }

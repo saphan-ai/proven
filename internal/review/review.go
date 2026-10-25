@@ -387,7 +387,7 @@ type DependencyFix struct {
 // The verdicts of the whole-change fix attempt (ADR-0050 point 3), in the words a person reads.
 const (
 	// AutofixFixed: every proved finding closed when its own evidence was run again on the patched change,
-	// and nothing the evidence covers broke. A person decides whether to apply the patch.
+	// and every package the patch touched still passes its tests. A person decides whether to apply the patch.
 	AutofixFixed = "fixed automatically, waiting for a person"
 	// AutofixRejected: after the one attempt a proved finding is still open, something broke, or the patch
 	// was refused before it ran. There is no second attempt.
@@ -399,6 +399,8 @@ const (
 	AutofixProofTest = "test"
 	AutofixProofData = "data"
 	AutofixProofTool = "tool"
+	// AutofixProofBreakage is the run of every package the patch touched.
+	AutofixProofBreakage = "breakage"
 )
 
 // Autofix is the record of the one automated fix attempt for the whole change (ADR-0050). It is nil when no
@@ -417,6 +419,9 @@ type Autofix struct {
 	Edits    []FixEdit
 	Diff     string
 	Findings []AutofixFinding
+	// Breakage is the run of every package the patch touched, on the patched change, or nil when no
+	// code ran. A verdict of AutofixFixed needs it closed.
+	Breakage *AutofixProof `json:",omitempty"`
 	Refused  string
 }
 

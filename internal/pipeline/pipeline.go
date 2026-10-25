@@ -1330,6 +1330,19 @@ func (a checkoutRun) RunFix(ctx context.Context, req testrun.FixRequest) (testru
 	return inner.RunFix(ctx, req)
 }
 
+// RunBreakage fills the empty change directory and runs the packages a patch touched on the inner
+// adapter. An inner adapter that cannot run them reports the Prover off.
+func (a checkoutRun) RunBreakage(ctx context.Context, req testrun.BreakageRequest) (testrun.BreakageOutcome, error) {
+	inner, ok := a.inner.(testrun.BreakageRunner)
+	if !ok {
+		return testrun.BreakageOutcome{}, &service.Down{Service: "prover", Reason: "Prover off: this runner cannot run a patched package"}
+	}
+	if req.ChangeDir == "" {
+		req.ChangeDir = a.change
+	}
+	return inner.RunBreakage(ctx, req)
+}
+
 // fix runs the Fixer for every kept finding a test proved (ADR-0042) and writes what it did
 // to the trace. A runner that cannot prove a fix leaves the findings as they were: the
 // review's other results do not depend on it. A service that is down is named as failed,

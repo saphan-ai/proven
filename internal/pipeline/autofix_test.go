@@ -113,6 +113,47 @@ func TestDataJudgeLeavesTheReviewedTreesAsTheyWere(t *testing.T) {
 	}
 }
 
+// passingPackages is a breakage runner under which every package the patch touched passes; it keeps the requests.
+type passingPackages struct{ got []testrun.BreakageRequest }
+
+func (p *passingPackages) RunBreakage(_ context.Context, req testrun.BreakageRequest) (testrun.BreakageOutcome, error) {
+	p.got = append(p.got, req)
+	var out testrun.BreakageOutcome
+	for _, argv := range testrun.BreakageArgvs(req.Edits) {
+		out.Runs = append(out.Runs, testrun.FixRun{Label: testrun.RunBreakage + " " + argv[3], Command: strings.Join(argv, " "), Result: testrun.ResultPassed})
+	}
+	return out, nil
+}
+
+// TestACheckoutRunnerThatCannotRunPackagesIsTheProverOff proves the wrapper never turns a runner that
+// cannot run a patched package into an empty, passing outcome: it reports the Prover off, and fills the
+// change directory from the review's own tree when the caller left it empty.
+func TestACheckoutRunnerThatCannotRunPackagesIsTheProverOff(t *testing.T) {
+	edits := []testrun.Edit{{Path: "a.go", Old: "a", New: "b"}}
+	out, err := (checkoutRun{inner: noPackages{}, change: "/c"}).RunBreakage(context.Background(), testrun.BreakageRequest{Edits: edits})
+	if err == nil || len(out.Runs) != 0 {
+		t.Fatalf("%v %#v", err, out)
+	}
+	pkgs := &passingPackages{}
+	if _, err := (checkoutRun{inner: pkgsAdapter{pkgs}, change: "/c"}).RunBreakage(context.Background(), testrun.BreakageRequest{Edits: edits}); err != nil || len(pkgs.got) != 1 || pkgs.got[0].ChangeDir != "/c" {
+		t.Fatalf("%v %#v", err, pkgs.got)
+	}
+}
+
+// noPackages is an adapter that cannot run a patched package: it is not a testrun.BreakageRunner.
+type noPackages struct{}
+
+func (noPackages) Run(context.Context, testrun.Request) (testrun.Outcome, error) {
+	return testrun.Outcome{}, nil
+}
+
+// pkgsAdapter lets passingPackages stand behind a checkoutRun, which wraps a testrun.Adapter.
+type pkgsAdapter struct{ *passingPackages }
+
+func (pkgsAdapter) Run(context.Context, testrun.Request) (testrun.Outcome, error) {
+	return testrun.Outcome{}, nil
+}
+
 // scripted answers the attempt's prompt with one reply.
 type scripted struct{ reply string }
 
@@ -124,7 +165,8 @@ func (s scripted) Complete(context.Context, string, string) (string, error) { re
 func TestAnAttemptOnADependencyFindingIsJudgedByTheCheckAgain(t *testing.T) {
 	root, q := osvRoot(t)
 	c := provedByData(t, root, q)
-	judges := autofix.Judges{Data: dataJudge{q: q, root: root, snapshot: "sample"}}
+	pkgs := &passingPackages{}
+	judges := autofix.Judges{Data: dataJudge{q: q, root: root, snapshot: "sample"}, Breakage: pkgs}
 	opts := autofix.Options{BaseDir: filepath.Join(root, "base"), ChangeDir: filepath.Join(root, "change")}
 	answer := func(to string) scripted {
 		return scripted{`{"what":"Raise the widget.","why":"The version leaves the range.","edits":[{"path":"go.mod","old":"example.com/widget v1.4.0","new":"example.com/widget ` + to + `"}]}`}
@@ -132,6 +174,10 @@ func TestAnAttemptOnADependencyFindingIsJudgedByTheCheckAgain(t *testing.T) {
 	fixed, err := autofix.Attempt(context.Background(), []candidate.Candidate{c}, answer("v1.5.0"), judges, opts)
 	if err != nil || !fixed.Fixed() || !fixed.Findings[0].Closed {
 		t.Fatalf("%v %#v", err, fixed)
+	}
+	// A manifest edit asks for the whole module, with Proven's own words, on the change's own tree.
+	if len(pkgs.got) != 1 || pkgs.got[0].ChangeDir != filepath.Join(root, "change") || fixed.Breakage == nil || !fixed.Breakage.Closed || fixed.Breakage.Command != "go test -json ./..." {
+		t.Fatalf("the module was not run for a manifest edit: %#v %#v", pkgs.got, fixed.Breakage)
 	}
 	if !strings.Contains(fixed.Diff, "-require example.com/widget v1.4.0") || !strings.Contains(fixed.Diff, "+require example.com/widget v1.5.0") {
 		t.Fatalf("no diff of the raise:\n%s", fixed.Diff)
@@ -176,11 +222,17 @@ func TestAutofixTextIsRedacted(t *testing.T) {
 			Reason: "s3cret-value", Output: "s3cret-value", Command: "echo s3cret-value",
 			Runs: []candidate.FixRun{{Label: "base", Output: "s3cret-value", Command: "s3cret-value"}},
 		}}}},
+		Breakage: &candidate.AutofixProof{
+			Reason: "s3cret-value", Output: "s3cret-value", Command: "go test s3cret-value",
+			Runs: []candidate.FixRun{{Label: "breakage ./a", Output: "s3cret-value", Command: "s3cret-value"}},
+		},
 	}
 	got := redactAutofix(rd, a)
 	text := got.What + got.Why + got.Diff + got.Refused + got.Edits[0].New
 	p := got.Findings[0].Proofs[0]
 	text += p.Reason + p.Output + p.Command + p.Runs[0].Output + p.Runs[0].Command
+	b := got.Breakage
+	text += b.Reason + b.Output + b.Command + b.Runs[0].Output + b.Runs[0].Command
 	if strings.Contains(text, "s3cret-value") {
 		t.Fatalf("a secret reached the result: %s", text)
 	}

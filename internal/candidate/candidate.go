@@ -58,8 +58,8 @@ type TestEvidence struct {
 
 // Verdicts of the whole-change fix attempt (ADR-0050 point 3). They are the words a person reads.
 const (
-	// AutofixFixed means every proved finding closed on the patched change and nothing the
-	// evidence covers broke. A person still decides: nothing was committed.
+	// AutofixFixed means every proved finding closed on the patched change and every package
+	// the patch touched still passes its tests. A person still decides: nothing was committed.
 	AutofixFixed = "fixed automatically, waiting for a person"
 	// AutofixRejected means the one attempt left a proved finding open, broke something, or
 	// was refused before it ran. There is no second attempt.
@@ -71,6 +71,8 @@ const (
 	AutofixTest = "test"
 	AutofixData = "data"
 	AutofixTool = "tool"
+	// AutofixBreakage is the proof that nothing the patch touched broke: the packages it edited, run again.
+	AutofixBreakage = "breakage"
 )
 
 // AutofixProof is one piece of a finding's own evidence, run again on the patched change.
@@ -103,6 +105,9 @@ type Autofix struct {
 	Edits    []FixEdit
 	Diff     string
 	Findings []AutofixFinding
+	// Breakage is the run of every package the patch touched, on the patched change; it is nil when
+	// the attempt never reached the judges. The verdict is Fixed only when it is closed.
+	Breakage *AutofixProof
 	// Refused names why the patch was refused before any code ran, or is empty.
 	Refused string
 }
