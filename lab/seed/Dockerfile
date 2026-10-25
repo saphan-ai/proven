@@ -8,7 +8,7 @@ ARG RUNTIME_IMAGE=alpine:3.23
 FROM ${RUNTIME_IMAGE}
 RUN apk add --no-cache ca-certificates curl su-exec \
  && adduser -D -u 65532 -h /work proven
-COPY seed.sh /usr/local/bin/seed.sh
-RUN chmod 755 /usr/local/bin/seed.sh
+COPY seed.sh render.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/seed.sh /usr/local/bin/render.sh
 USER proven
 ENTRYPOINT ["/usr/local/bin/seed.sh"]

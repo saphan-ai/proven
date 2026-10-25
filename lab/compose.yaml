@@ -87,12 +87,53 @@ services:
     networks:
       - lab
 
+  # The lab's start page: one static page at ${LAB_PAGE_PATH}, rendered by the seed into the lab-page volume.
+  # The image runs as a user that is not root, so the container needs no capability, and its filesystem is
+  # read-only apart from /tmp. The port binds to LAB_BIND only.
+  page:
+    image: ${LAB_PAGE_IMAGE}:${LAB_PAGE_IMAGE_VERSION}
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    ports:
+      - "${LAB_BIND}:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"
+    volumes:
+      - lab-page:/usr/share/nginx/html:ro
+      - ./page/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - lab
+
+  # Proven's documentation site (docs-site/Dockerfile): a Node server as user 10001. make up builds it.
+  docs:
+    image: ${DOCS_IMAGE}:${DOCS_IMAGE_TAG}
+    build:
+      context: ..
+      dockerfile: docs-site/Dockerfile
+      args:
+        GOLANG_IMAGE: ${GOLANG_IMAGE}
+        NODE_IMAGE: ${NODE_IMAGE}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${LAB_BIND}:${LAB_DOCS_PORT}:${LAB_DOCS_CONTAINER_PORT}"
+    networks:
+      - lab
+
   seed:
     image: ${SEED_IMAGE}:${SEED_IMAGE_TAG}
     user: "0:0"
     environment:
       GITEA_INTERNAL_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
       LAB_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/
+      LAB_GRAFANA_URL: http://${LAB_BIND}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}
+      LAB_DOCS_URL: http://${LAB_BIND}:${LAB_DOCS_PORT}/
+      LAB_PAGE_URL: http://${LAB_BIND}:${LAB_PAGE_PORT}${LAB_PAGE_PATH}
       LAB_ADMIN_USER: ${LAB_ADMIN_USER}
       LAB_ADMIN_EMAIL: ${LAB_ADMIN_EMAIL}
       LAB_BOT_USER: ${LAB_BOT_USER}
@@ -111,7 +152,12 @@ services:
     volumes:
       - seed-state:/state
       - runner-reg:/reg
+      - lab-page:/page
       - ./workflow/proven.yml:/workflow/proven.yml:ro
+      # The demo pull requests, the start page's template, and the sample sets the pull requests are made from.
+      - ./seed/prs.tsv:/seed/prs.tsv:ro
+      - ./page/lab.html.tmpl:/seed/lab.html.tmpl:ro
+      - ../testdata/fixture:/fixtures:ro
     depends_on:
       - gitea
     networks:
@@ -126,3 +172,4 @@ volumes:
   runner-data:
   runner-reg:
   seed-state:
+  lab-page:

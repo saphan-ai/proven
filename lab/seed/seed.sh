@@ -1,12 +1,14 @@
 #!/bin/sh
-# Create the demo repository, the workflow, the workflow's own account, the runner token and the pull request.
-# The admin user already exists. The password arrives in LAB_ADMIN_PASSWORD.
+# Create the demo repository, the workflow, the workflow's own account, the runner token, the demo pull requests
+# (lab/seed/prs.tsv) and the lab's start page. The admin user already exists. The password arrives in LAB_ADMIN_PASSWORD.
 set -eu
 
 if [ "$(id -u)" -eq 0 ]; then
-  mkdir -p /state /reg
-  chown proven:proven /state /reg
+  mkdir -p /state /reg /page
+  chown proven:proven /state /reg /page
   chmod 700 /state /reg
+  # The page volume is read by the page service, which is another user.
+  chmod 755 /page
   exec su-exec proven "$0" "$@"
 fi
 
@@ -20,6 +22,16 @@ fi
 : "${LAB_DEMO_HEAD:?}"
 : "${PROVEN_IMAGE:?}"
 : "${RUNNER_LABEL:?}"
+: "${LAB_URL:?}"
+
+# The demo pull requests and the start page's template, and the fixtures the pull requests are made from.
+# The compose file mounts all three read-only.
+PRS_FILE=${PRS_FILE:-/seed/prs.tsv}
+PAGE_TEMPLATE=${PAGE_TEMPLATE:-/seed/lab.html.tmpl}
+FIXTURES_DIR=${FIXTURES_DIR:-/fixtures}
+PAGE_DIR=${PAGE_DIR:-/page}
+# html_escape and render_page: the start page, kept apart so a test can render it offline.
+. "$(dirname "$0")/render.sh"
 
 api() {
   method=$1
@@ -138,7 +150,7 @@ render_workflow() {
   # container joins the daemon's own network, which is on the lab network. Proven reads the standard
   # OTEL_* variables and nothing else. Without an endpoint the workflow is left as it is.
   if [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]; then
-    sed "s|docker run --rm --entrypoint sh|docker run --rm --network host -e OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT} -e OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-proven} -e OTEL_METRIC_EXPORT_INTERVAL=${OTEL_METRIC_EXPORT_INTERVAL:-1000} --entrypoint sh|" \
+    sed "s|docker run --rm |docker run --rm --network host -e OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT} -e OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-proven} -e OTEL_METRIC_EXPORT_INTERVAL=${OTEL_METRIC_EXPORT_INTERVAL:-1000} |" \
       /tmp/proven.yml >/tmp/proven.otel
     mv /tmp/proven.otel /tmp/proven.yml
   fi
@@ -151,7 +163,7 @@ render_workflow() {
   if [ -n "${LAB_SPECIAL_REVIEWER:-}" ]; then
     second=" \&\& echo special_reviewer: ${LAB_SPECIAL_REVIEWER} >> lab.yaml"
   fi
-  sed "s|proven scan --sample /opt|echo autofix: on > lab.yaml${second} \&\& proven scan --sample --config lab.yaml /opt|" \
+  sed "s|proven scan --sample |echo autofix: on > lab.yaml${second} \&\& proven scan --sample --config lab.yaml |" \
     /tmp/proven.yml >/tmp/proven.two
   mv /tmp/proven.two /tmp/proven.yml
 }
@@ -275,65 +287,164 @@ ensure_runner_token() {
   chmod 644 /reg/token
 }
 
-ensure_branch() {
-  code=$(api POST "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/branches" /tmp/branch.json \
-    -d "{\"new_branch_name\":\"$LAB_DEMO_HEAD\",\"old_ref_name\":\"$LAB_DEMO_BASE\"}")
-  if [ "$code" != "201" ] && [ "$code" != "409" ]; then
-    code=$(api POST "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/branches" /tmp/branch.json \
-      -d "{\"new_branch_name\":\"$LAB_DEMO_HEAD\",\"old_branch_name\":\"$LAB_DEMO_BASE\"}")
-  fi
-  if [ "$code" != "201" ] && [ "$code" != "409" ]; then
-    echo "seed: could not create the branch (HTTP $code)" >&2
-    exit 1
-  fi
-}
+repo_api="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO"
+TAB=$(printf '\t')
 
-ensure_change() {
-  code=$(curl -sS --max-time 30 -o /tmp/readme.json -w '%{http_code}' \
-    -H "Authorization: token $API_TOKEN" \
-    "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/contents/README.md?ref=$LAB_DEMO_BASE")
-  if [ "$code" != "200" ]; then
-    echo "seed: could not read README.md (HTTP $code)" >&2
-    exit 1
-  fi
-  sha=$(json_string sha /tmp/readme.json)
-  note='The lab changes this line so the pull request has a diff. The workflow runs a sample review.'
-  b64=$(printf '%s\n' "# discount" "" "$note" | base64 | tr -d '\n')
-  body=$(printf '{"message":"Open a change for the sample review","branch":"%s","sha":"%s","content":"%s"}' \
-    "$LAB_DEMO_HEAD" "$sha" "$b64")
-  code=$(api PUT "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/contents/README.md" /tmp/put.json \
-    -d "$body")
-  if [ "$code" != "200" ] && [ "$code" != "201" ] && [ "$code" != "422" ]; then
-    echo "seed: could not write the change (HTTP $code)" >&2
-    exit 1
-  fi
-}
-
-ensure_pr() {
-  code=$(curl -sS --max-time 30 -o /tmp/pulls.json -w '%{http_code}' \
-    -H "Authorization: token $API_TOKEN" \
-    "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/pulls?state=open")
-  if [ "$code" = "200" ] && grep -q '"number":' /tmp/pulls.json; then
-    # The pull request exists. If the Actions unit was off when it opened,
-    # it has no task; closing and opening it again starts the workflow.
-    if [ "$RETRIGGER" = "1" ]; then
-      num=$(sed -n 's/.*"number":\([0-9][0-9]*\).*/\1/p' /tmp/pulls.json | head -n 1)
-      pr="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/pulls/$num"
-      api PATCH "$pr" /tmp/pr.json -d '{"state":"closed"}' >/dev/null
-      code=$(api PATCH "$pr" /tmp/pr.json -d '{"state":"open"}')
-      if [ "$code" != "201" ] && [ "$code" != "200" ]; then
-        echo "seed: could not reopen the pull request (HTTP $code)" >&2
-        exit 1
-      fi
+# put_file BRANCH PATH LOCALFILE MESSAGE: create the file on the branch, or update it. A file that already holds
+# these bytes is left alone, so a second make up makes no commit and starts no review.
+put_file() {
+  pf_branch=$1
+  pf_path=$2
+  pf_src=$3
+  pf_msg=$4
+  pf_b64=$(base64 <"$pf_src" | tr -d '\n')
+  pf_url="$repo_api/contents/$pf_path"
+  code=$(curl -sS --max-time 30 -o /tmp/pf-get.json -w '%{http_code}' \
+    -H "Authorization: token $API_TOKEN" "$pf_url?ref=$pf_branch")
+  if [ "$code" = "200" ]; then
+    pf_have=$(sed -n 's/.*"content":"\([^"]*\)".*/\1/p' /tmp/pf-get.json | head -n 1 | sed 's/\\n//g')
+    if [ "$pf_have" = "$pf_b64" ]; then
+      return 0
     fi
-    return 0
-  fi
-  code=$(api POST "$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/pulls" /tmp/pr.json \
-    -d "{\"title\":\"Review the sample change\",\"head\":\"$LAB_DEMO_HEAD\",\"base\":\"$LAB_DEMO_BASE\",\"body\":\"The lab opens this pull request so proven can comment.\"}")
-  if [ "$code" != "201" ] && [ "$code" != "409" ]; then
-    echo "seed: could not open the pull request (HTTP $code)" >&2
+    pf_sha=$(json_string sha /tmp/pf-get.json)
+    code=$(api PUT "$pf_url" /tmp/pf.json \
+      -d "$(printf '{"message":"%s","branch":"%s","sha":"%s","content":"%s"}' "$pf_msg" "$pf_branch" "$pf_sha" "$pf_b64")")
+  elif [ "$code" = "404" ]; then
+    code=$(api POST "$pf_url" /tmp/pf.json \
+      -d "$(printf '{"message":"%s","branch":"%s","content":"%s"}' "$pf_msg" "$pf_branch" "$pf_b64")")
+  else
+    echo "seed: could not read $pf_path on $pf_branch (HTTP $code)" >&2
     exit 1
   fi
+  # 422: the file is already the copy we would write.
+  if [ "$code" != "200" ] && [ "$code" != "201" ] && [ "$code" != "422" ]; then
+    echo "seed: could not write $pf_path on $pf_branch (HTTP $code)" >&2
+    exit 1
+  fi
+}
+
+# The base tree of the demo repository is the base tree of the discount fixture. Every demo pull request is a
+# change on top of it.
+ensure_base() {
+  base_dir="$FIXTURES_DIR/discount/base"
+  if [ ! -d "$base_dir" ]; then
+    echo "seed: the discount fixture is not mounted at $FIXTURES_DIR" >&2
+    exit 1
+  fi
+  (cd "$base_dir" && find . -type f | sed 's|^\./||' | sort) >/tmp/base-files.txt
+  while IFS= read -r rel; do
+    put_file "$LAB_DEMO_BASE" "$rel" "$base_dir/$rel" "Add the discount package: $rel"
+  done </tmp/base-files.txt
+}
+
+ensure_branch() {
+  eb_branch=$1
+  code=$(api POST "$repo_api/branches" /tmp/branch.json \
+    -d "{\"new_branch_name\":\"$eb_branch\",\"old_ref_name\":\"$LAB_DEMO_BASE\"}")
+  if [ "$code" != "201" ] && [ "$code" != "409" ]; then
+    code=$(api POST "$repo_api/branches" /tmp/branch.json \
+      -d "{\"new_branch_name\":\"$eb_branch\",\"old_branch_name\":\"$LAB_DEMO_BASE\"}")
+  fi
+  if [ "$code" != "201" ] && [ "$code" != "409" ]; then
+    echo "seed: could not create the branch $eb_branch (HTTP $code)" >&2
+    exit 1
+  fi
+}
+
+# apply_change FIXTURE BRANCH TITLE: commit the fixture's change tree on the branch. go.mod is the one file whose
+# module name differs between fixtures, so it is the base go.mod plus the `require` lines the fixture adds.
+apply_change() {
+  ac_fixture=$1
+  ac_branch=$2
+  ac_title=$3
+  ac_dir="$FIXTURES_DIR/$ac_fixture/change"
+  if [ ! -d "$ac_dir" ]; then
+    echo "seed: no fixture $ac_fixture under $FIXTURES_DIR" >&2
+    exit 1
+  fi
+  (cd "$ac_dir" && find . -type f | sed 's|^\./||' | sort) >/tmp/change-files.txt
+  while IFS= read -r rel; do
+    if [ "$rel" = "go.mod" ]; then
+      {
+        cat "$FIXTURES_DIR/discount/base/go.mod"
+        if grep -q '^require ' "$ac_dir/go.mod"; then
+          echo
+          grep '^require ' "$ac_dir/go.mod"
+        fi
+      } >/tmp/go.mod.new
+      put_file "$ac_branch" go.mod /tmp/go.mod.new "$ac_title"
+    else
+      put_file "$ac_branch" "$rel" "$ac_dir/$rel" "$ac_title"
+    fi
+  done </tmp/change-files.txt
+}
+
+# open_pr BRANCH TITLE SAYS FIXTURE: open the pull request, or find the one that is open; sets PR_NUMBER.
+open_pr() {
+  op_branch=$1
+  op_title=$2
+  op_says=$3
+  op_fixture=$4
+  body=$(printf '{"title":"%s","head":"%s","base":"%s","body":"%s\\n\\nSample set: testdata/fixture/%s in the Proven repository."}' \
+    "$op_title" "$op_branch" "$LAB_DEMO_BASE" "$op_says" "$op_fixture")
+  code=$(api POST "$repo_api/pulls" /tmp/pr.json -d "$body")
+  if [ "$code" != "201" ] && [ "$code" != "409" ]; then
+    echo "seed: could not open the pull request for $op_branch (HTTP $code)" >&2
+    exit 1
+  fi
+  code=$(api GET "$repo_api/pulls/$LAB_DEMO_BASE/$op_branch" /tmp/pr-get.json)
+  PR_NUMBER=$(sed -n 's/.*"number":\([0-9][0-9]*\).*/\1/p' /tmp/pr-get.json | head -n 1)
+  if [ "$code" != "200" ] || [ -z "$PR_NUMBER" ]; then
+    echo "seed: could not read the pull request for $op_branch (HTTP $code)" >&2
+    exit 1
+  fi
+  # A pull request opened while the Actions unit was off has no task; closing and opening it again starts the workflow.
+  if [ "$RETRIGGER" = "1" ]; then
+    api PATCH "$repo_api/pulls/$PR_NUMBER" /tmp/pr.json -d '{"state":"closed"}' >/dev/null
+    code=$(api PATCH "$repo_api/pulls/$PR_NUMBER" /tmp/pr.json -d '{"state":"open"}')
+    if [ "$code" != "201" ] && [ "$code" != "200" ]; then
+      echo "seed: could not reopen the pull request $PR_NUMBER (HTTP $code)" >&2
+      exit 1
+    fi
+  fi
+}
+
+# One branch, one commit per changed file, one pull request per line of prs.tsv. The workflow file goes on every
+# branch, so a kept volume's branches run the current workflow. The rows of the start page's table are written
+# from the pull requests that really exist, in the order of the file.
+ensure_prs() {
+  if [ ! -f "$PRS_FILE" ]; then
+    echo "seed: $PRS_FILE is not mounted" >&2
+    exit 1
+  fi
+  : >/tmp/pr-rows.html
+  CLEAN_COUNT=0
+  PR_COUNT=0
+  while IFS="$TAB" read -r branch fixture class verdict title says; do
+    case $branch in
+      '' | \#*) continue ;;
+    esac
+    if [ -z "$fixture" ] || [ -z "$class" ] || [ -z "$verdict" ] || [ -z "$title" ] || [ -z "$says" ]; then
+      echo "seed: a line of $PRS_FILE for $branch has fewer than six fields" >&2
+      exit 1
+    fi
+    ensure_branch "$branch"
+    apply_change "$fixture" "$branch" "$title"
+    put_file "$branch" .github/workflows/proven.yml /tmp/proven.yml "Update the proven workflow"
+    open_pr "$branch" "$title" "$says" "$fixture"
+    PR_COUNT=$((PR_COUNT + 1))
+    if [ "$verdict" = "clean" ]; then
+      CLEAN_COUNT=$((CLEAN_COUNT + 1))
+      chip='<span class="v ok">clean</span>'
+    else
+      chip='<span class="v bad">defect</span>'
+    fi
+    etitle=$(printf '%s' "$title" | html_escape)
+    esays=$(printf '%s' "$says" | html_escape)
+    printf '    <tr><td class="n">%s</td><td><a href="%s/%s/%s/pulls/%s" target="_blank" rel="noopener">%s</a></td><td class="muted">%s</td><td>%s</td></tr>\n' \
+      "$PR_NUMBER" "${LAB_URL%/}" "$LAB_ADMIN_USER" "$LAB_DEMO_REPO" "$PR_NUMBER" "$etitle" "$esays" "$chip" >>/tmp/pr-rows.html
+    printf '%s\t%s\t%s\t%s\n' "$PR_NUMBER" "$branch" "$fixture" "$verdict" >>/tmp/pr-numbers.tsv
+  done <"$PRS_FILE"
 }
 
 wait_ready
@@ -345,8 +456,10 @@ ensure_workflow
 ensure_bot
 ensure_secret
 ensure_runner_token
-ensure_branch
-ensure_change
-ensure_pr
+ensure_base
+: >/tmp/pr-numbers.tsv
+ensure_prs
+cp /tmp/pr-numbers.tsv /state/prs.tsv
+render_page
 printf '%s\n' ready >/state/ready
-echo "seed: demo repository and pull request are ready"
+echo "seed: demo repository, $PR_COUNT pull requests ($CLEAN_COUNT clean) and the start page are ready"

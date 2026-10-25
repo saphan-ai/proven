@@ -2,6 +2,7 @@
 # Build the images, start the lab, create the admin when it is missing, seed the demo, start the runner.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
+. "$ROOT/lab/scripts/banner.sh"
 need_docker
 
 if [ -z "${GITEA_RUN_USER:-}" ]; then
@@ -15,10 +16,17 @@ fi
 sh "$ROOT/lab/scripts/image.sh"
 sh "$ROOT/lab/scripts/seed-image.sh"
 
+# The documentation site is one more image, built from the repository (docs-site/Dockerfile). It is a pleasant
+# thing to have and not what the lab is for: a build that fails is named and the lab goes on without it.
+docs_ready=1
+if ! compose build docs; then
+  docs_ready=0
+  echo "up: the documentation image did not build; the lab goes on without it (the page's docs link will not open)" >&2
+fi
+
 compose up -d gitea dind lgtm
 
 internal="http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}"
-lab_url="http://${LAB_BIND}:${GITEA_HTTP_PORT}/"
 
 i=0
 ready=0
@@ -36,7 +44,6 @@ fi
 
 # ADR-0045: the dashboard is up before the pull request's review starts, so the review is exported to it.
 # A Grafana that does not answer is named, and the lab goes on: the review is still posted.
-dashboard_url="http://${LAB_BIND}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
 grafana_internal="http://${LGTM_INTERNAL_HOST}:${LGTM_GRAFANA_CONTAINER_PORT}"
 grafana_ready=0
 waited=0
@@ -93,14 +100,10 @@ if [ -z "$pass" ]; then
   pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
   printf '%s' "$pass" | compose run --rm --no-deps -T --user 0:0 --entrypoint sh seed -c \
     'mkdir -p /state /reg && cat > /state/password && chmod 600 /state/password && chown proven:proven /state /reg /state/password && chmod 700 /state /reg'
-  echo "lab admin user: $LAB_ADMIN_USER"
-  echo "lab admin password: $pass"
-  echo "lab url: $lab_url"
-  echo "This password is printed once. make clean removes it with the lab volume."
+  # The password goes into no log. The banner at the end shows it on a terminal, and make password shows it again.
+  echo "up: generated the lab admin password; it is in the lab volume until make clean"
 else
-  echo "lab already installed; admin password was printed at first start"
-  echo "lab url: $lab_url"
-  echo "up: the volume is kept; repairing the admin user, the runner and the pull request"
+  echo "up: the lab is already installed; the volume is kept; repairing the admin user, the runner and the pull requests"
 fi
 
 # The image refuses `gitea` as root. `compose exec` is root unless a user is
@@ -142,5 +145,13 @@ rm -f "$users" "$err"
 
 LAB_ADMIN_PASSWORD=$pass compose run --rm -T seed
 compose up -d runner
-echo "lab: $lab_url"
-echo "dashboard: $dashboard_url"
+
+# The start page is rendered by the seed into the page volume, so the service starts after it.
+compose up -d page
+if [ "$docs_ready" -eq 1 ]; then
+  compose up -d docs
+fi
+
+# The URL, the user and the password are the last lines of every run, the first and the ones after it.
+echo
+lab_banner "$pass"

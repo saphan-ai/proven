@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-links clean
+.PHONY: help password demo-check check-banner build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-links clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -39,8 +39,17 @@ up: ## Start the judges' lab
 down: ## Stop the judges' lab
 	@sh $(ROOT)/lab/scripts/down.sh
 
-status: ## Show containers, health, the runner, the review, and the lab URL
+status: ## Show containers, health, the runner, the review on each pull request, and the lab login
 	@sh $(ROOT)/lab/scripts/status.sh
+
+password: ## Print the lab login: the start page, the Gitea user and password (on a terminal), the dashboard
+	@sh $(ROOT)/lab/scripts/password.sh
+
+demo-check: ## Require Proven's review on every demo pull request (a clean one says clean) and a trace per review
+	@sh $(ROOT)/lab/scripts/demo-check.sh
+
+check-banner: ## Check the closing banner offline: the exact lines, the password on a terminal, the path when redirected
+	@sh $(ROOT)/lab/scripts/banner-check.sh
 
 logs: ## Follow lab logs. SERVICE= selects one service
 	@sh $(ROOT)/lab/scripts/logs.sh

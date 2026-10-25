@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proven lab</title>
+<!-- A template. lab/seed/render.sh fills every marked place and writes the copy the lab serves into the lab's page volume.
+     The password is filled in there and nowhere else: it is never committed and never baked into an image. -->
+<style>
+  /* Colours from saphan.ai (assets/site.css). No web fonts: the lab works offline. */
+  :root {
+    color-scheme: dark;
+    --ground:#0c0e0d; --surface:#101312; --rule:#1d211e; --edge:#22271f;
+    --ink:#eef1ef; --ink-body:#d6dad7; --ink-code:#c3cbc5; --ink-muted:#9aa39d; --ink-dim:#758078;
+    --accent:#86a98f; --accent-hi:#a3c2ab; --accent-wash:rgba(134,169,143,0.14); --accent-edge:rgba(134,169,143,0.35);
+    --bad:#c98a7d; --bad-wash:rgba(201,138,125,0.12);
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink-body); font:16px/1.6 var(--sans); }
+  .wrap { max-width:960px; margin:0 auto; padding:48px 24px 64px; }
+  a { color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-edge); }
+  a:hover { color:var(--accent-hi); border-color:var(--accent-hi); }
+  a.ext::after { content:" ↗"; font-size:.8em; color:var(--ink-dim); }
+  header { display:flex; align-items:center; gap:14px; margin-bottom:8px; }
+  /* The bridge logo is always white (owner, 25 Oct). */
+  header svg { width:34px; height:34px; color:#ffffff; }
+  h1 { margin:0; font-size:2rem; color:var(--ink); letter-spacing:-.01em; }
+  .tag { font:500 .75rem var(--mono); color:var(--accent); background:var(--accent-wash); border:1px solid var(--accent-edge); border-radius:999px; padding:2px 10px; }
+  .lead { font-size:1.15rem; color:var(--ink-muted); margin:6px 0 36px; max-width:46em; }
+  h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-dim); margin:44px 0 14px; padding-bottom:8px; border-bottom:1px solid var(--rule); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--edge); border-radius:10px; padding:20px; min-width:0; }
+  .card h3 { margin:0 0 4px; color:var(--ink); font-size:1.1rem; }
+  .card p { margin:0 0 14px; color:var(--ink-muted); font-size:.95rem; }
+  .btn { display:inline-block; font-weight:600; color:var(--ground); background:var(--accent); border:0; border-radius:6px; padding:8px 14px; }
+  .btn:hover { color:var(--ground); background:var(--accent-hi); }
+  .creds { margin-top:14px; font:14px/1.9 var(--mono); color:var(--ink-code); }
+  .creds b { display:inline-block; width:90px; color:var(--ink-dim); font-weight:400; }
+  .creds code { background:var(--ground); border:1px solid var(--edge); border-radius:4px; padding:1px 8px; }
+  .copy { font:12px var(--sans); color:var(--accent); background:none; border:1px solid var(--accent-edge); border-radius:4px; padding:1px 8px; margin-left:6px; cursor:pointer; }
+  ol.steps { padding-left:1.3em; } ol.steps li { margin:6px 0; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  th { text-align:left; font-weight:500; color:var(--ink-dim); font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; padding:8px 10px; border-bottom:1px solid var(--edge); }
+  td { padding:12px 10px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  td.n { font-family:var(--mono); color:var(--ink-dim); }
+  .v { font:600 .78rem var(--mono); border-radius:4px; padding:2px 8px; white-space:nowrap; }
+  .v.ok { color:var(--accent); background:var(--accent-wash); }
+  .v.bad { color:var(--bad); background:var(--bad-wash); }
+  .muted { color:var(--ink-muted); font-size:.9rem; }
+  footer { margin-top:56px; padding-top:16px; border-top:1px solid var(--rule); color:var(--ink-dim); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1.5 18h21"/><path d="M6.4 18L7.5 7 8.6 18"/><path d="M7.5 7V3"/><path d="M7.5 5.5l6 12.5M7.5 7.5l10 10.5M7.5 9.5l13 8.5"/><path d="M7.5 6L2.5 18"/><circle cx="16" cy="18" r="1.8" fill="currentColor" stroke="none"/></svg>
+  <h1>Your Proven lab is ready</h1>
+  <span class="tag">running on your machine</span>
+</header>
+<p class="lead">Proven is a code reviewer that only reports a problem it can prove. This lab is a small Git server with a
+demo repository, a CI runner that calls Proven on every pull request, and a dashboard that shows each review as it happens.
+Nothing here leaves your machine.</p>
+
+<h2>Open</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Pull requests</h3>
+    <p>The demo repository in Gitea. Every pull request carries Proven's review as a comment.</p>
+    <a class="btn" href="@@GITEA_URL@@/@@LAB_ADMIN_USER@@/@@LAB_DEMO_REPO@@/pulls?state=all" target="_blank" rel="noopener">Open Gitea</a>
+    <div class="creds">
+      <div><b>Username</b><code id="u">@@LAB_ADMIN_USER@@</code><button class="copy" data-copy="u">copy</button></div>
+      <div><b>Password</b><code id="p">@@LAB_PASSWORD@@</code><button class="copy" data-copy="p">copy</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Dashboard</h3>
+    <p>Grafana: the agents and the two reviewers for each review, verdicts side by side, where they disagree.</p>
+    <a class="btn" href="@@GRAFANA_URL@@" target="_blank" rel="noopener">Open Grafana</a>
+  </div>
+  <div class="card">
+    <h3>Documentation</h3>
+    <p>How Proven works, every setting, the decisions behind it. Served from this lab, works offline.</p>
+    <a class="btn" href="@@DOCS_URL@@" target="_blank" rel="noopener">Open the docs</a>
+  </div>
+</div>
+
+<h2>The scenario</h2>
+<ol class="steps">
+  <li>Open Gitea and sign in with the user and password above.</li>
+  <li>Open the pull requests. @@CLEAN_COUNT@@ are clean changes; the others each carry a different kind of defect.</li>
+  <li>Read Proven's comment on each one. A clean change gets a short "clean" verdict that says what was checked.
+      A defect is reported only with its evidence: the query that found it, or a test that fails on the change and passes before it.</li>
+  <li>Open the dashboard and pick a review. You see each agent's step and both reviewers' verdicts for the same change.</li>
+  <li>Reviews take a few minutes each. A pull request with no comment yet is still being reviewed.</li>
+</ol>
+
+<h2>The demo pull requests</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Change</th><th>What Proven should say</th><th>Verdict</th></tr></thead>
+  <tbody>
+@@PR_ROWS@@
+  </tbody>
+</table>
+</div>
+<p class="muted">Each clean change and each broken change is a case in Proven's test corpus or sample set, so the lab shows what the score measures.</p>
+
+<h2>More</h2>
+<div class="grid">
+  <div class="card"><h3>Source code</h3><p>Apache-2.0, built in the open during the Open Agent Hackathon 2026.</p><a class="ext" href="https://github.com/saphan-ai/proven" target="_blank" rel="noopener">github.com/saphan-ai/proven</a></div>
+  <div class="card"><h3>Container image</h3><p>The image this lab runs.</p><a class="ext" href="https://hub.docker.com/r/saphan/proven" target="_blank" rel="noopener">hub.docker.com/r/saphan/proven</a></div>
+  <div class="card"><h3>Stop or reset</h3><p class="creds" style="margin:0"><code>make down</code> stops the lab.<br><code>make clean</code> removes it, with its data.</p></div>
+</div>
+
+<footer>Proven · by Saphan.ai · this page is served by the lab at @@PAGE_URL@@</footer>
+</div>
+<script>
+  document.querySelectorAll('.copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = document.getElementById(b.dataset.copy).textContent;
+      navigator.clipboard.writeText(t).then(function () { b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1500); });
+    });
+  });
+</script>
+</body>
+</html>
