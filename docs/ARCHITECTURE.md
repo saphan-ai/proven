@@ -130,7 +130,11 @@ fall back by itself: the caller decides. Tests: `TestAnOverflowingCarryStopsTheR
 `TestTheEarliestOpenClaimReachesItsEvidenceWhenTheBoundHoldsThem` (the same claim, with room, becomes a risk at its
 evidence), `TestALongOpenClaimIsCarriedWholeToItsEvidence` (a claim over 400 bytes, its evidence named at the end,
 reaches that evidence whole) and `TestALongOpenClaimThatCannotBeHeldWholeStopsTheReviewBeforeAnyCut` (when the bound
-cannot hold it whole, the review stops by name at the step that raised it). A model that leaves a claim out of the state it returns is a model error this bound cannot see.
+cannot hold it whole, the review stops by name at the step that raised it). A claim still open after the last step is not lost either: no part is left to supply its evidence, so the review stops
+with `*markov.OpenClaimsError` (its message gives the number of steps and of open claims, never the claim text), and the
+trace carries the same sentence. The review does not fall back by itself. Test:
+`TestAClaimStillOpenAfterTheLastStepStopsTheReviewByName` (two files, the last answer holds one open claim and no risk).
+A model that leaves a claim out of the state it returns is a model error this bound cannot see.
 
 **Settings** (environment, live mode only; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`off` by
 default), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
@@ -149,8 +153,10 @@ scripted generator, not a model: they measure the size of what Proven sends and 
 | 3 files, below the threshold (scripted) | 1 | 4659 | 4659 | 1 | 4659 | 4659 | 4659 | yes |
 | corpus PV-001 to PV-021 | UNMEASURED — no corpus recording (proven-test-corpus record-and-replay not yet landed) | | | | | | | |
 
-What it shows: the step stays flat (under 2,000 estimated tokens) however many files the change has, where the whole step
-grows with the change and would at some size not fit a model at all. With file steps the review as a whole costs more,
+What it shows: in these scripted scenarios, whose files are all about the same size, the step stays under 2,000 estimated
+tokens however many files the change has, where the whole step grows with the change. This is not a general bound. The
+carry bound caps the carried state only, never a part's own size: in file mode a whole file is one part, and in hunk mode
+a large changed region is one hunk, so a step over a very large file or region is as large as that part. With file steps the review as a whole costs more,
 about a quarter more, because every step repeats the instruction and the carried state; with hunk steps it costs less,
 because a step carries the changed region and not both whole copies of the file. Whether a model keeps the same findings
 across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row, and
