@@ -34,6 +34,8 @@ const (
 	CheckMissing   = "missing"
 	CheckExtra     = "extra"
 	CheckReceipt   = "receipt"
+	// CheckOutcome re-derives each finding's outcome from the evidence the pack records (ADR-0035).
+	CheckOutcome = "outcome"
 )
 
 // Refusal is a pack Verify did not accept: which check failed and on which file.
@@ -102,6 +104,8 @@ type Report struct {
 	Unreceipted  int // model uses with no provider receipt
 	TraceEvents  int
 	FailedSvcs   []string
+	Rederived    int      // findings whose proof level, reported state and open state follow from the recorded evidence
+	NotRederived []string // one line per finding the pack does not record enough evidence for
 	NotChecked   []string
 	ChecksPassed []string
 }
@@ -109,7 +113,7 @@ type Report struct {
 // NotChecked is what Verify cannot check offline. It is printed with every report.
 var notChecked = []string{
 	"the provider's own signature on each receipt: a pack keeps the receipt id, route and model, not the signed body",
-	"that the review's reading of the code was right: a pack proves what was recorded, not that it was true",
+	"that the recorded evidence is true: a pack proves that each verdict follows from the evidence it records, not that the evidence is true",
 }
 
 // VerifyFile reads the pack at path and verifies it against pub.
@@ -220,9 +224,12 @@ func Verify(pack []byte, pub ed25519.PublicKey) (*Report, error) {
 	rep := &Report{
 		Created: m.Created, KeyID: m.KeyID, Commits: m.Commits, Models: m.Models, Files: m.Files,
 		NotChecked:   append([]string(nil), notChecked...),
-		ChecksPassed: []string{"signature", "hash of every file", "no file missing or extra", "receipts"},
+		ChecksPassed: []string{"signature", "hash of every file", "no file missing or extra", "receipts", "outcome of every finding re-derived from its recorded evidence"},
 	}
 	if err := checkReceipts(files, m, rep); err != nil {
+		return nil, err
+	}
+	if err := checkOutcomes(files, rep); err != nil {
 		return nil, err
 	}
 	if err := describe(files, rep); err != nil {

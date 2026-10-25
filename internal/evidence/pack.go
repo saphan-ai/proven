@@ -330,6 +330,8 @@ type QueryRun struct {
 	Snapshot  string     `json:"snapshot"`
 	Columns   []string   `json:"columns"`
 	Rows      [][]string `json:"rows"`
+	// Bound is whether Proven tied the rows to the change; the Judge counts rows only then.
+	Bound bool `json:"bound"`
 }
 
 func tests(res review.Result) []TestRun {
@@ -356,7 +358,7 @@ func queries(res review.Result) []QueryRun {
 	for _, f := range res.Findings {
 		for _, e := range f.Evidence {
 			if q := e.Query; q != nil {
-				out = append(out, QueryRun{FindingID: f.ID, SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot, Columns: q.Columns, Rows: q.Rows})
+				out = append(out, QueryRun{FindingID: f.ID, SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot, Columns: q.Columns, Rows: q.Rows, Bound: q.Bound})
 			}
 		}
 	}
