@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -498,7 +499,7 @@ INSERT INTO px_evidence.px_kev_alt VALUES ('CVE-2026-0001', 'example', 'mod', '2
 // downQuery is a query adapter whose service is always down.
 type downQuery struct{}
 
-func (downQuery) Query(context.Context, string) (query.Result, error) {
+func (downQuery) Run(context.Context, querytpl.Request, querytpl.Relations) (query.Result, error) {
 	return query.Result{}, &service.Down{Service: "query", Reason: "unreachable"}
 }
 

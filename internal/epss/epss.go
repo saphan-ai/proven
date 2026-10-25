@@ -1,16 +1,17 @@
 // Package epss attaches one EPSS score to each kept finding that names a CVE.
-// The query is deterministic. It does not ask a model, and the EPSS source
-// adapter builds it from the epss-by-cve template (ADR-0032, ADR-0046).
+// The query is deterministic. It does not ask a model. The seam takes the
+// epss-by-cve request, and the store builds the form (ADR-0032, ADR-0046, ADR-0047).
 //
 // It runs after the Judge, on the findings it kept, and before the Writer,
 // which orders findings by their best score (see Best). FIRST EPSS is one of
-// the first evidence sources (ADR-0004), read through a Zetaris view
-// (ADR-0023). A score is query evidence like any other: the SQL and its row
-// go into the review (ADR-0002).
+// the first evidence sources (ADR-0004), read through the evidence store
+// (ADR-0023, ADR-0047). A score is query evidence like any other: the form
+// that ran and its row go into the review (ADR-0002).
 package epss
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -121,7 +122,7 @@ type Note struct {
 // appended as query evidence. No row appends nothing and returns a note
 // whose text says "no EPSS row". A dropped finding is left as it is.
 // view empty means DefaultView.
-func Attach(ctx context.Context, q query.Adapter, view, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, []Note, error) {
+func Attach(ctx context.Context, q query.Runner, view, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, []Note, error) {
 	if view == "" {
 		view = DefaultView
 	}
@@ -149,19 +150,17 @@ func Attach(ctx context.Context, q query.Adapter, view, snapshot string, cands [
 			if err := ctx.Err(); err != nil {
 				return cands, notes, err
 			}
-			// ADR-0032, ADR-0046: the EPSS adapter builds the query from the
-			// epss-by-cve template.
-			sqlText, found, err := source.Build(querytpl.EPSSByCVE, map[string]string{
-				querytpl.ParamCVEID: id,
-			}, source.Rel{EPSSView: view})
-			if !found {
-				return cands, notes, fmt.Errorf("epss: template %s is not registered", querytpl.EPSSByCVE)
-			}
+			// ADR-0032, ADR-0046, ADR-0047: the seam takes the epss-by-cve
+			// request. The store builds the form it speaks.
+			res, err := q.Run(ctx, querytpl.Request{
+				Template: querytpl.EPSSByCVE,
+				Params:   map[string]string{querytpl.ParamCVEID: id},
+			}, querytpl.Relations{EPSSView: view})
 			if err != nil {
-				return cands, notes, err
-			}
-			res, err := q.Query(ctx, sqlText)
-			if err != nil {
+				var refusal *querytpl.Refusal
+				if errors.As(err, &refusal) && refusal.Reason == querytpl.ReasonUnknownTemplate {
+					return cands, notes, fmt.Errorf("epss: template %s is not registered", querytpl.EPSSByCVE)
+				}
 				return cands, notes, err
 			}
 			// No row is a trace note, never evidence: a missing score says nothing about

@@ -31,7 +31,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvStore,
 			Default:     envdoc.Tick(NameZetaris),
-			Description: "which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. With `couchdb` a live review names `couchdb` down on every query until the query seam passes templates (see docs/ADAPTERS.md). Sample mode uses the local store and does not read this variable",
+			Description: "which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable",
 		},
 		{
 			Name:        EnvFile,

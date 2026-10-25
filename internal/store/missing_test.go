@@ -24,32 +24,16 @@ func TestLocalMissingTableIsADownSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := querytpl.Request{
+	_, err = local.Run(context.Background(), querytpl.Request{
 		Template: querytpl.KEVByCVE,
 		Params:   map[string]string{querytpl.ParamCVEID: "CVE-2021-44228"},
+	}, querytpl.Relations{})
+	d, ok := service.As(err)
+	if !ok {
+		t.Fatalf("want a down source, got %v", err)
 	}
-	for name, run := range map[string]func() error{
-		"Run": func() error {
-			_, err := local.Run(context.Background(), req, querytpl.Relations{})
-			return err
-		},
-		"Query": func() error {
-			forms, err := querytpl.BuildForms(req, querytpl.Relations{})
-			if err != nil {
-				return err
-			}
-			_, err = local.Query(context.Background(), forms.SQL)
-			return err
-		},
-	} {
-		err := run()
-		d, ok := service.As(err)
-		if !ok {
-			t.Fatalf("%s: want a down source, got %v", name, err)
-		}
-		if d.Service != "local" || !strings.HasPrefix(d.Reason, "no table ") {
-			t.Fatalf("%s: %#v", name, d)
-		}
+	if d.Service != "local" || !strings.HasPrefix(d.Reason, "no table ") {
+		t.Fatalf("%#v", d)
 	}
 }
 
