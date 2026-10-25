@@ -22,7 +22,7 @@ image: ## Build Proven's image for this machine and load it (one platform; a loc
 	@sh $(ROOT)/lab/scripts/image.sh
 
 image-check: build image ## Check that the image prints the same version and sample review as ./bin/proven, and print its size
-	@. $(ROOT)/lab/versions.env && sh $(ROOT)/scripts/image-check.sh "$$PROVEN_IMAGE:latest" $(ROOT)/bin/proven
+	@sh $(ROOT)/lab/scripts/image-check.sh
 
 seed-image: ## Build the lab seed for this machine and load it (one platform; make push publishes both)
 	@sh $(ROOT)/lab/scripts/seed-image.sh
