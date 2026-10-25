@@ -143,5 +143,11 @@ func PlanBounded(ctx context.Context, files []change.File, gen generator.Generat
 		}
 		steps = append(steps, rec)
 	}
+	// ADR-0048: the last part has been read, so a claim still awaiting evidence can never be settled. Reporting the
+	// risks alone as success would look complete when it is not; the review stops by name instead, as it does when
+	// the carried state is full.
+	if len(state.Awaiting) > 0 {
+		return nil, steps, &markov.OpenClaimsError{Steps: len(parts), Open: len(state.Awaiting)}
+	}
 	return risks, steps, nil
 }

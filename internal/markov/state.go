@@ -144,6 +144,22 @@ func (e *CarryFullError) Error() string {
 		e.Step, e.Held, e.Open, e.Budget, EnvCarry, EnvSwitch, EnvCarry)
 }
 
+// OpenClaimsError says the last bounded step ended with claims still awaiting evidence (ADR-0048). No part is left
+// to supply that evidence, so the claims can never become risks; returning the risks found so far as a clean
+// success would hide that. It is a sibling of CarryFullError: the review is incomplete, it says so by name, and the
+// caller can run the whole review instead. It carries counts only, never the model's claim text.
+type OpenClaimsError struct {
+	// Steps is the number of steps that ran; Open is the number of claims still awaiting evidence after the last.
+	Steps, Open int
+}
+
+// Error names that the bounded review is incomplete, why, and what to do next.
+func (e *OpenClaimsError) Error() string {
+	return fmt.Sprintf("the bounded review is incomplete: after the last of %d steps %d claims still awaited evidence, and no part is left to supply it, "+
+		"so the review cannot say whether they are risks. Run the whole review (%s off)",
+		e.Steps, e.Open, EnvSwitch)
+}
+
 // Carry fits the state's block for the step about to run into budget estimated tokens and returns how many items the
 // bound cut. ADR-0048: the bound may cut what is established or only suspected, never a claim awaiting evidence,
 // which is carried whole (pinned). When the block with every cuttable item gone still exceeds the budget, Carry

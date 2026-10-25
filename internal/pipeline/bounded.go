@@ -66,6 +66,13 @@ func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generato
 			return nil, terr
 		}
 	}
+	// The same for claims still open after the last step.
+	var open *markov.OpenClaimsError
+	if errors.As(err, &open) {
+		if terr := p.boundedLine(run, "bounded steps stopped, the review is incomplete: "+open.Error()); terr != nil {
+			return nil, terr
+		}
+	}
 	return risks, err
 }
 
