@@ -36,7 +36,8 @@ Updated every evening. The newest day comes first.
 
 ### Day four, 25 October
 
-Day four of six. **Twenty-nine more changes were merged**, 97 in four days.
+Day four of six. **Thirty more changes were merged**, 98 in four days. With Scout Intent and Markovian, all four
+Meterless engines are now in Proven, the two new ones switched off until their benefit is measured.
 
 **NVIDIA's model now writes Proven's code, not only reviews it.** NVIDIA made its hosted API free for us, and the fleet
 added NVIDIA executor seats beside the Cursor, Claude and OpenAI ones. The first piece of Proven written by Nemotron, a
@@ -64,8 +65,6 @@ What else came in today:
 - **The level of proof in JSON and SARIF**, so a pipeline can tell a proved finding from an opinion.
 - **The documentation site** is built, served from its own container; its public address comes with the next update.
 - **The held-out test set**: six cases frozen before Proven ever ran on them.
-- **Meterless's Scout Intent**, the third Meterless engine in Go: it plans each review before a model runs. It is
-  switched off by default, and its scorecards are published as they are, including the one that fails.
 - **Three more security fixes**: what the command line outputs can no longer be steered by the reviewed change, it
   writes its state and trace outside the reviewed repository, and a vulnerable network library was raised to its fixed
   version. What was fixed: [SECURITY.md](SECURITY.md).
@@ -193,7 +192,7 @@ Each day, what lands moves from this list to the day's summary.
 
 - **NVIDIA's models, already local.** Today NVIDIA's safety model runs on our own AMD Ryzen AI Max+ 395 machine with 128 GB of memory and checks every prompt and answer of Proven's reviews, while Nemotron reviews and writes code through NVIDIA's API. A DGX Spark is the same class of machine, built on NVIDIA's own silicon: on it the same fleet could run Nemotron for reviewing and coding locally beside the guardrail, tune NeMo Guardrails on the fleet's own record of what it refused and why, and keep every line of code in the room.
 - **A score anyone can recompute, on two sets**: one command runs Proven over the cases it was built on and, separately, over a held-out set frozen before Proven ever saw it; the two scores are never merged into one number.
-- **Each review planned before a model runs**: Meterless's Scout Intent reads the change first; a documentation-only change runs no model, a dependency bump skips the test writer, a security-sensitive change is reviewed twice. Kept only if it saves cost and loses no finding ([ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
+- **Scout Intent and Markovian measured**: on the corpus, with each engine on and off, the same findings for less, or the engine stays off ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md), [ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
 - **Extending Proven, documented with examples**: a worked, tested example for every kind of adapter (a model provider, the guardrail, a reviewer, a language, a tool, a data source, an output format), and the documentation as a site at proven.saphan.ai.
 - **The coding sessions, published**: excerpts of the Cursor agents' recorded sessions next to the change they built, each tied to its original by a hash ([ADR-0024](docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md)).
 - **Run Proven live with a single free NVIDIA key** ([ADR-0031](docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
@@ -350,7 +349,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
 | 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding given a level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. [What shipped, in a terminal](hackathon/SHIPPED_DAY_3.md). |
-| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 29 changes merged: NVIDIA's Nemotron writes its first Proven code, Meterless's Scout Intent (off by default), one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
+| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 30 changes merged: NVIDIA's Nemotron writes its first Proven code, Meterless's Scout Intent and Markovian (all four Meterless engines in, the two new ones off by default), one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 
