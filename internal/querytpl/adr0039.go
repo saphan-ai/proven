@@ -73,7 +73,7 @@ func (malAdapter) Templates() []source.Spec {
 			Name:   MalByPackage,
 			Answer: "the malicious-package advisory of one package",
 			Params: []source.Param{
-				{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io", Match: ecosystemFormat},
+				{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io, Maven", Match: ecosystemFormat},
 				{Name: ParamPackage, Format: "a package name in the ecosystem's own spelling", Match: anyPackageFormat},
 			},
 		},
@@ -121,7 +121,7 @@ func (scorecardAdapter) Templates() []source.Spec {
 			Name:   ScorecardByPackage,
 			Answer: "the project-health scores of one package",
 			Params: []source.Param{
-				{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io", Match: ecosystemFormat},
+				{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io, Maven", Match: ecosystemFormat},
 				{Name: ParamPackage, Format: "a package name in the ecosystem's own spelling", Match: anyPackageFormat},
 			},
 		},
@@ -222,7 +222,7 @@ func (spdxAdapter) Templates() []source.Spec {
 			Name:   SPDXByPackage,
 			Answer: "the SPDX licence of one package",
 			Params: []source.Param{
-				{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io", Match: ecosystemFormat},
+				{Name: ParamEcosystem, Format: "one of Go, npm, PyPI, Packagist, crates.io, Maven", Match: ecosystemFormat},
 				{Name: ParamPackage, Format: "a package name in the ecosystem's own spelling", Match: anyPackageFormat},
 			},
 		},

@@ -158,6 +158,8 @@ func defaultPathRules() []pathRule {
 		"pom.xml",
 		"build.gradle",
 		"build.gradle.kts",
+		"libs.versions.toml",
+		"gradle.lockfile",
 	}
 	out := make([]pathRule, 0, len(sec)+2)
 	for _, p := range sec {

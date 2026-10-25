@@ -80,7 +80,7 @@ One language is one adapter ([ADR-0038](adr/ADR-0038-a-language-is-one-small-ada
 
 The type is `Adapter` in `internal/manifest`. It is the same type as `Reader`. The dependency check runs `Readers()`. A version lands in a range through `InRangeEcosystem`, which calls the adapter's `Compare` and `Explain`.
 
-The languages are Go, JavaScript, Python, PHP and Rust.
+The languages are Go, JavaScript, Python, PHP, Rust and Kotlin.
 
 ### What you add
 
@@ -116,6 +116,32 @@ When `composer.json` and `composer.lock` in one directory both name a package, t
 The sample is `testdata/fixture/osv-php-composer`. It raises `monolog/monolog` from 2.0.0 to 2.9.1. 2.9.1 is inside one sample range and outside another. The finding names `composer.lock`.
 
 `composer.json` and `composer.lock` are security-class path rules, the same as the other dependency files. A change that touches either is a security review.
+
+### Worked example: Kotlin and Gradle
+
+Kotlin and Gradle are one language adapter, the same shape as PHP. The OSV ecosystem name is `Maven`. `Diff` is given the file bytes and not the path, so one reader cannot tell a version catalog from a Kotlin build script. There are two manifest readers and one lock reader. All three use the same `Compare` and the same `Explain`.
+
+| | catalog | build script | lock file |
+|---|---|---|---|
+| constructor | `GradleCatalog` | `GradleKts` | `GradleLock` |
+| file | `libs.versions.toml` | `build.gradle.kts` | `gradle.lockfile` |
+| what it reads | `[libraries]` | a double-quoted `group:artifact:version`, and one line that names `group`, `name` and `version` as strings | `group:artifact:version=configurations` |
+| `Lock` | no | no | yes |
+| `NoteErr` | no | no | yes |
+
+`[versions]` holds the strings a `version.ref` names. A ref that is not there is a note, not a guessed version. A rich version (`strictly`, `prefer`, `require`) is a note. `[plugins]` is not a Maven coordinate: each plugin is a note, because plugin resolution is out of scope. `[bundles]` names library aliases and is not read. In the build script, a version that contains `$`, or a version written as a name, is a note. A plugin id and a `libs.` catalog reference are notes. Groovy `build.gradle` and `settings.gradle.kts` are not this file.
+
+The package name is `group:artifact`, as written. The spelling is kept.
+
+The version comparison is the subset in `internal/mavenver`. Numeric tokens compare as integers. A missing numeric token equals zero, so `1`, `1.0` and `1.0.0` are one version. A hyphen between numbers is the same separator as a dot in this subset, so `1.0-1` and `1.0.1` are one version. Qualifiers, from lowest to highest: alpha, beta, milestone, rc, snapshot, release, sp. The spelling is not case-sensitive. `a`, `b`, `m` and `cr` are the short names. `ga`, `final` and `release` are the release itself. A qualifier below release is below the same numbers with no qualifier. `sp` is above that release. A number on the qualifier orders that qualifier, and a missing number equals zero. A qualifier that is not in the list is above `sp`, then compared as lowercase text. That last placement was not checked against one named Maven release. A constraint, including a range such as `[1.0,2.0)` and a Gradle dynamic version such as `1.2.+`, is refused with a sentence. A leading `v` is refused. The string in the file is not rewritten. [OSV_TABLE.md](OSV_TABLE.md) records the same subset.
+
+When `build.gradle.kts` and `gradle.lockfile` in one directory both name a package, the lock file's version is the one compared, and the finding names the lock file. A catalog under `gradle/` is a different directory, so it is not paired with the lock file at the project root.
+
+The sample is `testdata/fixture/osv-kotlin-gradle`. The lock file and the build script raise `com.example:widget` from 1.2.0 to 1.4.0. 1.4.0 is inside one sample range and outside another. `com.example:quiet` goes from 2.0.0 to 1.9.0 and is not a finding. The catalog leaves the library versions as they were and changes a plugin version, which is a note. The finding names `gradle.lockfile`.
+
+`build.gradle`, `build.gradle.kts`, `libs.versions.toml` and `gradle.lockfile` are security-class path rules. A change that includes `build.gradle.kts` reports that rule, because the earliest rule of the highest class wins.
+
+The scenario test goes red when `mavenver.Compare` reports every pair as equal. It also goes red when `GradleKts` and `GradleLock` are both taken out of `Readers`. Taking only `GradleLock` out leaves the literal in `build.gradle.kts`, and the finding remains.
 
 ### What stays shared
 

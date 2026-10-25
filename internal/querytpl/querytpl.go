@@ -191,11 +191,11 @@ func describe(templates []Template) string {
 // in RE2 the dollar sign matches the end of the text only, so a trailing line
 // break is not admitted.
 var (
-	ecosystemFormat = regexp.MustCompile(`^(Go|npm|PyPI|Packagist|crates\.io)$`)
+	ecosystemFormat = regexp.MustCompile(`^(Go|npm|PyPI|Packagist|crates\.io|Maven)$`)
 	// anyPackageFormat admits every ecosystem's package spelling and nothing
 	// more. It is the gate Proven applies to the parameter; the builder then
 	// holds the name to its own ecosystem's format.
-	anyPackageFormat = regexp.MustCompile(`^@?[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
+	anyPackageFormat = regexp.MustCompile(`^@?[A-Za-z0-9][A-Za-z0-9._~:/-]{0,299}$`)
 	cveFormat        = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,12}$`)
 	advisoryFormat   = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,15}(-[A-Za-z0-9]{1,40}){1,6}$`)
 	goFormat         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~/-]{0,299}$`)
@@ -206,6 +206,11 @@ var (
 	// otherwise contains ASCII letters, digits, '_' or '-'. The spelling is
 	// kept: crates.io does not fold case or turn '_' into '-'.
 	crateFormat = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
+	// A Maven coordinate is group:artifact. Each part starts with a letter,
+	// digit or '_', and otherwise holds letters, digits, '.', '_' or '-'.
+	// The two parts and the colon stay inside the 300-character gate above.
+	// The spelling is kept: Maven coordinates are not folded.
+	mavenFormat = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,148}:[A-Za-z0-9_][A-Za-z0-9_.-]{0,148}$`)
 )
 
 // ValidCVE reports whether s is a CVE id and nothing else.
@@ -258,6 +263,8 @@ func packageFormat(ecosystem string) *regexp.Regexp {
 		return packagistFormat
 	case "crates.io":
 		return crateFormat
+	case "Maven":
+		return mavenFormat
 	default:
 		return pypiFormat
 	}
@@ -360,6 +367,7 @@ func osvByAdvisory(view, id string) (string, error) {
 // A Packagist name is put in lower case first, because Packagist names are
 // not case-sensitive and the table is keyed by the lower-case form.
 // A crates.io name is kept as written.
+// A Maven name is group:artifact, kept as written.
 // The dependency check calls it with names from the change's manifests.
 func OSVPackageSQL(table, ecosystem, pkg string) (string, error) {
 	return osvByPackage(table, ecosystem, pkg)
@@ -376,10 +384,11 @@ func osvKey(ecosystem, pkg string) (string, string, error) {
 // ecosystemKey is osvKey for any template that looks a package up the same
 // way. template is the name a refusal cites. A PyPI name is put in its PEP
 // 503 form, and a Packagist name in lower case, because those tables are
-// keyed that way. A crates.io name is kept as written.
+// keyed that way. A crates.io name and a Maven group:artifact are kept as
+// written.
 func ecosystemKey(template, ecosystem, pkg string) (string, string, error) {
 	switch ecosystem {
-	case "Go", "npm", "PyPI", "Packagist", "crates.io":
+	case "Go", "npm", "PyPI", "Packagist", "crates.io", "Maven":
 	default:
 		return "", "", &Refusal{Reason: ReasonBadValue, Detail: template + " " + ParamEcosystem}
 	}
