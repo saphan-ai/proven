@@ -576,12 +576,38 @@ func symlinkComponentInsideWorkingDirectory(path string) (string, error) {
 // componentInsideWorkingDirectory reports whether component is a strict
 // descendant of the working directory. The working directory itself is not
 // one of the path's components that this check refuses.
+//
+// WHY the prefix is resolved and the component is not: the component may be
+// the link under test, and resolving it would follow that link out of the
+// working directory and then look like a path outside it. The prefix already
+// walked is resolved, so a link outside the working directory that spells
+// the same directory another way still counts as that directory.
 func componentInsideWorkingDirectory(wd, component string) bool {
-	rel, err := filepath.Rel(wd, filepath.Clean(component))
+	if filepath.Base(component) == ".." {
+		return false
+	}
+	prefix := filepath.Dir(component)
+	resolvedWD := resolvedPath(wd)
+	resolvedPrefix := resolvedPath(prefix)
+	if resolvedPrefix == resolvedWD {
+		return true
+	}
+	rel, err := filepath.Rel(resolvedWD, resolvedPrefix)
 	if err != nil || rel == "." || rel == "" {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// resolvedPath is path with symbolic links resolved. When the path cannot be
+// resolved, the cleaned spelling is returned, so two paths are compared as
+// written when one of them does not exist yet.
+func resolvedPath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	return filepath.Clean(resolved)
 }
 
 // regularFileInfo is the FileInfo of w when w is an *os.File on a regular

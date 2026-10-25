@@ -293,17 +293,63 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 // the link names. The link is left in place and the write fails. A regular
 // file is not a link and is overwritten as before.
 //
-// The Lstat and the open are still two steps. Where the system can open a
-// file without following a final symbolic link, the open refuses a link that
-// was swapped in after the Lstat, and the target is not written. Where it
-// cannot, that swap can still steer the write. A directory link is not the
-// final component, so this open still follows one. A directory link inside
-// the working directory is refused at load, before this runs.
+// A path inside the working directory is created through that directory
+// opened as a root. A component swapped for a link after the load check
+// cannot then name a file outside the directory: the root refuses the link
+// and this returns an error that names the path. A path outside the working
+// directory is the operator's and is opened as before.
 func writeOutputFile(flag, path string, body []byte) error {
 	info, err := os.Lstat(path)
 	if err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%s %s: final component is a symbolic link; the file it names is not written", flag, path)
 	}
+	rel, inside, err := outputRelativeToWorkingDirectory(path)
+	if err != nil {
+		return err
+	}
+	if inside {
+		return writeOutputInsideWorkingDirectory(flag, path, rel, body)
+	}
+	return writeOutputOutsideWorkingDirectory(flag, path, body)
+}
+
+// writeOutputInsideWorkingDirectory creates path through a root opened on
+// the working directory. rel is path relative to that directory, with any
+// link inside it still named, so the root sees the link and does not follow
+// one that leaves the directory.
+//
+// WHY a root, and not an open of the path: the open follows a directory
+// link. The root does not follow a link to a place outside the working
+// directory, including a link swapped in after the load check. The file
+// outside is not created or replaced.
+func writeOutputInsideWorkingDirectory(flag, path, rel string, body []byte) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", flag, path, err)
+	}
+	root, err := os.OpenRoot(wd)
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", flag, path, err)
+	}
+	defer root.Close()
+	f, err := root.OpenFile(rel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", flag, path, err)
+	}
+	_, werr := f.Write(body)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return fmt.Errorf("%s %s: %w", flag, path, werr)
+	}
+	return nil
+}
+
+// writeOutputOutsideWorkingDirectory writes a path that does not lie in the
+// working directory. The operator chose it. A final symbolic link is not
+// followed where the system can refuse one. An earlier component is followed.
+func writeOutputOutsideWorkingDirectory(flag, path string, body []byte) error {
 	f, err := openOutputFile(path)
 	if err != nil {
 		// ELOOP from a final link swapped in after the Lstat. An ELOOP from
@@ -322,6 +368,69 @@ func writeOutputFile(flag, path string, body []byte) error {
 		werr = cerr
 	}
 	return werr
+}
+
+// outputRelativeToWorkingDirectory reports path relative to the working
+// directory when the path lies inside it. inside is false when the path
+// leaves the working directory; the caller writes that path as the operator's.
+//
+// A relative path lies inside when ".." never climbs out. An absolute path
+// lies inside when a prefix resolves to the working directory. Components
+// after that prefix are not resolved here: a link among them stays in the
+// relative path, and the root open refuses one that leaves the directory.
+func outputRelativeToWorkingDirectory(path string) (rel string, inside bool, err error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", false, fmt.Errorf("working directory: %w", err)
+	}
+	if !filepath.IsAbs(path) {
+		if !relativePathStaysInWorkingDirectory(path) {
+			return "", false, nil
+		}
+		return path, true, nil
+	}
+	resolvedWD := resolvedPath(wd)
+	root, rest := splitRoot(path)
+	parts := splitComponents(rest)
+	cur := root
+	for i, name := range parts {
+		if name == "." {
+			continue
+		}
+		if name == ".." {
+			parent := filepath.Dir(cur)
+			if parent != cur {
+				cur = parent
+			}
+			continue
+		}
+		if resolvedPath(cur) == resolvedWD {
+			rel = filepath.Join(append([]string{name}, parts[i+1:]...)...)
+			return rel, rel != "", nil
+		}
+		cur = filepath.Join(cur, name)
+	}
+	return "", false, nil
+}
+
+// relativePathStaysInWorkingDirectory reports whether a relative path climbs
+// out of the working directory with "..". The path is not cleaned first:
+// "link/../file" still names link, so the root open can refuse it.
+func relativePathStaysInWorkingDirectory(path string) bool {
+	depth := 0
+	for _, name := range splitComponents(path) {
+		switch name {
+		case ".":
+		case "..":
+			if depth == 0 {
+				return false
+			}
+			depth--
+		default:
+			depth++
+		}
+	}
+	return depth > 0
 }
 
 // writtenOutput is a file this run has written, kept for os.SameFile.

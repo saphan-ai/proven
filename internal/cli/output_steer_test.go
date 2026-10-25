@@ -424,6 +424,203 @@ func TestFinalLinkAppearingAfterLoadExits2(t *testing.T) {
 	}
 }
 
+// TestDirectoryLinkSwappedAfterLoadIsNotWrittenThrough proves a directory of
+// the output path that is a real directory at load, and a symbolic link to a
+// directory outside the working directory by the time of the write, does not
+// receive the report. The review is the seam between the load check and the
+// write: it replaces the directory. The mutated field is that directory
+// component. Writing the file with os.WriteFile follows the link, the run
+// exits 0, and the outside file changes.
+func TestDirectoryLinkSwappedAfterLoadIsNotWrittenThrough(t *testing.T) {
+	rel := "reports/proven.sarif"
+	t.Run("relative path", func(t *testing.T) {
+		assertSwappedDirectoryDoesNotReceiveTheReport(t, func(checkout string) string { return rel }, "")
+	})
+	t.Run("absolute path under the working directory", func(t *testing.T) {
+		assertSwappedDirectoryDoesNotReceiveTheReport(t, func(checkout string) string {
+			return filepath.Join(checkout, rel)
+		}, "")
+	})
+	t.Run("relative link target", func(t *testing.T) {
+		assertSwappedDirectoryDoesNotReceiveTheReport(t, func(checkout string) string { return rel }, "../outside")
+	})
+}
+
+// assertSwappedDirectoryDoesNotReceiveTheReport builds a checkout whose
+// reports directory is real at load, swaps it for a link to an outside
+// directory during the review, and requires a non-zero exit that names the
+// output path. The outside file must still hold what was seeded.
+func assertSwappedDirectoryDoesNotReceiveTheReport(t *testing.T, outputPath func(checkout string) string, linkTarget string) {
+	t.Helper()
+	dir := t.TempDir()
+	checkout := filepath.Join(dir, "checkout")
+	outside := filepath.Join(dir, "outside")
+	if err := os.MkdirAll(filepath.Join(checkout, "reports"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(outside, "proven.sarif")
+	if err := os.WriteFile(victim, []byte("kept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := outputPath(wd)
+	reports := filepath.Join(wd, "reports")
+	swapped := false
+	open := func(review.Options) (review.Reviewer, error) {
+		return funcReviewer(func() review.Result {
+			if err := os.Remove(reports); err != nil {
+				t.Error(err)
+			}
+			target := outside
+			if linkTarget != "" {
+				target = linkTarget
+			}
+			if err := os.Symlink(target, reports); err != nil {
+				t.Error(err)
+			}
+			swapped = true
+			return review.Result{Class: "c", ClassRule: "r"}
+		}), nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=" + path}, emptyEnv, &stdout, &stderr, open)
+	if !swapped {
+		t.Fatal("the load check refused the path, so the swap never ran")
+	}
+	if code == exitOK {
+		t.Errorf("exit 0, want non-zero; stderr %s", stderr.String())
+	} else if !strings.Contains(stderr.String(), path) {
+		t.Errorf("refusal does not name %q: %s", path, stderr.String())
+	}
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "kept\n" {
+		t.Fatalf("the report was written through the link onto %s:\n%s", victim, b)
+	}
+}
+
+// TestAliasedWorkingDirectorySpellingRefusesTheInsideLink proves an absolute
+// output path that reaches the working directory through a different spelling
+// is still checked for a directory link inside that directory. The mutated
+// field is the comparison: the working directory and the walked prefix are
+// resolved before they are compared. Comparing the spellings leaves the
+// outside file overwritten and the run exits 0.
+func TestAliasedWorkingDirectorySpellingRefusesTheInsideLink(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real")
+	checkout := filepath.Join(real, "checkout")
+	outside := filepath.Join(dir, "outside")
+	if err := os.MkdirAll(checkout, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(dir, "alias")
+	if err := os.Symlink(real, alias); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+	link := filepath.Join(checkout, "reports")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(outside, "proven.sarif")
+	if err := os.WriteFile(victim, []byte("kept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	path := filepath.Join(alias, "checkout", "reports", "proven.sarif")
+	named := filepath.Join(alias, "checkout", "reports")
+	rev := &captureReviewer{}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=" + path}, emptyEnv, &stdout, &stderr, openCapture(rev))
+	if code != exitConfig {
+		t.Errorf("exit %d, want %d; stderr %s", code, exitConfig, stderr.String())
+	}
+	for _, want := range []string{"--sarif-output", path, named, "inside the working directory"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Errorf("refusal does not name %q: %s", want, stderr.String())
+		}
+	}
+	if rev.req.Target != "" {
+		t.Error("the review ran despite the refusal")
+	}
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "kept\n" {
+		t.Errorf("the report was written through the link onto %s:\n%s", victim, b)
+	}
+}
+
+// TestDirectoryLinkSwappedAfterLoadThroughAnAliasedSpellingIsNotWrittenThrough
+// proves the write, not only the load check, treats an aliased spelling of the
+// working directory as inside it. The directory is real at load and becomes a
+// link during the review. The mutated field is that classification. Treating
+// the aliased spelling as outside follows the link.
+func TestDirectoryLinkSwappedAfterLoadThroughAnAliasedSpellingIsNotWrittenThrough(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real")
+	checkout := filepath.Join(real, "checkout")
+	outside := filepath.Join(dir, "outside")
+	if err := os.MkdirAll(filepath.Join(checkout, "reports"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(dir, "alias")
+	if err := os.Symlink(real, alias); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+	victim := filepath.Join(outside, "proven.sarif")
+	if err := os.WriteFile(victim, []byte("kept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(alias, "checkout", "reports", "proven.sarif")
+	reports := filepath.Join(wd, "reports")
+	open := func(review.Options) (review.Reviewer, error) {
+		return funcReviewer(func() review.Result {
+			if err := os.Remove(reports); err != nil {
+				t.Error(err)
+			}
+			if err := os.Symlink(outside, reports); err != nil {
+				t.Error(err)
+			}
+			return review.Result{Class: "c", ClassRule: "r"}
+		}), nil
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--sarif-output=" + path}, emptyEnv, &stdout, &stderr, open)
+	if code == exitOK {
+		t.Errorf("exit 0, want non-zero; stderr %s", stderr.String())
+	} else if !strings.Contains(stderr.String(), path) {
+		t.Errorf("refusal does not name %q: %s", path, stderr.String())
+	}
+	b, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "kept\n" {
+		t.Fatalf("the report was written through the link onto %s:\n%s", victim, b)
+	}
+}
+
 // TestRegularOutputFileIsStillOverwritten proves the symlink refusal does not
 // cover a regular file. The mutated field is the final component: a regular
 // file, not a link. Refusing every existing path turns this red.
