@@ -30,13 +30,43 @@ That work led to patent applications, filed in the U.S. and Europe and still pen
 
 Now that fleet takes on something new. At the hackathon it will build **Proven**, an open-source tool for checking code of the kind it writes itself.
 
+## Impact: the problem at its real size
+
+This repository is not here to show off a fleet. It shows, from the inside, how a fully agentic coding factory works,
+because that is the only way to show the size of the problem Proven solves.
+
+Most solo developers who code with AI agents feel the problem only lightly: an agent says "done", the tests are green,
+and now and then something is quietly wrong. At one or two agents you can still read every change yourself. At a fleet
+you cannot, and the question stops being "can agents write the code?" and becomes **"which of this can I trust, and on
+what evidence?"** That is why pull-request review and security are not extras here. **They are the foundation.** Without
+them, a fleet that writes code faster only produces unchecked code faster.
+
+So we do not ask you to imagine the scale. We show it:
+
+- **One person.** Marcin decides, rules on disputes and merges every change by hand. No agent ever merges or pushes.
+- **A coding fleet** that plans, builds, tests and reviews, with every change reviewed by a model family other than
+  the one that wrote it.
+- **Six days**, from 22 to 27 October 2026, to build a working evidence-based reviewer with its own lab, a GitHub
+  Action, four Meterless engines, live data through Zetaris, NVIDIA Nemotron as a reviewer, and a security review of
+  its own code on top.
+- **Every step in the open**: each order, each builder's report, each review and each decision is in this repository.
+- **And Proven is not the only thing the fleet builds this week.** In the same six days, under the same one person,
+  it keeps building three other projects: Saphan Studio itself (the platform that runs the fleet), the
+  [Quake Watch server](https://github.com/saphan-ai/quake-watch-server), an earthquake alert service built in public
+  as a step-by-step example, and its Android app. Four projects at once, one person deciding and merging all of them.
+
+By the end of day four, 100 changes had been merged. Counted from the fleet's own record on 25 October, 240
+independent reviews raised **201 blocking problems** in work that an agent had called finished, and **116 of them were
+stopped before the change reached the main branch**. That is the problem Proven exists for, measured on the project
+that builds it, not estimated.
+
 ## Where things stand
 
 Updated every evening. The newest day comes first.
 
 ### Day four, 25 October
 
-Day four of six. **Thirty more changes were merged**, 98 in four days. With Scout Intent and Markovian, all four
+Day four of six. **Thirty-two more changes were merged**, 100 in four days. With Scout Intent and Markovian, all four
 Meterless engines are now in Proven, the two new ones switched off until their benefit is measured.
 
 **NVIDIA's model now writes Proven's code, not only reviews it.** NVIDIA made its hosted API free for us, and the fleet
@@ -349,7 +379,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
 | 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding given a level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. [What shipped, in a terminal](hackathon/SHIPPED_DAY_3.md). |
-| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 30 changes merged: NVIDIA's Nemotron writes its first Proven code, Meterless's Scout Intent and Markovian (all four Meterless engines in, the two new ones off by default), one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
+| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 32 changes merged: NVIDIA's Nemotron writes its first Proven code, Meterless's Scout Intent and Markovian (all four Meterless engines in, the two new ones off by default), one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 
