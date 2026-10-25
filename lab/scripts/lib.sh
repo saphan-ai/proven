@@ -58,6 +58,54 @@ require_loopback_bind() {
   fi
 }
 
+# The admin password reaches the judge in one of two ways, and never through a
+# log. On a terminal it is printed once, by deliver_admin_password. Anywhere
+# else (CI, a redirect, a pipe) it is written to a file only the user can read,
+# in the lab's state directory, and only the path is printed. make clean removes
+# the file. LAB_STATE_DIR moves the directory.
+stdout_is_terminal() {
+  [ -t 1 ]
+}
+
+admin_password_file() {
+  printf '%s\n' "${LAB_STATE_DIR:-$ROOT/lab/.state}/admin-password"
+}
+
+# store_admin_password_file PASSWORD  — the file is created at mode 0600 by the
+# umask, never created wider and narrowed after. An older file or link at the
+# path is removed first, so the mode is the new file's.
+store_admin_password_file() {
+  f=$(admin_password_file)
+  d=$(dirname "$f")
+  (
+    umask 077
+    mkdir -p "$d"
+    rm -f "$f"
+    printf '%s\n' "$1" >"$f"
+  )
+}
+
+# deliver_admin_password PASSWORD  — called on the first make up only.
+deliver_admin_password() {
+  if stdout_is_terminal; then
+    echo "lab admin password: $1"
+    echo "This password is printed once. make clean removes it with the lab volume."
+  else
+    store_admin_password_file "$1"
+    echo "lab admin password: not printed, because stdout is not a terminal"
+    echo "lab admin password file: $(admin_password_file)"
+    echo "The file is readable only by you. make clean removes it."
+  fi
+}
+
+# remove_admin_password_file  — make clean. Removes the file, and the directory
+# when nothing else is in it.
+remove_admin_password_file() {
+  f=$(admin_password_file)
+  rm -f "$f"
+  rmdir "$(dirname "$f")" 2>/dev/null || true
+}
+
 compose() {
   case ${1-} in
     up | run | create | start) require_loopback_bind ;;

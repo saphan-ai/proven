@@ -9,7 +9,7 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 ## Start
 
 1. From a checkout of this repository, run `make up`.
-2. The first run prints the admin user, a generated password, and the lab URL. The password is printed once. It is kept in the lab's volume until `make clean`. A later `make up` does not print it again. It does not stop because the volume is already there. It creates the admin user, the runner registration and the pull request when any of those is missing.
+2. The first run prints the admin user and the lab URL, and generates a password. When the output is a terminal, the password is printed once. When it is not (CI, a redirect, a pipe), the password is not printed: it is written to `lab/.state/admin-password`, readable only by you (mode 0600), and `make up` prints that path. To choose the password yourself, set `LAB_ADMIN_PASSWORD` (8 characters or more) in the environment of the first `make up`: it is used, and neither printed nor written to a file. The password is also kept in the lab's volume until `make clean`, which removes the file too. A later `make up` does not print it again and does not write the file again. It does not stop because the volume is already there. It creates the admin user, the runner registration and the pull request when any of those is missing.
 3. Open the URL in a browser. Sign in with that user and password.
 4. Open the `discount` repository. It has one open pull request.
 5. The pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review, and the marker names the run that posted it.
@@ -126,7 +126,7 @@ The same file is what a GitHub user commits. On GitHub the job's Docker runs `sa
 The workflow posts as its own account, `proven-bot` (`LAB_BOT_USER`). It is not an admin. The lab admin is the account you sign in with, so a review the workflow wrote and a comment you or any other person wrote must not look alike. If the admin posted the review, an admin who types the marker by hand would pass for the workflow.
 
 - The seed creates `proven-bot`, makes it a collaborator with write access on the demo repository, and mints that account's token. The token is stored only as the repository's Actions secret `PROVEN_TOKEN`, which the workflow reads. The admin's token is not given to the workflow.
-- The account's generated password stays in the lab's state volume until `make clean`. Neither it nor the token is printed, written to a tracked file or baked into an image layer.
+- The account's generated password stays in the lab's state volume until `make clean`. It is printed once, to a terminal, on the first `make up`; when stdout is not a terminal it is written to `lab/.state/admin-password` at mode 0600 instead. It is never in a log, a tracked file or an image layer, and the token is never printed.
 - `make e2e` accepts a review comment only from `proven-bot`, with the marker for the run and the head commit. The same marker from the admin or any other account is ignored, and e2e names the account it ignored.
 - If the secret is missing, the job falls back to `GITHUB_TOKEN`; on Gitea that posts as another account, and e2e then fails closed.
 

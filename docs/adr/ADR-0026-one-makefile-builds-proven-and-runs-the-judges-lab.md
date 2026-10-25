@@ -38,8 +38,15 @@ and its logs.
    gives, so the image a judge ran on a given day can still be pulled. Every other image in the lab (Gitea, its
    runner, `golang`, Docker) stays pinned to a version, as ADR-0017 point 6 says.
 7. **`make up` starts the lab of ADR-0017; `make down` stops it.** One Compose file: Gitea, a Gitea Actions runner, and a
-   one-time seed that creates the admin (password generated and printed once), the demo repository with an open pull
-   request and Proven's workflow, and registers the runner. Everything binds to localhost.
+   one-time seed that creates the admin, the demo repository with an open pull request and Proven's workflow, and
+   registers the runner. Everything binds to localhost. The admin's password is generated on the first `make up` and
+   reaches the judge once, never through a log (the owner, 25 October). When stdout is a terminal, `make up` prints it
+   once, and a later run does not print it. When stdout is not a terminal (CI, a redirect, a pipe), `make up` does not
+   print it: it writes the password to a file readable only by the user (mode 0600, created with that mode) in the
+   lab's state directory, `lab/.state/`, and prints only the path. No password goes into a log, a trace, a Compose
+   output or a `make logs` line. `make clean` removes the file. A judge may supply their own password in
+   `LAB_ADMIN_PASSWORD`; it is read from the environment, is used, is neither printed nor written to a file, and is
+   never in a committed file.
 8. **The runner starts the Prover's containers in Docker in Docker** inside the lab, never through the host's Docker
    socket (the owner, 23 October). The lab's jobs get no control of the judge's Docker.
 9. **`make status`** shows the containers, Gitea's health, whether the runner is registered, the last workflow result on

@@ -5,6 +5,18 @@ set -eu
 require_loopback_bind
 need_docker
 
+# A password the judge supplies is checked before any container starts. Gitea
+# refuses one shorter than 8 characters, and a line break would split it.
+if [ -n "${LAB_ADMIN_PASSWORD:-}" ]; then
+  case $LAB_ADMIN_PASSWORD in
+    *'
+'*) die "up: LAB_ADMIN_PASSWORD holds a line break" ;;
+  esac
+  if [ "${#LAB_ADMIN_PASSWORD}" -lt 8 ]; then
+    die "up: LAB_ADMIN_PASSWORD is shorter than 8 characters, which Gitea refuses"
+  fi
+fi
+
 if [ -z "${GITEA_RUN_USER:-}" ]; then
   die "up: GITEA_RUN_USER is not set"
 fi
@@ -73,15 +85,27 @@ fi
 
 pass=$(compose run --rm --no-deps -T --entrypoint cat seed /state/password 2>/dev/null || true)
 if [ -z "$pass" ]; then
-  pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+  if [ -n "${LAB_ADMIN_PASSWORD:-}" ]; then
+    pass=$LAB_ADMIN_PASSWORD
+    supplied=1
+  else
+    pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+    supplied=0
+  fi
   printf '%s' "$pass" | compose run --rm --no-deps -T --entrypoint sh seed -c \
     'umask 077 && cat > /state/password'
   echo "lab admin user: $LAB_ADMIN_USER"
-  echo "lab admin password: $pass"
+  if [ "$supplied" -eq 1 ]; then
+    echo "lab admin password: the value of LAB_ADMIN_PASSWORD, not printed"
+  else
+    deliver_admin_password "$pass"
+  fi
   echo "lab url: $lab_url"
-  echo "This password is printed once. make clean removes it with the lab volume."
 else
-  echo "lab already installed; admin password was printed at first start"
+  echo "lab already installed; the admin password is not printed again"
+  if [ -n "${LAB_ADMIN_PASSWORD:-}" ] && [ "$LAB_ADMIN_PASSWORD" != "$pass" ]; then
+    echo "up: LAB_ADMIN_PASSWORD differs from the installed lab's password and is ignored. make clean, then make up, installs it." >&2
+  fi
   echo "lab url: $lab_url"
   echo "up: the volume is kept; repairing the admin user, the runner and the pull request"
 fi
