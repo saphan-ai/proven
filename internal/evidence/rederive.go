@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/saphan-ai/proven/internal/review"
 )
@@ -42,33 +43,47 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 		return refuse(CheckFormat, FindingsName, "not readable: %v", err)
 	}
 	for i, f := range res.Findings {
-		// A pack written before Bound was recorded holds rows whose tie to the change is unknown.
-		// Absent is not false: the rule would drop the finding, but nobody recorded that it should.
-		// The pack is not called forged for it, and the finding is not called re-derived.
 		if slices.Contains(redactionMoved, f.ID) {
 			rep.NotRederived = append(rep.NotRederived, fmt.Sprintf("finding %s: redaction changed the text the rule reads for it, so its outcome is not re-derived", Visible(f.ID)))
 			continue
 		}
-		if unbound[i] {
-			rep.NotRederived = append(rep.NotRederived, fmt.Sprintf("finding %s: the pack does not record whether its query rows are bound to the change, so its outcome is not re-derived", Visible(f.ID)))
-			continue
-		}
-		out, err := review.Rederive(f)
+		// A pack written before Bound was recorded holds rows whose tie to the change is unknown.
+		// Absent is not false. The rule is run with each absent Bound read both ways, and a
+		// component is checked whenever the two readings agree on it: the rest of the recorded
+		// evidence decides it.
+		lo, hi, err := boundedOutcomes(f, unbound[i])
 		if err != nil {
 			return refuse(CheckOutcome, FindingsName, "finding %s: %v", Visible(f.ID), err)
 		}
-		if out.Level != f.ProofLevel {
-			return refuse(CheckOutcome, FindingsName, "finding %s records proof level %q, the rule gives %q for the evidence recorded", Visible(f.ID), Visible(string(f.ProofLevel)), string(out.Level))
+		var undecided []string
+		if lo.Level != hi.Level {
+			undecided = append(undecided, "its proof level")
+		} else if lo.Level != f.ProofLevel {
+			return refuse(CheckOutcome, FindingsName, "finding %s records proof level %q, the rule gives %q for the evidence recorded", Visible(f.ID), Visible(string(f.ProofLevel)), string(lo.Level))
 		}
-		if !out.Reported {
+		if lo.Reported != hi.Reported {
+			undecided = append(undecided, "whether it is reported")
+		} else if !lo.Reported {
 			return refuse(CheckOutcome, FindingsName, "finding %s is recorded as reported, the rule drops it for the evidence recorded", Visible(f.ID))
 		}
-		if !out.Complete {
-			rep.NotRederived = append(rep.NotRederived, fmt.Sprintf("finding %s: the pack records no refutation, so whether it was refuted or left open is not re-derived", Visible(f.ID)))
-			continue
+		switch {
+		case !lo.Complete:
+			undecided = append(undecided, "whether it was refuted or left open")
+		case lo.Unresolved != hi.Unresolved:
+			undecided = append(undecided, "whether it is open")
+		case lo.Unresolved != f.Unresolved:
+			return refuse(CheckOutcome, FindingsName, "finding %s records unresolved=%t, the rule gives unresolved=%t for the evidence recorded", Visible(f.ID), f.Unresolved, lo.Unresolved)
 		}
-		if out.Unresolved != f.Unresolved {
-			return refuse(CheckOutcome, FindingsName, "finding %s records unresolved=%t, the rule gives unresolved=%t for the evidence recorded", Visible(f.ID), f.Unresolved, out.Unresolved)
+		if len(undecided) > 0 {
+			var why []string
+			if len(unbound[i]) > 0 {
+				why = append(why, "does not record whether its query rows are bound to the change")
+			}
+			if !lo.Complete {
+				why = append(why, "records no refutation")
+			}
+			rep.NotRederived = append(rep.NotRederived, fmt.Sprintf("finding %s: the pack %s, so %s is not re-derived", Visible(f.ID), strings.Join(why, " and "), strings.Join(undecided, ", ")))
+			continue
 		}
 		rep.Rederived++
 	}
@@ -78,9 +93,35 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 	return nil
 }
 
-// findingsWithoutBound reports, per finding in file order, whether findings.json holds a query
-// whose Bound field is absent, as opposed to recorded false.
-func findingsWithoutBound(findings []byte) ([]bool, error) {
+// boundedOutcomes gives the rule's outcome for f with every query listed in unbound read as not
+// bound (lo) and as bound (hi). With none listed, the two are the same.
+func boundedOutcomes(f review.Finding, unbound map[int]bool) (lo, hi review.Outcome, err error) {
+	if lo, err = review.Rederive(withBound(f, unbound, false)); err != nil {
+		return lo, hi, err
+	}
+	hi, err = review.Rederive(withBound(f, unbound, true))
+	return lo, hi, err
+}
+
+// withBound copies f with the listed queries' Bound set to v.
+func withBound(f review.Finding, unbound map[int]bool, v bool) review.Finding {
+	if len(unbound) == 0 {
+		return f
+	}
+	f.Evidence = slices.Clone(f.Evidence)
+	for i := range f.Evidence {
+		if unbound[i] && f.Evidence[i].Query != nil {
+			q := *f.Evidence[i].Query
+			q.Bound = v
+			f.Evidence[i].Query = &q
+		}
+	}
+	return f
+}
+
+// findingsWithoutBound reports, per finding in file order, the evidence indexes of the queries
+// whose Bound field is absent from findings.json, as opposed to recorded false.
+func findingsWithoutBound(findings []byte) ([]map[int]bool, error) {
 	var raw struct {
 		Findings []struct {
 			Evidence []struct {
@@ -92,11 +133,14 @@ func findingsWithoutBound(findings []byte) ([]bool, error) {
 	if err := json.Unmarshal(findings, &raw); err != nil {
 		return nil, err
 	}
-	out := make([]bool, len(raw.Findings))
+	out := make([]map[int]bool, len(raw.Findings))
 	for i, f := range raw.Findings {
-		for _, e := range f.Evidence {
+		for j, e := range f.Evidence {
 			if e.Query != nil && e.Query.Bound == nil {
-				out[i] = true
+				if out[i] == nil {
+					out[i] = map[int]bool{}
+				}
+				out[i][j] = true
 			}
 		}
 	}

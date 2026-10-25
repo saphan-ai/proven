@@ -144,3 +144,16 @@ func TestVerifyWithoutAPublicKeyNamesTheSetting(t *testing.T) {
 		t.Fatalf("exit %d: %q", code, stderr.String())
 	}
 }
+
+// The report an auditor reads names every finding verify did not re-derive.
+func TestVerifyReportNamesEachFindingNotRederived(t *testing.T) {
+	line := "finding F1: the pack records no refutation, so whether it was refuted or left open is not re-derived"
+	rep := &evidence.Report{Findings: 2, Rederived: 1, NotRederived: []string{line}}
+	out := renderReport("x.pack", rep)
+	if !strings.Contains(out, "outcomes: 1 of 2 finding(s) re-derived") {
+		t.Fatalf("the report does not give the re-derived count:\n%s", out)
+	}
+	if !strings.Contains(out, "not re-derived: "+line) {
+		t.Fatalf("the report does not name F1 as not re-derived:\n%s", out)
+	}
+}
