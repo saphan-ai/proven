@@ -1,134 +1,243 @@
 # CONVERSATION — the advisor, build day 3, 24 October 2026 (into the night of the 25th)
 
-This page continues [`CONVERSATION_2026-10-23_advisor.md`](CONVERSATION_2026-10-23_advisor.md). It is shorter on the
-owner's side and fuller on the fleet's: every message the advisor sent to the agent masters about Proven, and what they
-answered. Message ids are the fleet's own. Private hosts and seat names are blacked out; security findings stay private
-until their fix is merged.
+This page continues [`CONVERSATION_2026-10-23_advisor.md`](CONVERSATION_2026-10-23_advisor.md).
+
+**How to read it, if you do not know the fleet.** Marcin, the owner, talks to the **advisor**, an agent that works with
+him on plans and documents. The advisor never builds anything itself. It passes work to the **masters**, agents that each
+run one train of work for Proven, and to the **scribe**, which keeps the record. They talk by messages. Every message has
+an id, and an answer is a message of its own that points back to it. A message can go to one master or to all of them at
+once. A message can also demand an answer, and when none comes, the advisor asks again or goes another way. For every hop
+below: what the owner said, what the advisor did, each message sent (→) with its id, and each answer (←) with its time in
+UTC. Seat names and private hosts are blacked out. Security findings stay private until their fix is merged.
 
 ## Hop by hop
 
-### 1 · Two more Meterless engines, one wagon each
+### 1 · owner → advisor: two more Meterless engines
 
-The owner: *"Do we have the two extra Meterless engines? One wagon each and it should go."* The advisor measured that
-both were decided ([ADR-0048](../../docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md) Markovian,
-[ADR-0049](../../docs/adr/ADR-0049-scout-intent-plans-each-review.md) Scout Intent) but had no wagon in any train.
+> *"Do we already have the two extra Meterless technologies? Then one wagon each and it should go."*
 
-**Sent** `e8784c25b057aab7` → master core: one wagon each; step 0 runs Meterless's own suite or harness against an empty
-adapter and must see it fail; the benefit is measured or the engine is not kept.
+**What the advisor read first.** Both engines were decided the same morning, Markovian
+([ADR-0048](../../docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md)) and Scout Intent
+([ADR-0049](../../docs/adr/ADR-0049-scout-intent-plans-each-review.md)). Neither had a wagon in any train order.
 
-**Answer** (15:43Z): W50 `markovian-bounded-steps` and W51 `scout-intent-plans-the-review`. Meterless ships a conformance
-suite for Markovian and an evaluation harness for Scout Intent. Merge planned for 26 October, marked at risk. The owner:
-*"In parallel. Today is the 24th and he says the 26th?"* **Sent** `bbcb12db3e557196`: both in parallel, today.
+**→ `e8784c25b057aab7`, to master core** (10:32Z): one wagon each. Step 0 of each runs Meterless's own conformance suite
+or evaluation harness against an empty implementation and must see it fail. The benefit is measured on the test corpus,
+with and without the engine, or the engine is not kept.
 
-### 2 · The closing schedule
+**No answer for five hours.** See hop 6 for why.
 
-The owner agreed to the advisor's proposal: features merged by **26 October, 15:00 UTC**; after that only fixes, the
-README and documentation, the demo and the submission. **Sent** to all seven Proven tracks (`51ec508b783ad45b` and six
-more): name each open wagon's expected merge time; anything past the freeze is dropped or reported at risk.
+**← master core** (15:43Z): W50 `markovian-bounded-steps` and W51 `scout-intent-plans-the-review`. Meterless ships a
+conformance suite for Markovian and an evaluation harness for Scout Intent. Merge planned for 26 October, marked at risk.
 
-**Answers:** the command-line master (12:38Z) listed W3, W7, W4, W5 with times and dropped W6 and W9 unless the owner
-reorders; the infrastructure master (12:39Z) put everything before the freeze, the held-out set marked at risk if its
-source pairs came late.
+> *"They run in parallel. Today is the 24th and he talks about the 26th?"*
 
-### 3 · Another team's progress: a held-out set and one command
+**→ `bbcb12db3e557196`, to master core:** both legs in parallel, starting today; if a step truly forces the 26th, name
+that step and its measurement.
 
-The owner shared another team's update. Two of its ideas were worth taking: test sets frozen before each run, and one
-command that lets anyone re-check the results. **Sent** `cce910fa00a2720c` → the test-corpus master.
+### 2 · owner → advisor: the closing schedule
 
-**Answer** (12:34Z): the advisor's claim held. There was no held-out set and no command that runs Proven over the corpus.
-Two wagons: W4 `make corpus-score`, and W5 a held-out set.
+> *"They finish tomorrow, and we are only getting going."* (about the other team)
 
-The old population had no fair unused pair left (13:04Z), so the master proposed seven new cases from real reviewer
-disagreements of the build week. The advisor picked six and left out a third variant of the same family. The owner:
-*"Two sets: one we developed on, and a test one."* **Sent** `e411c7feec3216b5`: two tables, never one merged number.
+The advisor proposed a closing schedule: every feature merged by **26 October, 15:00 UTC**; after that only fixes, the
+README and documentation, the demo and the submission. A wagon that starts too late and misses its review is worth nothing.
 
-Later the score came out 0 of 21, because sample mode only replays recordings and the cases had none. The master
-proposed *record once, replay always*. **Approved** `0d32e6300aa8c0d8`: each case runs live once with the owner's NVIDIA
-key; the table says it is replayed from that run and names the model; a failed case counts as no answer, never dropped.
-One case's contract was corrected before the first run, as a second freeze commit, both commits linked.
+> *"Agreed."*
 
-### 4 · Documentation: adapters, examples, and a site
+**→ the same message to all seven Proven tracks** (`51ec508b783ad45b` and six more): the freeze, and *"name, today, each
+open wagon's expected merge time; anything past the freeze is dropped or reported to me as at risk."*
 
-The owner: *"We need proper documentation, especially the adapters, maybe in examples?"* `docs/ADAPTERS.md` covered a
-language and a tool; the code had more extension points. **Sent** `850bf81490446c01`, `4d6998777644c5ce`,
-`3cb977847290fe2a`: one section and one tested example per extension point, under `examples/`, built in CI so an example
-that rots turns the build red. Taken by three masters, split by who owns the code.
+One of the seven did not go out. The relay refused it: nobody holds that track yet. The security master holds it beside
+its own track and received the same message there.
 
-The owner then asked for a documentation site built the way docs.saphan.ai is, in its own container, hosted on Saphan's
-Cloudflare. **Sent** `58769394aff60381` and three follow-ups → the command-line master. **Taken** as W12 `proven-docs-site`.
-The owner checked proven.ai (taken) and chose **proven.saphan.ai**.
+**← the command-line master** (12:38Z): W3, W7, W4, W5 with merge times, all before the freeze; W6 and W9 dropped unless
+the owner reorders.
 
-### 5 · Questions from comparing with others
+**← the infrastructure master** (12:39Z), for its three tracks: the judges' lab landing now, the first image push in an
+hour, sixteen of twenty-one test cases landed, the held-out set at risk if its source cases come late.
 
-- **Does each agent see only the data its role allows?** **Sent** `228a225eda634a2c` → master core. It became W55
-  `evidence-scope-per-role`.
-- **What do the guardrail's checks show?** **Sent** `0b2436147f5fb83d`. **Answer:** every check, pass or block, is in the
-  trace with its categories and latency, but the trace does not say whether the local or the hosted model checked. W54
-  adds it.
+**Master core did not answer.** See hop 6.
 
-### 6 · What is published about cost
+### 3 · owner → advisor: what another team is doing
 
-The owner first wanted the daily spend in the README, then decided against it: the figures stay private, and public
-documents carry the model that ran, not its cost. Proven's `AGENTS.md`, the decision template and the ledger were changed
-the same evening. **Sent** to the five masters (`3d01d2b6586aa968` and four more): public copies carry the model and no
-cost from 25 October.
+The owner pasted another team's progress update. The advisor compared it with Proven: two of their ideas were worth taking,
+**test sets frozen before each run**, and **one command that lets anyone re-check the results**.
 
-### 7 · Master core splits
+> *"Send it."*
 
-Master core had too much to finish before the freeze. The owner: *"Take half of it to a new master."* The advisor wrote
-the kickoff of a new track, `proven-meterless-engines` (W50, W51, W54, OpenTelemetry, and core's share of the adapter
-documentation). **Sent** `d0842a7e15678f81` → master core: what leaves, what stays.
+**→ `cce910fa00a2720c`, to the test-corpus master:** a held-out set written and committed before Proven ever runs on
+it; one command that runs the whole corpus and prints the table the README quotes. *"My claim to test: the corpus has no
+held-out set. If it has one, show me its freeze commit."*
 
-**Answer** (16:15Z): none of the five had started, so all five moved whole. Core kept the evidence store work (W47, W49,
-W52), more Zetaris sources (W43) and W55.
+**← test-corpus master** (12:34Z): *"Your claim holds."* No held-out set, and no command that runs Proven over the corpus.
+Two wagons: W4 `make corpus-score`, W5 `held-out-set-1`. *"The advisor or the owner must name the source pairs."*
 
-The new master's session was lost once and restarted. Its first W50 leg ran for one minute at 00:21Z (see hop 10).
+**→ `9cb037966eb34fb5`:** *"Propose the pairs yourself, I will pick within the hour, so the freeze does not wait on the
+owner."*
 
-### 8 · NVIDIA's model as a reviewer in the fleet
+**← test-corpus master** (13:04Z): the old population has no fair unused pair left. Seven new cases instead, from real
+disagreements between reviewers during the build week, in other kinds of defect and in a new language.
 
-The owner: the fleet's NVIDIA reviews call NVIDIA's API directly, not through Nightshift; Nightshift stays where Proven's
-own code uses it. **Sent** `8093857cd99ae27d`. The first live review by Nemotron finished at 15:49Z.
+**→ `3ac42c5711359aaf`:** six picked, one left out because it was a third variant of the same family.
 
-### 9 · Three model families, one commit
+> *"Super. Two sets: one we developed on, and a test one."*
 
-For a public side by side, the advisor asked two masters (`db67fb06c1713057`, `2a064f7e0c93a57e`) to add a Nemotron review
-beside the OpenAI and Anthropic reviews on their next change that is not security work. The test-corpus master put it on
-the held-out set. Just after midnight UTC:
+**→ `e411c7feec3216b5`:** two tables, never one merged number; a fix to a missed test case is checked on a *new* test set.
+
+**← test-corpus master** (13:15Z): taken into W4's second round.
+
+Two more questions came back in the evening. The advisor decided both, in the owner's name, because the owner was
+finishing a video:
+
+- **← test-corpus master:** the score comes out 0 of 21, because sample mode only replays recordings and the cases have
+  none. *"Record once, replay always?"* **→ `0d32e6300aa8c0d8`:** approved. Each case runs live once with the owner's
+  NVIDIA key; the table says it is replayed from that run and names the model; a case that fails counts as no answer.
+- **← test-corpus master:** a reviewer found a fault in one case before its first run. **→ same message:** correct it as a
+  second freeze commit, both commits linked; nothing changes after the first run.
+
+### 4 · owner → advisor: proper documentation, and a site
+
+> *"We must have proper, PROPER documentation, especially the adapters. Maybe in examples?"*
+
+**What the advisor read.** `docs/ADAPTERS.md` covered a language and a tool. The code had seven more extension points.
+
+**→ the same request to three masters**, split by who owns the code (`850bf81490446c01` master core,
+`4d6998777644c5ce` command line, `3cb977847290fe2a` Zetaris): one section and one small example per extension point,
+under `examples/`, built and tested in CI, so an example that stops working turns the build red.
+
+**← Zetaris track** (12:40Z): one wagon, which first checks the advisor's list against the code. **← command line**
+(12:40Z): W11, the output-format part, and the shared index of examples.
+
+> *"What about a documentation generator like in saphan-docs? Run in a proven-docs container. A master can code it
+> himself."* · *"Then a little container hosted on our Cloudflare, to read."*
+
+**→ `58769394aff60381`, to the command-line master,** and three follow-ups as the owner added detail: the hosting
+pattern our other services use, then the host name.
+
+> *"proven.ai is taken. We stay with the subdomain."*
+
+**← command-line master** (12:43Z): W12 `proven-docs-site`, merge on 25 October.
+
+### 5 · two questions from comparing with others
+
+**→ `228a225eda634a2c`, to master core:** *"Another team says each agent sees only the data its role allows. Does
+Proven? If yes, show the file and the test; if not, how big is the wagon?"*
+
+**→ `0b2436147f5fb83d`, to master core:** *"What can the guardrail's checks show?"*
+
+**← master core**, later in the day: every check, pass or block, is in the trace with its categories and latency, but the
+trace does not say whether the local or the hosted model checked; W54 adds it. The scope per role becomes W55.
+
+### 6 · the master who stopped reading his messages
+
+By 13:00Z master core had six unanswered messages, from hops 1, 2, 4 and 5, and no work running.
+
+**→ `f9cc8b2a4ef2e02d`, to master core:** *"If you are mid-work, one line is enough."* No answer.
+
+**→ `c3b215956984075a`, to the scribe:** *"Is the master core session alive? Has it read my messages?"*
+
+**← scribe** (14:34Z): *"The master is alive but is not reading its inbox."* It had compacted its memory at 10:47Z, a
+quarter of an hour after the first message, and since then worked only from what the owner typed into its terminal:
+twelve messages unread, all of them still open.
+
+**The advisor to the owner:** *"Mail will not reach him. Type into his terminal: read your track's inbox now."* The owner
+did. Within the hour master core answered hops 1, 2 and 5.
+
+### 7 · owner → advisor: take half of master core's work
+
+> *"Master CORE. We take half of his work to a new master. Give me the kickoff for the new one, and send core what
+> leaves him."*
+
+**What the advisor did.** It wrote the kickoff of a new track, `proven-meterless-engines`: W50, W51, W54, OpenTelemetry,
+and core's share of the adapter documentation, with the decisions' own definition of done carried in the text. The kickoff
+has one rule the old master lacked: *"Read your track inbox after every compaction, restart or owner turn."*
+
+**→ `d0842a7e15678f81`, to master core:** what leaves, what stays, and *"tell me the state of each moving wagon; one you
+already sent out stays with you."*
+
+**← master core** (16:15Z): none of the five had started, so all five move whole. It keeps the evidence store work and
+the per-role data scope.
+
+The new master started. It read the owner's two decisions but answered none.
+
+**→ `1c6065c8ca1ed139`:** *"Reply required: confirm you have read the owner's decisions, and restate in your own words
+what goes into the definition of done."* It acknowledged at 16:37Z, but never restated them. Its session was later lost,
+and the owner restarted it from a paste the advisor wrote.
+
+**← new master, after the restart** (00:34Z on the 25th), restating it in its own words: *"Each engine lands switched off;
+its measurement reads UNMEASURED until the corpus recordings exist… Each test is run with the engine disabled and must go
+red."*
+
+### 8 · owner → advisor: NVIDIA's reviews go straight to NVIDIA
+
+> *"But I said the reviews go directly to the NVIDIA API."*
+
+The advisor had recorded the opposite. It corrected its note.
+
+**→ `8093857cd99ae27d`, to the master who runs the NVIDIA review seats:** the fleet's NVIDIA reviews call NVIDIA's API
+directly; Nightshift stays where Proven's own code uses it.
+
+**← that master** (13:09Z): taken; a probe from the review machine answered. **←** (15:58Z): the first live review by
+NVIDIA's Nemotron finished at 15:49Z.
+
+### 9 · owner → advisor: a social post with three models
+
+> *"We'll wait and post it with NVIDIA."*
+
+**→ the same request to two masters** (`db67fb06c1713057` command line, `2a064f7e0c93a57e` test corpus): put a Nemotron
+review beside the OpenAI and Anthropic ones on your next change that is not security work.
+
+**← command-line master** (16:03Z): *"Nothing of mine qualifies yet; my next is the container image."*
+**← test-corpus master**: it put all three on the held-out set.
+
+Just after midnight UTC all three had returned, on the same commit, none seeing the others' verdict:
 
 | reviewer | verdict | what it found |
 |---|---|---|
 | OpenAI (Codex) | reject | one case's frozen answer key contradicts its own contract |
 | Anthropic (Claude) | accept with BLOCKING conditions | the same key problem, and two labels that contradict the key |
-| NVIDIA (Nemotron) | accept with conditions | one of those two labels, judged non-blocking; a test re-run live, failing exactly as the case says |
+| NVIDIA (Nemotron) | accept with conditions | one of those two labels, judged non-blocking; it re-ran a test live, failing exactly as the case says |
 
-The advisor's first summary said Codex had found something on its own. It had not: Claude had raised the same key
-problem. The README was corrected before it was pushed.
+The advisor's first summary said Codex had found something alone. It had not: Claude raised the same key problem. The
+README was corrected before the push.
 
-### 10 · Zero trust, caught in the act
+### 10 · zero trust, caught in the act
 
-At 00:21Z the first W50 leg tried to download Meterless's repository from GitHub. The fleet refused the connection
-(`CONNECT tunnel failed, response 403`) and the run stopped. The owner: *"That refusal is a BEAUTIFUL show of zero
-trust."* **Sent** `4830b8dbd2700224` → the new master: hand the engine's files to the run as one archive with its hash,
-pinned to a commit; do not open the network.
+At 00:21Z the new master's first Markovian leg ran for one minute and stopped. The advisor read its return:
+`fatal: unable to access 'https://github.com/Meterless/Meterless/': CONNECT tunnel failed, response 403`. The agent had
+tried to download Meterless's repository on its own, and the fleet refused it.
 
-### 11 · The review comment must read for a person
+> *"That refusal is a BEAUTIFUL show of zero trust."*
 
-The owner ran `make up` on a fresh clone. The lab worked, but the review comment on the pull request was the raw text
-format, one field per line. *"It MUST be formatted; it looks like crap now."* **Sent** `d47fa7116b53adf0` and
-`c79d3a628fcc106d` → the command-line master: a short plain-language summary first; one finding per problem, so the same
-dependency is not reported three times; the findings ordered by proof; plain names instead of internal ones; queries and
-rows as real tables inside collapsed sections; and a "what to do" for each finding.
+**→ `f5b0d7fbc2d9f1c3`, to the new master:** do not open the network; hand the engine's files to the run.
+**← new master** (00:34Z): planned to let each run fetch the repository at a pinned commit.
+**→ `4830b8dbd2700224`:** *"That is exactly what was refused at 00:21. Hand it one archive with its hash instead."*
 
-### 12 · Small things, same night
+### 11 · owner → advisor: the review comment looks like crap
 
-- The documentation index on `main` carried merge-conflict markers, and they had gone public in the morning push. The
-  advisor fixed it (`177bba6`). The owner's pre-push check now refuses conflict markers anywhere in the tree.
-- `docs/LAB.md` is linked right under `make up`.
-- The Cursor coding sessions, promised in [ADR-0024](../../docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md),
-  were not published yet. **Sent** `2076a0ea0fa2ea19` → the infrastructure master. **Taken** as W15: excerpts beside
-  each change, each tied to its original by a hash, with a blackout check that refuses a recording with anything left
-  to black out.
-- A read-only viewer for the CouchDB evidence store, with a link from each finding in the comment to its record.
-  **Sent** `380c816d5dec5bfa` → master core.
-- Two rulings for the security track went out (`1a146e162e5b21ec`); their subject stays private until the fixes are
-  merged.
+The owner ran `make up` on a fresh clone. The lab worked; the review comment on the pull request was a wall of raw text,
+one field per line.
+
+> *"This review comment MUST be formatted. It looks like crap now."* · *"Also check that a person understands the
+> content. Maybe add a summary?"*
+
+**→ `d47fa7116b53adf0` and `c79d3a628fcc106d`, to the command-line master:** a plain-language summary first; one finding
+per problem, not the same dependency three times; findings ordered by proof; plain names (`go.mod, line 5`, not
+`go.mod:5-5`); queries and rows as real tables in collapsed sections; a "what to do" for each finding. *"A developer who
+has never heard of Proven understands it in twenty seconds."*
+
+**← command-line master:** the Markdown comment is W9, running.
+
+### 12 · the rest of the night
+
+- The documentation index on `main` held merge-conflict markers, and they had gone public in the morning push. The advisor
+  fixed it (`177bba6`); the owner's pre-push check now refuses conflict markers anywhere in the tree.
+- The Cursor coding sessions promised in
+  [ADR-0024](../../docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md) were not yet published.
+  **→ `2076a0ea0fa2ea19`, to the infrastructure master.** **←** (23:54Z): W15, excerpts beside each change, tied to the
+  original by a hash, with a check that refuses a recording with anything left to black out.
+- > *"Maybe a very simple viewer for the CouchDB evidence store, and a link from the PR comment to the evidence?"*
+  **→ `380c816d5dec5bfa`, to master core:** views in the database, one read-only page, a link from each finding.
+- Two rulings for the security track (**→ `1a146e162e5b21ec`**); one of them moved a duty to the command-line train,
+  **→ `a3a700ca99c58877`**, **←** (01:10Z): *"Carried as W2b."* Their subject stays private until the fixes are merged.
+- > *"What is published about cost?"* The owner decided the spend stays private, and public documents carry the model,
+  not the cost. **→ to five masters** (`3d01d2b6586aa968` and four more).
