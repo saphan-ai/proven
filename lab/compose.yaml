@@ -89,6 +89,7 @@ services:
 
   seed:
     image: ${SEED_IMAGE}:${SEED_IMAGE_TAG}
+    # The admin password is not here: the seed reads it from /state/password in seed-state.
     environment:
       GITEA_INTERNAL_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
       LAB_URL: http://127.0.0.1:${GITEA_HTTP_PORT}/
@@ -101,7 +102,6 @@ services:
       LAB_DEMO_HEAD: ${LAB_DEMO_HEAD}
       PROVEN_IMAGE: ${PROVEN_IMAGE}
       RUNNER_LABEL: ${RUNNER_LABEL}
-      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}
       # ADR-0045: the seeded workflow exports its review to the lgtm service.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://${LGTM_INTERNAL_HOST}:${LGTM_OTLP_CONTAINER_PORT}
       OTEL_SERVICE_NAME: ${LAB_OTEL_SERVICE_NAME}

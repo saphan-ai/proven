@@ -394,8 +394,10 @@ func checkNoCommittedPassword(texts map[string]string) []string {
 			bad = append(bad, name)
 		}
 	}
-	if c, ok := texts["lab/compose.yaml"]; ok && !strings.Contains(c, "LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}") {
-		bad = append(bad, "compose default")
+	// The password never enters the Compose environment: Compose renders every
+	// interpolated value, so the file must not name the variable at all.
+	if c, ok := texts["lab/compose.yaml"]; ok && strings.Contains(c, "LAB_ADMIN_PASSWORD") {
+		bad = append(bad, "compose environment")
 	}
 	return bad
 }
@@ -415,5 +417,10 @@ func TestLabPasswordHasNoCommittedDefault(t *testing.T) {
 	texts["lab/versions.env"] += "\nLAB_ADMIN_PASSWORD=changeme\n"
 	if len(checkNoCommittedPassword(texts)) == 0 {
 		t.Error("negative control: check accepted a committed password")
+	}
+	texts["lab/versions.env"] = read(t, "lab/versions.env")
+	texts["lab/compose.yaml"] += "\n      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}\n"
+	if len(checkNoCommittedPassword(texts)) == 0 {
+		t.Error("negative control: check accepted the password in the Compose environment")
 	}
 }

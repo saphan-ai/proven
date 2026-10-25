@@ -1,13 +1,13 @@
 #!/bin/sh
 # Create the demo repository, the workflow, the workflow's own account, the runner token and the pull request.
-# The admin user already exists. The password arrives in LAB_ADMIN_PASSWORD.
+# The admin user already exists. The password is read from /state/password, a file in
+# the lab's volume that make up wrote at mode 0600. It is never an environment variable.
 set -eu
 
 umask 077
 
 : "${GITEA_INTERNAL_URL:?}"
 : "${LAB_ADMIN_USER:?}"
-: "${LAB_ADMIN_PASSWORD:?}"
 : "${LAB_BOT_USER:?}"
 : "${LAB_BOT_EMAIL:?}"
 : "${LAB_DEMO_REPO:?}"
@@ -47,11 +47,12 @@ wait_ready() {
   exit 1
 }
 
-save_password() {
+read_password() {
   if [ ! -s /state/password ]; then
-    printf '%s' "$LAB_ADMIN_PASSWORD" >/state/password
-    chmod 600 /state/password
+    echo "seed: /state/password is missing or empty" >&2
+    exit 1
   fi
+  LAB_ADMIN_PASSWORD=$(cat /state/password)
 }
 
 ensure_token() {
@@ -332,7 +333,7 @@ ensure_pr() {
 }
 
 wait_ready
-save_password
+read_password
 ensure_token
 ensure_repo
 ensure_actions_unit

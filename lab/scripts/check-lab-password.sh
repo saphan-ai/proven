@@ -36,6 +36,8 @@ esac
 exit 0
 STUB
 chmod +x "$work/bin/docker"
+# The real docker, when there is one, for the live Compose render in section 6.
+real_docker=$(command -v docker 2>/dev/null || true)
 PATH=$work/bin:$PATH
 export PATH
 
@@ -193,6 +195,34 @@ expect "clean: clean.sh removes the file" "$(contains "$ROOT/lab/scripts/clean.s
 rm -rf "$LAB_STATE_DIR"
 run_up
 expect "negative control: the file is seen when it is not removed" "$([ -e "$file" ] && echo yes || echo no)" yes
+
+# --- 6. the password never enters the Compose environment ------------------
+# Compose renders every value it interpolates, so a supplied password must not be
+# named in lab/compose.yaml at all: the seed reads it from /state/password.
+# names_password FILE  — yes when FILE names the variable.
+names_password() {
+  if grep -q 'LAB_ADMIN_PASSWORD' "$1"; then echo yes; else echo no; fi
+}
+expect "compose: the file names the password variable" "$(names_password "$ROOT/lab/compose.yaml")" no
+expect "compose: up.sh passes the password to compose run" "$(grep -c 'LAB_ADMIN_PASSWORD=.*compose' "$ROOT/lab/scripts/up.sh")" 0
+expect "compose: the seed reads /state/password" "$(contains "$ROOT/lab/seed/seed.sh" 'cat /state/password')" yes
+# Negative control: the same file with the interpolation put back is seen.
+awk '{ print } /^    environment:$/ && !done { print "      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}"; done = 1 }' "$ROOT/lab/compose.yaml" >"$work/compose.mutant"
+expect "negative control: the interpolation is seen" "$(names_password "$work/compose.mutant")" yes
+
+# Live: render the real config with a supplied password and read it for the value.
+if [ -n "$real_docker" ] && "$real_docker" compose version >/dev/null 2>&1; then
+  rc=0
+  LAB_ADMIN_PASSWORD=$supplied "$real_docker" compose --env-file "$ROOT/lab/versions.env" \
+    -f "$ROOT/lab/compose.yaml" --project-directory "$ROOT/lab" config >"$work/rendered" 2>&1 || rc=$?
+  expect "live config: renders" "$rc" 0
+  expect "live config: the rendered file holds the password" "$(contains "$work/rendered" "$supplied")" no
+  LAB_ADMIN_PASSWORD=$supplied "$real_docker" compose --env-file "$ROOT/lab/versions.env" \
+    -f "$work/compose.mutant" --project-directory "$ROOT/lab" config >"$work/rendered.mutant" 2>&1 || true
+  expect "negative control: live config of the mutant holds the password" "$(contains "$work/rendered.mutant" "$supplied")" yes
+else
+  echo "check-lab-password: UNRUN: the live Compose render: docker compose is not on this host" >&2
+fi
 
 if [ "$fail" -ne 0 ]; then
   exit 1

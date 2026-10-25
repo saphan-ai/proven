@@ -46,8 +46,10 @@ and its logs.
    print it: it writes the password to a file readable only by the user (mode 0600, created with that mode) in the
    lab's state directory, `lab/.state/`, and prints only the path. No password goes into a log, a trace, a Compose
    output or a `make logs` line. `make clean` removes the file. A judge may supply their own password in
-   `LAB_ADMIN_PASSWORD`; it is read from the environment, is used, is neither printed nor written to a file, and is
-   never in a committed file.
+   `LAB_ADMIN_PASSWORD`; it is read from the environment of `make up`, is used, is neither printed nor written to
+   a file on the host, and is never in a committed file. It never enters the Compose environment: `lab/compose.yaml`
+   does not name it, so `docker compose config` renders no password. `make up` writes it, at mode 0600, to a file in
+   the lab's state volume, and the one-shot seed reads that file.
 8. **The runner starts the Prover's containers in Docker in Docker** inside the lab, never through the host's Docker
    socket (the owner, 23 October). The lab's jobs get no control of the judge's Docker.
 9. **`make status`** shows the containers, Gitea's health, whether the runner is registered, the last workflow result on

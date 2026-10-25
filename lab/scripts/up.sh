@@ -165,7 +165,8 @@ if ! grep -q "$LAB_ADMIN_USER" "$users"; then
 fi
 rm -f "$users" "$err"
 
-LAB_ADMIN_PASSWORD=$pass compose run --rm -T seed
+# The seed reads the password from /state/password, written above. It is not passed in.
+compose run --rm -T seed
 compose up -d runner
 echo "lab: $lab_url"
 echo "dashboard: $dashboard_url"
