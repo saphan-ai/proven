@@ -6,7 +6,7 @@ Two outputs of one run must be two files. If `-o` and any `--*-output`, or two `
 
 ## JSON
 
-One object. Every key below is always present.
+One object. Every key below is always present, except `findings[].evidence_record_url`, which is described after the table.
 
 | field | meaning |
 |---|---|
@@ -41,6 +41,8 @@ One object. Every key below is always present.
 | `findings[].evidence[].query` | `sql`, `engine`, `snapshot`, `columns`, `rows` |
 
 Of one evidence entry, only the object named by its `kind` is present.
+
+`findings[].evidence_record_url` is the one key that is not always present. It is the address of the finding's stored evidence record in the viewer page (docs/ADAPTERS.md, Evidence records and their viewer), and it is left out when the finding has none: records are not set, the record was not stored, or no link base address is set. The text and SARIF outputs do not carry it.
 
 ## SARIF 2.1.0
 

@@ -86,6 +86,9 @@ type jsonFinding struct {
 	Models     []string       `json:"models"`
 	Location   jsonLocation   `json:"location"`
 	Evidence   []jsonEvidence `json:"evidence"`
+	// EvidenceRecordURL is the address of the finding's stored evidence record. It is omitted when
+	// the finding has none: records are off, the record was not stored, or no link base is set.
+	EvidenceRecordURL string `json:"evidence_record_url,omitempty"`
 }
 
 type jsonLocation struct {
@@ -200,7 +203,8 @@ func findingFrom(finding review.Finding) jsonFinding {
 		Location: jsonLocation{
 			Path: finding.Location.Path, StartLine: finding.Location.StartLine, EndLine: finding.Location.EndLine,
 		},
-		Evidence: evidenceFrom(finding.Evidence),
+		Evidence:          evidenceFrom(finding.Evidence),
+		EvidenceRecordURL: finding.EvidenceRecordURL,
 	}
 }
 
