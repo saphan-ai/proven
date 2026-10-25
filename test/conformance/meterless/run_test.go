@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// TestMeterlessRunnersLoadTheShim runs both conformance runners through the
-// shim. The score is recorded in the scorecard files and is not asserted.
+// TestMeterlessRunnersLoadTheShim runs the three conformance runners (H-MEM,
+// World Model, Markovian) through the shim. The score is recorded in the scorecard files and is not asserted.
 // Exit 2 means the runner could not load the shim.
 func TestMeterlessRunnersLoadTheShim(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
@@ -43,7 +43,7 @@ func TestMeterlessRunnersLoadTheShim(t *testing.T) {
 	if exit != 0 && exit != 1 {
 		t.Fatalf("run.sh exit %d", exit)
 	}
-	for _, name := range []string{"SCORECARD_hmem.txt", "SCORECARD_world-model.txt"} {
+	for _, name := range []string{"SCORECARD_hmem.txt", "SCORECARD_world-model.txt", "SCORECARD_markovian.txt"} {
 		b, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
