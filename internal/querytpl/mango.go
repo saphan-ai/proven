@@ -56,8 +56,12 @@ func buildFind(name string, params map[string]string, rel Relations) (Find, erro
 		return Find{Table: rel.OSVIDView, Selector: map[string]string{"id": id}, Fields: osvAdvisoryColumns}, nil
 	case KEVByCVE:
 		return cveFind(name, rel.KEVView, params[ParamCVEID], kevColumns)
-	default:
+	case EPSSByCVE:
 		return cveFind(name, rel.EPSSView, params[ParamCVEID], epssColumns)
+	default:
+		// ADR-0046: a template a source adapter registered carries the sql
+		// form only, so it has no Mango form and the CouchDB store names it.
+		return Find{}, nil
 	}
 }
 

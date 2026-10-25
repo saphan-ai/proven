@@ -137,6 +137,11 @@ func (c *CouchDB) Run(ctx context.Context, req querytpl.Request, rel querytpl.Re
 	if err := ctx.Err(); err != nil {
 		return Evidence{}, err
 	}
+	// ADR-0046: a template a source adapter registered has no Mango form, so
+	// this store names itself down for it instead of asking an empty database.
+	if forms.Find.Table == "" {
+		return Evidence{}, couchFailed("no mango form for " + req.Template)
+	}
 	// The body is made from the structured query, not read back out of the
 	// Mango text, so what is sent and what the evidence shows are one value.
 	body, err := json.Marshal(map[string]any{

@@ -36,5 +36,8 @@ func BuildForms(req Request, rel Relations) (Forms, error) {
 	if err != nil {
 		return Forms{}, err
 	}
+	if find.Table == "" {
+		return Forms{SQL: sql}, nil
+	}
 	return Forms{SQL: sql, Mango: find.text(), Find: find}, nil
 }
