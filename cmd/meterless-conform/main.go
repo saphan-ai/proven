@@ -204,6 +204,13 @@ func worldOp(req request) map[string]any {
 		if req.View != "" && req.View != "graph" {
 			return fail(req.ID, "world: unknown view "+req.View)
 		}
+		// An at that is not an instant is refused by name, never read as
+		// "nothing was valid then".
+		if req.AtTime != "" {
+			if _, err := world.ParseInstant(req.AtTime); err != nil {
+				return fail(req.ID, err.Error())
+			}
+		}
 		return ok(req.ID, map[string]any{"neighbors": st.Neighbors(req.Entity, req.Via, req.AtTime)})
 	case "canonical":
 		return ok(req.ID, map[string]any{"canonical": st.Canonical()})
