@@ -22,9 +22,10 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin" "$work/img"
 
-# The trace path names a per-user cache directory, which is not the same
-# inside the container and on the host.
-normalise() { sed -E 's#(trace[^:]*: ).*#\1<trace path>#'; }
+# The trace path names where each run wrote its trace, which is not the same
+# inside the container and on the host. Only a line that IS the trace line
+# ("trace: <path>") is rewritten; any other line is compared as printed.
+normalise() { sed -E 's#^trace: .*$#trace: <trace path>#'; }
 
 fail() {
   echo "image-check: FAIL — $1" >&2
@@ -33,8 +34,11 @@ fail() {
   exit 1
 }
 
-"$binary" --version > "$work/bin/version" 2>&1 || true
-docker run --rm "$image" --version > "$work/img/version" 2>&1 || true
+# Both version commands must SUCCEED, for the same reason as the reviews below.
+"$binary" --version > "$work/bin/version" 2>&1 \
+  || fail "the binary's --version exited $?" "$work/bin/version"
+docker run --rm "$image" --version > "$work/img/version" 2>&1 \
+  || fail "the image's --version exited $?" "$work/img/version"
 cmp -s "$work/bin/version" "$work/img/version" \
   || fail "the version lines differ" "$work/bin/version" "$work/img/version"
 
