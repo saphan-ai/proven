@@ -31,12 +31,13 @@ is exactly the value.
 
 | Parameter | Format |
 |---|---|
-| `ecosystem` | exactly `Go`, `npm`, `PyPI`, `Packagist` or `crates.io` |
+| `ecosystem` | exactly `Go`, `npm`, `PyPI`, `Packagist`, `crates.io` or `Maven` |
 | `package`, ecosystem `Go` | a module path of letters, digits and `. _ ~ / -`, at most 300 characters, starting with a letter or digit |
 | `package`, ecosystem `npm` | an optional `@scope/` and a name of letters, digits and `. _ ~ -`, each starting with a letter or digit, at most 214 characters |
 | `package`, ecosystem `PyPI` | letters, digits and `. _ -`, starting and ending with a letter or digit, at most 214 characters. It is put in its PEP 503 form first, because the OSV table is keyed by that form |
 | `package`, ecosystem `Packagist` | `vendor/name` in lower case. Each part is letters, digits and `. _ -`, starts and ends with a letter or digit, and is at most 214 characters. A name is put in lower case first, because Packagist is not case-sensitive |
 | `package`, ecosystem `crates.io` | a crate name of 1 to 64 characters. It starts with a letter. The rest are letters, digits, `_` or `-`. The spelling is kept: case is not folded, and `_` is not turned into `-` |
+| `package`, ecosystem `Maven` | `group:artifact`. Each part starts with a letter, a digit or `_`, then letters, digits, `.`, `_` or `-`, and is at most 149 characters. The spelling is kept: case is not folded |
 | `cve_id` | `CVE-` and four digits, a hyphen and four to twelve digits |
 | `advisory_id` | an upper-case prefix of two to sixteen letters or digits, then one to six hyphen-separated parts of letters and digits, such as `GHSA-xxxx-xxxx-xxxx`, `GO-2021-0113` or `PYSEC-2021-1` |
 

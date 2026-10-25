@@ -36,7 +36,7 @@ The model-calling agents (Planner, Investigator, Prover, Skeptic) speak to Meter
 answer passes the NVIDIA content-safety guardrail first.
 
 A dependency the change adds or raises is not named by those agents. Proven reads `go.mod`, `package.json`,
-`requirements.txt` and `composer.json`, and the lock file beside each, queries the OSV package table once per package,
+`requirements.txt`, `composer.json`, `Cargo.toml`, `build.gradle.kts` and `libs.versions.toml`, and the lock file in the same directory, queries the OSV package table once per package,
 and compares the version with that language's adapter. The Judge still decides: a matching range is evidence, and a
 version outside every range is a trace line, not a finding. See [OSV_TABLE.md](OSV_TABLE.md) and
 [ADAPTERS.md](ADAPTERS.md).
