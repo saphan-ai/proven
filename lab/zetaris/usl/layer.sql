@@ -22,7 +22,7 @@ CREATE SCHEMASTORE CONTAINER px_usl;
 -- ENTITY package. One row is one affected range of one advisory of one package.
 -- Source: px_osvfile.px_osv_pkg (docs/OSV_TABLE.md). Key: (ecosystem, package). Read by osv-by-package.
 -- tolerate: exist
-DROP SCHEMASTORE VIEW px_usl.px_package;
+DROP SCHEMASTORE VIEW px_package FROM px_usl;
 CREATE SCHEMASTORE VIEW px_package WITH CONTAINER px_usl AS
 SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
 FROM px_osvfile.px_osv_pkg;
@@ -30,7 +30,7 @@ FROM px_osvfile.px_osv_pkg;
 -- ENTITY OSV advisory. One row is one advisory id and one alias of it.
 -- Source: px_evidence.px_osv_id (ADR-0023). Key: id. Read by osv-by-advisory.
 -- tolerate: exist
-DROP SCHEMASTORE VIEW px_usl.px_advisory;
+DROP SCHEMASTORE VIEW px_advisory FROM px_usl;
 CREATE SCHEMASTORE VIEW px_advisory WITH CONTAINER px_usl AS
 SELECT id, alias, published, severity
 FROM px_evidence.px_osv_id;
@@ -38,7 +38,7 @@ FROM px_evidence.px_osv_id;
 -- ENTITY KEV CVE. One row is one CVE in the CISA known-exploited list.
 -- Source: px_evidence.px_kev_vulns (ADR-0023). Key: cve_id. Read by kev-by-cve.
 -- tolerate: exist
-DROP SCHEMASTORE VIEW px_usl.px_kev_cve;
+DROP SCHEMASTORE VIEW px_kev_cve FROM px_usl;
 CREATE SCHEMASTORE VIEW px_kev_cve WITH CONTAINER px_usl AS
 SELECT cve_id, vendor_project, product, date_added, known_ransomware
 FROM px_evidence.px_kev_vulns;
@@ -47,7 +47,7 @@ FROM px_evidence.px_kev_vulns;
 -- Source: px_evidence.px_epss_cve_rows (ADR-0023). Key: cve_id. Read by epss-by-cve.
 -- The data-quality rule of gate.sql is read over this view.
 -- tolerate: exist
-DROP SCHEMASTORE VIEW px_usl.px_epss_score;
+DROP SCHEMASTORE VIEW px_epss_score FROM px_usl;
 CREATE SCHEMASTORE VIEW px_epss_score WITH CONTAINER px_usl AS
 SELECT cve_id, epss, percentile, score_date
 FROM px_evidence.px_epss_cve_rows;
@@ -63,7 +63,7 @@ FROM px_evidence.px_epss_cve_rows;
 -- registered (ADR-0023, point 3), so a package whose advisory has no row there is kept with empty advisory
 -- columns.
 -- tolerate: exist
-DROP SCHEMASTORE VIEW px_usl.px_package_evidence;
+DROP SCHEMASTORE VIEW px_package_evidence FROM px_usl;
 CREATE SCHEMASTORE VIEW px_package_evidence WITH CONTAINER px_usl AS
 SELECT p.ecosystem AS ecosystem, p.package AS package, p.id AS advisory_id, p.introduced AS introduced, p.fixed AS fixed, a.alias AS cve_id, k.date_added AS kev_date_added, k.known_ransomware AS kev_known_ransomware, e.epss AS epss, e.percentile AS epss_percentile
 FROM px_usl.px_package p
