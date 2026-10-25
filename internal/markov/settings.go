@@ -121,7 +121,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvCarry,
 			Default:     envdoc.Tick(strconv.Itoa(DefaultCarry)),
-			Description: fmt.Sprintf("the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from %d to %d", boundCarryover.min, boundCarryover.max),
+			Description: fmt.Sprintf("the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from %d to %d. When it cannot hold every claim that awaits evidence, the review stops and names itself incomplete; it never drops such a claim", boundCarryover.min, boundCarryover.max),
 		},
 	}
 }

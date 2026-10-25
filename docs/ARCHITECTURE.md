@@ -100,7 +100,7 @@ by a `[STATE_CHECKPOINT]` marker. A review's steps are fixed in advance: one per
 | `[STATE_CHECKPOINT]` + state block | the step's JSON answer: `risks`, and `established`, `suspected`, `awaiting_evidence` |
 | `COMPLETED` / `REMAINING` | parts read / parts left, counted by Proven, not written by the model |
 | `DECISIONS` | what is established |
-| `CONTEXT` | what is suspected, then what awaits evidence (dropped last when the bound cuts) |
+| `CONTEXT` | what is suspected, then what awaits evidence (the bound cuts it last, and never in silence: see below) |
 | `carryoverTokens` | `PROVEN_MARKOVIAN_CARRY_TOKENS`, with the spec's bounds (128 to 32768) |
 | `[TASK_COMPLETE]` | the last part read |
 | cascade level 1 (the model's own state) | the step's answer, cut to the bound |
@@ -110,6 +110,16 @@ by a `[STATE_CHECKPOINT]` marker. A review's steps are fixed in advance: one per
 The generic loop (`markov.Execute`, and the machine the conformance runner drives) keeps every rule of the spec,
 `maxChunks` included. The history service, the engine tab and the telemetry panel of the spec are user-interface and
 storage parts Proven does not have; they are not built.
+
+**When the carried state is full (ADR-0048).** The bound first cuts what is established, oldest first, then what is
+only suspected. A claim that awaits evidence is cut last, and never: a claim lost from the state can never meet its
+evidence in a later part, and the review would go on looking complete. If the bound cannot hold every open claim, the
+review stops with `*markov.CarryFullError`. Its message says the bounded review is incomplete, after which step, how
+many of the open claims fit, and the two ways on: run the whole review (`PROVEN_MARKOVIAN=off`) or raise
+`PROVEN_MARKOVIAN_CARRY_TOKENS`. The trace carries the same sentence on a `bounded-steps` line. The review does not
+fall back by itself: the caller decides. Tests: `TestAnOverflowingCarryStopsTheReviewByName` (the stop) and
+`TestTheEarliestOpenClaimReachesItsEvidenceWhenTheBoundHoldsThem` (the same claim, with room, becomes a risk at its
+evidence). A model that leaves a claim out of the state it returns is a model error this bound cannot see.
 
 **Settings** (environment, live mode only; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`off` by
 default), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
