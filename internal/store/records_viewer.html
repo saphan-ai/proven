@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Proven evidence records</title>
+<style>
+body { font: 14px/1.4 system-ui, sans-serif; margin: 1.5rem; color: #1a1a1a; }
+table { border-collapse: collapse; margin: .5rem 0 1rem; }
+th, td { border: 1px solid #bbb; padding: .25rem .5rem; text-align: left; vertical-align: top; }
+th { background: #f0f0f0; }
+pre { background: #f6f6f6; padding: .5rem; overflow-x: auto; white-space: pre-wrap; }
+.err { color: #a00; }
+.small { color: #555; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Proven evidence records</h1>
+<p class="small">Read-only. This page reads the records of this database with the account you opened it with, and it only reads.</p>
+<div id="out">Loading.</div>
+<script>
+"use strict";
+
+// esc:begin
+// esc turns any value into text that is safe to put inside HTML. Every value
+// the page shows from a record goes through it, so a record that carries
+// markup is shown as the characters it holds and never runs.
+function esc(value) {
+  return String(value === null || value === undefined ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+// esc:end
+
+// The page is an attachment of the design document, so the database is
+// everything before /_design/ in its own address. Every request is a GET to
+// that same address, with the credentials the browser already holds for it.
+var apiBase = location.pathname.split("/_design/")[0];
+var pagePath = location.pathname;
+var out = document.getElementById("out");
+
+function show(html) { out.innerHTML = html; }
+
+function get(path) {
+  return fetch(apiBase + path, { method: "GET", credentials: "same-origin", headers: { Accept: "application/json" } })
+    .then(function (r) {
+      if (!r.ok) { throw new Error("the database answered " + r.status); }
+      return r.json();
+    });
+}
+
+function fail(e) { show('<p class="err">' + esc(e && e.message ? e.message : e) + "</p>"); }
+
+function table(columns, rows) {
+  var h = "<table><tr>";
+  (columns || []).forEach(function (c) { h += "<th>" + esc(c) + "</th>"; });
+  h += "</tr>";
+  (rows || []).forEach(function (row) {
+    h += "<tr>";
+    (row || []).forEach(function (cell) { h += "<td>" + esc(cell) + "</td>"; });
+    h += "</tr>";
+  });
+  return h + "</table>";
+}
+
+function yesNo(v) { return v ? "yes" : "no"; }
+
+function evidenceHTML(ev) {
+  if (ev.kind === "query") {
+    return "<h3>Query</h3>" +
+      "<p>Form that ran: <b>" + esc(ev.form) + "</b>, engine " + esc(ev.engine) + ", snapshot " + esc(ev.snapshot) + "</p>" +
+      "<pre>" + esc(ev.query) + "</pre>" +
+      "<h3>Rows (" + esc((ev.rows || []).length) + ")</h3>" + table(ev.columns, ev.rows);
+  }
+  if (ev.kind === "test") {
+    return "<h3>Test</h3>" +
+      "<p>" + esc(ev.path) + " " + esc(ev.name) + "</p>" +
+      "<p>Command:</p><pre>" + esc(ev.command) + "</pre>" +
+      "<p>Fails on the change: <b>" + yesNo(ev.fails_on_change) + "</b>. Passes on the base: <b>" + yesNo(ev.passes_on_base) + "</b>.</p>" +
+      "<pre>" + esc(ev.output) + "</pre>";
+  }
+  if (ev.kind === "tool") {
+    return "<h3>Tool " + esc(ev.tool) + " " + esc(ev.version) + "</h3>" +
+      "<p>Command:</p><pre>" + esc(ev.command) + "</pre>" +
+      "<p>Present on the change: <b>" + yesNo(ev.present_on_change) + "</b>. Present on the base: <b>" + yesNo(ev.present_on_base) + "</b>.</p>" +
+      "<p>Change output:</p><pre>" + esc(ev.output) + "</pre>" +
+      "<p>Base output:</p><pre>" + esc(ev.base_output) + "</pre>";
+  }
+  return "<p>Unknown evidence kind " + esc(ev.kind) + ".</p>";
+}
+
+function showRecord(id) {
+  get("/" + encodeURIComponent(id)).then(function (d) {
+    var h = "<h2>" + esc(d.title) + "</h2>" +
+      "<p>" + esc(d.severity) + ", proof level <b>" + esc(d.proof_level) + "</b>, " +
+      esc(d.path) + ":" + esc(d.start_line) + "</p>" +
+      "<p>" + esc(d.message) + "</p>" +
+      '<p class="small">Review: pull request ' + esc(d.pr) + ", commit " + esc(d.commit) + ", run " + esc(d.run) + ", finding " + esc(d.finding_id) + "</p>" +
+      '<p><a href="' + esc(pagePath + "?pr=" + encodeURIComponent(d.pr) + "&commit=" + encodeURIComponent(d.commit)) + '">All findings of this review</a></p>';
+    (d.evidence || []).forEach(function (ev) { h += evidenceHTML(ev); });
+    show(h);
+  }).catch(fail);
+}
+
+function showReview(pr, commit) {
+  var range = "?startkey=" + encodeURIComponent(JSON.stringify([pr, commit])) +
+    "&endkey=" + encodeURIComponent(JSON.stringify([pr, commit, {}]));
+  get("/_design/evidence/_view/by_review" + range).then(function (r) {
+    var h = "<h2>Findings of pull request " + esc(pr) + ", commit " + esc(commit) + "</h2>";
+    if (!r.rows.length) { h += "<p>No records for this review.</p>"; }
+    r.rows.forEach(function (row) {
+      var v = row.value || {};
+      h += '<p><a href="' + esc(pagePath + "?doc=" + encodeURIComponent(row.id)) + '">' + esc(v.title) + "</a> " +
+        '<span class="small">' + esc(v.severity) + ", " + esc(v.proof_level) + ", " + esc(v.path) + "</span></p>";
+    });
+    show(h);
+  }).catch(fail);
+}
+
+function ask() {
+  show('<form method="get"><p>Pull request <input name="pr"> commit <input name="commit"> <button>List findings</button></p></form>');
+}
+
+(function () {
+  var q = new URLSearchParams(location.search);
+  if (q.get("doc")) { showRecord(q.get("doc")); }
+  else if (q.get("pr") !== null && q.get("commit") !== null) { showReview(q.get("pr"), q.get("commit")); }
+  else { ask(); }
+})();
+</script>
+</body>
+</html>

@@ -2,6 +2,77 @@
 
 An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)); a source adapter loads a table and turns a query's rows into evidence ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). An output format writes the review result. Each has one worked example below.
 
+## Adding a model provider
+
+### The interface
+
+The generator is the one model interface: the model-calling agents (Planner,
+Investigator, Prover, Fixer and Skeptic) send their prompts through a
+Generator; the Judge and the Writer call no model. It is in
+`internal/generator/generator.go`:
+
+```go
+// Generator answers one prompt for one agent.
+type Generator interface {
+	Complete(ctx context.Context, agent, prompt string) (string, error)
+}
+```
+
+`Complete` answers one prompt for one agent: `ctx` cancels the call,
+`agent` names the agent asking, and `prompt` is the whole prompt. It returns
+the answer or a named failure of the provider in use. The package comment
+names the existing implementations: `Live` (Meterless Nightshift, or NVIDIA's
+hosted API in nvidia mode), `Sample` (recorded responses, no network),
+`Absent` (the service is down, named) and `Second` (any OpenAI-compatible
+API, the second reviewer).
+
+### The settings that select an implementation
+
+`PROVEN_GENERATOR_MODE` chooses (`internal/generator/settings.go`):
+`nightshift`, the default, calls Meterless Nightshift and reads the answering
+model from its receipt (ADR-0019, ADR-0031); `nvidia` calls NVIDIA's hosted
+API directly and reads it from the response's `model` field (ADR-0031). The
+rest of `PROVEN_GENERATOR_*` — key, base URL, model, timeout and the NVIDIA
+require list — is read and validated by `Load` in the same file; an empty
+token or key is not a refused configuration: it names the service down
+(`Absent`) and the review goes on (ADR-0013 point 4a).
+
+### How sample mode treats it
+
+Sample mode (`internal/generator/sample.go`, ADR-0001) answers from recorded
+responses and opens no network. It does not read `PROVEN_GENERATOR_MODE` or
+any secret: `NewSample` indexes recorded responses by agent and prompt, and
+`Complete` returns the recorded answer or `generator.Missing` for an agent
+and prompt the fixture has not recorded. Sample mode is what a judge runs
+without live keys and what tests run.
+
+### Worked example: a fixed table
+
+[`examples/generator`](../examples/generator) is a small adapter inside this
+module. `Table` answers Complete from a fixed table keyed by agent name:
+
+```go
+var _ generator.Generator = Table{}
+```
+
+The assignment fails the build when `internal/generator.Generator` changes.
+`NewTable` builds the table from rows and refuses a duplicate agent.
+`Complete` returns the agent's answer, or `ErrUnknownAgent` when the agent is
+not in the table. It starts no network, reads no secret and no environment
+variable.
+
+The test checks one answer and one refusal: a known agent answers, and an
+unknown agent returns `ErrUnknownAgent`
+([`examples/generator/table_test.go`](../examples/generator/table_test.go)).
+
+```text
+go test -count=1 ./examples/generator
+```
+
+`go test ./...` from the repository root runs the same test. No separate job
+is required.
+
+
 ## Adding a language
 
 
@@ -9,7 +80,7 @@ One language is one adapter ([ADR-0038](adr/ADR-0038-a-language-is-one-small-ada
 
 The type is `Adapter` in `internal/manifest`. It is the same type as `Reader`. The dependency check runs `Readers()`. A version lands in a range through `InRangeEcosystem`, which calls the adapter's `Compare` and `Explain`.
 
-The languages are Go, JavaScript, Python, PHP and Rust.
+The languages are Go, JavaScript, Python, PHP, Rust and Kotlin.
 
 ### What you add
 
@@ -45,6 +116,32 @@ When `composer.json` and `composer.lock` in one directory both name a package, t
 The sample is `testdata/fixture/osv-php-composer`. It raises `monolog/monolog` from 2.0.0 to 2.9.1. 2.9.1 is inside one sample range and outside another. The finding names `composer.lock`.
 
 `composer.json` and `composer.lock` are security-class path rules, the same as the other dependency files. A change that touches either is a security review.
+
+### Worked example: Kotlin and Gradle
+
+Kotlin and Gradle are one language adapter, the same shape as PHP. The OSV ecosystem name is `Maven`. `Diff` is given the file bytes and not the path, so one reader cannot tell a version catalog from a Kotlin build script. There are two manifest readers and one lock reader. All three use the same `Compare` and the same `Explain`.
+
+| | catalog | build script | lock file |
+|---|---|---|---|
+| constructor | `GradleCatalog` | `GradleKts` | `GradleLock` |
+| file | `libs.versions.toml` | `build.gradle.kts` | `gradle.lockfile` |
+| what it reads | `[libraries]` | a double-quoted `group:artifact:version`, and one line that names `group`, `name` and `version` as strings | `group:artifact:version=configurations` |
+| `Lock` | no | no | yes |
+| `NoteErr` | no | no | yes |
+
+`[versions]` holds the strings a `version.ref` names. A ref that is not there is a note, not a guessed version. A rich version (`strictly`, `prefer`, `require`) is a note. `[plugins]` is not a Maven coordinate: each plugin is a note, because plugin resolution is out of scope. `[bundles]` names library aliases and is not read. In the build script, a version that contains `$`, or a version written as a name, is a note. A plugin id and a `libs.` catalog reference are notes. Groovy `build.gradle` and `settings.gradle.kts` are not this file.
+
+The package name is `group:artifact`, as written. The spelling is kept.
+
+The version comparison is the subset in `internal/mavenver`. Numeric tokens compare as integers. A missing numeric token equals zero, so `1`, `1.0` and `1.0.0` are one version. A hyphen between numbers is the same separator as a dot in this subset, so `1.0-1` and `1.0.1` are one version. Qualifiers, from lowest to highest: alpha, beta, milestone, rc, snapshot, release, sp. The spelling is not case-sensitive. `a`, `b`, `m` and `cr` are the short names. `ga`, `final` and `release` are the release itself. A qualifier below release is below the same numbers with no qualifier. `sp` is above that release. A number on the qualifier orders that qualifier, and a missing number equals zero. A qualifier that is not in the list is above `sp`, then compared as lowercase text. That last placement was not checked against one named Maven release. A constraint, including a range such as `[1.0,2.0)` and a Gradle dynamic version such as `1.2.+`, is refused with a sentence. A leading `v` is refused. The string in the file is not rewritten. [OSV_TABLE.md](OSV_TABLE.md) records the same subset.
+
+When `build.gradle.kts` and `gradle.lockfile` in one directory both name a package, the lock file's version is the one compared, and the finding names the lock file. A catalog under `gradle/` is a different directory, so it is not paired with the lock file at the project root.
+
+The sample is `testdata/fixture/osv-kotlin-gradle`. The lock file and the build script raise `com.example:widget` from 1.2.0 to 1.4.0. 1.4.0 is inside one sample range and outside another. `com.example:quiet` goes from 2.0.0 to 1.9.0 and is not a finding. The catalog leaves the library versions as they were and changes a plugin version, which is a note. The finding names `gradle.lockfile`.
+
+`build.gradle`, `build.gradle.kts`, `libs.versions.toml` and `gradle.lockfile` are security-class path rules. A change that includes `build.gradle.kts` reports that rule, because the earliest rule of the highest class wins.
+
+The scenario test goes red when `mavenver.Compare` reports every pair as equal. It also goes red when `GradleKts` and `GradleLock` are both taken out of `Readers`. Taking only `GradleLock` out leaves the literal in `build.gradle.kts`, and the finding remains.
 
 ### What stays shared
 
@@ -129,6 +226,22 @@ That scenario labels the reached module with the call path and the quiet module 
 
 Fuzzing, gosec and coverage are later. A new tool is a new adapter with the four answers above, a recorded scenario, and tests for three outcomes: a result only on the change, the same result on the base, and a run that does not answer. It uses the same container and the same time-limit setting. It does not grow a second way to start a process.
 
+
+### Worked example: a fixed detector
+
+[`examples/tool`](../examples/tool) is a small adapter inside this module. `Detector` answers the four questions above from a fixed rule: it applies to changed Go files, `Argv` builds `go test -race ./<package>` for each package of a changed file and refuses a path that would mean something else to the command, and `Read` reports the race banner `WARNING: DATA RACE`. Its version is fixed, so the runner never guesses it.
+
+```go
+var _ tool.Adapter = Detector{}
+```
+
+The assignment fails the build when `internal/tool.Adapter` changes. Its test runs the adapter over canned output through `tool.Runner` with a fake host: a banner only on the change proves it, the same banner on both sides does not, and a run that did not answer is named and is not evidence (`examples/tool/tool_test.go`). Sample mode does not read `PROVEN_TOOL_TIMEOUT`: `tool.Sample` in `internal/tool/sample.go` replays one recorded outcome and starts no container, and a live run that does not ask the container for a version records `unknown`. It starts no container, reads no secret and no environment variable.
+
+```text
+go test -count=1 ./examples/tool
+```
+
+
 ## Adding a source
 
 A source adapter feeds the evidence store and plugs into the decision ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). It declares four things.
@@ -179,6 +292,18 @@ A template has one form for each query language: `sql` for Zetaris and the local
 The review's query seam passes a template request and the relation names. The configured store builds the form of its own language and runs it: `sql` on Zetaris and the local store, `mango` on CouchDB. The evidence names that form, the text that ran and the rows. A template a source adapter registered has the sql form only, so CouchDB names itself down for that template (`no mango form`) instead of sending SQL. Sample mode does not read the store setting: it opens the fixture file and runs the sql form.
 
 One scenario runs on every store that is built. The columns, the rows and the snapshot match on all three; the form differs as the language does. Zetaris and CouchDB are played by recorded HTTP servers in that test, and the local store is the real file. A second test runs against a real CouchDB when `PROVEN_COUCHDB_LIVE_URL` names one (with the user and password set), and skips by name otherwise.
+
+### Evidence records and their viewer
+
+The tables above are the evidence a review reads. A review's own result is written back to CouchDB when `PROVEN_COUCHDB_RECORDS` names a database on the server `PROVEN_COUCHDB_URL` names (ADR-0013). Unset, nothing is written. Set, each finding becomes one document: the pull request and commit, the finding's id, rule, severity and place, its proof level, the CVE ids and package names its rows hold, and its evidence as it ran. A query keeps the form that ran, its text and its rows. A test keeps its command and whether it fails on the change and passes on the base. A tool keeps its command and both outputs. A second review of the same commit adds records; it never overwrites the first, so the records are a history.
+
+The records are written with their own account, `PROVEN_COUCHDB_RECORDS_USER` and `PROVEN_COUCHDB_RECORDS_PASSWORD`. That account must be a different user from `PROVEN_COUCHDB_USER`; the loader refuses the same name. In CouchDB a member of a database's security document reads every document and also writes every document that is not a design document, so membership alone does not make an account read-only. The administrator therefore adds the read-only account as a member of the records database and the writing account as a database admin (the `admins` of its `_security` document), and grants the writing account admin rights on the records database only. The design document carries a `validate_doc_update` function that refuses every write unless the account is a server admin or a database admin, by name or by role, so the read-only account is refused a write even though it is a member. Creating the accounts and setting `_security` is the administrator's act: this program does neither.
+
+The first write also stores one design document named `evidence`. It holds four views, whose keys start with the fields a reader narrows by: `by_review` (pull request, commit, finding, run), `by_finding` (finding id), `by_cve_package` (CVE, package) and `by_proof_level`. A record with a CVE and no package, or the reverse, is keyed with an empty text on the missing side. The same document carries the viewer as an attachment, `viewer.html`. CouchDB serves it itself at `/<database>/_design/evidence/viewer.html`; there is no other server. The page is one static file of HTML and JavaScript. It loads nothing from outside, and it makes only `GET` requests with the account the reader opened it with, so a read-only account is enough and holds no write right. It lists a review's findings (`?pr=<number>&commit=<sha>`) and shows one record (`?doc=<id>`): the query in the form that ran, its rows as a table, and the test command with its base and change result. Every value it shows goes through one escaping function, so a record that carries markup is shown as text. The design document is written again only when its views or its page change.
+
+`PROVEN_EVIDENCE_LINK_BASE_URL` is the address a reader reaches CouchDB at. With it and the records setting both set, each stored finding carries `EvidenceRecordURL`, the address of its record in the viewer page: the base, the database, `_design/evidence/viewer.html`, and `?doc=` with the document id. The JSON output carries it as `findings[].evidence_record_url` (docs/OUTPUT_FORMATS.md); the pull request comment is rendered from that output. Unset, the field is empty and the comment shows no link. A finding whose record was not stored has no link either, and when the read-only account is configured, the review fetches the page as that account first and shows no link for a page it is not served. A CouchDB failure is a failed service named `couchdb`, and the review goes on. The link never goes through `/_utils`, the admin console, which can edit and delete. In the lab the base address is the lab's own CouchDB. Sample mode reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's sample review can write its records. The read-only account is read because the review checks the viewer page as that account before it shows a link; when it is not configured the link is shown and a failed service named `couchdb` says it was not checked.
+
+The tests play CouchDB as a recorded server that checks each request's account: the writing account may write, the read-only account may only read. They cover what the four views return for the sample scenario's records (the map functions are run in Node, as CouchDB would run them), that the design document and the page are written once and only by the writing account, that the page is served to the read-only account and a write with that account is refused, that the link exists only when the base address is set, and that a value carrying HTML is shown as text.
 
 ## Adding an output format
 
@@ -243,3 +368,208 @@ go test -count=1 ./examples/formatter
 ```
 
 `go test ./...` runs the same test. No separate job is required.
+## Adding a guardrail
+
+### The interface
+
+A guardrail checks a prompt and an answer before a review uses them. An unsafe
+verdict stops the step; a guardrail that cannot answer refuses the step by name
+(ADR-0005). The interface is `Adapter` in `internal/guardrail/guardrail.go:49`:
+
+```go
+type Adapter interface {
+	Check(ctx context.Context, prompt, answer string) (Verdict, error)
+}
+```
+
+`answer` is empty when only the prompt is judged. `Verdict` carries `User`,
+`Response`, `Categories`, `Latency`, `Backend`, `Model` and `Down`; `Unsafe()`
+is true when either side is `"unsafe"` (`internal/guardrail/guardrail.go`).
+`Refuse(reason)` returns `*service.Down` and names the refusal
+(`internal/guardrail/guardrail.go` and `internal/service/down.go`). An adapter
+that can name itself also implements `Identity`
+(`internal/guardrail/guardrail.go:57`): `Identity() (backend, model string)`;
+`Wrap` reports an adapter without it as `"unknown"`.
+
+### The settings that select an implementation
+
+`PROVEN_GUARDRAIL_MODE` chooses `server` (your own model server, the default),
+`nvidia` (NVIDIA's hosted API) or `off` (no guardrail; the trace says so).
+`PROVEN_GUARDRAIL_BASE_URL`, `PROVEN_GUARDRAIL_MODEL`, `PROVEN_GUARDRAIL_KEY`
+and `PROVEN_GUARDRAIL_TIMEOUT` are read and validated by `Load` in
+`internal/guardrail/settings.go`; a wrong value is refused before any check
+runs. An empty key is not off: every check is refused and nothing dials
+(ADR-0005 point 5).
+
+### How sample mode treats it
+
+Sample mode (`--sample` / `SAMPLE_MODE=true`, ADR-0001) reads no guardrail
+setting: the pipeline falls back to `guardrail.Safe{}`
+(`internal/pipeline/pipeline.go`), which answers safe for every prompt and
+answer and opens no network. A fixture may record verdicts instead, through
+`guardrail.Sample` (`internal/guardrail/sample.go`); a prompt the fixture has
+not recorded is a refusal, not a safe verdict.
+
+### Worked example: a fixed word list
+
+`examples/guardrail` is a small adapter inside this module. `List` answers
+`Check` from a fixed word list: a barred word in the prompt or the answer
+makes that side unsafe, with the category the row names; everything else is
+safe, and a canceled context is the error path.
+
+```go
+var _ guardrail.Adapter = List{}
+```
+
+The assignment fails the build when `internal/guardrail.Adapter` changes.
+`NewList` builds the list from rows and refuses a duplicate word. `Check`
+starts no network, reads no secret and no environment variable.
+
+The test checks one answer and one refusal: a clean prompt and answer return a
+safe verdict, and a barred word returns an unsafe verdict whose `Unsafe` is
+true (`examples/guardrail/guardrail_test.go`).
+
+```text
+go test -count=1 ./examples/guardrail
+```
+
+## Adding a reviewer
+
+### The interface
+
+A reviewer reviews one change. The interface is `Reviewer` in
+`internal/review/review.go:26`:
+
+```go
+type Reviewer interface {
+	// Review returns a Result for every review that ran, also a degraded or partial one.
+	// A non-nil error means Proven could not review at all: the shell exits 2.
+	Review(ctx context.Context, req Request) (Result, error)
+}
+```
+
+`Request` names the target, the baseline and head commits, the globs to
+include and exclude, the minimum severity and the description
+(`internal/review/review.go`). `Result` holds the findings with their evidence
+and proof level, the proof counts, the failed services, the models used, the
+review class, the opinions and more (`internal/review/review.go`).
+
+### The settings that select an implementation
+
+`review.Open(opts Options)` in `internal/review/open.go` loads the reviewer's
+settings and returns a `Reviewer`. `Options` carries `ConfigPath`
+(`--config` / `PROVEN_CONFIG`), `PolicyPath` (`PROVEN_POLICY`), `Sample`
+(`--sample` / `SAMPLE_MODE=true`), `LogDir` and `Env`
+(`internal/review/review.go`). A wrong non-empty value returns `*ConfigError`
+and the shell exits 7 before any review starts; sample mode reads none of
+these settings.
+
+### How sample mode treats it
+
+Sample mode is every adapter's sample implementation (ADR-0001): `Open` with
+`Sample` true reads no live setting, and the pipeline runs the recorded
+adapters instead, so a sample review opens no network.
+
+### Worked example: a fixed verdict
+
+`examples/reviewer` is a small adapter inside this module. `Table` returns a
+fixed `Result` from a table keyed by review target:
+
+```go
+var _ review.Reviewer = Table{}
+```
+
+The assignment fails the build when `internal/review.Reviewer` changes.
+`NewTable` builds the table from rows and refuses a duplicate target. `Review`
+returns the recorded result for the target, or `ErrUnknownTarget` for one the
+table has not recorded; a canceled context is the error path. It starts no
+network, reads no secret and no environment variable.
+
+The test checks one answer and one refusal: a known target returns its
+recorded result, and an unknown target returns `ErrUnknownTarget`
+(`examples/reviewer/reviewer_test.go`).
+
+```text
+go test -count=1 ./examples/reviewer
+```
+
+## Adding a test run
+
+A test run proves a finding: a test that fails on the change and passes on
+the base (ADR-0002). It is also how a proposed fix is proved (ADR-0042). Two
+interfaces:
+
+`Adapter` in `internal/testrun/testrun.go:50`:
+
+```go
+type Adapter interface {
+	Run(ctx context.Context, req Request) (Outcome, error)
+}
+```
+
+`Request` names the test (`Path`, `Name`, `Content`, `FindingID`) and the
+base and change checkouts (`internal/testrun/testrun.go`). `Outcome.Found` is
+false when nothing was recorded, and a finding is proven only when
+`FailsOnChange` and `PassesOnBase` are both true
+(`internal/testrun/testrun.go`); a `*service.Down` error means the Prover is
+off.
+
+`FixRunner` in `internal/testrun/fix.go:92`:
+
+```go
+type FixRunner interface {
+	RunFix(ctx context.Context, req FixRequest) (FixOutcome, error)
+}
+```
+
+`FixRequest` names the proving test, the edits and the attempt number;
+`FixOutcome.Runs` holds the proving-test runs on the base, on the change and
+on the change with the patch applied, then the package's tests
+(`internal/testrun/fix.go`), labeled `base`, `change`, `change+patch` and
+`package on change+patch`. `FixOutcome.Refused` names why a patch was refused
+and no code ran.
+
+### The settings that select an implementation
+
+`PROVEN_TEST_RUNTIME`, `PROVEN_TEST_IMAGE`, `PROVEN_TEST_CPUS`,
+`PROVEN_TEST_MEMORY`, `PROVEN_TEST_TIMEOUT`, `PROVEN_TEST_MAX_WRITTEN_BYTES`,
+`PROVEN_TEST_USER`, `PROVEN_TEST_PIDS` and `PROVEN_TEST_TMP_SIZE` are read and
+validated by `Load` in `internal/testrun/settings.go`. Sample mode reads none
+of them (`internal/review/open.go` skips the block). A missing container
+runtime turns the Prover off — `testrun.Off` names the reason — and does not
+stop the review.
+
+### How sample mode treats it
+
+`testrun.Sample` in `internal/testrun/sample.go` replays outcomes recorded in
+a fixture and executes no code: a finding with no recording reports `Found:
+false`, and an attempt with no recording is refused by name. The sample still
+checks the patch's edits against the real change trees before replaying
+(`internal/testrun/sample.go`).
+
+### Worked example: canned results
+
+`examples/testrun` is a small adapter inside this module. `Runner` returns
+canned test outcomes and canned fix runs; it executes no code and starts no
+container:
+
+```go
+var _ testrun.Adapter = Runner{}
+var _ testrun.FixRunner = Runner{}
+```
+
+Both assignments fail the build when the internal interfaces change. `New`
+indexes recorded outcomes by finding id and recorded fix attempts by finding
+id and attempt number, and refuses a duplicate. `Run` returns the recorded
+outcome (`Found: false` when nothing was recorded); `RunFix` returns the
+recorded runs or refuses with a named reason when no attempt was recorded. A
+canceled context is the error path.
+
+The test checks one answer and one refusal: a recorded outcome that fails on
+the change and passes on the base proves the finding, and an unknown finding
+is not found (`examples/testrun/testrun_test.go`).
+
+```text
+go test -count=1 ./examples/testrun
+```
+

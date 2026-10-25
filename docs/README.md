@@ -9,8 +9,9 @@ Read in this order.
 | [SAMPLE_MODE.md](SAMPLE_MODE.md) | a whole review with no network and no keys: the scenario, what comes out, how to add one | first version |
 | [../demo/live/README.md](../demo/live/README.md) | a live review a judge can rerun: one finding proved by a test, one by Zetaris KEV | first version; the live run needs keys |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | the six agents and the pipeline, on one page | first version |
-| [ADAPTERS.md](ADAPTERS.md) | how to add a language (PHP with Composer as the worked example), a deterministic tool (the Go race detector), a data source and an output format | first version |
+| [ADAPTERS.md](ADAPTERS.md) | how to add a language (PHP with Composer, and Kotlin with Gradle, as the worked examples), a deterministic tool (the Go race detector), a data source and an output format | first version |
 | [CONFIGURATION.md](CONFIGURATION.md) | every setting the reviewer reads, its default and what it changes, including every `proven.yaml` key | first version; the shell's flags are added by the shell's track |
+| [POLICY.md](POLICY.md) | one organisation policy for every repository's `proven.yaml`, and exceptions that name an owner and expire | first version |
 | [QUERIES.md](QUERIES.md) | every question Proven asks Zetaris: the query templates, each parameter's format, and what a refusal does | first version |
 | [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md) | JSON and SARIF, two writings of one review result | first version |
 | [OSV_TABLE.md](OSV_TABLE.md) | the OSV package table, the CSV converter, and how an administrator loads and refreshes it | first version |

@@ -139,11 +139,16 @@ render_workflow() {
   fi
   # ADR-0009, ADR-0045: the lab's review runs a second reviewer model, so the dashboard shows two.
   # The sample generator answers for both, so the findings do not change; the review names the second reviewer.
+  # ADR-0050 point 6: the one automated fix attempt is on in the judges' lab and off everywhere else, so the
+  # lab's review runs with a proven.yaml that turns it on, with or without the second reviewer. The command
+  # sits inside single quotes in the workflow, so the file is written with echo and no quote of its own.
+  second=""
   if [ -n "${LAB_SPECIAL_REVIEWER:-}" ]; then
-    sed "s|proven scan --sample /opt|echo special_reviewer: ${LAB_SPECIAL_REVIEWER} > lab.yaml \&\& proven scan --sample --config lab.yaml /opt|" \
-      /tmp/proven.yml >/tmp/proven.two
-    mv /tmp/proven.two /tmp/proven.yml
+    second=" \&\& echo special_reviewer: ${LAB_SPECIAL_REVIEWER} >> lab.yaml"
   fi
+  sed "s|proven scan --sample /opt|echo autofix: on > lab.yaml${second} \&\& proven scan --sample --config lab.yaml /opt|" \
+    /tmp/proven.yml >/tmp/proven.two
+  mv /tmp/proven.two /tmp/proven.yml
 }
 
 ensure_workflow() {

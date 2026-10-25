@@ -11,6 +11,12 @@ owner, and outside changes are not merged until the week is over. Issues and ide
 - **A wrong finding:** open an issue with the finding as Proven printed it and why you think it is wrong. A finding is
   only reported with evidence, so the evidence line is the most useful part.
 
+## Your language is missing?
+
+A language is one small adapter: where the dependencies are declared and which ecosystem to ask about. PHP, Rust and
+Kotlin were each added that way. [docs/ADAPTERS.md](docs/ADAPTERS.md) walks through it with worked examples. Open a pull
+request with yours: Proven will review it, and it is merged after the hackathon week.
+
 ## Building and testing
 
 ```bash

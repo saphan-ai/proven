@@ -40,7 +40,9 @@ func Environment() []envdoc.Setting {
 		},
 	}
 	// The CouchDB rows follow, read only when the store is `couchdb`.
-	return append(rows, CouchEnvironment()...)
+	rows = append(rows, CouchEnvironment()...)
+	// The records rows follow: the evidence records and their viewer.
+	return append(rows, RecordsEnvironment()...)
 }
 
 // ConfigError names a refused store setting and the values that are allowed.

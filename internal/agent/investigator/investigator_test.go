@@ -46,7 +46,7 @@ var risk = candidate.Candidate{
 // template is a good one, so the refusal is the engine's absence.
 func TestNilQueryIsANamedRefusal(t *testing.T) {
 	_, err := Investigate(context.Background(), risk, "",
-		scriptGen{text: `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`}, nil, querytpl.Relations{})
+		scriptGen{text: `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`}, nil, querytpl.Relations{}, nil)
 	d, ok := service.As(err)
 	if !ok || d.Service != "query" || d.Reason != "no query engine" {
 		t.Fatalf("err %v", err)
@@ -60,7 +60,7 @@ func TestInvestigatorRunsTheQueryProvenBuilds(t *testing.T) {
 	rec := &recorder{rows: [][]string{{"CVE-2021-44228"}}}
 	got, err := Investigate(context.Background(), risk, "snap",
 		scriptGen{text: `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`},
-		rec, querytpl.Relations{KEVView: "my_schema.my_kev"})
+		rec, querytpl.Relations{KEVView: "my_schema.my_kev"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestInvestigatorSendsNothingForAnAnswerThatIsNotATemplate(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			rec := &recorder{rows: [][]string{{"x"}}}
-			got, err := Investigate(context.Background(), risk, "", scriptGen{text: c.answer}, rec, querytpl.Relations{})
+			got, err := Investigate(context.Background(), risk, "", scriptGen{text: c.answer}, rec, querytpl.Relations{}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,7 +118,7 @@ func TestInvestigatorSendsNothingForAnAnswerThatIsNotATemplate(t *testing.T) {
 // refusal.
 func TestInvestigatorProposingNoQueryIsNotARefusal(t *testing.T) {
 	rec := &recorder{}
-	got, err := Investigate(context.Background(), risk, "", scriptGen{text: `{"template":"","params":{}}`}, rec, querytpl.Relations{})
+	got, err := Investigate(context.Background(), risk, "", scriptGen{text: `{"template":"","params":{}}`}, rec, querytpl.Relations{}, nil)
 	if err != nil || len(rec.sql) != 0 || got.QueryNote != "" || len(got.Evidence) != 0 {
 		t.Fatalf("%v %q %#v", err, rec.sql, got)
 	}
@@ -128,7 +128,7 @@ func TestInvestigatorProposingNoQueryIsNotARefusal(t *testing.T) {
 // from the closed list: every template name is in it, and it tells the model
 // not to write SQL.
 func TestPromptNamesEveryTemplateAndAsksForNoSQL(t *testing.T) {
-	p := Prompt("F1", "title", "go.mod")
+	p := Prompt("F1", "title", "go.mod", nil)
 	for _, tpl := range querytpl.Catalogue() {
 		if !strings.Contains(p, tpl.Name) {
 			t.Errorf("the prompt does not name template %s", tpl.Name)
@@ -145,7 +145,7 @@ func TestPromptNamesEveryTemplateAndAsksForNoSQL(t *testing.T) {
 func TestExecuteRefusesBeforeItSends(t *testing.T) {
 	rec := &recorder{}
 	_, err := Execute(context.Background(), rec,
-		querytpl.Request{Template: querytpl.KEVByCVE, Params: map[string]string{querytpl.ParamCVEID: "x' OR '1'='1"}}, querytpl.Relations{})
+		querytpl.Request{Template: querytpl.KEVByCVE, Params: map[string]string{querytpl.ParamCVEID: "x' OR '1'='1"}}, querytpl.Relations{}, nil)
 	if err == nil || len(rec.sql) != 0 {
 		t.Fatalf("err %v, sent %q", err, rec.sql)
 	}
@@ -179,7 +179,7 @@ func TestRefusalByARegisteredBuilderIsAQueryNote(t *testing.T) {
 	t.Cleanup(func() { source.Unregister("refusing-probe") })
 	rec := &recorder{rows: [][]string{{"x"}}}
 	got, err := Investigate(context.Background(), risk, "",
-		scriptGen{text: `{"template":"refusing-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+		scriptGen{text: `{"template":"refusing-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{}, nil)
 	if err != nil {
 		t.Fatalf("the review failed on a refused value: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestOwningAdaptersRuleDecidesEvidence(t *testing.T) {
 	t.Cleanup(func() { source.Unregister("rule-drops-probe") })
 	rec := &recorder{rows: [][]string{{"x"}}}
 	got, err := Investigate(context.Background(), risk, "",
-		scriptGen{text: `{"template":"rule-drops-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+		scriptGen{text: `{"template":"rule-drops-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestRuleKeepsOneRowOfTwoOnTheEvidence(t *testing.T) {
 	t.Cleanup(func() { source.Unregister("keep-one-probe") })
 	rec := &recorder{rows: [][]string{{"one"}, {"two"}}}
 	got, err := Investigate(context.Background(), risk, "",
-		scriptGen{text: `{"template":"keep-one-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{})
+		scriptGen{text: `{"template":"keep-one-by-name","params":{"n":"x"}}`}, rec, querytpl.Relations{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

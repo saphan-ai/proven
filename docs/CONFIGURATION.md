@@ -59,6 +59,10 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_COUCHDB_PASSWORD` | none (required when the store is `couchdb`) | that user's password. Secret: never printed. Empty: CouchDB is down and the review names it |
 | `PROVEN_COUCHDB_ROW_LIMIT` | `100` | the most rows one query returns |
 | `PROVEN_COUCHDB_TIMEOUT` | `60s` | the limit for one request to CouchDB |
+| `PROVEN_COUCHDB_RECORDS` | none (records are not written) | the CouchDB database that holds a review's evidence records, on the server `PROVEN_COUCHDB_URL` names. Set: each finding of a review is written to it as one document, with the design document and the viewer page. Empty: nothing is written. A lower-case letter, then at most 63 lower-case letters, digits, `_` or `-` |
+| `PROVEN_COUCHDB_RECORDS_USER` | none (required when `PROVEN_COUCHDB_RECORDS` is set) | the CouchDB user Proven writes the records as. It must be a different user from `PROVEN_COUCHDB_USER`, the read-only account the viewer is opened with. One line of printable ASCII with no `:` |
+| `PROVEN_COUCHDB_RECORDS_PASSWORD` | none (required when `PROVEN_COUCHDB_RECORDS` is set) | that writing user's password. Secret: never printed |
+| `PROVEN_EVIDENCE_LINK_BASE_URL` | none (no evidence-record link) | the address a reader reaches CouchDB at, as an absolute `http` or `https` URL with no user info, query or fragment. Set, with `PROVEN_COUCHDB_RECORDS`: each finding carries a link to its record in the viewer page. Empty: no link. It is never `/_utils`, the admin console |
 | `ZETARIS_REST_URL` | none (required live) | Zetaris's REST address; an absolute `http` or `https` URL with no user info, query or fragment |
 | `ZETARIS_API_KEY` | none (required live) | Proven's Zetaris key. Secret: never printed. Empty: Zetaris is down and the review names it |
 | `ZETARIS_ORG_ID` | none (required live) | the organisation id sent with each query |
@@ -69,7 +73,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these.
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
 
 ## The Prover's container
 
@@ -126,6 +130,23 @@ Telemetry is off unless an endpoint is set. It only observes: once a review has 
 | `PROVEN_MAX_RECORD_BYTES` | `1048576` | the most the author record may hold, summed over the files `author_record` names |
 
 A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these.
+
+## The organisation policy
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_POLICY` | none | a path to the organisation policy file, read before each repository's `proven.yaml`; see [POLICY.md](POLICY.md). A path inside the repository under review is refused, and so is a missing or unreadable file. Sample mode reads it too |
+
+A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036).
+
+## The evidence pack
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_PACK_KEY` | none (required with `--evidence-pack`) | path to the PEM file of the organisation's Ed25519 private key (PKCS #8) that signs a pack. A missing or unreadable file, or one that group or others can reach (fix: `chmod 600`), is named and the review does not start |
+| `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
+
+The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
 <!-- end generated -->
 
 ## Counting guardrail checks
@@ -199,13 +220,27 @@ No environment variable sets these keys.
 | `author_trailer_keys` | `Assisted-by` | Trailer keys that can name an author. The value must be `agent:model`. A recognised key with any other value is reported as `author statement unreadable: <line>`, not as "not stated". | A comma-separated list of keys, each once. |
 | `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
 | `fixes` | `on` | Proposes a fix for a finding a test proved, and a fixed version for a dependency finding (ADR-0042). `off` proposes none, runs none of the three proof runs and names no version. | `on` or `off`. |
-| `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. |
+| `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. With `autofix: on` this key is not read: the whole-change attempt has no retry (ADR-0050). |
+| `autofix` | `off` | The one automated fix attempt for the whole change (ADR-0050). With `on`, after the review, one generator call gets every proved finding with its evidence and writes one patch. Proven applies it to copies only and runs each finding's own evidence again: a finding proved by a test closes when that test passes and the package's other tests still pass; one proved by data closes when the same query no longer returns the row; one proved by a tool closes when the same tool run no longer reports it. Then nothing else may have broken: Proven runs `go test` on the patched copy for every package a patched file belongs to (the whole module for an edit to a module file), and a failure, or a run that did not happen, makes the attempt `rejected` and names the run. A touched package with no test cannot show that nothing broke, so a patch to one is `rejected` too. No model judges the patch. If every proved finding closed and those runs passed, the review says `fixed automatically, waiting for a person`; otherwise it says `rejected` and lists each open finding with its evidence. There is no second attempt, nothing is committed to the author's branch, and the per-finding suggestions of `fixes` are not made while it is on. `fixes: off` together with `autofix: on` does not stop the attempt: `fixes` governs only the per-finding suggestions, so the attempt still runs its own proof runs in the container. The judges' lab turns it on. | `on` or `off`. |
+| `autofix_generator` | `default` | Which generator writes the patch of the whole-change attempt. `default` is the review's own generator (NVIDIA's Nemotron unless the generator mode names another). `special` is the second reviewer's generator; with none connected the review makes no attempt and names the service as failed. | `default` or `special`. |
+| `autofix_timeout` | `10m` | The time limit of the whole-change attempt: the generator's answer and every run of evidence again. An attempt that runs past it ends `rejected` and says the time limit ended it. | A Go duration greater than zero, for example `90s` or `10m`. |
+| `investigator_templates` | every template | The query templates the Investigator may ask (ADR-0013, ADR-0032). Its prompt lists only these, and a request for any other is refused before a store is asked: the finding goes on with no query evidence and the trace says `refused: query template is outside the evidence scope of this role: <template> for the investigator`. Unset narrows nothing. | A comma-separated list of template names from `docs/QUERIES.md`, each once. A name that is not on the list, a name twice or an empty entry is refused on load. |
+| `skeptic_templates` | every template | The query templates the Skeptic may ask. Its prompt lists only these, and a refuting query for any other is refused before a store is asked: the proposal is dropped, the finding is judged on the rest of the attempt, and the refutation says `refused: query template is outside the evidence scope of this role: <template> for the skeptic`. The two lists are independent, so the Skeptic can be held to fewer templates than the Investigator. Unset narrows nothing. | The same as `investigator_templates`. |
+
+The Planner, the Prover, the Judge, the Writer and the Fixer have no query path, so they have no scope key. A template name is the only thing a scope names: it does not narrow the tables or views a template reads.
+
+For example, an Investigator that may ask every KEV, EPSS and OSV template and a Skeptic that may ask only KEV:
+
+```yaml
+investigator_templates: kev-by-cve, epss-by-cve, osv-by-package, osv-by-advisory
+skeptic_templates: kev-by-cve
+```
 
 ### Default path rules
 
 Each of these is class `security`:
 
-`**/auth/**`, `**/payment*/**`, `**/*secret*`, `**/migrations/**`, `go.mod`, `go.sum`, `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.toml`, `Cargo.lock`, `requirements.txt`, `Pipfile.lock`, `poetry.lock`, `Gemfile.lock`, `composer.json`, `composer.lock`, `pom.xml`, `build.gradle`, `build.gradle.kts`.
+`**/auth/**`, `**/payment*/**`, `**/*secret*`, `**/migrations/**`, `go.mod`, `go.sum`, `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.toml`, `Cargo.lock`, `requirements.txt`, `Pipfile.lock`, `poetry.lock`, `Gemfile.lock`, `composer.json`, `composer.lock`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `libs.versions.toml`, `gradle.lockfile`.
 
 Each of these is class `docs`:
 

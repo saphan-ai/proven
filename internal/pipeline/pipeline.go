@@ -7,8 +7,10 @@
 // a fix for each finding a test proved and prove it with the same test (ADR-0042),
 // adds the dependency check against the OSV table, with the fixed version it
 // names, labels each dependency finding from govulncheck when the change is
-// Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. Every step writes to the trace, which is then folded into H-MEM and
-// the World Model.
+// Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. With the setting on, it makes
+// the one whole-change fix attempt once every finding is final, and judges it by running each finding's own
+// evidence again (ADR-0050, autofix.go); the attempt replaces the per-finding suggestions. Every step writes
+// to the trace, which is then folded into H-MEM and the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
 // and answer (ADR-0005), the record of every model call, the doubled review
@@ -257,6 +259,20 @@ type Request struct {
 	FixesOff bool
 	// FixAttempts is the most attempts at one fix; zero means fixer.DefaultAttempts.
 	FixAttempts int
+	// Autofix turns the one whole-change fix attempt on (ADR-0050). The zero value makes none, and a
+	// review with it off is the review as it was before the attempt existed. When it is on, the
+	// per-finding suggestions of ADR-0042 are not made: the attempt is the one loop, and it has no retry.
+	Autofix bool
+	// AutofixSpecial names the second reviewer's generator as the one that writes the patch; false
+	// names the review's own generator (ADR-0050 point 6).
+	AutofixSpecial bool
+	// AutofixTimeout is the time limit of the attempt; zero is no limit of its own.
+	AutofixTimeout time.Duration
+	// InvestigatorScope and SkepticScope are the templates each role may ask
+	// (ADR-0013). The nil scope is every template, which is a review with no
+	// setting. A role is told only of its scope and refused outside it.
+	InvestigatorScope querytpl.Scope
+	SkepticScope      querytpl.Scope
 }
 
 // Review runs planner, investigator, prover, skeptic, judge, the fixer (ADR-0042) and writer.
@@ -292,6 +308,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	// ADR-0005, ADR-0013 point 4: the draft is the last place model and service text
 	// can reach the result, so it is redacted once here, after every agent has run.
 	d.Findings = p.redactFindings(d.Findings)
+	d.Autofix = redactAutofix(p.redactor, d.Autofix)
 	// An opinion's reasons are the reviewers' own words, so they are redacted
 	// with the findings (ADR-0041, ADR-0005).
 	d.Opinions = p.redactOpinions(d.Opinions)
@@ -666,7 +683,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	ictx, istage := p.tel.StartStage(ctx, "investigator", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
-		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, q, rel)
+		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, q, rel, req.InvestigatorScope)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -725,7 +742,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	for i := range cands {
 		if hasRun(cands[i], runDefault) {
 			kctx, kstage := p.tel.StartStage(ctx, "skeptic", telemetry.ReviewerDefault, reviewerModel(req, runDefault))
-			next, err := skeptic.Attempt(kctx, cleared(cands[i]), gen)
+			next, err := skeptic.Attempt(kctx, cleared(cands[i]), gen, req.SkepticScope)
 			kstage.End(err)
 			if err != nil {
 				if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -737,7 +754,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				cands[i].Refutation = candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			} else {
 				cands[i] = next
-				if err := p.runRefutation(ctx, &cands[i], q, run); err != nil {
+				if err := p.runRefutation(ctx, &cands[i], q, run, req.SkepticScope); err != nil {
 					if _, fatal := st.soften(ctx, err); fatal != nil {
 						if errors.Is(fatal, errPartial) {
 							return p.cut(st, cands, allow)
@@ -761,7 +778,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				own.Risk = r
 			}
 			kctx, kstage := p.tel.StartStage(ctx, "skeptic", telemetry.ReviewerSpecial, reviewerModel(req, runSpecial))
-			next, err := skeptic.Attempt(kctx, own, special)
+			next, err := skeptic.Attempt(kctx, own, special, req.SkepticScope)
 			kstage.End(err)
 			ref := candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			if err != nil {
@@ -772,7 +789,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 					return candidate.Draft{}, fatal
 				}
 			} else {
-				if err := p.runRefutation(ctx, &next, q, run); err != nil {
+				if err := p.runRefutation(ctx, &next, q, run, req.SkepticScope); err != nil {
 					if _, fatal := st.soften(ctx, err); fatal != nil {
 						if errors.Is(fatal, errPartial) {
 							return p.cut(st, cands, allow)
@@ -828,7 +845,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	jstage.End(nil)
 	// ADR-0042: a kept finding that a test proved gets a fix proved by the same test. It
 	// comes after the Judge, so no fix is written for a finding that is dropped.
-	if !req.FixesOff {
+	// ADR-0050: with the whole-change attempt on, it is the one loop; the per-finding retries are not made.
+	if !req.FixesOff && !req.Autofix {
 		if err := p.fix(ctx, st, gen, run, fx.Root, req.FixAttempts, cands); err != nil {
 			if errors.Is(err, errPartial) {
 				return p.cut(st, cands, allow)
@@ -868,11 +886,27 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, fatal
 		}
 	}
+	// ADR-0050: every finding is final here, so the one whole-change attempt sees them all. It
+	// judges only findings the draft will show, so a finding outside the selected files is not in it.
+	var attempt *candidate.Autofix
+	if req.Autofix {
+		attempt, err = p.autofix(ctx, st, req, fx.Root, fx.Snapshot, gen, q, run, keepFindings(cands, allow))
+		if err != nil {
+			attempt = nil
+			if _, fatal := st.soften(ctx, err); fatal != nil {
+				if errors.Is(fatal, errPartial) {
+					return p.cut(st, cands, allow)
+				}
+				return candidate.Draft{}, fatal
+			}
+		}
+	}
 	_, wstage := p.tel.StartStage(ctx, "writer", telemetry.ReviewerShared, "")
 	drafted := keep(writer.Write(writer.Input{
 		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
 		SkippedPaths: st.skipped,
 	}))
+	drafted.Autofix = attempt
 	wstage.End(nil)
 	return drafted, nil
 }
@@ -1071,7 +1105,7 @@ func (p *Pipeline) relations(ctx context.Context) querytpl.Relations {
 // A proposal with no test and no query is not evidence. The caller writes the
 // refutation to the trace, and H-MEM learns it from the trace when the review is
 // folded in.
-func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Runner, run testrun.Adapter) error {
+func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q query.Runner, run testrun.Adapter, scope querytpl.Scope) error {
 	r := &c.Refutation
 	if r.TestName != "" {
 		out, err := prover.Execute(ctx, run, testrun.Request{
@@ -1102,7 +1136,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 		}
 	}
 	if !r.Query.Empty() {
-		res, err := investigator.Execute(ctx, q, r.Query, p.relations(ctx))
+		res, err := investigator.Execute(ctx, q, r.Query, p.relations(ctx), scope)
 		if err != nil {
 			// ADR-0032: a request Proven refuses was checked by the Skeptic
 			// already, so this is a settings refusal. It is not a query that
@@ -1294,6 +1328,19 @@ func (a checkoutRun) RunFix(ctx context.Context, req testrun.FixRequest) (testru
 		req.ChangeDir = a.change
 	}
 	return inner.RunFix(ctx, req)
+}
+
+// RunBreakage fills the empty change directory and runs the packages a patch touched on the inner
+// adapter. An inner adapter that cannot run them reports the Prover off.
+func (a checkoutRun) RunBreakage(ctx context.Context, req testrun.BreakageRequest) (testrun.BreakageOutcome, error) {
+	inner, ok := a.inner.(testrun.BreakageRunner)
+	if !ok {
+		return testrun.BreakageOutcome{}, &service.Down{Service: "prover", Reason: "Prover off: this runner cannot run a patched package"}
+	}
+	if req.ChangeDir == "" {
+		req.ChangeDir = a.change
+	}
+	return inner.RunBreakage(ctx, req)
 }
 
 // fix runs the Fixer for every kept finding a test proved (ADR-0042) and writes what it did

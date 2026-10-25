@@ -59,17 +59,31 @@ func open(opts Options) (Reviewer, error) {
 		reads = loaded
 	}
 	change.UseLimits(reads)
-	cfg := defaultSettings()
+	// ADR-0036: the organisation policy is read first, once, and refused here when it is missing or
+	// malformed. Whether it lies inside the repository is known only when a review names its target.
+	var pol *policy
+	if opts.PolicyPath != "" {
+		loaded, err := loadPolicy(opts.PolicyPath)
+		if err != nil {
+			return nil, err
+		}
+		pol = loaded
+	}
+	cfg := pol.base()
 	explicit := false
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
 	// change's baseline (see runner.Review).
 	if opts.ConfigPath != "" {
-		loaded, err := loadConfigFile(opts.ConfigPath)
+		loaded, err := loadConfigFileUnder(opts.ConfigPath, pol)
 		if err != nil {
 			return nil, err
 		}
 		cfg = loaded
 		explicit = true
+	}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
 	}
 	popts := pipeline.Options{
 		Sample: opts.Sample,
@@ -247,6 +261,13 @@ func open(opts Options) (Reviewer, error) {
 	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
 	// the lab's pull-request review is a sample review, and it is the one the dashboard shows. Setup
 	// reads only OTEL_* names.
+	// ADR-0013: the evidence records and their link are settings. A wrong value stops Open. Sample mode
+	// reads them too, as it reads OTEL_*: the lab's pull-request review is a sample review, and the
+	// lab's CouchDB is where its records go. Unset, nothing is written and no link is made.
+	rec, rcerr := openRecorder(opts)
+	if rcerr != nil {
+		return nil, rcerr
+	}
 	tel := opts.tel
 	if tel == nil {
 		set, terr := telemetry.Setup(context.Background(), opts.Env)
@@ -260,7 +281,40 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec}, nil
+}
+
+// openRecorder loads the records settings and the link base address. It returns a nil recorder
+// when PROVEN_COUCHDB_RECORDS is unset: a link needs a stored record, so the link base alone
+// makes no link.
+func openRecorder(opts Options) (*recorder, error) {
+	env := opts.Env
+	if env == nil {
+		env = func(string) string { return "" }
+	}
+	rset, err := store.LoadRecords(env)
+	if err != nil {
+		return nil, storeConfig(err)
+	}
+	link, err := store.LoadLinkBase(env)
+	if err != nil {
+		return nil, storeConfig(err)
+	}
+	if !rset.Enabled() {
+		return nil, nil
+	}
+	rc := &recorder{
+		writer:   store.NewRecorder(rset, opts.recordsClient),
+		linkBase: link,
+		pr:       store.PullOf(env(envGitHubRef)),
+		now:      time.Now,
+	}
+	// The read-only account is the one the viewer is opened with. When it is not configured the
+	// viewer cannot be checked, and the link is shown unchecked with a failed service that says so.
+	if cfg, cerr := store.LoadCouch(env); cerr == nil {
+		rc.reader = store.NewCouchDB(cfg, opts.recordsClient)
+	}
+	return rc, nil
 }
 
 // lazyLocal opens the local store on its first use, so nothing is written
@@ -403,6 +457,10 @@ type runner struct {
 	tel *telemetry.T
 	// sample is true when the adapters are the recorded ones.
 	sample bool
+	// records writes the review's evidence records; nil when none are written.
+	records *recorder
+	pol     *policy          // the organisation policy, or nil (ADR-0036)
+	now     func() time.Time // the review's clock; nil in a runner built by a test means time.Now
 }
 
 // Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
@@ -444,6 +502,11 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	if err := checkLocalFile(r.localFile, req.Target); err != nil {
 		return Result{}, err
 	}
+	// A policy inside the repository under review is refused before anything else is read: the change
+	// could have edited it.
+	if err := r.pol.refuseInside(req.Target); err != nil {
+		return Result{}, err
+	}
 	cfg := r.cfg
 	// Settings come from the baseline commit, not from the change, so a change cannot loosen its
 	// own review. With no baseline there is only the working tree to read.
@@ -451,9 +514,9 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		var loaded fileSettings
 		var err error
 		if req.BaselineCommit != "" {
-			loaded, err = loadSettingsAtBaseline(req.Target, req.BaselineCommit)
+			loaded, err = loadSettingsAtBaselineUnder(req.Target, req.BaselineCommit, r.pol)
 		} else {
-			loaded, err = loadSettingsInTarget(req.Target)
+			loaded, err = loadSettingsInTargetUnder(req.Target, r.pol)
 		}
 		if err != nil {
 			return Result{}, err
@@ -509,6 +572,13 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		// ADR-0042: the settings that turn proposed fixes off and bound their attempts.
 		FixesOff:    !cfg.Fixes,
 		FixAttempts: cfg.FixAttempts,
+		// ADR-0050 point 6: the whole-change attempt, the generator that writes its patch and its time limit.
+		Autofix:        cfg.Autofix,
+		AutofixSpecial: cfg.AutofixGenerator == autofixGeneratorSpecial,
+		AutofixTimeout: cfg.AutofixTimeout,
+		// ADR-0013: the evidence scope of each role that can query.
+		InvestigatorScope: cfg.InvestigatorScope,
+		SkepticScope:      cfg.SkepticScope,
 	})
 	if err != nil {
 		return Result{}, err
@@ -520,6 +590,17 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	if err := applyDecision(&out, cfg, req); err != nil {
 		return Result{}, err
 	}
+	if r.pol != nil {
+		out.PolicyStatement = "organisation policy: " + r.pol.path
+		now := r.now
+		if now == nil {
+			now = time.Now
+		}
+		r.pol.applyExceptions(&out, now())
+	}
+	// The records are written last, from the Result the shell will print, so a record holds
+	// what the reader is shown. A failure is named in FailedServices and does not fail the review.
+	r.records.publish(ctx, req, &out)
 	return out, nil
 }
 
@@ -588,6 +669,7 @@ func fill(d candidate.Draft) (Result, error) {
 	if len(d.SkippedPaths) > 0 {
 		out.SkippedPaths = append([]string(nil), d.SkippedPaths...)
 	}
+	out.Autofix = toAutofix(d.Autofix)
 	if out.Findings == nil {
 		out.Findings = []Finding{}
 	}
@@ -624,6 +706,39 @@ func toFix(f *candidate.Fix) *Fix {
 		}
 	}
 	return out
+}
+
+// toAutofix copies the whole-change fix attempt across the seam, field by field. A nil attempt stays nil
+// (ADR-0050): a review that made none says nothing about one.
+func toAutofix(a *candidate.Autofix) *Autofix {
+	if a == nil {
+		return nil
+	}
+	out := &Autofix{Verdict: a.Verdict, What: a.What, Why: a.Why, Diff: a.Diff, Refused: a.Refused}
+	for _, e := range a.Edits {
+		out.Edits = append(out.Edits, FixEdit{Path: e.Path, Old: e.Old, New: e.New})
+	}
+	for _, f := range a.Findings {
+		nf := AutofixFinding{ID: f.ID, Closed: f.Closed}
+		for _, p := range f.Proofs {
+			nf.Proofs = append(nf.Proofs, toAutofixProof(p))
+		}
+		out.Findings = append(out.Findings, nf)
+	}
+	if a.Breakage != nil {
+		b := toAutofixProof(*a.Breakage)
+		out.Breakage = &b
+	}
+	return out
+}
+
+// toAutofixProof copies one proof across the seam, with its runs.
+func toAutofixProof(p candidate.AutofixProof) AutofixProof {
+	np := AutofixProof{Kind: p.Kind, Closed: p.Closed, Reason: p.Reason, Command: p.Command, Output: p.Output}
+	for _, r := range p.Runs {
+		np.Runs = append(np.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+	}
+	return np
 }
 
 // disagree reports whether the reviewers who answered gave different verdicts on one finding

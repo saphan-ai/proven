@@ -18,6 +18,7 @@ func Readers() []Reader {
 		PyPI(), Poetry(),
 		Composer(), ComposerLock(),
 		Cargo(), CargoLock(),
+		GradleCatalog(), GradleKts(), GradleLock(),
 	}
 }
 
