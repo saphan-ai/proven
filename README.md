@@ -8,7 +8,9 @@
 make up
 ```
 
-`make up` builds Proven and starts the judges' lab on this machine. It prints the lab address and a generated admin password, once. Open that address, then the open pull request: the sample review is a comment on it. The steps are in [docs/LAB.md](docs/LAB.md). `make down` stops the lab.
+**Step by step, with what you need first and what to do if something fails: [docs/LAB.md](docs/LAB.md).**
+
+`make up` builds Proven and starts the judges' lab on this machine. It prints the lab address and a generated admin password, once. Open that address, then the open pull request: the sample review is a comment on it. `make down` stops the lab.
 
 Proven will review pull requests: proposed changes to a codebase. Every problem it reports must come with evidence you can check yourself, such as a test you can run or a data query you can repeat. If it cannot show the evidence, it does not report the problem.
 
