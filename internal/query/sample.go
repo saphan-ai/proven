@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"fmt"
+
+	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
 // Sample runs SQL on the local one-file store, opened on a fixture's
@@ -32,4 +34,18 @@ func (s *Sample) Query(ctx context.Context, sql string) (Result, error) {
 		return Result{}, fmt.Errorf("query: no local store")
 	}
 	return s.file.Query(ctx, sql)
+}
+
+// Run builds the sql form and runs it on the fixture file.
+// Sample mode speaks SQL, and the text is the same form the callers used to
+// build, so a sample review's evidence stays as it was (ADR-0047).
+func (s *Sample) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (Result, error) {
+	if s == nil || s.file == nil {
+		return Result{}, fmt.Errorf("query: no local store")
+	}
+	forms, err := querytpl.BuildForms(req, rel)
+	if err != nil {
+		return Result{}, err
+	}
+	return s.file.Query(ctx, forms.SQL)
 }

@@ -91,6 +91,10 @@ func (p *Pipeline) begin(target string) error {
 		return err
 	}
 	tw.SetRedactor(p.redactor)
+	if p.tel != nil {
+		// ADR-0045: every line of the trace file also rides along as a span event.
+		tw.SetObserver(p.tel.Observe)
+	}
 	mem, err := hmem.Open(hmem.Options{
 		Dir: filepath.Join(p.stateDir, "hmem"), LogDir: p.logDir, RepoRoot: target,
 	})

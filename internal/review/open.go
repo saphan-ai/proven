@@ -7,8 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
@@ -19,9 +22,11 @@ import (
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/querytpl"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
 )
@@ -156,23 +161,38 @@ func open(opts Options) (Reviewer, error) {
 		if choice.Name == store.NameLocal {
 			// ADR-0047: the file is opened on the first query, after Review has
 			// checked it is not inside the target. Opening creates it, and the
-			// target is not known until a review starts.
+			// target is not known until a review starts. The seam is the store,
+			// so a query is a template request and the file runs the sql form.
 			localFile = choice.File
-			popts.LiveQuery = &lazyLocal{path: choice.File}
+			popts.LiveStore = &lazyLocal{path: choice.File}
+		} else if choice.Name == store.NameCouchDB {
+			// ADR-0047, ADR-0013: a wrong CouchDB value stops Open; an empty
+			// address, user or password is a down store the review names.
+			// The Zetaris variables are not read. A configured store is
+			// installed on the seam and runs the mango form.
+			cfg, cerr := store.LoadCouch(env)
+			if d, ok := service.As(cerr); ok {
+				popts.Down = append(popts.Down, *d)
+				popts.LiveStore = downStore{service: "couchdb", reason: d.Reason}
+			} else if cerr != nil {
+				return nil, storeConfig(cerr)
+			} else {
+				popts.LiveStore = store.NewCouchDB(cfg, nil)
+			}
 		} else {
 			zset, zerr := query.Load(env)
 			if d, ok := service.As(zerr); ok {
 				popts.Down = append(popts.Down, *d)
-				popts.LiveQuery = query.Absent{Reason: d.Reason}
+				popts.LiveStore = downStore{service: "zetaris", reason: d.Reason}
 			} else if zerr != nil {
 				return nil, queryConfig(zerr)
 			} else {
-				popts.LiveQuery = query.NewLive(zset, nil)
+				popts.LiveStore = store.NewZetaris(zset)
 			}
 		}
-		if opts.liveQuery != nil {
-			// A test supplies the query adapter. The live client above is not called.
-			popts.LiveQuery = opts.liveQuery
+		if opts.liveStore != nil {
+			// A test supplies the store. The live client above is not called.
+			popts.LiveStore = opts.liveStore
 		}
 		table, terr := osv.LoadTable(env)
 		if terr != nil {
@@ -237,15 +257,28 @@ func open(opts Options) (Reviewer, error) {
 		}
 		adapterLimit = bound
 	}
+	// ADR-0045: telemetry is off unless the standard OTEL_* variables name an endpoint. A wrong value
+	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
+	// the lab's pull-request review is a sample review, and it is the one the dashboard shows. Setup
+	// reads only OTEL_* names.
+	tel := opts.tel
+	if tel == nil {
+		set, terr := telemetry.Setup(context.Background(), opts.Env)
+		if terr != nil {
+			return nil, telemetryConfig(terr)
+		}
+		tel = set
+	}
+	popts.Telemetry = tel
 	p, err := pipeline.Build(popts)
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, pol: pol, now: now}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now}, nil
 }
 
-// lazyLocal opens the local store on its first query, so nothing is written
-// before the review has checked where the file is.
+// lazyLocal opens the local store on its first use, so nothing is written
+// before the review has checked where the file is (ADR-0047).
 type lazyLocal struct {
 	path string
 	once sync.Once
@@ -253,13 +286,57 @@ type lazyLocal struct {
 	err  error
 }
 
-// Query opens the store once and runs the SQL on it.
-func (l *lazyLocal) Query(ctx context.Context, sql string) (query.Result, error) {
-	l.once.Do(func() { l.loc, l.err = store.OpenLocal(l.path) })
+// Register opens the file once and writes the table into it.
+func (l *lazyLocal) Register(ctx context.Context, table store.Table) error {
+	l.open()
 	if l.err != nil {
-		return query.Result{}, l.err
+		return l.err
 	}
-	return l.loc.Query(ctx, sql)
+	return l.loc.Register(ctx, table)
+}
+
+// Run opens the file once and runs the template on it. The file speaks SQL,
+// so the evidence names that form (ADR-0047).
+func (l *lazyLocal) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (store.Evidence, error) {
+	l.open()
+	if l.err != nil {
+		return store.Evidence{}, l.err
+	}
+	return l.loc.Run(ctx, req, rel)
+}
+
+// open loads the file on the first call. Later calls see the same store.
+func (l *lazyLocal) open() {
+	l.once.Do(func() { l.loc, l.err = store.OpenLocal(l.path) })
+}
+
+// downStore is a store that names itself down and does not dial.
+// A request that cannot be built is refused first, so a bad template is the
+// same answer whether or not the store is up (ADR-0032).
+type downStore struct {
+	service string
+	reason  string
+}
+
+// Register names the store down. Nothing is written.
+func (d downStore) Register(context.Context, store.Table) error {
+	return d.down()
+}
+
+// Run refuses a request that cannot be built, and otherwise names the store down.
+func (d downStore) Run(_ context.Context, req querytpl.Request, rel querytpl.Relations) (store.Evidence, error) {
+	if _, err := querytpl.BuildForms(req, rel); err != nil {
+		return store.Evidence{}, err
+	}
+	return store.Evidence{}, d.down()
+}
+
+func (d downStore) down() error {
+	reason := d.reason
+	if reason == "" {
+		reason = "not configured"
+	}
+	return &service.Down{Service: d.service, Reason: reason}
 }
 
 // checkLocalFile refuses a local evidence file that resolves inside the
@@ -281,6 +358,22 @@ func checkLocalFile(file, target string) error {
 		}
 	}
 	return nil
+}
+
+// telemetryFlushBound bounds the push of a review's telemetry to the exporter, so an unreachable
+// collector never holds a finished review back for long.
+const telemetryFlushBound = 5 * time.Second
+
+// telemetryConfig turns a refused OTEL_* setting into the seam's *ConfigError.
+func telemetryConfig(err error) error {
+	var cfg *telemetry.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
 }
 
 // withSecond makes the connected second reviewer the special reviewer (ADR-0037 point 2) and widens
@@ -320,12 +413,48 @@ type runner struct {
 	localFile    string
 	// secondModel is the second reviewer's model when one is connected; empty otherwise.
 	secondModel string
-	pol         *policy          // the organisation policy, or nil (ADR-0036)
-	now         func() time.Time // the review's clock; nil in a runner built by a test means time.Now
+	// tel is the review's telemetry; nil is off (ADR-0045).
+	tel *telemetry.T
+	// sample is true when the adapters are the recorded ones.
+	sample bool
+	pol    *policy          // the organisation policy, or nil (ADR-0036)
+	now    func() time.Time // the review's clock; nil in a runner built by a test means time.Now
 }
 
-// Review runs one review: settings, deadline, class, the six agents, then the decision lines.
+// Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
+// only observe: what the review decides is what review returns.
 func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
+	if r.tel == nil {
+		return r.review(ctx, req)
+	}
+	ctx, root := r.tel.StartReview(ctx,
+		attribute.Bool("proven.sample", r.sample),
+	)
+	res, err := r.review(ctx, req)
+	counts := map[string]int{}
+	for level, n := range res.ProofCounts {
+		counts[string(level)] = n
+	}
+	r.tel.Findings(ctx, counts)
+	root.End(err,
+		attribute.Int("proven.findings", len(res.Findings)),
+		attribute.Bool("proven.partial", res.Partial),
+		attribute.String("proven.class", res.Class),
+		attribute.Bool("proven.doubled", res.Doubled),
+		attribute.Int("proven.failed_services", len(res.FailedServices)),
+	)
+	// The caller's context may be over by now (a deadline); the push has its own bound.
+	flush, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryFlushBound)
+	defer cancel()
+	// A failed push is not a failed review. It is not hidden either: the shell's stderr has it.
+	if ferr := r.tel.Flush(flush); ferr != nil {
+		fmt.Fprintf(os.Stderr, "proven: telemetry not exported: %v\n", ferr)
+	}
+	return res, err
+}
+
+// review runs one review: settings, deadline, class, the six agents, then the decision lines.
+func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	// ADR-0047: before anything reads or writes, the local evidence file must
 	// be outside the tree under review.
 	if err := checkLocalFile(r.localFile, req.Target); err != nil {
@@ -374,6 +503,10 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 		}
 		class, _ := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
 		double = cfg.Doubled[class]
+		if double {
+			// The second reviewer shows on the dashboard before it starts.
+			r.tel.ExpectReviewer(ctx, telemetry.ReviewerSpecial)
+		}
 	}
 	// The KEV view and the adapter bound ride the context. The pipeline's
 	// calls do not take them, and this change does not edit that package.

@@ -68,16 +68,6 @@ func (l *Local) Run(ctx context.Context, req querytpl.Request, rel querytpl.Rela
 	return evidenceFrom(forms, res), nil
 }
 
-// Query runs SQL that Proven already built. The pipeline's adapter is this
-// method when the configured store is local, so a live review and a sample
-// review share the file engine.
-func (l *Local) Query(ctx context.Context, sql string) (query.Result, error) {
-	if l == nil || l.file == nil {
-		return query.Result{}, fmt.Errorf("store: no local store")
-	}
-	return l.file.Query(ctx, sql)
-}
-
 // checkTable refuses a name, a column or a row the file cannot store.
 // The check is here so both stores refuse the same table before either
 // one writes.

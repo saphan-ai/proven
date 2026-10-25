@@ -15,7 +15,7 @@ const (
 	EnvFile  = "PROVEN_EVIDENCE_FILE"
 )
 
-// The store names. CouchDB is refused by name until it is built (W49).
+// The store names.
 const (
 	NameZetaris = "zetaris"
 	NameLocal   = "local"
@@ -27,11 +27,11 @@ const fileAllowed = "a file path of at most 4096 bytes, with no control characte
 
 // Environment lists the store settings in the order the page shows.
 func Environment() []envdoc.Setting {
-	return []envdoc.Setting{
+	rows := []envdoc.Setting{
 		{
 			Name:        EnvStore,
 			Default:     envdoc.Tick(NameZetaris),
-			Description: "which evidence store a live review uses: `zetaris` or `local`. `couchdb` is refused by name because it is not built yet. Empty means `zetaris`. Sample mode uses the local store and does not read this variable",
+			Description: "which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable",
 		},
 		{
 			Name:        EnvFile,
@@ -39,6 +39,8 @@ func Environment() []envdoc.Setting {
 			Description: "the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started",
 		},
 	}
+	// The CouchDB rows follow, read only when the store is `couchdb`.
+	return append(rows, CouchEnvironment()...)
 }
 
 // ConfigError names a refused store setting and the values that are allowed.
@@ -73,8 +75,9 @@ type Choice struct {
 }
 
 // Load reads PROVEN_EVIDENCE_STORE. An empty value is zetaris.
-// couchdb is refused by name. Any other word is refused. The file path is
-// checked only when the store is local: it does not apply to zetaris.
+// Any word that is not a store is refused. The file path is checked only
+// when the store is local: it does not apply to zetaris or couchdb. The
+// CouchDB settings are read by LoadCouch.
 func Load(env func(string) string) (Choice, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -85,9 +88,11 @@ func Load(env func(string) string) (Choice, error) {
 	}
 	switch name {
 	case NameCouchDB:
-		// ADR-0047: CouchDB is a later wagon. Naming it must not fall through
+		// ADR-0047: the CouchDB settings are checked by LoadCouch, as the
+		// Zetaris settings are checked by query.Load, so an empty address is a
+		// down store and not a refusal. Naming couchdb must not fall through
 		// to zetaris.
-		return Choice{}, refuse(EnvStore, name, "couchdb is not built yet", "zetaris, local")
+		return Choice{Name: name}, nil
 	case NameZetaris:
 		// The file path applies only when the store is local. A zetaris
 		// review does not read it, so a stray value there is not a refusal.
@@ -111,7 +116,7 @@ func Load(env func(string) string) (Choice, error) {
 		}
 		return Choice{Name: name, File: file}, nil
 	default:
-		return Choice{}, refuse(EnvStore, clip(name), "not a store", "zetaris, local; couchdb is not built yet")
+		return Choice{}, refuse(EnvStore, clip(name), "not a store", "zetaris, local, couchdb")
 	}
 }
 

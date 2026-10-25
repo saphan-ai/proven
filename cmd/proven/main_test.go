@@ -299,7 +299,8 @@ func shellEnv(t *testing.T) func(string) string {
 		"SAMPLE_MODE":             {},
 	}
 	return func(k string) string {
-		if _, ok := allowed[k]; !ok {
+		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
+		if _, ok := allowed[k]; !ok && !strings.HasPrefix(k, "OTEL_") {
 			t.Fatalf("unexpected environment key %s", k)
 		}
 		return ""
