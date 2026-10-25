@@ -6,10 +6,9 @@ import "context"
 // text's language, Engine names the store, and Snapshot is when the rows
 // were read. The Judge keeps all of it, so a reader can run the same query
 // again (ADR-0002, ADR-0047).
-// Form is "sql" for Zetaris and the local store. "mango" is reserved for
-// CouchDB and is not produced yet.
+// Form is "sql" for Zetaris and the local store, and "mango" for CouchDB.
 // Engine is "zetaris" for a live Zetaris call, "local" for the configured
-// local file, and "local-sample" when sample mode opens a fixture file.
+// local file, "couchdb" for CouchDB, and "local-sample" when sample mode opens a fixture file.
 // A fixture leaves Snapshot empty and the caller fills the fixture's date.
 // Zetaris and a configured local store set Snapshot to the UTC time of the
 // call. Every cell is text.

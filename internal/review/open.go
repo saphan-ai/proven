@@ -145,6 +145,19 @@ func open(opts Options) (Reviewer, error) {
 			// target is not known until a review starts.
 			localFile = choice.File
 			popts.LiveQuery = &lazyLocal{path: choice.File}
+		} else if choice.Name == store.NameCouchDB {
+			// ADR-0047, ADR-0013: a wrong CouchDB value stops Open; an empty
+			// address, user or password is a down store the review names.
+			// The Zetaris variables are not read.
+			_, cerr := store.LoadCouch(env)
+			if d, ok := service.As(cerr); ok {
+				popts.Down = append(popts.Down, *d)
+				popts.LiveQuery = couchdbSQL{reason: d.Reason}
+			} else if cerr != nil {
+				return nil, storeConfig(cerr)
+			} else {
+				popts.LiveQuery = couchdbSQL{reason: couchdbSQLReason}
+			}
 		} else {
 			zset, zerr := query.Load(env)
 			if d, ok := service.As(zerr); ok {
@@ -246,6 +259,23 @@ func (l *lazyLocal) Query(ctx context.Context, sql string) (query.Result, error)
 		return query.Result{}, l.err
 	}
 	return l.loc.Query(ctx, sql)
+}
+
+// couchdbSQLReason is why the pipeline's query seam cannot reach CouchDB yet.
+const couchdbSQLReason = "the review's query seam sends SQL and CouchDB runs a Mango form; the seam is not moved to templates yet"
+
+// couchdbSQL is the pipeline's query adapter while the store is couchdb.
+// The pipeline hands its adapter SQL text, and Proven never turns SQL into a
+// Mango selector: a store runs a form built from a template (ADR-0032,
+// ADR-0047). Until the seam passes the template, every query names couchdb
+// down, so the review degrades and says why instead of reading another store.
+type couchdbSQL struct {
+	reason string
+}
+
+// Query names couchdb down and does not use the network.
+func (c couchdbSQL) Query(context.Context, string) (query.Result, error) {
+	return query.Result{}, &service.Down{Service: "couchdb", Reason: c.reason}
 }
 
 // checkLocalFile refuses a local evidence file that resolves inside the

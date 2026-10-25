@@ -32,6 +32,9 @@ var exemptBanned = map[string]map[string]string{
 	"internal/query/live.go": {
 		"net/http": "the live query adapter calls the Zetaris REST API",
 	},
+	"internal/store/couchdb.go": {
+		"net/http": "the CouchDB store calls CouchDB's HTTP API (ADR-0047) and no other address",
+	},
 }
 
 // No production file under internal/ or cmd/ imports a package that dials the

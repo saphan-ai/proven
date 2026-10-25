@@ -10,7 +10,7 @@
 // format is refused with a named reason, never escaped, so a quote, a
 // backslash, a control byte or invalid UTF-8 cannot reach the text. Each
 // template has one form per query language (ADR-0047): sql for Zetaris and
-// the local store, and room for a mango form when CouchDB is built. The OSV
+// the local store, and a mango selector for CouchDB. The OSV
 // check and the EPSS check build their queries from the same registry, so
 // every query Proven sends has one author. docs/QUERIES.md lists the templates.
 package querytpl
@@ -197,13 +197,15 @@ func ValidCVE(s string) bool { return cveFormat.MatchString(s) }
 // carrying SQL of its own.
 func ValidRelation(name string) bool { return source.ValidRelation(name) }
 
-// literal is the one builder of a SQL string literal. It does not escape: a
-// value outside its format is refused, so the text between the two quotes is
-// exactly the value and holds no quote, no backslash and no control byte.
-// The format has already been checked by the caller; the last test here
-// refuses any byte an allow-list should never have admitted, so a format
-// edited carelessly cannot let one through (ADR-0032 point 3).
-func literal(template, param, value string, format *regexp.Regexp) (string, error) {
+// checked is the one gate every value passes, whichever query language it
+// goes into. It does not escape: a value outside its format is refused, so
+// what it returns is exactly the value and holds no quote, no backslash and
+// no control byte. The format has already been checked by the caller; the
+// last test here refuses any byte an allow-list should never have admitted,
+// so a format edited carelessly cannot let one through (ADR-0032 point 3).
+// ADR-0047: the sql form and the mango form both take their values from here,
+// so the two forms cannot disagree on what a value may be.
+func checked(template, param, value string, format *regexp.Regexp) (string, error) {
 	if !format.MatchString(value) {
 		return "", &Refusal{Reason: ReasonBadValue, Detail: template + " " + param}
 	}
@@ -212,7 +214,17 @@ func literal(template, param, value string, format *regexp.Regexp) (string, erro
 			return "", &Refusal{Reason: ReasonBadValue, Detail: template + " " + param}
 		}
 	}
-	return "'" + value + "'", nil
+	return value, nil
+}
+
+// literal is the one builder of a SQL string literal: the checked value
+// between two quotes.
+func literal(template, param, value string, format *regexp.Regexp) (string, error) {
+	v, err := checked(template, param, value, format)
+	if err != nil {
+		return "", err
+	}
+	return "'" + v + "'", nil
 }
 
 // packageFormat is the format of a package name for one ecosystem.
@@ -333,15 +345,15 @@ func OSVPackageSQL(table, ecosystem, pkg string) (string, error) {
 	return osvByPackage(table, ecosystem, pkg)
 }
 
-// osvByPackage builds the osv-by-package query.
-func osvByPackage(table, ecosystem, pkg string) (string, error) {
-	if !ValidRelation(table) {
-		return "", &Refusal{Reason: ReasonBadRelation, Detail: OSVByPackage}
-	}
+// osvKey checks an ecosystem and a package name and returns the two values a
+// query on the OSV table matches, the name in the spelling the table is keyed
+// by. The sql form and the mango form both call it, so they match the same
+// rows (ADR-0047).
+func osvKey(ecosystem, pkg string) (string, string, error) {
 	switch ecosystem {
 	case "Go", "npm", "PyPI", "Packagist", "crates.io":
 	default:
-		return "", &Refusal{Reason: ReasonBadValue, Detail: OSVByPackage + " " + ParamEcosystem}
+		return "", "", &Refusal{Reason: ReasonBadValue, Detail: OSVByPackage + " " + ParamEcosystem}
 	}
 	if ecosystem == "PyPI" {
 		pkg = pep503.Normalise(pkg)
@@ -351,11 +363,23 @@ func osvByPackage(table, ecosystem, pkg string) (string, error) {
 	if ecosystem == "Packagist" {
 		pkg = strings.ToLower(pkg)
 	}
-	name, err := literal(OSVByPackage, ParamPackage, pkg, packageFormat(ecosystem))
+	name, err := checked(OSVByPackage, ParamPackage, pkg, packageFormat(ecosystem))
+	if err != nil {
+		return "", "", err
+	}
+	return ecosystem, name, nil
+}
+
+// osvByPackage builds the osv-by-package query.
+func osvByPackage(table, ecosystem, pkg string) (string, error) {
+	if !ValidRelation(table) {
+		return "", &Refusal{Reason: ReasonBadRelation, Detail: OSVByPackage}
+	}
+	eco, name, err := osvKey(ecosystem, pkg)
 	if err != nil {
 		return "", err
 	}
-	return "SELECT " + strings.Join(OSVPackageColumns, ", ") + " FROM " + table + " WHERE ecosystem = '" + ecosystem + "' AND package = " + name, nil
+	return "SELECT " + strings.Join(OSVPackageColumns, ", ") + " FROM " + table + " WHERE ecosystem = '" + eco + "' AND package = '" + name + "'", nil
 }
 
 // KEVSQL is the known-exploited query for one CVE id.
