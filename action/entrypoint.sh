@@ -117,6 +117,10 @@ unset INPUT_GITHUB_TOKEN GITHUB_TOKEN ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQ
 # The runner also passes each input as INPUT_<NAME> with its hyphen kept, a name sh cannot unset.
 scrub="env -u INPUT_GITHUB-TOKEN"
 
+# The runner owns the checkout and this container runs as root, so git would
+# refuse it as "dubious ownership" when Proven reads the pull request's base.
+git config --global --add safe.directory "$workspace" 2>/dev/null || true
+
 # A file left by an earlier run must not be counted as this run's.
 rm -f "$workspace/$json_file" "$workspace/$sarif_file" "$workspace/$text_file"
 scratch=$(mktemp -d)
@@ -146,6 +150,10 @@ if [ "$comment" = true ] && [ -f "$workspace/$sarif_file" ]; then
   postrc=0
   (
     cd "$workspace"
+    # reviewdog's API base: GITHUB_API for GitHub Enterprise Server, GITEA_API_URL for
+    # Gitea; on github.com the runner's GITHUB_API_URL is reviewdog's default anyway.
+    if [ "$reporter" = gitea-pr-review ]; then export GITEA_API_URL="${GITHUB_SERVER_URL:-}"; fi
+    if [ -n "${GITHUB_API_URL:-}" ]; then export GITHUB_API="$GITHUB_API_URL/"; fi
     REVIEWDOG_GITHUB_API_TOKEN=$token REVIEWDOG_GITEA_API_TOKEN=$token \
       "$reviewdog" -f=sarif -name=proven "-reporter=$reporter" -fail-level=none <"$sarif_file"
   ) || postrc=$?

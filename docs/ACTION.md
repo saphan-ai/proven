@@ -24,7 +24,7 @@ A container action runs on Linux runners only: a macOS or Windows runner runs th
 | `config` | none | `--config`, a path in the workspace to **Proven's** configuration file |
 | `output-format` | `json/sarif` | `json/sarif`, `json`, `sarif` or `text`: which file `results-file` names and which format the log shows (below) |
 | `severity` | `INFO` | `--severity` |
-| `include` · `exclude` | none | `--include` · `--exclude`; comma-separated globs, one flag each |
+| `include` · `exclude` | none | `--include` · `--exclude`; comma-separated globs, one flag each; a space beside a comma is part of the glob |
 | `timeout` | none | `--timeout`, seconds |
 | `strict` | `true` | `true` → `--error`, `false` → `--no-error` |
 | `baseline-commit` | the pull request's base (`github.event.pull_request.base.sha`) | `--baseline-commit`; empty reviews the whole target |
@@ -287,4 +287,4 @@ This is an act of the owner's hand, on GitHub, after the push. It is not run her
 
 ## Testing
 
-`sh action/test.sh` runs from any directory. It builds `proven` (or uses `PROVEN_BIN`), checks `action.yml` for exactly the inputs and outputs of ADR-0020 §3, then runs `action/entrypoint.sh` against the sample fixture with a temporary `GITHUB_WORKSPACE` and `GITHUB_OUTPUT` and asserts each output, the exit codes, and each input's flag. A stand-in `reviewdog` records its arguments, the SARIF it is given and the token, which is how `comment` is tested on both reporters, on a failed post and on a missing token; a stand-in `proven` records any token in its environment, which shows the scan runs with none whether `comment` is true or false; a working directory holding `vendor/a` shows that a glob in `include` or `exclude` reaches Proven unexpanded. Its negative control: rename `findings-count` in the script's `GITHUB_OUTPUT` writes and five checks turn red; the script then goes back.
+`sh action/test.sh` runs from any directory. It builds `proven` (or uses `PROVEN_BIN`), checks `action.yml` for exactly the inputs and outputs of ADR-0020 §3, then runs `action/entrypoint.sh` against the sample fixture with a temporary `GITHUB_WORKSPACE` and `GITHUB_OUTPUT` and asserts each output, the exit codes, and each input's flag. A stand-in `reviewdog` records its arguments, the SARIF it is given and the token, which is how `comment` is tested on both reporters, on a failed post and on a missing token; a stand-in `proven` records any token in its environment, which shows the scan runs with none whether `comment` is true or false; a working directory holding `vendor/a` shows that a glob in `include` or `exclude` reaches Proven unexpanded. Its negative control: rename `findings-count` in the script's `GITHUB_OUTPUT` writes and six checks turn red; the script then goes back.

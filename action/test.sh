@@ -103,6 +103,7 @@ cat >"$tmp/stub.sh" <<'EOF'
 for a in "$@"; do printf '%s\n' "$a"; done >"$STUB_ARGS"
 env | grep -e '=tok-' >"$STUB_ARGS.env" || true
 for a in "$@"; do
+  [ -z "${STUB_NOWRITE:-}" ] || continue
   case "$a" in --sarif-output=*) printf '{}\n' >"${a#--sarif-output=}" ;; esac
   case "$a" in --json-output=*) printf '{"findings": [\n{"unresolved": true},\n{"unresolved": false},\n{"unresolved": true}\n]}\n' >"${a#--json-output=}" ;; esac
 done
@@ -175,6 +176,7 @@ cat >"$tmp/reviewdog.sh" <<'EOF'
 for a in "$@"; do printf '%s\n' "$a"; done >"$RD_ARGS"
 cat >"$RD_STDIN"
 printf '%s|%s\n' "${REVIEWDOG_GITHUB_API_TOKEN:-}" "${REVIEWDOG_GITEA_API_TOKEN:-}" >"$RD_TOKEN"
+printf '%s|%s\n' "${GITHUB_API:-}" "${GITEA_API_URL:-}" >"$RD_TOKEN.api"
 exit "${RD_RC:-0}"
 EOF
 chmod +x "$tmp/reviewdog.sh"
@@ -200,6 +202,11 @@ check "comment=true: the token reaches reviewdog" "tok-1|tok-1" "$(cat "$RD_TOKE
 rdrun postgitea INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=https://gitea.example
 check "comment=true on Gitea: reporter" 1 "$(hasarg -reporter=gitea-pr-review)"
 
+check "comment=true on Gitea: reviewdog's API base is the server" "|https://gitea.example" "$(cat "$RD_TOKEN.api")"
+
+rdrun postghes INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://ghe.example/api/v3
+check "comment=true on GHES: reviewdog's API base is the runner's" "https://ghe.example/api/v3/|" "$(cat "$RD_TOKEN.api")"
+
 rdrun poststrict INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true
 check "comment=true, strict, findings: still posted" 1 "$(hasarg -reporter=github-pr-review)"
 check "comment=true, strict, findings: exit is Proven's 1" 1 "$rc"
@@ -208,6 +215,9 @@ rdrun postfail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false RD
 check "comment=true, reviewdog fails: the step fails (2)" 2 "$rc"
 check "comment=true, reviewdog fails: the message names the post" 1 "$(grep -c 'posting the review on the pull request failed' "$tmp/postfail/stderr")"
 check "comment=true, reviewdog fails: outputs still written" 4 "$(output findings-count)"
+
+rdrun strictpostfail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true RD_RC=1
+check "comment=true, strict, findings, reviewdog fails: exit stays Proven's 1" 1 "$rc"
 
 rdrun notoken INPUT_COMMENT=true INPUT_GITHUB_TOKEN=
 check "comment=true, no token: refused, exit 2" 2 "$rc"
@@ -234,6 +244,12 @@ for c in true false; do
   check "comment=$c: the scan runs with no token in its environment" "" "$(cat "$STUB_ARGS.env")"
 done
 check "comment=true: the token still reaches reviewdog" "tok-1|tok-1" "$(cat "$tmp/scrub-true.rdtoken")"
+
+# A result left by an earlier run is removed before Proven runs, so a review that
+# could not run (2) is never counted from a stale file.
+mkdir -p "$tmp/stale/ws"; printf '{"unresolved": true}\n' >"$tmp/stale/ws/proven-results.json"
+stubrun stale STUB_RC=2 STUB_NOWRITE=1
+check "a stale JSON review is not counted" 0 "$(output findings-count)"
 
 echo "passed $pass, failed $failed"
 [ "$failed" -eq 0 ]
