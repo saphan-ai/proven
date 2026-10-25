@@ -331,9 +331,10 @@ var beforeRootedOutputCreate func(path string)
 // that link names, including a link swapped in after the check. The report
 // is a new file in the same directory, created with O_EXCL, then renamed
 // over the final name. Rename replaces that directory entry, so a link
-// there is not written through. Go 1.26.10 Root.Rename calls renameat on
-// the parent and the final name. The new file is removed if the write or
-// the rename fails. A directory link that leaves the working directory is
+// there is not written through. On the openat root (unix, windows and
+// wasip1 in Go 1.26.10) Root.Rename calls renameat on the parent and the
+// final name. The new file is removed if the write or the rename fails.
+// A directory link that leaves the working directory is
 // still refused by the root, and this returns an error that names the path.
 func writeOutputInsideWorkingDirectory(flag, path, rel string, body []byte) error {
 	if beforeRootedOutputCreate != nil {
