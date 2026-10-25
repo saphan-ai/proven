@@ -36,7 +36,7 @@ Updated every evening. The newest day comes first.
 
 ### Day four, 25 October
 
-Day four of six. **Twenty-three more changes were merged**, 91 in four days.
+Day four of six. **Twenty-four more changes were merged**, 92 in four days.
 
 **NVIDIA's model now writes Proven's code, not only reviews it.** NVIDIA made its hosted API free for us, and the fleet
 added NVIDIA executor seats beside the Cursor, Claude and OpenAI ones. The first piece of Proven written by Nemotron, a
@@ -61,6 +61,8 @@ What else came in today:
 - **The level of proof in JSON and SARIF**, so a pipeline can tell a proved finding from an opinion.
 - **The documentation site** is built, served from its own container; its public address comes with the next update.
 - **The held-out test set**: six cases frozen before Proven ever ran on them.
+- **Meterless's Scout Intent**, the third Meterless engine in Go: it plans each review before a model runs. It is
+  switched off by default, and its scorecards are published as they are, including the one that fails.
 - **Each review can be planned before a model runs, and it is switched OFF.** Meterless's Scout Intent, built in Go
   (`internal/scout`), classifies a change as dependency, refactor, feature, security-sensitive, documentation only or
   configuration, and picks the plan inside the configured review classes. It never lowers a configured class, and a
@@ -337,7 +339,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
 | 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding given a level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. [What shipped, in a terminal](hackathon/SHIPPED_DAY_3.md). |
-| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 23 changes merged: NVIDIA's Nemotron writes its first Proven code, one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
+| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 24 changes merged: NVIDIA's Nemotron writes its first Proven code, Meterless's Scout Intent (off by default), one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 
