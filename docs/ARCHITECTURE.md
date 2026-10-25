@@ -112,14 +112,18 @@ The generic loop (`markov.Execute`, and the machine the conformance runner drive
 storage parts Proven does not have; they are not built.
 
 **When the carried state is full (ADR-0048).** The bound first cuts what is established, oldest first, then what is
-only suspected. A claim that awaits evidence is cut last, and never: a claim lost from the state can never meet its
-evidence in a later part, and the review would go on looking complete. If the bound cannot hold every open claim, the
-review stops with `*markov.CarryFullError`. Its message says the bounded review is incomplete, after which step, how
-many of the open claims fit, and the two ways on: run the whole review (`PROVEN_MARKOVIAN=off`) or raise
+only suspected. A claim that awaits evidence is never cut and never dropped, however long it is: it is carried whole,
+as a pinned line that the 400-byte limit on other items does not touch. A claim that is shortened can no longer name
+the evidence it needs, and a claim lost can never meet its evidence, and the review would go on looking complete. If
+the bound cannot hold every open claim whole, the review stops before anything is cut, with `*markov.CarryFullError`.
+Its message says the bounded review is incomplete, after which step, how many of the open claims fit whole, and the
+two ways on: run the whole review (`PROVEN_MARKOVIAN=off`) or raise
 `PROVEN_MARKOVIAN_CARRY_TOKENS`. The trace carries the same sentence on a `bounded-steps` line. The review does not
 fall back by itself: the caller decides. Tests: `TestAnOverflowingCarryStopsTheReviewByName` (the stop) and
 `TestTheEarliestOpenClaimReachesItsEvidenceWhenTheBoundHoldsThem` (the same claim, with room, becomes a risk at its
-evidence). A model that leaves a claim out of the state it returns is a model error this bound cannot see.
+evidence), `TestALongOpenClaimIsCarriedWholeToItsEvidence` (a claim over 400 bytes, its evidence named at the end,
+reaches that evidence whole) and `TestALongOpenClaimThatCannotBeHeldWholeStopsTheReviewBeforeAnyCut` (when the bound
+cannot hold it whole, the review stops by name at the step that raised it). A model that leaves a claim out of the state it returns is a model error this bound cannot see.
 
 **Settings** (environment, live mode only; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`off` by
 default), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
