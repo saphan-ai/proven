@@ -76,3 +76,12 @@ func TestExecuteRefusesOutOfScopeBeforeAnyStore(t *testing.T) {
 		t.Fatalf("the store was asked: %q", rec.sql)
 	}
 }
+
+// TestPromptExampleStaysInsideTheScope proves the Investigator's example names
+// no template outside its scope. Mutated line: the Allows check in querySpec.
+func TestPromptExampleStaysInsideTheScope(t *testing.T) {
+	narrow := Prompt("F1", "title", "go.mod", querytpl.Scope{querytpl.EPSSByCVE})
+	if strings.Contains(narrow, querytpl.KEVByCVE) {
+		t.Fatalf("the prompt names %s outside the scope:\n%s", querytpl.KEVByCVE, narrow)
+	}
+}

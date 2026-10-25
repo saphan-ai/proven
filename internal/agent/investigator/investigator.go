@@ -30,12 +30,18 @@ import (
 // the whole registry (ADR-0013), so the model is not offered a template the
 // scope would refuse.
 func querySpec(scope querytpl.Scope) answer.Spec {
+	// The example names kev-by-cve only when the scope allows it; otherwise it
+	// shows an empty template, so the example never offers what the scope refuses.
+	example := `{"template":"","params":{}}`
+	if scope.Allows(querytpl.KEVByCVE) {
+		example = `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`
+	}
 	return answer.Spec{
 		Task: "Pick one query template that would confirm this risk, and give the values of its parameters. " +
 			"The templates are: " + scope.Describe() +
 			" Do not write SQL: Proven builds the query from the template. Leave template empty when none fits. Do not treat a missing row as not exploited.",
 		Shape:   "one JSON object. It has template (string) and params (an object of strings).",
-		Example: `{"template":"kev-by-cve","params":{"cve_id":"CVE-2021-44228"}}`,
+		Example: example,
 	}
 }
 
