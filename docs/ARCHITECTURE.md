@@ -69,6 +69,72 @@ so it is never marked proved.
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
 `test/conformance/meterless/run.sh`.
 
+## Bounded steps: Meterless's Markovian engine (ADR-0048)
+
+`internal/markov` is Meterless's Markovian engine in Go, built to its specification (Meterless `engines/markovian`,
+`AGENTS.md`, at commit `1742dec56a66e58eef9dda2d2b865823758ca8cd`): the chunk configuration and its bounds, the marker
+protocol, the carryover cascade, the two mode prompts with the overlap window, the orchestrator loop and its reflection
+pass, and the efficiency model. Meterless's own runner checks it through `run.sh`, beside H-MEM and the World Model; the
+scorecard, `test/conformance/meterless/SCORECARD_markovian.txt`, is published as it is: 8 of 8 checks pass.
+
+**What it does in Proven, and only when switched on.** Today only the Planner reads the change, and it reads all of it
+in one prompt; the Investigator, the Prover and the Skeptic see a finding's id and title, and the Fixer one file. So the
+engine stands in two places:
+
+1. **The Planner.** A change whose whole Planner prompt is above the threshold is read one part per step. Each step's
+   prompt holds one part and the carried state, never the rest of the change. The model answers with the risks this part
+   shows and the state to carry on: what is established, what is suspected, and which claims await evidence from a part
+   not yet read. A claim carried as awaiting evidence becomes a risk at the step that reads its evidence.
+2. **The proved-fix loop (ADR-0042).** Each new attempt carries only what failed and why, within the same bound, and
+   nothing an earlier attempt proposed.
+
+At or below the threshold, or with the switch off, the review is exactly what it was. The trace says, per Planner run,
+whether bounded steps ran and why not, and gives each step's part, prompt size and carried-state size.
+
+**How the spec's unit maps onto Proven's.** The spec's step is a chunk of generation whose size the model decides, ended
+by a `[STATE_CHECKPOINT]` marker. A review's steps are fixed in advance: one per file, or one per hunk. The mapping:
+
+| spec | Proven's review |
+|---|---|
+| one chunk | one part: a file (its base and change) or a hunk (a changed region, three lines of context) |
+| `[STATE_CHECKPOINT]` + state block | the step's JSON answer: `risks`, and `established`, `suspected`, `awaiting_evidence` |
+| `COMPLETED` / `REMAINING` | parts read / parts left, counted by Proven, not written by the model |
+| `DECISIONS` | what is established |
+| `CONTEXT` | what is suspected, then what awaits evidence (dropped last when the bound cuts) |
+| `carryoverTokens` | `PROVEN_MARKOVIAN_CARRY_TOKENS`, with the spec's bounds (128 to 32768) |
+| `[TASK_COMPLETE]` | the last part read |
+| cascade level 1 (the model's own state) | the step's answer, cut to the bound |
+| cascade level 2 (a second model call to compress) | not used in the review: it would add a model call to every step |
+| `maxChunks` (at most 32) | not applied to the review: its chain is closed, one step per part, so a 60-file change takes 60 steps |
+
+The generic loop (`markov.Execute`, and the machine the conformance runner drives) keeps every rule of the spec,
+`maxChunks` included. The history service, the engine tab and the telemetry panel of the spec are user-interface and
+storage parts Proven does not have; they are not built.
+
+**Settings** (environment, live mode only; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`off` by
+default), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
+`PROVEN_MARKOVIAN_STEP_UNIT` (`file` or `hunk`), `PROVEN_MARKOVIAN_CARRY_TOKENS` (default 800). A wrong value stops the
+review before it starts, naming the variable and the values allowed.
+
+**The measurement (ADR-0048 point 4).** Planner model tokens, prompt plus answer, estimated as characters / 4, from
+`go test -count=1 -run TestBoundedStepsMeasurement -v ./internal/pipeline` on 2026-10-25. The sample scenarios run a
+scripted generator, not a model: they measure the size of what Proven sends and receives, never a model's findings.
+
+| scenario | whole: steps | whole: tokens per step | whole: tokens per review | bounded: steps | bounded: largest step | bounded: mean step | bounded: tokens per review | same findings |
+|---|---|---|---|---|---|---|---|---|
+| 24 files, file steps (scripted) | 1 | 36169 | 36169 | 24 | 1977 | 1899 | 45586 | yes |
+| 24 files, hunk steps (scripted) | 1 | 36169 | 36169 | 26 | 577 | 509 | 13250 | yes |
+| 60 files, file steps (scripted) | 1 | 90061 | 90061 | 60 | 1977 | 1876 | 112619 | yes |
+| 3 files, below the threshold (scripted) | 1 | 4659 | 4659 | 1 | 4659 | 4659 | 4659 | yes |
+| corpus PV-001 to PV-021 | UNMEASURED — no corpus recording (proven-test-corpus record-and-replay not yet landed) | | | | | | | |
+
+What it shows: the step stays flat (under 2,000 estimated tokens) however many files the change has, where the whole step
+grows with the change and would at some size not fit a model at all. With file steps the review as a whole costs more,
+about a quarter more, because every step repeats the instruction and the carried state; with hunk steps it costs less,
+because a step carries the changed region and not both whole copies of the file. Whether a model keeps the same findings
+across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row, and
+until it is measured the engine stays off (ADR-0048 point 4).
+
 ## Modes
 
 - **Sample** (`--sample`): recorded answers, outcomes and rows; no network. See [SAMPLE_MODE.md](SAMPLE_MODE.md).
