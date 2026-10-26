@@ -45,7 +45,8 @@ func LoadTable(env func(string) string) (string, error) {
 	if !ValidTable(raw) {
 		return "", &ConfigError{
 			Field: EnvTable, Value: raw, Reason: "not a table name",
-			Allowed: []string{"a table or schema.table of letters, digits and underscores; empty means " + DefaultTable},
+			Allowed:  []string{"a table or schema.table of letters, digits and underscores; empty means " + DefaultTable},
+			Sentence: service.SentenceRawQuote,
 		}
 	}
 	return raw, nil
@@ -83,7 +84,8 @@ func LoadIDView(env func(string) string) (string, error) {
 	if !ValidView(raw) {
 		return "", &ConfigError{
 			Field: EnvIDView, Value: raw, Reason: "not a view name",
-			Allowed: []string{"a view or schema.view of letters, digits and underscores; empty means " + IDView},
+			Allowed:  []string{"a view or schema.view of letters, digits and underscores; empty means " + IDView},
+			Sentence: service.SentenceRawQuote,
 		}
 	}
 	return raw, nil
@@ -103,7 +105,8 @@ func LoadView(env func(string) string) (string, error) {
 	if !ValidView(raw) {
 		return "", &ConfigError{
 			Field: EnvKEVView, Value: raw, Reason: "not a view name",
-			Allowed: []string{"a view or schema.view of letters, digits and underscores; empty means " + KEVView},
+			Allowed:  []string{"a view or schema.view of letters, digits and underscores; empty means " + KEVView},
+			Sentence: service.SentenceRawQuote,
 		}
 	}
 	return raw, nil

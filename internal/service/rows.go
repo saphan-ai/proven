@@ -1,11 +1,20 @@
 package service
 
 // CopyRows copies query rows deeply. Nil stays nil, so "no rows" and "zero
-// rows" stay distinct.
+// rows" stay distinct. Review and the pipeline keep this.
 func CopyRows(rows [][]string) [][]string { return copyRows(rows) }
 
-// copyRows copies query rows deeply. A nil input stays nil. Two earlier copies
-// turned nil into an empty list, which invents a list the caller did not have.
+// ListRows copies query rows and turns nil into an empty list, so evidence
+// prints [] and not null. EPSS and OSV keep this.
+func ListRows(rows [][]string) [][]string {
+	out := copyRows(rows)
+	if out == nil {
+		return [][]string{}
+	}
+	return out
+}
+
+// copyRows copies query rows deeply. A nil input stays nil.
 func copyRows(rows [][]string) [][]string {
 	if rows == nil {
 		return nil

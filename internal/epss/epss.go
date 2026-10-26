@@ -174,7 +174,8 @@ func toEvidence(res query.Result, snapshot string) candidate.Evidence {
 		Query: &candidate.QueryEvidence{
 			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: append([]string(nil), res.Columns...),
-			Rows:    service.CopyRows(res.Rows),
+			// Nil becomes an empty list, so the evidence prints [] and not null.
+			Rows: service.ListRows(res.Rows),
 		},
 	}
 }
