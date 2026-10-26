@@ -28,6 +28,8 @@ fi
 
 secret=banner-check-secret-4f9a1c
 fail=0
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
 
 bad() {
   echo "banner-check: FAIL: $1" >&2
@@ -47,7 +49,6 @@ emit_piped() {
 
 expected_defaults() {
   cat <<'EOF'
-Start here: http://127.0.0.1:3302/lab
 ########################################
 ####    Your proven lab is ready    ####
 ########################################
@@ -58,7 +59,11 @@ Gitea: http://127.0.0.1:3300/user/login
 Username: proven
 Password: PASSWORD
 
-Grafana dashboard: http://127.0.0.1:3301/d/proven-review
+Grafana dashboard: http://127.0.0.1:3301/d/proven-overview
+Wait for every review: make demo-check
+Help: https://github.com/saphan-ai/proven/blob/main/docs/WALKTHROUGH.md
+
+>>>>>>>>  START HERE:  http://127.0.0.1:3302/lab  <<<<<<<<
 EOF
 }
 
@@ -74,9 +79,14 @@ fi
 case $out in
   *"$secret"*) bad "the password text is in the redirected output" ;;
 esac
-last=$(printf '%s\n' "$out" | tail -n 1)
-if [ "$last" != "Grafana dashboard: http://127.0.0.1:3301/d/proven-review" ]; then
-  bad "something is printed after the Grafana line: $last"
+# The banner ends with the START HERE line and exactly ONE empty line after it. Command substitution strips trailing
+# newlines, so this reads the bytes from a file.
+emit_piped env >"$work/banner.out"
+if [ "$(tail -n 2 "$work/banner.out" | head -n 1)" != ">>>>>>>>  START HERE:  http://127.0.0.1:3302/lab  <<<<<<<<" ] || [ -n "$(tail -n 1 "$work/banner.out")" ] || [ "$(tail -c 2 "$work/banner.out" | od -An -tx1 | tr -d ' ')" != "0a0a" ]; then
+  bad "the banner does not end with the START HERE line and exactly one empty line"
+fi
+if grep -q "$(printf '\033')" "$work/banner.out"; then
+  bad "the redirected banner holds a control character"
 fi
 
 # 3: on a terminal.
@@ -103,9 +113,25 @@ if [ -z "$tty_out" ] || [ -n "${bsd_no_stdin_tty:-}" ]; then
   fi
 else
   want_tty=$(expected_defaults | sed "s|^Password: PASSWORD\$|Password: $secret|")
-  if [ "$tty_out" != "$want_tty" ]; then
+  esc=$(printf '\033')
+  plain_tty=$(printf '%s\n' "$tty_out" | sed "s/${esc}\[[0-9;]*m//g")
+  if [ "$plain_tty" != "$want_tty" ]; then
     bad "the terminal banner is not the owner's block with the password on the Password line"
     printf '%s\n' "$tty_out" >&2
+  fi
+  # On a terminal the START HERE line is bold and green, and only that line carries colour.
+  if ! printf '%s\n' "$tty_out" | grep -q "^${esc}\[1;32m>>>>>>>>  START HERE:  http://127.0.0.1:3302/lab  <<<<<<<<${esc}\[0m\$"; then
+    bad "on a terminal the START HERE line is not bold green"
+  fi
+  if [ "$(printf '%s\n' "$tty_out" | grep -c "$esc")" -ne 1 ]; then
+    bad "on a terminal something besides the START HERE line carries colour"
+  fi
+  # NO_COLOR is respected on a terminal.
+  if script --version 2>&1 | grep -q util-linux; then
+    nc_out=$(clean_env NO_COLOR=1 BANNER_CHECK_PASSWORD="$secret" script -qec "sh $here/banner-check.sh --emit" /dev/null | tr -d '\r')
+    if printf '%s\n' "$nc_out" | grep -q "$esc"; then
+      bad "NO_COLOR is set and the terminal banner still holds a control character"
+    fi
   fi
 fi
 
@@ -113,7 +139,7 @@ fi
 set_out=$(emit_piped env LAB_BIND=10.1.2.3 LAB_PAGE_BIND=10.1.2.4 LAB_HOST=10.1.2.5 GITEA_HTTP_PORT=4000 LGTM_GRAFANA_PORT=4001 LGTM_DASHBOARD_UID=other-uid \
   LAB_PAGE_PORT=4002 LAB_PAGE_PATH=/elsewhere LAB_ADMIN_USER=someone COMPOSE_PROJECT_NAME=mylab)
 for line in \
-  'Start here: http://127.0.0.1:4002/elsewhere' \
+  '>>>>>>>>  START HERE:  http://127.0.0.1:4002/elsewhere  <<<<<<<<' \
   'Gitea: http://127.0.0.1:4000/user/login' \
   'Username: someone' \
   'Password: file /state/password in the volume mylab_seed-state' \

@@ -23,6 +23,15 @@ fi
 lab_flow
 need_docker
 
+# What a person is told while this runs (lab/scripts/ui.sh): the plan now, before the first Docker call, then one status
+# line after each phase. The EXIT trap is the only one of this script: it names the phase that failed, then removes the
+# temporary files of the admin-user check.
+users=
+err=
+trap 'ui_exit $?; rm -f "$users" "$err"' EXIT
+ui_plan
+ui_begin 1 "Build Proven's image" "the build output above"
+
 # A password the judge supplies is checked before any container starts. Gitea
 # refuses one shorter than 8 characters, and a line break would split it.
 if [ -n "${LAB_ADMIN_PASSWORD:-}" ]; then
@@ -53,7 +62,9 @@ if ! compose build docs; then
   docs_ready=0
   echo "up: the documentation image did not build; the lab goes on without it (the page's docs link will not open)" >&2
 fi
+ui_done "Proven's image is built"
 
+ui_begin 2 "Start Gitea, Grafana and the lab's Docker" "make logs SERVICE=gitea, or SERVICE=lgtm, or SERVICE=dind"
 compose up -d gitea dind lgtm
 
 # Path C: Zetaris on this machine, when asked (make up ZETARIS=local). It needs the lab's network, so it starts here.
@@ -176,9 +187,7 @@ gitea_cli() {
 # The list is read once. A clean clone has no private tree beside the
 # repository, so the file is temporary and this script removes it on exit.
 users=$(mktemp)
-trap 'rm -f "$users"' EXIT
 err=$(mktemp)
-trap 'rm -f "$users" "$err"' EXIT
 i=0
 listed=0
 while [ "$i" -lt 20 ]; do
@@ -202,7 +211,9 @@ if ! grep -q "$LAB_ADMIN_USER" "$users"; then
     --must-change-password=false
 fi
 rm -f "$users" "$err"
+ui_done "Gitea, Grafana and the lab's Docker are up"
 
+ui_begin 3 "Create the demo repository and its pull requests" "make logs SERVICE=seed, or SERVICE=runner"
 # The seed reads the password from /state/password, written above, and every credential from /state/secrets, written
 # here at mode 0600 over standard input. Neither is passed in. The credentials file is removed when the seed exits,
 # and removed again here whatever the seed's status was, so a seed that failed midway leaves none.
@@ -221,6 +232,23 @@ compose up -d page
 if [ "$docs_ready" -eq 1 ]; then
   compose up -d docs
 fi
+ui_done "The demo repository and its $(ui_pr_count) pull requests are created, and the CI runner is running"
+
+# Proven reviews each pull request in the runner. The banner appears when the dashboards have data, so this waits for
+# every review (demo-check.sh, with a line per pull request and DEMO_WAIT_SECONDS as the bound). A review that does not
+# arrive is named in red and the lab is still shown: it is up, and make demo-check waits again.
+wait_status=0
+ui_begin 4 "Wait for Proven to review every pull request" "make logs SERVICE=runner, then make demo-check"
+if [ "${PROVEN_LAB_WAIT:-yes}" = no ]; then
+  ui_done "Not waiting for the reviews (PROVEN_LAB_WAIT=no); make demo-check waits for them"
+else
+  sh "$ROOT/lab/scripts/demo-check.sh" || wait_status=$?
+  if [ "$wait_status" -eq 0 ]; then
+    ui_done "Proven reviewed every pull request"
+  else
+    ui_fail "the lab is up, but not every review is there yet"
+  fi
+fi
 
 # The URL, the user and the password are the last lines of every run, the first and the ones after it. A password
 # the judge supplied in LAB_ADMIN_PASSWORD is the judge's own and is not printed: the line names the setting.
@@ -230,3 +258,4 @@ if [ -n "${LAB_ADMIN_PASSWORD:-}" ] && [ "$LAB_ADMIN_PASSWORD" = "$pass" ]; then
 fi
 echo
 lab_banner "$shown"
+exit "$wait_status"

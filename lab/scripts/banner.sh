@@ -2,6 +2,8 @@
 # Every URL is built from the lab's address, LAB_HOST (127.0.0.1, a constant in lib.sh), and the settings in
 # lab/versions.env: the ports, the page's path, the dashboard uid.
 
+. "$ROOT/lab/scripts/ui.sh"
+
 # The page the lab hands out. Its path is a setting, and so is its port.
 lab_page_url() {
   printf 'http://%s:%s%s' "$LAB_HOST" "$LAB_PAGE_PORT" "$LAB_PAGE_PATH"
@@ -22,7 +24,6 @@ lab_banner() {
   else
     shown=$(lab_password_location)
   fi
-  printf 'Start here: %s\n' "$(lab_page_url)"
   printf '%s\n' '########################################'
   printf '%s\n' '####    Your proven lab is ready    ####'
   printf '%s\n' '########################################'
@@ -34,6 +35,13 @@ lab_banner() {
   printf 'Password: %s\n' "$shown"
   printf '\n'
   printf 'Grafana dashboard: http://%s:%s/d/%s\n' "$LAB_HOST" "$LGTM_GRAFANA_PORT" "$LGTM_DASHBOARD_UID"
+  printf 'Wait for every review: make demo-check\n'
+  printf 'Help: %s\n' "$LAB_HELP_URL"
+  printf '\n'
+  # The one line a person must not miss, last: bold green on a terminal, plain anywhere else. One empty line follows it
+  # so it stands apart from the shell prompt, and nothing else is printed after that.
+  ui_paint 1 '1;32' ">>>>>>>>  START HERE:  $(lab_page_url)  <<<<<<<<"
+  printf '\n\n'
   shown=
 }
 

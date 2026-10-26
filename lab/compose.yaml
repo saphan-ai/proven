@@ -52,7 +52,7 @@ services:
     image: ${LGTM_IMAGE}:${LGTM_VERSION}
     environment:
       # Open on the dashboard, not on Grafana's empty home page.
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /proven-dashboards/proven-review.json
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /proven-dashboards/proven-overview.json
       # No sign-in: the lab binds to 127.0.0.1. `make trace` also reads through this.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin

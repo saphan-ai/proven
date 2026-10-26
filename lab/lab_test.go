@@ -466,7 +466,7 @@ func TestTheLabSettingsAreInVersionsEnv(t *testing.T) {
 	for _, key := range []string{
 		"LAB_PAGE_PORT=3302", "LAB_PAGE_PATH=/lab", "LAB_PAGE_IMAGE=", "LAB_PAGE_IMAGE_VERSION=", "LAB_PAGE_CONTAINER_PORT=",
 		"LAB_DOCS_PORT=3303", "LAB_DOCS_CONTAINER_PORT=", "DOCS_IMAGE=", "DOCS_IMAGE_TAG=", "NODE_IMAGE=",
-		"GITEA_HTTP_PORT=3300", "LGTM_GRAFANA_PORT=3301", "LGTM_DASHBOARD_UID=proven-review", "LAB_DEMO_HEAD=demo-discount",
+		"GITEA_HTTP_PORT=3300", "LGTM_GRAFANA_PORT=3301", "LGTM_DASHBOARD_UID=proven-overview", "LAB_DEMO_HEAD=demo-discount",
 	} {
 		if !strings.Contains(env, key) {
 			t.Errorf("lab/versions.env lacks %s", key)

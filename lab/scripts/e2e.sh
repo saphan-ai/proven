@@ -26,7 +26,8 @@ if ! service_running gitea; then
   load_lab_env || exit 1
   PROVEN_LAB_MODE=${PROVEN_LAB_MODE:-sample}
   export PROVEN_LAB_MODE
-  sh "$ROOT/lab/scripts/up.sh"
+  # This check waits for its own pull request's review, so up.sh does not wait for the demo's.
+  PROVEN_LAB_WAIT=no sh "$ROOT/lab/scripts/up.sh"
 fi
 
 if ! service_running runner; then
