@@ -67,12 +67,13 @@ Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
    ```
 
    The settings checked are `PROVEN_GENERATOR_BASE_URL`, `PROVEN_GUARDRAIL_BASE_URL`, `ZETARIS_REST_URL`,
-   `PROVEN_COUCHDB_URL`, the three OTLP endpoint variables (`OTEL_EXPORTER_OTLP_ENDPOINT`,
+   `PROVEN_COUCHDB_URL` (for the evidence store and, when `PROVEN_COUCHDB_RECORDS` is set, for the evidence-record
+   writer), the three OTLP endpoint variables (`OTEL_EXPORTER_OTLP_ENDPOINT`,
    `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`) and, when a
    second reviewer is set (ADR-0037), `PROVEN_SECOND_REVIEWER_BASE_URL`, with or without its key. The OTLP endpoints
    are checked in sample mode too, because sample mode reads them. A
    guardrail address is checked even when the guardrail is `off`, so a hosted address cannot wait there to be switched on.
-2. **At dial.** Each live client, the CouchDB store's and both OTLP exporters' included, opens its connections
+2. **At dial.** Each live client, the CouchDB store's, the evidence-record writer's and both OTLP exporters' included, opens its connections
    through a dialer that refuses an address off your network.
    It holds when a setting was built some other way, and a redirect is never followed. A refused dial is a failed
    service in the review, named like any other.
@@ -159,7 +160,9 @@ only its owner can change. Public mode checks none of this and prints nothing.
    - `TestLocalRefusesAPublicCouchDBAddress`, `TestLoadCouchLocalRefusesAnOutsideAddress`,
      `TestLocalRefusesAPublicTelemetryEndpoint` (each of the three variables), `TestLocalRefusesAPublicTelemetryEndpointInSampleMode`
      and `TestSetupLocalRefusesAnOutsideEndpoint` pass when an outside CouchDB or OTLP address is refused at load, by
-     name. `TestSetupLocalDialsBothExportersThroughThePolicy` passes when both exporters dial through the policy.
+     name. `TestLoadRecordsLocalRefusesAnOutsideAddress` passes when the evidence-record writer refuses the same address.
+     `TestSetupLocalDialsBothExportersThroughThePolicy` and `TestRecorderLocalClientDialsThroughThePolicy` pass when
+     both exporters and the record writer dial through the policy.
      The witness above also reviews through CouchDB and an OTLP collector on loopback, and a public address given to
      the store by hand reaches no connect.
    - `TestLocalDaemonNameIsNotResolvedByTheRuntime` passes when a daemon address given as a listed name is refused.
