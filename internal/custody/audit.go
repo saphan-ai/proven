@@ -191,7 +191,7 @@ func judge(d *Day, a Answer, good map[string]Receipt, bad map[string]refusal, co
 	// One receipt vouches for one answer: a second answer on the same
 	// response id is not a second answer in custody.
 	if first, dup := counted[a.ResponseID]; dup {
-		fail("response id already counted at " + first)
+		fail("response id already matched at " + first)
 		return
 	}
 	counted[a.ResponseID] = a.Source
