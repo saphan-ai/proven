@@ -52,7 +52,10 @@ func defaultPlans() map[string]planSetting {
 }
 
 // classSecurity is the review class whose execution obligations no plan may cut (ADR-0049 point 3).
-const classSecurity = "security"
+const (
+	classSecurity = "security"
+	classDocs     = "docs"
+)
 
 // cutsWork reports whether a plan leaves out any agent, tool or source the full plan runs.
 func cutsWork(ps planSetting) bool {

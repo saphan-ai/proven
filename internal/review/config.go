@@ -747,6 +747,13 @@ func parseClassOrder(value string) ([]string, error) {
 			Allowed: classNames(),
 		}
 	}
+	if classRank(parts, classDocs) < classRank(parts, classSecurity) {
+		return nil, &ConfigError{
+			Field: "class_order", Value: value,
+			Reason:  "docs may not rank above security (ADR-0053)",
+			Allowed: classNames(),
+		}
+	}
 	return parts, nil
 }
 
