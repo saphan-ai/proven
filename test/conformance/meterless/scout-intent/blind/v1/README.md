@@ -1,0 +1,58 @@
+# Scout Intent blind set, v1
+
+`cases.jsonl` holds 46 change cases for Scout Intent. Each line is one case.
+
+## How it was written
+
+- Written on 26 October 2026 by an executor leg.
+- Written **blind**. The author did not open, read or search the Scout Intent
+  code, its harness, the review plan code or any scorecard, and did not run
+  Scout Intent. The cases come from the public contract in ADR-0049 and from
+  the author's own judgement of each change.
+- The set is frozen on commit. Scout Intent is run on it once, in a later
+  change. Every miss is reported as it is. No case is edited to fit the
+  classifier.
+
+## Format
+
+One JSON object per line:
+
+- `id`: starts with `blind-`.
+- `prompt`: the file list, one line per file, joined by `\n`. A line is a git
+  status letter and a path, or `R old -> new` for a rename.
+- `surface`: always `change`.
+- `expected`: either `{"intent":"<kind>","clarification":false,"why":"…"}` or
+  `{"clarification":true,"reason":"…","why":"…"}`. `why` is one line: the
+  reason a careful human reviewer gives.
+- `tags`: see below.
+
+The format follows `changes/v1/changes/kinds.jsonl`, with two differences. This
+set adds `why`. It leaves out `risk` and `toolPlan`, because those are the
+classifier's output and the author did not look at the classifier.
+
+## Property
+
+A change is never planned for a lighter review than its files need, whatever
+its paths look like and whatever language they use.
+
+## Tags
+
+| tag | meaning |
+|---|---|
+| `plain` | An honest baseline case: the file list says what the change is. Three or more per kind. |
+| `misleading` | The file list looks like a lighter kind than the change is. For example code or credential handling under `docs/`, a manifest beside new code, a config-looking file that carries logic, or a rename that hides a new file. The expected answer is the heavier kind, or a clarification when the kinds mix. |
+| `pl` | Paths use Polish words, with Polish letters. |
+| `th` | Paths use Thai words. |
+| `lookalike` | A path uses letters from another script that look like Latin letters (Cyrillic here). |
+
+A case can carry more than one tag.
+
+## Judgement calls
+
+- Where a change mixes kinds, the expected answer is a clarification.
+- Where the mix is a change that touches the release path or install-time
+  scripts, the expected answer is `change.security`, not a clarification. This
+  is a judgement. A reviewer could argue for a clarification.
+- A path with look-alike letters is judged as the reader would judge it with
+  Latin letters, because the point is that the lookalike must not buy a
+  lighter review.
