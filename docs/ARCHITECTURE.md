@@ -72,11 +72,25 @@ auto-resolve, the learning audit and dreaming with approval; the committed score
 `test/conformance/meterless/SCORECARD_hmem.txt`. No part of it calls a model: dreaming clusters what the store holds,
 and a proposal becomes a record only when a person approves it. Sleep never archives a record that a pending
 proposal names as a source, so an approved record's lineage always names live records; approval refuses a proposal
-whose source is gone, for an insight, an invariant and a domain change alike. Clear ends every unfinished proposal,
-including an approval whose final audit line is missing (state `void`, reason `cleared`), so a proposal never
-outlives the records it names and cannot be bound to new records that reuse an id. Clear is one transition: if the
-state write fails, the proposals are put back, so an error leaves records and proposals as they were. Recovery of an
-approved domain proposal checks its sources like the approving state does and refuses an absent one by name.
+whose source is gone, for an insight, an invariant and a domain change alike. Clear raises a store epoch in the same state write that empties the records, so every proposal made earlier and not
+finished (including an approval whose final audit line is missing) reads as `void`, reason `cleared`: a proposal never
+outlives the records it names and cannot be bound to new records that reuse an id, and no crash can leave void
+proposals beside live records. Recovery of an approved domain proposal checks its sources like the approving state
+does and refuses an absent one by name.
+
+Every change that writes state and ledger lines writes the state file first and the lines after it in one write. If
+the line write fails, the old state is written back; if that fails too, memory is left equal to the state file and the
+error says the state file holds the change. So the ledger never reports a clear, a sleep step, a create, or a read that
+did not happen, and a failed rollback is never reported as a restore. A sleep cycle is one such change. Dreaming and
+rejecting append to the dream log first; a failed ledger line then voids or reopens the proposal, and the error names
+a proposal that could not be put right.
+
+The two logs grow without limit, so no lookup rereads them. A cursor reads only the complete lines added since its
+last read and keeps an index in memory: the byte offsets of each memory's ledger lines, the lines recovery and approval
+ask about, and the newest state of each proposal. `History` returns at most one page (1,000 entries) and `HistoryPage`
+reads a longer trail by cursor. The index is built from the log by the first lookup after Open, once per process; a
+log that shrinks is read again from the start. The growth tests assert the bytes read stay within twice the log size
+over 200 lookups.
 
 ## Modes
 

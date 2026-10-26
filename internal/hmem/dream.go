@@ -1,11 +1,9 @@
 package hmem
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -35,8 +33,12 @@ const (
 	ProposalVoid = "void"
 )
 
-// VoidReasonCleared is the reason written on a proposal Clear voided.
+// VoidReasonCleared is the reason a proposal reads with after a Clear ended it.
 const VoidReasonCleared = "cleared"
+
+// VoidReasonUnaudited is the reason written on a proposal whose dream_proposed
+// ledger line could not be written, so no proposal exists without its line.
+const VoidReasonUnaudited = "unaudited"
 
 // Proposal is one thing dreaming suggests: an insight, a domain change or an
 // invariant. It is a suggestion only; no record exists for it until a person
@@ -50,6 +52,9 @@ type Proposal struct {
 	Status          string   `json:"status"`
 	// Reason says why a proposal is void; it is empty in every other state.
 	Reason string `json:"reason,omitempty"`
+	// Epoch is the store's Clear count when the proposal was made. A proposal
+	// of an older epoch names records a Clear removed (see Store.Clear).
+	Epoch int `json:"epoch,omitempty"`
 }
 
 // dreamLog is the file proposals live in, beside the audit log. Each line is
@@ -61,40 +66,67 @@ func (s *Store) dreamLog() string {
 	return filepath.Join(filepath.Dir(s.auditPath), "dreams.jsonl")
 }
 
-// proposals replays the dream log into the newest state of each proposal, in
-// the order they were first proposed.
+// dreamIndex is the dream log read into the newest state of each proposal. Like
+// the ledger index it is extended by the lines added since the last read, so a
+// lookup never rereads the file (E16). Its memory grows with the number of
+// proposals, which dreaming caps per call, not with the number of log lines.
+type dreamIndex struct {
+	cur   logCursor
+	order []string
+	byID  map[string]Proposal
+}
+
+func newDreamIndex(path string) *dreamIndex {
+	ix := &dreamIndex{cur: logCursor{path: path, label: "dream log"}}
+	ix.reset()
+	return ix
+}
+
+func (ix *dreamIndex) reset() {
+	ix.order = nil
+	ix.byID = map[string]Proposal{}
+}
+
+// proposals returns the newest state of each proposal, in the order they were
+// first proposed, as the store sees them now: a proposal made before the last
+// Clear and not finished reads as void with the reason "cleared". Finished is
+// rejected, or approved with its dream_approved ledger line; an approved
+// proposal without that line is an unfinished approval and names sources the
+// Clear removed. The caller holds s.mu.
 func (s *Store) proposals() ([]Proposal, error) {
-	f, err := os.Open(s.dreamLog())
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("hmem: dream log: %w", err)
-	}
-	defer f.Close()
-	var order []string
-	byID := map[string]Proposal{}
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	for sc.Scan() {
-		if len(sc.Bytes()) == 0 {
-			continue
-		}
+	ix := s.dreams
+	err := ix.cur.advance(ix.reset, func(line []byte, _ int64) error {
 		var p Proposal
-		if err := json.Unmarshal(sc.Bytes(), &p); err != nil {
-			return nil, fmt.Errorf("hmem: dream log line is not valid JSON: %w", err)
+		if err := json.Unmarshal(line, &p); err != nil {
+			return fmt.Errorf("hmem: dream log line is not valid JSON: %w", err)
 		}
-		if _, ok := byID[p.ID]; !ok {
-			order = append(order, p.ID)
+		if _, ok := ix.byID[p.ID]; !ok {
+			ix.order = append(ix.order, p.ID)
 		}
-		byID[p.ID] = p
+		ix.byID[p.ID] = p
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("hmem: dream log: %w", err)
-	}
-	out := make([]Proposal, 0, len(order))
-	for _, id := range order {
-		out = append(out, byID[id])
+	out := make([]Proposal, 0, len(ix.order))
+	for _, id := range ix.order {
+		p := ix.byID[id]
+		if p.Epoch < s.epoch {
+			switch p.Status {
+			case ProposalProposed, ProposalApproving:
+				p.Status, p.Reason = ProposalVoid, VoidReasonCleared
+			case ProposalApproved:
+				done, err := s.approvedLine(p.ID)
+				if err != nil {
+					return nil, err
+				}
+				if !done {
+					p.Status, p.Reason = ProposalVoid, VoidReasonCleared
+				}
+			}
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }
@@ -114,18 +146,10 @@ func (s *Store) appendDream(ps ...Proposal) error {
 			return err
 		}
 	}
-	f, err := os.OpenFile(s.dreamLog(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
+	if err := appendSynced(s.dreamLog(), buf.Bytes()); err != nil {
 		return fmt.Errorf("hmem: dream log: %w", err)
 	}
-	defer f.Close()
-	if err := f.Chmod(0o600); err != nil {
-		return fmt.Errorf("hmem: dream log: %w", err)
-	}
-	if _, err := f.Write(buf.Bytes()); err != nil {
-		return fmt.Errorf("hmem: dream log: %w", err)
-	}
-	return f.Sync()
+	return nil
 }
 
 // relatedness is the multi-signal closeness of two records: content, tags,
@@ -156,6 +180,7 @@ func (s *Store) Dream() ([]Proposal, error) {
 		seq++
 		p.ID = fmt.Sprintf("dream-%d", seq)
 		p.Status = ProposalProposed
+		p.Epoch = s.epoch
 		created = append(created, p)
 	}
 
@@ -251,12 +276,26 @@ func (s *Store) Dream() ([]Proposal, error) {
 	if err := s.appendDream(created...); err != nil {
 		return nil, err
 	}
+	entries := make([]auditEntry, 0, len(created))
 	for _, p := range created {
-		if err := s.auditWith("dream_proposed", p.ID, "dreaming", map[string]any{
+		entries = append(entries, auditEntry{action: "dream_proposed", id: p.ID, actor: "dreaming", extra: map[string]any{
 			"details": map[string]any{"type": p.Type, "derivedFrom": p.DerivedFrom},
-		}); err != nil {
-			return nil, err
+		}})
+	}
+	if err := s.auditBatch(entries); err != nil {
+		// The lines are written together, so none was. The proposals are void
+		// rather than pending: a proposal exists only with its ledger line.
+		voided := make([]Proposal, 0, len(created))
+		ids := make([]string, 0, len(created))
+		for _, p := range created {
+			ids = append(ids, p.ID)
+			p.Status, p.Reason = ProposalVoid, VoidReasonUnaudited
+			voided = append(voided, p)
 		}
+		if verr := s.appendDream(voided...); verr != nil {
+			return nil, fmt.Errorf("%w; the proposals %s stay pending without a ledger line, because voiding them failed: %v", err, strings.Join(ids, ", "), verr)
+		}
+		return nil, err
 	}
 	return created, nil
 }
@@ -300,64 +339,19 @@ func (s *Store) Reject(id string) error {
 	if err != nil {
 		return err
 	}
+	pending := p
 	p.Status = ProposalRejected
 	if err := s.appendDream(p); err != nil {
 		return err
 	}
-	return s.audit("dream_rejected", p.ID, "dreaming")
-}
-
-// voidLiveProposals ends every unfinished proposal with the state "void" and
-// the given reason, in one dream-log write so the voiding is all or nothing.
-// Unfinished means proposed, approving, or approved with no "dream_approved"
-// ledger line yet: that last one is an approval whose final audit write failed,
-// and recovery would finish it, so it names sources the caller is about to
-// remove. It returns the proposals as they were, so a caller whose next step
-// fails can put them back with restoreProposals. The caller holds s.mu.
-func (s *Store) voidLiveProposals(reason string) ([]Proposal, error) {
-	all, err := s.proposals()
-	if err != nil {
-		return nil, err
-	}
-	var finished map[string]bool
-	var before, voided []Proposal
-	for _, p := range all {
-		switch p.Status {
-		case ProposalProposed, ProposalApproving:
-		case ProposalApproved:
-			if finished == nil {
-				if finished, err = s.approvedLines(); err != nil {
-					return nil, err
-				}
-			}
-			if finished[p.ID] {
-				continue
-			}
-		default:
-			continue
+	if err := s.audit("dream_rejected", p.ID, "dreaming"); err != nil {
+		// No ledger line, so no decision: the proposal is pending again.
+		if rerr := s.appendDream(pending); rerr != nil {
+			return fmt.Errorf("%w; proposal %s stays rejected without a ledger line, because putting it back failed: %v", err, p.ID, rerr)
 		}
-		before = append(before, p)
-		p.Status = ProposalVoid
-		p.Reason = reason
-		voided = append(voided, p)
+		return err
 	}
-	if len(voided) == 0 {
-		return nil, nil
-	}
-	if err := s.appendDream(voided...); err != nil {
-		return nil, err
-	}
-	return before, nil
-}
-
-// restoreProposals appends the earlier state of proposals a failed step had
-// voided. The dream log is append-only, so the newest line wins and the
-// restore is a new line, not a rewrite. The caller holds s.mu.
-func (s *Store) restoreProposals(before []Proposal) error {
-	if len(before) == 0 {
-		return nil
-	}
-	return s.appendDream(before...)
+	return nil
 }
 
 // truncateRunes cuts text to at most n runes.

@@ -1,10 +1,7 @@
 package hmem
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
-	"os"
 )
 
 // approvedRecordID is the id of the long-term record an approved proposal
@@ -30,68 +27,27 @@ func (s *Store) proposalState(id string) (Proposal, bool, error) {
 // ledgerHas reports whether the audit log holds a line of this action for this
 // memory id. When proposal is not empty, the line must also name that proposal
 // in its details. The caller holds s.mu.
+//
+// It answers from the ledger index, which reads only the lines added since the
+// last lookup (E16). Only the actions in indexedActions can be asked about; any
+// other action is a programming error and is refused by name.
 func (s *Store) ledgerHas(action, id, proposal string) (bool, error) {
-	f, err := os.Open(s.auditPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("hmem: ledger: %w", err)
+	if !indexedActions[action] {
+		return false, fmt.Errorf("hmem: ledger action %q is not indexed for lookup", action)
 	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	for sc.Scan() {
-		if len(sc.Bytes()) == 0 {
-			continue
-		}
-		var e LedgerEntry
-		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
-			return false, fmt.Errorf("hmem: ledger line is not valid JSON: %w", err)
-		}
-		if e.MemoryID != id || e.Action != action {
-			continue
-		}
-		if proposal == "" || e.Details["proposal"] == proposal {
-			return true, nil
-		}
+	if err := s.syncLedger(); err != nil {
+		return false, err
 	}
-	if err := sc.Err(); err != nil {
-		return false, fmt.Errorf("hmem: ledger: %w", err)
-	}
-	return false, nil
+	return s.ledger.has[hasKey(action, id, proposal)], nil
 }
 
-// approvedLines returns the ids of the proposals whose "dream_approved" ledger
-// line exists, in one pass over the log. The caller holds s.mu.
-func (s *Store) approvedLines() (map[string]bool, error) {
-	out := map[string]bool{}
-	f, err := os.Open(s.auditPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return out, nil
-		}
-		return nil, fmt.Errorf("hmem: ledger: %w", err)
+// approvedLine reports whether the proposal's "dream_approved" ledger line
+// exists. It reads the same index as ledgerHas. The caller holds s.mu.
+func (s *Store) approvedLine(proposal string) (bool, error) {
+	if err := s.syncLedger(); err != nil {
+		return false, err
 	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	for sc.Scan() {
-		if len(sc.Bytes()) == 0 {
-			continue
-		}
-		var e LedgerEntry
-		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
-			return nil, fmt.Errorf("hmem: ledger line is not valid JSON: %w", err)
-		}
-		if e.Action == "dream_approved" {
-			out[e.MemoryID] = true
-		}
-	}
-	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("hmem: ledger: %w", err)
-	}
-	return out, nil
+	return s.ledger.approved[proposal], nil
 }
 
 // Approve is the human's decision to keep a proposal. An insight becomes a

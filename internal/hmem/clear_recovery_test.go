@@ -46,32 +46,6 @@ func TestFailedClearLeavesRecordsAndProposalsAsTheyWere(t *testing.T) {
 	}
 }
 
-// TestFailedClearReportsAProposalThatCouldNotBeRestored proves the guard of the
-// restore itself: when the state write and the restore of the proposals both
-// fail, Clear says so by name instead of reporting only the first error, and
-// the proposal stays void (the safe side: it cannot bind reused ids).
-func TestFailedClearReportsAProposalThatCouldNotBeRestored(t *testing.T) {
-	dir, logs := t.TempDir(), t.TempDir()
-	s := openApprove(t, dir, logs)
-	p, _ := dreamedPair(t, s)
-	voids := 0
-	hook, _ := failing(func(op string) bool {
-		if op == "dream" {
-			voids++
-			return voids > 1 // the void write passes, the restore write fails
-		}
-		return op == "state"
-	})
-	s.FailWrites(hook)
-	err := s.Clear()
-	if err == nil || !strings.Contains(err.Error(), p.ID) {
-		t.Fatalf("Clear error = %v, want one naming the unrestored proposal %s", err, p.ID)
-	}
-	if got := hmem.ProposalStatus(s, p.ID); got != hmem.ProposalVoid {
-		t.Fatalf("proposal %q, want void", got)
-	}
-}
-
 // TestClearVoidsAnApprovedDomainProposalWhoseFinalAuditIsMissing proves the
 // reviewer's second reproduction: a domain approval whose final dream_approved
 // line failed leaves an approved proposal that is not finished. Clear removes

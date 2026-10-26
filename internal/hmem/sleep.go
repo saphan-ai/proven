@@ -226,15 +226,12 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		prev[id] = rec
 	}
 	prevSeq := s.seq
-	rollback := func(err error) (SleepReport, error) {
-		s.records = prev
-		s.seq = prevSeq
-		// A synthesis writes the state file as it adds; writing the restored
-		// records keeps the file equal to memory. Its own failure adds nothing
-		// to the error already being returned.
-		_ = s.persist()
-		return SleepReport{}, err
-	}
+	// Every change is made in memory and its ledger line collected; commit then
+	// writes the state file once and the lines in one write, so a failure undoes
+	// the whole cycle and the ledger never holds a line for a change the state
+	// file does not (ADR-0018 point 3: no half-applied change). The backup file
+	// written above stays on a failed cycle: it is a snapshot, not state.
+	var entries []auditEntry
 	rep := SleepReport{BackupID: backupID, ActionLog: []string{"backup " + backupID + " created"}}
 	for _, id := range plan.ToConsolidate {
 		rec, ok := s.records[id]
@@ -245,12 +242,10 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		rec.Layer = LayerLong
 		s.records[id] = rec
 		after := ledgerState(rec)
-		if err := s.auditWith("sleep_consolidate", id, "sleep", map[string]any{
+		entries = append(entries, auditEntry{action: "sleep_consolidate", id: id, actor: "sleep", extra: map[string]any{
 			"previousState": before, "newState": after,
 			"details": map[string]any{"from": LayerShort, "to": LayerLong},
-		}); err != nil {
-			return rollback(err)
-		}
+		}})
 		rep.Consolidated++
 		rep.ActionLog = append(rep.ActionLog, "consolidated "+id)
 	}
@@ -258,7 +253,8 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 	// now: archiving one record must not unprotect another in the same cycle.
 	guard, err := s.guardsNow(s.snapshot())
 	if err != nil {
-		return rollback(err)
+		s.records, s.seq = prev, prevSeq
+		return SleepReport{}, err
 	}
 	for _, id := range plan.ToArchive {
 		rec, ok := s.records[id]
@@ -271,11 +267,9 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		}
 		// The backup above is the way back: archiving removes the record from
 		// the live store and the ledger keeps the line that says why.
-		if err := s.auditWith("sleep_archive", id, "sleep", map[string]any{
+		entries = append(entries, auditEntry{action: "sleep_archive", id: id, actor: "sleep", extra: map[string]any{
 			"details": map[string]any{"age": s.now() - rec.Timestamp, "accessCount": rec.AccessCount},
-		}); err != nil {
-			return rollback(err)
-		}
+		}})
 		delete(s.records, id)
 		rep.Archived++
 		rep.ActionLog = append(rep.ActionLog, "archived "+id)
@@ -293,20 +287,28 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		}
 		merged, err := s.synthesize(members)
 		if err != nil {
-			return rollback(err)
+			s.records, s.seq = prev, prevSeq
+			return SleepReport{}, err
 		}
-		if err := s.auditWith("sleep_synthesize", merged.ID, "sleep", map[string]any{
-			"details": map[string]any{"sources": group},
-		}); err != nil {
-			return rollback(err)
-		}
+		entries = append(entries,
+			auditEntry{action: "create", id: merged.ID, actor: "sleep:synthesis"},
+			auditEntry{action: "sleep_synthesize", id: merged.ID, actor: "sleep", extra: map[string]any{
+				"details": map[string]any{"sources": group},
+			}})
 		// The sources stay: a synthesis is lineage, not replacement, and the
 		// derived record's DerivedFrom must name live records.
 		rep.Synthesized++
 		rep.ActionLog = append(rep.ActionLog, fmt.Sprintf("synthesized %s from %s", merged.ID, strings.Join(group, ", ")))
 	}
-	if err := s.persist(); err != nil {
-		return rollback(err)
+	post := make(map[string]Record, len(s.records))
+	for id, rec := range s.records {
+		post[id] = rec
+	}
+	postSeq := s.seq
+	undo := func() { s.records, s.seq = prev, prevSeq }
+	redo := func() { s.records, s.seq = post, postSeq }
+	if err := s.commit(entries, undo, redo); err != nil {
+		return SleepReport{}, err
 	}
 	return rep, nil
 }
@@ -342,6 +344,8 @@ func (s *Store) synthesize(members []Record) (Record, error) {
 		Origin:      "sleep_synthesis",
 		Label:       fmt.Sprintf("synthesized from %d memories", len(members)),
 		DerivedFrom: ids,
+		// SleepExecute writes the state and the ledger lines of the whole cycle together.
+		deferWrites: true,
 	})
 }
 
@@ -394,13 +398,9 @@ func (s *Store) Restore(backupID string) error {
 		s.records[rec.ID] = rec
 	}
 	s.seq = bk.Seq
-	if err := s.auditWith("restore", "*", "sleep", map[string]any{"details": map[string]any{"backupId": backupID}}); err != nil {
-		s.records, s.seq = prev, prevSeq
-		return err
-	}
-	if err := s.persist(); err != nil {
-		s.records, s.seq = prev, prevSeq
-		return err
-	}
-	return nil
+	next, nextSeq := s.records, s.seq
+	undo := func() { s.records, s.seq = prev, prevSeq }
+	redo := func() { s.records, s.seq = next, nextSeq }
+	entry := auditEntry{action: "restore", id: "*", actor: "sleep", extra: map[string]any{"details": map[string]any{"backupId": backupID}}}
+	return s.commit([]auditEntry{entry}, undo, redo)
 }
