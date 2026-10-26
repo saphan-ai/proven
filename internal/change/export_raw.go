@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -127,7 +126,11 @@ func writeBlobs(target, dst string, blobs []treeBlob) error {
 	out := bufio.NewReader(pipe)
 	var total int64
 	for _, b := range blobs {
-		size, err := readBatchHeader(out, b.oid, cmd)
+		size, missing, err := readBatchHeader(out)
+		if missing {
+			_ = cmd.Wait()
+			return &gitFailure{msg: offlineMessage(cmd, "object "+b.oid+" is missing")}
+		}
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			// git stopped before it answered: its own words say why (a refused fetch of a missing object).
 			_ = cmd.Wait()
@@ -167,21 +170,21 @@ func writeBlobs(target, dst string, blobs []treeBlob) error {
 
 // readBatchHeader reads "<id> blob <size>" and returns the size. "<id> missing" is an object the
 // repository does not hold, which in a partial clone is the one git would fetch.
-func readBatchHeader(out *bufio.Reader, oid string, cmd *exec.Cmd) (int64, error) {
+func readBatchHeader(out *bufio.Reader) (size int64, missing bool, err error) {
 	line, err := out.ReadString('\n')
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	fields := strings.Fields(line)
 	if len(fields) == 2 && fields[1] == "missing" {
-		return 0, &gitFailure{msg: offlineMessage(cmd, "object "+oid+" is missing")}
+		return 0, true, nil
 	}
 	if len(fields) != 3 || fields[1] != "blob" {
-		return 0, fmt.Errorf("git: unreadable cat-file answer %q", clipText(line))
+		return 0, false, fmt.Errorf("git: unreadable cat-file answer %q", clipText(line))
 	}
-	size, err := strconv.ParseInt(fields[2], 10, 64)
+	size, err = strconv.ParseInt(fields[2], 10, 64)
 	if err != nil || size < 0 {
-		return 0, fmt.Errorf("git: unreadable cat-file size %q", clipText(line))
+		return 0, false, fmt.Errorf("git: unreadable cat-file size %q", clipText(line))
 	}
-	return size, nil
+	return size, false, nil
 }
