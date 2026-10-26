@@ -8,11 +8,11 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
-// TestR13SampleOpenInLocalModeKeepsGitOffline: a sample review with a baseline commit still runs git
+// TestSampleOpenInLocalModeKeepsGitOffline: a sample review with a baseline commit still runs git
 // (proven.yaml at the baseline, the commit log). In PROVEN_NETWORK=local that git must not be able to
 // fetch, so after Open in sample mode every GitCommand must carry the offline switches.
 // Mutated field: Options.Sample (true; the live path already sets the switch).
-func TestR13SampleOpenInLocalModeKeepsGitOffline(t *testing.T) {
+func TestSampleOpenInLocalModeKeepsGitOffline(t *testing.T) {
 	prev := change.UseOffline(false)
 	t.Cleanup(func() { change.UseOffline(prev) })
 	env := map[string]string{"PROVEN_NETWORK": "local"}

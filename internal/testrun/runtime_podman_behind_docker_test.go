@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-// TestR13LocalJudgesPodmanBehindADockerName: a runtime named docker can be podman (the podman-docker
+// TestLocalJudgesPodmanBehindADockerName: a runtime named docker can be podman (the podman-docker
 // package installs a docker command that runs podman). Podman then reads its own containers.conf, not
 // DOCKER_HOST. In local mode, Load must refuse a docker-named runtime whose podman configuration names a
 // remote service outside the organisation's network, or refuse a docker command it cannot tell is docker.
 // Mutated field: the runtime (a docker command that runs podman) and the uri of the service destination.
-func TestR13LocalJudgesPodmanBehindADockerName(t *testing.T) {
+func TestLocalJudgesPodmanBehindADockerName(t *testing.T) {
 	home := podmanHome(t, "tcp://203.0.113.8:2375")
 	bin := t.TempDir()
 	shim := filepath.Join(bin, "docker")
@@ -24,10 +24,10 @@ func TestR13LocalJudgesPodmanBehindADockerName(t *testing.T) {
 	}
 }
 
-// TestR13LocalJudgesAQuotedUriKey: TOML allows a quoted key, so "uri" = "..." is the same setting podman
+// TestLocalJudgesAQuotedUriKey: TOML allows a quoted key, so "uri" = "..." is the same setting podman
 // reads as uri = "...". In local mode, Load must judge that destination and refuse it when it is outside.
 // Mutated field: the spelling of the uri key (quoted).
-func TestR13LocalJudgesAQuotedUriKey(t *testing.T) {
+func TestLocalJudgesAQuotedUriKey(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, ".config", "containers")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
