@@ -38,7 +38,6 @@ strict=${INPUT_STRICT:-true}
 baseline=${INPUT_BASELINE_COMMIT:-}
 sample=${INPUT_SAMPLE_MODE:-false}
 comment=${INPUT_COMMENT:-false}
-reviewdog=${REVIEWDOG_BIN:-reviewdog}
 
 bool strict "$strict"
 bool sample-mode "$sample"
@@ -103,19 +102,15 @@ IFS=$oldifs
 
 # The write token is read only when comment is true, and before anything runs;
 # below, it is removed from the environment Proven runs in.
-reporter=
 if [ "$comment" = true ]; then
   token=${INPUT_GITHUB_TOKEN:-}
   [ -n "$token" ] || fail "comment is true but github-token is empty; set github-token to a token that may write pull requests, and give the job pull-requests: write."
-  # Gitea Actions sets GITHUB_SERVER_URL to its own address and GITEA_ACTIONS=true;
-  # GitHub (and GitHub Enterprise Server) set no GITEA_ACTIONS.
-  if [ "${GITEA_ACTIONS:-}" = true ]; then reporter=gitea-pr-review; else reporter=github-pr-review; fi
-  command -v "$reviewdog" >/dev/null 2>&1 || fail "comment is true but reviewdog '$reviewdog' was not found in the image; rebuild action/Dockerfile."
 fi
 
 # Credentials never reach the scan: Proven reads the code under review, and that
 # code must not see a token, whether comment is true or false. The posting token
-# was copied into $token above (an unexported shell variable) and goes only to reviewdog.
+# was copied into $token above (an unexported shell variable) and goes only to the
+# summary comment poster (post-comment.sh).
 unset INPUT_GITHUB_TOKEN GITHUB_TOKEN ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQUEST_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL
 # The runner also passes each input as INPUT_<NAME> with its hyphen kept, a name sh cannot unset.
 scrub="env -u INPUT_GITHUB-TOKEN"
@@ -150,28 +145,11 @@ fi
   echo "unresolved-count=$unresolved"
 } >>"$GITHUB_OUTPUT"
 
-# comment: post Proven's SARIF on the pull request through reviewdog (ADR-0020 §7).
-# A review that could not run wrote no SARIF, and there is nothing to post then.
-if [ "$comment" = true ] && [ -f "$workspace/$sarif_file" ]; then
-  postrc=0
-  (
-    cd "$workspace"
-    # reviewdog 0.21.2 reads the Gitea server from GITEA_ADDRESS and refuses
-    # without it (cmd/reviewdog/main.go, giteaService); on GitHub and GitHub
-    # Enterprise Server it reads the runner's own GITHUB_API_URL.
-    if [ "$reporter" = gitea-pr-review ]; then export GITEA_ADDRESS="${GITHUB_SERVER_URL:-}"; fi
-    REVIEWDOG_GITHUB_API_TOKEN=$token REVIEWDOG_GITEA_API_TOKEN=$token \
-      "$reviewdog" -f=sarif -name=proven "-reporter=$reporter" -fail-level=none <"$sarif_file"
-  ) || postrc=$?
-  if [ "$postrc" -ne 0 ]; then
-    echo "proven action: posting the review on the pull request failed: reviewdog ($reporter) exited $postrc. Check that github-token may write pull requests (pull-requests: write) and that this run is a pull request." >&2
-    [ "$rc" -ne 0 ] || rc=2
-  fi
-fi
-
-# comment: the summary beside reviewdog's line comments is ONE comment per pull request,
-# edited in place on every run (post-comment.sh). The reviewing run, the head commit and
-# the pull request come from the event; a run that is not a pull request has none to post on.
+# comment: the Action writes ONE comment per pull request (the owner's order of
+# 2026-10-25): the summary, edited in place on every run (post-comment.sh). It writes
+# no line comments. A review that could not run wrote no Markdown, and there is nothing
+# to post then. The reviewing run, the head commit and the pull request come from the
+# event; a run that is not a pull request has none to post on.
 if [ "$comment" = true ] && [ -f "$scratch/proven-comment.md" ]; then
   . "$here/post-comment.sh"
   event=${GITHUB_EVENT_PATH:-}

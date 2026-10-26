@@ -169,8 +169,11 @@ check "exclude glob reaches Proven verbatim" 1 "$(hasarg '--exclude=vendor/*')"
 check "exclude glob is not expanded against the working directory" 0 "$(contains '--exclude=vendor/a')"
 check "include glob '*' reaches Proven verbatim" 1 "$(hasarg '--include=*')"
 
-# comment: reviewdog posts Proven's SARIF. A stub records its arguments, its
-# stdin, and the token and server it was given.
+# comment: the Action writes ONE comment per pull request, its own summary (post-comment.sh,
+# tested below); reviewdog is never run, so no line comment can sit beside it. The stub
+# reviewdog below is the instrument for that: it records any call, and every comment run
+# asserts that no record exists (the owner's order of 2026-10-25; negative control: run
+# the old entrypoint, which calls it with -reporter=github-pr-review, and these turn red).
 cat >"$tmp/reviewdog.sh" <<'EOF'
 #!/bin/sh
 for a in "$@"; do printf '%s\n' "$a"; done >"$RD_ARGS"
@@ -191,33 +194,6 @@ rdrun() {
   args=
   [ ! -f "$RD_ARGS" ] || args=$(tr '\n' ' ' <"$RD_ARGS")
 }
-
-rdrun postgh INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
-check "comment=true: exit 0" 0 "$rc"
-check "comment=true: reviewdog reads SARIF" 1 "$(hasarg -f=sarif)"
-check "comment=true: reporter on GitHub" 1 "$(hasarg -reporter=github-pr-review)"
-check "comment=true: reviewdog is given Proven's SARIF, byte for byte" 1 "$(cmp -s "$ws/proven-results.sarif" "$RD_STDIN" && echo 1)"
-check "comment=true: the token reaches reviewdog" "tok-1|tok-1" "$(cat "$RD_TOKEN")"
-
-rdrun postgitea INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=https://gitea.example
-check "comment=true on Gitea: reporter" 1 "$(hasarg -reporter=gitea-pr-review)"
-
-check "comment=true on Gitea: reviewdog is given the server as GITEA_ADDRESS" "|https://gitea.example" "$(cat "$RD_TOKEN.api")"
-
-rdrun postghes INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://ghe.example/api/v3
-check "comment=true on GHES: reviewdog reads the runner's GITHUB_API_URL" "https://ghe.example/api/v3|" "$(cat "$RD_TOKEN.api")"
-
-rdrun poststrict INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true
-check "comment=true, strict, findings: still posted" 1 "$(hasarg -reporter=github-pr-review)"
-check "comment=true, strict, findings: exit is Proven's 1" 1 "$rc"
-
-rdrun postfail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false RD_RC=1
-check "comment=true, reviewdog fails: the step fails (2)" 2 "$rc"
-check "comment=true, reviewdog fails: the message names the post" 1 "$(grep -c 'posting the review on the pull request failed' "$tmp/postfail/stderr")"
-check "comment=true, reviewdog fails: outputs still written" 4 "$(output findings-count)"
-
-rdrun strictpostfail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true RD_RC=1
-check "comment=true, strict, findings, reviewdog fails: exit stays Proven's 1" 1 "$rc"
 
 rdrun notoken INPUT_COMMENT=true INPUT_GITHUB_TOKEN=
 check "comment=true, no token: refused, exit 2" 2 "$rc"
@@ -243,7 +219,6 @@ for c in true false; do
     GITHUB_TOKEN=tok-3 ACTIONS_RUNTIME_TOKEN=tok-4 ACTIONS_ID_TOKEN_REQUEST_TOKEN=tok-5
   check "comment=$c: the scan runs with no token in its environment" "" "$(cat "$STUB_ARGS.env")"
 done
-check "comment=true: the token still reaches reviewdog" "tok-1|tok-1" "$(cat "$tmp/scrub-true.rdtoken")"
 
 # A result left by an earlier run is removed before Proven runs, so a review that
 # could not run (2) is never counted from a stale file.
@@ -263,7 +238,11 @@ printf '%s %s\n' "$method" "$url" >>"$STUB/log"
 [ -z "${3:-}" ] || cp "$3" "$STUB/body.$((n + 1))"
 [ "${HTTP_RC:-0}" -eq 0 ] || exit "$HTTP_RC"
 case "$method $url" in
-  "GET "*/comments*) if [ -f "$STUB/comments.json" ]; then cat "$STUB/comments.json"; else printf '[]'; fi ;;
+  "GET "*/comments*)
+    # Like a real server: comments.json is page 1; any later page is empty.
+    page=${url##*page=}
+    if [ "$page" = 1 ] && [ -f "$STUB/comments.json" ]; then cat "$STUB/comments.json"; else printf '[]'; fi
+    ;;
   PATCH* | POST*) printf '{"id":77}' ;;
 esac
 EOF
@@ -286,6 +265,8 @@ summary sumnew
 check "summary: exit 0" 0 "$rc"
 check "summary: no earlier comment, one comment is created" "GET http://api.example/api/v1/repos/o/r/issues/7/comments?limit=50&per_page=50&page=1
 POST http://api.example/api/v1/repos/o/r/issues/7/comments" "$(cat "$STUB/log")"
+check "summary: one run with findings writes exactly one comment-writing call" 1 "$(grep -c -e '^POST ' -e '^PATCH ' "$STUB/log")"
+check "summary: reviewdog is not run, so no line comment sits beside the summary" 0 "$(test -e "$RD_ARGS" && echo 1 || echo 0)"
 check "summary: the marker is the first line, with this run and the head commit" '{"body":"<!-- proven-review run=5 sha=abc123 -->' "$(head -c 48 "$STUB/body.2")"
 check "summary: the body is Proven's Markdown" 1 "$(grep -c '\*\*Proven: blocked\*\*' "$STUB/body.2")"
 check "summary: the Markdown is not left in the workspace" "proven-results.json proven-results.sarif " "$(ls "$ws" | tr '\n' ' ')"
@@ -299,6 +280,12 @@ mkdir -p "$tmp/sumother.stub" && printf '[%s]' "$theirs" >"$tmp/sumother.stub/co
 summary sumother
 check "summary: another account's marker comment is not edited" 0 "$(grep -c PATCH "$STUB/log")"
 check "summary: another account's marker comment, a new one is created" 1 "$(grep -c '^POST ' "$STUB/log")"
+
+summary sumstrict INPUT_STRICT=true
+check "summary, strict, findings: still posted once, exit is Proven's 1" "1 1" "$(grep -c -e '^POST ' -e '^PATCH ' "$STUB/log") $rc"
+
+summary sumgitea GITEA_ACTIONS=true GITHUB_SERVER_URL=https://gitea.example
+check "summary on Gitea: one comment-writing call, reviewdog not run" "1 0" "$(grep -c -e '^POST ' -e '^PATCH ' "$STUB/log") $(test -e "$RD_ARGS" && echo 1 || echo 0)"
 
 summary sumfail HTTP_RC=22
 check "summary: a failed post fails the step (2)" 2 "$rc"
