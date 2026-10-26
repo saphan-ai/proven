@@ -98,7 +98,7 @@ case $1 in
           esac
           [ "$prev" = --file ] && file=$a
           case $a in
-            type=oci,dest=*) dest=${a#type=oci,dest=} ;;
+            type=oci,dest=*) dest=${a#type=oci,dest=}; dest=${dest%%,*} ;;
             type=registry*) registry_write "buildx build --output registry" ;;
           esac
           prev=$a
