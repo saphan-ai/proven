@@ -68,13 +68,15 @@ Open any package, read any test, pick any merge, and tell us what you find.
 
 What Proven does not do yet, or does not do well, measured and dated. This list is updated with every push.
 
-- **Scout Intent misses some cases.** On a blind set of 46 changes frozen before the run (English, Polish and Thai,
-  including disguised ones) it matched 30 and missed 16, reported unpatched so the set stays blind. In 3 of the misses
-  a security change was taken for a documentation change and got a lighter review than it should have
-  (26 October). It also asks for clarification more often than its own ceiling allows.
-- **Scout Intent and Markovian are not measured yet.** Their benefit on review quality is unknown. Today they are off
-  by default; turning all four engines on by default, each switchable off by a setting or when `make up` asks, is
-  being built.
+- **Scout Intent: how well it sorts changes is measured; whether it improves reviews is not.** On a blind set of 46
+  changes frozen before the run (English, Polish and Thai, including disguised ones) it sorted 30 correctly and missed
+  16, reported unpatched so the set stays blind. In 3 of the misses a security change was taken for a documentation
+  change and got a lighter review than it should have (26 October). It also asks for clarification more often than its
+  own ceiling allows. Whether its plans give the same findings for less work is not measured yet.
+- **Markovian: its effect on reviews is not measured yet.** It passes its conformance checks (8 of 8), but whether
+  reviewing a large change in bounded steps finds as much as one whole review is still to be measured.
+- **Scout Intent and Markovian are off by default today.** Turning all four engines on by default, each switchable
+  off by a setting or when `make up` asks, is being built.
 - **H-MEM reads its whole state file** when it opens and rewrites it on every write. A size cap is being added; until
   then it is meant for one repository's memory, not a large organisation's.
 - **The corpus score was recorded while NVIDIA's API was failing** (HTTP 500 and timeouts on 26 October), so the NVIDIA
