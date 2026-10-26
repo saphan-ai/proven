@@ -159,7 +159,7 @@ If no key or token is set yet, the flow says the first reviews will be sample re
 
 ### The Meterless features
 
-Proven carries four Meterless engines: H-MEM (memory of refuted findings), the World Model (claims, evidence and verdicts as a graph), Scout Intent (plans each review; its benefit is not measured yet) and Markovian (reviews a large change in bounded steps). All four are meant to be **on by default**. Where Proven's own default is set is another track's change, so **the lab sets no default of its own**: an answer becomes Proven's own setting, and no answer leaves the setting unset, so Proven's default stands.
+Proven carries four Meterless engines: H-MEM (memory of refuted findings), the World Model (claims, evidence and verdicts as a graph), Scout Intent (plans each review; its benefit is not measured yet) and Markovian (reviews a large change in bounded steps). All four are **on by default** (the owner's ruling of 2026-10-26). The lab passes `on` for Scout Intent and Markovian unless a setting or an answer turns one off, so the default holds whether or not Proven's own default has changed yet; an answer becomes Proven's own setting. Markovian is passed in sample mode too.
 
 | feature | asked by `make up` | Proven's setting | the lab's setting | how the review is given it |
 |---|---|---|---|---|
@@ -172,7 +172,7 @@ How the questions work. After sample or live, on a terminal, `make up` asks `Do 
 
 The seed stores each given value as an Actions secret, as it stores a key, but a feature is not a key: with only a feature set the lab is still a sample lab, and sample mode keeps the feature settings. The workflow passes them to the review (`lab/workflow/proven.yml`).
 
-**The start page shows what the lab passed**, not what was typed: the line is built by the seed from the values it stored, for example `H-MEM on (always), World Model on (always), Scout Intent off, Markovian on`. A feature with no stored value reads `Proven's default`, because only Proven knows its own default. H-MEM and World Model read `on (always)` for as long as Proven has no switch for them.
+**The start page shows what the lab passed**, not what was typed: the line is built by the seed from the values it stored, for example `H-MEM on (always), World Model on (always), Scout Intent off, Markovian on`. H-MEM and World Model read `on (always)` for as long as Proven has no switch for them.
 
 What the lab did not measure: whether a `scout_intent: on` file or `PROVEN_MARKOVIAN=on` changes the comment of a *sample* review (Markovian is a live-only setting by Proven's code; a sample review is recorded). The offline tests show the review process is given the file and the variable; the owner's test below shows the page.
 

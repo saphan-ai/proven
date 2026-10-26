@@ -54,16 +54,23 @@ func versionsList(t *testing.T, name string) string {
 
 // ---- the questions and the settings ------------------------------------------------------------------------------
 
-func TestFeaturesNothingIsAskedOrPassedWithNoTerminalAndNoSetting(t *testing.T) {
+// The owner's 2026-10-26 ruling: all four Meterless engines are on by default, in the lab too.
+func TestFeaturesNothingIsAskedAndBothArePassedOnWithNoTerminalAndNoSetting(t *testing.T) {
 	r := runUp(t, upOpts{})
 	noQuestions(t, r.out)
 	if !r.reachedDocker() {
 		t.Fatalf("the flow stopped before docker:\n%s", r.out)
 	}
 	for _, name := range []string{"PROVEN_MARKOVIAN", "PROVEN_LAB_SCOUT_INTENT"} {
-		if strings.Contains(r.dockerEnv, name) {
-			t.Errorf("the lab passed %s though nothing set it: it has no default of its own, Proven's own default stands:\n%s", name, r.dockerEnv)
+		if !strings.Contains(r.dockerEnv, name+"=on\n") {
+			t.Errorf("the lab did not pass %s=on with nothing set:\n%s", name, r.dockerEnv)
 		}
+	}
+	// Mutated field: the lab's default. With it gone the same assertion must fail.
+	tree := copyLab(t)
+	mutate(t, tree, "lab/scripts/flow.sh", `: "${PROVEN_MARKOVIAN:=on}" "${PROVEN_LAB_SCOUT_INTENT:=on}"`, `:`)
+	if m := runUp(t, upOpts{tree: tree}); strings.Contains(m.dockerEnv, "PROVEN_MARKOVIAN=on\n") {
+		t.Error("the control did not turn red: with the default removed the lab still passed PROVEN_MARKOVIAN=on")
 	}
 }
 
@@ -128,7 +135,7 @@ func TestFeaturesTheQuestionsAreAskedOnATerminalAndEachAnswerIsTheSetting(t *tes
 	}
 }
 
-func TestFeaturesEnterAndNKeepProvensOwnDefault(t *testing.T) {
+func TestFeaturesEnterAndNKeepTheDefaultOn(t *testing.T) {
 	for name, lines := range map[string][]string{
 		"N to the first question": {"sample", "n"},
 		"Enter to the first":      {"sample", ""},
@@ -139,8 +146,8 @@ func TestFeaturesEnterAndNKeepProvensOwnDefault(t *testing.T) {
 			t.Errorf("%s: the flow stopped before docker:\n%s", name, r.out)
 			continue
 		}
-		if strings.Contains(r.dockerEnv, "PROVEN_MARKOVIAN") || strings.Contains(r.dockerEnv, "PROVEN_LAB_SCOUT_INTENT") {
-			t.Errorf("%s: a setting was passed though none was chosen:\n%s", name, r.dockerEnv)
+		if !strings.Contains(r.dockerEnv, "PROVEN_MARKOVIAN=on\n") || !strings.Contains(r.dockerEnv, "PROVEN_LAB_SCOUT_INTENT=on\n") {
+			t.Errorf("%s: the default on was not passed for both:\n%s", name, r.dockerEnv)
 		}
 	}
 }
@@ -327,7 +334,7 @@ func TestFeaturesTheReviewIsGivenEachSettingAsProvensOwn(t *testing.T) {
 	if !strings.Contains(seen, "PROVEN_MARKOVIAN=off\n") {
 		t.Errorf("the live review did not see PROVEN_MARKOVIAN=off: %q", seen)
 	}
-	// Nothing set: nothing is passed, so Proven's own defaults stand.
+	// Nothing set in the workflow's environment: it adds no value of its own (make up passes the lab's defaults).
 	config, seen = reviewSees(t, wf, "PROVEN_GENERATOR_KEY=nvapi-testkey-0123456789")
 	if config != "" || strings.Contains(seen, "PROVEN_MARKOVIAN") || strings.Contains(seen, "PROVEN_CONFIG") {
 		t.Errorf("with no setting the review was given config %q and %q", config, seen)
@@ -340,7 +347,7 @@ func TestFeaturesTheReviewIsGivenEachSettingAsProvensOwn(t *testing.T) {
 	if config, _ := reviewSees(t, mut, "PROVEN_LAB_SCOUT_INTENT=off"); strings.TrimSpace(config) == "scout_intent: off" {
 		t.Error("the control did not turn red: with the value dropped the review still got scout_intent: off")
 	}
-	mutM := strings.Replace(wf, "for name in PROVEN_MARKOVIAN PROVEN_GENERATOR_MODE", "for name in PROVEN_GENERATOR_MODE", 1)
+	mutM := strings.Replace(wf, `live_env="$live_env -e PROVEN_MARKOVIAN"`, `:`, 1)
 	if mutM == wf {
 		t.Fatal("the mutation target is not in the workflow")
 	}
@@ -491,6 +498,7 @@ func TestProbeCountsAServiceOnlyWhenItAnswersInItsOwnShape(t *testing.T) {
 	tree := mustAbs(t, root)
 	stray404 := serve(t, 404, "text/plain", "404 page not found")
 	strayHTML := serve(t, 200, "text/html", "<html><body>It works</body></html>")
+	strayHTMLData := serve(t, 200, "text/html", `<html><body><pre>{"data":[]}</pre></body></html>`)
 	strayJSON401 := serve(t, 401, "text/plain", "Unauthorized")
 	nsList := serve(t, 200, "application/json", `{"object":"list","data":[{"id":"meterless/auto"}]}`)
 	ns401 := serve(t, 401, "application/json", `{"error":"unauthorized"}`)
@@ -501,6 +509,7 @@ func TestProbeCountsAServiceOnlyWhenItAnswersInItsOwnShape(t *testing.T) {
 	}{
 		{"a stray server answering 404 is not Nightshift", "nightshift", stray404, false},
 		{"a stray server answering 200 HTML is not Nightshift", "nightshift", strayHTML, false},
+		{"an HTML page quoting a model list is not Nightshift", "nightshift", strayHTMLData, false},
 		{"a stray 401 with no JSON is not Nightshift", "nightshift", strayJSON401, false},
 		{"nothing listening is not Nightshift", "nightshift", "http://127.0.0.1:1/", false},
 		{"a JSON list of models is Nightshift", "nightshift", nsList, true},

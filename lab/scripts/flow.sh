@@ -465,7 +465,7 @@ flow_probe() {
       case $fq_code in
         200)
           case $fq_flat in
-            *'"data":['*) return 0 ;;
+            '{'*'"data":['*) return 0 ;;
           esac
           ;;
         401)
@@ -593,8 +593,16 @@ flow_feature_answer() {
 }
 
 # flow_features: after sample or live. Asked on a terminal only, and only for a feature whose setting is not given.
-# No terminal and no setting asks nothing and sets nothing.
+# The owner's 2026-10-26 ruling: all four Meterless engines are on by default, in Proven and in the lab. The lab
+# therefore passes on for any switch that no setting and no answer turned off, instead of leaving Proven's own default.
 flow_features() {
+  flow_features_ask
+  : "${PROVEN_MARKOVIAN:=on}" "${PROVEN_LAB_SCOUT_INTENT:=on}"
+  export PROVEN_MARKOVIAN PROVEN_LAB_SCOUT_INTENT
+}
+
+# No terminal and no setting asks nothing; flow_features then passes the defaults.
+flow_features_ask() {
   if [ "$FLOW_ASK" != yes ]; then
     return 0
   fi

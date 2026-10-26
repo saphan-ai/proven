@@ -132,12 +132,16 @@ jobs:
           # derive-end
           printf '%s\n' "$state" > mode.txt
           live_env=""
-          for name in PROVEN_MARKOVIAN PROVEN_GENERATOR_MODE PROVEN_GENERATOR_KEY PROVEN_NVIDIA_BASE_URL PROVEN_GUARDRAIL_MODE PROVEN_GUARDRAIL_KEY PROVEN_GENERATOR_BASE_URL METERLESS_RUNTIME_TOKEN ZETARIS_REST_URL ZETARIS_API_KEY ZETARIS_ORG_ID PROVEN_GENERATOR_MODEL JUDGES_GATEWAY_ACCESS_TOKEN; do
+          for name in PROVEN_GENERATOR_MODE PROVEN_GENERATOR_KEY PROVEN_NVIDIA_BASE_URL PROVEN_GUARDRAIL_MODE PROVEN_GUARDRAIL_KEY PROVEN_GENERATOR_BASE_URL METERLESS_RUNTIME_TOKEN ZETARIS_REST_URL ZETARIS_API_KEY ZETARIS_ORG_ID PROVEN_GENERATOR_MODEL JUDGES_GATEWAY_ACCESS_TOKEN; do
             eval "value=\${$name:-}"
             if [ -n "$value" ] && [ "$sample" = false ]; then
               live_env="$live_env -e $name"
             fi
           done
+          # Markovian rides in sample mode too, so the page's "as this lab passed them" holds in both modes.
+          if [ -n "${PROVEN_MARKOVIAN:-}" ]; then
+            live_env="$live_env -e PROVEN_MARKOVIAN"
+          fi
           # The Meterless features. Each answer is Proven's own setting, passed through and never defaulted here: an unset
           # one is not passed, and Proven's own default stands. PROVEN_MARKOVIAN is an environment setting (it rides in
           # live_env above; Proven reads it in live reviews only). Scout Intent is a key of proven.yaml (scout_intent) with
