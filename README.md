@@ -60,6 +60,10 @@ independent reviews raised **201 blocking problems** in work that an agent had c
 stopped before the change reached the main branch**. That is the problem Proven exists for, measured on the project
 that builds it, not estimated.
 
+**And do not take our word for the quality of the code: judge it yourself.** Every line is public, with the order
+that asked for it, the review that checked it and the decision that merged it. The fleet is not ashamed of its work. It is proud of it.
+Open any package, read any test, pick any merge, and tell us what you find.
+
 ## Where things stand
 
 Updated every evening. The newest day comes first.
@@ -237,6 +241,11 @@ Each day, what lands moves from this list to the day's summary.
 - **NVIDIA's model in every review of the fleet's work**, beside OpenAI's and Anthropic's, now that its first review is in.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 
+**Known debt, accepted on purpose.** The function that runs a review, `pipeline.review`, is one long function of about
+500 lines. It should become one function per stage (Planner, Investigator, Prover, Skeptic, Judge, Writer), which is about
+a day of work. We know it, and we accept the debt during the feature freeze: a refactor of the review's spine two days
+before the deadline is a bigger risk than the long function itself. We split it after 6 November.
+
 Two days to go.
 
 ### Day one, 22 October
@@ -344,6 +353,27 @@ somewhere they do not:
   query and the rows it returned. A finding whose test does not fail on the change is not proved. No exploit code is
   written or kept.
 - **A fix is proved too**: the same test that showed the problem shows the fix works.
+
+## What this week gave us, and thank you
+
+For us as developers, this week was a mega experience. Writing at this speed and at this scale, without dropping the
+rule that every change is reviewed and every claim is proved, taught us more than months of normal work.
+
+- **Scale shows what small projects hide.** A way of reading data that passes every test on a small project breaks
+  when the data has grown. At one or two agents you never see it; at a fleet working on four projects at once you see
+  it within hours. Each time, we turned the lesson into a written rule for every agent, so the next change is written
+  right the first time.
+- **Rigour is what makes speed safe.** Two independent reviews on every change, from different model families and run
+  at the same time, caught problems that green tests did not, and they did it without slowing the work down.
+- **Measure first, then say it.** More than once a first explanation turned out wrong when we measured it. What we
+  publish here is what we measured.
+- **We fixed a lot along the way**, in Proven and in how the fleet itself works, and the record of every fix is in this
+  repository.
+
+**Thank you to [GenAI Works](https://hackathon.genai.works/event/open-agent-hackathon-2026)** for organising the Open
+Agent Hackathon 2026 and for the chance to take part, and to the sponsors whose technology Proven is built on:
+**Zetaris**, **Meterless**, **NVIDIA** and **Cursor**. Building on your platforms under a deadline was the best possible
+test of what an agent fleet can do.
 
 ## Who builds it
 
