@@ -58,7 +58,7 @@ const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says lo
 const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
 
 // boundedAfter follows the bounded-steps table. It is not a setting.
-const boundedAfter = "ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these."
+const boundedAfter = "ADR-0053 (superseding the \"off until measured\" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
