@@ -88,8 +88,14 @@ func linkDirs(path string) ([]string, error) {
 	var walk func(p string) (string, error)
 	walk = func(p string) (string, error) {
 		cur := string(filepath.Separator)
-		for _, part := range strings.Split(filepath.Clean(p), string(filepath.Separator)) {
-			if part == "" {
+		// The path is not cleaned first: "link/.." means the parent of the link's
+		// target, and the directory holding the link is judged before ".." applies.
+		for _, part := range strings.Split(p, string(filepath.Separator)) {
+			if part == "" || part == "." {
+				continue
+			}
+			if part == ".." {
+				cur = filepath.Dir(cur)
 				continue
 			}
 			if !seen[cur] {
@@ -113,7 +119,8 @@ func linkDirs(path string) ([]string, error) {
 				return "", err
 			}
 			if !filepath.IsAbs(target) {
-				target = filepath.Join(cur, target)
+				// Joined by hand, not filepath.Join, which would clean ".." away.
+				target = cur + string(filepath.Separator) + target
 			}
 			if cur, err = walk(target); err != nil {
 				return "", err
