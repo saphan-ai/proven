@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -280,92 +279,6 @@ func (s *Store) pendingOne(id string) (Proposal, error) {
 	return Proposal{}, fmt.Errorf("hmem: no pending proposal %s", id)
 }
 
-// Approve is the human's decision to keep a proposal. An insight becomes a
-// long-term factual record and an invariant a long-term preference, each with
-// derivedFrom lineage; a domain proposal moves the named records to the
-// suggested domain and returns nil. An id that is not pending is refused.
-//
-// Approve is one recoverable transition: the record (or reclassification), the
-// approved proposal state and the audit entry all happen, or none does. If the
-// proposal-state write or the audit write fails after the record was created,
-// the store returns to the memory and state file it had before the call, the
-// proposal stays pending, and the error is returned, so a retry creates exactly
-// one record (ADR-0018 point 3: no half-applied approval).
-func (s *Store) Approve(id string) (*Record, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, err := s.pendingOne(id)
-	if err != nil {
-		return nil, err
-	}
-	// The snapshot is what a failed later step returns the store to.
-	before := make(map[string]Record, len(s.records))
-	for k, v := range s.records {
-		before[k] = v
-	}
-	prevSeq := s.seq
-	var created *Record
-	if p.Type == "domain" {
-		if err := s.reclassify(p); err != nil {
-			return nil, s.rollbackApprove(before, prevSeq, p.ID, err)
-		}
-	} else {
-		typ := TypePreference
-		if p.Type == "insight" {
-			typ = TypeFactual
-		}
-		conf := dreamConfidence
-		rec, err := s.addLocked(AddInput{
-			Content:     p.Content,
-			Type:        typ,
-			Layer:       LayerLong,
-			Tags:        []string{"dream:" + p.Type},
-			Confidence:  &conf,
-			Source:      "dreaming",
-			Origin:      "dream",
-			Label:       "approved " + p.Type + " proposal",
-			DerivedFrom: p.DerivedFrom,
-		})
-		if err != nil {
-			return nil, err
-		}
-		created = &rec
-	}
-	p.Status = ProposalApproved
-	if err := s.appendDream(p); err != nil {
-		return nil, s.rollbackApprove(before, prevSeq, p.ID, err)
-	}
-	if err := s.audit("dream_approved", p.ID, "dreaming"); err != nil {
-		// The approved state is already in the dream log. The proposal is
-		// appended again as pending, so the log's last state wins and it is
-		// pending once more.
-		p.Status = ProposalProposed
-		if rerr := s.appendDream(p); rerr != nil {
-			err = errors.Join(err, rerr)
-		}
-		return nil, s.rollbackApprove(before, prevSeq, p.ID, err)
-	}
-	return created, nil
-}
-
-// rollbackApprove puts the records and the sequence number back to what they
-// were before an approval, rewrites state.json to match, and notes the undo in
-// the audit trail. The caller holds s.mu. It returns cause joined with any
-// failure of the undo itself, so a failure that left the store changed is
-// never reported as a clean one.
-func (s *Store) rollbackApprove(before map[string]Record, seq int, proposal string, cause error) error {
-	s.records = before
-	s.seq = seq
-	err := cause
-	if perr := s.persist(); perr != nil {
-		err = errors.Join(err, perr)
-	}
-	if aerr := s.audit("dream_approval_rolled_back", proposal, "dreaming"); aerr != nil {
-		err = errors.Join(err, aerr)
-	}
-	return err
-}
-
 // Reject records a decision to drop a proposal. Nothing is created.
 func (s *Store) Reject(id string) error {
 	s.mu.Lock()
@@ -379,29 +292,6 @@ func (s *Store) Reject(id string) error {
 		return err
 	}
 	return s.audit("dream_rejected", p.ID, "dreaming")
-}
-
-// reclassify moves the records of a domain proposal to its suggested domain.
-// The caller holds s.mu. A failed audit or write puts the records back.
-func (s *Store) reclassify(p Proposal) error {
-	saved := map[string]Record{}
-	for _, id := range p.DerivedFrom {
-		rec, ok := s.records[id]
-		if !ok || p.SuggestedDomain == "" {
-			continue
-		}
-		saved[id] = rec
-		rec.Domain = p.SuggestedDomain
-		rec.Namespace = namespace(rec.Domain, rec.Type)
-		s.records[id] = rec
-	}
-	for id, before := range saved {
-		extra := map[string]any{"previousState": ledgerState(before), "newState": ledgerState(s.records[id])}
-		if err := s.publishWith("update", id, "dreaming", extra, s.seq, saved, nil); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // truncateRunes cuts text to at most n runes.

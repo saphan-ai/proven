@@ -98,6 +98,9 @@ type AddInput struct {
 	// Sleep never archives a record that carries lineage.
 	DerivedFrom []string
 	At          int64
+	// fixedID, when set, is the id of the new record instead of the next
+	// sequence id. An approved dream uses it so its record can be found again.
+	fixedID string
 }
 
 // RefutationKey names a finding a skeptic refuted on one change. ChangeKey,
@@ -132,7 +135,7 @@ type Store struct {
 	mu        sync.Mutex
 	seq       int
 	records   map[string]Record
-	// writeHook, when set, runs before each durable write and may refuse it.
+	// writeHook, when set, runs before each durable write ("dream", "state" or "audit:<action>") and may refuse it.
 	// It is the seam tests use to inject a failed write; production leaves it nil.
 	writeHook func(op string) error
 }
@@ -212,6 +215,11 @@ func Open(opts Options) (*Store, error) {
 		s.records[rec.ID] = rec
 	}
 	s.seq = file.Seq
+	// An approval a crashed run left half done is finished now, so no person
+	// has to notice it.
+	if err := s.recoverApprovals(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -307,9 +315,13 @@ func (s *Store) addLocked(in AddInput) (Record, error) {
 		label = in.Source
 	}
 	prevSeq := s.seq
-	s.seq++
+	id := in.fixedID
+	if id == "" {
+		s.seq++
+		id = fmt.Sprintf("mem-%d", s.seq)
+	}
 	rec := Record{
-		ID:           fmt.Sprintf("mem-%d", s.seq),
+		ID:           id,
 		Content:      in.Content,
 		Type:         typ,
 		Layer:        layer,
@@ -336,6 +348,15 @@ func (s *Store) addLocked(in AddInput) (Record, error) {
 		return Record{}, err
 	}
 	s.records[rec.ID] = rec
+	if in.fixedID != "" {
+		// The caller writes the ledger line after this, so a failed state
+		// write leaves neither a record nor a line that names one.
+		if err := s.persist(); err != nil {
+			delete(s.records, rec.ID)
+			return Record{}, err
+		}
+		return rec, nil
+	}
 	if err := s.publish("create", rec.ID, in.Source, prevSeq, nil, []string{rec.ID}); err != nil {
 		return Record{}, err
 	}
@@ -536,6 +557,11 @@ func (s *Store) publishWith(action, id, actor string, extra map[string]any, seq 
 
 // persist writes the whole store. Sorted records make the file the same for the same state.
 func (s *Store) persist() error {
+	if s.writeHook != nil {
+		if err := s.writeHook("state"); err != nil {
+			return err
+		}
+	}
 	file := disk{Version: schemaVersion, Seq: s.seq, Records: s.snapshot()}
 	b, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
