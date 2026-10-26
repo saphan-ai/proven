@@ -1,7 +1,7 @@
 package evidence
 
-// Round 3 of verify-rederives: a missing Bound makes only the components that depend on it
-// undecidable, and the two report lines the round-2 review found untested.
+// A missing Bound makes only the components that depend on it undecidable.
+// Two report lines were left untested.
 
 import (
 	"bytes"

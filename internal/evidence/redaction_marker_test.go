@@ -1,7 +1,6 @@
 package evidence
 
-// Round 4 of verify-rederives: a redaction marker must not skip the outcome checks the remaining
-// evidence still decides.
+// A redaction marker must not skip the outcome checks the remaining evidence still decides.
 
 import (
 	"crypto/sha256"

@@ -12,7 +12,7 @@ import (
 // A forger removes the query's Bound and records F3 closed. Read as not bound, the rule drops F3;
 // read as bound, the rule keeps it open. No reading keeps it and closes it, so the pack must be
 // refused.
-func TestReviewR8MissingBoundCannotHideAnOutcomeNoReadingGives(t *testing.T) {
+func TestMissingBoundCannotHideAnOutcomeNoReadingGives(t *testing.T) {
 	in, pub := forgeryInput(t)
 	f := &in.Result.Findings[2]
 	f.Refutation.TestCannotRun = true
@@ -101,7 +101,7 @@ func TestRedactionMovedFindingMatchedByOneReadingVerifiesAndIsNamed(t *testing.T
 // F4 redaction-moved and records it closed. Read as not about F4, the rows leave it open; read as
 // about F4, they refute it and the rule drops it. No reading keeps it and closes it, so the pack
 // must be refused.
-func TestReviewR8RedactionCannotHideAnOutcomeNoReadingGives(t *testing.T) {
+func TestRedactionCannotHideAnOutcomeNoReadingGives(t *testing.T) {
 	in, pub := forgeryInput(t)
 	f := &in.Result.Findings[3]
 	f.Refutation = &review.Refutation{TestCannotRun: true, QueryRows: [][]string{{"zzzz", "no"}}}
