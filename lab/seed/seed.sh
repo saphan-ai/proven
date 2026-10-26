@@ -32,6 +32,8 @@ FIXTURES_DIR=${FIXTURES_DIR:-/fixtures}
 PAGE_DIR=${PAGE_DIR:-/page}
 # html_escape and render_page: the start page, kept apart so a test can render it offline.
 . "$(dirname "$0")/render.sh"
+# ensure_live_secrets: the keys of lab/.env as Actions secrets, kept apart so a test can run it against a stub API.
+. "$(dirname "$0")/golive.sh"
 
 api() {
   method=$1
@@ -159,13 +161,19 @@ render_workflow() {
   # ADR-0050 point 6: the one automated fix attempt is on in the judges' lab and off everywhere else, so the
   # lab's review runs with a proven.yaml that turns it on, with or without the second reviewer. The command
   # sits inside single quotes in the workflow, so the file is written with echo and no quote of its own.
+  # The second reviewer is a sample-mode device (the sample generator answers for it); a live review has one real
+  # model behind each call, so the line is written only while SAMPLE_MODE is true.
   second=""
   if [ -n "${LAB_SPECIAL_REVIEWER:-}" ]; then
-    second=" \&\& echo special_reviewer: ${LAB_SPECIAL_REVIEWER} >> lab.yaml"
+    second=" \&\& { [ \$SAMPLE_MODE != true ] || echo special_reviewer: ${LAB_SPECIAL_REVIEWER} >> lab.yaml; }"
   fi
-  sed "s|proven scan --sample |echo autofix: on > lab.yaml${second} \&\& proven scan --sample --config lab.yaml |" \
+  sed "s|proven scan \"|echo autofix: on > lab.yaml${second} \&\& proven scan --config lab.yaml \"|" \
     /tmp/proven.yml >/tmp/proven.two
   mv /tmp/proven.two /tmp/proven.yml
+  # Path B: where the gateway serves Zetaris, and the organisation id it expects, are settings (ADR-0013).
+  sed "s|GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0|GATEWAY_ZETARIS_PATH: ${JUDGES_GATEWAY_ZETARIS_PATH:-/zetaris/api/v1.0}|; s|GATEWAY_ZETARIS_ORG_ID: \"0\"|GATEWAY_ZETARIS_ORG_ID: \"${JUDGES_GATEWAY_ZETARIS_ORG_ID:-0}\"|" \
+    /tmp/proven.yml >/tmp/proven.gw
+  mv /tmp/proven.gw /tmp/proven.yml
 }
 
 ensure_workflow() {
@@ -455,6 +463,7 @@ ensure_actions_unit
 ensure_workflow
 ensure_bot
 ensure_secret
+ensure_live_secrets
 ensure_runner_token
 ensure_base
 : >/tmp/pr-numbers.tsv

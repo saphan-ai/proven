@@ -109,6 +109,41 @@ Nothing here leaves your machine.</p>
 </div>
 <p class="muted">Each clean change and each broken change is a case in Proven's test corpus or sample set, so the lab shows what the score measures.</p>
 
+<h2>Go live</h2>
+<p class="lead">Out of the box the lab reviews in sample mode: recorded answers, no keys, no calls. Three ways to make the next review live. Each ends the same way: run <code>make up</code> again, then open a new pull request. The first line of Proven's comment says how it was made: <code>sample: no keys</code> or <code>live: &hellip;</code>. Now: <b>@@LIVE_STATE@@</b>.</p>
+<div class="grid">
+  <div class="card">
+    <h3>A. One NVIDIA key</h3>
+    <p>Enough on its own. Free.</p>
+    <ol class="steps">
+      <li>Get a key at <a class="ext" href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a> (sign in, open a model, <i>Get API Key</i>).</li>
+      <li>In the repository: <code>cp lab/.env.example lab/.env</code></li>
+      <li>Put the key after <code>PROVEN_GENERATOR_KEY=</code> in <code>lab/.env</code>.</li>
+      <li><code>make up</code></li>
+      <li>Open a new pull request. Its comment starts <code>live: NVIDIA direct, Zetaris off</code>.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h3>B. Our services, through the judges' gateway</h3>
+    <p>Fully live with no account of your own. You need the gateway address and your own token, sent to you privately.</p>
+    <ol class="steps">
+      <li><code>cp lab/.env.example lab/.env</code></li>
+      <li>Set <code>JUDGES_GATEWAY_URL=</code> (the address you were sent) and <code>JUDGES_GATEWAY_TOKEN=</code> (your token).</li>
+      <li><code>make up</code></li>
+      <li>Open a new pull request. Its comment starts <code>live: NVIDIA via the judges' gateway, Zetaris on</code>.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h3>C. Zetaris and Nightshift on your machine</h3>
+    <p>Your own Zetaris bundle and sign-in; Nightshift needs a Mac with Apple silicon. The steps that cannot be scripted are in <code>docs/LAB.md</code>, path C.</p>
+    <ol class="steps">
+      <li>Zetaris: set <code>ZETARIS_COMPOSE_FILE=</code> in <code>lab/.env</code>, then <code>make up ZETARIS=local</code></li>
+      <li>Nightshift: <code>make nightshift</code> (on Linux it says Tart is macOS-only and exits cleanly)</li>
+      <li>Put the printed address and the runtime token in <code>lab/.env</code>, then <code>make up</code> again.</li>
+    </ol>
+  </div>
+</div>
+
 <h2>More</h2>
 <div class="grid">
   <div class="card"><h3>Source code</h3><p>Apache-2.0, built in the open during the Open Agent Hackathon 2026.</p><a class="ext" href="https://github.com/saphan-ai/proven" target="_blank" rel="noopener">github.com/saphan-ai/proven</a></div>

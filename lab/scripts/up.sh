@@ -3,6 +3,13 @@
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 . "$ROOT/lab/scripts/banner.sh"
+
+# The start page carries the lab's password: refuse any address but loopback before anything starts. This is the
+# first act, ahead of the Docker check, so a refused bind is named on a host with no Docker as well.
+lab_require_loopback LAB_PAGE_BIND "$LAB_PAGE_BIND" || exit 1
+# Keys for a live review (docs/LAB.md, "Go live"): lab/.env is read here, and the seed stores each non-empty one as
+# an Actions secret. Nothing is printed from it.
+load_lab_env || exit 1
 need_docker
 
 if [ -z "${GITEA_RUN_USER:-}" ]; then
@@ -25,6 +32,20 @@ if ! compose build docs; then
 fi
 
 compose up -d gitea dind lgtm
+
+# Path C: Zetaris on this machine, when asked (make up ZETARIS=local). It needs the lab's network, so it starts here.
+# A platform that does not start is named and the lab goes on, as the documentation image does.
+if [ "${ZETARIS:-}" = "local" ]; then
+  if sh "$ROOT/lab/scripts/zetaris.sh"; then
+    # The lab's reviews reach it by its name on the lab network: no hand edit of lab/.env for the address.
+    if [ -z "${ZETARIS_REST_URL:-}" ]; then
+      ZETARIS_REST_URL="http://${ZETARIS_LAB_ALIAS}:${ZETARIS_API_PORT}${ZETARIS_REST_PATH}"
+      export ZETARIS_REST_URL
+    fi
+  else
+    echo "up: ZETARIS=local did not complete (see above); the lab goes on without it" >&2
+  fi
+fi
 
 internal="http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}"
 

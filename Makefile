@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help password demo-check check-banner build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-links clean
+.PHONY: help password demo-check check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-links clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -33,7 +33,7 @@ scan: ## Scout images when the plugin is present; otherwise name Docker Hub afte
 push: ## Push linux/amd64 and linux/arm64 as one tag per image, with provenance and an SBOM
 	@sh $(ROOT)/lab/scripts/push.sh
 
-up: ## Start the judges' lab
+up: ## Start the judges' lab. Keys in lab/.env make its reviews live; ZETARIS=local also starts Zetaris here
 	@sh $(ROOT)/lab/scripts/up.sh
 
 down: ## Stop the judges' lab
@@ -77,3 +77,12 @@ check-links: ## Check that every relative Markdown link and metadata.json path r
 
 clean: ## Remove the lab, its volumes, local images, ./bin and ./dist
 	@sh $(ROOT)/lab/scripts/clean.sh
+
+nightshift: ## Start Meterless Nightshift in a Tart VM (macOS on Apple silicon); on any other host say so and exit 0
+	@sh $(ROOT)/lab/scripts/nightshift.sh
+
+zetaris: ## Start Zetaris on this machine from your own bundle and register the evidence (same as make up ZETARIS=local, without the lab)
+	@ZETARIS=local sh $(ROOT)/lab/scripts/zetaris.sh
+
+check-golive: ## Check offline: lab/.env keys, the workflow's live/sample choice and the loopback bind of the start page
+	@sh $(ROOT)/lab/scripts/golive-check.sh

@@ -3,7 +3,7 @@
 
 # The page the lab hands out. Its path is a setting, and so is its port.
 lab_page_url() {
-  printf 'http://%s:%s%s' "$LAB_BIND" "$LAB_PAGE_PORT" "$LAB_PAGE_PATH"
+  printf 'http://%s:%s%s' "$LAB_PAGE_BIND" "$LAB_PAGE_PORT" "$LAB_PAGE_PATH"
 }
 
 # What the Password line shows when stdout is not a terminal: where the password is, never the password.

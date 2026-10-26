@@ -35,7 +35,7 @@ bad() {
 
 # The settings the banner reads, cleared so lab/versions.env decides.
 clean_env() {
-  env -u LAB_BIND -u GITEA_HTTP_PORT -u LGTM_GRAFANA_PORT -u LGTM_DASHBOARD_UID -u LAB_PAGE_PORT -u LAB_PAGE_PATH \
+  env -u LAB_BIND -u LAB_PAGE_BIND -u GITEA_HTTP_PORT -u LGTM_GRAFANA_PORT -u LGTM_DASHBOARD_UID -u LAB_PAGE_PORT -u LAB_PAGE_PATH \
     -u LAB_ADMIN_USER -u COMPOSE_PROJECT_NAME "$@"
 }
 
@@ -83,10 +83,19 @@ tty_out=
 if script --version 2>&1 | grep -q util-linux; then
   tty_out=$(clean_env BANNER_CHECK_PASSWORD="$secret" script -qec "sh $here/banner-check.sh --emit" /dev/null | tr -d '\r')
 elif script -q /dev/null true >/dev/null 2>&1; then
-  tty_out=$(clean_env BANNER_CHECK_PASSWORD="$secret" script -q /dev/null sh "$here/banner-check.sh" --emit | tr -d '\r')
+  # BSD script(1) (macOS) reads the terminal settings from ITS OWN stdin and stops when stdin is not a terminal,
+  # which is how `go test` and a pipe run this file. So the case runs there only from a terminal; otherwise it is
+  # skipped by name below, never reported as passed. util-linux script(1) above makes its own pseudo-terminal.
+  if [ -t 0 ]; then
+    tty_out=$(clean_env BANNER_CHECK_PASSWORD="$secret" script -q /dev/null sh "$here/banner-check.sh" --emit | tr -d '\r')
+  else
+    bsd_no_stdin_tty=1
+  fi
 fi
-if [ -z "$tty_out" ]; then
-  if [ "${BANNER_CHECK_NO_TTY_OK:-}" = "1" ]; then
+if [ -z "$tty_out" ] || [ -n "${bsd_no_stdin_tty:-}" ]; then
+  if [ -n "${bsd_no_stdin_tty:-}" ] && [ "${BANNER_CHECK_NO_TTY_OK:-}" = "1" ]; then
+    echo "banner-check: terminal case NOT RUN: BSD script(1) needs a terminal on stdin and this run has none; run make check-banner from a terminal (BANNER_CHECK_NO_TTY_OK=1)"
+  elif [ "${BANNER_CHECK_NO_TTY_OK:-}" = "1" ]; then
     echo "banner-check: terminal case NOT RUN: script(1) is not available (BANNER_CHECK_NO_TTY_OK=1)"
   else
     bad "terminal case not run: script(1) is not available; set BANNER_CHECK_NO_TTY_OK=1 to accept that"
@@ -100,10 +109,10 @@ else
 fi
 
 # 4: the URLs come from the settings.
-set_out=$(emit_piped env LAB_BIND=10.1.2.3 GITEA_HTTP_PORT=4000 LGTM_GRAFANA_PORT=4001 LGTM_DASHBOARD_UID=other-uid \
+set_out=$(emit_piped env LAB_BIND=10.1.2.3 LAB_PAGE_BIND=10.1.2.4 GITEA_HTTP_PORT=4000 LGTM_GRAFANA_PORT=4001 LGTM_DASHBOARD_UID=other-uid \
   LAB_PAGE_PORT=4002 LAB_PAGE_PATH=/elsewhere LAB_ADMIN_USER=someone COMPOSE_PROJECT_NAME=mylab)
 for line in \
-  'Start here: http://10.1.2.3:4002/elsewhere' \
+  'Start here: http://10.1.2.4:4002/elsewhere' \
   'Gitea: http://10.1.2.3:4000/login' \
   'Username: someone' \
   'Password: file /state/password in the volume mylab_seed-state' \

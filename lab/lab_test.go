@@ -191,12 +191,17 @@ func TestTheWorkflowPicksTheFixtureByBranchAndSaysCleanWhenItKeepsNothing(t *tes
 	}
 	// The seed rewrites the file with sed patterns that must still find their text.
 	seed := read(t, "lab", "seed", "seed.sh")
-	for _, pattern := range []string{"docker run --rm ", "proven scan --sample "} {
-		if strings.Count(wf, pattern) != 1 {
-			t.Errorf("the seed rewrites %q in the workflow, and the workflow must hold it exactly once; it holds it %d times", pattern, strings.Count(wf, pattern))
+	// The seed's sed writes the pattern with its quote escaped, so the two spellings are listed apart.
+	for _, p := range []struct{ inWorkflow, inSeed string }{
+		{"docker run --rm ", "docker run --rm "},
+		{`proven scan "`, `proven scan \"`},
+		{"GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0", "GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0"},
+	} {
+		if strings.Count(wf, p.inWorkflow) != 1 {
+			t.Errorf("the seed rewrites %q in the workflow, and the workflow must hold it exactly once; it holds it %d times", p.inWorkflow, strings.Count(wf, p.inWorkflow))
 		}
-		if !strings.Contains(seed, pattern) {
-			t.Errorf("the seed no longer rewrites %q", pattern)
+		if !strings.Contains(seed, p.inSeed) {
+			t.Errorf("the seed no longer rewrites %q", p.inSeed)
 		}
 	}
 }
@@ -249,19 +254,38 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 		t.Fatal(err)
 	}
 	pageDir := filepath.Join(dir, "page")
-	if err := os.Mkdir(pageDir, 0o755); err != nil {
-		t.Fatal(err)
+	tmp := filepath.Join(dir, "tmp")
+	for _, d := range []string{pageDir, tmp} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	// A password with every character the two escapes exist for.
 	password := `p&ss|w\rd<b>"q"`
 	script := `. "$ROOT/lab/seed/render.sh"; render_page`
+	// A stand-in awk, first on the path, looks at where the page is being staged at the moment the password is about
+	// to flow through the pipe, then runs the real awk. The review's finding: no staging file outside the volume.
+	probe := filepath.Join(dir, "probe")
+	if err := os.Mkdir(probe, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fakeAwk := "#!/bin/sh\nls -A \"$PAGE_DIR\" > \"$PROBE/during.page\"\nls -lA \"$PAGE_DIR\" > \"$PROBE/during.page.long\"\nls -A \"$TMPDIR\" > \"$PROBE/during.tmp\"\nPATH=\"$REAL_PATH\" exec awk \"$@\"\n"
+	if err := os.Mkdir(filepath.Join(dir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bin", "awk"), []byte(fakeAwk), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command("sh", "-c", script)
 	cmd.Env = append(os.Environ(),
 		"ROOT="+mustAbs(t, root),
 		"PAGE_TEMPLATE="+mustAbs(t, filepath.Join(root, "lab", "page", "lab.html.tmpl")),
 		"PAGE_DIR="+pageDir,
 		"PR_ROWS_FILE="+rows,
-		"PAGE_WORK="+filepath.Join(dir, "work.html"),
+		// Every temp file the renderer or its tools make lands in tmp, so a copy outside the page volume is seen.
+		"TMPDIR="+tmp,
+		"PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"), "REAL_PATH="+os.Getenv("PATH"), "PROBE="+probe,
+		"LAB_LIVE_STATE=keys stored: PROVEN_GENERATOR_KEY",
 		"CLEAN_COUNT=2",
 		"LAB_URL=http://127.0.0.1:3000/",
 		"LAB_ADMIN_USER=proven",
@@ -306,11 +330,74 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 	if len(entries) != 1 || entries[0].Name() != "lab.html" {
 		t.Errorf("the page directory holds %d entries; only lab.html belongs there", len(entries))
 	}
+	// While the password was flowing, the page was being staged inside the volume, readable by its owner only, and
+	// the temp directory was empty.
+	if during := string(mustRead(t, filepath.Join(probe, "during.page"))); !strings.Contains(during, ".lab.html.new") {
+		t.Errorf("the page was not staged in the page volume; the volume held: %q", during)
+	}
+	if long := string(mustRead(t, filepath.Join(probe, "during.page.long"))); !strings.Contains(long, "-rw-------") {
+		t.Errorf("the staging file was not mode 0600: %s", long)
+	}
+	if during := strings.TrimSpace(string(mustRead(t, filepath.Join(probe, "during.tmp")))); during != "" {
+		t.Errorf("the temp directory held %q while the page was rendered", during)
+	}
+	// The password-bearing page exists in the page volume and nowhere else: not in the temp directory the renderer and
+	// its tools used, not beside the volume. (Review of round 1, BLOCKING 2.)
+	for _, needle := range []string{password, `p&amp;ss|w\rd&lt;b&gt;&quot;q&quot;`} {
+		for _, hit := range walkFor(t, dir, needle) {
+			if !strings.HasPrefix(hit, pageDir+string(filepath.Separator)) {
+				t.Errorf("a copy of the page's password is outside the page volume: %s", hit)
+			}
+		}
+	}
+	if info, err := os.Stat(filepath.Join(pageDir, "lab.html")); err != nil || info.Mode().Perm() != 0o644 {
+		t.Errorf("the served page is not mode 0644 (the page service reads it as another user): %v %v", info, err)
+	}
 	// The password is in the served copy and in no committed file.
 	for _, f := range []string{"lab/page/lab.html.tmpl", "lab/versions.env", "lab/compose.yaml", "lab/seed/seed.sh", "lab/seed/prs.tsv"} {
 		if strings.Contains(read(t, f), password) {
 			t.Errorf("%s holds the test password", f)
 		}
+	}
+}
+
+// A render that stops between its stages leaves no page with the password in it: the staging file is removed, and
+// nothing outside the page volume ever held one. The failure is made by one change: a placeholder the renderer
+// does not fill, found only after the password was written into the staging file.
+func TestTheStartPageRenderThatStopsLeavesNoCopyOfThePassword(t *testing.T) {
+	dir := t.TempDir()
+	pageDir := filepath.Join(dir, "page")
+	tmp := filepath.Join(dir, "tmp")
+	for _, d := range []string{pageDir, tmp} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows := filepath.Join(dir, "rows.html")
+	if err := os.WriteFile(rows, []byte("<tr></tr>\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	broken := filepath.Join(dir, "broken.tmpl")
+	tmpl := string(mustRead(t, filepath.Join(root, "lab", "page", "lab.html.tmpl"))) + "\n@@NOT_FILLED@@\n"
+	if err := os.WriteFile(broken, []byte(tmpl), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	const password = "stop-secret-0123456789"
+	cmd := exec.Command("sh", "-c", `. "$ROOT/lab/seed/render.sh"; render_page`)
+	cmd.Env = append(os.Environ(),
+		"ROOT="+mustAbs(t, root), "PAGE_TEMPLATE="+broken, "PAGE_DIR="+pageDir, "PR_ROWS_FILE="+rows, "TMPDIR="+tmp,
+		"CLEAN_COUNT=2", "LAB_URL=http://127.0.0.1:3000/", "LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount",
+		"LAB_ADMIN_PASSWORD="+password)
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "the start page still holds a placeholder") {
+		t.Fatalf("the render did not stop by name: %v\n%s", err, out)
+	}
+	if hits := walkFor(t, dir, password); len(hits) > 0 {
+		t.Errorf("a stopped render left a copy of the password: %v", hits)
+	}
+	entries, _ := os.ReadDir(pageDir)
+	if len(entries) != 0 {
+		t.Errorf("a stopped render left %d entries in the page volume", len(entries))
 	}
 }
 
@@ -343,8 +430,9 @@ func TestEveryPublishedPortBindsToTheLabAddress(t *testing.T) {
 			inPorts = true
 		case inPorts && strings.HasPrefix(trim, "- "):
 			published++
-			if !strings.HasPrefix(trim, `- "${LAB_BIND}:`) {
-				t.Errorf("a published port is not bound to LAB_BIND: %s", trim)
+			// The page carries the lab's password, so it has its own bind, which make up refuses unless it is loopback.
+			if !strings.HasPrefix(trim, `- "${LAB_BIND}:`) && !strings.HasPrefix(trim, `- "${LAB_PAGE_BIND}:${LAB_PAGE_PORT}:`) {
+				t.Errorf("a published port is not bound to LAB_BIND or LAB_PAGE_BIND: %s", trim)
 			}
 		case inPorts:
 			inPorts = false
@@ -355,7 +443,7 @@ func TestEveryPublishedPortBindsToTheLabAddress(t *testing.T) {
 		t.Errorf("the compose file publishes %d ports, expected 5 (gitea, grafana, otlp, page, docs)", published)
 	}
 	for _, want := range []string{
-		`"${LAB_BIND}:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"`,
+		`"${LAB_PAGE_BIND}:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"`,
 		`"${LAB_BIND}:${LAB_DOCS_PORT}:${LAB_DOCS_CONTAINER_PORT}"`,
 		"read_only: true",
 		"no-new-privileges:true",
@@ -374,7 +462,7 @@ func TestEveryPublishedPortBindsToTheLabAddress(t *testing.T) {
 func TestTheLabSettingsAreInVersionsEnv(t *testing.T) {
 	env := read(t, "lab", "versions.env")
 	for _, key := range []string{
-		"LAB_PAGE_PORT=3002", "LAB_PAGE_PATH=/lab", "LAB_PAGE_IMAGE=", "LAB_PAGE_IMAGE_VERSION=", "LAB_PAGE_CONTAINER_PORT=",
+		"LAB_PAGE_BIND=127.0.0.1", "LAB_PAGE_PORT=3002", "LAB_PAGE_PATH=/lab", "LAB_PAGE_IMAGE=", "LAB_PAGE_IMAGE_VERSION=", "LAB_PAGE_CONTAINER_PORT=",
 		"LAB_DOCS_PORT=3003", "LAB_DOCS_CONTAINER_PORT=", "DOCS_IMAGE=", "DOCS_IMAGE_TAG=", "NODE_IMAGE=",
 		"GITEA_HTTP_PORT=3000", "LGTM_GRAFANA_PORT=3001", "LGTM_DASHBOARD_UID=proven-review", "LAB_DEMO_HEAD=demo-discount",
 	} {

@@ -4,24 +4,13 @@ set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 sh "$ROOT/lab/scripts/build.sh"
 
-envfile=$ROOT/lab/.env
-if [ -f "$envfile" ]; then
-  while IFS= read -r line || [ -n "$line" ]; do
-    case $line in
-      '' | \#*) continue ;;
-    esac
-    key=${line%%=*}
-    case $key in
-      *[!A-Za-z0-9_]*)
-        echo "lab/.env: refused line" >&2
-        exit 1
-        ;;
-    esac
-    val=${line#*=}
-    if [ -n "$val" ]; then
-      export "$key=$val"
-    fi
-  done <"$envfile"
+load_lab_env || exit 1
+
+# With ZETARIS=local and no address of your own, the check runs from this host, so it asks the loopback port the
+# platform is published on (lab/zetaris/override.yml), not the name the lab's reviews use on the lab network.
+if [ "${ZETARIS:-}" = "local" ] && [ -z "${ZETARIS_REST_URL:-}" ]; then
+  ZETARIS_REST_URL="http://127.0.0.1:${ZETARIS_API_HOST_PORT}${ZETARIS_REST_PATH}"
+  export ZETARIS_REST_URL
 fi
 
 exec "$ROOT/bin/livecheck"

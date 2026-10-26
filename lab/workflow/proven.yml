@@ -1,8 +1,10 @@
 # The workflow a GitHub user commits, and the workflow the lab seeds.
-# Proven's Action is not on main yet, so this job runs a sample scan
-# and posts the text. See docs/LAB.md.
+# Proven's Action is not on main yet, so this job runs the CLI itself and posts the text. See docs/LAB.md.
 # The sample set is chosen by the branch: a branch named demo-<name> is reviewed with the
 # fixture <name> (lab/seed/prs.tsv); any other branch is reviewed with the discount fixture.
+# The review is a SAMPLE review unless the repository holds a key (docs/LAB.md, "Go live"): `make up` stores each
+# non-empty key of lab/.env as an Actions secret, and then the job runs a LIVE review. The first visible line of the
+# comment says which: "sample: no keys" or "live: <generator>, Zetaris on|off".
 # proven-image: saphan/proven:latest
 
 name: proven
@@ -24,15 +26,77 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - name: Run the sample review
+      - name: Run the review
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PROVEN_GENERATOR_MODE: ${{ secrets.PROVEN_GENERATOR_MODE }}
+          PROVEN_GENERATOR_KEY: ${{ secrets.PROVEN_GENERATOR_KEY }}
+          PROVEN_NVIDIA_BASE_URL: ${{ secrets.PROVEN_NVIDIA_BASE_URL }}
+          PROVEN_GUARDRAIL_MODE: ${{ secrets.PROVEN_GUARDRAIL_MODE }}
+          PROVEN_GUARDRAIL_KEY: ${{ secrets.PROVEN_GUARDRAIL_KEY }}
+          PROVEN_GENERATOR_BASE_URL: ${{ secrets.PROVEN_GENERATOR_BASE_URL }}
+          METERLESS_RUNTIME_TOKEN: ${{ secrets.METERLESS_RUNTIME_TOKEN }}
+          ZETARIS_REST_URL: ${{ secrets.ZETARIS_REST_URL }}
+          ZETARIS_API_KEY: ${{ secrets.ZETARIS_API_KEY }}
+          ZETARIS_ORG_ID: ${{ secrets.ZETARIS_ORG_ID }}
+          JUDGES_GATEWAY_URL: ${{ secrets.JUDGES_GATEWAY_URL }}
+          JUDGES_GATEWAY_TOKEN: ${{ secrets.JUDGES_GATEWAY_TOKEN }}
+          GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0
+          GATEWAY_ZETARIS_ORG_ID: "0"
         run: |
           fixture=discount
           case "$HEAD_REF" in
             demo-*) fixture="${HEAD_REF#demo-}" ;;
           esac
-          docker run --rm -e FIXTURE="$fixture" --entrypoint sh saphan/proven:latest -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && proven scan --sample "$d"' > review.txt
+          # What the stored keys say. The values stay in this step's environment and reach the container by NAME
+          # (-e NAME), so none is on a command line, in a file or in the log.
+          sample=true
+          state="sample: no keys"
+          if [ -n "$JUDGES_GATEWAY_URL" ] && [ -n "$JUDGES_GATEWAY_TOKEN" ]; then
+            # Path B: the judges' gateway holds our Nightshift token and Zetaris key; the judge's own token opens it.
+            sample=false
+            export PROVEN_GENERATOR_MODE=nightshift
+            export PROVEN_GENERATOR_BASE_URL="${JUDGES_GATEWAY_URL%/}"
+            export METERLESS_RUNTIME_TOKEN="$JUDGES_GATEWAY_TOKEN"
+            export ZETARIS_REST_URL="${JUDGES_GATEWAY_URL%/}$GATEWAY_ZETARIS_PATH"
+            export ZETARIS_API_KEY="$JUDGES_GATEWAY_TOKEN"
+            export ZETARIS_ORG_ID="$GATEWAY_ZETARIS_ORG_ID"
+            who="NVIDIA via the judges' gateway"
+          elif [ -n "$METERLESS_RUNTIME_TOKEN" ]; then
+            sample=false
+            export PROVEN_GENERATOR_MODE=nightshift
+            who="NVIDIA via Nightshift"
+          elif [ -n "$PROVEN_GENERATOR_KEY" ]; then
+            # Path A: one NVIDIA key is enough. It serves the guardrail too unless a guardrail key is stored.
+            sample=false
+            export PROVEN_GENERATOR_MODE=nvidia
+            export PROVEN_GUARDRAIL_MODE=nvidia
+            if [ -z "$PROVEN_GUARDRAIL_KEY" ]; then
+              export PROVEN_GUARDRAIL_KEY="$PROVEN_GENERATOR_KEY"
+            fi
+            who="NVIDIA direct"
+          fi
+          # A guardrail key with no mode means NVIDIA's hosted guardrail. With no key the default (your own model
+          # server) stays, and a review that cannot reach it names the guardrail as the failed service.
+          if [ "$sample" = false ] && [ -z "$PROVEN_GUARDRAIL_MODE" ] && [ -n "$PROVEN_GUARDRAIL_KEY" ]; then
+            export PROVEN_GUARDRAIL_MODE=nvidia
+          fi
+          if [ "$sample" = false ]; then
+            zetaris=off
+            if [ -n "$ZETARIS_REST_URL" ] && [ -n "$ZETARIS_API_KEY" ] && [ -n "$ZETARIS_ORG_ID" ]; then
+              zetaris=on
+            fi
+            state="live: $who, Zetaris $zetaris"
+          fi
+          printf '%s\n' "$state" > mode.txt
+          live_env=""
+          for name in PROVEN_GENERATOR_MODE PROVEN_GENERATOR_KEY PROVEN_NVIDIA_BASE_URL PROVEN_GUARDRAIL_MODE PROVEN_GUARDRAIL_KEY PROVEN_GENERATOR_BASE_URL METERLESS_RUNTIME_TOKEN ZETARIS_REST_URL ZETARIS_API_KEY ZETARIS_ORG_ID; do
+            eval "value=\${$name:-}"
+            if [ -n "$value" ] && [ "$sample" = false ]; then
+              live_env="$live_env -e $name"
+            fi
+          done
+          docker run --rm $live_env -e SAMPLE_MODE="$sample" -e FIXTURE="$fixture" --entrypoint sh saphan/proven:latest -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && proven scan "$d"' > review.txt
           grep -q '^review class' review.txt
 
       - name: Post the review on the pull request
@@ -55,6 +119,9 @@ jobs:
           fi
           {
             printf '<!-- proven-review run=%s sha=%s -->\n' "$RUN_NUMBER" "$HEAD_SHA"
+            # The first visible line says how the review was made: sample, or live and with what. The marker above
+            # is an HTML comment and stays the first line of the body, which lab/scripts/e2e-parse.sh reads.
+            cat mode.txt
             # A review that keeps no finding says so in one line, so a clean change is not a silent one. The
             # lines of the review below it are what was checked and by whom; "failed services: none" means
             # every check ran.
