@@ -217,12 +217,14 @@ ensure_bot() {
   fi
   # A token is shown once, so mint a fresh one on every run. The same name
   # cannot be made twice: delete the old one first (404 when there is none).
+  # read:user lets the workflow ask GET /user which account it posts as, so it can
+  # find and edit its own earlier comment instead of adding one per run.
   tokens="$GITEA_INTERNAL_URL/api/v1/users/$LAB_BOT_USER/tokens"
   curl -sS --max-time 30 -o /dev/null -X DELETE -u "$LAB_BOT_USER:$bot_pass" "$tokens/lab-workflow" || true
   code=$(curl -sS --max-time 30 -o /tmp/bot-token.json -w '%{http_code}' \
     -u "$LAB_BOT_USER:$bot_pass" \
     -H 'Content-Type: application/json' \
-    -d '{"name":"lab-workflow","scopes":["write:issue","write:repository"]}' \
+    -d '{"name":"lab-workflow","scopes":["write:issue","write:repository","read:user"]}' \
     "$tokens")
   BOT_TOKEN=$(json_string sha1 /tmp/bot-token.json)
   if [ -z "$BOT_TOKEN" ]; then

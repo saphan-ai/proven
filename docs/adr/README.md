@@ -33,7 +33,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0017](ADR-0017-a-gitea-lab-for-the-judges.md) | a Docker Compose lab with Gitea and Gitea Actions, configured, for the judges; Jenkins only if time is left | accepted, 2026-10-20 |
 | [0018](ADR-0018-meterless-engines-minimum-and-their-contract.md) | H-MEM and World Model at their minimum, one injected generator, JSONL in `logs/`; Markovian only if time is left | accepted, 2026-10-21 |
 | [0019](ADR-0019-meterless-nightshift-is-the-primary-ai-provider.md) | Meterless Nightshift is the primary AI provider; NVIDIA's models through it by default; other routes stay settings | accepted, 2026-10-21 |
-| [0020](ADR-0020-proven-command-line-and-action-interface.md) | the exact command line, GitHub Action inputs and outputs, and exit codes, taken from Semgrep and the Opengrep action; self-hosted runners first; comments through reviewdog | accepted, 2026-10-21 |
+| [0020](ADR-0020-proven-command-line-and-action-interface.md) | the exact command line, GitHub Action inputs and outputs, and exit codes, taken from Semgrep and the Opengrep action; self-hosted runners first; one summary comment per pull request | accepted, 2026-10-21 |
 | [0021](ADR-0021-a-self-hosted-runner-demo-set-up-by-one-script.md) | a demo with a self-hosted GitHub runner in Docker; one script connects it to a judge's repository from its name and a token | accepted, 2026-10-21 |
 | [0022](ADR-0022-gitea-on-premises-is-an-equal-scenario.md) | Gitea on the team's own premises is a scenario equal to GitHub; the judges' lab is that scenario, packaged | accepted, 2026-10-21 |
 | [0023](ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) | evidence sources are Zetaris REST tables an administrator registers and Proven's own key reads live; OSV by package needs another path | accepted, 2026-10-21 |
@@ -64,6 +64,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0048](ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md) | a large change is reviewed in bounded steps with Meterless's Markovian engine; kept only if it holds the findings and cuts the cost | accepted, 2026-10-24 |
 | [0049](ADR-0049-scout-intent-plans-each-review.md) | Meterless's Scout Intent plans each review before a model runs; never lowers a configured rule; kept only if measured worth it | accepted, 2026-10-24 |
 | [0050](ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md) | after a review, one automated fix attempt for all proved findings, judged only by the same deterministic evidence; then fixed or rejected; Proven never commits to the author's branch | accepted, 2026-10-25 |
+| [0051](ADR-0051-a-judge-reaches-our-services-through-a-gateway-with-their-own-token.md) | a judge's lab reaches our Nightshift and our Zetaris through one gateway behind a Cloudflare tunnel and Access, with the judge's own expiring token; evidence by query template only; every call limited and logged | accepted, 2026-10-26 |
 | [0053](ADR-0053-all-four-meterless-engines-are-on-by-default.md) | all four Meterless engines are on by default and each is switched off by its setting; the benefit of Markovian and Scout Intent stays unmeasured; Scout never lightens a change that is not verified prose | accepted, 2026-10-26 |
 
 **Rules for an ADR**
