@@ -71,10 +71,13 @@ What Proven does not do yet, or does not do well, measured and dated. This list 
 - **Scout Intent misses some cases.** On a blind set of 46 changes frozen before the run (English, Polish and Thai,
   including disguised ones) it matched 30 and missed 16, reported unpatched so the set stays blind. In 3 of the misses
   a security change was taken for a documentation change and got a lighter review than it should have
-  (26 October). Since ADR-0053 a change that is not verified prose is never planned lighter than class security, doubled;
-  the blind set has not been run again with that guard. Scout also asks for clarification more often than its own ceiling allows.
+  (26 October). Since ADR-0053 a change Scout called documentation or dependency that is not verified prose or a verified
+  manifest runs in class security, doubled; a change Scout called feature, refactor or configuration, or an ambiguous
+  one, still runs in the class its rules give it. The blind set has not been run again with that guard. Scout also asks for clarification more often than its own ceiling allows.
 - **Scout Intent and Markovian are not measured yet.** Their benefit on review quality is unknown. All four engines are
-  ON by default (ADR-0053) and each is switched off by its setting; whether Markovian and Scout Intent help is UNMEASURED.
+  ON by default (ADR-0053), in Proven and in the lab's sample reviews, and each has its own off setting:
+  `PROVEN_MARKOVIAN=off`, `scout_intent: off` in `proven.yaml`, `PROVEN_HMEM=off` and `PROVEN_WORLD_MODEL=off`. Whether
+  Markovian and Scout Intent help is UNMEASURED.
 - **H-MEM reads its whole state file** when it opens and rewrites it on every write. A size cap is being added; until
   then it is meant for one repository's memory, not a large organisation's.
 - **The corpus score was recorded while NVIDIA's API was failing** (HTTP 500 and timeouts on 26 October), so the NVIDIA
@@ -127,7 +130,7 @@ What else came in today:
   (`internal/scout`), classifies a change as dependency, refactor, feature, security-sensitive, documentation only or
   configuration, and picks the plan inside the configured review classes. It never lowers a configured class, and a
   configured class keeps every agent it requires. The setting is `scout_intent` and it is **on by default** (ADR-0053): a person
-  turns it off in `proven.yaml` with `scout_intent: off`, and then every review runs the full plan. It lightens a review only for a change whose every file is verified prose or a manifest; any other change it called documentation runs in class security, doubled. Its **benefit is UNMEASURED**: the model
+  turns it off in `proven.yaml` with `scout_intent: off`, and then every review runs the full plan. It lightens a review only for a change whose every file is verified prose or a manifest; any change it called documentation or dependency that is not verified prose or a verified manifest runs in class security, doubled. Its **benefit is UNMEASURED**: the model
   calls and the time saved per review on the test corpus cannot be stated until the corpus recordings exist. The call
   counts in [the architecture page](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) are scripted, not live,
   and are labelled so ([ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).

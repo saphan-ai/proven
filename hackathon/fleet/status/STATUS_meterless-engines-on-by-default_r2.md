@@ -7,7 +7,7 @@
 - updated: 2026-10-26
 
 ## Summary
-All four Meterless engines are on by default; Markovian and Scout Intent are switched off by their settings (`PROVEN_MARKOVIAN=off`, `scout_intent: off`). ADR-0053 records it. The Scout guard keeps a change that is not verified prose from a lighter plan: it runs in class `security`, doubled. The benefit of Markovian and Scout Intent is still UNMEASURED, and the documents say so.
+All four Meterless engines are on by default; each has its own off setting (`PROVEN_MARKOVIAN=off`, `scout_intent: off`, `PROVEN_HMEM=off`, `PROVEN_WORLD_MODEL=off`). ADR-0053 records it. The Scout guard: a change Scout called documentation or dependency that is not verified prose or a verified manifest runs in class `security`, doubled (a change Scout called feature, refactor or configuration runs in the class its rules give it). Round 3 added the switches for H-MEM and the World Model, which this round did not have. The benefit of Markovian and Scout Intent is still UNMEASURED, and the documents say so.
 
 ## Acceptance, item by item
 1. `go build ./... && go vet ./... && go test -count=1 ./...`: build and vet pass. The test run printed 64 `ok` packages and one failure, `TestSampleSARIFMatchesTheSchema` in `internal/cli/sarifschema` (`open <user cache>/proven/logs/trace.jsonl: permission denied`). That test fails the same way on the base commit before any change, because the run's user cache is not writable.
