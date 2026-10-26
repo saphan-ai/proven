@@ -20,27 +20,35 @@ make check-golive
 You should see one line that starts `ok` and names `github.com/saphan-ai/proven/lab`.
 A failure prints `--- FAIL: TestGoLive…` with a reason. Send back that output.
 
+```
+make check-flow
+```
+
+You should see `--- PASS:` for every `TestFlow…` test and a last line `ok  github.com/saphan-ai/proven/lab`. One test,
+`TestFlowLeavesARealTerminalWithEchoOnAfterCtrlC`, needs a pseudo-terminal and `python3`; on a host without one it prints
+`--- SKIP` with the reason, and Step 1b.3 is the check that replaces it.
+
 ## Step 1 · A clean start in sample mode
 
 ```
-make clean && make up
+make clean && PROVEN_LAB_MODE=sample make up
 ```
 
 You should see, as the **last 12 lines** and nothing after them (on a terminal the password line carries the password):
 
 ```
-Start here: http://127.0.0.1:3002/lab
+Start here: http://127.0.0.1:3302/lab
 ########################################
 ####    Your proven lab is ready    ####
 ########################################
 
 To see demo pull requests scanned by proven please open:
 
-Gitea: http://127.0.0.1:3000/login
+Gitea: http://127.0.0.1:3300/login
 Username: proven
 Password: <the password>
 
-Grafana dashboard: http://127.0.0.1:3001/d/proven-review
+Grafana dashboard: http://127.0.0.1:3301/d/proven-review
 ```
 
 Earlier in the output, exactly one line `seed: no key is set; the lab reviews in sample mode`.
@@ -48,28 +56,96 @@ Earlier in the output, exactly one line `seed: no key is set; the lab reviews in
 Failure looks like: the command stops with a line starting `up:`, `seed:` or `refused:`. Send back the last 30 lines of
 `make up 2>&1 | tail -30` (redirected, the password line names a file and prints no password).
 
+## Step 1b · The start-up flow (round 3), on a terminal and with no terminal
+
+The flow is `make up` asking what you want to see. The explanation is [LAB.md](LAB.md#the-start-up-flow). Every command in
+this step is run by you in a terminal; none of the output below was seen by the author on a Docker host (see "What this
+runbook did not check"). The offline controls of Step 0 (`make check-flow`) did run it with stand-ins.
+
+**1b.1 Ask, and answer sample.** With nothing set, and `lab/.env` holding none of the `PROVEN_LAB_` settings:
+
+```
+make clean && make up
+```
+
+The first lines are the banner, a blank line, then the question, with the cursor after it:
+
+```
+Proven: a pull-request review companion that only says what it can prove (and admits what it could not check)
+Team Saphan.ai: built in public by one person and a fleet of AI agents.
+No humans were harmed. Several agents were asked to try again.
+
+Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]
+```
+
+Type `sample`. You should see `up: sample mode: recorded answers, no keys, nothing leaves this machine.`, then the lab
+starts and the output ends with the same 12-line block as Step 1, *Start here* first. Open the start page: under the
+introduction it says `Mode: sample.`
+
+**1b.2 A wrong answer asks again, three times, then stops.** `make up`, then type `maybe`, `perhaps`,
+`nope`. After the first two you see `That is not one of: sample live. Again, please.` After the third:
+`up: three answers in a row were not one of: sample, live. NEXT — answer in advance with PROVEN_LAB_MODE. Nothing was started.`
+Check nothing started: `docker compose -p proven-lab ps` lists no new container.
+
+**1b.3 Live, a judge, ours.** `make up`; answer `live`, then `y`. You see `Are you a judge of the Open Agent Hackathon? [y/n]`,
+then `For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.`
+and `Which do you want? [ours/own]`. Answer `ours`. It asks for the gateway address if `JUDGES_GATEWAY_URL` is not in
+`lab/.env`.
+- **By Cloudflare Access (default).** You need `cloudflared`. Without it: `up: the Access sign-in needs cloudflared, and it is not installed. NEXT — install it: …` and nothing starts.
+  With it: `up: opening the sign-in for <address>. Cloudflare sends a one-time PIN to your e-mail; enter it in the browser.`
+  Your browser opens; enter the PIN. Then `up: signed in. The token expires <date> UTC. To renew it, run make up again: …`
+  and `up: the gateway accepted your credentials: ready.` No token is printed anywhere.
+- **By token.** `PROVEN_LAB_GATEWAY_AUTH=token make up`; at `The judge token we sent you (nothing is shown as you type):`
+  paste the token. Nothing appears as you type or paste. Press Enter. You see `up: the gateway accepted your credentials: ready.`
+  **Press Ctrl-C at that prompt once instead:** the shell prompt comes back and what you type next is shown (echo is on).
+  If it is not, run `stty sane` and send back what happened.
+- A refused credential: `up: the gateway refused your credentials: HTTP 401 (<name>)`, nothing starts.
+The start page then says `Mode: live via our gateway.`
+
+**1b.4 Live, own.** `make up`; answer `live`, then `n`. You see the guide's place (`docs/LAB.md`, the *Go live* section),
+the Nightshift and Zetaris lines, and, if either already answers on this machine, `up: Zetaris already answers on this machine: …`
+with `Use what is already running, as it is? [y/n]`. Then `Run the automated setup now (make up ZETARIS=local, then make nightshift)? [y/n]`.
+The last line before the lab starts is, word for word: `We cannot vouch for results on a setup we do not control: this is best effort.`
+The start page says `Mode: live on your own setup.`
+
+**1b.5 No terminal, no setting: sample, nothing asked.** Run it with no controlling terminal and nothing on stdin:
+`setsid make up < /dev/null 2>&1 | head -8`. You see no question, and
+the log has the line `up: sample mode: recorded answers, no keys, nothing leaves this machine.`
+
+**1b.6 Every answer in advance.** `PROVEN_LAB_MODE=live PROVEN_LAB_JUDGE=no PROVEN_LAB_OWN_SETUP=no make up` asks nothing
+on a terminal either (the banner still shows). A bad value is refused by name before any container:
+`PROVEN_LAB_MODE=maybe make up` prints `up: PROVEN_LAB_MODE=maybe is not one of: sample, live. NEXT — set PROVEN_LAB_MODE to one of those, or unset it. Nothing was started.`
+
+**1b.7 The port check.** In another terminal: `python3 -m http.server 3300 --bind 127.0.0.1`. Then `make up`. You see
+`up: port 3300 (GITEA_HTTP_PORT) is already in use by <the program>.` (`python3` on most hosts) and the NEXT line, and
+no container starts. Stop the server and `make up` goes on. If Zetaris from the organisers' guide is running on
+`localhost:3000`, the lab does not clash with it: the lab's Gitea is on 3300.
+
+Send back for Step 1b: the first screen of 1b.1, the three lines of 1b.2, the Access or token lines of 1b.3 (never a token),
+the last line of 1b.4, and the `stty` result of the Ctrl-C test.
+
 ## Step 2 · Path A, one NVIDIA key
 
 1. `cp lab/.env.example lab/.env`
 2. Open `lab/.env` and write your key after `PROVEN_GENERATOR_KEY=` (no quotes, no spaces). Save.
 3. Check that the line is filled, without printing it: `grep -c '^PROVEN_GENERATOR_KEY=.' lab/.env`
    You should see `1`. A `0` means the line is empty.
-4. `make up 2>&1 | grep 'seed:'`
+4. `PROVEN_LAB_MODE=live PROVEN_LAB_JUDGE=no PROVEN_LAB_OWN_SETUP=no make up 2>&1 | grep 'seed:'`
    You should see `seed: stored as Actions secrets: PROVEN_GENERATOR_KEY` and, further on, the line
    `seed: demo repository, 7 pull requests (2 clean) and the start page are ready`.
 5. Make a new pull request. The first seven are the demo's. Run these four commands one at a time; when `git push`
    asks for a user and password, use `proven` and the password from `make password`:
    ```
-   git clone http://127.0.0.1:3000/proven/discount.git /tmp/lab-try
+   git clone http://127.0.0.1:3300/proven/discount.git /tmp/lab-try
    git -C /tmp/lab-try switch -c try-live
    echo "// try" >> /tmp/lab-try/billing/discount.go
    git -C /tmp/lab-try commit -am "Try a live review" && git -C /tmp/lab-try push origin try-live
    ```
-   Then open `http://127.0.0.1:3000/proven/discount/compare/main...try-live`, press **New Pull Request**, then **Create
+   Then open `http://127.0.0.1:3300/proven/discount/compare/main...try-live`, press **New Pull Request**, then **Create
    Pull Request**. It is pull request number 8.
 6. Wait up to 15 minutes (the runner reviews three at a time). Then:
    ```
-   curl -s http://127.0.0.1:3000/api/v1/repos/proven/discount/issues/8/comments | grep -oE 'live: [^\\]*|sample: no keys' | tail -1
+   curl -s http://127.0.0.1:3300/api/v1/repos/proven/discount/issues/8/comments | grep -oE 'live: [^\\]*|sample: no keys' | tail -1
    ```
    You should see exactly: `live: NVIDIA direct, Zetaris off`
 
@@ -78,9 +154,9 @@ Failure looks like: the command stops with a line starting `up:`, `seed:` or `re
    - nothing printed after 15 minutes → no comment yet. Send back `make status`.
    - `live: NVIDIA direct, Zetaris off` but the review lists `generator` under failed services → the key was refused or
      rate limited (a free key is). Send back the comment: open pull request 8 and copy it, or
-     `curl -s http://127.0.0.1:3000/api/v1/repos/proven/discount/issues/8/comments`.
+     `curl -s http://127.0.0.1:3300/api/v1/repos/proven/discount/issues/8/comments`.
 7. **The negative check.** Empty the key: edit `lab/.env` so the line reads `PROVEN_GENERATOR_KEY=`. Then
-   `make up 2>&1 | grep 'seed:'`. You should see `seed: no key is set; the lab reviews in sample mode`. Push another
+   `PROVEN_LAB_MODE=live PROVEN_LAB_JUDGE=no PROVEN_LAB_OWN_SETUP=no make up 2>&1 | grep 'seed:'`. You should see `seed: no key is set; the lab reviews in sample mode`. Push another
    commit to `try-live` (`echo "// again" >> /tmp/lab-try/billing/discount.go`, commit, push); the new comment's first
    visible line is `sample: no keys`.
 
@@ -92,8 +168,8 @@ You need the gateway address and your own token. They are sent to you privately;
 
 1. Edit `lab/.env`: empty `PROVEN_GENERATOR_KEY=`, and write the two values after `JUDGES_GATEWAY_URL=` and
    `JUDGES_GATEWAY_TOKEN=`. Save.
-2. `make up 2>&1 | grep 'seed:'`
-   You should see `seed: stored as Actions secrets: JUDGES_GATEWAY_URL, JUDGES_GATEWAY_TOKEN`.
+2. `PROVEN_LAB_MODE=live PROVEN_LAB_JUDGE=yes PROVEN_LAB_BACKEND=ours PROVEN_LAB_GATEWAY_AUTH=token make up 2>&1 | grep -E 'seed:|up:'`
+   You should see `up: the gateway accepted your credentials: ready.`, then `seed: stored as Actions secrets: JUDGES_GATEWAY_URL, JUDGES_GATEWAY_TOKEN`. A refused token stops before any container with `up: the gateway refused your credentials: HTTP 401 …`.
 3. Push a commit to `try-live` as in Step 2.5 (`echo "// gateway" >> …`, commit, push). The pull request's workflow runs
    again. Wait, then run the `curl` of Step 2.6 (the pull request is still number 8).
    You should see exactly: `live: NVIDIA via the judges' gateway, Zetaris on`
@@ -117,18 +193,18 @@ Only if you have your own Zetaris bundle and sign-in. Nightshift only on a Mac w
 1. Do LAB.md Path C steps 1 to 4: unpack your bundle, sign in to the sponsor's registry, run the bundle's
    `bash ./preflight.sh` (every line PASS), set `ZETARIS_COMPOSE_FILE=` in `lab/.env` to the full path of its
    `docker-compose.yml`.
-2. `make up ZETARIS=local 2>&1 | grep 'zetaris:'`
+2. `PROVEN_LAB_MODE=live PROVEN_LAB_JUDGE=no PROVEN_LAB_OWN_SETUP=no make up ZETARIS=local 2>&1 | grep 'zetaris:'`
    You should see, in this order:
    ```
    zetaris: Zetaris's images come from the sponsor's registry with YOUR sign-in and YOUR bundle; this lab carries neither.
-   zetaris: the platform answers on http://127.0.0.1:8888 (console: http://127.0.0.1:3004, open it as localhost)
+   zetaris: the platform answers on http://127.0.0.1:8888 (console: http://127.0.0.1:3304, open it as localhost)
    zetaris: the evidence definitions are NOT registered yet: ZETARIS_ADMIN_API_KEY, ZETARIS_ORG_ID and ZETARIS_PROVEN_USER must all be set in lab/.env (docs/LAB.md, path C, steps 6 to 8). Then run make zetaris.
    ```
    Failure looks like: `zetaris: pulling the platform's images failed` (not signed in: Path C step 2), or
    `zetaris: ZETARIS_COMPOSE_FILE is '', which is not a file`, or `the REST service did not answer on 127.0.0.1:8888`.
 3. Check the listeners are on loopback: `docker compose -p proven-zetaris ps --format '{{.Name}} {{.Ports}}'`
    Every published port starts `127.0.0.1:`. Any `0.0.0.0:` is a failure; send it back.
-4. Do LAB.md Path C steps 6 and 7 in the console (`http://localhost:3004`): this is the part with no API. Put the four
+4. Do LAB.md Path C steps 6 and 7 in the console (`http://localhost:3304`): this is the part with no API. Put the four
    values in `lab/.env`.
 5. `make zetaris 2>&1 | grep 'register:'`
    You should see `register: ok: …` lines, the last being
@@ -139,7 +215,7 @@ Only if you have your own Zetaris bundle and sign-in. Nightshift only on a Mac w
 6. `make livecheck ZETARIS=local`
    You should see a line `query: ready: rows <a number above 0>` and, with other keys unset, `not ready` lines for the
    other services. `summary:` ends the output. A `query: not ready: …` line is a failure; send it back.
-7. `make up`, then push a commit to `try-live`. A review that has a Nightshift or NVIDIA generator as well says
+7. `PROVEN_LAB_MODE=live PROVEN_LAB_JUDGE=no PROVEN_LAB_OWN_SETUP=no make up`, then push a commit to `try-live`. A review that has a Nightshift or NVIDIA generator as well says
    `Zetaris on` in its first line.
 
 ### C2 · Nightshift (macOS, Apple silicon)

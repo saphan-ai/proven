@@ -1,6 +1,6 @@
 # The judges' lab
 
-One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address: each port line of `lab/compose.yaml` names `127.0.0.1` itself, so starting that file directly, with any environment, publishes nothing beyond loopback. No setting chooses the address. The old `LAB_BIND` is retired: `make up` refuses it when it is set (an empty value too), names it, and starts no container. The lab does not serve SSH. It publishes five ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001), the start page (`LAB_PAGE_PORT`, 3002), the documentation site (`LAB_DOCS_PORT`, 3003) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318). The start page carries the lab's password; its port line names `127.0.0.1` like the others, and a `LAB_PAGE_BIND` set to any address that is not loopback is refused by name before a container starts: `refused: LAB_PAGE_BIND=0.0.0.0 is not a loopback address`.
+One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address: each port line of `lab/compose.yaml` names `127.0.0.1` itself, so starting that file directly, with any environment, publishes nothing beyond loopback. No setting chooses the address. The old `LAB_BIND` is retired: `make up` refuses it when it is set (an empty value too), names it, and starts no container. The lab does not serve SSH. It publishes five ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3300), Grafana's (`LGTM_GRAFANA_PORT`, 3301), the start page (`LAB_PAGE_PORT`, 3302), the documentation site (`LAB_DOCS_PORT`, 3303) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318). The start page carries the lab's password; its port line names `127.0.0.1` like the others, and a `LAB_PAGE_BIND` set to any address that is not loopback is refused by name before a container starts: `refused: LAB_PAGE_BIND=0.0.0.0 is not a loopback address`.
 
 You need GNU make and Docker. Docker Compose v2 is the `docker compose` command. Windows is not a target. On macOS the `make` from Homebrew is GNU make; the make that ships with the system is not.
 
@@ -8,29 +8,29 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 
 ## Start
 
-1. From a checkout of this repository, run `make up`.
+1. From a checkout of this repository, run `make up`. On a terminal it asks how you want to see Proven ([The start-up flow](#the-start-up-flow)); with no terminal and no setting it starts the sample lab and asks nothing.
 2. Every run of `make up`, the first and each one after it, ends with the same block, and prints nothing after it:
 
    ```text
-   Start here: http://127.0.0.1:3002/lab
+   Start here: http://127.0.0.1:3302/lab
    ########################################
    ####    Your proven lab is ready    ####
    ########################################
 
    To see demo pull requests scanned by proven please open:
 
-   Gitea: http://127.0.0.1:3000/login
+   Gitea: http://127.0.0.1:3300/login
    Username: proven
    Password: <password>
 
-   Grafana dashboard: http://127.0.0.1:3001/d/proven-review
+   Grafana dashboard: http://127.0.0.1:3301/d/proven-review
    ```
 
    On a terminal the Password line carries the password, read from the lab's state file. When the output is not a terminal (CI, a redirect, a pipe) the line names the file in the lab's volume that holds it instead, and the password is printed nowhere. On that first start it is also written to `lab/.state/admin-password`, readable only by you (mode 0600), and `make up` prints that path; `make clean` removes that file. The password is generated at the first start and kept in the lab's volume until `make clean`. To choose the password yourself, set `LAB_ADMIN_PASSWORD` (8 characters or more) in the environment of the first `make up`: it is used, `make up` does not print it (the Password line names the setting) and writes it to no file on the host, and it never appears in the Compose environment or in `docker compose config`; `make up` writes it into the lab's volume, and the seed reads it from there. `make password` prints the same block again, and so does `make status`. A later `make up` writes no file on the host. It does not stop because the volume is already there: it creates the admin user, the runner registration and the pull requests when any of those is missing.
-3. Open the start page, `http://127.0.0.1:3002/lab`. It holds the login with copy buttons, and links to Gitea, the dashboard and the documentation. Or open Gitea's address and sign in with that user and password.
+3. Open the start page, `http://127.0.0.1:3302/lab`. It holds the login with copy buttons, and links to Gitea, the dashboard and the documentation. Or open Gitea's address and sign in with that user and password.
 4. Open the `discount` repository. It has the demo pull requests, listed under [The demo pull requests](#the-demo-pull-requests).
 5. Each pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review of that pull request, and the marker names the run that posted it. Reviews take a few minutes each, and the runner works on up to three at a time, so a pull request without a comment is still waiting.
-6. The dashboard is at `http://127.0.0.1:3001/d/proven-review` by default. See [The dashboard](#the-dashboard).
+6. The dashboard is at `http://127.0.0.1:3301/d/proven-review` by default. See [The dashboard](#the-dashboard).
 
 `make status` prints the containers, Gitea's health, whether the runner is registered, which pull requests have their review comment, and the login block.
 
@@ -40,7 +40,7 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 
 The start page is one static page. A small web server (`LAB_PAGE_IMAGE`, a build of nginx that runs as a user that is not root, with a read-only filesystem) serves it at `LAB_PAGE_PATH` on `LAB_PAGE_PORT`, published on `127.0.0.1` only (see above). The seed renders it from `lab/page/lab.html.tmpl` into the lab's page volume each time `make up` runs. The login is filled in there and nowhere else: the template holds a placeholder, the password is not in any file of this repository, and it is not in an image. The page is also staged only inside that volume: the renderer writes one file there with mode 0600 and moves it into place, and removes it if it stops, so no copy of the page with the password in it exists outside the volume. The page also carries the three ways to [go live](#go-live). The table of pull requests is written from the pull requests the seed really made. Every link on the page opens in a new tab. The page needs no network: it has no web font and no outside script.
 
-The documentation site, the same `docs-site/Dockerfile` that builds Proven's documentation, is a lab service on `LAB_DOCS_PORT` (3003 by default), also published on `127.0.0.1` only. `make up` builds it. A build that fails is named and the lab goes on without it; the page's documentation link then does not open.
+The documentation site, the same `docs-site/Dockerfile` that builds Proven's documentation, is a lab service on `LAB_DOCS_PORT` (3303 by default), also published on `127.0.0.1` only. `make up` builds it. A build that fails is named and the lab goes on without it; the page's documentation link then does not open.
 
 ### The demo pull requests
 
@@ -103,13 +103,79 @@ The dashboard is the JSON file `lab/grafana/dashboards/proven-review.json`, prov
 
 The same data goes to any OpenTelemetry backend. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to its OTLP/HTTP address, and Proven exports; leave it unset and Proven exports nothing and opens no connection. For a review run on the host against the lab's collector: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 proven scan --sample <path>`. The settings are listed in [CONFIGURATION.md](CONFIGURATION.md#telemetry-opentelemetry-adr-0045). The collector's Prometheus is inside the container and is not published; to scrape Proven's numbers from an existing monitoring stack, point `OTEL_EXPORTER_OTLP_ENDPOINT` at that stack's own collector.
 
+## The start-up flow
+
+`make up` is an interactive flow when there is a terminal to ask on, and never blocks when there is not. It runs before any container starts, so a refusal in it has started nothing. The code is `lab/scripts/flow.sh`.
+
+**What it does, in order**
+
+1. It reads `lab/.env` and the environment, and refuses a bad value of any setting below by name.
+2. It checks that every port the lab publishes is free, and names each busy one with the program that holds it (see [Ports](#ports)).
+3. On a terminal it prints a banner, then asks what no setting has already answered:
+   - `Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]`
+   - for LIVE: `Are you a judge of the Open Agent Hackathon? [y/n]`
+   - for a judge: `For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.` and `Which do you want? [ours/own]`
+4. It starts the lab and ends with the ready block and the *Start here* page, as every `make up` does.
+
+A question reads from the terminal only: standard input when it is a terminal, otherwise `/dev/tty`. An answer that is not one of the offered ones asks again, at most three times, and then stops by name, with the setting that answers it in advance. `y` and `yes`, `n` and `no` are the same answer. Input that ends is a stop, never a guess.
+
+**Every answer can be given in advance.** Put the setting in the environment or in `lab/.env` (an environment value wins; an empty value is the same as not set). A question whose setting is set is not asked.
+
+| setting | values | answers |
+|---|---|---|
+| `PROVEN_LAB_MODE` | `sample`, `live` | sample or live |
+| `PROVEN_LAB_JUDGE` | `yes`, `no` | are you a judge (live only) |
+| `PROVEN_LAB_BACKEND` | `ours`, `own` | our services through the judges' gateway, or your own setup (a judge; a non-judge is always `own`) |
+| `PROVEN_LAB_GATEWAY_AUTH` | `access`, `token` | path `ours`: the Cloudflare Access e-mail sign-in (default), or the token we sent you |
+| `PROVEN_LAB_OWN_SETUP` | `yes`, `no` | path `own`: run the automated setup (`make up ZETARIS=local`, then `make nightshift`) |
+| `PROVEN_LAB_USE_DETECTED` | `yes`, `no` | path `own`: use the Zetaris and Nightshift that already answer on this machine |
+
+A value outside the list is refused by name before any container starts: `up: PROVEN_LAB_MODE=maybe is not one of: sample, live. NEXT — set PROVEN_LAB_MODE to one of those, or unset it. Nothing was started.`
+
+**With no terminal and no setting, it is a sample lab and nothing is asked.** That is the default for CI, a pipe, a redirect and `make e2e`. The log says `up: sample mode`. Keys that happen to be in `lab/.env` are not used then, and the log names them: `up: sample mode does not use these settings: …`. A key is used only in live mode, so a scripted live start sets `PROVEN_LAB_MODE=live` (and `PROVEN_LAB_JUDGE`, and for a judge `PROVEN_LAB_BACKEND`). With `PROVEN_LAB_JUDGE=yes` and no `PROVEN_LAB_BACKEND` and no terminal, it refuses by name rather than choose for you. `PROVEN_LAB_MODE=live` with no `PROVEN_LAB_JUDGE` and no terminal means not a judge.
+
+**Sample.** The lab starts as it always did: recorded answers, no key, no call. Any live setting is left out of the run and any secret stored earlier is removed, so the lab is a sample lab whatever `lab/.env` holds.
+
+**Live, a judge, `ours`: our services through the judges' gateway** (path B, [ADR-0051](adr/README.md) for the gateway). The gateway address is `JUDGES_GATEWAY_URL` (in `lab/.env`, or asked for on a terminal; it must be `https://`). Two ways in, by `PROVEN_LAB_GATEWAY_AUTH`:
+
+- `access` (default). The judge signs in with Cloudflare Access: an e-mail one-time PIN, in their browser, from an allowlist of judges' addresses; nothing secret is sent to the judge, and Access logs who entered. The flow needs `cloudflared`. If it is missing the flow says how to install it (`brew install cloudflared` on macOS; the download page for Linux and Windows) and stops before any container. It runs `cloudflared access login <address>`, discards what that prints, takes the application token with `cloudflared access token -app=<address>`, and says when the token expires (read from the token) and how to renew it: run `make up` again, which signs you in again and stores the new token.
+- `token`. The per-judge token we sent privately (`JUDGES_GATEWAY_TOKEN`). On a terminal it is read with no echo; the terminal is restored on every way out, Ctrl-C included. With no terminal it must be in `lab/.env`. A token holds letters, digits and `. _ ~ + / = -` only.
+
+Both: the credential is checked **once** against the gateway, with a request that authenticates and spends nothing, an empty JSON object sent to the evidence route (`JUDGES_GATEWAY_ZETARIS_PATH`). The gateway answers `400 not_a_template_request` to credentials it accepts, and 401 or 403 to others. The flow says `the gateway accepted your credentials: ready.` or names the refusal (`the gateway refused your credentials: HTTP 401 (token_expired)`) and stops before any container. Then the credential is stored as an Actions secret (`JUDGES_GATEWAY_TOKEN`, or `JUDGES_GATEWAY_ACCESS_TOKEN` for Access) by the seed, as every key is. It is never printed, never put in a file, never on a command line (it goes to `curl` as a config on a pipe) and never written into Compose. The review job sends the Access token to the gateway as the `cf-access-token` header **only when Proven's generator and Zetaris adapters can send that header**; as of this round they send the token as a Bearer value, and the lab passes the Access token as that value and by name as `JUDGES_GATEWAY_ACCESS_TOKEN`. Whether the gateway accepts it that way is the gateway's Access-side work (W18) and has not been run against it.
+
+**Live, `own`, and every non-judge who chooses live** (paths A and C). The flow prints where the guide is (this file, the *Go live* section, and the docs site on `127.0.0.1` once the lab is up), then:
+
+1. It asks the two services a judge's machine may already run, one request each: Zetaris at `DETECT_ZETARIS_URL` (`http://localhost:8888/api/v1.0`) and Nightshift at `DETECT_NIGHTSHIFT_URL` (`http://127.0.0.1:8088/v1/models`). If one answers, it offers to use them as they are (`PROVEN_LAB_USE_DETECTED`). The lab's review job runs inside the lab's own Docker, so it names this machine as `LAB_JOB_HOST_ALIAS` (`host.docker.internal`). A service that listens on `127.0.0.1` only cannot be reached from there; the flow says so. Your keys stay yours and come from `lab/.env`.
+2. It points at what a judge's machine is set up with: Nightshift is the native app from meterless.ai (Windows, Mac M1+, Mac M5+, DGX); Zetaris is the bundle from your own account. Our Tart VM for Nightshift is an optional automation, not the first step.
+3. It offers the automated setup (`PROVEN_LAB_OWN_SETUP`): `make up ZETARIS=local` for Zetaris from your bundle, then `make nightshift` for the Tart VM on a Mac with Apple silicon (on any other host it says so and goes on).
+4. It prints, verbatim: `We cannot vouch for results on a setup we do not control: this is best effort.`
+
+If no key or token is set yet, the flow says the first reviews will be sample reviews, and the start page says so.
+
+**The mode is on the start page** (`/lab`): `Mode: sample`, `Mode: live via our gateway` or `Mode: live on your own setup`. The page never carries a token; the only secret on it is the existing login.
+
+**The names in the organisers' Participant Setup Guide** are read as they are. A judge's `.env` from the guide holds `METERLESS_BASE_URL`, `METERLESS_RUNTIME_TOKEN`, `METERLESS_MODEL`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID` and `ZETARIS_API_KEY`. The last four are the lab's names already. `METERLESS_BASE_URL` is read as `PROVEN_GENERATOR_BASE_URL` and `METERLESS_MODEL` as `PROVEN_GENERATOR_MODEL`, when the Proven name is not set (it wins when both are). This mapping is in the lab's own loader (`lab/scripts/lib.sh`); Proven's own settings loader is another track's work.
+
+### Ports
+
+The guide runs Zetaris on `localhost:3000` (web UI), `8888` (REST) and `10000` (JDBC), and Nightshift's runtime on `127.0.0.1:8088`. The lab therefore does not use `3000`. Its defaults are Gitea `3300` (`GITEA_HTTP_PORT`), Grafana `3301` (`LGTM_GRAFANA_PORT`), this start page `3302` (`LAB_PAGE_PORT`), the documentation site `3303` (`LAB_DOCS_PORT`) and, with `ZETARIS=local`, the Zetaris console `3304` (`ZETARIS_UI_HOST_PORT`). The collector's OTLP port `4318` (`LGTM_OTLP_PORT`) is a standard port and is checked too. Every one is a setting in `lab/versions.env`; the address stays `127.0.0.1`.
+
+Before any container starts, `make up` checks each port. A busy one is refused by name, with the program that holds it where the host lets you read that (`ss`, then `lsof`), and `a program` where it does not:
+
+```text
+up: port 3300 (GITEA_HTTP_PORT) is already in use by docker-proxy.
+up: the lab publishes on 127.0.0.1 and cannot start on a port that is taken. NEXT — stop that program, or give the lab another port: put NAME=port in lab/.env (the names are in the lines above; the defaults are in lab/versions.env). Nothing was started.
+```
+
+A port that this lab's own containers already publish is not a clash, so a second `make up` on a running lab goes on.
+
 ## Go live
 
 Out of the box the lab reviews in sample mode: recorded answers, no key, no call. Three ways make the next review live ([ADR-0052](adr/ADR-0052-the-lab-goes-live-three-ways.md)). The owner's step by step test of all three, with the output to expect, is [LAB_GO_LIVE_TEST.md](LAB_GO_LIVE_TEST.md).
 
 How it works, the same for all three:
 
-- `make up` reads `lab/.env` when it exists. Copy `lab/.env.example` to `lab/.env` and fill in what you have; the file is not committed and holds no value until you write one. A line is `NAME=value`, with no quotes.
+- `make up` reads `lab/.env` when it exists. Keys in it are used in **live** mode only: on a terminal the flow asks, and a script sets `PROVEN_LAB_MODE=live` (see [The start-up flow](#the-start-up-flow)). Copy `lab/.env.example` to `lab/.env` and fill in what you have; the file is not committed and holds no value until you write one. A line is `NAME=value`, with no quotes.
 - Each **non-empty** setting named in `LAB_LIVE_KEYS` (`lab/versions.env`) is stored as an Actions secret of the demo repository. It goes from the environment of `make up` to Gitea over a pipe. It is not written to a file, not baked into an image and not printed: the log names the settings it stored and never their values. An **empty** setting is not stored, and a secret you emptied is removed, so taking a key out of `lab/.env` and running `make up` again returns the lab to sample mode.
 - The workflow runs a **live** review when a generator key, a Nightshift token or the gateway pair is stored, and a **sample** review otherwise. The first visible line of Proven's comment says which: `sample: no keys`, or `live: <generator>, Zetaris on|off`, for example `live: NVIDIA via Nightshift, Zetaris on`. The line above it is the `<!-- proven-review … -->` marker, an HTML comment that the browser does not show; `make e2e` reads it as the first line of the body.
 - A review that already ran is not run again when a key changes. Open a new pull request, or push a commit to a demo branch.
@@ -122,7 +188,7 @@ A free key is enough on its own.
 1. Get a key at <https://build.nvidia.com>: sign in, open any model, choose *Get API Key*. It is shown once.
 2. `cp lab/.env.example lab/.env`
 3. Put the key after `PROVEN_GENERATOR_KEY=` in `lab/.env`. Leave the mode lines empty: with only a key set, the lab runs in `nvidia` mode and uses the same key for the guardrail.
-4. `make up`. The log says `seed: stored as Actions secrets: PROVEN_GENERATOR_KEY`.
+4. Set `PROVEN_LAB_MODE=live` and `PROVEN_LAB_JUDGE=no` in `lab/.env` (or answer the questions on a terminal: live, then no). A key is used in live mode only. Then `make up`. The log says `seed: stored as Actions secrets: PROVEN_GENERATOR_KEY`.
 5. Open a new pull request in the demo repository. Its comment starts with `live: NVIDIA direct, Zetaris off`.
 
 ### Path B: our services through the judges' gateway
@@ -131,7 +197,7 @@ The gateway holds our Nightshift token and our Zetaris key and injects them; you
 
 1. `cp lab/.env.example lab/.env`
 2. Set `JUDGES_GATEWAY_URL=` to the address you were sent and `JUDGES_GATEWAY_TOKEN=` to your token.
-3. `make up`. The log says `seed: stored as Actions secrets: JUDGES_GATEWAY_URL, JUDGES_GATEWAY_TOKEN`.
+3. Set `PROVEN_LAB_MODE=live`, `PROVEN_LAB_JUDGE=yes`, `PROVEN_LAB_BACKEND=ours` and `PROVEN_LAB_GATEWAY_AUTH=token` in `lab/.env` (or answer on a terminal; the default way in is the Cloudflare Access sign-in, which needs no token, see [The start-up flow](#the-start-up-flow)). Then `make up`. The flow checks the token once and says `ready` or names the refusal. The log says `seed: stored as Actions secrets: JUDGES_GATEWAY_URL, JUDGES_GATEWAY_TOKEN`.
 4. Open a new pull request. Its comment starts with `live: NVIDIA via the judges' gateway, Zetaris on`.
 
 The guardrail (ADR-0005) is on by default and its default is your own model server. If neither the gateway nor you provide one, a review names the guardrail as the failed service. Set `PROVEN_GUARDRAIL_KEY` to an NVIDIA key and the lab uses NVIDIA's hosted guardrail.
@@ -146,8 +212,8 @@ Two parts. Each is optional; do either, or both.
 2. Sign in to the sponsor's registry with the command that came with your account, in a shell that is not logged. Wait for `Login Succeeded`.
 3. In the unpacked folder: `bash ./preflight.sh`. Every line must say PASS.
 4. `cp lab/.env.example lab/.env`, then set `ZETARIS_COMPOSE_FILE=` to the full path of that folder's `docker-compose.yml`.
-5. `make up ZETARIS=local`. The log shows `zetaris: the platform answers on http://127.0.0.1:8888`. The lab runs the bundle as its own compose project with `lab/zetaris/override.yml` on top: the console and the REST service are published on `127.0.0.1` only, and the REST service also joins the lab's network as `zetaris-api`, so the lab's reviews reach it with no address to write. The evidence is **not** registered yet: the log says which settings are missing.
-6. Open the console at `http://localhost:3004`. Open it as `localhost`, not as `127.0.0.1`: the console needs a secure context. This step cannot be made through an API. Sign in as the platform's default administrator (the bundle's README says how) and make an API key for the administrator. Then make a user for Proven with no role, sign in as it, and make its API key. Note the organisation's **numeric** id (the sign-in answer returns it as `orgId`; the 32-character id in the page's URL is a different value and is refused).
+5. With `PROVEN_LAB_MODE=live` and `PROVEN_LAB_JUDGE=no` set (or answered on a terminal; the flow also offers this step itself, `PROVEN_LAB_OWN_SETUP`), `make up ZETARIS=local`. The log shows `zetaris: the platform answers on http://127.0.0.1:8888`. The lab runs the bundle as its own compose project with `lab/zetaris/override.yml` on top: the console and the REST service are published on `127.0.0.1` only, and the REST service also joins the lab's network as `zetaris-api`, so the lab's reviews reach it with no address to write. The evidence is **not** registered yet: the log says which settings are missing.
+6. Open the console at `http://localhost:3304`. Open it as `localhost`, not as `127.0.0.1`: the console needs a secure context. This step cannot be made through an API. Sign in as the platform's default administrator (the bundle's README says how) and make an API key for the administrator. Then make a user for Proven with no role, sign in as it, and make its API key. Note the organisation's **numeric** id (the sign-in answer returns it as `orgId`; the 32-character id in the page's URL is a different value and is refused).
 7. In `lab/.env` set `ZETARIS_ADMIN_API_KEY` (the administrator's key; used once, not stored as a secret of the repository), `ZETARIS_PROVEN_USER` (the user's name), `ZETARIS_API_KEY` (that user's key) and `ZETARIS_ORG_ID`.
 8. `make zetaris`. It registers the definitions in `lab/zetaris/evidence.sql` as the administrator and grants them to Proven's user. Then `make livecheck ZETARIS=local` names Zetaris ready. Then `make up` again, so the keys become secrets.
 
@@ -162,7 +228,7 @@ What is registered: the CISA known-exploited feed as one REST table and its view
 13. Pass Nightshift's email access gate in the VM.
 14. In Nightshift's Providers tab paste the NVIDIA key's value (`nvapi-…`, about 70 characters), never its identifier (a UUID). Nightshift's "verified" does not prove the key: the first real request does.
 15. Copy Nightshift's runtime token from its own window in the VM. This script never reads or prints it. Run `make nightshift` once more: it prints `Nightshift answers at http://<the VM's address>:8088`. Put that address after `PROVEN_GENERATOR_BASE_URL=` and the token after `METERLESS_RUNTIME_TOKEN=` in `lab/.env`.
-16. `make up`, then open a new pull request. Its comment starts with `live: NVIDIA via Nightshift, Zetaris on` (or `Zetaris off` when Zetaris is not set up).
+16. With `PROVEN_LAB_MODE=live` and `PROVEN_LAB_JUDGE=no` in `lab/.env` (the flow asks on a terminal), `make up`, then open a new pull request. Its comment starts with `live: NVIDIA via Nightshift, Zetaris on` (or `Zetaris off` when Zetaris is not set up).
 
 Steps 9 to 14 are done once. What the script cannot do, and why: the installer, the email gate, the provider key and the token are in an app window with no API.
 

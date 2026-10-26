@@ -294,7 +294,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
 | `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes five ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT`, `LGTM_OTLP_PORT`, `LAB_PAGE_PORT` and `LAB_DOCS_PORT` |
+| `GITEA_HTTP_PORT` | `3300` | Host port for the Gitea web UI. The lab publishes five ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT`, `LGTM_OTLP_PORT`, `LAB_PAGE_PORT` and `LAB_DOCS_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
 | `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
@@ -306,7 +306,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LGTM_IMAGE` | `grafana/otel-lgtm` | The dashboard's image: collector, Prometheus, Tempo, Loki and Grafana in one container (ADR-0045). It is not part of Proven's image |
 | `LGTM_VERSION` | `0.11.0` | That image's tag. Not pulled when it was written; the first `make up` is the check |
 | `LGTM_INTERNAL_HOST` | `lgtm` | Name of that service on the lab network. The workflow's `OTEL_EXPORTER_OTLP_ENDPOINT` is built from it |
-| `LGTM_GRAFANA_PORT` | `3001` | Host port for Grafana, and so for the dashboard |
+| `LGTM_GRAFANA_PORT` | `3301` | Host port for Grafana, and so for the dashboard |
 | `LGTM_GRAFANA_CONTAINER_PORT` | `3000` | Port Grafana listens on inside the lab network |
 | `LGTM_OTLP_PORT` | `4318` | Host port for the collector's OTLP/HTTP endpoint, so a review run on the host can be exported to the lab too: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` |
 | `LGTM_OTLP_CONTAINER_PORT` | `4318` | Port the collector listens on inside the lab network |
@@ -331,13 +331,25 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LAB_DEMO_REPO` | `discount` | Demo repository name |
 | `LAB_DEMO_BASE` | `main` | Base branch |
 | `LAB_DEMO_HEAD` | `demo-discount` | Branch of the first demo pull request, the logic-bug change. The others are listed in `lab/seed/prs.tsv`; each branch is named `demo-<fixture>` |
-| `LAB_PAGE_PORT` | `3002` | Port of the lab's start page on `127.0.0.1`. The page is the one address to hand out: `http://127.0.0.1:3002/lab`. No setting moves its address; a `LAB_PAGE_BIND` that is set to an address that is not loopback is refused by name before any container starts |
+| `LAB_PAGE_PORT` | `3302` | Port of the lab's start page on `127.0.0.1`. The page is the one address to hand out: `http://127.0.0.1:3302/lab`. No setting moves its address; a `LAB_PAGE_BIND` that is set to an address that is not loopback is refused by name before any container starts |
 | `LAB_PAGE_PATH` | `/lab` | Path the page is served at. It is also written in `lab/page/nginx.conf`; a test holds the two together |
 | `LAB_PAGE_IMAGE` | `nginxinc/nginx-unprivileged` | The page's web server. It runs as a user that is not root |
 | `LAB_PAGE_IMAGE_VERSION` | `1.27-alpine` | Its tag. Not pulled when this file was written; the first `make up` is the check |
 | `LAB_PAGE_CONTAINER_PORT` | `8080` | The port that image serves on |
-| `LAB_DOCS_PORT` | `3003` | Port of the documentation site on `127.0.0.1` |
+| `LAB_DOCS_PORT` | `3303` | Port of the documentation site on `127.0.0.1` |
 | `LAB_DOCS_CONTAINER_PORT` | `3000` | The port the documentation image serves on |
+| `PROVEN_LAB_MODE` | none (asked on a terminal; sample with no terminal) | `sample` or `live`: the answer to the first question of `make up`. A value outside the list is refused by name before any container ([The start-up flow](LAB.md#the-start-up-flow)) |
+| `PROVEN_LAB_JUDGE` | none | `yes` or `no`: are you a judge of the Open Agent Hackathon (live mode only) |
+| `PROVEN_LAB_BACKEND` | none | `ours` or `own`: our services through the judges' gateway, or your own setup (a judge only) |
+| `PROVEN_LAB_GATEWAY_AUTH` | `access` | `access` (Cloudflare Access e-mail sign-in with `cloudflared`) or `token` (the per-judge token), for `ours` |
+| `PROVEN_LAB_OWN_SETUP` | none | `yes` or `no`: run the automated setup (`make up ZETARIS=local`, then `make nightshift`) on the `own` path |
+| `PROVEN_LAB_USE_DETECTED` | none | `yes` or `no`: use the Zetaris and Nightshift that already answer on this machine, on the `own` path |
+| `DETECT_ZETARIS_URL` | `http://localhost:8888/api/v1.0` | Where the `own` path looks for a Zetaris already running (the organisers' guide's address) |
+| `DETECT_NIGHTSHIFT_URL` | `http://127.0.0.1:8088/v1/models` | Where it looks for a Nightshift already running |
+| `LAB_JOB_HOST_ALIAS` | `host.docker.internal` | How the lab's review job names this machine when it uses a service found there |
+| `JUDGES_GATEWAY_CHECK_SECONDS` | `20` | Seconds the one check of the judges' gateway waits |
+| `JUDGES_GATEWAY_ACCESS_TOKEN` | none | The Cloudflare Access application token. The flow stores it as an Actions secret; you do not write it |
+| `METERLESS_BASE_URL`, `METERLESS_MODEL` | none | The organisers' guide's names, read in the lab as `PROVEN_GENERATOR_BASE_URL` and `PROVEN_GENERATOR_MODEL` when those are not set |
 | `DOCS_IMAGE` | `saphan/proven-docs` | Name of the documentation image `make up` builds from `docs-site/Dockerfile` |
 | `DOCS_IMAGE_TAG` | `1` | Its tag |
 | `NODE_IMAGE` | `node:22-alpine` | The Node image the documentation build uses |
