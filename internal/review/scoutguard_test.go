@@ -1,9 +1,13 @@
 package review
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/markov"
+	"github.com/saphan-ai/proven/internal/scout"
 )
 
 // TestScoutNeverLightensANonProseChange proves ADR-0053 point 3: when Scout answers docs for a change whose
@@ -27,6 +31,91 @@ func TestScoutNeverLightensANonProseChange(t *testing.T) {
 			res := rig.review(t, planned(), target)
 			if res.Class != "security" || !res.Doubled || len(rig.spec.calls) == 0 {
 				t.Fatalf("class %s (%s) doubled %t, second reviewer calls %d", res.Class, res.ClassRule, res.Doubled, len(rig.spec.calls))
+			}
+		})
+	}
+}
+
+// TestScoutNeverLightensVendoredCode proves the dependency arm of the guard (ADR-0053 point 3): a change of
+// only vendored code is class security and doubled, and the second reviewer is called, not the lighter
+// dependency plan that omits the Prover. Mutated field: the vendored-path check of notManifestOnly.
+func TestScoutNeverLightensVendoredCode(t *testing.T) {
+	rig := newRig()
+	target := trees(t, map[string][2]string{
+		"vendor/example.com/lib/lib.go": {"package lib\n", "package lib\n\nvar Open = true\n"},
+	})
+	res := rig.review(t, planned(), target)
+	if res.Class != "security" || !res.Doubled || len(rig.spec.calls) == 0 {
+		t.Fatalf("class %s (%s) doubled %t, second reviewer calls %d", res.Class, res.ClassRule, res.Doubled, len(rig.spec.calls))
+	}
+}
+
+// TestScoutNeverLightensAManifestRenamedToSource proves the rename case of the dependency arm (ADR-0053
+// point 3): a manifest renamed to a source file keeps the old path's dependency weight in Scout's answer,
+// but the new path is code, so the review is class security and doubled. Mutated field: the destination of
+// the rename, and nothing else (the source is a manifest in every case). Measured on the default registry:
+// Scout answers high-band dependency for Pipfile -> app/x.py, and security for go.mod -> internal/x/x.go
+// (go.mod is also a security path), so the second case holds with or without the guard.
+func TestScoutNeverLightensAManifestRenamedToSource(t *testing.T) {
+	for _, tc := range []struct{ from, to string }{
+		{"Pipfile", "app/x.py"},
+		{"go.mod", "internal/x/x.go"},
+	} {
+		t.Run(tc.from+" to "+tc.to, func(t *testing.T) {
+			repo := t.TempDir()
+			gitCmd(t, repo, "init")
+			content := []byte("module example.com/app\n\ngo 1.22\n")
+			if err := os.WriteFile(filepath.Join(repo, tc.from), content, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			gitCmd(t, repo, "add", tc.from)
+			gitCmd(t, repo, "commit", "-m", "[fixture] note: base")
+			base := strings.TrimSpace(string(gitCmd(t, repo, "rev-parse", "HEAD")))
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(repo, tc.to)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			// The rename is made as a write and a remove, because git mv renames on disk and that fails
+			// across some file systems; git still reports it as a rename of identical content.
+			if err := os.WriteFile(filepath.Join(repo, tc.to), content, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(filepath.Join(repo, tc.from)); err != nil {
+				t.Fatal(err)
+			}
+			gitCmd(t, repo, "add", "-A")
+			gitCmd(t, repo, "commit", "-m", "[fixture] note: rename")
+			head := strings.TrimSpace(string(gitCmd(t, repo, "rev-parse", "HEAD")))
+			rig := newRig()
+			res := rig.reviewRequest(t, planned(), Request{Target: repo, BaselineCommit: base, HeadCommit: head})
+			if res.Class != "security" || !res.Doubled || len(rig.spec.calls) == 0 {
+				t.Fatalf("class %s (%s) doubled %t, second reviewer calls %d", res.Class, res.ClassRule, res.Doubled, len(rig.spec.calls))
+			}
+		})
+	}
+}
+
+// TestNotManifestOnlyChecksEveryPath proves the closed manifest set: each old and new path must be a
+// manifest or lockfile outside vendor directories. Each row changes one field of the change.
+func TestNotManifestOnlyChecksEveryPath(t *testing.T) {
+	cases := []struct {
+		name    string
+		changed []scout.ChangedFile
+		refused bool
+	}{
+		{"manifest and lockfile", []scout.ChangedFile{{Status: "M", Path: "go.mod"}, {Status: "M", Path: "go.sum"}}, false},
+		{"nested manifest", []scout.ChangedFile{{Status: "M", Path: "web/package.json"}}, false},
+		{"rename between manifests", []scout.ChangedFile{{Status: "R", From: "Gemfile.lock", Path: "Gemfile"}}, false},
+		{"source file", []scout.ChangedFile{{Status: "M", Path: "internal/x/x.go"}}, true},
+		{"manifest renamed to source (new path)", []scout.ChangedFile{{Status: "R", From: "go.mod", Path: "internal/x/x.go"}}, true},
+		{"source renamed to manifest (old path)", []scout.ChangedFile{{Status: "R", From: "internal/x/x.go", Path: "go.mod"}}, true},
+		{"vendored manifest", []scout.ChangedFile{{Status: "M", Path: "vendor/modules.txt"}}, true},
+		{"vendored manifest deeper", []scout.ChangedFile{{Status: "M", Path: "third_party/vendor/go.mod"}}, true},
+		{"manifest-like name with a source suffix", []scout.ChangedFile{{Status: "M", Path: "go.mod.go"}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := notManifestOnly(tc.changed) != ""; got != tc.refused {
+				t.Fatalf("refused %t, want %t", got, tc.refused)
 			}
 		})
 	}

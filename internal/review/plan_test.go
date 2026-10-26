@@ -104,6 +104,13 @@ func (rig *planRig) review(t *testing.T, cfg fileSettings, target string) Result
 // reviewWith is review; the measurement calls it with settings it chose itself, not planned()'s.
 func (rig *planRig) reviewWith(t *testing.T, cfg fileSettings, target string) Result {
 	t.Helper()
+	return rig.reviewRequest(t, cfg, Request{Target: target})
+}
+
+// reviewRequest is reviewWith for a whole request, so a test can review two commits of a git repository
+// (a rename is only visible there).
+func (rig *planRig) reviewRequest(t *testing.T, cfg fileSettings, req Request) Result {
+	t.Helper()
 	cfg.SpecialReviewer = "qwen-special"
 	p, err := pipeline.Build(pipeline.Options{
 		LogDir: t.TempDir(), Generator: rig.def, Special: rig.spec, LiveStore: rig.q, TestRun: rig.run,
@@ -116,7 +123,7 @@ func (rig *planRig) reviewWith(t *testing.T, cfg fileSettings, target string) Re
 	r := &runner{p: p, cfg: cfg, explicit: true}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := r.Review(ctx, Request{Target: target})
+	res, err := r.Review(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}

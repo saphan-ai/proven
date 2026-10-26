@@ -287,14 +287,31 @@ func raised(full func(string) reviewPlan, cfg fileSettings, floor, why string) r
 	return rp
 }
 
-// notManifestOnly returns why a change Scout called a dependency change is not verifiably one: a file
-// under a vendor directory is vendored code, which a review must read. "" means every file is a manifest
-// or lockfile outside vendor directories.
+// manifestNames is the closed set of file names a dependency change may touch: the module files, lockfiles
+// and package manifests of the ecosystems Scout's dependency class names (internal/scout/changes.json). A
+// name outside the set is code or something a review has not been told to trust, however Scout scored it.
+var manifestNames = set([]string{
+	"go.mod", "go.sum", "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock",
+	"Cargo.toml", "Cargo.lock", "requirements.txt", "Pipfile", "Pipfile.lock", "poetry.lock",
+	"Gemfile", "Gemfile.lock", "composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts",
+})
+
+// notManifestOnly returns why a change Scout called a dependency change is not verifiably one. ADR-0053:
+// Scout scores both paths of a rename, so a manifest renamed to a source file (or the reverse) can still
+// be answered as a dependency change. Every path of every file, the old path and the new, must therefore
+// be a name in manifestNames and lie outside any vendor directory, which is vendored code a review must
+// read. "" means that holds for every path.
 func notManifestOnly(changed []scout.ChangedFile) string {
 	for _, c := range changed {
 		for _, p := range []string{c.Path, c.From} {
-			if p != "" && (strings.HasPrefix(p, "vendor/") || strings.Contains(p, "/vendor/")) {
+			if p == "" {
+				continue
+			}
+			if strings.HasPrefix(p, "vendor/") || strings.Contains(p, "/vendor/") {
 				return p + " is vendored code"
+			}
+			if !manifestNames[path.Base(p)] {
+				return p + " is not a dependency manifest or lockfile"
 			}
 		}
 	}
