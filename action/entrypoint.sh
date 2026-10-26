@@ -117,6 +117,23 @@ unset INPUT_GITHUB_TOKEN GITHUB_TOKEN ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQ
 # The runner also passes each input as INPUT_<NAME> with its hyphen kept, a name sh cannot unset.
 scrub="env -u INPUT_GITHUB-TOKEN"
 
+# reviewdog posts to a forge address of its own: GITHUB_API_URL (api.github.com when
+# unset) or, on Gitea, GITEA_ADDRESS. With PROVEN_NETWORK=local that address is judged
+# by the same rule as every other, before anything runs (ADR-0034): Proven refuses it by
+# name when it is outside the organisation's network, and the step stops with its exit code.
+if [ -n "$reporter" ]; then
+  if [ "$reporter" = gitea-pr-review ]; then
+    forge_setting=GITEA_ADDRESS
+    forge_address=${GITHUB_SERVER_URL:-}
+  else
+    forge_setting=GITHUB_API_URL
+    forge_address=${GITHUB_API_URL:-https://api.github.com}
+  fi
+  forge_rc=0
+  $scrub "$proven" check-address "$forge_setting" "$forge_address" >/dev/null || forge_rc=$?
+  [ "$forge_rc" -eq 0 ] || exit "$forge_rc"
+fi
+
 # The runner owns the checkout and this container runs as root, so git would
 # refuse it as "dubious ownership" when Proven reads the pull request's base.
 git config --global --add safe.directory "$workspace" 2>/dev/null || true

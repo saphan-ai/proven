@@ -192,6 +192,27 @@ func (p *Policy) CheckDaemon(setting, raw string) error {
 	return nil
 }
 
+// CheckProgramAddress refuses, in local mode, an address that a program Proven
+// does not run through its own client will connect to: the forge a comment is
+// posted to (the action, ADR-0034). The host is judged like a setting address
+// (loopback, private, the allow list), and it must be an IP literal: that
+// program resolves a name with its own resolver, whose name servers and answers
+// Proven cannot judge. setting names the variable the address came from.
+func (p *Policy) CheckProgramAddress(setting, raw string) error {
+	if !p.Local() {
+		return nil
+	}
+	if err := p.CheckURL(setting, raw); err != nil {
+		return err
+	}
+	u, _ := url.Parse(raw)
+	bare, _, _ := strings.Cut(u.Hostname(), "%")
+	if _, err := netip.ParseAddr(bare); err != nil {
+		return refuse(setting, clip(raw), "host "+u.Hostname()+" is a name, and the program that posts the comment would resolve it with its own resolver (PROVEN_NETWORK=local)", "the IP address of the forge on the organisation's network")
+	}
+	return nil
+}
+
 // Refuse names a setting that PROVEN_NETWORK=local forbids as a value, such as
 // the guardrail's hosted mode.
 func (p *Policy) Refuse(setting, value, reason string) error {

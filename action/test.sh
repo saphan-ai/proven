@@ -233,6 +233,37 @@ check "comment=false: no token needed" 0 "$rc"
 rdrun nofail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_CONFIG=does-not-exist.yaml
 check "comment=true, Proven refused (7): nothing posted, exit 7" "7 0" "$rc $(test -e "$RD_ARGS" && echo 1 || echo 0)"
 
+# PROVEN_NETWORK=local: the forge address reviewdog posts to is judged by the same rule as every
+# other address, before the scan runs (ADR-0034). An outside address (or a name, which reviewdog
+# would resolve itself) is refused by the setting's name, exit 7, nothing runs and nothing is posted.
+# Negative control: drop the check-address call in entrypoint.sh and the refusals turn red.
+refused() { # name: the refusal names $2, exit 7, reviewdog and the scan did not run
+  check "$1: exit 7" 7 "$rc"
+  check "$1: names $2" 1 "$(grep -c "$2" "$tmp/$1/stderr")"
+  check "$1: nothing posted, nothing scanned" "0 0" "$(test -e "$RD_ARGS" && echo 1 || echo 0) $(test -e "$ws/proven-results.json" && echo 1 || echo 0)"
+}
+rdrun localdefault PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
+refused localdefault GITHUB_API_URL
+rdrun localoutside PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://203.0.113.7/api/v3
+refused localoutside GITHUB_API_URL
+rdrun localname PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://ghe.example/api/v3
+refused localname GITHUB_API_URL
+rdrun localgiteaoutside PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=https://203.0.113.7
+refused localgiteaoutside GITEA_ADDRESS
+rdrun localgiteaempty PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true
+refused localgiteaempty GITEA_ADDRESS
+
+rdrun localallowed PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3
+check "local, private address: exit 0" 0 "$rc"
+check "local, private address: posted to it" "http://10.1.2.3/api/v3|" "$(cat "$RD_TOKEN.api")"
+rdrun localgitea PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=http://127.0.0.1:3000
+check "local, loopback Gitea: exit 0" 0 "$rc"
+check "local, loopback Gitea: posted to it" "|http://127.0.0.1:3000" "$(cat "$RD_TOKEN.api")"
+rdrun localallowlist PROVEN_NETWORK=local PROVEN_NETWORK_ALLOW=203.0.113.7 INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://203.0.113.7/api/v3
+check "local, address on the allow list: exit 0" 0 "$rc"
+rdrun localnocomment PROVEN_NETWORK=local INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
+check "local, comment=false: no forge address is judged, exit 0" 0 "$rc"
+
 # No credential reaches the scan, with comment true or false (negative control:
 # drop the unset and the env -u in entrypoint.sh and these two turn red).
 for c in true false; do
