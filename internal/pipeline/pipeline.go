@@ -133,13 +133,16 @@ type Options struct {
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
 type Pipeline struct {
-	sample       bool
-	testRun      testrun.Adapter
-	proverIdle   string
-	gen          generator.Generator
-	special      generator.Generator
-	liveStore    store.Store
-	trace        *trace.Writer
+	sample     bool
+	testRun    testrun.Adapter
+	proverIdle string
+	gen        generator.Generator
+	special    generator.Generator
+	liveStore  store.Store
+	trace      *trace.Writer
+	// closeTrace replaces the trace's Close in a test, so a failing close can be
+	// shown; nil means p.trace.Close.
+	closeTrace   func(*trace.Writer) error
 	rail         guardrail.Adapter
 	guardOff     bool
 	skepticModel string
@@ -326,6 +329,14 @@ func (pl *Plan) agent(name string) bool  { return pl == nil || pl.Full || pl.Age
 func (pl *Plan) tool(name string) bool   { return pl == nil || pl.Full || pl.Tools[name] }
 func (pl *Plan) source(name string) bool { return pl == nil || pl.Full || pl.Sources[name] }
 
+// closeTraceFile closes the review's trace, through closeTrace when a test set it.
+func (p *Pipeline) closeTraceFile() error {
+	if p.closeTrace != nil {
+		return p.closeTrace(p.trace)
+	}
+	return p.trace.Close()
+}
+
 // Review runs planner, investigator, prover, skeptic, judge, the fixer (ADR-0042) and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
 // When ctx ends before the Judge has decided, the draft is partial and holds only
@@ -335,12 +346,18 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	// The trace, the state and the work area are compared with the reviewed
 	// target before anything is written, so none of them lands inside it.
 	if err := p.begin(req.Target); err != nil {
-		if p.trace != nil {
-			p.trace.Close()
+		if cerr := p.closeTraceFile(); cerr != nil {
+			err = errors.Join(err, fmt.Errorf("closing the trace: %w", cerr))
 		}
 		return candidate.Draft{}, err
 	}
-	defer p.trace.Close()
+	// A trace whose close failed may have lost what was written to it, so the
+	// review fails rather than reporting from an incomplete record.
+	defer func() {
+		if cerr := p.closeTraceFile(); cerr != nil {
+			err = errors.Join(err, fmt.Errorf("closing the trace: %w", cerr))
+		}
+	}()
 	// Fold only a review that ended without an error. This defer runs before
 	// the trace is closed, and reads what the review wrote.
 	defer func() {
