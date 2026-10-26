@@ -58,6 +58,17 @@ func (p *Pipeline) loadLiveTarget(req Request, rd change.Policy) (*fixture.Fixtu
 	return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
 }
 
+// CheckTarget refuses a live review whose target has nothing for the agents to read, with the sentence that
+// says what to pass. ADR-0053: Scout Intent is on by default and reads the change before the pipeline runs, so
+// the caller asks this first; otherwise the plan's own failed read would be the error a user sees. Sample mode
+// reads a fixture and is never refused here. rd is the review's read policy, fixed at Open.
+func (p *Pipeline) CheckTarget(req Request, rd change.Policy) error {
+	if p.sample {
+		return nil
+	}
+	return p.refuseBareRepository(req, rd)
+}
+
 // refuseBareRepository refuses a git target that has no baseline commit and
 // no base/ and change/ directories. The sentence says what to pass.
 func (p *Pipeline) refuseBareRepository(req Request, rd change.Policy) error {

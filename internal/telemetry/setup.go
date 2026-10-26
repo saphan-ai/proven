@@ -23,6 +23,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/network"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // The standard variables Setup reads. Exporter details it does not read here
@@ -46,18 +47,9 @@ const DefaultServiceName = "proven"
 // protocolHTTP is the one OTLP transport built in. gRPC is not.
 const protocolHTTP = "http/protobuf"
 
-// ConfigError names a refused OTEL_* value and what is allowed. The reviewer
-// turns it into its own *ConfigError, so the shell exits 7 before any review.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Reason  string
-	Allowed []string
-}
-
-func (e *ConfigError) Error() string {
-	return fmt.Sprintf("telemetry: %s=%q: %s", e.Field, e.Value, e.Reason)
-}
+// ConfigError names a refused OTEL_* value and what is allowed.
+// Open copies it onto the seam's refusal, so the shell exits 7 before any review.
+type ConfigError = service.ConfigError
 
 // Environment lists the OTEL_* variables Proven reads, for docs/CONFIGURATION.md. Each is the
 // OpenTelemetry specification's own; Proven adds no setting of its own (ADR-0045 point 2).
@@ -126,7 +118,8 @@ func SetupWithDial(ctx context.Context, env func(string) string, dial network.Di
 		if v := strings.TrimSpace(env(name)); v != "" && v != protocolHTTP {
 			return nil, &ConfigError{
 				Field: name, Value: v, Allowed: []string{protocolHTTP},
-				Reason: "only the HTTP transport is built in",
+				Reason:   "only the HTTP transport is built in",
+				Sentence: service.SentenceTelemetry,
 			}
 		}
 	}
@@ -229,7 +222,8 @@ func checkURL(field, v string) (string, error) {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "", &ConfigError{
 			Field: field, Value: v, Allowed: []string{"an http:// or https:// URL"},
-			Reason: "not a URL the OTLP/HTTP exporter can use",
+			Reason:   "not a URL the OTLP/HTTP exporter can use",
+			Sentence: service.SentenceTelemetry,
 		}
 	}
 	return v, nil
@@ -246,7 +240,8 @@ func metricInterval(env func(string) string) (time.Duration, error) {
 	if err != nil || ms <= 0 {
 		return 0, &ConfigError{
 			Field: EnvMetricInterval, Value: v, Allowed: []string{"a whole number of milliseconds above zero"},
-			Reason: "not a number of milliseconds",
+			Reason:   "not a number of milliseconds",
+			Sentence: service.SentenceTelemetry,
 		}
 	}
 	return time.Duration(ms) * time.Millisecond, nil

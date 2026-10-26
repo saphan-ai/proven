@@ -1,11 +1,11 @@
 package store
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Environment variables of the evidence store. The set is closed.
@@ -46,28 +46,7 @@ func Environment() []envdoc.Setting {
 }
 
 // ConfigError names a refused store setting and the values that are allowed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value, why, and what is allowed, as
-// ADR-0013 asks of every refusal.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Choice is the store a live review will open.
 // File is set only when Name is local. It does not apply to zetaris.

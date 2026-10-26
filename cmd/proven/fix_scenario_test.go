@@ -23,7 +23,7 @@ func scanWith(t *testing.T, name string, extra ...string) (string, []byte) {
 	code := cli.Run(args, func(k string) string {
 		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
 		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-		if cli.KnownCLIEnv(k) || (k == "PROVEN_NETWORK" || k == "PROVEN_NETWORK_ALLOW") || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink {
+		if cli.KnownCLIEnv(k) || (k == "PROVEN_NETWORK" || k == "PROVEN_NETWORK_ALLOW") || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink || engineSwitch(k) {
 			return ""
 		}
 		t.Fatalf("sample mode read %s", k)

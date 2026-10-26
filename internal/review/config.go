@@ -113,7 +113,7 @@ type fileSettings struct {
 	// store may ask (ADR-0013). Nil is every template: an unset key narrows nothing.
 	InvestigatorScope querytpl.Scope
 	SkepticScope      querytpl.Scope
-	// ScoutIntent switches the review plan on (ADR-0049). Off, every review runs the full plan.
+	// ScoutIntent switches the review plan on (ADR-0049); it is on by default (ADR-0053). Off, every review runs the full plan.
 	ScoutIntent bool
 	// Plans is the plan for each kind of change, keyed by the kind's registry id (ADR-0049 point 2).
 	Plans map[string]planSetting
@@ -172,8 +172,8 @@ func defaultSettings() fileSettings {
 		Autofix:          false,
 		AutofixGenerator: autofixGeneratorDefault,
 		AutofixTimeout:   defaultAutofixTimeout,
-		// ADR-0049: the engine lands switched off; it is switched on only once its measurement holds.
-		ScoutIntent: false,
+		// ADR-0053: Scout Intent is on by default; its benefit is not measured yet. scout_intent: off switches it off.
+		ScoutIntent: true,
 		Plans:       defaultPlans(),
 		// ADR-0049: only plain prose may skip the model. Anything else, an unknown suffix included, is
 		// not known to be inert, and a file that is built or executed must be reviewed.

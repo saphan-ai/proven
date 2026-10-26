@@ -9,6 +9,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Outcome is what Proven's rule gives for one finding's recorded evidence.
@@ -110,6 +111,6 @@ func candidateEvidence(e Evidence) candidate.Evidence {
 func toRefutation(r candidate.Refutation) *Refutation {
 	return &Refutation{
 		TestFound: r.TestFound, TestFailsOnChange: r.TestFailsOnChange, TestCannotRun: r.TestCannotRun,
-		QueryRows: copyRows(r.QueryRows), QueryCannotRun: r.QueryCannotRun,
+		QueryRows: service.CopyRows(r.QueryRows), QueryCannotRun: r.QueryCannotRun,
 	}
 }

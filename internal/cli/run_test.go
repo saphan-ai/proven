@@ -712,7 +712,7 @@ func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
 		// ADR-0045: the OTEL_* variables are the one family sample mode reads besides ADR-0020 §1's.
 		// They name no secret of Proven's; with none set, a review exports nothing.
 		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-		if !KnownCLIEnv(k) && k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) {
+		if !KnownCLIEnv(k) && k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 			t.Errorf("sample mode read %s, which ADR-0020 §1 does not name", k)
 		}
 		return ""
@@ -1034,4 +1034,10 @@ func dropFixtureGitEnv(entry string) bool {
 		return true
 	}
 	return false
+}
+
+// engineSwitch reports whether k is a switch of one of the four Meterless engines. ADR-0053: sample mode reads
+// them, because the lab's pull-request review is a sample review and its engines are on by default.
+func engineSwitch(k string) bool {
+	return strings.HasPrefix(k, "PROVEN_MARKOVIAN") || k == "PROVEN_HMEM" || k == "PROVEN_WORLD_MODEL"
 }

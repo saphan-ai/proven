@@ -130,8 +130,10 @@ type Options struct {
 	// It only observes: nothing a review decides reads it.
 	Telemetry *telemetry.T
 	// Markov is the bounded-steps setting (ADR-0048). The zero value is off: the Planner reads the change whole
-	// and the Fixer sees every earlier attempt, as before. Sample mode leaves it unset.
+	// and the Fixer sees every earlier attempt, as before. Review sets it in live and sample mode (ADR-0053).
 	Markov markov.Settings
+	// Stores holds the switches of H-MEM and the World Model (ADR-0053). The zero value leaves both on.
+	Stores StoreSettings
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
@@ -170,6 +172,9 @@ type Pipeline struct {
 	tel *telemetry.T
 	// markov is the bounded-steps setting (ADR-0048); off unless Options set it.
 	markov markov.Settings
+	// stores is the switch of each store (ADR-0053). A store switched off is never opened, so mem or world
+	// stays nil and every use below is guarded by it.
+	stores StoreSettings
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -224,6 +229,7 @@ func Build(opts Options) (*Pipeline, error) {
 		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
 		tel:    opts.Telemetry,
 		markov: opts.Markov,
+		stores: opts.Stores,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -504,6 +510,8 @@ func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
 // from a service that is down is noted and the review goes on without it; a
 // context that has ended returns the partial draft through cut; any other
 // error stops the review.
+//
+// Splitting this function into its stages is known debt, planned after 6 Nov.
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
 	// The review's read policy rode the context from its runner; every git command and size bound below takes it from here.
 	rd := change.PolicyFrom(ctx)
@@ -637,8 +645,12 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// The stores get the guarded generator, never the raw one: a call a store
 	// ever makes is checked before and after, and recorded, like an agent call.
-	p.mem.SetGenerator(gen)
-	p.world.SetGenerator(gen)
+	if p.mem != nil {
+		p.mem.SetGenerator(gen)
+	}
+	if p.world != nil {
+		p.world.SetGenerator(gen)
+	}
 	// ADR-0009, ADR-0012: a doubled review runs a second Planner and a second
 	// Skeptic on the special-review model.
 	var special generator.Generator
@@ -947,13 +959,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// change refuted is dropped and does not come back.
 	_, jstage := p.tel.StartStage(ctx, "judge", telemetry.ReviewerShared, "")
 	for i := range cands {
-		if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
-			cands[i].Dropped = true
-			cands[i].DropReason = "suppressed: hmem " + rec.ID
-			if err := st.event(cands[i].ID, "memory", "hmem", "matched "+rec.ID); err != nil {
-				return candidate.Draft{}, err
+		// ADR-0053: with H-MEM switched off the store is not read, so nothing is suppressed.
+		if p.mem != nil {
+			if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
+				cands[i].Dropped = true
+				cands[i].DropReason = "suppressed: hmem " + rec.ID
+				if err := st.event(cands[i].ID, "memory", "hmem", "matched "+rec.ID); err != nil {
+					return candidate.Draft{}, err
+				}
+				continue
 			}
-			continue
 		}
 		cands[i] = judge.Decide(cands[i])
 		if err := st.event(cands[i].ID, "verdict", "judge", cands[i].DropReason); err != nil {
@@ -1288,7 +1303,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 			}
 			return err
 		}
-		r.QueryRows = copyRows(res.Rows)
+		r.QueryRows = service.CopyRows(res.Rows)
 		// A test result already gives the reason when it refutes; the query
 		// sets it only when the test did not run or did not refute.
 		if judge.QueryContradicts(*c, r.QueryRows) && (r.Reason == "" || r.TestFailsOnChange || !r.TestFound) {
@@ -1553,12 +1568,10 @@ type state struct {
 	skipped   []string
 }
 
-// event writes one plain trace line about a finding.
 func (s *state) event(id, kind, agent, text string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: kind, Agent: agent, Text: text})
 }
 
-// claim writes the Planner's claim for a risk, under the run that named it.
 func (s *state) claim(id, text, run string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: "claim", Agent: "planner", Text: text, Run: run})
 }
@@ -1959,7 +1972,7 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 			ev.Query = &trace.QueryEvidence{
 				SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 				Columns: append([]string(nil), q.Columns...),
-				Rows:    copyRows(q.Rows),
+				Rows:    service.CopyRows(q.Rows),
 			}
 		}
 		if e.Tool != nil {
@@ -1971,18 +1984,6 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 			}
 		}
 		out = append(out, ev)
-	}
-	return out
-}
-
-// copyRows deep-copies query rows.
-func copyRows(rows [][]string) [][]string {
-	if rows == nil {
-		return nil
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
 	}
 	return out
 }
@@ -2072,7 +2073,6 @@ func addAbsentVerdicts(req Request, cands []candidate.Candidate, defaultFailed, 
 	}
 }
 
-// hasVerdict reports whether run has a verdict on the candidate.
 func hasVerdict(c candidate.Candidate, run string) bool {
 	for _, v := range c.Verdicts {
 		if v.Run == run {
@@ -2098,7 +2098,6 @@ func noteRefuted(c *candidate.Candidate, run string, ref candidate.Refutation) {
 	}
 }
 
-// hasRun reports whether run named the candidate.
 func hasRun(c candidate.Candidate, run string) bool {
 	for _, r := range c.Runs {
 		if r == run {
@@ -2157,7 +2156,6 @@ func riskKey(r candidate.Risk) string {
 	return fmt.Sprintf("rule\x00%s\x00%s\x00%d\x00%d", r.RuleID, r.Path, r.StartLine, r.EndLine)
 }
 
-// appendNew appends the values of src that dst does not hold yet.
 func appendNew(dst, src []string) []string {
 	for _, s := range src {
 		seen := false

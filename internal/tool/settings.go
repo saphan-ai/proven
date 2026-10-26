@@ -1,11 +1,11 @@
 package tool
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 const (
@@ -24,27 +24,7 @@ const (
 const DefaultTimeout = 2 * time.Minute
 
 // ConfigError names a refused tool setting and the values that are allowed (ADR-0013).
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value, why, and what is allowed.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Load reads EnvTimeout. An empty value is DefaultTimeout.
 // A value that is set and is not a duration greater than zero is refused

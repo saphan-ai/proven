@@ -169,16 +169,17 @@ check "exclude glob reaches Proven verbatim" 1 "$(hasarg '--exclude=vendor/*')"
 check "exclude glob is not expanded against the working directory" 0 "$(contains '--exclude=vendor/a')"
 check "include glob '*' reaches Proven verbatim" 1 "$(hasarg '--include=*')"
 
-# comment: reviewdog posts Proven's SARIF. A stub records its arguments, its
-# stdin, and the token and server it was given.
+# comment: the Action writes ONE comment per pull request, its own summary (post-comment.sh,
+# tested below); reviewdog is never run, so no line comment can sit beside it. The stub
+# reviewdog below is the instrument for that: it records any call, and every comment run
+# asserts that no record exists (the owner's order of 2026-10-25; negative control: run
+# the old entrypoint, which calls it with -reporter=github-pr-review, and these turn red).
 cat >"$tmp/reviewdog.sh" <<'EOF'
 #!/bin/sh
 for a in "$@"; do printf '%s\n' "$a"; done >"$RD_ARGS"
 cat >"$RD_STDIN"
 printf '%s|%s\n' "${REVIEWDOG_GITHUB_API_TOKEN:-}" "${REVIEWDOG_GITEA_API_TOKEN:-}" >"$RD_TOKEN"
 printf '%s|%s\n' "${GITHUB_API_URL:-}" "${GITEA_ADDRESS:-}" >"$RD_TOKEN.api"
-printf '%s|%s\n' "${GITHUB_API:-}" "${HTTPS_PROXY:-}${https_proxy:-}${HTTP_PROXY:-}${http_proxy:-}${ALL_PROXY:-}${all_proxy:-}" >"$RD_TOKEN.route"
-printf '%s|%s|%s\n' "${REVIEWDOG_SKIP_GIT_FETCH:-}" "${REVIEWDOG_SKIP_DOGHOUSE:-}" "${REVIEWDOG_TOKEN:-}" >"$RD_TOKEN.fetch"
 exit "${RD_RC:-0}"
 EOF
 chmod +x "$tmp/reviewdog.sh"
@@ -194,33 +195,6 @@ rdrun() {
   [ ! -f "$RD_ARGS" ] || args=$(tr '\n' ' ' <"$RD_ARGS")
 }
 
-rdrun postgh INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
-check "comment=true: exit 0" 0 "$rc"
-check "comment=true: reviewdog reads SARIF" 1 "$(hasarg -f=sarif)"
-check "comment=true: reporter on GitHub" 1 "$(hasarg -reporter=github-pr-review)"
-check "comment=true: reviewdog is given Proven's SARIF, byte for byte" 1 "$(cmp -s "$ws/proven-results.sarif" "$RD_STDIN" && echo 1)"
-check "comment=true: the token reaches reviewdog" "tok-1|tok-1" "$(cat "$RD_TOKEN")"
-
-rdrun postgitea INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=https://gitea.example
-check "comment=true on Gitea: reporter" 1 "$(hasarg -reporter=gitea-pr-review)"
-
-check "comment=true on Gitea: reviewdog is given the server as GITEA_ADDRESS" "|https://gitea.example" "$(cat "$RD_TOKEN.api")"
-
-rdrun postghes INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://ghe.example/api/v3
-check "comment=true on GHES: reviewdog reads the runner's GITHUB_API_URL" "https://ghe.example/api/v3|" "$(cat "$RD_TOKEN.api")"
-
-rdrun poststrict INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true
-check "comment=true, strict, findings: still posted" 1 "$(hasarg -reporter=github-pr-review)"
-check "comment=true, strict, findings: exit is Proven's 1" 1 "$rc"
-
-rdrun postfail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false RD_RC=1
-check "comment=true, reviewdog fails: the step fails (2)" 2 "$rc"
-check "comment=true, reviewdog fails: the message names the post" 1 "$(grep -c 'posting the review on the pull request failed' "$tmp/postfail/stderr")"
-check "comment=true, reviewdog fails: outputs still written" 4 "$(output findings-count)"
-
-rdrun strictpostfail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=true RD_RC=1
-check "comment=true, strict, findings, reviewdog fails: exit stays Proven's 1" 1 "$rc"
-
 rdrun notoken INPUT_COMMENT=true INPUT_GITHUB_TOKEN=
 check "comment=true, no token: refused, exit 2" 2 "$rc"
 check "comment=true, no token: names github-token" 1 "$(grep -c 'github-token is empty' "$tmp/notoken/stderr")"
@@ -235,72 +209,6 @@ check "comment=false: no token needed" 0 "$rc"
 rdrun nofail INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_CONFIG=does-not-exist.yaml
 check "comment=true, Proven refused (7): nothing posted, exit 7" "7 0" "$rc $(test -e "$RD_ARGS" && echo 1 || echo 0)"
 
-# PROVEN_NETWORK=local: the forge address reviewdog posts to is judged by the same rule as every
-# other address, before the scan runs (ADR-0034). An outside address (or a name, which reviewdog
-# would resolve itself) is refused by the setting's name, exit 7, nothing runs and nothing is posted.
-# Negative control: drop the check-address call in entrypoint.sh and the refusals turn red.
-refused() { # name: the refusal names $2, exit 7, reviewdog and the scan did not run
-  check "$1: exit 7" 7 "$rc"
-  check "$1: names $2" 1 "$(grep -c "$2" "$tmp/$1/stderr")"
-  check "$1: nothing posted, nothing scanned" "0 0" "$(test -e "$RD_ARGS" && echo 1 || echo 0) $(test -e "$ws/proven-results.json" && echo 1 || echo 0)"
-}
-rdrun localdefault PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
-refused localdefault GITHUB_API_URL
-rdrun localoutside PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://203.0.113.7/api/v3
-refused localoutside GITHUB_API_URL
-rdrun localname PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://ghe.example/api/v3
-refused localname GITHUB_API_URL
-rdrun localgiteaoutside PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=https://203.0.113.7
-refused localgiteaoutside GITEA_ADDRESS
-rdrun localgiteaempty PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true
-refused localgiteaempty GITEA_ADDRESS
-
-rdrun localallowed PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3
-check "local, private address: exit 0" 0 "$rc"
-check "local, private address: posted to it" "http://10.1.2.3/api/v3|" "$(cat "$RD_TOKEN.api")"
-rdrun localgitea PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=http://127.0.0.1:3000
-check "local, loopback Gitea: exit 0" 0 "$rc"
-
-check "local, loopback Gitea: posted to it" "|http://127.0.0.1:3000" "$(cat "$RD_TOKEN.api")"
-
-# PROVEN_NETWORK=local: reviewdog may take no route the check did not judge. GITHUB_API outranks
-# GITHUB_API_URL in reviewdog, and a proxy variable sends its connection to the proxy. A fixed
-# entrypoint either refuses (exit 7, nothing posted) or starts reviewdog without the variable.
-# Mutated field: GITHUB_API / HTTPS_PROXY in the action's environment.
-routed() { # name: refused with 7, or reviewdog saw no unjudged route
-  if [ "$rc" -eq 7 ] && [ ! -e "$RD_ARGS" ]; then got=refused-or-dropped
-  elif [ -f "$RD_TOKEN.route" ] && [ "$(cat "$RD_TOKEN.route")" = "|" ]; then got=refused-or-dropped
-  else got="reached reviewdog: $(cat "$RD_TOKEN.route" 2>/dev/null)"; fi
-  check "$1: an unjudged route never reaches reviewdog" refused-or-dropped "$got"
-}
-rm -f "$tmp/localghapi.rdtoken.route"
-rdrun localghapi PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 GITHUB_API=https://203.0.113.7/api/v3/
-routed localghapi
-rm -f "$tmp/localproxy.rdtoken.route"
-rdrun localproxy PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 HTTPS_PROXY=http://203.0.113.9:3128
-routed localproxy
-rm -f "$tmp/localgiteaproxy.rdtoken.route"
-rdrun localgiteaproxy PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=http://127.0.0.1:3000 https_proxy=http://203.0.113.9:3128
-routed localgiteaproxy
-# reviewdog's own git fetch (from the repository's web address) and its hosted service are
-# off in local mode. Mutated field: PROVEN_NETWORK (local here, unset in the public row).
-rdrun localnofetch PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 REVIEWDOG_TOKEN=rd-1
-check "local: reviewdog fetches nothing and uses no hosted service" "true|true|" "$(cat "$RD_TOKEN.fetch")"
-# The mode is Proven's reading: a value Go trims (a trailing carriage return) is local for the
-# action too. Mutated field: PROVEN_NETWORK ("local" followed by a carriage return).
-cr=$(printf '\r')
-rdrun localcr "PROVEN_NETWORK=local$cr" INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 GITHUB_API=https://203.0.113.7/api/v3/ REVIEWDOG_TOKEN=rd-1
-routed localcr
-check "local with a carriage return: reviewdog fetches nothing" "true|true|" "$(cat "$RD_TOKEN.fetch")"
-# Public mode is unchanged: the variables still reach reviewdog.
-rdrun publicproxy INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false HTTPS_PROXY=http://203.0.113.9:3128
-check "public mode: a proxy still reaches reviewdog" "|http://203.0.113.9:3128" "$(cat "$RD_TOKEN.route")"
-check "public mode: reviewdog's fetch is left as it was" "||" "$(cat "$RD_TOKEN.fetch")"
-rdrun localallowlist PROVEN_NETWORK=local PROVEN_NETWORK_ALLOW=203.0.113.7 INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://203.0.113.7/api/v3
-check "local, address on the allow list: exit 0" 0 "$rc"
-rdrun localnocomment PROVEN_NETWORK=local INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false
-check "local, comment=false: no forge address is judged, exit 0" 0 "$rc"
-
 # No credential reaches the scan, with comment true or false (negative control:
 # drop the unset and the env -u in entrypoint.sh and these two turn red).
 for c in true false; do
@@ -311,13 +219,134 @@ for c in true false; do
     GITHUB_TOKEN=tok-3 ACTIONS_RUNTIME_TOKEN=tok-4 ACTIONS_ID_TOKEN_REQUEST_TOKEN=tok-5
   check "comment=$c: the scan runs with no token in its environment" "" "$(cat "$STUB_ARGS.env")"
 done
-check "comment=true: the token still reaches reviewdog" "tok-1|tok-1" "$(cat "$tmp/scrub-true.rdtoken")"
 
 # A result left by an earlier run is removed before Proven runs, so a review that
 # could not run (2) is never counted from a stale file.
 mkdir -p "$tmp/stale/ws"; printf '{"unresolved": true}\n' >"$tmp/stale/ws/proven-results.json"
 stubrun stale STUB_RC=2 STUB_NOWRITE=1
 check "a stale JSON review is not counted" 0 "$(output findings-count)"
+
+# comment: the summary beside reviewdog's line comments is ONE comment, edited in place
+# (post-comment.sh). The stub server answers GET /user and GET comments from $STUB, answers
+# PATCH and POST with an id, and logs every request; a body is kept as $STUB/body.N.
+cat >"$tmp/http.sh" <<'EOF'
+#!/bin/sh
+method=$1
+url=$2
+n=$(wc -l <"$STUB/log" | tr -d ' ')
+printf '%s %s\n' "$method" "$url" >>"$STUB/log"
+[ -z "${3:-}" ] || cp "$3" "$STUB/body.$((n + 1))"
+[ "${HTTP_RC:-0}" -eq 0 ] || exit "$HTTP_RC"
+case "$method $url" in
+  "GET "*/comments*)
+    # Like a real server: comments.json is page 1; any later page is empty.
+    page=${url##*page=}
+    if [ "$page" = 1 ] && [ -f "$STUB/comments.json" ]; then cat "$STUB/comments.json"; else printf '[]'; fi
+    ;;
+  PATCH* | POST*) printf '{"id":77}' ;;
+esac
+EOF
+chmod +x "$tmp/http.sh"
+printf '{"action":"synchronize","number":7,"pull_request":{"number":7,"head":{"sha":"abc123"},"base":{"sha":"def456"}}}\n' >"$tmp/event.json"
+summary() { # NAME, then VAR=value...: a comment run as the account proven-bot on pull request 7
+  name=$1
+  shift
+  STUB=$tmp/$name.stub
+  mkdir -p "$STUB"
+  : >"$STUB/log"
+  rdrun "$name" INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false \
+    GITHUB_API_URL=http://api.example/api/v1 GITHUB_REPOSITORY=o/r GITHUB_EVENT_PATH="$tmp/event.json" GITHUB_RUN_NUMBER=5 \
+    COMMENT_HTTP="$tmp/http.sh" STUB="$STUB" PROVEN_COMMENT_ACCOUNT=proven-bot "$@"
+}
+mine='{"id":31,"user":{"login":"proven-bot"},"body":"<!-- proven-review run=4 sha=old -->\\nold"}'
+theirs='{"id":41,"user":{"login":"someone-else"},"body":"<!-- proven-review run=4 sha=old -->\\nold"}'
+
+summary sumnew
+check "summary: exit 0" 0 "$rc"
+check "summary: no earlier comment, one comment is created" "GET http://api.example/api/v1/repos/o/r/issues/7/comments?limit=50&per_page=50&page=1
+POST http://api.example/api/v1/repos/o/r/issues/7/comments" "$(cat "$STUB/log")"
+check "summary: one run with findings writes exactly one comment-writing call" 1 "$(grep -c -e '^POST ' -e '^PATCH ' "$STUB/log")"
+check "summary: reviewdog is not run, so no line comment sits beside the summary" 0 "$(test -e "$RD_ARGS" && echo 1 || echo 0)"
+check "summary: the marker is the first line, with this run and the head commit" '{"body":"<!-- proven-review run=5 sha=abc123 -->' "$(head -c 48 "$STUB/body.2")"
+check "summary: the body is Proven's Markdown" 1 "$(grep -c '\*\*Proven: blocked\*\*' "$STUB/body.2")"
+check "summary: the Markdown is not left in the workspace" "proven-results.json proven-results.sarif " "$(ls "$ws" | tr '\n' ' ')"
+
+mkdir -p "$tmp/sumedit.stub" && printf '[%s]' "$mine" >"$tmp/sumedit.stub/comments.json"
+summary sumedit
+check "summary: an earlier comment of the account is edited, none is added" "GET http://api.example/api/v1/repos/o/r/issues/7/comments?limit=50&per_page=50&page=1
+PATCH http://api.example/api/v1/repos/o/r/issues/comments/31" "$(cat "$STUB/log")"
+
+mkdir -p "$tmp/sumother.stub" && printf '[%s]' "$theirs" >"$tmp/sumother.stub/comments.json"
+summary sumother
+check "summary: another account's marker comment is not edited" 0 "$(grep -c PATCH "$STUB/log")"
+check "summary: another account's marker comment, a new one is created" 1 "$(grep -c '^POST ' "$STUB/log")"
+
+summary sumstrict INPUT_STRICT=true
+check "summary, strict, findings: still posted once, exit is Proven's 1" "1 1" "$(grep -c -e '^POST ' -e '^PATCH ' "$STUB/log") $rc"
+
+summary sumgitea GITEA_ACTIONS=true GITHUB_SERVER_URL=https://gitea.example
+check "summary on Gitea: one comment-writing call, reviewdog not run" "1 0" "$(grep -c -e '^POST ' -e '^PATCH ' "$STUB/log") $(test -e "$RD_ARGS" && echo 1 || echo 0)"
+
+summary sumfail HTTP_RC=22
+check "summary: a failed post fails the step (2)" 2 "$rc"
+check "summary: the failure names the summary comment" 1 "$(grep -c 'posting the summary comment on the pull request failed' "$tmp/sumfail/stderr")"
+
+rdrun sumnoevent INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false COMMENT_HTTP="$tmp/http.sh" STUB="$tmp/sumnoevent.stub"
+check "summary: no pull request in the event, nothing is posted, exit 0" "0 0" "$rc $(test -e "$tmp/sumnoevent.stub/log" && echo 1 || echo 0)"
+check "summary: no pull request, the notice says so" 1 "$(grep -c 'the summary comment was not posted' "$tmp/sumnoevent/stderr")"
+
+rdrun sumoff INPUT_COMMENT=false INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://api.example/api/v1 GITHUB_REPOSITORY=o/r GITHUB_EVENT_PATH="$tmp/event.json" COMMENT_HTTP="$tmp/http.sh" STUB="$tmp/sumoff.stub"
+check "comment=false: no summary is posted" 0 "$(test -e "$tmp/sumoff.stub/log" && echo 1 || echo 0)"
+
+# PROVEN_NETWORK=local (ADR-0034): the API address the summary is posted to is judged by the
+# same rule as every other address, before the scan runs, by Proven's own reading of the mode
+# (`proven check-address` prints it). An outside address, or a name the HTTP client would
+# resolve with its own resolver, is refused by name: exit 7, nothing scanned, nothing posted.
+# An allowed one is posted to with curl only, with no configuration file and no proxy.
+# A stub curl on PATH records its arguments and answers like the forge.
+mkdir -p "$tmp/fakebin"
+cat >"$tmp/fakebin/curl" <<'EOF2'
+#!/bin/sh
+printf '%s\n' "$*" >>"$STUB/curl"
+case "$*" in
+  *" GET "*comments*) printf '[]' ;;
+  *" POST "* | *" PATCH "*) printf '{"id":77}' ;;
+  *) printf '{}' ;;
+esac
+EOF2
+chmod +x "$tmp/fakebin/curl"
+localpost() { # NAME, then VAR=value...: a comment run on pull request 7 with the stub curl
+  name=$1
+  shift
+  STUB=$tmp/$name.stub
+  mkdir -p "$STUB"
+  : >"$STUB/curl"
+  rdrun "$name" INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_REPOSITORY=o/r \
+    GITHUB_EVENT_PATH="$tmp/event.json" GITHUB_RUN_NUMBER=5 PROVEN_COMMENT_ACCOUNT=proven-bot \
+    PATH="$tmp/fakebin:$PATH" STUB="$STUB" "$@"
+}
+localrefused() { # NAME: exit 7, the refusal names GITHUB_API_URL, nothing posted or scanned
+  check "$1: exit 7" 7 "$rc"
+  check "$1: names GITHUB_API_URL" 1 "$(grep -c GITHUB_API_URL "$tmp/$1/stderr")"
+  check "$1: nothing posted, nothing scanned" "0 0" "$(wc -l <"$STUB/curl" | tr -d ' ') $(test -e "$ws/proven-results.json" && echo 1 || echo 0)"
+}
+# Mutated field: GITHUB_API_URL (outside, then a name).
+localpost localoutside PROVEN_NETWORK=local GITHUB_API_URL=https://203.0.113.7/api/v3
+localrefused localoutside
+localpost localname PROVEN_NETWORK=local GITHUB_API_URL=https://ghe.example/api/v3
+localrefused localname
+# Mutated field: PROVEN_NETWORK (local; local with a trailing carriage return; unset).
+localpost localallowed PROVEN_NETWORK=local GITHUB_API_URL=http://10.1.2.3/api/v1 HTTPS_PROXY=http://203.0.113.9:3128
+check "local, private address: exit 0" 0 "$rc"
+check "local, private address: one comment-writing call" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
+check "local: every curl call has no configuration file and no proxy" "$(wc -l <"$STUB/curl" | tr -d ' ')" "$(grep -c "^-q --noproxy \* " "$STUB/curl")"
+cr=$(printf '\r')
+localpost localcr "PROVEN_NETWORK=local$cr" GITHUB_API_URL=http://10.1.2.3/api/v1
+check "local with a carriage return: the comment is posted" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
+check "local with a carriage return: curl has no proxy either" "$(wc -l <"$STUB/curl" | tr -d ' ')" "$(grep -c "^-q --noproxy \* " "$STUB/curl")"
+localpost publiccurl GITHUB_API_URL=http://10.1.2.3/api/v1
+check "public mode: curl is run as before" 0 "$(grep -c -- "--noproxy" "$STUB/curl")"
+check "public mode: the comment is posted" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
 
 echo "passed $pass, failed $failed"
 [ "$failed" -eq 0 ]

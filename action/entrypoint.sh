@@ -18,6 +18,9 @@ bool() {
   esac
 }
 
+# The script's own directory, read before the scan changes the working directory:
+# post-comment.sh sits beside it.
+here=$(cd "$(dirname "$0")" && pwd)
 proven=${PROVEN_BIN:-proven}
 workspace=${GITHUB_WORKSPACE:-}
 [ -n "$workspace" ] || fail "GITHUB_WORKSPACE is not set; run this script from a GitHub Actions step."
@@ -35,7 +38,6 @@ strict=${INPUT_STRICT:-true}
 baseline=${INPUT_BASELINE_COMMIT:-}
 sample=${INPUT_SAMPLE_MODE:-false}
 comment=${INPUT_COMMENT:-false}
-reviewdog=${REVIEWDOG_BIN:-reviewdog}
 
 bool strict "$strict"
 bool sample-mode "$sample"
@@ -100,50 +102,33 @@ IFS=$oldifs
 
 # The write token is read only when comment is true, and before anything runs;
 # below, it is removed from the environment Proven runs in.
-reporter=
 if [ "$comment" = true ]; then
   token=${INPUT_GITHUB_TOKEN:-}
   [ -n "$token" ] || fail "comment is true but github-token is empty; set github-token to a token that may write pull requests, and give the job pull-requests: write."
-  # Gitea Actions sets GITHUB_SERVER_URL to its own address and GITEA_ACTIONS=true;
-  # GitHub (and GitHub Enterprise Server) set no GITEA_ACTIONS.
-  if [ "${GITEA_ACTIONS:-}" = true ]; then reporter=gitea-pr-review; else reporter=github-pr-review; fi
-  command -v "$reviewdog" >/dev/null 2>&1 || fail "comment is true but reviewdog '$reviewdog' was not found in the image; rebuild action/Dockerfile."
 fi
 
 # Credentials never reach the scan: Proven reads the code under review, and that
 # code must not see a token, whether comment is true or false. The posting token
-# was copied into $token above (an unexported shell variable) and goes only to reviewdog.
+# was copied into $token above (an unexported shell variable) and goes only to the
+# summary comment poster (post-comment.sh).
 unset INPUT_GITHUB_TOKEN GITHUB_TOKEN ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQUEST_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL
 # The runner also passes each input as INPUT_<NAME> with its hyphen kept, a name sh cannot unset.
 scrub="env -u INPUT_GITHUB-TOKEN"
 
-# reviewdog posts to a forge address of its own: GITHUB_API_URL (api.github.com when
-# unset) or, on Gitea, GITEA_ADDRESS. With PROVEN_NETWORK=local that address is judged
-# by the same rule as every other, before anything runs (ADR-0034): Proven refuses it by
-# name when it is outside the organisation's network, and the step stops with its exit code.
-if [ -n "$reporter" ]; then
-  if [ "$reporter" = gitea-pr-review ]; then
-    forge_setting=GITEA_ADDRESS
-    forge_address=${GITHUB_SERVER_URL:-}
-  else
-    forge_setting=GITHUB_API_URL
-    forge_address=${GITHUB_API_URL:-https://api.github.com}
-  fi
+# The summary comment is posted to GITHUB_API_URL (post-comment.sh), on GitHub and on
+# Gitea alike. With PROVEN_NETWORK=local that address is judged by the same rule as every
+# other, before anything runs (ADR-0034): Proven refuses it by name when it is outside the
+# organisation's network, or when it is a name the HTTP client would resolve with its own
+# resolver, and the step stops with its exit code. The mode is Proven's reading of
+# PROVEN_NETWORK (the last word check-address prints), not this script's; anything but an
+# explicit public reading takes the local steps of post-comment.sh (curl only, no proxy,
+# no configuration file, nothing installed).
+pc_local=
+if [ "$comment" = true ] && [ -n "${GITHUB_API_URL:-}" ]; then
   forge_rc=0
-  forge_said=$($scrub "$proven" check-address "$forge_setting" "$forge_address") || forge_rc=$?
+  forge_said=$($scrub "$proven" check-address GITHUB_API_URL "$GITHUB_API_URL") || forge_rc=$?
   [ "$forge_rc" -eq 0 ] || exit "$forge_rc"
-fi
-# The judged address must be reviewdog's only route (reviewdog 0.21.2, cmd/reviewdog/main.go
-# and service/*/diff.go). GITHUB_API outranks GITHUB_API_URL; a proxy variable sends the
-# connection to the proxy; a missing commit makes reviewdog run `git fetch` from the
-# repository's web address, another host; and REVIEWDOG_TOKEN selects its hosted service.
-# None of those addresses was judged, so with PROVEN_NETWORK=local reviewdog starts without
-# them, and a run that needs the fetch fails and says so instead of fetching.
-# The mode is Proven's reading of PROVEN_NETWORK (the last word check-address prints), not
-# this script's; anything but an explicit public reading takes the local steps.
-route_scrub=
-if [ -n "$reporter" ] && [ "${forge_said##*: }" != public ]; then
-  route_scrub="env -u GITHUB_API -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy -u ALL_PROXY -u all_proxy -u REVIEWDOG_TOKEN REVIEWDOG_SKIP_GIT_FETCH=true REVIEWDOG_SKIP_DOGHOUSE=true"
+  [ "${forge_said##*: }" = public ] || pc_local=1
 fi
 
 # The runner owns the checkout and this container runs as root, so git would
@@ -153,6 +138,9 @@ git config --global --add safe.directory "$workspace" 2>/dev/null || true
 # A file left by an earlier run must not be counted as this run's.
 rm -f "$workspace/$json_file" "$workspace/$sarif_file" "$workspace/$text_file"
 scratch=$(mktemp -d)
+# The summary comment is the Markdown writer's output, kept in the scratch directory
+# with the trace: it is the comment's body, not a result file of the workspace.
+[ "$comment" != true ] || set -- "$@" "--md-output=$scratch/proven-comment.md"
 cd "$scratch"
 rc=0
 $scrub "$proven" scan "$@" "$target" || rc=$?
@@ -173,22 +161,31 @@ fi
   echo "unresolved-count=$unresolved"
 } >>"$GITHUB_OUTPUT"
 
-# comment: post Proven's SARIF on the pull request through reviewdog (ADR-0020 §7).
-# A review that could not run wrote no SARIF, and there is nothing to post then.
-if [ "$comment" = true ] && [ -f "$workspace/$sarif_file" ]; then
-  postrc=0
-  (
-    cd "$workspace"
-    # reviewdog 0.21.2 reads the Gitea server from GITEA_ADDRESS and refuses
-    # without it (cmd/reviewdog/main.go, giteaService); on GitHub and GitHub
-    # Enterprise Server it reads the runner's own GITHUB_API_URL.
-    if [ "$reporter" = gitea-pr-review ]; then export GITEA_ADDRESS="${GITHUB_SERVER_URL:-}"; fi
-    REVIEWDOG_GITHUB_API_TOKEN=$token REVIEWDOG_GITEA_API_TOKEN=$token \
-      $route_scrub "$reviewdog" -f=sarif -name=proven "-reporter=$reporter" -fail-level=none <"$sarif_file"
-  ) || postrc=$?
-  if [ "$postrc" -ne 0 ]; then
-    echo "proven action: posting the review on the pull request failed: reviewdog ($reporter) exited $postrc. Check that github-token may write pull requests (pull-requests: write) and that this run is a pull request." >&2
-    [ "$rc" -ne 0 ] || rc=2
+# comment: the Action writes ONE comment per pull request (the owner's order of
+# 2026-10-25): the summary, edited in place on every run (post-comment.sh). It writes
+# no line comments. A review that could not run wrote no Markdown, and there is nothing
+# to post then. The reviewing run, the head commit and the pull request come from the
+# event; a run that is not a pull request has none to post on.
+if [ "$comment" = true ] && [ -f "$scratch/proven-comment.md" ]; then
+  . "$here/post-comment.sh"
+  PC_LOCAL=$pc_local
+  event=${GITHUB_EVENT_PATH:-}
+  pr=
+  head=
+  if [ -f "$event" ]; then
+    pr=$(awk '{ buf = buf $0 } END { if (match(buf, /"number" *: *[0-9]+/)) { s = substr(buf, RSTART, RLENGTH); sub(/^"number" *: */, "", s); print s } }' "$event")
+    head=$(awk '{ buf = buf $0 } END { if (match(buf, /"head" *: *\{/)) { rest = substr(buf, RSTART); if (match(rest, /"sha" *: *"[0-9a-f]+"/)) { s = substr(rest, RSTART, RLENGTH); sub(/^"sha" *: *"/, "", s); sub(/"$/, "", s); print s } } }' "$event")
+  fi
+  [ -n "$head" ] || head=${GITHUB_SHA:-}
+  if [ -n "$pr" ] && [ -n "${GITHUB_API_URL:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "$head" ]; then
+    sumrc=0
+    pc_post "$GITHUB_API_URL" "$GITHUB_REPOSITORY" "$pr" "${GITHUB_RUN_NUMBER:-0}" "$head" "$token" "$scratch/proven-comment.md" || sumrc=$?
+    if [ "$sumrc" -ne 0 ]; then
+      echo "proven action: posting the summary comment on the pull request failed. Check that github-token may write pull requests (pull-requests: write); on Gitea set PROVEN_COMMENT_ACCOUNT if the token cannot read /user." >&2
+      [ "$rc" -ne 0 ] || rc=2
+    fi
+  else
+    echo "proven action: no pull request, API address, repository or head commit in this run's environment; the summary comment was not posted." >&2
   fi
 fi
 

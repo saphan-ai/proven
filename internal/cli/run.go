@@ -200,6 +200,9 @@ func writable(cfg config) error {
 	if cfg.sarifOutput != "" {
 		names = append(names, "sarif")
 	}
+	if cfg.mdOutput != "" {
+		names = append(names, "md")
+	}
 	for _, name := range names {
 		if _, err := FormatterFor(name); err != nil {
 			return err
@@ -283,6 +286,13 @@ func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
 			return err
 		}
 		extras = append(extras, extraFile{"--sarif-output", cfg.sarifOutput, body})
+	}
+	if cfg.mdOutput != "" {
+		body, err := render("md", result)
+		if err != nil {
+			return err
+		}
+		extras = append(extras, extraFile{"--md-output", cfg.mdOutput, body})
 	}
 	files := extras
 	if cfg.output == "" {
@@ -410,7 +420,7 @@ func openOutputDirectories(cfg config) outputDirectories {
 		return dirs
 	}
 	var wdRoot *os.Root
-	for _, path := range []string{cfg.output, cfg.textOutput, cfg.jsonOutput, cfg.sarifOutput} {
+	for _, path := range []string{cfg.output, cfg.textOutput, cfg.jsonOutput, cfg.sarifOutput, cfg.mdOutput} {
 		if path == "" || dirs[path] != nil {
 			continue
 		}
@@ -744,9 +754,9 @@ with a head SHA. A base that cannot be resolved is exit 2: Proven could
 not review.
 
 flags:
-  --text, --json, --sarif
+  --text, --json, --sarif, --md
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-  --text-output, --json-output, --sarif-output
+  --text-output, --json-output, --sarif-output, --md-output
         also write that format to a file
   -o, --output
         write the chosen format to a file instead of standard output (PROVEN_OUTPUT)

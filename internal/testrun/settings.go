@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/network"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Environment variables of the live container. The set is closed: Load reads
@@ -30,27 +30,7 @@ const (
 // Field is the Go field when Validate refuses the struct, and the environment
 // variable when Load refuses a setting. A refusal does not start a container.
 // There is no setting that gives the container a network or a secret (ADR-0013).
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the environment variable, the refused value, the reason and the allowed values.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Load reads the live container settings (ADR-0013). A wrong value is refused.
 // An empty lookup uses DefaultContainerConfig. Validate has accepted the result.
