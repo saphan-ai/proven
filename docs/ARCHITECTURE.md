@@ -96,9 +96,11 @@ The work of a call does not follow history either. A proposal is found by its id
 and the sleep guards read only the proposals that wait (an index kept per epoch, so a Clear leaves nothing to walk), and
 `Pending` returns one page of at most 1,000 with `PendingPage` for the rest. The waiting proposals are kept per epoch
 as a sorted list of their numbers (the N of `dream-N`), so a page seeks to its cursor by binary search and stops after
-its limit. The cursor is the number of the last proposal returned, not a place in the queue, so a decision between two
+its limit. Proposals in the `approving` state, a decision already taken, are kept in a second list that only the sleep
+guards read, so a page never visits one to skip it. The cursor is the number of the last proposal returned, not a place in the queue, so a decision between two
 pages never hides a proposal that still waits. A growth test with 50,000 waiting proposals counts the visits of a
-one-item page, with a full read as the red control. A sleep takes its backup id from a
+one-item page, with a full read as the red control, and a second one puts 20,000 approving proposals before one
+proposed. A sleep takes its backup id from a
 persisted sequence (`backups/SEQ`), written before the backup and stepping past a file already at that number, so it
 never lists the backups directory; a store with backups and no sequence file is listed once to migrate. Growth tests
 count proposals visited and directory listings, with a whole-history scan as the red control.
