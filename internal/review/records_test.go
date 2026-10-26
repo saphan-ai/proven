@@ -197,3 +197,34 @@ func TestRecordOfCopiesTheEvidenceAndNamesItsKeys(t *testing.T) {
 		t.Fatalf("test evidence %+v", e)
 	}
 }
+
+// TestAMalformedReadAccountSettingIsNamed proves a read-only account that is
+// set but malformed is not reported as an absent one: the viewer reason names
+// the setting that kept it from loading. The mutated line is the readerField
+// assignment in openRecorder: removed, the reason says only "not configured"
+// and the test fails.
+func TestAMalformedReadAccountSettingIsNamed(t *testing.T) {
+	env := map[string]string{
+		store.EnvCouchURL:        "http://couch.test:5984",
+		store.EnvRecordsDB:       "proven_records",
+		store.EnvRecordsUser:     "records-writer",
+		store.EnvRecordsPassword: "writer-secret-1",
+		store.EnvEvidenceLink:    "http://couch.test:5984",
+		store.EnvCouchUser:       "records-reader",
+		store.EnvCouchPassword:   "reader-secret-1",
+		store.EnvCouchRowLimit:   "many",
+	}
+	rc, err := openRecorder(Options{Env: func(k string) string { return env[k] }})
+	if err != nil || rc == nil {
+		t.Fatalf("recorder %v, err %v", rc, err)
+	}
+	if rc.reader != nil {
+		t.Fatal("a malformed row limit loaded the read-only account")
+	}
+	rc.writer = testRecorder(&recordedCouch{page: store.ViewerPage()}, "http://couch.test:5984").writer
+	res := Result{Findings: sampleFindings()}
+	rc.publish(context.Background(), Request{HeadCommit: "0123456789abcdef"}, &res)
+	if len(res.FailedServices) != 1 || !strings.Contains(res.FailedServices[0].Reason, store.EnvCouchRowLimit) {
+		t.Fatalf("failed services %v", res.FailedServices)
+	}
+}

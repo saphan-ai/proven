@@ -321,6 +321,11 @@ func openRecorder(opts Options) (*recorder, error) {
 	// viewer cannot be checked, and the link is shown unchecked with a failed service that says so.
 	if cfg, cerr := store.LoadCouch(env); cerr == nil {
 		rc.reader = store.NewCouchDB(cfg, opts.recordsClient)
+	} else {
+		var ce *store.ConfigError
+		if errors.As(cerr, &ce) {
+			rc.readerField = ce.Field
+		}
 	}
 	return rc, nil
 }
