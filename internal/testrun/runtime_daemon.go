@@ -35,6 +35,9 @@ func checkRuntime(policy *network.Policy, env func(string) string, runtime strin
 	if !policy.Local() {
 		return nil
 	}
+	if err := refuseRelativeRuntime(runtime); err != nil {
+		return err
+	}
 	switch filepath.Base(runtime) {
 	case "docker", "podman":
 		return checkPodman(policy, env)

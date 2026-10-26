@@ -102,6 +102,7 @@ type ContainerConfig struct {
 	User            string        // fixed unprivileged user and group, "uid:gid"
 	PidsLimit       int           // most processes one container may run
 	TmpSize         string        // size bound of each writable scratch mount
+	local           bool          // set by Load in local mode: the runtime file is vetted (ADR-0034)
 }
 
 // cpuPattern and memPattern accept only the plain forms docker-run(1)
@@ -295,6 +296,11 @@ func NewContainer(cfg ContainerConfig, lookPath func(string) (string, error)) (*
 		return nil, &service.Down{
 			Service: "prover",
 			Reason:  fmt.Sprintf("Prover off: container runtime %q not found: %v", cfg.Runtime, err),
+		}
+	}
+	if cfg.local {
+		if err := vetRuntimeFile(path); err != nil {
+			return nil, err
 		}
 	}
 	return &Container{runtime: path, cfg: cfg}, nil

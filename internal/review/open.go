@@ -221,12 +221,22 @@ func open(opts Options) (Reviewer, error) {
 			if err != nil {
 				d, ok := service.As(err)
 				if !ok {
-					return nil, err
+					return nil, testrunConfig(err)
 				}
 				popts.TestRun = testrun.Off{Reason: d.Reason}
 				popts.ProverIdle = d.Reason
 			} else {
 				popts.TestRun = box
+				if box.Local() {
+					// ADR-0034: the operator sees exactly which program runs.
+					line := box.Describe(context.Background())
+					popts.RuntimeNote = line
+					out := opts.startLog
+					if out == nil {
+						out = os.Stderr
+					}
+					fmt.Fprintln(out, "proven: "+line)
+				}
 			}
 		}
 		// ADR-0043: the govulncheck database and the tool time limit are settings.

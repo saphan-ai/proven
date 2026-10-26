@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/saphan-ai/proven/internal/generator"
@@ -81,6 +82,9 @@ type Options struct {
 	// tel, when set, replaces the telemetry the OTEL_* variables build (ADR-0045).
 	// A test sets it to read the spans and numbers back from memory.
 	tel *telemetry.T
+	// startLog, when set, receives the start line of local mode (the runtime's
+	// absolute path and version). A review leaves it unset and the line goes to stderr.
+	startLog io.Writer
 }
 
 // Request is one review request.

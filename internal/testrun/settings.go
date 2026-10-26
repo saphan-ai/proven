@@ -70,6 +70,7 @@ func Load(env func(string) string) (ContainerConfig, error) {
 		}
 		return ContainerConfig{}, perr
 	}
+	cfg.local = policy.Local()
 	// The daemon the runtime talks to is a connection the HTTP dial check never sees.
 	if derr := checkDaemon(policy, env); derr != nil {
 		return ContainerConfig{}, derr

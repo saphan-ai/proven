@@ -76,6 +76,9 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
+	// RuntimeNote, when set, is the start line of local mode (the container
+	// runtime's absolute path and version). It is written to the trace once per review.
+	RuntimeNote string
 	// LiveStore, when set, is the evidence store a live review queries.
 	// Sample mode does not use it. The seam passes a template request; the
 	// store runs the form of its own language (ADR-0047).
@@ -126,6 +129,7 @@ type Pipeline struct {
 	sample       bool
 	testRun      testrun.Adapter
 	proverIdle   string
+	runtimeNote  string
 	gen          generator.Generator
 	special      generator.Generator
 	liveStore    store.Store
@@ -199,7 +203,7 @@ func Build(opts Options) (*Pipeline, error) {
 	// the trace, the state and the work area must stay outside it, so Review
 	// opens them (see begin) after it has compared them with the target.
 	p := &Pipeline{
-		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
+		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, runtimeNote: opts.RuntimeNote,
 		gen: opts.Generator, special: opts.Special, liveStore: opts.LiveStore, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
@@ -458,6 +462,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		Text:      selectionText(dropped),
 	}); err != nil {
 		return candidate.Draft{}, err
+	}
+	if p.runtimeNote != "" {
+		if err := p.trace.Append(trace.Event{
+			FindingID: "runtime",
+			Kind:      "runtime",
+			Agent:     "pipeline",
+			Text:      p.runtimeNote,
+		}); err != nil {
+			return candidate.Draft{}, err
+		}
 	}
 	allow := make(map[string]struct{}, len(selected))
 	for _, f := range selected {
