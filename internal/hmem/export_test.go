@@ -35,6 +35,13 @@ func AppendLedgerLines(s *Store, n, spread int) error {
 // AppendProposalLines writes n pending proposals to the dream log, without
 // touching state.
 func AppendProposalLines(s *Store, n int) error {
+	return AppendProposalLinesWith(s, n, ProposalProposed)
+}
+
+// AppendProposalLinesWith writes n proposals in the given status to the dream
+// log, without touching state. It stands for a persisted state such as an
+// approval that began and was not finished.
+func AppendProposalLinesWith(s *Store, n int, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.syncDreams(); err != nil {
@@ -43,7 +50,7 @@ func AppendProposalLines(s *Store, n int) error {
 	base := len(s.dreams.order)
 	ps := make([]Proposal, 0, n)
 	for i := 0; i < n; i++ {
-		ps = append(ps, Proposal{ID: fmt.Sprintf("dream-%d", base+i+1), Type: "insight", Content: "grown", DerivedFrom: []string{"mem-1"}, Status: ProposalProposed})
+		ps = append(ps, Proposal{ID: fmt.Sprintf("dream-%d", base+i+1), Type: "insight", Content: "grown", DerivedFrom: []string{"mem-1"}, Status: status})
 	}
 	return s.appendDream(ps...)
 }

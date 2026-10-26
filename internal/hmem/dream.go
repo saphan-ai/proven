@@ -89,12 +89,17 @@ type dreamIndex struct {
 	order []string
 	byID  map[string]Proposal
 	// pending holds, per epoch, the sequence numbers (the N of dream-N) of the
-	// proposals whose newest state is proposed or approving, in ascending order,
-	// which is the order they were made. It is kept sorted on every state
+	// proposals whose newest state is proposed, in ascending order, which is the
+	// order they were made. It holds only the proposals a page may offer, so a
+	// page never visits one it must skip (R16). It is kept sorted on every state
 	// change, so a page seeks to its cursor by binary search and stops after
 	// its limit, and no read sorts or copies the waiting set. A Clear raises
 	// the epoch, so the old epochs' lists are never read again and cost no work.
 	pending map[int][]int
+	// approving holds, in the same form, the proposals whose newest state is
+	// approving: a decision already taken and not finished. A page never reads
+	// it; the sleep guards do, because such a proposal still names sources.
+	approving map[int][]int
 	// visited counts the proposals the lookups examined. The growth tests read
 	// it to prove the work does not follow the history.
 	visited int64
@@ -110,6 +115,7 @@ func (ix *dreamIndex) reset() {
 	ix.order = nil
 	ix.byID = map[string]Proposal{}
 	ix.pending = map[int][]int{}
+	ix.approving = map[int][]int{}
 }
 
 // isWaiting reports whether a proposal in this status still needs a decision.
@@ -129,11 +135,19 @@ func dreamSeq(id string) (int, error) {
 	return n, nil
 }
 
+// listFor returns the sorted lists that hold proposals in this waiting status.
+func (ix *dreamIndex) listFor(status string) map[int][]int {
+	if status == ProposalApproving {
+		return ix.approving
+	}
+	return ix.pending
+}
+
 // waitSet adds or removes one sequence number in the sorted list of an epoch.
 // The search is a binary one; the shift of the tail is a copy of integers, not
 // a visit of proposals.
-func (ix *dreamIndex) waitSet(epoch, seq int, in bool) {
-	list := ix.pending[epoch]
+func (ix *dreamIndex) waitSet(lists map[int][]int, epoch, seq int, in bool) {
+	list := lists[epoch]
 	at := sort.SearchInts(list, seq)
 	has := at < len(list) && list[at] == seq
 	switch {
@@ -144,7 +158,7 @@ func (ix *dreamIndex) waitSet(epoch, seq int, in bool) {
 	case !in && has:
 		list = append(list[:at], list[at+1:]...)
 	}
-	ix.pending[epoch] = list
+	lists[epoch] = list
 }
 
 // note folds one dream log line into the index: byID takes the newest state and
@@ -155,11 +169,11 @@ func (ix *dreamIndex) note(p Proposal, seq int) {
 	if !seen {
 		ix.order = append(ix.order, p.ID)
 	} else if isWaiting(old.Status) {
-		ix.waitSet(old.Epoch, seq, false)
+		ix.waitSet(ix.listFor(old.Status), old.Epoch, seq, false)
 	}
 	ix.byID[p.ID] = p
 	if isWaiting(p.Status) {
-		ix.waitSet(p.Epoch, seq, true)
+		ix.waitSet(ix.listFor(p.Status), p.Epoch, seq, true)
 	}
 }
 
@@ -221,19 +235,20 @@ func (s *Store) proposalState(id string) (Proposal, bool, error) {
 }
 
 // waiting returns the proposals of the current epoch that still need a
-// decision, in the order they were made, from the sorted list (no sort). Only
-// those are visited: the work follows the number waiting, not the number ever
-// made. Only the sleep guards need all of them; a page uses PendingPage. The
+// decision (proposed first, then approving, each in the order they were made),
+// from the sorted lists (no sort). Only those are visited: the work follows the
+// number waiting, not the number ever made. Only the sleep guards need all of them; a page uses PendingPage. The
 // caller holds s.mu.
 func (s *Store) waiting() ([]Proposal, error) {
 	if err := s.syncDreams(); err != nil {
 		return nil, err
 	}
-	seqs := s.dreams.pending[s.epoch]
-	out := make([]Proposal, 0, len(seqs))
-	for _, n := range seqs {
-		s.dreams.visited++
-		out = append(out, s.dreams.byID["dream-"+strconv.Itoa(n)])
+	out := make([]Proposal, 0, len(s.dreams.pending[s.epoch])+len(s.dreams.approving[s.epoch]))
+	for _, seqs := range [][]int{s.dreams.pending[s.epoch], s.dreams.approving[s.epoch]} {
+		for _, n := range seqs {
+			s.dreams.visited++
+			out = append(out, s.dreams.byID["dream-"+strconv.Itoa(n)])
+		}
 	}
 	return out, nil
 }
@@ -470,12 +485,9 @@ func (s *Store) PendingPage(cursor, limit int) ([]Proposal, int, error) {
 			return out, last, nil
 		}
 		s.dreams.visited++
-		p := s.dreams.byID["dream-"+strconv.Itoa(seqs[at])]
-		// An approving proposal is a decision already taken, so it is not offered.
-		if p.Status != ProposalProposed {
-			continue
-		}
-		out = append(out, p)
+		// The list holds proposed entries only: an approving proposal is a
+		// decision already taken, so it lives in a list a page never reads.
+		out = append(out, s.dreams.byID["dream-"+strconv.Itoa(seqs[at])])
 		last = seqs[at]
 	}
 	return out, -1, nil

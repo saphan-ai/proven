@@ -1,6 +1,7 @@
 package hmem_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -96,5 +97,56 @@ func TestPendingCursorSurvivesADecision(t *testing.T) {
 	want := []string{"dream-1", "dream-2", "dream-4", "dream-5", "dream-6"}
 	if strings.Join(seen, ",") != strings.Join(want, ",") {
 		t.Fatalf("pages returned %v; every proposal still waiting must appear once, want %v", seen, want)
+	}
+}
+
+// approvingProposals is the number of unfinished approvals the approving-state
+// test puts before the one proposal a page should return.
+const approvingProposals = 20000
+
+// TestPendingPageSkipsApprovingWithoutVisiting proves R16 for a store that holds
+// many approving proposals (a persisted state a failed write leaves behind)
+// before one proposed one: a one-item page returns that proposal and visits at
+// most two proposals, however many approving ones precede it. The negative
+// control is the full read of the waiting set, which does visit them all; the
+// counter must see it, or the bound proves nothing.
+func TestPendingPageSkipsApprovingWithoutVisiting(t *testing.T) {
+	s := openApprove(t, t.TempDir(), t.TempDir())
+	if err := hmem.AppendProposalLinesWith(s, approvingProposals, hmem.ProposalApproving); err != nil {
+		t.Fatal(err)
+	}
+	if err := hmem.AppendProposalLines(s, 1); err != nil {
+		t.Fatal(err)
+	}
+	// Build the index first: reading the log is not the work of a page.
+	if _, _, err := s.PendingPage(0, 1); err != nil {
+		t.Fatal(err)
+	}
+	before := hmem.ProposalsVisited(s)
+	page, next, err := s.PendingPage(0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := hmem.ProposalsVisited(s) - before
+	want := "dream-" + strconv.Itoa(approvingProposals+1)
+	if len(page) != 1 || page[0].ID != want {
+		t.Fatalf("the page returned %v, want only %s", page, want)
+	}
+	if v > 2 {
+		t.Fatalf("a one-item page visited %d proposals with %d approving ahead of it; want at most 2", v, approvingProposals)
+	}
+	// An approving proposal is never offered: the page that filled at the end
+	// of the list, if it gave a cursor, is followed by an empty one.
+	if next >= 0 {
+		if rest, _, err := s.PendingPage(next, 1); err != nil || len(rest) != 0 {
+			t.Fatalf("the page after the last proposal returned %d proposals, err %v", len(rest), err)
+		}
+	}
+
+	// Negative control: the full read visits the approving proposals too.
+	before = hmem.ProposalsVisited(s)
+	hmem.ScanAllWaiting(s)
+	if v := hmem.ProposalsVisited(s) - before; v < approvingProposals {
+		t.Fatalf("the control scan visited %d proposals, want at least %d: the counter does not see a scan", v, approvingProposals)
 	}
 }
