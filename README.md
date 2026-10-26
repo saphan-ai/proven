@@ -89,6 +89,38 @@ What Proven does not do yet, or does not do well, measured and dated. This list 
 
 Updated every evening. The newest day comes first.
 
+### Day five, 26 October (midday update: NVIDIA issues, emergency workaround in progress)
+
+**NVIDIA's API is failing in waves.** Since the afternoon of 25 October UTC, NVIDIA's hosted
+`nemotron-3.5-super-vl-120b-a12b` answers many calls with HTTP 500 ("Failed to generate completions") or times out.
+We measured it before blaming anything: the same prompt at every size from 8 KB to 256 KB went through 37 times out of
+37 in a quiet window, and inside a failure window even a tiny "Reply with OK" prompt failed 3 times out of 5. So it is
+not our prompts. A support ticket with the request ids is open with NVIDIA.
+
+**The emergency workaround, being set up now:**
+- Proven keeps calling **Meterless Nightshift**, its primary AI provider. If NVIDIA is down when judging starts,
+  Nightshift routes the reviews to **GLM-5.3 on QwenCloud**, and every review names the model that answered.
+- **NVIDIA stays in the loop as the guardrail**: a smaller NVIDIA safety model, running on our own machine, checks
+  prompts and answers.
+- The moment Nemotron is stable again, it goes back to being Proven's default reviewer.
+
+**What already landed today:**
+- **World Model passes 8 of 8** on Meterless's own conformance runner, on `main`. H-MEM's 13 of 13 is in its last
+  review rounds.
+- **The first real pull request** on this repository, [#1](https://github.com/saphan-ai/proven/pull/1): a small fix
+  written by the fleet from a finding in our own code review. Proven's GitHub Action ran on it; its first run was hit
+  by the NVIDIA outage and posted no comment, which is being fixed so a degraded review still says what failed.
+- **The whole record is public**: every change merged since the build window opened now has its order, the
+  builder's report, every review and the decision in [hackathon/fleet/](hackathon/fleet/) (127 orders, 178 reports,
+  154 reviews, 87 decisions).
+- **Dependency alerts from 51 to 6**: the documentation site's packages were upgraded, and the 6 left are the live
+  demo's planted vulnerable dependency, on purpose
+  ([security review](docs/security/SECURITY_REVIEW.md#dependency-alerts-on-this-repository)).
+- **[Honest limits](#honest-limits)**: what Proven does not do yet, measured and dated, now at the top of this page.
+
+**Still being built before the feature freeze:** an interactive `make up` (sample or live, judges can use our Zetaris
+and Nightshift through an authenticated gateway), Proven's pull-request comment in Markdown, and the judges' gateway.
+
 ### Day four, 25 October
 
 Day four of six. **Thirty-two more changes were merged**, 100 in four days. With Scout Intent and Markovian, all four
