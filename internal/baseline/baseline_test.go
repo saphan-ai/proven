@@ -136,7 +136,7 @@ func TestJudgeEachVerdict(t *testing.T) {
 		{2, FoundDifferently, "GHSA-fix-bbbb-0002"},
 		{3, FoundDifferently, "lies outside it"},
 		{4, Missed, "does not read this package"},
-		{5, Missed, "no row of the evidence names"},
+		{5, NotChecked, "cannot tell a miss"},
 	}
 	for _, c := range cases {
 		row := verdictOf(t, ref, f, c.number)
@@ -242,7 +242,7 @@ func TestReportIsByteIdenticalTwice(t *testing.T) {
 	if one != two {
 		t.Fatal("two runs on the same input wrote different reports")
 	}
-	for _, want := range []string{"## Counts", "| **all** | **5** | **1** | **2** | **2** | **0** |", "evidence: fixture OSV table, 2099-01-06", "ev-"} {
+	for _, want := range []string{"## Counts", "| **all** | **5** | **1** | **2** | **1** | **1** |", "evidence: fixture OSV table, 2099-01-06", "ev-"} {
 		if !strings.Contains(one, want) {
 			t.Errorf("report lacks %q", want)
 		}
@@ -339,5 +339,33 @@ func TestCommittedReportIsRegenerated(t *testing.T) {
 	// The reference itself is frozen: 51 alerts, as the master pinned it.
 	if len(ref.Alerts) != 51 {
 		t.Errorf("the reference holds %d alerts, want the 51 that were frozen", len(ref.Alerts))
+	}
+}
+
+// A store that answers for an ecosystem and names no row for the alert's
+// advisory is a miss; one that names nothing for the ecosystem is not checked.
+func TestMissedOnlyWhereTheEcosystemWasAnswered(t *testing.T) {
+	a := Alert{Number: 9, Ecosystem: "npm", Package: "left", Manifest: "p/package-lock.json", GHSA: "GHSA-left-0009"}
+	reads := []Read{{File: a.Manifest, Ecosystem: "npm", Package: "left", Version: "1.0.0"}}
+	other := Match{File: a.Manifest, Ecosystem: "npm", Package: "right", Version: "2.0.0",
+		Advisories: []Advisory{{ID: "GHSA-right-0001", Affected: true}}}
+	answered := Judge(a, Findings{Mode: ModeEvidence, Reads: reads, Matches: []Match{other}})
+	if answered.Verdict != Missed {
+		t.Errorf("an answered ecosystem: got %q %q, want missed", answered.Verdict, answered.Detail)
+	}
+	silent := Judge(a, Findings{Mode: ModeEvidence, Reads: reads, Matches: []Match{}})
+	if silent.Verdict != NotChecked || !strings.Contains(silent.Detail, "cannot tell a miss") {
+		t.Errorf("a silent ecosystem: got %q %q, want not checked", silent.Verdict, silent.Detail)
+	}
+}
+
+// A KEV CVE of one advisory never marks another advisory of the same version.
+func TestKEVMarksOnlyTheAdvisoryItBelongsTo(t *testing.T) {
+	kev := []string{"CVE-2099-0001"}
+	if got := kevOf(Advisory{ID: "GO-1", Aliases: "CVE-2099-0001 GHSA-a"}, kev); len(got) != 1 {
+		t.Errorf("its own CVE: got %v", got)
+	}
+	if got := kevOf(Advisory{ID: "GO-2", Aliases: "CVE-2099-0002"}, kev); len(got) != 0 {
+		t.Errorf("another advisory's CVE marked it: %v", got)
 	}
 }

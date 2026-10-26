@@ -18,3 +18,12 @@ rapid-reset fix (CVE-2023-44487), so the live demo can show a known-exploited de
 `REPORT.md` is the alert-by-alert comparison built from the two JSON files. Both are written by `make baseline-dependabot`
 (or `make baseline-dependabot-manifests` for a run with no evidence store) and are never edited by hand. How to run it, what
 evidence a run rests on and what the committed report shows are in [section 9 of the test README](../../../README.md).
+
+## What the live run shows (2026-10-26, against our Zetaris)
+
+Proven found all 6 Go alerts with its own evidence, and 15 more advisories for `golang.org/x/net@v0.16.0` that Dependabot
+did not raise. The 45 npm alerts are `not checked`, not `missed`: Proven read every alerted npm package and version from
+the lock file, but the live OSV table held no npm advisories at all when the run was made (read-only count on 2026-10-26
+~08:10Z: Go 96 rows, Maven 20, SwiftURL 1, npm 0). A verdict of `missed` is given only where the store answered for the
+alert's ecosystem and still named no row for its advisory. A KEV mark belongs to the advisory whose own CVE the KEV view
+holds (here CVE-2023-44487), never to every advisory of the same version.

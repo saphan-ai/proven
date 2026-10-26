@@ -11,8 +11,9 @@ import (
 // Verdict is what Proven's run says about one alert.
 type Verdict string
 
-// The four verdicts. NotChecked is a manifest-only run that read the package:
-// no advisory was asked for, so nothing was found and nothing was missed.
+// The four verdicts. NotChecked is a manifest-only run that read the package,
+// or an evidence run whose store named no advisory for any package of the
+// alert's ecosystem: nothing was found and nothing can be called missed.
 const (
 	Found            Verdict = "found"
 	FoundDifferently Verdict = "found differently"
@@ -40,7 +41,8 @@ type Row struct {
 //   - found differently: Proven reads the package and either another advisory
 //     affects it, or the alert's advisory is in the evidence but the version
 //     lies outside its range.
-//   - not checked: a manifest-only run read the package.
+//   - not checked: a manifest-only run read the package, or the evidence holds
+//     no advisory for any package of the alert's ecosystem that Proven read.
 func Judge(a Alert, f Findings) Row {
 	row := Row{Alert: a}
 	var versions []string
@@ -70,7 +72,37 @@ func Judge(a Alert, f Findings) Row {
 			matches = append(matches, m)
 		}
 	}
+	if !ecosystemAnswered(f, a.Ecosystem) {
+		row.Verdict = NotChecked
+		row.Detail = fmt.Sprintf("the evidence names no advisory for any %s package Proven read, so it cannot tell a miss from a store without %s advisories", a.Ecosystem, a.Ecosystem)
+		return row
+	}
 	return judgeEvidence(row, a, matches, versions)
+}
+
+// ecosystemAnswered reports whether any row of the evidence names an advisory
+// for a package of this ecosystem.
+func ecosystemAnswered(f Findings, eco string) bool {
+	for _, m := range f.Matches {
+		if sameEcosystem(m.Ecosystem, eco) && len(m.Advisories) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// kevOf returns the CVEs of this advisory, by its id or an alias, that the KEV
+// view holds; a KEV CVE of another advisory of the same version is not one.
+func kevOf(adv Advisory, kev []string) []string {
+	var out []string
+	for _, id := range append([]string{adv.ID}, strings.Fields(adv.Aliases)...) {
+		for _, k := range kev {
+			if strings.EqualFold(id, k) {
+				out = append(out, k)
+			}
+		}
+	}
+	return out
 }
 
 // judgeEvidence decides an alert whose package Proven read, on the rows it got.
@@ -81,8 +113,8 @@ func judgeEvidence(row Row, a Alert, matches []Match, versions []string) Row {
 				row.Verdict = Found
 				row.EvidenceID = m.EvidenceID
 				row.Detail = fmt.Sprintf("%s affects %s@%s (%s)", adv.ID, a.Package, m.Version, rangeText(adv))
-				if len(m.KEV) > 0 {
-					row.Detail += "; on the KEV list: " + strings.Join(m.KEV, ", ")
+				if k := kevOf(adv, m.KEV); len(k) > 0 {
+					row.Detail += "; on the KEV list: " + strings.Join(k, ", ")
 				}
 				return row
 			}
@@ -248,7 +280,7 @@ func Extras(ref Reference, f Findings) []Extra {
 			seen[key] = true
 			out = append(out, Extra{
 				File: m.File, Package: m.Package, Version: m.Version, Advisory: adv.ID,
-				Aliases: adv.Aliases, KEV: len(m.KEV) > 0, EvidenceID: m.EvidenceID,
+				Aliases: adv.Aliases, KEV: len(kevOf(adv, m.KEV)) > 0, EvidenceID: m.EvidenceID,
 			})
 		}
 	}
