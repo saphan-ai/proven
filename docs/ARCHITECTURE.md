@@ -248,7 +248,7 @@ trace carries the same sentence. A bounded review that stops ends with that name
 `TestAClaimStillOpenAfterTheLastStepStopsTheReviewByName` (two files, the last answer holds one open claim and no risk).
 A model that leaves a claim out of the state it returns is a model error this bound cannot see.
 
-**Settings** (environment, live mode only; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`on` by
+**Settings** (environment, live and sample mode; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`on` by
 default, `off` switches it off), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
 `PROVEN_MARKOVIAN_STEP_UNIT` (`file` or `hunk`), `PROVEN_MARKOVIAN_CARRY_TOKENS` (default 800). A wrong value stops the
 review before it starts, naming the variable and the values allowed.
@@ -271,8 +271,8 @@ carry bound caps the carried state only, never a part's own size: in file mode a
 a large changed region is one hunk, so a step over a very large file or region is as large as that part. With file steps the review as a whole costs more,
 about a quarter more, because every step repeats the instruction and the carried state; with hunk steps it costs less,
 because a step carries the changed region and not both whole copies of the file. Whether a model keeps the same findings
-across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row, and
-until it is measured the engine stays off (ADR-0048 point 4).
+across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row. It is not
+measured, and since ADR-0053 the engine is on by default anyway (superseding ADR-0048 point 4); `PROVEN_MARKOVIAN=off` switches it off.
 
 ## Modes
 
