@@ -217,27 +217,91 @@ func (s *Store) place(e *Edge) (Edge, bool, error) {
 // do not overlap. An edge whose time cannot be read is skipped, as Neighbors
 // skips it.
 func (s *Store) overlapping(e Edge) (Edge, bool) {
-	start := mustInstant(e.ValidFrom)
 	for _, o := range s.edges {
 		if o.From != e.From || o.Type != e.Type || o.Context != e.Context {
 			continue
 		}
-		of, ok := instantOf(o.ValidFrom)
-		if !ok {
-			continue
+		if intervalsOverlap(e, o) {
+			return o, true
 		}
-		// o must start before e ends, and e must start before o ends.
-		if e.ValidTo != "" && !of.Before(mustInstant(e.ValidTo)) {
-			continue
-		}
-		if o.ValidTo != "" {
-			if end, ok := instantOf(o.ValidTo); ok && !start.Before(end) {
-				continue
-			}
-		}
-		return o, true
 	}
 	return Edge{}, false
+}
+
+// intervalsOverlap reports whether the intervals [ValidFrom, ValidTo) of a and
+// b share an instant, an empty ValidTo being open-ended. It does not compare
+// from, type or context; the caller picks the chain. One rule serves both the
+// write check and the check Open makes on a stored file, so the two cannot
+// drift. An edge whose start cannot be read never overlaps, as Neighbors
+// skips it; an unreadable end is read as open.
+func intervalsOverlap(a, b Edge) bool {
+	af, ok := instantOf(a.ValidFrom)
+	if !ok {
+		return false
+	}
+	bf, ok := instantOf(b.ValidFrom)
+	if !ok {
+		return false
+	}
+	// Each must start before the other ends.
+	if a.ValidTo != "" {
+		if end, ok := instantOf(a.ValidTo); ok && !bf.Before(end) {
+			return false
+		}
+	}
+	if b.ValidTo != "" {
+		if end, ok := instantOf(b.ValidTo); ok && !af.Before(end) {
+			return false
+		}
+	}
+	return true
+}
+
+// checkChains refuses a set of stored edges in which two edges of one from,
+// type and context are valid at one instant. Rule (ADR-0018 point 1): the
+// store refuses such a state and does not repair it. Choosing which of two
+// recorded facts is true is the caller's decision, as it is for a write, so
+// Open names the pair and stops before any query can see it. The error wraps
+// ErrEdgeOverlap and names both edge ids. Within a chain the edges are
+// sorted by start, and if any two overlap then two neighbours in that order
+// do, so one pass finds a clash. The chain with the smallest key is reported,
+// so the message is the same for any map order.
+func checkChains(edges map[string]Edge) error {
+	type chainKey struct{ from, typ, context string }
+	chains := map[chainKey][]Edge{}
+	for _, e := range edges {
+		if _, ok := instantOf(e.ValidFrom); !ok {
+			continue
+		}
+		k := chainKey{e.From, e.Type, e.Context}
+		chains[k] = append(chains[k], e)
+	}
+	var first error
+	var firstKey string
+	for k, list := range chains {
+		sort.Slice(list, func(i, j int) bool {
+			fi, fj := mustInstant(list[i].ValidFrom), mustInstant(list[j].ValidFrom)
+			if !fi.Equal(fj) {
+				return fi.Before(fj)
+			}
+			return list[i].ID < list[j].ID
+		})
+		for i := 1; i < len(list); i++ {
+			a, b := list[i-1], list[i]
+			if !intervalsOverlap(a, b) {
+				continue
+			}
+			key := k.from + "\x00" + k.typ + "\x00" + k.context
+			if first == nil || key < firstKey {
+				firstKey = key
+				first = fmt.Errorf("%w: stored edges %s (%s [%s, %s)) and %s (%s [%s, %s)) of %s -[%s]->",
+					ErrEdgeOverlap, a.ID, a.To, a.ValidFrom, openEnd(a.ValidTo),
+					b.ID, b.To, b.ValidFrom, openEnd(b.ValidTo), k.from, k.typ)
+			}
+			break
+		}
+	}
+	return first
 }
 
 // openEnd names an empty ValidTo for an error message.

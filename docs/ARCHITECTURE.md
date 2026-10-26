@@ -64,7 +64,9 @@ so it is never marked proved.
 - **The trace** (`logs/trace.jsonl`): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
   call, with the run id and the time. A reader follows any finding from claim to verdict.
 - **H-MEM** (`state/hmem`): what earlier reviews refuted, so a refuted finding does not come back.
-- **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen.
+- **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen, and the edges between them.
+  An edge chain (one from, type and context) holds at most one valid edge at any instant. A write that would break
+  this is refused, and so is opening a state file that already breaks it (`ErrEdgeOverlap`, naming both edges).
 
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
 `test/conformance/meterless/run.sh`. The World Model passes its suite 8 of 8, bitemporal edges included (runner pinned at upstream commit `1742dec5`).
