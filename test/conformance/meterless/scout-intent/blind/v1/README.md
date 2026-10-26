@@ -72,12 +72,12 @@ security patterns, under which every manifest and lockfile counts as security.
 The report now measures the kind that way and reads 26 of 46 match, 20 miss, 6
 lighter-kind answers. The measurement changed; the labels did not.
 
-Six labels are disputed this way (the six cases below). The 26 of 46 match
+Seven labels are disputed this way (the seven cases below). The 26 of 46 match
 figure in `REPORT.md` counts them against the frozen labels, so wherever it is
-quoted it carries this qualification: for those six cases a clarification
+quoted it carries this qualification: for those seven cases a clarification
 would be a defensible answer.
 
-- Not one of the six, and recorded here as a separate inconsistency:
+- Not one of the seven, and recorded here as a separate inconsistency:
   `blind-mis-manifest-code-01` (`cases.jsonl` line 26). The frozen label is a
   clarification, but the rule under Judgement calls above says a change that
   touches install-time scripts is expected `change.security`, and the case's
@@ -99,3 +99,10 @@ would be a defensible answer.
 - `blind-plain-ref-03` (deleted files): a deletion does not show that the code
   was dead. The gold label `change.refactor` holds only if the code was dead,
   which the file list does not say.
+- `blind-mis-dep-vendor-01` (`cases.jsonl` line 33): the file list adds vendored
+  source beside `go.mod` and `go.sum`, and does not show whether the source adds
+  a feature. The rule under Judgement calls says a change that mixes kinds is
+  expected as a clarification, and this is neither a release-path nor an
+  install-time script case. A path-only reviewer would answer a clarification.
+  The gold label is `change.feature`. It stays as written, and the 26 of 46
+  figure still counts it against that label.
