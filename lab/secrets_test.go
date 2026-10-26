@@ -286,3 +286,40 @@ func TestSecretsTheSeedStoresACredentialFromTheFileAndRemovesNothingItDidNotWrit
 		}
 	}
 }
+
+// A writer that fails after it opened the transfer file leaves no file behind: lab_hand_secrets removes it before
+// it returns the failure.
+func TestSecretsAFailedWriterLeavesNoFile(t *testing.T) {
+	failing := `#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_DIR/argv"
+mkdir -p "$FAKE_DIR/state"
+case "$*" in
+  *"cat > /state/secrets"*) cat > "$FAKE_DIR/state/secrets"; exit 1 ;;
+  *"--entrypoint rm"*) rm -f "$FAKE_DIR/state/secrets" ;;
+esac
+`
+	run := func(tree string) (bool, error) {
+		tmp := t.TempDir()
+		bin := filepath.Join(tmp, "bin")
+		writeExec(t, bin, "docker", failing)
+		cmd := exec.Command("sh", "-c", `ROOT="$1"; export ROOT; . "$1/lab/scripts/lib.sh"; lab_hand_secrets`, "sh", tree)
+		cmd.Env = []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "HOME=" + tmp, "TMPDIR=" + tmp, "FAKE_DIR=" + tmp,
+			"PROVEN_GENERATOR_KEY=" + sentinel("PROVEN_GENERATOR_KEY")}
+		err := cmd.Run()
+		_, serr := os.Stat(filepath.Join(tmp, "state", "secrets"))
+		return serr == nil, err
+	}
+	left, err := run(mustAbs(t, root))
+	if err == nil {
+		t.Error("a failed writer was reported as a success")
+	}
+	if left {
+		t.Error("a failed writer left the credentials file on the volume")
+	}
+	// The mutated field is the cleanup on failure: without it the same run must leave the file.
+	mut := copyLab(t)
+	mutate(t, mut, "lab/scripts/lib.sh", "    lab_remove_secrets\n    return 1", "    return 1")
+	if left, _ := run(mut); !left {
+		t.Error("the control did not turn red: with the cleanup removed the file was still gone")
+	}
+}

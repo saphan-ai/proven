@@ -282,6 +282,15 @@ lab_write_secrets() {
   } | compose run --rm --no-deps -T --entrypoint sh seed -c 'umask 077 && cat > /state/secrets'
 }
 
+# lab_hand_secrets: lab_write_secrets, and when it fails the transfer file is removed before the failure is returned:
+# a writer that stopped after it opened /state/secrets would otherwise leave every credential on the volume.
+lab_hand_secrets() {
+  if ! lab_write_secrets; then
+    lab_remove_secrets
+    return 1
+  fi
+}
+
 # lab_remove_secrets: the transfer file is removed after the seed, whether it finished or failed. The seed removes it
 # too, on every exit path of its own; this is the second hand, for a seed that was killed.
 lab_remove_secrets() {
