@@ -48,8 +48,8 @@ fi
 deadline=$(($(date +%s) + E2E_WAIT_SECONDS))
 last="no workflow run has started for the pull request's head commit"
 while [ "$(date +%s)" -lt "$deadline" ]; do
-  pulls=$(gitea_curl "$base/pulls?state=open" 2>/dev/null || true)
-  num=$(printf '%s' "$pulls" | sed -n 's/.*"number":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+  # The pull request of $LAB_DEMO_HEAD, the branch e2e-failed-run breaks; the lab opens seven, so never "the first".
+  num=$(gitea_curl "$base/pulls/$LAB_DEMO_BASE/$LAB_DEMO_HEAD" 2>/dev/null | grep -o '"number":[0-9]*' | head -n 1 | cut -d: -f2 || true)
   sha=
   if [ -n "$num" ]; then
     pr=$(gitea_curl "$base/pulls/$num" 2>/dev/null || true)

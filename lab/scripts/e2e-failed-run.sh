@@ -20,8 +20,8 @@ gitea_login
 base=$(gitea_repo_api)
 file_url="$base/contents/.github/workflows/proven.yml"
 
-pulls=$(gitea_curl "$base/pulls?state=open")
-num=$(printf '%s' "$pulls" | sed -n 's/.*"number":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+# The pull request of $LAB_DEMO_HEAD, the branch this control breaks; the lab opens seven, so never "the first".
+num=$(gitea_curl "$base/pulls/$LAB_DEMO_BASE/$LAB_DEMO_HEAD" | grep -o '"number":[0-9]*' | head -n 1 | cut -d: -f2 || true)
 if [ -z "$num" ]; then
   die "e2e-failed-run: no open pull request; run make up"
 fi
