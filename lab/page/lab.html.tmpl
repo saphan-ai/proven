@@ -49,6 +49,8 @@
   .v { font:600 .78rem var(--mono); border-radius:4px; padding:2px 8px; white-space:nowrap; }
   .v.ok { color:var(--accent); background:var(--accent-wash); }
   .v.bad { color:var(--bad); background:var(--bad-wash); }
+  a.btn-sm { font:600 .78rem var(--mono); color:var(--accent); background:var(--accent-wash); border:1px solid var(--accent-edge); border-radius:4px; padding:2px 10px; white-space:nowrap; }
+  a.btn-sm:hover { color:var(--accent-hi); border-color:var(--accent-hi); }
   .muted { color:var(--ink-muted); font-size:.9rem; }
   footer { margin-top:56px; padding-top:16px; border-top:1px solid var(--rule); color:var(--ink-dim); font-size:.85rem; }
 </style>
@@ -79,16 +81,28 @@ Nothing here leaves your machine unless you went live.</p>
     </div>
   </div>
   <div class="card">
-    <h3>Dashboard</h3>
-    <p>Grafana: the agents and the two reviewers for each review, verdicts side by side, where they disagree.</p>
+    <h3>Dashboards</h3>
+    <p>Grafana, six dashboards: every pull request at a glance, one review in detail, the evidence, the models and the guardrail, the Meterless engines, Nightshift.</p>
     <a class="btn" href="@@GRAFANA_URL@@" target="_blank" rel="noopener">Open Grafana</a>
+    <div class="creds">
+      <div><a href="@@GRAFANA_BASE@@/d/proven-review" target="_blank" rel="noopener">One review</a> &middot; <a href="@@GRAFANA_BASE@@/d/proven-evidence" target="_blank" rel="noopener">Evidence</a> &middot; <a href="@@GRAFANA_BASE@@/d/proven-models" target="_blank" rel="noopener">Models and trust</a></div>
+      <div><a href="@@GRAFANA_BASE@@/d/proven-engines" target="_blank" rel="noopener">Meterless engines</a> &middot; <a href="@@GRAFANA_BASE@@/d/proven-nightshift" target="_blank" rel="noopener">Nightshift</a></div>
+    </div>
   </div>
   <div class="card">
     <h3>Documentation</h3>
     <p>How Proven works, every setting, the decisions behind it. Served from this lab, works offline.</p>
     <a class="btn" href="@@DOCS_URL@@" target="_blank" rel="noopener">Open the docs</a>
   </div>
+  <div class="card">
+    <h3>Help</h3>
+    <p>The step-by-step walkthrough, and <code>docs/LAB.md</code> for troubleshooting.</p>
+    <a class="btn" href="@@HELP_URL@@" target="_blank" rel="noopener">Open the walkthrough</a>
+  </div>
 </div>
+
+<h2>Is every review done?</h2>
+<p class="muted">Reviews take a few minutes each. <code>make up</code> waits for all of them before it says the lab is ready, so the dashboards already have data. To wait again, or to check a lab you started earlier, run <code>make demo-check</code>. Outside the repository's folder: <code>make -C &lt;path to the repository&gt; demo-check</code>. It prints one line per pull request, and how many reviews reached the dashboards.</p>
 
 <h2>The scenario</h2>
 <ol class="steps">
@@ -103,13 +117,13 @@ Nothing here leaves your machine unless you went live.</p>
 <h2>The demo pull requests</h2>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>#</th><th>Change</th><th>What Proven should say</th><th>Verdict</th></tr></thead>
+  <thead><tr><th>#</th><th>Change</th><th>What Proven should say</th><th>Verdict</th><th>Review</th></tr></thead>
   <tbody>
 @@PR_ROWS@@
   </tbody>
 </table>
 </div>
-<p class="muted">Each clean change and each broken change is a case in Proven's test corpus or sample set, so the lab shows what the score measures.</p>
+<p class="muted">Each clean change and each broken change is a case in Proven's test corpus or sample set, so the lab shows what the score measures. <b>Report</b> opens that pull request's review as a page set the way GitHub shows a Markdown comment: the verdict, the findings table, and each finding's evidence folded under it.</p>
 
 <h2>Go live</h2>
 <p class="lead">Out of the box the lab reviews in sample mode: recorded answers, no keys, no calls. Three ways to make the next review live. On a terminal, <code>make up</code> asks which one. Each ends the same way: run <code>make up</code> again, then open a new pull request. The first line of Proven's comment says how it was made: <code>sample: no keys</code> or <code>live: &hellip;</code>. Now: <b>@@LIVE_STATE@@</b>.</p>

@@ -452,8 +452,8 @@ ensure_prs() {
     fi
     etitle=$(printf '%s' "$title" | html_escape)
     esays=$(printf '%s' "$says" | html_escape)
-    printf '    <tr><td class="n">%s</td><td><a href="%s/%s/%s/pulls/%s" target="_blank" rel="noopener">%s</a></td><td class="muted">%s</td><td>%s</td></tr>\n' \
-      "$PR_NUMBER" "${LAB_URL%/}" "$LAB_ADMIN_USER" "$LAB_DEMO_REPO" "$PR_NUMBER" "$etitle" "$esays" "$chip" >>/tmp/pr-rows.html
+    printf '    <tr><td class="n">%s</td><td><a href="%s/%s/%s/pulls/%s" target="_blank" rel="noopener">%s</a></td><td class="muted">%s</td><td>%s</td><td><a class="btn-sm" href="%s/report/%s.html" target="_blank" rel="noopener">Report</a></td></tr>\n' \
+      "$PR_NUMBER" "${LAB_URL%/}" "$LAB_ADMIN_USER" "$LAB_DEMO_REPO" "$PR_NUMBER" "$etitle" "$esays" "$chip" "${LAB_PAGE_URL:-/lab}" "$PR_NUMBER" >>/tmp/pr-rows.html
     printf '%s\t%s\t%s\t%s\n' "$PR_NUMBER" "$branch" "$fixture" "$verdict" >>/tmp/pr-numbers.tsv
   done <"$PRS_FILE"
 }
@@ -473,6 +473,14 @@ ensure_base
 : >/tmp/pr-numbers.tsv
 ensure_prs
 cp /tmp/pr-numbers.tsv /state/prs.tsv
+# Every pull request gets a report page now, so its Report link is never dead. A page the lab already built for it (a kept
+# volume) stays; make up builds the real one from Proven's --md review (lab/scripts/reports.sh).
+while IFS="$TAB" read -r report_num _; do
+  [ -n "$report_num" ] || continue
+  if [ ! -f "$PAGE_DIR/reports/$report_num.html" ]; then
+    sh "${REPORT_SH:-/usr/local/bin/report.sh}" stub "$report_num"
+  fi
+done </state/prs.tsv
 render_page
 printf '%s\n' ready >/state/ready
 echo "seed: demo repository, $PR_COUNT pull requests ($CLEAN_COUNT clean) and the start page are ready"

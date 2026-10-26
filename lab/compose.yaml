@@ -134,6 +134,7 @@ services:
       LAB_URL: http://127.0.0.1:${GITEA_HTTP_PORT}/
       LAB_GRAFANA_URL: http://127.0.0.1:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}
       LAB_DOCS_URL: http://127.0.0.1:${LAB_DOCS_PORT}/
+      LAB_HELP_URL: ${LAB_HELP_URL}
       LAB_PAGE_URL: http://127.0.0.1:${LAB_PAGE_PORT}${LAB_PAGE_PATH}
       # Which mode `make up` started in: sample, live via our gateway, or live on your own setup. The start page shows it.
       LAB_MODE: ${LAB_MODE:-sample}
@@ -181,6 +182,7 @@ services:
       # The demo pull requests, the start page's template, and the sample sets the pull requests are made from.
       - ./seed/prs.tsv:/seed/prs.tsv:ro
       - ./page/lab.html.tmpl:/seed/lab.html.tmpl:ro
+      - ./page/report.html.tmpl:/seed/report.html.tmpl:ro
       - ../testdata/fixture:/fixtures:ro
     depends_on:
       - gitea

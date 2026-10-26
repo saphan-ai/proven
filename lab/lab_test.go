@@ -294,6 +294,7 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 		"LAB_ADMIN_PASSWORD="+password,
 		"LAB_GRAFANA_URL=http://127.0.0.1:3301/d/proven-review",
 		"LAB_DOCS_URL=http://127.0.0.1:3303/",
+		"LAB_HELP_URL=https://example.test/help",
 		"LAB_PAGE_URL=http://127.0.0.1:3302/lab",
 	)
 	out, err := cmd.CombinedOutput()
@@ -313,6 +314,9 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 		`href="http://127.0.0.1:3300/proven/discount/pulls?state=all"`,
 		`href="http://127.0.0.1:3301/d/proven-review"`,
 		`href="http://127.0.0.1:3303/"`,
+		`href="https://example.test/help"`,
+		`href="http://127.0.0.1:3301/d/proven-evidence"`,
+		`make -C &lt;path to the repository&gt; demo-check`,
 		`served by the lab at http://127.0.0.1:3302/lab`,
 		`Two are clean changes`,
 		`Mode: <b>live via our gateway</b>.`,

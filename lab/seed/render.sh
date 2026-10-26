@@ -3,7 +3,7 @@
 #
 # render_page reads these variables: PAGE_TEMPLATE, PAGE_DIR (where lab.html goes, and the only place it is staged),
 # the file /tmp/pr-rows.html (the table rows), CLEAN_COUNT, LAB_URL, LAB_ADMIN_USER, LAB_DEMO_REPO, LAB_ADMIN_PASSWORD,
-# LAB_GRAFANA_URL, LAB_DOCS_URL, LAB_PAGE_URL, LAB_LIVE_STATE
+# LAB_GRAFANA_URL, LAB_HELP_URL, LAB_DOCS_URL, LAB_PAGE_URL, LAB_LIVE_STATE
 # (what the stored keys say, one line for the page). PR_ROWS_FILE names the rows file when it is not the default.
 
 html_escape() {
@@ -34,12 +34,17 @@ render_page() {
   # The features line is built by golive.sh from the values it stored; only its fixed words and the characters of a
   # separator get through, so nothing in it reaches sed as syntax.
   lab_features=$(printf '%s' "${LAB_FEATURES_STATE:-H-MEM on (always), World Model on (always), Scout Intent Proven's default, Markovian Proven's default}" | tr -cd "A-Za-z0-9 .,:'()-")
+  # The dashboards' own address: the dashboard link without its /d/<uid>, so the page can name all six.
+  grafana_base=${LAB_GRAFANA_URL:-}
+  grafana_base=${grafana_base%/d/*}
   trap 'rm -f "$stage"' EXIT INT TERM
   (
     umask 077
     sed \
       -e "s|@@GITEA_URL@@|${LAB_URL%/}|g" \
       -e "s|@@GRAFANA_URL@@|${LAB_GRAFANA_URL:-}|g" \
+      -e "s|@@GRAFANA_BASE@@|$grafana_base|g" \
+      -e "s|@@HELP_URL@@|${LAB_HELP_URL:-}|g" \
       -e "s|@@DOCS_URL@@|${LAB_DOCS_URL:-}|g" \
       -e "s|@@PAGE_URL@@|${LAB_PAGE_URL:-}|g" \
       -e "s|@@LAB_ADMIN_USER@@|$LAB_ADMIN_USER|g" \

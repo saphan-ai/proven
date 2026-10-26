@@ -228,9 +228,14 @@ fi
 compose up -d runner
 
 # The start page is rendered by the seed into the page volume, so the service starts after it.
-compose up -d page
+compose up -d --force-recreate page
 if [ "$docs_ready" -eq 1 ]; then
   compose up -d docs
+fi
+# Each pull request's report page: its review as a page set like a GitHub comment. A page that cannot be built is named, and
+# its Report link says it is not ready; make reports builds them again.
+if ! sh "$ROOT/lab/scripts/reports.sh"; then
+  echo "up: not every report page was built; the Report links say which (make reports builds them again)" >&2
 fi
 ui_done "The demo repository and its $(ui_pr_count) pull requests are created, and the CI runner is running"
 

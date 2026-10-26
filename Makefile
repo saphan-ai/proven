@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help check-flow password demo-check check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates check-links zetaris-usl-parity clean
+.PHONY: help check-flow password demo-check reports check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -47,6 +47,9 @@ password: ## Print the lab login: the start page, the Gitea user and password (o
 
 demo-check: ## Require Proven's review on every demo pull request (a clean one says clean) and a trace per review
 	@sh $(ROOT)/lab/scripts/demo-check.sh
+
+reports: ## Build the report page of every demo pull request again: its review as a page set like a GitHub comment
+	@sh $(ROOT)/lab/scripts/reports.sh
 
 check-banner: ## Check the closing banner offline: the exact lines, the password on a terminal, the path when redirected
 	@sh $(ROOT)/lab/scripts/banner-check.sh
