@@ -1,0 +1,15 @@
+# Reference set: Dependabot's alerts on this repository at fbdf7d3
+
+GitHub Dependabot raised 51 alerts on this repository: 45 npm advisories in `docs-site/package-lock.json` and 6 Go
+advisories for `golang.org/x/net` in `demo/live/change/go.mod`. We found them on our own repository and turned them into
+a baseline for Proven: Proven must find the same vulnerable dependencies, with its own evidence, and the comparison is made
+alert by alert.
+
+`alerts.json` is frozen before any run. It names the commit the alerts belong to
+(`fbdf7d32f57347fd89ae747ba0fe9faa28647414`, `main` when the alerts were read) and keeps each alert's number, severity,
+GHSA and CVE ids, package, manifest, vulnerable range and first patched version, as the API returned them on 2026-10-26.
+The npm alerts were fixed after that commit, so they are `fixed` here; the reference is the pinned commit, which git keeps.
+
+The 6 Go alerts are on purpose: `demo/live/change` pins `golang.org/x/net v0.16.0`, the release before the HTTP/2
+rapid-reset fix (CVE-2023-44487), so the live demo can show a known-exploited dependency being caught
+(`demo/live/README.md`).
