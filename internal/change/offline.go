@@ -78,10 +78,7 @@ func (p Policy) withoutAttributes(args []string) ([]string, error) {
 	if err := p.refuseInfoAttributes(repoDir(args)); err != nil {
 		return nil, err
 	}
-	// diff.ignoreSubmodules=all: a working-tree diff would otherwise start git in
-	// each checked-out submodule, and that git reads the submodule's own
-	// info/attributes, which refuseInfoAttributes does not see.
-	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.ignoreSubmodules=all"}
+	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null", "-c", "core.fsmonitor=false"}
 	return append(pre, ignoreSubmodules(args)...), nil
 }
 
