@@ -2,6 +2,7 @@ package hmem_test
 
 import (
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -171,6 +172,31 @@ func TestQueryTokenLimitIsASetting(t *testing.T) {
 	def, nine := relevance(0), relevance(9)
 	if !(nine > def) {
 		t.Fatalf("the ninth token did not count at limit 9: default %v, nine %v", def, nine)
+	}
+}
+
+// TestScoreAgreesWithQueryAtANonDefaultLimit proves the Score helper trims the
+// query to the configured token limit exactly as Query does: at limit 9 the
+// score of a record matched only by the ninth word equals the relevance Query
+// gives it, and at the default it equals the default-limit relevance.
+func TestScoreAgreesWithQueryAtANonDefaultLimit(t *testing.T) {
+	const q = "alpha bravo charlie delta echo foxtrot golf hotel zebra"
+	for _, tokens := range []int{0, 9} {
+		s, err := hmem.Open(hmem.Options{Dir: t.TempDir(), LogDir: t.TempDir(), Clock: func() time.Time { return time.UnixMilli(fixed) }, Limits: hmem.Limits{QueryTokens: tokens}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec, err := s.Add(hmem.AddInput{Content: "zebra", Source: "manual", At: fixed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := s.Query(q, 5, 1e-9)
+		if err != nil || len(res.Hits) == 0 {
+			t.Fatalf("limit %d: query returned no hit: %v", tokens, err)
+		}
+		if got := hmem.Score(rec, q, fixed, tokens); math.Abs(got-res.Hits[0].Relevance) > 1e-9 {
+			t.Fatalf("limit %d: Score %v disagrees with Query %v", tokens, got, res.Hits[0].Relevance)
+		}
 	}
 }
 

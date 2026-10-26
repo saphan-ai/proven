@@ -125,10 +125,15 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 
 // Score is the final ranking value for one record. It does not touch the store.
 // It applies the same query trimming as Query, so a test can check one score by hand.
-func Score(rec Record, query string, now int64) float64 {
+// queryTokens is the store's query-token limit (Limits.QueryTokens); zero or
+// less means DefaultQueryTokens, as it does for a store (ADR-0013).
+func Score(rec Record, query string, now int64, queryTokens int) float64 {
+	if queryTokens <= 0 {
+		queryTokens = DefaultQueryTokens
+	}
 	tokens := Tokenize(query)
-	if len(tokens) > 8 {
-		tokens = tokens[:8]
+	if len(tokens) > queryTokens {
+		tokens = tokens[:queryTokens]
 	}
 	return score(rec, Embed(query), tokens, extractEntities(query), classifyDomain(query, nil, TypeGeneral), now)
 }
