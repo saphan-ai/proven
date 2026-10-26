@@ -75,7 +75,10 @@ func withoutAttributes(args []string) ([]string, error) {
 	if err := refuseInfoAttributes(repoDir(args)); err != nil {
 		return nil, err
 	}
-	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null", "-c", "core.fsmonitor=false"}
+	// diff.ignoreSubmodules=all: a working-tree diff would otherwise start git in
+	// each checked-out submodule, and that git reads the submodule's own
+	// info/attributes, which refuseInfoAttributes does not see.
+	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.ignoreSubmodules=all"}
 	return append(pre, args...), nil
 }
 
