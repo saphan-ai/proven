@@ -59,15 +59,15 @@ func GitCommand(args ...string) *exec.Cmd {
 // GIT_ATTR_NOSYSTEM. The empty tree's id depends on the repository's hash, so
 // git names it. Needs git 2.40 or later; an older git refuses the switch by name.
 // Online, args come back unchanged.
-func withoutAttributes(target string, args []string) ([]string, error) {
+func withoutAttributes(args []string) ([]string, error) {
 	if !offline.Load() {
 		return args, nil
 	}
-	out, err := GitCommand("-C", target, "hash-object", "-t", "tree", "/dev/null").Output()
+	out, err := GitCommand("-C", repoDir(args), "hash-object", "-t", "tree", "/dev/null").Output()
 	if err != nil {
 		return nil, fmt.Errorf("git: cannot name the empty tree: %w", err)
 	}
-	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null"}
+	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null", "-c", "core.fsmonitor=false"}
 	return append(pre, args...), nil
 }
 
@@ -93,17 +93,20 @@ func offlineMessage(cmd *exec.Cmd, msg string) string {
 	return msg
 }
 
+// repoDir is the directory a git command line names with -C, or the current one.
+func repoDir(args []string) string {
+	for i, a := range args {
+		if a == "-C" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return "."
+}
+
 // isPartialClone reports whether the repository cmd ran in has a promisor
 // remote, the thing that makes git fetch a missing object. cmd names the
 // repository with -C; without it git ran in the current directory.
 func isPartialClone(cmd *exec.Cmd) bool {
-	dir := "."
-	for i, a := range cmd.Args {
-		if a == "-C" && i+1 < len(cmd.Args) {
-			dir = cmd.Args[i+1]
-			break
-		}
-	}
-	probe := GitCommand("-C", dir, "config", "--get-regexp", `^(extensions\.partialclone|remote\..*\.promisor)$`)
+	probe := GitCommand("-C", repoDir(cmd.Args), "config", "--get-regexp", `^(extensions\.partialclone|remote\..*\.promisor)$`)
 	return probe.Run() == nil
 }

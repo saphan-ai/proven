@@ -17,7 +17,7 @@ func filterRepo(t *testing.T) (repo, marker string) {
 	if err := os.Chmod(script, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(home, ".gitconfig"), "[filter \"probe\"]\n\tclean = "+script+"\n\tsmudge = "+script+"\n[diff \"probe\"]\n\ttextconv = "+script+"\n")
+	write(t, filepath.Join(home, ".gitconfig"), "[filter \"probe\"]\n\tclean = "+script+"\n\tsmudge = "+script+"\n[diff \"probe\"]\n\ttextconv = "+script+"\n[core]\n\tfsmonitor = "+script+"\n")
 	t.Setenv("HOME", home)
 	repo = t.TempDir()
 	git(t, repo, "init")
@@ -29,7 +29,7 @@ func filterRepo(t *testing.T) (repo, marker string) {
 	return repo, marker
 }
 
-// TestLocalWorkingTreeReadsRunNoFilterDriver: the commands that look at the working tree (the diff of a
+// TestLocalWorkingTreeReadsRunNoFilterDriver (a filter driver or the file system monitor): the commands that look at the working tree (the diff of a
 // working-tree review, the untracked listing) compare file content, which git converts with the clean
 // filter. In local mode none of them starts a driver. Mutated field: the content of f.txt in the working
 // tree, so git has a reason to filter it.

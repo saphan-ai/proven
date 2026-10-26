@@ -118,12 +118,6 @@ func Between(target, baseline, head string) ([]string, error) {
 	if head != "" {
 		args = append(args, head)
 	}
-	// The diff of a working tree converts each file it compares, so it is read
-	// with no attribute that could name a filter driver (local mode).
-	args, err := withoutAttributes(target, args)
-	if err != nil {
-		return nil, err
-	}
 	names, err := gitZ(args)
 	if err != nil {
 		return nil, err
@@ -247,7 +241,16 @@ func ensureCommit(target, rev, which string) error {
 
 // gitZ runs git with args and splits its NUL-separated output into slash
 // paths. A failure carries git's own message.
+//
+// These commands compare or list the working tree, and git converts a file it
+// compares (the clean filter) and asks the file system monitor about the tree.
+// In local mode they run with no attribute and no monitor that could name a
+// program Proven did not choose (withoutAttributes).
 func gitZ(args []string) ([]string, error) {
+	args, err := withoutAttributes(args)
+	if err != nil {
+		return nil, err
+	}
 	cmd := GitCommand(args...)
 	// A list of path names is repository content too, so it has the archive bound.
 	out, err := outputBounded(cmd, Bounds().Archive, "the list of file names", EnvMaxArchiveBytes)
