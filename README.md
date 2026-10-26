@@ -69,10 +69,11 @@ Open any package, read any test, pick any merge, and tell us what you find.
 What Proven does not do yet, or does not do well, measured and dated. This list is updated with every push.
 
 - **Scout Intent: how well it sorts changes is measured; whether it improves reviews is not.** On a blind set of 46
-  changes frozen before the run (English, Polish and Thai, including disguised ones) it sorted 30 correctly and missed
-  16, reported unpatched so the set stays blind. In 3 of the misses a security change was taken for a documentation
-  change and got a lighter review than it should have (26 October). It also asks for clarification more often than its
-  own ceiling allows. Whether its plans give the same findings for less work is not measured yet.
+  changes frozen before the run (English, Polish and Thai, including disguised ones) it got about two thirds right;
+  the exact count is being re-checked after a review found a flaw in how we counted, so we do not quote a number until
+  it is confirmed. In some misses a security change was taken for a documentation change and got a lighter review than
+  it should have (26 October). It also asks for clarification more often than its own ceiling allows. Whether its plans
+  give the same findings for less work is not measured yet.
 - **Markovian: its effect on reviews is not measured yet.** It passes its conformance checks (8 of 8), but whether
   reviewing a large change in bounded steps finds as much as one whole review is still to be measured.
 - **Scout Intent and Markovian are off by default today.** Turning all four engines on by default, each switchable
@@ -80,8 +81,8 @@ What Proven does not do yet, or does not do well, measured and dated. This list 
 - **H-MEM reads its whole state file** when it opens and rewrites it on every write. A size cap is being added; until
   then it is meant for one repository's memory, not a large organisation's.
 - **The corpus score was recorded while NVIDIA's API was failing** (HTTP 500 and timeouts on 26 October), so the NVIDIA
-  column shows mostly failed calls, every failure named. A second column on another model family, through Meterless
-  Nightshift, is recorded once and labelled "run 1 only".
+  column shows mostly failed calls, every failure named. A second column on another model family (GLM-5.3) is recorded
+  once and labelled "run 1 only".
 - **The lab's demo runs on sample data.** Live mode needs Zetaris and Meterless Nightshift, your own or ours through an
   authenticated gateway.
 - **The review spine is one long function** (`pipeline.review`, about 500 lines). Splitting it is accepted debt until
@@ -100,8 +101,10 @@ We measured it before blaming anything: the same prompt at every size from 8 KB 
 not our prompts. A support ticket with the request ids is open with NVIDIA.
 
 **The emergency workaround, being set up now:**
-- Proven keeps calling **Meterless Nightshift**, its primary AI provider. If NVIDIA is down when judging starts,
-  Nightshift routes the reviews to **GLM-5.3 on QwenCloud**, and every review names the model that answered.
+- **Meterless Nightshift stays Proven's primary AI provider.** If NVIDIA is down when judging starts, Proven's reviews
+  fall back to **GLM-5.3 on QwenCloud**. Nightshift's current provider list does not include QwenCloud, so this
+  fallback calls QwenCloud directly, outside Nightshift, and says so: every review names the model that answered and
+  that it was the fallback. A QwenCloud provider in Nightshift would let the fallback run through Nightshift too.
 - **NVIDIA stays in the loop as the guardrail**: a smaller NVIDIA safety model, running on our own machine, checks
   prompts and answers.
 - The moment Nemotron is stable again, it goes back to being Proven's default reviewer.
