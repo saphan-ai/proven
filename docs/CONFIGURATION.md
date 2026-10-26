@@ -7,7 +7,7 @@ environment only). The names and defaults below were read from the code on `main
 setting, the value and what is allowed. An empty secret does not: that service is down and the review names it, and an empty guardrail key refuses every model call unless `PROVEN_GUARDRAIL_MODE` is `off`.
 
 The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads none of the
-settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
+settings below except `proven.yaml`'s `timeout` and the switches of the four Meterless engines (`PROVEN_MARKOVIAN` and its three tuning variables, `PROVEN_HMEM`, `PROVEN_WORLD_MODEL`; ADR-0053): see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
 <!-- generated: settings -->
 ## The model generator: Meterless Nightshift or NVIDIA's hosted API
@@ -74,7 +74,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
 
 ## The Prover's container
 
@@ -110,7 +110,16 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 | `PROVEN_MARKOVIAN_STEP_UNIT` | `file` | what one step reads: `file` (one changed file, its base and its change) or `hunk` (one changed region of a file) |
 | `PROVEN_MARKOVIAN_CARRY_TOKENS` | `800` | the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from 128 to 32768. When it cannot hold every claim that awaits evidence, the review stops and names itself incomplete; it never drops such a claim |
 
-ADR-0053 (superseding the "off until measured" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these.
+ADR-0053 (superseding the "off until measured" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way.
+
+## The two stores: Meterless's H-MEM and World Model
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_HMEM` | `on` | `on` opens H-MEM, so a finding an earlier review of the same change refuted is dropped and a landed refutation is remembered; `off` neither opens, reads nor writes it. On by default (ADR-0053); its benefit is not measured yet |
+| `PROVEN_WORLD_MODEL` | `on` | `on` opens the World Model and folds each finished review's trace into it; `off` neither opens nor writes it. With H-MEM off the World Model still folds and records no refutation. On by default (ADR-0053); its benefit is not measured yet |
+
+ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches.
 
 ## One adapter call
 

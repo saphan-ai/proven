@@ -129,6 +129,8 @@ type Options struct {
 	// Markov is the bounded-steps setting (ADR-0048). The zero value is off: the Planner reads the change whole
 	// and the Fixer sees every earlier attempt, as before. Sample mode leaves it unset.
 	Markov markov.Settings
+	// Stores holds the switches of H-MEM and the World Model (ADR-0053). The zero value leaves both on.
+	Stores StoreSettings
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
@@ -166,6 +168,9 @@ type Pipeline struct {
 	tel *telemetry.T
 	// markov is the bounded-steps setting (ADR-0048); off unless Options set it.
 	markov markov.Settings
+	// stores is the switch of each store (ADR-0053). A store switched off is never opened, so mem or world
+	// stays nil and every use below is guarded by it.
+	stores StoreSettings
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -220,6 +225,7 @@ func Build(opts Options) (*Pipeline, error) {
 		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
 		tel:    opts.Telemetry,
 		markov: opts.Markov,
+		stores: opts.Stores,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
@@ -621,8 +627,12 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	// The stores get the guarded generator, never the raw one: a call a store
 	// ever makes is checked before and after, and recorded, like an agent call.
-	p.mem.SetGenerator(gen)
-	p.world.SetGenerator(gen)
+	if p.mem != nil {
+		p.mem.SetGenerator(gen)
+	}
+	if p.world != nil {
+		p.world.SetGenerator(gen)
+	}
 	// ADR-0009, ADR-0012: a doubled review runs a second Planner and a second
 	// Skeptic on the special-review model.
 	var special generator.Generator
@@ -931,13 +941,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// change refuted is dropped and does not come back.
 	_, jstage := p.tel.StartStage(ctx, "judge", telemetry.ReviewerShared, "")
 	for i := range cands {
-		if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
-			cands[i].Dropped = true
-			cands[i].DropReason = "suppressed: hmem " + rec.ID
-			if err := st.event(cands[i].ID, "memory", "hmem", "matched "+rec.ID); err != nil {
-				return candidate.Draft{}, err
+		// ADR-0053: with H-MEM switched off the store is not read, so nothing is suppressed.
+		if p.mem != nil {
+			if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
+				cands[i].Dropped = true
+				cands[i].DropReason = "suppressed: hmem " + rec.ID
+				if err := st.event(cands[i].ID, "memory", "hmem", "matched "+rec.ID); err != nil {
+					return candidate.Draft{}, err
+				}
+				continue
 			}
-			continue
 		}
 		cands[i] = judge.Decide(cands[i])
 		if err := st.event(cands[i].ID, "verdict", "judge", cands[i].DropReason); err != nil {

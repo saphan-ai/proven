@@ -92,7 +92,9 @@ type Report struct {
 
 // Options open a store. Dir is durable state. LogDir receives the provenance JSONL.
 // RepoRoot, when set, refuses a Dir inside that tree. Memory is the H-MEM
-// store that keeps refutations; it is required.
+// store that keeps refutations. It may be nil, which is how a review with H-MEM
+// switched off (ADR-0053) opens the World Model: the fold records no refutation
+// in memory and Context matches none.
 type Options struct {
 	Dir      string
 	LogDir   string
@@ -131,9 +133,6 @@ func Open(opts Options) (*Store, error) {
 	}
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("world: logs directory is empty")
-	}
-	if opts.Memory == nil {
-		return nil, fmt.Errorf("world: memory store is missing")
 	}
 	dir, err := filepath.Abs(opts.Dir)
 	if err != nil {
@@ -395,7 +394,7 @@ func (s *Store) apply(ev trace.Event) error {
 		// teaches the next review nothing, and the Skeptic's word alone is not a
 		// refutation. The time is the event's place in the fold, not the clock,
 		// so a replay stores the same record.
-		if ref.Refuted && ev.HasEvidence && evidenced {
+		if ref.Refuted && ev.HasEvidence && evidenced && s.mem != nil {
 			at := int64(len(s.applied) + 1)
 			rec, err := s.mem.RememberRefutation(hmem.RefutationKey{
 				ChangeKey: ev.ChangeKey,
@@ -453,6 +452,9 @@ func (s *Store) Context(findingID, changeKey, ruleID, path, title string) Contex
 		out.Refutations = append([]Refutation(nil), f.Refutations...)
 		out.Verdict = f.Verdict
 		out.MemoryID = f.MemoryID
+	}
+	if s.mem == nil {
+		return out
 	}
 	if rec, ok := s.mem.MatchRefutation(changeKey, ruleID, path, title); ok {
 		out.Memories = []hmem.Record{rec}
