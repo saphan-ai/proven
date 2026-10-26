@@ -103,7 +103,9 @@ pc_curl() {
 
 # pc_http METHOD URL [BODY_FILE] — print the response; a non-2xx answer is a failure.
 pc_http() {
-  if [ -n "${COMMENT_HTTP:-}" ]; then "$COMMENT_HTTP" "$@"; return; fi
+  # COMMENT_HTTP is the offline checks' stub client; in local mode it is ignored, so the
+  # judged address is reached by curl as above and by nothing else.
+  if [ -n "${COMMENT_HTTP:-}" ] && [ -z "${PC_LOCAL:-}" ]; then "$COMMENT_HTTP" "$@"; return; fi
   [ -n "${PC_CLIENT:-}" ] || pc_pick_client
   auth="Authorization: token $PC_TOKEN"
   case "$PC_CLIENT" in

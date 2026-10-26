@@ -8,12 +8,12 @@ import (
 )
 
 // runCheckAddress is `proven check-address SETTING ADDRESS`: the action asks it
-// whether the forge address reviewdog would post to may be reached under the
-// network mode (ADR-0034). In public mode every address is allowed. In local
-// mode the address is judged like every other: loopback, private, or on the
-// allow list, and an IP literal, because reviewdog resolves a name with its
-// own resolver. Exit 0 allowed, and the line ends with the mode; 7 refused,
-// naming the setting; 2 for a wrong command line.
+// whether the API address its summary comment is posted to (post-comment.sh, with
+// curl) may be reached under the network mode (ADR-0034). In public mode every
+// address is allowed. In local mode the address is judged like every other:
+// loopback, private, or on the allow list, and an IP literal, because curl
+// resolves a name with its own resolver. Exit 0 allowed, and the line ends with
+// the mode; 7 refused, naming the setting; 2 for a wrong command line.
 func runCheckAddress(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
 	if len(args) != 2 {
 		fmt.Fprintln(stderr, "check-address takes a setting name and an address: proven check-address SETTING ADDRESS")

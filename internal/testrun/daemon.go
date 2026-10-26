@@ -90,8 +90,7 @@ func checkContextTelemetry(policy *network.Policy, ctxName, endpoint string) err
 	if err != nil {
 		return refuse(envDockerContext, value, "the docker context's telemetry endpoint cannot be read: "+err.Error(), "a context whose telemetry endpoint is a local socket or an IP address on the organisation's network, or none")
 	}
-	bare, _, _ := strings.Cut(u.Hostname(), "%")
-	if _, err := netip.ParseAddr(bare); err != nil {
+	if _, err := netip.ParseAddr(u.Hostname()); err != nil {
 		return refuse(envDockerContext, value, "host "+u.Hostname()+" is a name, and the docker CLI would resolve it with its own resolver to send its telemetry (PROVEN_NETWORK=local)", "a context whose telemetry endpoint is a local socket or an IP address on the organisation's network, or none")
 	}
 	return nil

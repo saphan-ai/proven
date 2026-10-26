@@ -344,6 +344,31 @@ cr=$(printf '\r')
 localpost localcr "PROVEN_NETWORK=local$cr" GITHUB_API_URL=http://10.1.2.3/api/v1
 check "local with a carriage return: the comment is posted" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
 check "local with a carriage return: curl has no proxy either" "$(wc -l <"$STUB/curl" | tr -d ' ')" "$(grep -c "^-q --noproxy \* " "$STUB/curl")"
+# Local mode with no curl in the image: the comment is not posted, the step says so, and
+# neither wget nor an install is tried (apk add would reach a package mirror). PATH is a
+# directory of links to every program on this host's PATH except curl, wget and apk, with
+# stubs for wget and apk that record any call. Mutated field: PATH (curl absent).
+mkdir -p "$tmp/nocurl"
+oldifs=$IFS
+IFS=:
+for d in $PATH; do
+  IFS=$oldifs
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    b=${f##*/}
+    case "$b" in curl | wget | apk) continue ;; esac
+    [ -e "$tmp/nocurl/$b" ] || ln -s "$f" "$tmp/nocurl/$b" 2>/dev/null || true
+  done
+done
+IFS=$oldifs
+for b in wget apk; do
+  printf '#!/bin/sh\nprintf "%%s %%s\\n" %s "$*" >>"$STUB/other"\nexit 1\n' "$b" >"$tmp/nocurl/$b"
+  chmod +x "$tmp/nocurl/$b"
+done
+localpost localnocurl PROVEN_NETWORK=local GITHUB_API_URL=http://10.1.2.3/api/v1 PATH="$tmp/nocurl"
+check "local, no curl: the post fails the step (2)" 2 "$rc"
+check "local, no curl: the step says curl is needed" 1 "$(grep -c 'with curl only' "$tmp/localnocurl/stderr")"
+check "local, no curl: neither wget nor apk is run" 0 "$(test -s "$STUB/other" && echo 1 || echo 0)"
 localpost publiccurl GITHUB_API_URL=http://10.1.2.3/api/v1
 check "public mode: curl is run as before" 0 "$(grep -c -- "--noproxy" "$STUB/curl")"
 check "public mode: the comment is posted" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"

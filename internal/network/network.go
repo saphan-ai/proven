@@ -185,8 +185,9 @@ func (p *Policy) CheckDaemon(setting, raw string) error {
 	// address comes back. Proven judges none of that, so a name is not handed to
 	// it, listed or not. An IP literal has nothing to resolve.
 	u, _ := url.Parse(raw)
-	bare, _, _ := strings.Cut(u.Hostname(), "%")
-	if _, err := netip.ParseAddr(bare); err != nil {
+	// The host is parsed whole: netip takes a zone on an IPv6 address only, so
+	// 10.1.2.3%name is not an IP literal.
+	if _, err := netip.ParseAddr(u.Hostname()); err != nil {
 		return refuse(setting, clip(raw), "host "+u.Hostname()+" is a name, and the container runtime would resolve it with its own resolver (PROVEN_NETWORK=local)", "a local socket, or the IP address of the daemon on the organisation's network")
 	}
 	return nil
@@ -206,9 +207,10 @@ func (p *Policy) CheckProgramAddress(setting, raw string) error {
 		return err
 	}
 	u, _ := url.Parse(raw)
-	bare, _, _ := strings.Cut(u.Hostname(), "%")
-	if _, err := netip.ParseAddr(bare); err != nil {
-		return refuse(setting, clip(raw), "host "+u.Hostname()+" is a name, and the program that posts the comment would resolve it with its own resolver (PROVEN_NETWORK=local)", "the IP address of the forge on the organisation's network")
+	// The host is parsed whole: netip takes a zone on an IPv6 address only, so
+	// 10.1.2.3%name is not an IP literal.
+	if _, err := netip.ParseAddr(u.Hostname()); err != nil {
+		return refuse(setting, clip(raw), "host "+u.Hostname()+" is a name, and the HTTP client that posts the comment would resolve it with its own resolver (PROVEN_NETWORK=local)", "the IP address of the forge on the organisation's network")
 	}
 	return nil
 }
@@ -368,9 +370,9 @@ func (p *Policy) resolverDial(ctx context.Context, network, address string) (net
 // the allow list. Any other name is refused without a lookup.
 func (p *Policy) allowedHost(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
-	// A zone on an IPv6 literal does not change which address it is.
-	bare, _, _ := strings.Cut(host, "%")
-	if a, err := netip.ParseAddr(bare); err == nil {
+	// A zone on an IPv6 literal does not change which address it is, and netip
+	// parses one there; it takes none on IPv4, so 10.1.2.3%name is not an address.
+	if a, err := netip.ParseAddr(host); err == nil {
 		a = a.Unmap()
 		return a.IsLoopback() || a.IsPrivate() || a.IsLinkLocalUnicast() || a.IsLinkLocalMulticast() || p.allow[host]
 	}
