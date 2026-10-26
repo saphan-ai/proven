@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/saphan-ai/proven/internal/network"
 )
@@ -46,9 +49,12 @@ func checkDaemon(policy *network.Policy, env func(string) string) error {
 	if ctxName == "" || ctxName == "default" {
 		return nil
 	}
-	host, err := contextHost(env, ctxName)
+	host, otelEndpoint, err := contextHost(env, ctxName)
 	if err != nil {
 		return refuse(envDockerContext, clip(ctxName), "the docker context's daemon address cannot be read: "+err.Error(), "a context whose daemon is a local socket or a host on the organisation's network, or the default context")
+	}
+	if err := checkContextTelemetry(policy, ctxName, otelEndpoint); err != nil {
+		return err
 	}
 	if host == "" {
 		return nil
@@ -59,6 +65,34 @@ func checkDaemon(policy *network.Policy, env func(string) string) error {
 			return fromNetwork(ce)
 		}
 		return err
+	}
+	return nil
+}
+
+// checkContextTelemetry judges the OTLP endpoint a docker context names in its
+// metadata (the field "otel", key OTEL_EXPORTER_OTLP_ENDPOINT): the docker CLI
+// exports its own telemetry there (docker/cli, cli/command/telemetry_docker.go).
+// A unix socket is local. Any other endpoint must be an IP address on the
+// organisation's network, because the CLI resolves a name with its own resolver.
+func checkContextTelemetry(policy *network.Policy, ctxName, endpoint string) error {
+	if endpoint == "" || strings.HasPrefix(endpoint, "unix://") {
+		return nil
+	}
+	value := clip(ctxName + " -> otel " + endpoint)
+	if err := policy.CheckURL(envDockerContext, endpoint); err != nil {
+		if ce, ok := network.As(err); ok {
+			ce.Value = value
+			return fromNetwork(ce)
+		}
+		return err
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return refuse(envDockerContext, value, "the docker context's telemetry endpoint cannot be read: "+err.Error(), "a context whose telemetry endpoint is a local socket or an IP address on the organisation's network, or none")
+	}
+	bare, _, _ := strings.Cut(u.Hostname(), "%")
+	if _, err := netip.ParseAddr(bare); err != nil {
+		return refuse(envDockerContext, value, "host "+u.Hostname()+" is a name, and the docker CLI would resolve it with its own resolver to send its telemetry (PROVEN_NETWORK=local)", "a context whose telemetry endpoint is a local socket or an IP address on the organisation's network, or none")
 	}
 	return nil
 }
@@ -97,27 +131,33 @@ func dockerContext(env func(string) string) (string, error) {
 	return cfg.CurrentContext, nil
 }
 
-// contextHost returns the docker endpoint of a named context. Docker keeps it in
+// contextHost returns the docker endpoint of a named context and the OTLP
+// endpoint its metadata names for the docker CLI's telemetry, if any. Docker keeps it in
 // contexts/meta/<sha256 of the name>/meta.json.
-func contextHost(env func(string) string, name string) (string, error) {
+func contextHost(env func(string) string, name string) (string, string, error) {
 	dir := dockerConfigDir(env)
 	if dir == "" {
-		return "", os.ErrNotExist
+		return "", "", os.ErrNotExist
 	}
 	sum := sha256.Sum256([]byte(name))
 	b, err := readSmall(filepath.Join(dir, "contexts", "meta", hex.EncodeToString(sum[:]), "meta.json"))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	var meta struct {
+		Metadata  map[string]any `json:"Metadata"`
 		Endpoints map[string]struct {
 			Host string `json:"Host"`
 		} `json:"Endpoints"`
 	}
 	if err := json.Unmarshal(b, &meta); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return meta.Endpoints["docker"].Host, nil
+	otelEndpoint := ""
+	if otel, ok := meta.Metadata["otel"].(map[string]any); ok {
+		otelEndpoint, _ = otel["OTEL_EXPORTER_OTLP_ENDPOINT"].(string)
+	}
+	return meta.Endpoints["docker"].Host, otelEndpoint, nil
 }
 
 // dockerConfigDir is DOCKER_CONFIG, else .docker in the home directory.
