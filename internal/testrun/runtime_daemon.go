@@ -2,11 +2,13 @@ package testrun
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 
 	"github.com/saphan-ai/proven/internal/network"
 )
@@ -21,23 +23,20 @@ var podmanSystemConfs = []string{
 	"/etc/containers/containers.conf",
 }
 
-// serviceURI matches a uri value of a podman service destination.
-var serviceURI = regexp.MustCompile(`(?i)\buri\s*=\s*["']([^"']*)["']`)
-
 // checkRuntime refuses, in local mode, a runtime whose daemon address Proven
 // cannot judge (ADR-0034). The runtime is any command, and each one finds its
 // daemon its own way. docker is judged by DOCKER_HOST, CONTAINER_HOST and the
 // docker context (checkDaemon). podman is judged by the remote services of its
-// containers.conf files and its connections file under HOME. Any other runtime
+// containers.conf files and its connections file under HOME. A command named
+// docker may be podman (the podman-docker package installs one) and Proven
+// cannot tell, so it is judged by the podman sources too. Any other runtime
 // is refused by name: Proven does not know where it would connect.
 func checkRuntime(policy *network.Policy, env func(string) string, runtime string) error {
 	if !policy.Local() {
 		return nil
 	}
 	switch filepath.Base(runtime) {
-	case "docker":
-		return nil
-	case "podman":
+	case "docker", "podman":
 		return checkPodman(policy, env)
 	}
 	return refuse(envRuntimeSetting, clip(runtime),
@@ -67,7 +66,12 @@ func checkPodman(policy *network.Policy, env func(string) string) error {
 			return refuse(envRuntimeSetting, clip(path), "a podman configuration file cannot be read: "+err.Error(),
 				"a podman configuration that Proven can read, or none")
 		}
-		for _, uri := range serviceDestinations(string(b)) {
+		uris, err := serviceDestinations(b)
+		if err != nil {
+			return refuse(envRuntimeSetting, clip(path), "a podman configuration file is not TOML Proven can read: "+err.Error(),
+				"a podman configuration that Proven can read, or none")
+		}
+		for _, uri := range uris {
 			if err := policy.CheckDaemon("podman service destination in "+clip(path), uri); err != nil {
 				return fromNetwork(err)
 			}
@@ -104,26 +108,96 @@ func confDropIns(dir string) []string {
 	return matches
 }
 
-// serviceDestinations returns every uri set in a service_destinations table of a
-// containers.conf text: under a [engine.service_destinations.<name>] header, or
-// on a line that also names service_destinations (an inline table).
-func serviceDestinations(text string) []string {
-	var uris []string
-	inService := false
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "[") {
-			inService = strings.Contains(line, "service_destinations")
-			continue
-		}
-		if !inService && !strings.Contains(line, "service_destinations") {
-			continue
-		}
-		for _, m := range serviceURI.FindAllStringSubmatch(line, -1) {
-			uris = append(uris, m[1])
+// serviceDestinations parses a containers.conf as TOML and returns the uri of
+// every [engine.service_destinations.<name>] it holds, whatever way the file
+// spells them: a dotted key, a quoted key or table name, an inline table, a
+// literal string, an escape. Podman reads the file with the same parser and
+// matches a field name without regard to case, so a key is matched that way.
+// A document that does not parse, or whose destinations, remote flag or active
+// service are not the types podman reads, is an error: what cannot be read
+// with certainty is not judged to be safe.
+func serviceDestinations(b []byte) ([]string, error) {
+	var doc map[string]any
+	if _, err := toml.Decode(string(b), &doc); err != nil {
+		return nil, err
+	}
+	engine, err := tableKey(doc, "engine")
+	if err != nil || engine == nil {
+		return nil, err
+	}
+	if v, ok := lookupKey(engine, "remote"); ok {
+		if _, isBool := v.(bool); !isBool {
+			return nil, fmt.Errorf("engine.remote is not a boolean")
 		}
 	}
-	return uris
+	if v, ok := lookupKey(engine, "active_service"); ok {
+		if _, isString := v.(string); !isString {
+			return nil, fmt.Errorf("engine.active_service is not a string")
+		}
+	}
+	dests, err := tableKey(engine, "service_destinations")
+	if err != nil || dests == nil {
+		return nil, err
+	}
+	var uris []string
+	for name, raw := range dests {
+		dest, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("engine.service_destinations.%s is not a table", name)
+		}
+		for key, v := range dest {
+			if !strings.EqualFold(key, "uri") {
+				continue
+			}
+			uri, ok := v.(string)
+			if !ok {
+				return nil, fmt.Errorf("engine.service_destinations.%s.uri is not a string", name)
+			}
+			uris = append(uris, uri)
+		}
+	}
+	sort.Strings(uris)
+	return uris, nil
+}
+
+// lookupKey returns the value of the key named want in m, matched without regard
+// to case as podman's TOML decoder matches a field. Keys that differ only by case
+// are read as the first in sorted order; tableKey refuses a table set twice.
+func lookupKey(m map[string]any, want string) (any, bool) {
+	var found []string
+	for k := range m {
+		if strings.EqualFold(k, want) {
+			found = append(found, k)
+		}
+	}
+	if len(found) == 0 {
+		return nil, false
+	}
+	sort.Strings(found)
+	return m[found[0]], true
+}
+
+// tableKey returns the table named want in m, nil when m has none, and an error
+// when the key is present and is not a table or is present in more than one case.
+func tableKey(m map[string]any, want string) (map[string]any, error) {
+	n := 0
+	for k := range m {
+		if strings.EqualFold(k, want) {
+			n++
+		}
+	}
+	if n > 1 {
+		return nil, fmt.Errorf("%s is set more than once, in different case", want)
+	}
+	v, ok := lookupKey(m, want)
+	if !ok {
+		return nil, nil
+	}
+	t, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a table", want)
+	}
+	return t, nil
 }
 
 // connectionURIs returns every URI of podman-connections.json.
