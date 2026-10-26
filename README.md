@@ -112,8 +112,10 @@ not our prompts. A support ticket with the request ids is open with NVIDIA.
 - The moment Nemotron is stable again, it goes back to being Proven's default reviewer.
 
 **What already landed today:**
-- **World Model passes 8 of 8** on Meterless's own conformance runner, on `main`. H-MEM's 13 of 13 is in its last
-  review rounds.
+- **Full Meterless conformance on `main`**, on Meterless's own runner: **H-MEM 13 of 13, World Model 8 of 8, Markovian
+  8 of 8**. H-MEM took twelve fix rounds, each judged by two model families, before both accepted it.
+- **The code review's clean-up landed**: one shared configuration error type instead of twelve, and tests named for
+  what they check instead of the review round that asked for them.
 - **The first real pull request** on this repository, [#1](https://github.com/saphan-ai/proven/pull/1): a small fix
   written by the fleet from a finding in our own code review. Proven's GitHub Action ran on it; its first run was hit
   by the NVIDIA outage and posted no comment, which is being fixed so a degraded review still says what failed.
