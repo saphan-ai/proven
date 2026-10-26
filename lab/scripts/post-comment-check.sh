@@ -162,6 +162,43 @@ expect "second page: edited there" "GET $base/repos/owner/repo/issues/7/comments
 GET $base/repos/owner/repo/issues/7/comments?limit=50&per_page=50&page=2
 PATCH $base/repos/owner/repo/issues/comments/52" "$log"
 
+# 4b. the account's comment is on page 21, past the old 20-page bound: it is edited and
+# nothing is created. (Red at 031efe4: the walk stopped at page 20 and POSTed a second comment.)
+post page21
+p=1
+while [ "$p" -le 20 ]; do
+  printf '[%s]' "$(gitea "$((100 + p))" someone-else "hello $p")" >"$STUB/page-$p.json"
+  p=$((p + 1))
+done
+printf '[%s]' "$(gitea 121 proven-bot '<!-- proven-review run=1 sha=aaa -->\nold')" >"$STUB/page-21.json"
+ACCOUNT=proven-bot run_post 4 "$sha"
+expect "page 21: exit" 0 "$rc"
+expect "page 21: the comment is edited" 1 "$(printf '%s\n' "$log" | grep -c "^PATCH $base/repos/owner/repo/issues/comments/121\$")"
+expect "page 21: nothing is created" 0 "$(printf '%s\n' "$log" | grep -c '^POST ')"
+
+# 4c. a walk that is cut off creates nothing and says why: the bound is reached with
+# every page still full, so the comment may be on a page not read.
+post cutoff
+p=1
+while [ "$p" -le 5 ]; do
+  printf '[%s]' "$(gitea "$((100 + p))" someone-else "hello $p")" >"$STUB/page-$p.json"
+  p=$((p + 1))
+done
+PC_MAX_PAGES=3 ACCOUNT=proven-bot run_post 4 "$sha"
+expect "cut-off walk: the step fails" 1 "$rc"
+expect "cut-off walk: nothing is created or edited" 0 "$(printf '%s\n' "$log" | grep -c -e '^POST ' -e '^PATCH ')"
+case $(cat "$STUB/err") in *"were not read to the end after 3 pages"*) ;; *) echo "post-comment-check: FAIL: the cut-off refusal does not say why: $(cat "$STUB/err")" >&2; fail=1 ;; esac
+
+# 4d. a server that ignores paging answers the same page twice: the list cannot be read
+# to the end, so nothing is created.
+post nopaging
+printf '[%s]' "$(gitea 51 someone-else 'hello')" >"$STUB/page-1.json"
+printf '[%s]' "$(gitea 51 someone-else 'hello')" >"$STUB/page-2.json"
+ACCOUNT=proven-bot run_post 4 "$sha"
+expect "a server that ignores paging: the step fails" 1 "$rc"
+expect "a server that ignores paging: nothing is created" 0 "$(printf '%s\n' "$log" | grep -c '^POST ')"
+case $(cat "$STUB/err") in *"ignores paging"*) ;; *) echo "post-comment-check: FAIL: the paging refusal does not say why: $(cat "$STUB/err")" >&2; fail=1 ;; esac
+
 # 5. the account is asked of the server when it is not named: GET /user.
 post whoami
 printf '{"id":3,"login":"proven-bot","email":"x"}' >"$STUB/user.json"

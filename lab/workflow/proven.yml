@@ -179,10 +179,23 @@ jobs:
             pc_me=$(pc_account "$1") || return 1
             pc_id=
             pc_page=1
-            while [ "$pc_page" -le 20 ] && [ -z "$pc_id" ]; do
+            pc_prev=
+            while [ -z "$pc_id" ]; do
+              # WHY a refusal and not a POST when the walk is cut off: the comment may be on a page
+              # not read yet, and a second Proven comment on the pull request is the defect this
+              # poster exists to prevent. The client prints no headers, so the end of the list is
+              # the first page with no comment in it (the same end a missing rel="next" announces).
+              if [ "$pc_page" -gt "${PC_MAX_PAGES:-500}" ]; then
+                echo "proven: the comments of $2 #$3 were not read to the end after ${PC_MAX_PAGES:-500} pages, so no Proven comment is created; set PC_MAX_PAGES higher or remove old comments" >&2
+                return 1
+              fi
               pc_list=$(pc_http GET "$1/repos/$2/issues/$3/comments?limit=50&per_page=50&page=$pc_page") || return 1
-              # A page with no comment ends the walk; a server that ignores page repeats one, and 20 pages bound it.
               case "$pc_list" in *'{'*) ;; *) break ;; esac
+              if [ "$pc_list" = "$pc_prev" ]; then
+                echo "proven: page $pc_page of the comments of $2 #$3 is the same as page $((pc_page - 1)), so the server ignores paging and the list cannot be read to the end; no Proven comment is created" >&2
+                return 1
+              fi
+              pc_prev=$pc_list
               pc_id=$(pc_find_comment "$pc_list" "$pc_me")
               pc_page=$((pc_page + 1))
             done
