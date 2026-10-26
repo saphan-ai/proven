@@ -49,6 +49,8 @@ func redactEvent(e Event, r *redact.Redactor) Event {
 		m.Route = r.Text(m.Route)
 		m.Model = r.Text(m.Model)
 		m.ReceiptID = r.Text(m.ReceiptID)
+		m.Requested = r.Text(m.Requested)
+		m.ResponseID = r.Text(m.ResponseID)
 		e.Model = &m
 	}
 	return e

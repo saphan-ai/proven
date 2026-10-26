@@ -58,6 +58,15 @@ Saphan Studio is the product. What follows is how *this* fleet is set up to buil
 4. The **owner** reads the review and decides: accept, accept with conditions, reject, or close without shipping. His reason is written down.
 5. If the change goes back, it gets a new round. The documents of every round stay.
 
+### How a review is ordered
+
+Nothing runs until the owner has read it and signed it. He sees what will be reviewed, by which model and for how
+long, then signs it with his passkey: one touch, in his name. The reviewer does not get "please review this". It gets
+the properties that must hold, so a wrong answer shows. Below is a real order from this week: NVIDIA Nemotron's second
+review of one of Proven's changes.
+
+![A review order in Saphan Studio: the order as the owner sees it, the passkey signature, and what the reviewer must check](../docs/images/saphan-review-order.png)
+
 ### The hardware this fleet runs on
 
 **One person, some silicon, and a fleet with rules and orchestration.**

@@ -5,7 +5,7 @@
 # setting, and that value wins. An empty default makes BuildKit warn that
 # the base name is empty (measured 2026-10-23, line 5 of this file).
 
-ARG RUNTIME_IMAGE=alpine:3.22
+ARG RUNTIME_IMAGE=alpine:3.23
 FROM ${RUNTIME_IMAGE}
 RUN apk add --no-cache ca-certificates curl \
  && adduser -D -u 65532 -h /work proven

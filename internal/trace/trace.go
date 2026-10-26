@@ -59,6 +59,10 @@ type Model struct {
 	Model       string `json:"model"`
 	ReceiptID   string `json:"receipt_id,omitempty"`
 	FromReceipt bool   `json:"from_receipt"`
+	// Requested is the model the request asked for and ResponseID the id of the
+	// completion response. The custody audit reads both; older lines omit them.
+	Requested  string `json:"requested,omitempty"`
+	ResponseID string `json:"response_id,omitempty"`
 }
 
 // Check is one guardrail check: the side, the verdict, the categories and the
