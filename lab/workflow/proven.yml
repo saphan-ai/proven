@@ -125,8 +125,13 @@ jobs:
             # A review that keeps no finding says so in one line, so a clean change is not a silent one. The
             # lines of the review below it are what was checked and by whom; "failed services: none" means
             # every check ran.
+            # No finding while a service failed is not clean: the check that failed may be the one that would have found it.
             if ! grep -q '^finding ' review.txt; then
-              printf 'clean: Proven kept no finding on this change. The reviewers, the checks and the failed services are listed below.\n'
+              if grep -q '^failed service: ' review.txt; then
+                printf 'incomplete: Proven kept no finding, but a service failed (listed below), so this change was not fully reviewed.\n'
+              else
+                printf 'clean: Proven kept no finding on this change. The reviewers, the checks and the failed services are listed below.\n'
+              fi
             fi
             cat review.txt
           } > comment.txt

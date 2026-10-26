@@ -23,7 +23,8 @@ total=0
 grep -v '^#' "$manifest" | grep -v '^$' >/tmp/demo-check-rows.$$ || true
 trap 'rm -f /tmp/demo-check-rows.$$' EXIT
 
-while IFS="$tab" read -r branch fixture class verdict title says; do
+# The rows are read on fd 3: gitea_curl runs docker compose run -T, which drains the loop's stdin.
+while IFS="$tab" read -r branch fixture class verdict title says <&3; do
   total=$((total + 1))
   num=$(gitea_curl "$base/pulls/$LAB_DEMO_BASE/$branch" 2>/dev/null | grep -o '"number":[0-9]*' | head -n 1 | cut -d: -f2 || true)
   if [ -z "$num" ]; then
@@ -79,7 +80,7 @@ while IFS="$tab" read -r branch fixture class verdict title says; do
       ;;
   esac
   echo "demo-check: #$num $branch: $verdict, as the manifest says"
-done </tmp/demo-check-rows.$$
+done 3</tmp/demo-check-rows.$$
 
 # One proven.review trace per pull request, at least. The trace carries no pull request number, so the count
 # is the instrument: fewer traces than pull requests is a review whose export did not arrive.

@@ -329,6 +329,8 @@ func TestGoLiveTheCommentStartsWithTheMarkerThenHowItWasMade(t *testing.T) {
 	for _, tc := range []struct{ mode, review, wantSecond, wantThird string }{
 		{"sample: no keys", "review class: standard\nfailed services: none\n", "sample: no keys", "clean: Proven kept no finding"},
 		{"live: NVIDIA via Nightshift, Zetaris on", "review class: standard\nfinding 1: x\n", "live: NVIDIA via Nightshift, Zetaris on", "review class: standard"},
+		// No finding while the generator failed is not clean: the line says the review is incomplete.
+		{"live: NVIDIA direct, Zetaris off", "review class: standard\nfailed service: nvidia: http 500\n", "live: NVIDIA direct, Zetaris off", "incomplete: Proven kept no finding"},
 	} {
 		work := filepath.Join(tmp, strings.ReplaceAll(tc.mode, " ", "_"))
 		if err := os.Mkdir(work, 0o755); err != nil {
