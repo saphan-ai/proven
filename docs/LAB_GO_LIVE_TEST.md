@@ -26,7 +26,9 @@ make check-flow
 
 You should see `--- PASS:` for every `TestFlow…` test and a last line `ok  github.com/saphan-ai/proven/lab`. One test,
 `TestFlowLeavesARealTerminalWithEchoOnAfterCtrlC`, needs a pseudo-terminal and `python3`; on a host without one it prints
-`--- SKIP` with the reason, and Step 1b.3 is the check that replaces it.
+`--- SKIP` with the reason, and Step 1b.3 is the check that replaces it. On macOS the two negative controls
+(`…/negative_control:_the_INT_trap_removed`) skip by name: the master measured that they cannot turn red there. The
+positive half of each test still runs.
 
 ## Step 1 · A clean start in sample mode
 
@@ -123,6 +125,75 @@ no container starts. Stop the server and `make up` goes on. If Zetaris from the 
 
 Send back for Step 1b: the first screen of 1b.1, the three lines of 1b.2, the Access or token lines of 1b.3 (never a token),
 the last line of 1b.4, and the `stty` result of the Ctrl-C test.
+
+## Step 1c · The Meterless features (round 4)
+
+The explanation is [LAB.md](LAB.md#the-meterless-features). The offline controls ran with stand-ins (`make check-flow`,
+`make check-golive`); the commands below were **not run** against a Docker host by their author.
+
+**1c.1 Ask.** With none of `PROVEN_MARKOVIAN` and `PROVEN_LAB_SCOUT_INTENT` set in the environment or `lab/.env`:
+`make up`. Answer `sample`. You should see, word for word:
+```
+Do you want to tweak Meterless features? [y/N]
+```
+Answer `y`. You should see the sentence `H-MEM (memory of refuted findings) and World Model (claims, evidence and verdicts as a graph) are on by default. Proven has no switch for either yet, so there is nothing to ask about them.`
+then `Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [y/n, Enter keeps the default]`
+Answer `n`. Then `Markovian: reviews a large change in bounded steps (on by default). Use it? [y/n, Enter keeps the default]`
+Answer `y`.
+
+**1c.2 The page says what was passed.** When the lab is up, open the start page (the *Start here* address that
+`make up` prints). Under `Mode: sample.` you should read:
+`Meterless features, as this lab passed them to the review: H-MEM on (always), World Model on (always), Scout Intent off, Markovian on.`
+The seed's log, in the output of that same `make up`, names what it stored (names only, never a value):
+`seed: stored the Meterless feature settings: PROVEN_MARKOVIAN, PROVEN_LAB_SCOUT_INTENT`.
+
+**1c.3 Enter keeps Proven's default.** `make up` again, answer `sample`, `y`, then press Enter at both feature questions.
+The page now says `Scout Intent Proven's default, Markovian Proven's default`, and the seed log has no
+`stored the Meterless feature settings` line: the two secrets of 1c.2 were removed.
+
+**1c.4 In advance, no question.** `PROVEN_MARKOVIAN=off PROVEN_LAB_SCOUT_INTENT=off make up` asks no tweak question
+(the sample/live question is still asked) and the page says `Scout Intent off, Markovian off`. With no terminal
+(`setsid make up < /dev/null 2>&1 | head -12`) nothing is asked and nothing is set.
+
+**1c.5 A bad value.** `PROVEN_MARKOVIAN=maybe make up` prints
+`up: PROVEN_MARKOVIAN=maybe is not one of: on, off. NEXT — set PROVEN_MARKOVIAN to one of those, or unset it. Nothing was started.`
+
+**1c.6 The review was given it.** After 1c.4, open a new pull request as in Step 2.5 (any branch). In the runner's log of
+that run (`make logs SERVICE=runner`) the review step ran; the proof the review process got the file is the offline test
+`TestFeaturesTheReviewIsGivenEachSettingAsProvensOwn`, not this log. If you want to see it live, set
+`PROVEN_LAB_MODE=live` with a key and compare a comment made with `PROVEN_LAB_SCOUT_INTENT=on` and with `off`: the trace
+line `scout-intent:` names whether a plan was chosen.
+
+Send back for Step 1c: the screen of 1c.1, the page line of 1c.2 and 1c.4, and the secret names of 1c.2.
+
+## Step 1d · One review per push, and `make livecheck` for path A (round 4)
+
+**1d.1 One push, one review.** After Step 2.5 made pull request 8, push one more commit to `try-live`:
+`echo "// once" >> /tmp/lab-try/billing/discount.go`, commit, push. Wait for the run, then count the comments that carry
+the new head commit:
+```
+head=$(git -C /tmp/lab-try rev-parse HEAD)
+curl -s http://127.0.0.1:3300/api/v1/repos/proven/discount/issues/8/comments | grep -o "proven-review run=[0-9]* sha=$head" | sort | uniq -c
+```
+You should see exactly one line, with a count of `1`. If you see `2`, send back both lines and
+`make logs SERVICE=runner`: that is the duplicate this round could not repeat. If the count is `1` but the runner's log or
+the Actions tab shows two runs for that commit, the second one should say `skipped: head commit … already has a Proven review`.
+The author did not measure which events Gitea 1.22.6 fires: the offline test (`TestWorkflowAHeadThatIsAlreadyReviewedIsNotReviewedOrCommentedAgain`) holds the guard, not the trigger.
+
+**1d.2 `make livecheck` agrees with the workflow, path A.** With only `PROVEN_GENERATOR_KEY` filled in `lab/.env`
+(Step 2.1 to 2.3): `make livecheck`. You should see, in this order:
+```
+livecheck: the workflow will run: live: NVIDIA direct, Zetaris off
+generator: ready: mode nvidia, model …
+guardrail: ready: verdict …
+query: not ready: …
+container: ready
+summary: 3 ready, 1 not ready
+remark: the query line is not needed in this setup: Zetaris is off in the workflow …
+```
+and the exit status `0` (`echo $?`). The `query` and `container` lines depend on your host (the container line needs the
+inner Docker of the lab). If `generator` or `guardrail` says `not ready` while Step 2.6 shows a live review, send back
+the whole output with the key blacked out.
 
 ## Step 2 · Path A, one NVIDIA key
 

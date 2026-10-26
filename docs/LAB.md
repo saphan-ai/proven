@@ -114,6 +114,7 @@ The same data goes to any OpenTelemetry backend. Set `OTEL_EXPORTER_OTLP_ENDPOIN
 3. On a terminal it prints a banner, then asks what no setting has already answered:
    - `Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]`
    - for LIVE: `Are you a judge of the Open Agent Hackathon? [y/n]`
+   - right after the mode (sample or live), `Do you want to tweak Meterless features? [y/N]`; on `y`, one question per feature that has a switch (see [The Meterless features](#the-meterless-features)). Enter is `N`
    - for a judge: `For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.` and `Which do you want? [ours/own]`
 4. It starts the lab and ends with the ready block and the *Start here* page, as every `make up` does.
 
@@ -129,6 +130,8 @@ A question reads from the terminal only: standard input when it is a terminal, o
 | `PROVEN_LAB_GATEWAY_AUTH` | `access`, `token` | path `ours`: the Cloudflare Access e-mail sign-in (default), or the token we sent you |
 | `PROVEN_LAB_OWN_SETUP` | `yes`, `no` | path `own`: run the automated setup (`make up ZETARIS=local`, then `make nightshift`) |
 | `PROVEN_LAB_USE_DETECTED` | `yes`, `no` | path `own`: use the Zetaris and Nightshift that already answer on this machine |
+| `PROVEN_MARKOVIAN` | `on`, `off` | Markovian, bounded steps for a large change: Proven's own setting, passed through as it is |
+| `PROVEN_LAB_SCOUT_INTENT` | `on`, `off` | Scout Intent, a plan for each review: the lab's spelling of Proven's `scout_intent` key |
 
 A value outside the list is refused by name before any container starts: `up: PROVEN_LAB_MODE=maybe is not one of: sample, live. NEXT — set PROVEN_LAB_MODE to one of those, or unset it. Nothing was started.`
 
@@ -145,14 +148,33 @@ Both: the credential is checked **once** against the gateway, with a request tha
 
 **Live, `own`, and every non-judge who chooses live** (paths A and C). The flow prints where the guide is (this file, the *Go live* section, and the docs site on `127.0.0.1` once the lab is up), then:
 
-1. It asks the two services a judge's machine may already run, one request each: Zetaris at `DETECT_ZETARIS_URL` (`http://localhost:8888/api/v1.0`) and Nightshift at `DETECT_NIGHTSHIFT_URL` (`http://127.0.0.1:8088/v1/models`). If one answers, it offers to use them as they are (`PROVEN_LAB_USE_DETECTED`). The lab's review job runs inside the lab's own Docker, so it names this machine by `LAB_JOB_HOST_ALIAS` (Docker's name for the host it runs on, set in `lab/versions.env`). A service that listens on `127.0.0.1` only cannot be reached from there; the flow says so. Your keys stay yours and come from `lab/.env`.
+1. It asks the two services a judge's machine may already run, one request each: Zetaris at `DETECT_ZETARIS_URL` (`http://localhost:8888/api/v1.0`) and Nightshift at `DETECT_NIGHTSHIFT_URL` (`http://127.0.0.1:8088/v1/models`). A service counts as present only when its answer has its own shape: Nightshift answers `200` with a JSON list of models (`{"data":[…]}`) or `401` with a JSON object; Zetaris answers `200`, `400`, `401` or `403` with a JSON object. A stray web server on the port (a `404`, an HTML page, a plain-text `401`) is not taken for either. These shapes are read from Proven's own adapters and are **not measured against a running Zetaris or Nightshift**: if a real one answers in another shape it is not found, and you set its address in `lab/.env` by hand. If one answers, it offers to use them as they are (`PROVEN_LAB_USE_DETECTED`). The lab's review job runs inside the lab's own Docker, so it names this machine by `LAB_JOB_HOST_ALIAS` (Docker's name for the host it runs on, set in `lab/versions.env`). A service that listens on `127.0.0.1` only cannot be reached from there; the flow says so. Your keys stay yours and come from `lab/.env`.
 2. It points at what a judge's machine is set up with: Nightshift is the native app from meterless.ai (Windows, Mac M1+, Mac M5+, DGX); Zetaris is the bundle from your own account. Our Tart VM for Nightshift is an optional automation, not the first step.
 3. It offers the automated setup (`PROVEN_LAB_OWN_SETUP`): `make up ZETARIS=local` for Zetaris from your bundle, then `make nightshift` for the Tart VM on a Mac with Apple silicon (on any other host it says so and goes on).
 4. It prints, verbatim: `We cannot vouch for results on a setup we do not control: this is best effort.`
 
 If no key or token is set yet, the flow says the first reviews will be sample reviews, and the start page says so.
 
-**The mode is on the start page** (`/lab`): `Mode: sample`, `Mode: live via our gateway` or `Mode: live on your own setup`. The page never carries a token; the only secret on it is the existing login.
+**The mode is on the start page** (`/lab`): `Mode: sample`, `Mode: live via our gateway` or `Mode: live on your own setup`. Under it is the line `Meterless features, as this lab passed them to the review:` (see below). The page never carries a token; the only secret on it is the existing login.
+
+### The Meterless features
+
+Proven carries four Meterless engines: H-MEM (memory of refuted findings), the World Model (claims, evidence and verdicts as a graph), Scout Intent (plans each review; its benefit is not measured yet) and Markovian (reviews a large change in bounded steps). All four are meant to be **on by default**. Where Proven's own default is set is another track's change, so **the lab sets no default of its own**: an answer becomes Proven's own setting, and no answer leaves the setting unset, so Proven's default stands.
+
+| feature | asked by `make up` | Proven's setting | the lab's setting | how the review is given it |
+|---|---|---|---|---|
+| H-MEM | no: Proven has no switch for it | none | none | always on |
+| World Model | no: Proven has no switch for it | none | none | always on |
+| Scout Intent | `Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [y/n, Enter keeps the default]` | `scout_intent: on` or `off` in `proven.yaml`; there is no environment spelling | `PROVEN_LAB_SCOUT_INTENT` | the review job writes `scout_intent: <value>` to a file and points the review at it with `PROVEN_CONFIG` |
+| Markovian | `Markovian: reviews a large change in bounded steps (on by default). Use it? [y/n, Enter keeps the default]` | `PROVEN_MARKOVIAN`, `on` or `off` (also `PROVEN_MARKOVIAN_THRESHOLD`, `…_STEP_UNIT`, `…_CARRY_TOKENS`, which the lab does not ask about) | `PROVEN_MARKOVIAN` | passed to the review by name; Proven reads it in live reviews only |
+
+How the questions work. After sample or live, on a terminal, `make up` asks `Do you want to tweak Meterless features? [y/N]`. On `y` it prints that H-MEM and the World Model are on by default and have no switch to ask about, then asks the two questions above, each only if its setting is not already given. `y` is `on`, `n` is `off`, and Enter (or `N` to the first question) leaves the setting unset. A setting given in advance (in the environment or `lab/.env`) is never asked, so a script or CI that gives both is never asked at all, and with no terminal nothing is asked and nothing is set. A value that is not `on` or `off` is refused by name before any container starts.
+
+The seed stores each given value as an Actions secret, as it stores a key, but a feature is not a key: with only a feature set the lab is still a sample lab, and sample mode keeps the feature settings. The workflow passes them to the review (`lab/workflow/proven.yml`).
+
+**The start page shows what the lab passed**, not what was typed: the line is built by the seed from the values it stored, for example `H-MEM on (always), World Model on (always), Scout Intent off, Markovian on`. A feature with no stored value reads `Proven's default`, because only Proven knows its own default. H-MEM and World Model read `on (always)` for as long as Proven has no switch for them.
+
+What the lab did not measure: whether a `scout_intent: on` file or `PROVEN_MARKOVIAN=on` changes the comment of a *sample* review (Markovian is a live-only setting by Proven's code; a sample review is recorded). The offline tests show the review process is given the file and the variable; the owner's test below shows the page.
 
 **The names in the organisers' Participant Setup Guide** are read as they are. A judge's `.env` from the guide holds `METERLESS_BASE_URL`, `METERLESS_RUNTIME_TOKEN`, `METERLESS_MODEL`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID` and `ZETARIS_API_KEY`. The last four are the lab's names already. `METERLESS_BASE_URL` is read as `PROVEN_GENERATOR_BASE_URL` and `METERLESS_MODEL` as `PROVEN_GENERATOR_MODEL`, when the Proven name is not set (it wins when both are). This mapping is in the lab's own loader (`lab/scripts/lib.sh`); Proven's own settings loader is another track's work.
 
@@ -342,6 +364,8 @@ SAMPLE_MODE=true proven scan /opt/proven/fixture/<set>
 
 With a key stored (see [Go live](#go-live)) the same command runs with `SAMPLE_MODE=false` and the settings that are stored, passed to the container by name. `<set>` is the name after `demo-` in the pull request's branch, and `discount` for any other branch. Each set is a recorded sample in `testdata/fixture`, baked into Proven's image (the Dockerfile copies the ones the demo uses). It does not review the diff of the demo pull request. The comment's first visible line says `sample: no keys` or `live: …`. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
 
+**One review per head commit.** A push to a pull request branch must give one review run and one comment. Two runs were reported on one head commit in a live lab (runs 18 and 19, one sha). This round could not repeat it (no Docker on the seat that wrote this) and does not claim to know which event fired twice. The workflow has: only the `pull_request` event as its trigger, with its types named (`opened`, `synchronize`, `reopened`); a `concurrency` group of pull request number and head sha, so runs of one head queue (Gitea 1.22.6 may ignore the key: **not verified**); and a check, before the review and again before posting, for a comment of Proven that already names this head sha. A run that finds one reviews nothing and posts nothing, and says `skipped: head commit … already has a Proven review`. That last guard is the one that does not depend on Gitea; its remaining gap is two runs that both look before either posts, which the second look narrows and the queue closes where it works. `make e2e` accepts the review of any run of the head that succeeded, because the second run posts nothing.
+
 The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that, and only after Docker Scout has passed on the image. This repository does not push it for you.
 
 ### Which account posts the review
@@ -365,7 +389,7 @@ The seeded copy replaces `saphan/proven` with `PROVEN_IMAGE` when that setting i
 
 `make sample` runs the sample review from a temporary directory outside this repository. It does not pass keys and it does not call Docker.
 
-`make livecheck` runs the live-service check. If `lab/.env` exists, it loads the keys listed in [CONFIGURATION.md](CONFIGURATION.md). With nothing set, the check names each service that is not ready and exits 1. With `ZETARIS=local` (`make livecheck ZETARIS=local`) and no `ZETARIS_REST_URL` of your own, it asks the loopback port the local platform is published on.
+`make livecheck` runs the live-service check **for the setup the workflow will use**. If `lab/.env` exists, it loads it, then runs the very lines of `lab/workflow/proven.yml` between `derive-begin` and `derive-end`, which decide the mode, the guardrail's mode and key and whether Zetaris is on. It prints `livecheck: the workflow will run: <the first line of the comment>`, then checks what that setup uses. So with only `PROVEN_GENERATOR_KEY` in `lab/.env` (path A) it checks NVIDIA direct and the guardrail with the same key, as the workflow does, and says `remark: the query line is not needed in this setup` for Zetaris, which is off there; the exit is `0` when nothing else is not ready. With a key, token or gateway and Zetaris set, the query line counts. With no key at all the workflow runs a sample review, so it prints `runs a SAMPLE review` and exits 1 (there is no live service to find ready). The container line is still checked in every live setup. With `ZETARIS=local` (`make livecheck ZETARIS=local`) and no `ZETARIS_REST_URL` of your own, it asks the loopback port the local platform is published on.
 
 `make nightshift` starts Nightshift in a Tart VM on a Mac with Apple silicon and prints its address (path C, steps 9 to 15). On any other host it says Tart is macOS-only and exits 0. `make zetaris` starts Zetaris from your bundle and registers the evidence (path C, steps 4 to 8); `make up ZETARIS=local` does the same as part of the lab. `make check-golive` runs the offline checks of all of this: the keys of `lab/.env` become secrets and an empty one does not (against a stub of Gitea's API), the workflow's live or sample choice and the first lines of its comment, the loopback bind of the start page, and the Zetaris registration against a stub. It needs no Docker and no key.
 
