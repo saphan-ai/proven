@@ -7,67 +7,12 @@ package cli
 import (
 	"fmt"
 	"html"
-	"io"
 	"regexp"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/review"
 )
-
-// The caps keep one comment under the 65,536 characters GitHub and Gitea accept.
-// A cut is always announced in the comment, never silent.
-const (
-	mdMaxRows    = 20    // rows of one query shown as a table
-	mdMaxOutput  = 4000  // bytes of one test, tool or fix-run output shown
-	mdMaxComment = 60000 // bytes of a whole comment before the evidence is left out
-)
-
-// markdownFormatter writes the review as the comment a person reads on the pull request.
-type markdownFormatter struct{}
-
-// Write prints, top to bottom: the verdict line, then either the one-sentence
-// clean statement or the findings table with one <details> block per finding,
-// then the statements a reader must not miss, then the one-line foot.
-//
-// The comment never starts with the poster's marker line; the poster
-// (lab/workflow/proven.yml, action/entrypoint.sh) puts it in front, because
-// only it knows the run number and the head commit.
-func (markdownFormatter) Write(w io.Writer, result review.Result) error {
-	body := mdBody(result, true)
-	// WHY a second pass and not a cut: a body cut at a byte could leave a fence or
-	// a <details> open and swallow the rest of the pull request page. Without the
-	// evidence the comment is the verdict, the table and the messages, which is small.
-	if len(body) > mdMaxComment {
-		body = mdBody(result, false)
-	}
-	_, err := io.WriteString(w, body)
-	return err
-}
-
-// mdBody renders the whole comment; withEvidence false leaves each finding's proof out and says so.
-func mdBody(result review.Result, withEvidence bool) string {
-	var b strings.Builder
-	b.WriteString(mdVerdict(result))
-	b.WriteString("\n\n")
-	if len(result.Findings) == 0 {
-		b.WriteString(mdChecked(result))
-		b.WriteString("\n\n")
-	} else {
-		mdTable(&b, result.Findings)
-		for _, finding := range result.Findings {
-			mdFinding(&b, finding, withEvidence)
-		}
-		if !withEvidence {
-			b.WriteString("The evidence is not shown: with it this comment would pass the size limit of the pull request page. It is in the JSON and SARIF files of this run.\n\n")
-		}
-	}
-	mdNotes(&b, result)
-	b.WriteString(mdFoot(result))
-	b.WriteString("\n")
-	return b.String()
-}
 
 // mdVerdict is the first line: blocked or clean, with the counts a reader
 // decides by. "blocked" is any finding that counts (Result.Findings holds only
@@ -118,20 +63,32 @@ func mdCountsTail(result review.Result) string {
 	return " (" + strings.Join(parts, ", ") + ")"
 }
 
-// mdChecked is the clean run's one statement: what was checked and nothing else.
-// The class and the rule that chose it say how deep the review went; the services
-// say whether every outside source answered. The failed ones are listed below it.
+// mdChecked is the clean run's statement of what was checked: the review class
+// and the rule that chose it (how deep the review went), the paths a live review
+// did not copy, and whether every outside service answered, by name when one did
+// not. The Result carries no list of the files or the commit range reviewed, so
+// none is printed; the foot names the models.
 func mdChecked(result review.Result) string {
 	class := mdCode(result.Class)
 	if class == "" {
 		class = "unknown"
 	}
-	reached := "every service answered"
-	if len(result.FailedServices) > 0 {
-		reached = "not every service answered (listed below)"
+	var parts []string
+	if n := len(result.SkippedPaths); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d tracked %s skipped because %s symlinks",
+			n, pluralWord(n, "path was", "paths were"), pluralWord(n, "it is a", "they are")))
+	}
+	if len(result.FailedServices) == 0 {
+		parts = append(parts, "every service answered")
+	} else {
+		names := make([]string, 0, len(result.FailedServices))
+		for _, failed := range result.FailedServices {
+			names = append(names, mdCode(failed.Service))
+		}
+		parts = append(parts, "these services did not answer: "+strings.Join(names, ", "))
 	}
 	return fmt.Sprintf("Checked as review class %s (rule %s); %s. A finding needs proof to be reported, and none had it.",
-		class, mdCode(result.ClassRule), reached)
+		class, mdCode(result.ClassRule), strings.Join(parts, "; "))
 }
 
 // mdTable is the findings table: severity, finding, file:line, rule.
@@ -139,53 +96,69 @@ func mdTable(b *strings.Builder, findings []review.Finding) {
 	b.WriteString("| Severity | Finding | Location | Rule |\n")
 	b.WriteString("| --- | --- | --- | --- |\n")
 	for _, f := range findings {
-		title := mdText(f.Title)
+		title := mdText(mdShort(f.Title, mdMaxTitle))
 		if f.Unresolved {
 			title += " (unresolved)"
 		}
 		fmt.Fprintf(b, "| %s | %s | %s | %s |\n",
-			mdText(string(f.Severity)), title, mdLocation(f.Location), mdCode(f.RuleID))
+			mdText(string(f.Severity)), title, mdLocation(f.Location, true), mdCodeIn(f.RuleID, true))
 	}
 	b.WriteString("\n")
 }
 
+// mdShort bounds a raw value at max bytes and marks the cut with an ellipsis.
+func mdShort(s string, max int) string {
+	kept, cut := cutRaw(s, max)
+	if cut > 0 {
+		return kept + "…"
+	}
+	return kept
+}
+
 // mdLocation is file:line as one code span; a range prints both lines.
-func mdLocation(l review.Location) string {
+func mdLocation(l review.Location, cell bool) string {
 	switch {
 	case l.StartLine <= 0:
-		return mdCode(l.Path)
+		return mdCodeIn(l.Path, cell)
 	case l.EndLine > l.StartLine:
-		return mdCode(fmt.Sprintf("%s:%d-%d", l.Path, l.StartLine, l.EndLine))
+		return mdCodeIn(fmt.Sprintf("%s:%d-%d", l.Path, l.StartLine, l.EndLine), cell)
 	default:
-		return mdCode(fmt.Sprintf("%s:%d", l.Path, l.StartLine))
+		return mdCodeIn(fmt.Sprintf("%s:%d", l.Path, l.StartLine), cell)
 	}
 }
 
-// mdFinding writes one finding's <details> block: the message, the evidence in
-// the order the finding carries it, and the fix when the result has one.
-func mdFinding(b *strings.Builder, f review.Finding, withEvidence bool) {
+// mdBlock renders one finding's <details> block at one proof level: the message,
+// the evidence in the order the finding carries it, and the fix when the result has
+// one. What the level left out is announced in the block, with the count.
+func mdBlock(f review.Finding, lim mdLimits) string {
+	var b strings.Builder
 	name := f.ID
 	if name == "" {
 		name = f.RuleID
 	}
 	// The summary line is raw HTML until the blank line after it, so it takes
 	// HTML escaping only: Markdown inside it would print its own punctuation.
-	fmt.Fprintf(b, "<details><summary>%s %s — %s</summary>\n\n", htmlText(string(f.Severity)), htmlText(name), htmlText(f.Title))
+	fmt.Fprintf(&b, "<details><summary>%s %s — %s</summary>\n\n", htmlText(string(f.Severity)), htmlText(mdShort(name, mdMaxTitle)), htmlText(mdShort(f.Title, mdMaxTitle)))
 	if f.Message != "" {
-		b.WriteString(mdText(f.Message))
+		message, cut := cutRaw(f.Message, mdMaxMessage)
+		lim.cutBytes += cut
+		b.WriteString(mdText(message))
 		b.WriteString("\n\n")
 	}
-	if withEvidence {
-		for _, e := range f.Evidence {
-			mdEvidence(b, e)
-		}
-		mdFix(b, f.Fix)
+	for _, e := range f.Evidence {
+		mdEvidence(&b, e, &lim)
+	}
+	mdFix(&b, f.Fix, &lim)
+	if lim.cutRows > 0 || lim.cutBytes > 0 {
+		fmt.Fprintf(&b, "_cut: %d more %s and %d %s not shown; the full evidence is in the JSON and SARIF files of this run._\n\n",
+			lim.cutRows, pluralWord(lim.cutRows, "row", "rows"), lim.cutBytes, pluralWord(lim.cutBytes, "byte", "bytes"))
 	}
 	b.WriteString("</details>\n\n")
+	return b.String()
 }
 
 // mdEvidence writes one piece of proof: a query with its rows, a failing test, or a tool's run.
-func mdEvidence(b *strings.Builder, e review.Evidence) {
+func mdEvidence(b *strings.Builder, e review.Evidence, lim *mdLimits) {
 	switch e.Kind {
 	case review.EvidenceQuery:
 		q := e.Query
@@ -193,8 +166,8 @@ func mdEvidence(b *strings.Builder, e review.Evidence) {
 			return
 		}
 		fmt.Fprintf(b, "**Query** (%s, snapshot %s, form %s)\n\n", mdText(q.Engine), mdText(q.Snapshot), mdText(q.Form))
-		mdFence(b, "sql", q.SQL)
-		mdRows(b, q.Columns, q.Rows)
+		mdFence(b, "sql", mdCut(q.SQL, lim))
+		mdRows(b, q.Columns, q.Rows, lim)
 	case review.EvidenceTest:
 		t := e.Test
 		if t == nil {
@@ -203,9 +176,9 @@ func mdEvidence(b *strings.Builder, e review.Evidence) {
 		fmt.Fprintf(b, "**Failing test** %s in %s — fails on the change: %s, passes on the base: %s\n\n",
 			mdCode(t.Name), mdCode(t.Path), yesNo(t.FailsOnChange), yesNo(t.PassesOnBase))
 		b.WriteString("Command:\n\n")
-		mdFence(b, "sh", t.Command)
+		mdFence(b, "sh", mdCut(t.Command, lim))
 		b.WriteString("Output:\n\n")
-		mdFence(b, "text", mdCut(strings.TrimSpace(t.Output)))
+		mdFence(b, "text", mdCut(strings.TrimSpace(t.Output), lim))
 	case review.EvidenceTool:
 		t := e.Tool
 		if t == nil {
@@ -213,16 +186,17 @@ func mdEvidence(b *strings.Builder, e review.Evidence) {
 		}
 		fmt.Fprintf(b, "**Tool** %s %s — present on the change: %s, present on the base: %s\n\n",
 			mdCode(t.Tool), mdCode(t.Version), yesNo(t.PresentOnChange), yesNo(t.PresentOnBase))
-		mdFence(b, "sh", t.Command)
+		mdFence(b, "sh", mdCut(t.Command, lim))
 		b.WriteString("On the change:\n\n")
-		mdFence(b, "text", mdCut(strings.TrimSpace(t.Output)))
+		mdFence(b, "text", mdCut(strings.TrimSpace(t.Output), lim))
 		b.WriteString("On the base:\n\n")
-		mdFence(b, "text", mdCut(strings.TrimSpace(t.BaseOutput)))
+		mdFence(b, "text", mdCut(strings.TrimSpace(t.BaseOutput), lim))
 	}
 }
 
-// mdRows writes a query's rows as a table. Past mdMaxRows the table stops and says how many rows it left out.
-func mdRows(b *strings.Builder, columns []string, rows [][]string) {
+// mdRows writes a query's rows as a table. Past lim.rows the table stops; the
+// rows it left out are counted in lim and announced by the finding's block.
+func mdRows(b *strings.Builder, columns []string, rows [][]string, lim *mdLimits) {
 	if len(columns) == 0 {
 		return
 	}
@@ -236,8 +210,8 @@ func mdRows(b *strings.Builder, columns []string, rows [][]string) {
 	}
 	b.WriteString("\n")
 	shown := rows
-	if len(shown) > mdMaxRows {
-		shown = shown[:mdMaxRows]
+	if len(shown) > lim.rows {
+		shown = shown[:lim.rows]
 	}
 	for _, row := range shown {
 		b.WriteString("|")
@@ -251,14 +225,12 @@ func mdRows(b *strings.Builder, columns []string, rows [][]string) {
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
-	if n := len(rows) - len(shown); n > 0 {
-		fmt.Fprintf(b, "%d more %s not shown.\n\n", n, pluralWord(n, "row", "rows"))
-	}
+	lim.cutRows += len(rows) - len(shown)
 }
 
 // mdFix writes the fix a finding carries. Like the text writer, it shows a patch
 // only when it was proved, and says each fix is a suggestion a person applies.
-func mdFix(b *strings.Builder, fix *review.Fix) {
+func mdFix(b *strings.Builder, fix *review.Fix, lim *mdLimits) {
 	if fix == nil {
 		return
 	}
@@ -266,18 +238,18 @@ func mdFix(b *strings.Builder, fix *review.Fix) {
 	case fix.Dependency != nil:
 		d := fix.Dependency
 		fmt.Fprintf(b, "**Fix** (named from the advisory table, no test ran): raise %s %s to %s. %s\n\n",
-			mdCode(d.Package), mdCode(d.From), mdCode(d.To), mdText(oneLine(fix.Why)))
+			mdCode(d.Package), mdCode(d.From), mdCode(d.To), mdText(mdShort(oneLine(fix.Why), mdMaxMessage)))
 	case fix.Proved:
 		fmt.Fprintf(b, "**Fix** (proved after %d %s; a suggestion for you to apply, Proven changes nothing): %s %s\n\n",
-			fix.Attempts, attemptWord(fix.Attempts), mdText(oneLine(fix.What)), mdText(oneLine(fix.Why)))
+			fix.Attempts, attemptWord(fix.Attempts), mdText(mdShort(oneLine(fix.What), mdMaxMessage)), mdText(mdShort(oneLine(fix.Why), mdMaxMessage)))
 		for _, edit := range fix.Edits {
 			fmt.Fprintf(b, "Edit %s:\n\n", mdCode(edit.Path))
-			mdFence(b, "diff", mdDiff(edit))
+			mdFence(b, "diff", mdCut(mdDiff(edit), lim))
 		}
-		mdFixRuns(b, fix.Runs)
+		mdFixRuns(b, fix.Runs, lim)
 	default:
-		b.WriteString("**Fix** not proved: " + mdText(oneLine(fix.Note)) + "\n\n")
-		mdFixRuns(b, fix.Runs)
+		b.WriteString("**Fix** not proved: " + mdText(mdShort(oneLine(fix.Note), mdMaxMessage)) + "\n\n")
+		mdFixRuns(b, fix.Runs, lim)
 	}
 }
 
@@ -293,35 +265,60 @@ func mdDiff(edit review.FixEdit) string {
 	return strings.Join(out, "\n")
 }
 
-func mdFixRuns(b *strings.Builder, runs []review.FixRun) {
+func mdFixRuns(b *strings.Builder, runs []review.FixRun, lim *mdLimits) {
+	if len(runs) > lim.rows {
+		lim.cutRows += len(runs) - lim.rows
+		runs = runs[:lim.rows]
+	}
 	for _, run := range runs {
-		fmt.Fprintf(b, "- %s: %s, exit %d, %s\n", mdText(run.Label), mdCode(run.Command), run.ExitCode, mdText(run.Result))
+		fmt.Fprintf(b, "- %s: %s, exit %d, %s\n", mdText(mdShort(run.Label, mdMaxTitle)), mdCode(mdShort(run.Command, mdMaxNote)), run.ExitCode, mdText(mdShort(run.Result, mdMaxNote)))
 	}
 	if len(runs) > 0 {
 		b.WriteString("\n")
 	}
 }
 
-// mdNotes prints what the verdict alone does not say: failed services, a partial
-// review, a guardrail that was off, exceptions that expired, accepted findings.
+// mdNotes prints what the verdict alone does not say, as the text writer does:
+// the policy, the settings and author-model statements, the reviewers, every
+// failed service (clean or not), a partial review, a guardrail that was off,
+// accepted findings and exceptions that expired. Each line is bounded, and a
+// long list of exceptions is cut with its count.
 func mdNotes(b *strings.Builder, result review.Result) {
 	var lines []string
+	statement := func(s string) {
+		if s != "" {
+			lines = append(lines, "- "+mdText(mdShort(oneLine(s), mdMaxNote)))
+		}
+	}
+	statement(result.PolicyStatement)
+	statement(result.SettingsStatement)
+	statement(result.AuthorModelStatement)
+	for _, line := range result.ReviewerStatements {
+		statement(line)
+	}
 	for _, failed := range result.FailedServices {
-		lines = append(lines, fmt.Sprintf("- failed service %s: %s", mdCode(failed.Service), mdText(failed.Reason)))
+		lines = append(lines, fmt.Sprintf("- failed service %s: %s", mdCode(mdShort(failed.Service, mdMaxTitle)), mdText(mdShort(failed.Reason, mdMaxNote))))
 	}
 	if result.Partial {
 		lines = append(lines, "- review partial: the deadline was reached")
 	}
-	if result.GuardrailStatement != "" {
-		lines = append(lines, "- "+mdText(result.GuardrailStatement))
-	}
-	for _, a := range result.Accepted {
+	statement(result.GuardrailStatement)
+	for i, a := range result.Accepted {
+		if i == mdMaxNotes {
+			lines = append(lines, fmt.Sprintf("- %d more accepted by exception, not listed", len(result.Accepted)-i))
+			break
+		}
 		lines = append(lines, fmt.Sprintf("- accepted by exception %s (owner %s, expires %s): %s %s",
-			mdCode(a.ExceptionID), mdText(a.Owner), mdText(a.Expires), mdText(a.Finding.Title), mdLocation(a.Finding.Location)))
+			mdCode(a.ExceptionID), mdText(mdShort(a.Owner, mdMaxTitle)), mdText(mdShort(a.Expires, mdMaxTitle)),
+			mdText(mdShort(a.Finding.Title, mdMaxTitle)), mdLocation(a.Finding.Location, false)))
 	}
-	for _, e := range result.Expired {
+	for i, e := range result.Expired {
+		if i == mdMaxNotes {
+			lines = append(lines, fmt.Sprintf("- %d more exceptions expired, not listed", len(result.Expired)-i))
+			break
+		}
 		lines = append(lines, fmt.Sprintf("- exception %s expired on %s: finding %s counts again",
-			mdCode(e.ExceptionID), mdText(e.Expires), mdText(e.Finding)))
+			mdCode(e.ExceptionID), mdText(mdShort(e.Expires, mdMaxTitle)), mdText(mdShort(e.Finding, mdMaxTitle))))
 	}
 	if len(lines) == 0 {
 		return
@@ -344,7 +341,7 @@ func mdFoot(result review.Result) string {
 	if len(models) > 0 {
 		escaped := make([]string, 0, len(models))
 		for _, m := range models {
-			escaped = append(escaped, mdCode(m))
+			escaped = append(escaped, mdCode(mdShort(m, mdMaxTitle)))
 		}
 		names = "reviewed by " + strings.Join(escaped, " and ")
 	}
@@ -370,16 +367,15 @@ func yesNo(v bool) string {
 	return "no"
 }
 
-// mdCut bounds an output at mdMaxOutput bytes on a rune boundary and says so.
-func mdCut(s string) string {
-	if len(s) <= mdMaxOutput {
+// mdCut bounds an output at lim.out bytes on a rune boundary, says so at the
+// cut, and counts the bytes in lim for the finding's block to announce.
+func mdCut(s string, lim *mdLimits) string {
+	kept, cut := cutRaw(s, lim.out)
+	if cut == 0 {
 		return s
 	}
-	cut := mdMaxOutput
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut] + fmt.Sprintf("\n… %d bytes not shown", len(s)-cut)
+	lim.cutBytes += cut
+	return kept + fmt.Sprintf("\n… %d bytes not shown", cut)
 }
 
 // The escaping rule for Markdown output, written once (ADR-0027). A value that
@@ -390,7 +386,9 @@ func mdCut(s string) string {
 //     characters are shown as escapes (visible); backslash, backtick, '*',
 //     '[', ']', '#', '|', '~' and '@' are backslash-escaped, which stops
 //     emphasis, links, images, issue references, mentions, strikethrough and
-//     table pipes; '_' is escaped unless letters or digits stand on both
+//     table pipes (a zero-width space follows each '@' and '#', because the
+//     renderer reads the escape away and then links mentions and references);
+//     '_' is escaped unless letters or digits stand on both
 //     sides (a snake_case name is not emphasis); '-' and '+' at the start and
 //     "1." at the start are escaped, so a value cannot open a list; "://" and
 //     "www." are broken, so no bare address becomes a link; then '<', '>',
@@ -428,8 +426,17 @@ func mdText(s string) string {
 	}
 	out := wwwDot.ReplaceAllString(b.String(), `${1}\.`)
 	out = listNumber.ReplaceAllString(out, `${1}\.`)
-	return htmlEntities(out)
+	// WHY a zero-width space after the escaped '@' and '#': the Markdown parser
+	// consumes the backslash, and GitHub then links a mention or an issue reference
+	// in the rendered text, so "\@user" would still notify. Made after the entities
+	// because the entity's own '&' and '#' must not be escaped.
+	return mentionBreak.Replace(htmlEntities(out))
 }
+
+// mentionBreak puts a zero-width space after each escaped '@' and '#' of mdText.
+// Every '@' and '#' of the text is escaped before this runs; the '#' of an entity
+// (&#34;) is not, so it is not matched.
+var mentionBreak = strings.NewReplacer(`\@`, `\@`+zeroWidth, `\#`, `\#`+zeroWidth)
 
 // isWordRune reports whether r is a letter or a digit.
 func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
@@ -481,12 +488,18 @@ func mdCell(s string) string {
 }
 
 // mdCode writes s as a code span, empty for an empty value.
-func mdCode(s string) string {
+func mdCode(s string) string { return mdCodeIn(s, false) }
+
+// mdCodeIn writes s as a code span. In a table cell ('|' splits a row before the
+// span is read) a pipe is written '\|'; anywhere else that backslash would print.
+func mdCodeIn(s string, cell bool) string {
 	s = visible(strings.Join(strings.Fields(s), " "))
 	if s == "" {
 		return ""
 	}
-	s = strings.ReplaceAll(s, "|", `\|`)
+	if cell {
+		s = strings.ReplaceAll(s, "|", `\|`)
+	}
 	fence := strings.Repeat("`", longestRun(s, '`')+1)
 	pad := ""
 	if strings.HasPrefix(s, "`") || strings.HasSuffix(s, "`") {

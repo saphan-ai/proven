@@ -120,4 +120,8 @@ change: FAIL got 60 want 80
 
 </details>
 
+- author model not stated; default reviewer NVIDIA
+- reviewer NVIDIA; role default; family NVIDIA; author model not stated
+- special-review model: not configured
+
 <sub>reviewed by `NVIDIA` · guardrail checked every call</sub>

@@ -95,6 +95,7 @@ var hostile = []string{
 	"http://evil.example/bare",
 	"www.evil.example",
 	"@everyone",
+	"please ask @someone about #123 and see \\@other and \\#7 now",
 	"# heading",
 	"&lt;b&gt;",
 }
@@ -172,8 +173,8 @@ func unsafeMarkdown(body string, findings int) []string {
 				bad = append(bad, "raw tag outside code: "+at)
 			}
 		}
-		if unescapedAt.MatchString(prose) {
-			bad = append(bad, "live @ (a mention) outside code in: "+line)
+		for _, live := range liveMentions(prose) {
+			bad = append(bad, "live "+live+" (a mention or an issue reference) outside code in: "+line)
 		}
 		for _, marker := range []string{"http://", "https://", "www."} {
 			if strings.Contains(prose, marker) {
@@ -203,9 +204,30 @@ func unsafeMarkdown(body string, findings int) []string {
 var (
 	allowedTag    = regexp.MustCompile(`^</?(details|summary|sub)>$`)
 	unescapedLink = regexp.MustCompile(`(^|[^\\])\]\(`)
-	// '@' is a mention unless a backslash comes before it or the writer's zero-width space after it.
-	unescapedAt = regexp.MustCompile(`(^|[^\\])@($|[^&])`)
 )
+
+// liveMentions lists each '@' and '#' of prose that a renderer would turn into a
+// mention or an issue reference. A backslash does NOT make one inert: the Markdown
+// parser reads the escape away, and GitHub links the text that is left. Only the
+// writer's zero-width space right after the character does, and the '#' of an
+// entity (&#34;, &#8203;) is not a reference at all.
+func liveMentions(prose string) []string {
+	var live []string
+	for i := 0; i < len(prose); i++ {
+		c := prose[i]
+		if c != '@' && c != '#' {
+			continue
+		}
+		if c == '#' && i > 0 && prose[i-1] == '&' {
+			continue
+		}
+		if strings.HasPrefix(prose[i+1:], zeroWidth) {
+			continue
+		}
+		live = append(live, string(c))
+	}
+	return live
+}
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
@@ -350,30 +372,216 @@ func TestMarkdownShowsControlBytesAsEscapes(t *testing.T) {
 	}
 }
 
-// TestMarkdownLeavesEvidenceOutWhenTooLarge proves a comment past the size
-// limit is rewritten without the evidence, closed and announced, instead of
-// being cut. The mutated field is the size of a test's output, repeated.
-func TestMarkdownLeavesEvidenceOutWhenTooLarge(t *testing.T) {
+// manyFindings is n findings, each with a failing test whose output is outputBytes
+// long and a query of rows rows, so a comment of them is far over the size limit.
+func manyFindings(n, outputBytes, rows int) []review.Finding {
 	var findings []review.Finding
-	for i := 0; i < 30; i++ {
+	for i := 0; i < n; i++ {
+		var table [][]string
+		for r := 0; r < rows; r++ {
+			table = append(table, []string{"row-" + strconv.Itoa(r), strings.Repeat("v", 40)})
+		}
 		findings = append(findings, review.Finding{
-			ID: "F", Severity: review.SeverityWarning, Title: "t",
-			Evidence: []review.Evidence{{Kind: review.EvidenceTest, Test: &review.TestEvidence{
-				Name: "T", Path: "p", Command: "c", Output: strings.Repeat("x", 3000),
-			}}},
+			ID: "F" + strconv.Itoa(i), Severity: review.SeverityWarning, Title: "t" + strconv.Itoa(i),
+			Message: "m",
+			Evidence: []review.Evidence{
+				{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{
+					SQL: "select 1", Engine: "e", Snapshot: "s", Form: "f", Columns: []string{"a", "b"}, Rows: table,
+				}},
+				{Kind: review.EvidenceTest, Test: &review.TestEvidence{
+					Name: "T", Path: "p", Command: "c", Output: strings.Repeat("x", outputBytes),
+				}},
+			},
 		})
 	}
-	body, err := render("md", review.Result{Findings: findings})
+	return findings
+}
+
+// TestMarkdownKeepsProofOfEveryFindingWhenLarge proves a result over the size
+// limit still shows some proof of EVERY finding (a test and a query each), cut to
+// a share and announced, never all of it dropped. The mutated field is the size of
+// each finding's proof: 30 findings of 3000 bytes of output and 100 rows each.
+func TestMarkdownKeepsProofOfEveryFindingWhenLarge(t *testing.T) {
+	body, err := render("md", review.Result{Findings: manyFindings(30, 3000, 100)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if len(body) > mdMaxComment {
+		t.Fatalf("the comment is %d bytes, over %d", len(body), mdMaxComment)
+	}
+	if got := strings.Count(text, "<details>"); got != 30 {
+		t.Fatalf("%d findings are detailed, want 30", got)
+	}
+	if got := strings.Count(text, "**Failing test**"); got != 30 {
+		t.Fatalf("%d findings keep their failing test, want 30: the proof was dropped", got)
+	}
+	if got := strings.Count(text, "**Query**"); got != 30 {
+		t.Fatalf("%d findings keep their query, want 30", got)
+	}
+	if got := strings.Count(text, "the full evidence is in the JSON and SARIF files of this run"); got != 30 {
+		t.Fatalf("%d findings announce their cut, want 30", got)
+	}
+	if bad := unsafeMarkdown(text, 30); len(bad) != 0 {
+		t.Fatalf("unsafe: %v", bad)
+	}
+}
+
+// TestMarkdownListsTheRestByRowWhenProofCannotFit proves that when even the
+// smallest proof of every finding is too much, the first findings keep their
+// <details> and the rest are table rows only, with the count left out said.
+// The mutated field is the number of findings: 3000.
+func TestMarkdownListsTheRestByRowWhenProofCannotFit(t *testing.T) {
+	body, err := render("md", review.Result{Findings: manyFindings(3000, 3000, 100)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if len(body) > mdMaxComment {
+		t.Fatalf("the comment is %d bytes, over %d", len(body), mdMaxComment)
+	}
+	detailed := strings.Count(text, "<details>")
+	if detailed == 0 || detailed >= 3000 {
+		t.Fatalf("%d findings are detailed, want some but not all", detailed)
+	}
+	if got := strings.Count(text, "**Failing test**"); got != detailed {
+		t.Fatalf("%d findings keep their test for %d <details>: a detailed finding lost its proof", got, detailed)
+	}
+	if !regexp.MustCompile(`\n\d+ more findings are (only in the table above|not listed here)`).MatchString(text) {
+		t.Fatal("the findings left out are not counted")
+	}
+	if bad := unsafeMarkdown(text, detailed); len(bad) != 0 {
+		t.Fatalf("unsafe: %v", bad)
+	}
+}
+
+// TestMarkdownFitsWhenTooLargeEvenWithoutEvidence proves the bound holds without
+// any proof at all: many findings with long messages and titles still give a body
+// under the limit (the post is never refused for its size, so the previous run's
+// comment is never left standing). The mutated field is the message length.
+func TestMarkdownFitsWhenTooLargeEvenWithoutEvidence(t *testing.T) {
+	var findings []review.Finding
+	for i := 0; i < 400; i++ {
+		findings = append(findings, review.Finding{
+			ID: "F", Severity: review.SeverityError, Title: strings.Repeat("title ", 500),
+			Message: strings.Repeat("message ", 20000),
+		})
+	}
+	failed := []review.ServiceFailure{{Service: "svc", Reason: strings.Repeat("r", 200000)}}
+	body, err := render("md", review.Result{Findings: findings, FailedServices: failed})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(body) > mdMaxComment {
 		t.Fatalf("the comment is %d bytes, over %d", len(body), mdMaxComment)
 	}
-	if !strings.Contains(string(body), "The evidence is not shown") {
-		t.Fatal("the cut is not announced")
+	if !strings.HasPrefix(string(body), "**Proven: blocked** — 400 findings") {
+		t.Fatalf("the verdict does not lead the comment\n%.200s", body)
 	}
-	if bad := unsafeMarkdown(string(body), 30); len(bad) != 0 {
+	if bad := unsafeMarkdown(string(body), strings.Count(string(body), "<details>")); len(bad) != 0 {
+		t.Fatalf("unsafe: %v", bad)
+	}
+}
+
+// TestMarkdownMentionsStayInertAfterTheEscape proves a '@user' or '#123' written
+// mid-sentence in any field is followed by a zero-width space even where the
+// writer also puts a backslash, because the renderer reads the backslash away and
+// links what is left. The attack is in hostile (the mentions are its fourth entry).
+func TestMarkdownMentionsStayInertAfterTheEscape(t *testing.T) {
+	got := mdText("ask @someone about #123 now")
+	want := `ask \@` + zeroWidth + `someone about \#` + zeroWidth + `123 now`
+	if got != want {
+		t.Fatalf("mdText = %q, want %q", got, want)
+	}
+}
+
+// TestMarkdownMentionCheckBitesWhenTheZeroWidthIsRemoved is the negative control of
+// the mention rule (law #27). It mutates exactly the zero-width space after '@'
+// and '#' in a body that passes the check, and the same check must turn red.
+func TestMarkdownMentionCheckBitesWhenTheZeroWidthIsRemoved(t *testing.T) {
+	body, err := render("md", hostileResult())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bad := unsafeMarkdown(string(body), 1); len(bad) != 0 {
+		t.Fatalf("the control starts from a body that is already unsafe: %v", bad)
+	}
+	mutated := strings.NewReplacer(`\@`+zeroWidth, `\@`, `\#`+zeroWidth, `\#`).Replace(string(body))
+	if mutated == string(body) {
+		t.Fatal("the mutation changed nothing: no escaped mention in the body")
+	}
+	if bad := unsafeMarkdown(mutated, 1); len(bad) == 0 {
+		t.Fatal("a mention without its zero-width space passed the check")
+	}
+}
+
+// TestMarkdownStatesWhatWasChecked proves the comment carries the statements the
+// text writer prints, names a failed service whether the run is clean or not, and
+// that a clean comment says what was checked in plain words. The mutated fields
+// are the statements and the failed services.
+func TestMarkdownStatesWhatWasChecked(t *testing.T) {
+	statements := review.Result{
+		PolicyStatement:      "policy: org.yaml",
+		SettingsStatement:    "the change edits proven.yaml",
+		AuthorModelStatement: "author model not stated",
+		ReviewerStatements:   []string{"reviewer model-a: family x"},
+		FailedServices:       []review.ServiceFailure{{Service: "zetaris", Reason: "ZETARIS_REST_URL is empty"}},
+		Class:                "standard", ClassRule: "fallback",
+		SkippedPaths: []string{"link"},
+	}
+	for name, result := range map[string]review.Result{
+		"clean":    statements,
+		"findings": withFinding(statements),
+	} {
+		body, err := render("md", result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"policy: org.yaml", "the change edits proven.yaml", "author model not stated",
+			"reviewer model-a: family x", "failed service `zetaris`: ZETARIS_REST_URL is empty"} {
+			if !strings.Contains(string(body), want) {
+				t.Errorf("%s: the comment does not say %q\n%s", name, want, body)
+			}
+		}
+	}
+	clean, _ := render("md", statements)
+	for _, want := range []string{"review class `standard` (rule `fallback`)", "1 tracked path was skipped", "these services did not answer: `zetaris`"} {
+		if !strings.Contains(string(clean), want) {
+			t.Errorf("the clean sentence does not say %q\n%s", want, clean)
+		}
+	}
+	answered, _ := render("md", review.Result{Class: "standard", ClassRule: "fallback"})
+	if !strings.Contains(string(answered), "every service answered") {
+		t.Errorf("the clean sentence does not say every service answered\n%s", answered)
+	}
+}
+
+func withFinding(r review.Result) review.Result {
+	r.Findings = []review.Finding{{ID: "F1", Severity: review.SeverityError, Title: "t"}}
+	return r
+}
+
+// TestMarkdownPipeIsEscapedOnlyInATable proves '|' is written '\|' in a table cell
+// and as itself in a code span elsewhere, where the backslash would print.
+// The mutated field is a pipe in the location (a cell) and in a fix command (prose).
+func TestMarkdownPipeIsEscapedOnlyInATable(t *testing.T) {
+	result := review.Result{Findings: []review.Finding{{
+		ID: "F1", Severity: review.SeverityError, Title: "t",
+		Location: review.Location{Path: "a|b.go", StartLine: 1},
+		Fix:      &review.Fix{Note: "n", Runs: []review.FixRun{{Label: "run", Command: "go test | tee", Result: "r"}}},
+	}}}
+	body, err := render("md", result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if !strings.Contains(text, "`a\\|b.go:1`") {
+		t.Errorf("the table cell does not escape the pipe\n%s", text)
+	}
+	if !strings.Contains(text, "`go test | tee`") || strings.Contains(text, `test \|`) {
+		t.Errorf("the pipe outside a table is escaped or lost\n%s", text)
+	}
+	if bad := unsafeMarkdown(text, 1); len(bad) != 0 {
 		t.Fatalf("unsafe: %v", bad)
 	}
 }
