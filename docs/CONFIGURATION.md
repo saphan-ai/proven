@@ -286,15 +286,15 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | Setting | Default | What it changes |
 |---|---|---|
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
-| `LAB_BIND` | `127.0.0.1` | Address the published ports bind to |
+| `LAB_BIND` | retired | No longer a setting. Every published port names `127.0.0.1` in `lab/compose.yaml` itself, so no value moves it. `make up` refuses a `LAB_BIND` that is set in the environment, an empty one included, and names it |
 | `GOLANG_IMAGE` | `golang:1.26.10` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
 | `RUNTIME_IMAGE` | `alpine:3.23` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
 | `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
-| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` refuse when the `docker scout` plugin is installed and a fix is available. `make push` does not run Scout |
+| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `LAB_BIND`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
+| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
 | `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
@@ -323,6 +323,8 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `RUNNER_NAME` | `proven-lab` | Name the runner registers with |
 | `RUNNER_LABEL` | `ubuntu-latest` | Label the lab's jobs use. The workflow file's `runs-on` matches this default |
 | `LAB_ADMIN_USER` | `proven` | Admin user. `make up` creates it when the account is missing, including on a volume that already holds the password |
+| `LAB_ADMIN_PASSWORD` | empty | The admin password the judge supplies. Read from the environment only; never put it in `lab/versions.env` or another committed file. Used on the first `make up`, which neither prints it nor writes it to a file on the host. It is never in the Compose environment: the seed reads it from a file in the lab's volume, so `docker compose config` does not show it. Empty: `make up` generates one, prints it once when stdout is a terminal, and otherwise writes it to `lab/.state/admin-password` at mode 0600 and prints the path. At least 8 characters and no line break, or `make up` refuses before any container starts. On an installed lab a different value is ignored with a notice |
+| `LAB_STATE_DIR` | `lab/.state` | Directory of the admin password file. `make clean` removes the file and the directory when it is empty |
 | `LAB_ADMIN_EMAIL` | `proven@localhost` | That user's email |
 | `LAB_BOT_USER` | `proven-bot` | The account the workflow posts its review as. Not an admin; a collaborator on the demo repository. The seed makes it, keeps its generated password in the lab's state volume and stores its token only as the repository's `PROVEN_TOKEN` secret. `make e2e` accepts a review only from this account |
 | `LAB_BOT_EMAIL` | `proven-bot@lab.local` | That account's email |
@@ -330,7 +332,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LAB_DEMO_BASE` | `main` | Base branch |
 | `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |
 | `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
-| `SEED_IMAGE_TAG` | `1` | Pin for that image. It is not tagged `latest` |
+| `SEED_IMAGE_TAG` | `2` | Pin for that image. It is not tagged `latest` |
 | `E2E_WAIT_SECONDS` | `600` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 
