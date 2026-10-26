@@ -1,0 +1,289 @@
+{
+  "uid": "proven-engines",
+  "title": "Proven: the four Meterless engines and what each did",
+  "description": "H-MEM, Scout Intent, Markovian and the World Model are on in this lab. What each one did is shown where Proven reports it.",
+  "tags": [
+    "proven"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
+  "style": "dark",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Proven dashboards",
+      "tags": [
+        "proven"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_loki",
+        "type": "datasource",
+        "query": "loki",
+        "hide": 2,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "H-MEM: claims it suppressed",
+      "description": "Claims H-MEM recognised as already refuted in an earlier review, so they never reached the Judge.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 6
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_review_claims_dropped_total{reason=\"suppressed\"}[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: claims suppressed",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0 claims suppressed",
+          "mappings": [],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 46,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "Scout Intent: not measured yet",
+      "description": "What would be shown here.",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** Scout plans each review, light or full, and can be overridden by a guard. Missing:\n\n- plans, by light or full\n- guard overrides\n\nWhat each review ran as is in the table below."
+      }
+    },
+    {
+      "id": 3,
+      "type": "text",
+      "title": "Markovian: not measured yet",
+      "description": "What would be shown here.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** Markovian reviews a large change in bounded steps. Missing:\n\n- steps taken\n\nSmall changes, like the demo's, take one step."
+      }
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "World Model: not measured yet",
+      "description": "What would be shown here.",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** The World Model keeps claims, evidence and verdicts as a graph. Missing:\n\n- claims\n- evidence\n- verdicts recorded"
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "What each review ran as",
+      "description": "One row per review: the review class Scout chose, whether a second reviewer ran, and whether the review was cut short.",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 10
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${ds_tempo}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${ds_tempo}"
+          },
+          "queryType": "traceql",
+          "query": "{ name = \"proven.review\" } | select(span.proven.class, span.proven.doubled, span.proven.partial, span.proven.findings)",
+          "tableType": "spans",
+          "limit": 100
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No review has run yet.",
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "sortBy": [
+          {
+            "displayName": "Start time",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "traceIdHidden": true,
+              "spanID": true,
+              "Trace ID": true,
+              "Span ID": true,
+              "traceService": true,
+              "traceName": true,
+              "nested": true
+            },
+            "renameByName": {
+              "Start time": "Start time",
+              "proven.class": "Review class",
+              "proven.doubled": "Two reviewers",
+              "proven.partial": "Cut short",
+              "proven.findings": "Findings kept",
+              "Duration": "Duration"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -153,8 +153,11 @@ render_workflow() {
   # Proven on the inner daemon, whose default network cannot resolve the lab's service names, so the
   # container joins the daemon's own network, which is on the lab network. Proven reads the standard
   # OTEL_* variables and nothing else. Without an endpoint the workflow is left as it is.
+  # The review's instance id carries the pull request and the change: "<unix time>-pr<number>-<fixture>". Proven's metrics
+  # are labelled with it (instance), so the dashboards name a review by its pull request, and the clean changes from the
+  # defect ones. Proven's own setup lets OTEL_RESOURCE_ATTRIBUTES say more than the id it made (internal/telemetry/setup.go).
   if [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]; then
-    sed "s|docker run --rm |docker run --rm --network host -e OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT} -e OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-proven} -e OTEL_METRIC_EXPORT_INTERVAL=${OTEL_METRIC_EXPORT_INTERVAL:-1000} |" \
+    sed "s|docker run --rm |docker run --rm --network host -e OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT} -e OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-proven} -e OTEL_METRIC_EXPORT_INTERVAL=${OTEL_METRIC_EXPORT_INTERVAL:-1000} -e OTEL_RESOURCE_ATTRIBUTES=service.instance.id=\$(date +%s)-pr\${PR}-\${fixture} |" \
       /tmp/proven.yml >/tmp/proven.otel
     mv /tmp/proven.otel /tmp/proven.yml
   fi
