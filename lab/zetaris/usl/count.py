@@ -21,13 +21,23 @@ def fail(why):
     sys.exit(1)
 
 
+def no_duplicates(pairs):
+    """A JSON object that names one key twice is ambiguous: json keeps the last value silently. Refuse it."""
+    seen = set()
+    for key, _ in pairs:
+        if key in seen:
+            raise ValueError("duplicate key")
+        seen.add(key)
+    return dict(pairs)
+
+
 def main():
     if len(sys.argv) != 3:
         fail("usage: count.py <body file> <column>")
     path, column = sys.argv[1], sys.argv[2]
     try:
         with open(path, encoding="utf-8") as f:
-            doc = json.load(f)
+            doc = json.load(f, object_pairs_hook=no_duplicates)
     except (OSError, ValueError) as e:
         fail("the body is not one JSON document (%s)" % type(e).__name__)
     if not isinstance(doc, dict):

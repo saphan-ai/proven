@@ -366,6 +366,8 @@ func TestApplyRefusesAnUnreadableGateAnswer(t *testing.T) {
 		`{"error":"boom","headers":["violations"],"data":[[0]]}`,           // an added error field
 		`{"errors":["boom"],"headers":["violations"],"data":[[0]]}`,        // an added errors field
 		`{"headers":["violations"],"data":[[0]]} {"headers":[],"data":[]}`, // a second document
+		`{"headers":["violations"],"data":[[7]],"data":[[0]]}`, // data: named twice, the last one zero
+		`{"headers":["violations"],"headers":["violations"],"data":[[0]]}`, // headers: named twice
 	} {
 		s := newStub(t, stubCurl)
 		s.set(t, "count.json", body)
