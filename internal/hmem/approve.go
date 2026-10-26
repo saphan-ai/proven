@@ -126,7 +126,8 @@ func (s *Store) completeApproval(p Proposal) (*Record, error) {
 		if err != nil {
 			return nil, err
 		}
-		created = &rec
+		out := rec.detached()
+		created = &out
 	}
 	if p.Status != ProposalApproved {
 		p.Status = ProposalApproved

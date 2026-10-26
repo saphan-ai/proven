@@ -76,6 +76,30 @@ type Record struct {
 	FindingKey string `json:"findingKey,omitempty"`
 }
 
+// detached returns the record with its own copy of every slice field. Every
+// public call that hands out a Record returns it through detached, so editing
+// what a caller was given never changes a stored record: the stored tags would
+// otherwise change without the domain being classified again (see Dream).
+func (r Record) detached() Record {
+	r.Tags = cloneStrings(r.Tags)
+	if r.Embedding != nil {
+		r.Embedding = append(make([]float64, 0, len(r.Embedding)), r.Embedding...)
+	}
+	r.Entities = cloneStrings(r.Entities)
+	r.RelatedTo = cloneStrings(r.RelatedTo)
+	r.DerivedFrom = cloneStrings(r.DerivedFrom)
+	return r
+}
+
+// cloneStrings copies a slice and keeps nil as nil and empty as empty, so a
+// detached record encodes to the same JSON as the stored one.
+func cloneStrings(in []string) []string {
+	if in == nil {
+		return nil
+	}
+	return append(make([]string, 0, len(in)), in...)
+}
+
 // Provenance is where a record was learned.
 type Provenance struct {
 	Origin    string `json:"origin"`
@@ -355,12 +379,12 @@ func (s *Store) addLocked(in AddInput) (Record, error) {
 			delete(s.records, rec.ID)
 			return Record{}, err
 		}
-		return rec, nil
+		return rec.detached(), nil
 	}
 	if err := s.publish("create", rec.ID, in.Source, prevSeq, nil, []string{rec.ID}); err != nil {
 		return Record{}, err
 	}
-	return rec, nil
+	return rec.detached(), nil
 }
 
 // RememberRefutation stores a refuted finding. The same key returns the same record
@@ -378,7 +402,7 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	sum := sha256.Sum256([]byte(k.ChangeKey + "\n" + fk))
 	id := "mem_" + hex.EncodeToString(sum[:])[:16]
 	if rec, ok := s.records[id]; ok {
-		return rec, nil
+		return rec.detached(), nil
 	}
 	now := k.At
 	if now == 0 {
@@ -418,7 +442,7 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	if err := s.publish("create", id, "skeptic", s.seq, nil, []string{id}); err != nil {
 		return Record{}, err
 	}
-	return rec, nil
+	return rec.detached(), nil
 }
 
 // MatchRefutation returns the stored refutation of this finding on this change.
@@ -440,7 +464,7 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 			ok = true
 		}
 	}
-	return found, ok
+	return found.detached(), ok
 }
 
 // Clear drops every record, writes one clear audit line, resets the id
@@ -492,19 +516,25 @@ func (s *Store) MarkSuperseded(id, by string) error {
 	return nil
 }
 
-// Get returns one record.
+// Get returns one record. The caller owns the copy: editing its slices does
+// not change the store.
 func (s *Store) Get(id string) (Record, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.records[id]
-	return rec, ok
+	return rec.detached(), ok
 }
 
-// All returns every record, sorted by id.
+// All returns every record, sorted by id. The caller owns the copies: editing
+// their slices does not change the store.
 func (s *Store) All() []Record {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.snapshot()
+	out := s.snapshot()
+	for i := range out {
+		out[i] = out[i].detached()
+	}
+	return out
 }
 
 // snapshot returns the records sorted by id. The caller holds s.mu.

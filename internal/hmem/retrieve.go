@@ -88,7 +88,8 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 		rec.LastAccessed = now
 		rec.AccessCount++
 		s.records[rec.ID] = rec
-		scored[i].Record = rec
+		// The hit carries its own copy, so a caller editing it cannot change the store.
+		scored[i].Record = rec.detached()
 		if err := s.audit("read", rec.ID, "retrieval"); err != nil {
 			// A partial touch must not stay: the state file was not written.
 			for id, prev := range saved {
