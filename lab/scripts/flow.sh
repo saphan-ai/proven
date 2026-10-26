@@ -14,6 +14,10 @@
 #   PROVEN_LAB_GATEWAY_AUTH  access | token      (path ours; default access)
 #   PROVEN_LAB_OWN_SETUP     yes | no            (path own: run the automated setup)
 #   PROVEN_LAB_USE_DETECTED  yes | no            (path own: use the Zetaris and Nightshift already answering here)
+#   PROVEN_MARKOVIAN         on | off            Proven's own setting for bounded steps; asked only when not set
+#   PROVEN_LAB_SCOUT_INTENT  on | off            the lab's spelling of proven.yaml's scout_intent; asked only when not set
+# Neither has a default here: an answer of Enter, and no terminal, leave the setting unset and Proven's own default
+# stands. H-MEM and the World Model have no switch in Proven, so they are not asked.
 # Test seam: PROVEN_LAB_TTY names a file or FIFO that stands for the terminal. It is not for use by hand.
 #
 # The gateway credential never reaches a file, an output line, a command line or a container's environment file:
@@ -24,6 +28,10 @@ LAB_FLOW_BANNER_WHO='Team Saphan.ai: built in public by one person and a fleet o
 LAB_FLOW_Q_MODE='Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]'
 LAB_FLOW_Q_JUDGE='Are you a judge of the Open Agent Hackathon? [y/n]'
 LAB_FLOW_JUDGE_BANNER="For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk."
+LAB_FLOW_Q_TWEAK='Do you want to tweak Meterless features? [y/N]'
+LAB_FLOW_NOTE_ALWAYS='H-MEM (memory of refuted findings) and World Model (claims, evidence and verdicts as a graph) are on by default. Proven has no switch for either yet, so there is nothing to ask about them.'
+LAB_FLOW_Q_SCOUT='Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [y/n, Enter keeps the default]'
+LAB_FLOW_Q_MARKOV='Markovian: reviews a large change in bounded steps (on by default). Use it? [y/n, Enter keeps the default]'
 LAB_FLOW_BEST_EFFORT='We cannot vouch for results on a setup we do not control: this is best effort.'
 
 
@@ -56,6 +64,8 @@ flow_validate_settings() {
   flow_check_enum PROVEN_LAB_GATEWAY_AUTH access token
   flow_check_enum PROVEN_LAB_OWN_SETUP yes no
   flow_check_enum PROVEN_LAB_USE_DETECTED yes no
+  flow_check_enum PROVEN_MARKOVIAN on off
+  flow_check_enum PROVEN_LAB_SCOUT_INTENT on off
 }
 
 # ---- ports ------------------------------------------------------------------------------------------------------
@@ -185,6 +195,11 @@ flow_ask() {
       exit 1
     fi
     fa_ans=$(printf '%s' "$fa_ans" | tr 'A-Z' 'a-z' | tr -d ' \t\r')
+    # FLOW_ASK_DEFAULT, when set, is what an empty answer means. Only the feature questions set it.
+    if [ -z "$fa_ans" ] && [ -n "${FLOW_ASK_DEFAULT:-}" ]; then
+      eval "$fa_var=\$FLOW_ASK_DEFAULT"
+      return 0
+    fi
     case $fa_ans in
       yes) fa_ans=y ;;
       no) fa_ans=n ;;
@@ -256,7 +271,14 @@ flow_gateway_url() {
   if [ -z "${JUDGES_GATEWAY_URL:-}" ]; then
     if flow_open_terminal; then
       printf 'The gateway address you were sent (https://...): '
-      IFS= read -r JUDGES_GATEWAY_URL <&4 || JUDGES_GATEWAY_URL=
+      # An input that ends is a stop that says so, never a guess at an address (a last line with no newline still counts).
+      fg_rc=0
+      IFS= read -r JUDGES_GATEWAY_URL <&4 || fg_rc=$?
+      if [ "$fg_rc" -ne 0 ] && [ -z "$JUDGES_GATEWAY_URL" ]; then
+        printf '\n'
+        echo "up: the input ended before the gateway address came. NEXT — put it in lab/.env as JUDGES_GATEWAY_URL. Nothing was started." >&2
+        exit 1
+      fi
     else
       echo "up: the judges' gateway address is not set. NEXT — put the address you were sent in lab/.env as JUDGES_GATEWAY_URL. Nothing was started." >&2
       exit 1
@@ -425,20 +447,52 @@ flow_rehost() {
   printf '%s' "$1" | sed "s|^\(https\{0,1\}://\)[^/:]*|\1$2|"
 }
 
+# flow_probe KIND URL: exit 0 when the service named KIND answers at URL, and answers in its own shape. Any other
+# listener (a stray web server on the port, a proxy's error page) is not that service. The shapes are claims about
+# the services, read from Proven's own adapters and not measured against a running Zetaris (docs/LAB.md says so):
+#   nightshift  GET /v1/models: 200 and a JSON list of models ({"data":[...]}), or 401 and a JSON object, which is
+#               what its runtime answers without its token;
+#   zetaris     its API root: 200, 400, 401 or 403 and a JSON object (never 404, never HTML).
 flow_probe() {
+  fq_kind=$1
+  fq_url=$2
   command -v curl >/dev/null 2>&1 || return 1
-  fp_code=$(curl -sS -o /dev/null --max-time 3 -w '%{http_code}' "$1" 2>/dev/null || true)
-  case $fp_code in
-    '' | 000) return 1 ;;
+  fq_out=$(curl -sS --max-time 3 -w '\n%{http_code}' "$fq_url" 2>/dev/null || true)
+  fq_code=$(printf '%s\n' "$fq_out" | tail -n 1)
+  fq_flat=$(printf '%s\n' "$fq_out" | sed '$d' | head -c 8192 | tr -d ' \t\r\n')
+  case $fq_kind in
+    nightshift)
+      case $fq_code in
+        200)
+          case $fq_flat in
+            *'"data":['*) return 0 ;;
+          esac
+          ;;
+        401)
+          case $fq_flat in
+            '{'*'}') return 0 ;;
+          esac
+          ;;
+      esac
+      ;;
+    zetaris)
+      case $fq_code in
+        200 | 400 | 401 | 403)
+          case $fq_flat in
+            '{'*'}') return 0 ;;
+          esac
+          ;;
+      esac
+      ;;
   esac
-  return 0
+  return 1
 }
 
 flow_detect_own() {
   fd_z=no
   fd_n=no
-  flow_probe "$DETECT_ZETARIS_URL" && fd_z=yes
-  flow_probe "$DETECT_NIGHTSHIFT_URL" && fd_n=yes
+  flow_probe zetaris "$DETECT_ZETARIS_URL" && fd_z=yes
+  flow_probe nightshift "$DETECT_NIGHTSHIFT_URL" && fd_n=yes
   if [ "$fd_z" = no ] && [ "$fd_n" = no ]; then
     echo "up: neither Zetaris ($DETECT_ZETARIS_URL) nor Nightshift ($DETECT_NIGHTSHIFT_URL) answers on this machine."
     return 0
@@ -503,6 +557,10 @@ flow_path_own() {
 flow_drop_keys() {
   fd_dropped=
   for fd_name in $LAB_LIVE_KEYS; do
+    # The Meterless features are settings of a review, not keys: sample mode keeps them.
+    case " ${LAB_FEATURE_KEYS:-} " in
+      *" $fd_name "*) continue ;;
+    esac
     eval "fd_val=\${$fd_name:-}"
     if [ -n "$fd_val" ]; then
       fd_dropped="${fd_dropped:+$fd_dropped, }$fd_name"
@@ -513,6 +571,43 @@ flow_drop_keys() {
   if [ -n "$fd_dropped" ]; then
     echo "up: sample mode does not use these settings: $fd_dropped. For a live review set PROVEN_LAB_MODE=live."
   fi
+}
+
+# ---- the Meterless features -------------------------------------------------------------------------------------
+
+# flow_feature_answer VAR PROMPT: one feature. A setting given in advance is left as it is. Otherwise y is on,
+# n is off and Enter leaves the setting unset, so Proven's own default stands.
+flow_feature_answer() {
+  ff_var=$1
+  eval "ff_cur=\${$ff_var:-}"
+  [ -z "$ff_cur" ] || return 0
+  FLOW_ASK_DEFAULT=keep
+  flow_ask ff_ans "$ff_var" "$2" y n
+  unset FLOW_ASK_DEFAULT
+  case $ff_ans in
+    y) eval "$ff_var=on" ;;
+    n) eval "$ff_var=off" ;;
+    *) return 0 ;;
+  esac
+  export "$ff_var"
+}
+
+# flow_features: after sample or live. Asked on a terminal only, and only for a feature whose setting is not given.
+# No terminal and no setting asks nothing and sets nothing.
+flow_features() {
+  if [ "$FLOW_ASK" != yes ]; then
+    return 0
+  fi
+  if [ -n "${PROVEN_MARKOVIAN:-}" ] && [ -n "${PROVEN_LAB_SCOUT_INTENT:-}" ]; then
+    return 0
+  fi
+  FLOW_ASK_DEFAULT=n
+  flow_ask ff_tweak "PROVEN_MARKOVIAN and PROVEN_LAB_SCOUT_INTENT (on or off)" "$LAB_FLOW_Q_TWEAK" y n
+  unset FLOW_ASK_DEFAULT
+  [ "$ff_tweak" = y ] || return 0
+  echo "$LAB_FLOW_NOTE_ALWAYS"
+  flow_feature_answer PROVEN_LAB_SCOUT_INTENT "$LAB_FLOW_Q_SCOUT"
+  flow_feature_answer PROVEN_MARKOVIAN "$LAB_FLOW_Q_MARKOV"
 }
 
 flow_banner() {
@@ -542,6 +637,8 @@ lab_flow() {
       fl_mode=sample
     fi
   fi
+
+  flow_features
 
   if [ "$fl_mode" = sample ]; then
     LAB_MODE=sample

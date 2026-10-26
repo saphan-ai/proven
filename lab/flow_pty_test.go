@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -67,7 +68,7 @@ func ptyEchoAfterInterrupt(t *testing.T, tree string) string {
 	writeExec(t, bin, "docker", fakeDocker)
 	cmd := exec.Command("python3", "-I", script, filepath.Join(tree, "lab", "scripts", "up.sh"))
 	env := append([]string{"PATH=" + bin + ":" + os.Getenv("PATH"), "HOME=" + tmp, "TMPDIR=" + tmp, "FAKE_DIR=" + tmp, "TERM=xterm"}, labPorts(t)...)
-	cmd.Env = append(env, liveOurs("PROVEN_LAB_GATEWAY_AUTH=token", "JUDGES_GATEWAY_URL=http://127.0.0.1:1")...)
+	cmd.Env = append(env, liveOurs("PROVEN_LAB_GATEWAY_AUTH=token", "JUDGES_GATEWAY_URL=http://127.0.0.1:1", "PROVEN_MARKOVIAN=off", "PROVEN_LAB_SCOUT_INTENT=off")...)
 	out, err := cmd.CombinedOutput()
 	if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 77 {
 		t.Skip("this host opens no pseudo-terminal, so the terminal case is not run here; it runs wherever one opens")
@@ -84,9 +85,23 @@ func TestFlowLeavesARealTerminalWithEchoOnAfterCtrlC(t *testing.T) {
 		t.Errorf("on a real terminal the echo was not off during the prompt and on after Ctrl-C: %q", got)
 	}
 	// The negative control: the interrupt no longer restores the terminal. Mutated field: the INT trap.
-	tree := copyLab(t)
-	mutate(t, tree, "lab/scripts/flow.sh", "trap 'flow_restore_echo; echo; exit 130' INT", "trap - INT")
-	if got := ptyEchoAfterInterrupt(t, tree); strings.HasSuffix(got, "echo_after=True") {
-		t.Errorf("the control did not turn red: the terminal was restored with the INT trap removed: %q", got)
+	t.Run("negative control: the INT trap removed", func(t *testing.T) {
+		skipControlOnDarwin(t)
+		tree := copyLab(t)
+		mutate(t, tree, "lab/scripts/flow.sh", "trap 'flow_restore_echo; echo; exit 130' INT", "trap - INT")
+		if got := ptyEchoAfterInterrupt(t, tree); strings.HasSuffix(got, "echo_after=True") {
+			t.Errorf("the control did not turn red: the terminal was restored with the INT trap removed: %q", got)
+		}
+	})
+}
+
+// skipControlOnDarwin skips a terminal negative control on macOS, by name. The master measured on 26 October 2026, at
+// c73eca9, that on macOS the control does not turn red: the terminal is back with echo on after the session ends
+// whether or not the trap ran. That is a claim about macOS this seat did not repeat. The positive half of each test
+// still runs there, and the control runs on Linux.
+func skipControlOnDarwin(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "darwin" {
+		t.Skip("this control cannot turn red on macOS (measured by the master at c73eca9); it runs on Linux")
 	}
 }

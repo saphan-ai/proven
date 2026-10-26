@@ -153,6 +153,7 @@ services:
       LAB_SPECIAL_REVIEWER: ${LAB_SPECIAL_REVIEWER:-}
       # Going live (ADR-0052). The names the seed stores as Actions secrets, and the settings that are not secret.
       LAB_LIVE_KEYS: ${LAB_LIVE_KEYS}
+      LAB_FEATURE_KEYS: ${LAB_FEATURE_KEYS}
       JUDGES_GATEWAY_ZETARIS_PATH: ${JUDGES_GATEWAY_ZETARIS_PATH}
       JUDGES_GATEWAY_ZETARIS_ORG_ID: ${JUDGES_GATEWAY_ZETARIS_ORG_ID}
       # The values come from the environment of the `make up` that started this container, by NAME only: they are
@@ -172,6 +173,8 @@ services:
       JUDGES_GATEWAY_TOKEN:
       JUDGES_GATEWAY_ACCESS_TOKEN:
       PROVEN_GENERATOR_MODEL:
+      PROVEN_MARKOVIAN:
+      PROVEN_LAB_SCOUT_INTENT:
     volumes:
       - seed-state:/state
       - runner-reg:/reg

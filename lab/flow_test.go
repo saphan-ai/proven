@@ -69,7 +69,7 @@ func writeExec(t *testing.T, dir, name, body string) {
 const fakeDocker = `#!/bin/sh
 case "$1" in ps) echo "$*" >> "$FAKE_DIR/docker.ps"; exit 0 ;; esac
 echo "$*" >> "$FAKE_DIR/docker.calls"
-env | grep -E '^(LAB_MODE|JUDGES_GATEWAY_[A-Z_]+|ZETARIS|ZETARIS_REST_URL|PROVEN_GENERATOR_[A-Z_]+|METERLESS_[A-Z_]+)=' >> "$FAKE_DIR/docker.env"
+env | grep -E '^(LAB_MODE|JUDGES_GATEWAY_[A-Z_]+|ZETARIS|ZETARIS_REST_URL|PROVEN_GENERATOR_[A-Z_]+|METERLESS_[A-Z_]+|PROVEN_MARKOVIAN|PROVEN_LAB_SCOUT_INTENT)=' >> "$FAKE_DIR/docker.env"
 exit 97
 `
 
@@ -246,9 +246,14 @@ func TestFlowEachPathRunsFromItsSettingsAndPrintsNoQuestion(t *testing.T) {
 	jwt := fakeJWT(1893456000) // 2030-01-01 00:00 UTC
 	tokenGW, _ := stubGateway(t, 0, "Authorization", "Bearer "+goodToken)
 	accessGW, accessSeen := stubGateway(t, 0, "cf-access-token", jwt)
-	zet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(401) }))
+	zet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(401)
+		fmt.Fprint(w, `{"error":"unauthorized"}`)
+	}))
 	t.Cleanup(zet.Close)
-	nsrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"data":[]}`) }))
+	nsrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"object":"list","data":[{"id":"meterless/auto"}]}`)
+	}))
 	t.Cleanup(nsrv.Close)
 	cf := "#!/bin/sh\ncase \"$1 $2\" in\n\"access login\") echo \"Successfully fetched your token:\"; echo LOGINPRINTEDTOKEN; exit 0;;\n\"access token\") [ \"$3\" = \"-app=$STUB_APP\" ] || exit 3; echo \"$STUB_ACCESS_JWT\"; exit 0;;\nesac\nexit 2\n"
 	zhost := strings.TrimPrefix(zet.URL, "http://")
@@ -533,7 +538,7 @@ func ttyAnswers(t *testing.T, lines ...string) string {
 }
 
 func TestFlowOnATerminalPrintsTheOwnersBannerAndQuestionsWordForWord(t *testing.T) {
-	r := runUp(t, upOpts{tty: ttyAnswers(t, "maybe", "SAMPLE")})
+	r := runUp(t, upOpts{tty: ttyAnswers(t, "maybe", "SAMPLE", "")})
 	for _, w := range []string{
 		"Proven: a pull-request review companion that only says what it can prove (and admits what it could not check)",
 		"Team Saphan.ai: built in public by one person and a fleet of AI agents.",
@@ -553,7 +558,7 @@ func TestFlowOnATerminalPrintsTheOwnersBannerAndQuestionsWordForWord(t *testing.
 	}
 	// The judge's questions, in the owner's words, then both answers.
 	gw, _ := stubGateway(t, 0, "Authorization", "Bearer "+goodToken)
-	r = runUp(t, upOpts{tty: ttyAnswers(t, "live", "Y", "ours", goodToken), env: []string{"PROVEN_LAB_GATEWAY_AUTH=token", "JUDGES_GATEWAY_URL=" + gw.URL}})
+	r = runUp(t, upOpts{tty: ttyAnswers(t, "live", "", "Y", "ours", goodToken), env: []string{"PROVEN_LAB_GATEWAY_AUTH=token", "JUDGES_GATEWAY_URL=" + gw.URL}})
 	for _, w := range []string{
 		"Are you a judge of the Open Agent Hackathon? [y/n]",
 		"For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.",
@@ -611,7 +616,7 @@ func sttyAfterInterrupt(t *testing.T, tree string) []string {
 	logdir := t.TempDir()
 	var w *os.File
 	r := runUp(t, upOpts{tree: tree, tty: fifo, bins: map[string]string{"stty": fakeStty},
-		env: liveOurs("PROVEN_LAB_GATEWAY_AUTH=token", "JUDGES_GATEWAY_URL=http://127.0.0.1:1", "FAKE_DIR="+logdir),
+		env: liveOurs("PROVEN_LAB_GATEWAY_AUTH=token", "JUDGES_GATEWAY_URL=http://127.0.0.1:1", "FAKE_DIR="+logdir, "PROVEN_MARKOVIAN=off", "PROVEN_LAB_SCOUT_INTENT=off"),
 		during: func(cmd *exec.Cmd) {
 			var err error
 			// Opening the write end releases the flow's open of the read end; the flow then waits in read.
@@ -651,13 +656,16 @@ func TestFlowRestoresTheTerminalWhenTheTokenPromptIsInterrupted(t *testing.T) {
 		t.Errorf("the saved terminal state was not restored after echo went off: %q", log)
 	}
 	// The negative control: the interrupt no longer restores the terminal. Mutated field: the INT trap of the prompt.
-	tree := copyLab(t)
-	mutate(t, tree, "lab/scripts/flow.sh", "trap 'flow_restore_echo; echo; exit 130' INT", "trap - INT")
-	log = strings.Join(sttyAfterInterrupt(t, tree), " ")
-	if strings.Index(log, "-echo") < 0 {
-		t.Fatalf("the mutated run never reached the prompt: %q", log)
-	}
-	if strings.LastIndex(log, "SAVEDSTATE") > strings.Index(log, "-echo") {
-		t.Error("the control did not turn red: with the INT trap removed the terminal was still restored")
-	}
+	t.Run("negative control: the INT trap removed", func(t *testing.T) {
+		skipControlOnDarwin(t)
+		tree := copyLab(t)
+		mutate(t, tree, "lab/scripts/flow.sh", "trap 'flow_restore_echo; echo; exit 130' INT", "trap - INT")
+		log := strings.Join(sttyAfterInterrupt(t, tree), " ")
+		if strings.Index(log, "-echo") < 0 {
+			t.Fatalf("the mutated run never reached the prompt: %q", log)
+		}
+		if strings.LastIndex(log, "SAVEDSTATE") > strings.Index(log, "-echo") {
+			t.Error("the control did not turn red: with the INT trap removed the terminal was still restored")
+		}
+	})
 }

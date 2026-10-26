@@ -11,6 +11,17 @@ name: proven
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
+
+# One review per head commit. Gitea can start more than one run for one push (round 4 was told of two on one sha in
+# a live lab; this file does not claim to know which event fired twice). Three guards, each for a different case:
+#   - only the pull_request event starts this workflow (there is no push trigger), and its types are named;
+#   - runs of one head commit queue behind each other (honoured by a Gitea that supports `concurrency`; one that
+#     does not ignores the key, and the next guard carries it);
+#   - a run that finds its head commit already reviewed posts nothing and says so (the two steps below).
+concurrency:
+  group: proven-review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -29,6 +40,14 @@ jobs:
       - name: Run the review
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PROVEN_TOKEN: ${{ secrets.PROVEN_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API_URL: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PROVEN_MARKOVIAN: ${{ secrets.PROVEN_MARKOVIAN }}
+          PROVEN_LAB_SCOUT_INTENT: ${{ secrets.PROVEN_LAB_SCOUT_INTENT }}
           PROVEN_GENERATOR_MODE: ${{ secrets.PROVEN_GENERATOR_MODE }}
           PROVEN_GENERATOR_KEY: ${{ secrets.PROVEN_GENERATOR_KEY }}
           PROVEN_NVIDIA_BASE_URL: ${{ secrets.PROVEN_NVIDIA_BASE_URL }}
@@ -46,12 +65,24 @@ jobs:
           GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0
           GATEWAY_ZETARIS_ORG_ID: "0"
         run: |
+          rm -f skip.txt
+          # Already reviewed? A comment of Proven for this head commit means another run did the work.
+          seen_token="${PROVEN_TOKEN:-$GH_TOKEN}"
+          if [ -n "$seen_token" ] && [ -n "$API_URL" ] && [ -n "$HEAD_SHA" ]; then
+            if wget -q -O seen.json --header="Authorization: token $seen_token" "$API_URL/repos/$REPO/issues/$PR/comments?limit=100" 2>/dev/null && grep -q "proven-review run=[0-9]* sha=$HEAD_SHA" seen.json; then
+              echo "skipped: head commit $HEAD_SHA already has a Proven review; this run reviews nothing and posts nothing"
+              echo skipped > skip.txt
+              exit 0
+            fi
+          fi
           fixture=discount
           case "$HEAD_REF" in
             demo-*) fixture="${HEAD_REF#demo-}" ;;
           esac
           # What the stored keys say. The values stay in this step's environment and reach the container by NAME
           # (-e NAME), so none is on a command line, in a file or in the log.
+          # derive-begin: lab/scripts/livecheck.sh runs the lines down to derive-end, so `make livecheck` judges readiness
+          # with exactly the settings this job will use. They read the stored secrets by name and set sample, state, who.
           sample=true
           state="sample: no keys"
           gateway_cred="$JUDGES_GATEWAY_TOKEN"
@@ -98,15 +129,28 @@ jobs:
             fi
             state="live: $who, Zetaris $zetaris"
           fi
+          # derive-end
           printf '%s\n' "$state" > mode.txt
           live_env=""
-          for name in PROVEN_GENERATOR_MODE PROVEN_GENERATOR_KEY PROVEN_NVIDIA_BASE_URL PROVEN_GUARDRAIL_MODE PROVEN_GUARDRAIL_KEY PROVEN_GENERATOR_BASE_URL METERLESS_RUNTIME_TOKEN ZETARIS_REST_URL ZETARIS_API_KEY ZETARIS_ORG_ID PROVEN_GENERATOR_MODEL JUDGES_GATEWAY_ACCESS_TOKEN; do
+          for name in PROVEN_MARKOVIAN PROVEN_GENERATOR_MODE PROVEN_GENERATOR_KEY PROVEN_NVIDIA_BASE_URL PROVEN_GUARDRAIL_MODE PROVEN_GUARDRAIL_KEY PROVEN_GENERATOR_BASE_URL METERLESS_RUNTIME_TOKEN ZETARIS_REST_URL ZETARIS_API_KEY ZETARIS_ORG_ID PROVEN_GENERATOR_MODEL JUDGES_GATEWAY_ACCESS_TOKEN; do
             eval "value=\${$name:-}"
             if [ -n "$value" ] && [ "$sample" = false ]; then
               live_env="$live_env -e $name"
             fi
           done
-          docker run --rm $live_env -e SAMPLE_MODE="$sample" -e FIXTURE="$fixture" --entrypoint sh saphan/proven:latest -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && proven scan "$d"' > review.txt
+          # The Meterless features. Each answer is Proven's own setting, passed through and never defaulted here: an unset
+          # one is not passed, and Proven's own default stands. PROVEN_MARKOVIAN is an environment setting (it rides in
+          # live_env above; Proven reads it in live reviews only). Scout Intent is a key of proven.yaml (scout_intent) with
+          # no environment spelling, so it is written to a file that the review is pointed at by PROVEN_CONFIG.
+          # H-MEM and the World Model have no switch in Proven yet, so nothing is passed for them.
+          case "$PROVEN_LAB_SCOUT_INTENT" in
+            "" | on | off) ;;
+            *)
+              echo "PROVEN_LAB_SCOUT_INTENT=$PROVEN_LAB_SCOUT_INTENT is not on or off" >&2
+              exit 1
+              ;;
+          esac
+          docker run --rm $live_env -e SAMPLE_MODE="$sample" -e FIXTURE="$fixture" -e SCOUT_INTENT="$PROVEN_LAB_SCOUT_INTENT" --entrypoint sh saphan/proven:latest -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && if [ -n "$SCOUT_INTENT" ]; then printf "scout_intent: %s\n" "$SCOUT_INTENT" > /tmp/proven-run/proven.yaml && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml; fi && proven scan "$d"' > review.txt
           grep -q '^review class' review.txt
 
       - name: Post the review on the pull request
@@ -119,6 +163,10 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          if [ -f skip.txt ]; then
+            echo "skipped: this head commit was reviewed by another run"
+            exit 0
+          fi
           token="$PROVEN_TOKEN"
           if [ -z "$token" ]; then
             token="$GH_TOKEN"
@@ -126,6 +174,11 @@ jobs:
           if [ -z "$token" ]; then
             echo "no token to post the review" >&2
             exit 1
+          fi
+          # Look again just before posting: a run that started at the same moment may have posted since the first look.
+          if wget -q -O seen.json --header="Authorization: token $token" "$API_URL/repos/$REPO/issues/$PR/comments?limit=100" 2>/dev/null && grep -q "proven-review run=[0-9]* sha=$HEAD_SHA" seen.json; then
+            echo "skipped: head commit $HEAD_SHA already has a Proven review"
+            exit 0
           fi
           {
             printf '<!-- proven-review run=%s sha=%s -->\n' "$RUN_NUMBER" "$HEAD_SHA"

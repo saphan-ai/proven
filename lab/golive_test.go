@@ -192,7 +192,13 @@ func TestGoLiveARefusedStoreStopsTheSeedByName(t *testing.T) {
 // workflowStep returns the script of the step of lab/workflow/proven.yml whose name is name.
 func workflowStep(t *testing.T, name string) string {
 	t.Helper()
-	lines := strings.Split(read(t, "lab", "workflow", "proven.yml"), "\n")
+	return workflowStepFrom(t, read(t, "lab", "workflow", "proven.yml"), name)
+}
+
+// workflowStepFrom is workflowStep on a workflow text the caller holds, so a test can mutate the text first.
+func workflowStepFrom(t *testing.T, text, name string) string {
+	t.Helper()
+	lines := strings.Split(text, "\n")
 	var out []string
 	in, collecting := false, false
 	for _, l := range lines {

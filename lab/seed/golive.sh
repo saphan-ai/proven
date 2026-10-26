@@ -8,8 +8,18 @@
 # sample mode. The value reaches this container by name from the environment of `make up`. It goes to Gitea over a
 # pipe (printf is a shell builtin, so no process lists it), is never written to a file, and is never printed:
 # the log carries NAMES and counts only. Sets LIVE_STORED to the names stored, one line.
+# feature_word VALUE: how the start page names a feature's stored setting. Anything but on or off is not stored by the
+# workflow's guard either, so it reads as Proven's own default.
+feature_word() {
+  case $1 in
+    on | off) printf '%s' "$1" ;;
+    *) printf "Proven's default" ;;
+  esac
+}
+
 ensure_live_secrets() {
   LIVE_STORED=""
+  FEATURES_STORED=""
   for name in ${LAB_LIVE_KEYS:-}; do
     case $name in
       *[!A-Z0-9_]* | '')
@@ -35,8 +45,21 @@ ensure_live_secrets() {
       echo "seed: could not store the secret $name (HTTP $code)" >&2
       exit 1
     fi
-    LIVE_STORED="${LIVE_STORED:+$LIVE_STORED, }$name"
+    case " ${LAB_FEATURE_KEYS:-} " in
+      *" $name "*) FEATURES_STORED="${FEATURES_STORED:+$FEATURES_STORED, }$name" ;;
+      *) LIVE_STORED="${LIVE_STORED:+$LIVE_STORED, }$name" ;;
+    esac
   done
+  if [ -n "$FEATURES_STORED" ]; then
+    echo "seed: stored the Meterless feature settings: $FEATURES_STORED"
+  fi
+  # The Meterless features are settings of a review, not keys: they are stored like keys but never make a lab live. The
+  # line the start page shows is built from the values stored just now, which is what the review will be given.
+  # H-MEM and the World Model have no switch in Proven, so they are always on and say so.
+  scout=$(feature_word "${PROVEN_LAB_SCOUT_INTENT:-}")
+  markov=$(feature_word "${PROVEN_MARKOVIAN:-}")
+  LAB_FEATURES_STATE="H-MEM on (always), World Model on (always), Scout Intent $scout, Markovian $markov"
+  export LAB_FEATURES_STATE
   if [ -n "$LIVE_STORED" ]; then
     echo "seed: stored as Actions secrets: $LIVE_STORED"
     LAB_LIVE_STATE="keys stored: $LIVE_STORED"

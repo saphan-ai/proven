@@ -31,6 +31,9 @@ render_page() {
   pw=$(printf '%s' "$LAB_ADMIN_PASSWORD" | html_escape)
   # The mode is one of three fixed phrases; any other character is dropped, so nothing in it reaches sed as syntax.
   lab_mode=$(printf '%s' "${LAB_MODE:-sample}" | tr -cd 'A-Za-z0-9 .,:-')
+  # The features line is built by golive.sh from the values it stored; only its fixed words and the characters of a
+  # separator get through, so nothing in it reaches sed as syntax.
+  lab_features=$(printf '%s' "${LAB_FEATURES_STATE:-H-MEM on (always), World Model on (always), Scout Intent Proven's default, Markovian Proven's default}" | tr -cd "A-Za-z0-9 .,:'()-")
   trap 'rm -f "$stage"' EXIT INT TERM
   (
     umask 077
@@ -44,6 +47,7 @@ render_page() {
       -e "s|@@CLEAN_COUNT@@|$clean_word|g" \
       -e "s|@@LIVE_STATE@@|${LAB_LIVE_STATE:-sample: no keys}|g" \
       -e "s|@@LAB_MODE@@|$lab_mode|g" \
+      -e "s|@@LAB_FEATURES@@|$lab_features|g" \
       "$PAGE_TEMPLATE" |
       LAB_PAGE_PW=$pw awk -v rows="$rows" '
         /^@@PR_ROWS@@$/ { while ((getline line < rows) > 0) print line; next }

@@ -77,12 +77,20 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
           ;;
         success)
           comments=$(gitea_curl "$base/issues/$num/comments" 2>/dev/null || true)
-          if notes=$(review_for "$comments" "$run_no" "$sha" "$LAB_BOT_USER"); then
-            echo "e2e: proven review is on the pull request (workflow run #$run_no succeeded; head commit $sha)"
-            printf '%s\n' "$comments"
-            exit 0
-          fi
-          last="workflow run #$run_no succeeded, but no proven review by $LAB_BOT_USER names run #$run_no and head commit $sha"
+          # The newest run's own review, or a review by another run of this same head commit that succeeded: a second
+          # run of one head posts nothing (lab/workflow/proven.yml), so the review is the first run's.
+          notes=
+          for review_run in $(success_runs "$statuses" "$context"); do
+            if run_notes=$(review_for "$comments" "$review_run" "$sha" "$LAB_BOT_USER"); then
+              echo "e2e: proven review is on the pull request (workflow run #$review_run succeeded; head commit $sha; the newest run is #$run_no)"
+              printf '%s\n' "$comments"
+              exit 0
+            fi
+            notes="$notes$run_notes
+"
+          done
+          last="workflow run #$run_no succeeded, but no proven review by $LAB_BOT_USER names a succeeded run and head commit $sha"
+          notes=$(printf '%s' "$notes" | sort -u | sed '/^$/d')
           if [ -n "$notes" ]; then
             last="$last ($(printf '%s' "$notes" | tr '\n' ';'))"
           fi
