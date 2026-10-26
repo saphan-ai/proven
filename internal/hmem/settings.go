@@ -36,7 +36,9 @@ const maxSettingBytes int64 = 1 << 40
 const maxQueryTokens = 1024
 
 // ErrStateTooLarge is the refusal of a state file above the cap. Open wraps it
-// with the file's size and the cap, and reads no part of the file.
+// with the cap and, when the file reports its size, that size. A file that
+// reports a size over the cap is not read at all; a source that under-reports
+// its size is read up to the cap plus one byte, and the refusal names the cap.
 var ErrStateTooLarge = errors.New("hmem: state file is over the size cap")
 
 // Limits are the two bounds H-MEM runs under. A zero field means the default,

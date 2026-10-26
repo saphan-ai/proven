@@ -255,7 +255,10 @@ func open(opts Options, opener func(path string) (stateFile, error)) (*Store, er
 // bounded read then covers a file that grew after the check. A file over the
 // limit is refused with ErrStateTooLarge, naming its size and the cap.
 // A missing file is returned as the os error so Open can start empty.
-func readBounded(opener func(path string) (stateFile, error), path string, limit int64) ([]byte, error) {
+// A close that fails after a good read is returned, naming the path, because a
+// failed close can mean the bytes read are not the bytes on disk; when the
+// read or the size check failed too, that error stays the primary one.
+func readBounded(opener func(path string) (stateFile, error), path string, limit int64) (b []byte, err error) {
 	f, err := opener(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -263,11 +266,15 @@ func readBounded(opener func(path string) (stateFile, error), path string, limit
 		}
 		return nil, fmt.Errorf("hmem: read state: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			b, err = nil, fmt.Errorf("hmem: close state %s: %w", path, cerr)
+		}
+	}()
 	if info, serr := f.Stat(); serr == nil && info.Size() > limit {
 		return nil, fmt.Errorf("%w: %s is %d bytes, the cap is %d (%s)", ErrStateTooLarge, path, info.Size(), limit, EnvMaxStateBytes)
 	}
-	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	b, err = io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("hmem: read state: %w", err)
 	}
