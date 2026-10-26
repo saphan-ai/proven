@@ -154,6 +154,17 @@ func (s *Store) ensureApprovedRecord(p Proposal) (Record, error) {
 	rid := approvedRecordID(p.ID)
 	rec, ok := s.records[rid]
 	if !ok {
+		// The rule: approval never writes a lineage reference to a record that
+		// is absent or archived. A source that is gone (cleared, or lost from an
+		// older log) makes approval refuse by name; it never restores a record,
+		// because a record that is absent may have been removed on purpose.
+		// Sleep keeps the sources of a pending proposal, so this only meets
+		// records removed some other way.
+		for _, d := range p.DerivedFrom {
+			if _, live := s.records[d]; !live {
+				return Record{}, fmt.Errorf("hmem: proposal %s names source %s, which is not a live record; it cannot be approved", p.ID, d)
+			}
+		}
 		typ := TypePreference
 		if p.Type == "insight" {
 			typ = TypeFactual

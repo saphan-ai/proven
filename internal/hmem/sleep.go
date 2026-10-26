@@ -48,18 +48,28 @@ type backup struct {
 var backupName = regexp.MustCompile(`^backup-[0-9]+$`)
 
 // SleepPreview returns the plan for a sleep cycle at the store's clock. It
-// changes nothing: preview first, then execute (H-MEM section 8).
+// changes nothing: preview first, then execute (H-MEM section 8). If the dream
+// log cannot be read, the sources of pending proposals are unknown, so the
+// preview plans no archive at all: it fails closed, and SleepExecute returns
+// the read error.
 func (s *Store) SleepPreview() SleepPreview {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.sleepPlan()
+	plan, err := s.sleepPlan()
+	if err != nil {
+		plan.ToArchive = []string{}
+	}
+	return plan
 }
 
 // sleepPlan computes the plan. The caller holds s.mu.
-func (s *Store) sleepPlan() SleepPreview {
+func (s *Store) sleepPlan() (SleepPreview, error) {
 	now := s.now()
 	all := s.snapshot()
-	guard := protections(all)
+	guard, err := s.guardsNow(all)
+	if err != nil {
+		return SleepPreview{ToConsolidate: []string{}, ToArchive: []string{}, ToSynthesize: [][]string{}}, err
+	}
 	plan := SleepPreview{ToConsolidate: []string{}, ToArchive: []string{}, ToSynthesize: [][]string{}}
 	for _, m := range all {
 		if m.Layer == LayerShort && now-m.LastAccessed >= consolidationDays*dayMillis {
@@ -100,7 +110,7 @@ func (s *Store) sleepPlan() SleepPreview {
 			plan.ToSynthesize = append(plan.ToSynthesize, group)
 		}
 	}
-	return plan
+	return plan, nil
 }
 
 // guards is what keeps a record out of the archive, computed from the whole
@@ -113,13 +123,42 @@ type guards struct {
 	sources map[string]bool
 	// conflicted holds the ids of both sides of an unresolved conflict.
 	conflicted map[string]bool
+	// pending holds the ids a pending dream proposal names as sources.
+	pending map[string]bool
+}
+
+// guardsNow computes the guards over all records and over the dream log. The
+// caller holds s.mu.
+//
+// A pending proposal (proposed, or approving and not yet finished) names its
+// sources as the lineage of the record that approval will write. If sleep
+// archived a source meanwhile, approval would write a lineage that points at
+// nothing, and the archive backup is not a live record. So every source of a
+// pending proposal is protected until the proposal is approved or rejected;
+// after that the approved record's own derivedFrom protects the sources, and a
+// rejection frees them.
+func (s *Store) guardsNow(all []Record) (guards, error) {
+	g := protections(all)
+	ps, err := s.proposals()
+	if err != nil {
+		return guards{}, err
+	}
+	for _, p := range ps {
+		if p.Status != ProposalProposed && p.Status != ProposalApproving {
+			continue
+		}
+		for _, id := range p.DerivedFrom {
+			g.pending[id] = true
+		}
+	}
+	return g, nil
 }
 
 // protections computes the guards over all records. A resolved conflict is a
 // supersession link, so checkConflict no longer reports it and the link guards
 // both sides instead.
 func protections(all []Record) guards {
-	g := guards{referenced: map[string]bool{}, sources: map[string]bool{}, conflicted: map[string]bool{}}
+	g := guards{referenced: map[string]bool{}, sources: map[string]bool{}, conflicted: map[string]bool{}, pending: map[string]bool{}}
 	for _, m := range all {
 		for _, r := range m.RelatedTo {
 			g.referenced[r] = true
@@ -148,7 +187,7 @@ func protections(all []Record) guards {
 
 // archiveEligible reports whether sleep may archive m now. Guardrails (H-MEM
 // section 8.2): a record that supersedes or is superseded, a record derived
-// from others, a derivation source, a related record, a conflict member and
+// from others, a derivation source, a source of a pending dream proposal, a related record, a conflict member and
 // a relationship hub are never archived, because losing one loses the reason
 // for something else. Preview and Execute both ask it, so a supplied plan
 // gets no way around the guard.
@@ -156,7 +195,7 @@ func archiveEligible(m Record, now int64, g guards) bool {
 	if now-m.Timestamp < archiveMinDays*dayMillis || m.AccessCount > archiveMaxAccess {
 		return false
 	}
-	if g.referenced[m.ID] || g.conflicted[m.ID] {
+	if g.referenced[m.ID] || g.conflicted[m.ID] || g.pending[m.ID] {
 		return false
 	}
 	return m.Supersedes == "" && m.SupersededBy == "" && len(m.DerivedFrom) == 0 && len(m.RelatedTo) < hubThreshold
@@ -172,7 +211,10 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if plan == nil {
-		p := s.sleepPlan()
+		p, err := s.sleepPlan()
+		if err != nil {
+			return SleepReport{}, err
+		}
 		plan = &p
 	}
 	backupID, err := s.writeBackup()
@@ -214,7 +256,10 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 	}
 	// Guards are computed once, before any archive, from the store as it is
 	// now: archiving one record must not unprotect another in the same cycle.
-	guard := protections(s.snapshot())
+	guard, err := s.guardsNow(s.snapshot())
+	if err != nil {
+		return rollback(err)
+	}
 	for _, id := range plan.ToArchive {
 		rec, ok := s.records[id]
 		if !ok {

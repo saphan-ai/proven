@@ -70,7 +70,9 @@ Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own
 `test/conformance/meterless/run.sh`. H-MEM passes all 13 of its checks, including sleep (archiving), conflict
 auto-resolve, the learning audit and dreaming with approval; the committed scorecard is
 `test/conformance/meterless/SCORECARD_hmem.txt`. No part of it calls a model: dreaming clusters what the store holds,
-and a proposal becomes a record only when a person approves it.
+and a proposal becomes a record only when a person approves it. Sleep never archives a record that a pending
+proposal names as a source, so an approved record's lineage always names live records; approval refuses a proposal
+whose source is gone.
 
 ## Modes
 
