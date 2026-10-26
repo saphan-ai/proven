@@ -237,6 +237,13 @@ func TestUpDoesNotWaitWhenToldNotTo(t *testing.T) {
 	}
 }
 
+func TestE2EDoesNotWaitForTheDemoReviewsItsOwnPullRequestStandsFor(t *testing.T) {
+	// make e2e starts the lab when it is down and then waits for its own pull request's review: up.sh must not wait too.
+	if e2e := read(t, "lab", "scripts", "e2e.sh"); !strings.Contains(e2e, `PROVEN_LAB_WAIT=no sh "$ROOT/lab/scripts/up.sh"`) {
+		t.Error("e2e.sh starts up.sh without PROVEN_LAB_WAIT=no, so up.sh would wait for every demo review first")
+	}
+}
+
 // shUI runs a function of ui.sh in a shell of its own, with the terminal test answered the way the case needs.
 func shUI(t *testing.T, script string, env ...string) (stdout, stderr string) {
 	t.Helper()
