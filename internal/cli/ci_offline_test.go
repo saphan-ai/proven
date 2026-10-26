@@ -14,7 +14,7 @@ func fakeGit(t *testing.T) string {
 	t.Helper()
 	bin := t.TempDir()
 	rec := t.TempDir()
-	script := "#!/bin/sh\nn=$(ls '" + rec + "' | wc -l)\n" +
+	script := "#!/bin/sh\nn=$(ls '" + rec + "' | wc -l | tr -d ' ')\n" +
 		"printf '%s\\n' \"$@\" > '" + rec + "'/argv-$n\n/usr/bin/env > '" + rec + "'/env-$n\n" +
 		"echo 0123456789abcdef0123456789abcdef01234567\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
