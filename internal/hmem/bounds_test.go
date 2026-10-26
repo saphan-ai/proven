@@ -41,6 +41,80 @@ func TestStateFileOverTheCapIsRefusedByName(t *testing.T) {
 	}
 }
 
+// countedFile is a state file whose Stat reports size and whose body is
+// supply bytes of white space after a valid empty state. It counts every byte
+// read from it. A size below the body models a file that grew after the size
+// check; a size of zero models a source whose size cannot be learned.
+type countedFile struct {
+	size   int64
+	body   *strings.Reader
+	closed bool
+	read   int64
+}
+
+func newCountedFile(size int64, supply int) *countedFile {
+	return &countedFile{size: size, body: strings.NewReader(emptyState + strings.Repeat(" ", supply))}
+}
+
+func (c *countedFile) Read(p []byte) (int, error) {
+	n, err := c.body.Read(p)
+	c.read += int64(n)
+	return n, err
+}
+
+func (c *countedFile) Close() error { c.closed = true; return nil }
+
+func (c *countedFile) Stat() (os.FileInfo, error) { return sizedInfo{c.size}, nil }
+
+// sizedInfo is a FileInfo that reports only a size.
+type sizedInfo struct{ size int64 }
+
+func (i sizedInfo) Name() string       { return "state.json" }
+func (i sizedInfo) Size() int64        { return i.size }
+func (i sizedInfo) Mode() os.FileMode  { return 0o600 }
+func (i sizedInfo) ModTime() time.Time { return time.Time{} }
+func (i sizedInfo) IsDir() bool        { return false }
+func (i sizedInfo) Sys() any           { return nil }
+
+// TestStateReadConsumesAtMostCapPlusOneByte proves the read itself is bounded,
+// not only the refusal: when the reported size passes the check but the source
+// holds far more than the cap (a file that grew after the check, or a source
+// whose size is unknown), the store still takes at most cap+1 bytes from it and
+// refuses by name. A read that checks the size and then reads without a bound
+// consumes the whole source and turns this test red on the byte count.
+func TestStateReadConsumesAtMostCapPlusOneByte(t *testing.T) {
+	const limit = 4096
+	for name, reported := range map[string]int64{"grew after the size check": limit - 1, "size unknown": 0} {
+		t.Run(name, func(t *testing.T) {
+			f := newCountedFile(reported, limit*16)
+			_, err := hmem.OpenWithStateFile(hmem.Options{Dir: t.TempDir(), LogDir: t.TempDir(), Limits: hmem.Limits{MaxStateBytes: limit}}, f)
+			if !errors.Is(err, hmem.ErrStateTooLarge) {
+				t.Fatalf("a source past the cap was not refused by name: %v", err)
+			}
+			if f.read > limit+1 {
+				t.Fatalf("the read took %d bytes from a source past the cap, at most %d allowed", f.read, limit+1)
+			}
+			if !f.closed {
+				t.Fatal("the state file was not closed")
+			}
+		})
+	}
+}
+
+// TestStateReadBelowTheCapReadsAll proves the bound does not cut a good file:
+// a source under the cap is read in full and opens.
+func TestStateReadBelowTheCapReadsAll(t *testing.T) {
+	const limit = 4096
+	f := newCountedFile(limit-1, 100)
+	s, err := hmem.OpenWithStateFile(hmem.Options{Dir: t.TempDir(), LogDir: t.TempDir(), Limits: hmem.Limits{MaxStateBytes: limit}}, f)
+	if err != nil || s == nil {
+		t.Fatalf("a source under the cap did not open: %v", err)
+	}
+	if f.read != int64(len(emptyState)+100) {
+		t.Fatalf("the read took %d bytes, the source holds %d", f.read, len(emptyState)+100)
+	}
+}
+
 // TestStateFileAtTheCapOpens proves the cap is inclusive: a file of exactly the
 // cap opens, so the refusal is for a file over it and nothing smaller.
 func TestStateFileAtTheCapOpens(t *testing.T) {

@@ -155,6 +155,26 @@ type disk struct {
 
 // Open creates the directory, loads state.json when it exists, and refuses a bad file.
 func Open(opts Options) (*Store, error) {
+	return open(opts, openStateFile)
+}
+
+// stateFile is what the state read needs from an open file: its bytes, its
+// size, and a way to close it. *os.File satisfies it.
+type stateFile interface {
+	io.ReadCloser
+	Stat() (os.FileInfo, error)
+}
+
+// openStateFile is the production opener of state.json.
+func openStateFile(path string) (stateFile, error) {
+	return os.Open(path)
+}
+
+// open is Open with the opener of state.json passed in. It is the one seam of
+// the state read: a test hands in a file whose size is wrong or unknown and
+// counts the bytes the read consumes, so a read that checks the size and then
+// reads without a bound is seen by the bytes it takes, not by the refusal.
+func open(opts Options, opener func(path string) (stateFile, error)) (*Store, error) {
 	if opts.Dir == "" {
 		return nil, fmt.Errorf("hmem: state directory is empty")
 	}
@@ -197,7 +217,7 @@ func Open(opts Options) (*Store, error) {
 	if err := os.Chmod(path, 0o600); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("hmem: state file: %w", err)
 	}
-	b, err := readBounded(path, s.limits.MaxStateBytes)
+	b, err := readBounded(opener, path, s.limits.MaxStateBytes)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return s, nil
@@ -235,8 +255,8 @@ func Open(opts Options) (*Store, error) {
 // bounded read then covers a file that grew after the check. A file over the
 // limit is refused with ErrStateTooLarge, naming its size and the cap.
 // A missing file is returned as the os error so Open can start empty.
-func readBounded(path string, limit int64) ([]byte, error) {
-	f, err := os.Open(path)
+func readBounded(opener func(path string) (stateFile, error), path string, limit int64) ([]byte, error) {
+	f, err := opener(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, err
