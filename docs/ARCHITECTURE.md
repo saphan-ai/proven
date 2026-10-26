@@ -66,7 +66,7 @@ so it is never marked proved.
 - **H-MEM** (`state/hmem`): what earlier reviews refuted, so a refuted finding does not come back.
 - **The World Model** (`state/world`, `logs/world.jsonl`): the entities a review has seen, and the edges between them.
   An edge chain (one from, type and context) holds at most one valid edge at any instant. A write that would break
-  this is refused, and so is opening a state file that already breaks it (`ErrEdgeOverlap`, naming both edges).
+  this is refused, and so is opening a state file that already breaks it (`ErrEdgeOverlap`, naming both edges). Open also refuses a stored edge whose `valid_to` is not after its `valid_from`, or cannot be read (`ErrEdgeInterval`), before it looks for overlaps; `Relate` applies the same rule to a write.
 
 Both engines follow the Meterless specifications (ADR-0003, ADR-0018); their own conformance suites run through
 `test/conformance/meterless/run.sh`. The World Model passes its suite 8 of 8, bitemporal edges included (runner pinned at upstream commit `1742dec5`).

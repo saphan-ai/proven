@@ -112,3 +112,62 @@ func TestOpenRefusesAnOverlapOfAnotherTarget(t *testing.T) {
 		t.Fatalf("a long edge over a later one was opened: %v", err)
 	}
 }
+
+// TestOpenRefusesAnOverlapHiddenByAReversedEdge proves the reviewer's case: two
+// edges valid at one instant, 2089, with a stored reversed interval between
+// them in start order. The file is refused, and the reversed edge is named, so
+// Neighbors never returns two edges for 2089.
+func TestOpenRefusesAnOverlapHiddenByAReversedEdge(t *testing.T) {
+	_, dir, logs := graphFixture(t)
+	writeEdges(t, dir, []world.Edge{
+		plays("rel_long", "team:g:a", "2087-01-01T00:00:00.000Z", "2097-01-01T00:00:00.000Z"),
+		plays("rel_reversed", "team:g:b", "2088-01-01T00:00:00.000Z", "2087-01-01T00:00:00.000Z"),
+		plays("rel_short", "team:g:c", "2089-01-01T00:00:00.000Z", "2090-01-01T00:00:00.000Z"),
+	})
+	s, err := reopen(t, dir, logs)
+	if err == nil || s != nil {
+		t.Fatalf("a state with a reversed edge was opened: %v", err)
+	}
+	if !errors.Is(err, world.ErrEdgeInterval) || !strings.Contains(err.Error(), "rel_reversed") {
+		t.Fatalf("the refusal does not name the reversed edge: %v", err)
+	}
+}
+
+// TestOpenRefusesAnOverlapOverAMiddleEdge proves the overlap scan does not
+// rest on neighbours: a long edge and a late edge overlap with a short valid
+// edge between them in start order, and the refusal names the long edge.
+func TestOpenRefusesAnOverlapOverAMiddleEdge(t *testing.T) {
+	_, dir, logs := graphFixture(t)
+	writeEdges(t, dir, []world.Edge{
+		plays("rel_long", "team:g:a", "2087-01-01T00:00:00.000Z", "2097-01-01T00:00:00.000Z"),
+		plays("rel_mid", "team:g:b", "2087-06-01T00:00:00.000Z", "2087-09-01T00:00:00.000Z"),
+		plays("rel_late", "team:g:c", "2089-01-01T00:00:00.000Z", "2090-01-01T00:00:00.000Z"),
+	})
+	_, err := reopen(t, dir, logs)
+	if !errors.Is(err, world.ErrEdgeOverlap) {
+		t.Fatalf("an overlap over a middle edge was opened: %v", err)
+	}
+	if !strings.Contains(err.Error(), "rel_long") {
+		t.Fatalf("the refusal does not name the long edge: %v", err)
+	}
+}
+
+// TestOpenRefusesAnEmptyOrUnreadableInterval proves each bad stored bound is
+// refused by name: an empty interval (valid_to equal to valid_from) and an end
+// that is not a time.
+func TestOpenRefusesAnEmptyOrUnreadableInterval(t *testing.T) {
+	for name, until := range map[string]string{
+		"empty":      "2087-01-01T00:00:00.000Z",
+		"unreadable": "not-a-time",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, dir, logs := graphFixture(t)
+			writeEdges(t, dir, []world.Edge{
+				plays("rel_bad", "team:g:a", "2087-01-01T00:00:00.000Z", until),
+			})
+			if _, err := reopen(t, dir, logs); !errors.Is(err, world.ErrEdgeInterval) {
+				t.Fatalf("a bad interval was opened: %v", err)
+			}
+		})
+	}
+}

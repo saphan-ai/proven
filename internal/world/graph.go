@@ -26,6 +26,12 @@ var ErrEdgeConflict = errors.New("world: another target already starts at that i
 // that overlaps it is refused and the caller decides which one is true.
 var ErrEdgeOverlap = errors.New("world: the edge overlaps another valid edge of the same from, type and context")
 
+// ErrEdgeInterval is returned, wrapped, for an edge whose valid_to is not
+// after its valid_from, or cannot be read. Rule: an interval is non-empty, so
+// it can be seen by a point-in-time query. Relate refuses such a write and
+// Open refuses such a stored edge, from one check (checkInterval).
+var ErrEdgeInterval = errors.New("world: the edge interval ends before it starts")
+
 // Edge is one bitemporal relationship between two entities. ValidTo empty
 // means the edge is open. A superseding edge closes the old one by setting
 // ValidTo and SupersededBy; an edge is never deleted (ADR-0018 point 1,
@@ -107,8 +113,8 @@ func (s *Store) Relate(e Edge) (Edge, error) {
 		}
 		// An interval that ends before it starts would be invisible to every
 		// point-in-time query, so it is refused rather than stored.
-		if tf, tt := mustInstant(from), mustInstant(to); !tt.After(tf) {
-			return Edge{}, fmt.Errorf("world: valid_to %s is not after valid_from %s", to, from)
+		if err := checkInterval(from, to); err != nil {
+			return Edge{}, err
 		}
 		e.ValidTo = to
 	}
@@ -257,16 +263,66 @@ func intervalsOverlap(a, b Edge) bool {
 	return true
 }
 
+// checkInterval refuses an interval [from, to) that is empty or reversed, or
+// whose end cannot be read, with ErrEdgeInterval. An empty to is open and
+// always accepted. Both Relate and Open call it, so a write and a stored edge
+// are held to one rule. A start that cannot be read is not judged here:
+// Neighbors skips such an edge, so no query can see it.
+func checkInterval(from, to string) error {
+	if to == "" {
+		return nil
+	}
+	end, ok := instantOf(to)
+	if !ok {
+		return fmt.Errorf("%w: valid_to %q cannot be read", ErrEdgeInterval, to)
+	}
+	start, ok := instantOf(from)
+	if !ok {
+		return nil
+	}
+	if !end.After(start) {
+		return fmt.Errorf("%w: valid_to %s is not after valid_from %s", ErrEdgeInterval, to, from)
+	}
+	return nil
+}
+
+// endsAfter reports whether a ends strictly later than b, an empty ValidTo
+// being open-ended. Both intervals have passed checkInterval.
+func endsAfter(a, b Edge) bool {
+	if a.ValidTo == "" {
+		return b.ValidTo != ""
+	}
+	if b.ValidTo == "" {
+		return false
+	}
+	return mustInstant(a.ValidTo).After(mustInstant(b.ValidTo))
+}
+
 // checkChains refuses a set of stored edges in which two edges of one from,
 // type and context are valid at one instant. Rule (ADR-0018 point 1): the
 // store refuses such a state and does not repair it. Choosing which of two
 // recorded facts is true is the caller's decision, as it is for a write, so
 // Open names the pair and stops before any query can see it. The error wraps
-// ErrEdgeOverlap and names both edge ids. Within a chain the edges are
-// sorted by start, and if any two overlap then two neighbours in that order
-// do, so one pass finds a clash. The chain with the smallest key is reported,
-// so the message is the same for any map order.
+// ErrEdgeOverlap and names both edge ids. Every stored interval is checked
+// first (checkInterval, ErrEdgeInterval), so the scan below only sees
+// non-empty intervals. Within a chain the edges are sorted by start and the
+// scan keeps the edge that ends furthest so far: the next edge overlaps some
+// earlier one exactly when it starts before that furthest end. It does not
+// rely on neighbours alone, so no edge between two clashing ones can hide
+// the clash. The chain with the smallest key is reported, so the message is
+// the same for any map order.
 func checkChains(edges map[string]Edge) error {
+	ids := make([]string, 0, len(edges))
+	for id := range edges {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		e := edges[id]
+		if err := checkInterval(e.ValidFrom, e.ValidTo); err != nil {
+			return fmt.Errorf("edge %s: %w", e.ID, err)
+		}
+	}
 	type chainKey struct{ from, typ, context string }
 	chains := map[chainKey][]Edge{}
 	for _, e := range edges {
@@ -286,8 +342,12 @@ func checkChains(edges map[string]Edge) error {
 			}
 			return list[i].ID < list[j].ID
 		})
+		far := list[0]
 		for i := 1; i < len(list); i++ {
-			a, b := list[i-1], list[i]
+			a, b := far, list[i]
+			if endsAfter(b, far) {
+				far = b
+			}
 			if !intervalsOverlap(a, b) {
 				continue
 			}
