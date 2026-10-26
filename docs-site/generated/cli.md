@@ -15,6 +15,7 @@ proven — review a change
 usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
+  proven verify [--public-key FILE] PACK
   proven --help
   proven --version
 
@@ -27,9 +28,9 @@ with a head SHA. A base that cannot be resolved is exit 2: Proven could
 not review.
 
 flags:
-  --text, --json, --sarif
+  --text, --json, --sarif, --md
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-  --text-output, --json-output, --sarif-output
+  --text-output, --json-output, --sarif-output, --md-output
         also write that format to a file
   -o, --output
         write the chosen format to a file instead of standard output (PROVEN_OUTPUT)
@@ -45,10 +46,20 @@ flags:
         lowest severity reported: INFO, WARNING, ERROR (PROVEN_SEVERITY, default INFO)
   --timeout
         the whole review's time limit in seconds (PROVEN_TIMEOUT; default no deadline)
+  --evidence-pack
+        write one signed evidence pack (a tar) for this review; the private key is the file PROVEN_PACK_KEY names.
+        proven verify checks it with the public key in PROVEN_PACK_PUBLIC_KEY, or --public-key
+  PROVEN_LOG_DIR
+        trace directory (default: the user cache, proven/logs, mode 0700).
+        A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
   --help, --version
+
+environment only:
+  PROVEN_POLICY
+        a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
 exit codes:
   0  review done; no findings, or findings without --error
@@ -65,6 +76,7 @@ proven — review a change
 usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
+  proven verify [--public-key FILE] PACK
   proven --help
   proven --version
 
@@ -77,9 +89,9 @@ with a head SHA. A base that cannot be resolved is exit 2: Proven could
 not review.
 
 flags:
-  --text, --json, --sarif
+  --text, --json, --sarif, --md
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-  --text-output, --json-output, --sarif-output
+  --text-output, --json-output, --sarif-output, --md-output
         also write that format to a file
   -o, --output
         write the chosen format to a file instead of standard output (PROVEN_OUTPUT)
@@ -95,10 +107,20 @@ flags:
         lowest severity reported: INFO, WARNING, ERROR (PROVEN_SEVERITY, default INFO)
   --timeout
         the whole review's time limit in seconds (PROVEN_TIMEOUT; default no deadline)
+  --evidence-pack
+        write one signed evidence pack (a tar) for this review; the private key is the file PROVEN_PACK_KEY names.
+        proven verify checks it with the public key in PROVEN_PACK_PUBLIC_KEY, or --public-key
+  PROVEN_LOG_DIR
+        trace directory (default: the user cache, proven/logs, mode 0700).
+        A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
   --help, --version
+
+environment only:
+  PROVEN_POLICY
+        a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
 exit codes:
   0  review done; no findings, or findings without --error
@@ -115,6 +137,7 @@ proven — review a change
 usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
+  proven verify [--public-key FILE] PACK
   proven --help
   proven --version
 
@@ -127,9 +150,9 @@ with a head SHA. A base that cannot be resolved is exit 2: Proven could
 not review.
 
 flags:
-  --text, --json, --sarif
+  --text, --json, --sarif, --md
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-  --text-output, --json-output, --sarif-output
+  --text-output, --json-output, --sarif-output, --md-output
         also write that format to a file
   -o, --output
         write the chosen format to a file instead of standard output (PROVEN_OUTPUT)
@@ -145,10 +168,20 @@ flags:
         lowest severity reported: INFO, WARNING, ERROR (PROVEN_SEVERITY, default INFO)
   --timeout
         the whole review's time limit in seconds (PROVEN_TIMEOUT; default no deadline)
+  --evidence-pack
+        write one signed evidence pack (a tar) for this review; the private key is the file PROVEN_PACK_KEY names.
+        proven verify checks it with the public key in PROVEN_PACK_PUBLIC_KEY, or --public-key
+  PROVEN_LOG_DIR
+        trace directory (default: the user cache, proven/logs, mode 0700).
+        A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
   --quiet, --verbose
   --help, --version
+
+environment only:
+  PROVEN_POLICY
+        a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
 exit codes:
   0  review done; no findings, or findings without --error
