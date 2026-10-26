@@ -112,8 +112,23 @@ func TestDreamLogLookupsReadEachByteOnce(t *testing.T) {
 	}
 	size := fileSize(t, filepath.Join(logs, "dreams.jsonl"))
 	for i := 0; i < growthLookups; i++ {
-		if pend, err := s.Pending(); err != nil || len(pend) != 5000 {
-			t.Fatalf("Pending = %d, err %v, want 5000", len(pend), err)
+		// Pending is one capped page; the 5,000 waiting proposals are read by cursor.
+		if pend, err := s.Pending(); err != nil || len(pend) != 1000 {
+			t.Fatalf("Pending = %d, err %v, want the 1000 of one page", len(pend), err)
+		}
+		if i == 0 {
+			seen := 0
+			for cursor := 0; cursor >= 0; {
+				page, next, err := s.PendingPage(cursor, 1000)
+				if err != nil {
+					t.Fatal(err)
+				}
+				seen += len(page)
+				cursor = next
+			}
+			if seen != 5000 {
+				t.Fatalf("pages held %d proposals, want 5000", seen)
+			}
 		}
 		s.SleepPreview()
 	}

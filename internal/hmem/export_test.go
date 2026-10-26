@@ -83,11 +83,39 @@ func LedgerHas(s *Store, action, id string) (bool, error) {
 func ProposalStatus(s *Store, id string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ps, _ := s.proposals()
-	for _, p := range ps {
-		if p.ID == id {
-			return p.Status
-		}
+	p, found, _ := s.proposalState(id)
+	if !found {
+		return ""
 	}
-	return ""
+	return p.Status
+}
+
+// ProposalsVisited is how many proposals the lookups have examined since Open.
+// The growth tests assert it follows the proposals that wait, not the history.
+func ProposalsVisited(s *Store) int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.dreams.visited
+}
+
+// ScanAllProposals is the whole-history scan the lookups must not use. The
+// growth tests call it as the negative control: it must make the counter move
+// with the history, so a lookup that fell back to it would turn the tests red.
+func ScanAllProposals(s *Store) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ps, _ := s.proposals()
+	return len(ps)
+}
+
+// AppendRejectedProposalLines writes n rejected proposals to the dream log,
+// without touching state: a history of finished proposals.
+func AppendRejectedProposalLines(s *Store, n int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ps := make([]Proposal, 0, n)
+	for i := 0; i < n; i++ {
+		ps = append(ps, Proposal{ID: fmt.Sprintf("dream-old-%d", i), Type: "insight", Content: "old", DerivedFrom: []string{"mem-1"}, Status: ProposalRejected})
+	}
+	return s.appendDream(ps...)
 }

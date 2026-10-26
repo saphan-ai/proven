@@ -9,21 +9,6 @@ import (
 // record can always be found again and an approval can never create it twice.
 func approvedRecordID(proposal string) string { return "mem-from-" + proposal }
 
-// proposalState returns the newest state of one proposal in any status. The
-// caller holds s.mu.
-func (s *Store) proposalState(id string) (Proposal, bool, error) {
-	all, err := s.proposals()
-	if err != nil {
-		return Proposal{}, false, err
-	}
-	for _, p := range all {
-		if p.ID == id {
-			return p, true, nil
-		}
-	}
-	return Proposal{}, false, nil
-}
-
 // ledgerHas reports whether the audit log holds a line of this action for this
 // memory id. When proposal is not empty, the line must also name that proposal
 // in its details. The caller holds s.mu.

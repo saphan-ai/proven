@@ -70,10 +70,24 @@ func (s *Store) dreamLog() string {
 // the ledger index it is extended by the lines added since the last read, so a
 // lookup never rereads the file (E16). Its memory grows with the number of
 // proposals, which dreaming caps per call, not with the number of log lines.
+//
+// The rule (R16): no call of the store does work in proportion to the proposals
+// ever made. A single proposal is found in byID; the proposals that still wait
+// are kept apart in pending, by the epoch they were made in, so Pending, the
+// sleep guards and Approve never walk the rejected, approved and void ones.
+// order lists every id for the one caller that must see them all, the recovery
+// at Open.
 type dreamIndex struct {
 	cur   logCursor
 	order []string
 	byID  map[string]Proposal
+	// pending holds, per epoch, the ids whose newest state is proposed or
+	// approving. A Clear raises the epoch, so the old epochs' sets are never
+	// read again and cost no work.
+	pending map[int]map[string]bool
+	// visited counts the proposals the lookups examined. The growth tests read
+	// it to prove the work does not follow the history.
+	visited int64
 }
 
 func newDreamIndex(path string) *dreamIndex {
@@ -85,46 +99,127 @@ func newDreamIndex(path string) *dreamIndex {
 func (ix *dreamIndex) reset() {
 	ix.order = nil
 	ix.byID = map[string]Proposal{}
+	ix.pending = map[int]map[string]bool{}
 }
 
-// proposals returns the newest state of each proposal, in the order they were
-// first proposed, as the store sees them now: a proposal made before the last
-// Clear and not finished reads as void with the reason "cleared". Finished is
-// rejected, or approved with its dream_approved ledger line; an approved
-// proposal without that line is an unfinished approval and names sources the
-// Clear removed. The caller holds s.mu.
-func (s *Store) proposals() ([]Proposal, error) {
+// isWaiting reports whether a proposal in this status still needs a decision.
+func isWaiting(status string) bool {
+	return status == ProposalProposed || status == ProposalApproving
+}
+
+// note folds one dream log line into the index: byID takes the newest state and
+// the pending sets follow the status change.
+func (ix *dreamIndex) note(p Proposal) {
+	old, seen := ix.byID[p.ID]
+	if !seen {
+		ix.order = append(ix.order, p.ID)
+	} else if isWaiting(old.Status) {
+		delete(ix.pending[old.Epoch], p.ID)
+	}
+	ix.byID[p.ID] = p
+	if isWaiting(p.Status) {
+		if ix.pending[p.Epoch] == nil {
+			ix.pending[p.Epoch] = map[string]bool{}
+		}
+		ix.pending[p.Epoch][p.ID] = true
+	}
+}
+
+// syncDreams brings the dream index up to the end of the dream log. The caller
+// holds s.mu.
+func (s *Store) syncDreams() error {
 	ix := s.dreams
-	err := ix.cur.advance(ix.reset, func(line []byte, _ int64) error {
+	return ix.cur.advance(ix.reset, func(line []byte, _ int64) error {
 		var p Proposal
 		if err := json.Unmarshal(line, &p); err != nil {
 			return fmt.Errorf("hmem: dream log line is not valid JSON: %w", err)
 		}
-		if _, ok := ix.byID[p.ID]; !ok {
-			ix.order = append(ix.order, p.ID)
-		}
-		ix.byID[p.ID] = p
+		ix.note(p)
 		return nil
 	})
-	if err != nil {
+}
+
+// view is a proposal as the store sees it now: made before the last Clear and
+// not finished, it reads as void with the reason "cleared". Finished is
+// rejected, or approved with its dream_approved ledger line; an approved
+// proposal without that line is an unfinished approval and names sources the
+// Clear removed. The caller holds s.mu.
+func (s *Store) view(p Proposal) (Proposal, error) {
+	if p.Epoch >= s.epoch {
+		return p, nil
+	}
+	switch p.Status {
+	case ProposalProposed, ProposalApproving:
+		p.Status, p.Reason = ProposalVoid, VoidReasonCleared
+	case ProposalApproved:
+		done, err := s.approvedLine(p.ID)
+		if err != nil {
+			return Proposal{}, err
+		}
+		if !done {
+			p.Status, p.Reason = ProposalVoid, VoidReasonCleared
+		}
+	}
+	return p, nil
+}
+
+// proposalState returns the newest state of one proposal in any status, from
+// the by-id map: one lookup, whatever the history. The caller holds s.mu.
+func (s *Store) proposalState(id string) (Proposal, bool, error) {
+	if err := s.syncDreams(); err != nil {
+		return Proposal{}, false, err
+	}
+	p, ok := s.dreams.byID[id]
+	if !ok {
+		return Proposal{}, false, nil
+	}
+	s.dreams.visited++
+	p, err := s.view(p)
+	return p, true, err
+}
+
+// waiting returns the proposals of the current epoch that still need a
+// decision, in the order they were made. Only those are visited: the work
+// follows the number waiting, not the number ever made. The caller holds s.mu.
+func (s *Store) waiting() ([]Proposal, error) {
+	if err := s.syncDreams(); err != nil {
 		return nil, err
 	}
+	ids := make([]string, 0, len(s.dreams.pending[s.epoch]))
+	for id := range s.dreams.pending[s.epoch] {
+		ids = append(ids, id)
+	}
+	// Ids are dream-N, so the shorter id is the older one within a prefix.
+	sort.Slice(ids, func(i, j int) bool {
+		if len(ids[i]) != len(ids[j]) {
+			return len(ids[i]) < len(ids[j])
+		}
+		return ids[i] < ids[j]
+	})
+	out := make([]Proposal, 0, len(ids))
+	for _, id := range ids {
+		s.dreams.visited++
+		out = append(out, s.dreams.byID[id])
+	}
+	return out, nil
+}
+
+// proposals returns the newest state of every proposal ever made, in the order
+// they were first proposed, as view shows them. It is the whole-history scan, so
+// only the recovery at Open may call it (once, before the store is shared); a
+// lookup on a live store uses proposalState or waiting, whose work does not
+// follow the history. The caller holds s.mu.
+func (s *Store) proposals() ([]Proposal, error) {
+	if err := s.syncDreams(); err != nil {
+		return nil, err
+	}
+	ix := s.dreams
 	out := make([]Proposal, 0, len(ix.order))
 	for _, id := range ix.order {
-		p := ix.byID[id]
-		if p.Epoch < s.epoch {
-			switch p.Status {
-			case ProposalProposed, ProposalApproving:
-				p.Status, p.Reason = ProposalVoid, VoidReasonCleared
-			case ProposalApproved:
-				done, err := s.approvedLine(p.ID)
-				if err != nil {
-					return nil, err
-				}
-				if !done {
-					p.Status, p.Reason = ProposalVoid, VoidReasonCleared
-				}
-			}
+		ix.visited++
+		p, err := s.view(ix.byID[id])
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, p)
 	}
@@ -169,11 +264,12 @@ func relatedness(a, b Record) float64 {
 func (s *Store) Dream() ([]Proposal, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	known, err := s.proposals()
-	if err != nil {
+	// The count of every proposal ever made names the next id; it is a length,
+	// not a scan.
+	if err := s.syncDreams(); err != nil {
 		return nil, err
 	}
-	seq := len(known)
+	seq := len(s.dreams.order)
 	all := s.snapshot()
 	created := []Proposal{}
 	propose := func(p Proposal) {
@@ -300,33 +396,61 @@ func (s *Store) Dream() ([]Proposal, error) {
 	return created, nil
 }
 
-// Pending returns the proposals nobody has approved or rejected.
+// pendingPageMax is the most proposals one Pending call returns. A longer list
+// is read page by page with PendingPage, so a call never returns an unbounded
+// result (R16).
+const pendingPageMax = 1000
+
+// Pending returns the proposals nobody has approved or rejected, oldest first,
+// at most pendingPageMax of them. The rest are read with PendingPage.
 func (s *Store) Pending() ([]Proposal, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	all, err := s.proposals()
-	if err != nil {
-		return nil, err
-	}
-	out := []Proposal{}
-	for _, p := range all {
-		if p.Status == ProposalProposed {
-			out = append(out, p)
-		}
-	}
-	return out, nil
+	out, _, err := s.PendingPage(0, pendingPageMax)
+	return out, err
 }
 
-// pendingOne finds a proposal that is still waiting. The caller holds s.mu.
+// PendingPage returns up to limit pending proposals, oldest first, starting at
+// the one numbered cursor (zero is the first). The second result is the cursor
+// of the next page, or -1 when this page reached the end. A limit above
+// pendingPageMax is cut to it; a limit below one is refused. The work is the
+// proposals that wait, never the rejected, approved or void ones.
+func (s *Store) PendingPage(cursor, limit int) ([]Proposal, int, error) {
+	if limit < 1 || cursor < 0 {
+		return nil, -1, fmt.Errorf("hmem: pending page needs a cursor of at least 0 and a limit of at least 1")
+	}
+	limit = min(limit, pendingPageMax)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	w, err := s.waiting()
+	if err != nil {
+		return nil, -1, err
+	}
+	// An approving proposal is a decision already taken, so it is not offered.
+	queue := w[:0]
+	for _, p := range w {
+		if p.Status == ProposalProposed {
+			queue = append(queue, p)
+		}
+	}
+	if cursor >= len(queue) {
+		return []Proposal{}, -1, nil
+	}
+	end := min(cursor+limit, len(queue))
+	out := append([]Proposal{}, queue[cursor:end]...)
+	if end >= len(queue) {
+		return out, -1, nil
+	}
+	return out, end, nil
+}
+
+// pendingOne finds a proposal that is still waiting, by its id, in one lookup.
+// The caller holds s.mu.
 func (s *Store) pendingOne(id string) (Proposal, error) {
-	all, err := s.proposals()
+	p, found, err := s.proposalState(id)
 	if err != nil {
 		return Proposal{}, err
 	}
-	for _, p := range all {
-		if p.ID == id && p.Status == ProposalProposed {
-			return p, nil
-		}
+	if found && p.Status == ProposalProposed {
+		return p, nil
 	}
 	return Proposal{}, fmt.Errorf("hmem: no pending proposal %s", id)
 }

@@ -139,14 +139,13 @@ type guards struct {
 // rejection frees them.
 func (s *Store) guardsNow(all []Record) (guards, error) {
 	g := protections(all)
-	ps, err := s.proposals()
+	// Only the proposals that wait are read (R16): a sleep never walks the
+	// rejected, approved and void ones, however many there are.
+	ps, err := s.waiting()
 	if err != nil {
 		return guards{}, err
 	}
 	for _, p := range ps {
-		if p.Status != ProposalProposed && p.Status != ProposalApproving {
-			continue
-		}
 		for _, id := range p.DerivedFrom {
 			g.pending[id] = true
 		}
