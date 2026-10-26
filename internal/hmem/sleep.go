@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Sleep thresholds, from the Meterless H-MEM specification (sleep cycle, section 8).
@@ -415,7 +417,7 @@ func (s *Store) nextBackupID(dir string) (string, error) {
 // directory, with the next number of the persisted sequence, and returns the id. The caller holds s.mu.
 func (s *Store) writeBackup() (string, error) {
 	dir := filepath.Join(s.dir, "backups")
-	if err := privateDir(dir); err != nil {
+	if err := service.PrivateDir(dir); err != nil {
 		return "", fmt.Errorf("hmem: backup directory: %w", err)
 	}
 	id, err := s.nextBackupID(dir)
