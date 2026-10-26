@@ -233,7 +233,7 @@ func TestTheStartPageTemplate(t *testing.T) {
 		}
 	}
 	// A URL is a setting, so the template names none of the lab's own addresses.
-	for _, banned := range []string{"127.0.0.1", "localhost", ":3000", ":3001", ":3002", ":3003"} {
+	for _, banned := range []string{"127.0.0.1", "localhost", ":3300", ":3301", ":3302", ":3303"} {
 		if strings.Contains(tmpl, banned) {
 			t.Errorf("the template hardcodes %q; the address belongs in lab/versions.env", banned)
 		}
@@ -249,7 +249,7 @@ func TestTheStartPageTemplate(t *testing.T) {
 func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 	dir := t.TempDir()
 	rows := filepath.Join(dir, "rows.html")
-	row := `    <tr><td class="n">7</td><td><a href="http://127.0.0.1:3000/proven/discount/pulls/7" target="_blank" rel="noopener">A real pull request</a></td><td class="muted">Says something.</td><td><span class="v ok">clean</span></td></tr>` + "\n"
+	row := `    <tr><td class="n">7</td><td><a href="http://127.0.0.1:3300/proven/discount/pulls/7" target="_blank" rel="noopener">A real pull request</a></td><td class="muted">Says something.</td><td><span class="v ok">clean</span></td></tr>` + "\n"
 	if err := os.WriteFile(rows, []byte(row), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -286,14 +286,15 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 		"TMPDIR="+tmp,
 		"PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"), "REAL_PATH="+os.Getenv("PATH"), "PROBE="+probe,
 		"LAB_LIVE_STATE=keys stored: PROVEN_GENERATOR_KEY",
+		"LAB_MODE=live via our gateway",
 		"CLEAN_COUNT=2",
-		"LAB_URL=http://127.0.0.1:3000/",
+		"LAB_URL=http://127.0.0.1:3300/",
 		"LAB_ADMIN_USER=proven",
 		"LAB_DEMO_REPO=discount",
 		"LAB_ADMIN_PASSWORD="+password,
-		"LAB_GRAFANA_URL=http://127.0.0.1:3001/d/proven-review",
-		"LAB_DOCS_URL=http://127.0.0.1:3003/",
-		"LAB_PAGE_URL=http://127.0.0.1:3002/lab",
+		"LAB_GRAFANA_URL=http://127.0.0.1:3301/d/proven-review",
+		"LAB_DOCS_URL=http://127.0.0.1:3303/",
+		"LAB_PAGE_URL=http://127.0.0.1:3302/lab",
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -309,11 +310,12 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 	}
 	for _, want := range []string{
 		`>A real pull request</a>`,
-		`href="http://127.0.0.1:3000/proven/discount/pulls?state=all"`,
-		`href="http://127.0.0.1:3001/d/proven-review"`,
-		`href="http://127.0.0.1:3003/"`,
-		`served by the lab at http://127.0.0.1:3002/lab`,
+		`href="http://127.0.0.1:3300/proven/discount/pulls?state=all"`,
+		`href="http://127.0.0.1:3301/d/proven-review"`,
+		`href="http://127.0.0.1:3303/"`,
+		`served by the lab at http://127.0.0.1:3302/lab`,
 		`Two are clean changes`,
+		`Mode: <b>live via our gateway</b>.`,
 		`<code id="u">proven</code>`,
 	} {
 		if !strings.Contains(page, want) {
@@ -386,7 +388,7 @@ func TestTheStartPageRenderThatStopsLeavesNoCopyOfThePassword(t *testing.T) {
 	cmd := exec.Command("sh", "-c", `. "$ROOT/lab/seed/render.sh"; render_page`)
 	cmd.Env = append(os.Environ(),
 		"ROOT="+mustAbs(t, root), "PAGE_TEMPLATE="+broken, "PAGE_DIR="+pageDir, "PR_ROWS_FILE="+rows, "TMPDIR="+tmp,
-		"CLEAN_COUNT=2", "LAB_URL=http://127.0.0.1:3000/", "LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount",
+		"CLEAN_COUNT=2", "LAB_URL=http://127.0.0.1:3300/", "LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount",
 		"LAB_ADMIN_PASSWORD="+password)
 	out, err := cmd.CombinedOutput()
 	if err == nil || !strings.Contains(string(out), "the start page still holds a placeholder") {
@@ -462,9 +464,9 @@ func TestEveryPublishedPortBindsToTheLabAddress(t *testing.T) {
 func TestTheLabSettingsAreInVersionsEnv(t *testing.T) {
 	env := read(t, "lab", "versions.env")
 	for _, key := range []string{
-		"LAB_PAGE_PORT=3002", "LAB_PAGE_PATH=/lab", "LAB_PAGE_IMAGE=", "LAB_PAGE_IMAGE_VERSION=", "LAB_PAGE_CONTAINER_PORT=",
-		"LAB_DOCS_PORT=3003", "LAB_DOCS_CONTAINER_PORT=", "DOCS_IMAGE=", "DOCS_IMAGE_TAG=", "NODE_IMAGE=",
-		"GITEA_HTTP_PORT=3000", "LGTM_GRAFANA_PORT=3001", "LGTM_DASHBOARD_UID=proven-review", "LAB_DEMO_HEAD=demo-discount",
+		"LAB_PAGE_PORT=3302", "LAB_PAGE_PATH=/lab", "LAB_PAGE_IMAGE=", "LAB_PAGE_IMAGE_VERSION=", "LAB_PAGE_CONTAINER_PORT=",
+		"LAB_DOCS_PORT=3303", "LAB_DOCS_CONTAINER_PORT=", "DOCS_IMAGE=", "DOCS_IMAGE_TAG=", "NODE_IMAGE=",
+		"GITEA_HTTP_PORT=3300", "LGTM_GRAFANA_PORT=3301", "LGTM_DASHBOARD_UID=proven-review", "LAB_DEMO_HEAD=demo-discount",
 	} {
 		if !strings.Contains(env, key) {
 			t.Errorf("lab/versions.env lacks %s", key)

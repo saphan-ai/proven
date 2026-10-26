@@ -47,18 +47,18 @@ emit_piped() {
 
 expected_defaults() {
   cat <<'EOF'
-Start here: http://127.0.0.1:3002/lab
+Start here: http://127.0.0.1:3302/lab
 ########################################
 ####    Your proven lab is ready    ####
 ########################################
 
 To see demo pull requests scanned by proven please open:
 
-Gitea: http://127.0.0.1:3000/login
+Gitea: http://127.0.0.1:3300/login
 Username: proven
 Password: PASSWORD
 
-Grafana dashboard: http://127.0.0.1:3001/d/proven-review
+Grafana dashboard: http://127.0.0.1:3301/d/proven-review
 EOF
 }
 
@@ -75,7 +75,7 @@ case $out in
   *"$secret"*) bad "the password text is in the redirected output" ;;
 esac
 last=$(printf '%s\n' "$out" | tail -n 1)
-if [ "$last" != "Grafana dashboard: http://127.0.0.1:3001/d/proven-review" ]; then
+if [ "$last" != "Grafana dashboard: http://127.0.0.1:3301/d/proven-review" ]; then
   bad "something is printed after the Grafana line: $last"
 fi
 
@@ -123,7 +123,7 @@ for line in \
   fi
 done
 case $set_out in
-  *3000* | *3001* | *3002*) bad "a URL in the banner is not built from the settings: a default survived" ;;
+  *3300* | *3301* | *3302*) bad "a URL in the banner is not built from the settings: a default survived" ;;
 esac
 case $set_out in
   *10.1.2.*) bad "an address setting moved a URL in the banner off 127.0.0.1" ;;

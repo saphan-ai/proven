@@ -279,6 +279,12 @@ func TestGoLiveTheWorkflowRunsSampleWithNoKeyAndLiveWithOne(t *testing.T) {
 			"live: NVIDIA via the judges' gateway, Zetaris on", "SAMPLE_MODE=false",
 			[]string{"METERLESS_RUNTIME_TOKEN", "ZETARIS_API_KEY", "ZETARIS_REST_URL", "PROVEN_GENERATOR_BASE_URL"}, []string{"JUDGES_GATEWAY_TOKEN"},
 			[]string{"PROVEN_GENERATOR_BASE_URL=https://gw.example.test", "ZETARIS_REST_URL=https://gw.example.test/zetaris/api/v1.0", "METERLESS_RUNTIME_TOKEN=" + gwToken}},
+		{"the judges' gateway by an Access sign-in", []string{"JUDGES_GATEWAY_URL=https://gw.example.test/", "JUDGES_GATEWAY_ACCESS_TOKEN=" + gwToken},
+			"live: NVIDIA via the judges' gateway (Access sign-in), Zetaris on", "SAMPLE_MODE=false",
+			[]string{"JUDGES_GATEWAY_ACCESS_TOKEN", "METERLESS_RUNTIME_TOKEN", "ZETARIS_API_KEY"}, []string{"JUDGES_GATEWAY_TOKEN"},
+			[]string{"PROVEN_GENERATOR_BASE_URL=https://gw.example.test", "JUDGES_GATEWAY_ACCESS_TOKEN=" + gwToken}},
+		{"a model name from the organisers' guide", []string{"PROVEN_GENERATOR_KEY=" + nvKey, "PROVEN_GENERATOR_MODEL=some/model"}, "live: NVIDIA direct, Zetaris off", "SAMPLE_MODE=false",
+			[]string{"PROVEN_GENERATOR_MODEL"}, nil, []string{"PROVEN_GENERATOR_MODEL=some/model"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
