@@ -29,7 +29,7 @@ lab_banner() {
   printf '\n'
   printf '%s\n' 'To see demo pull requests scanned by proven please open:'
   printf '\n'
-  printf 'Gitea: http://%s:%s/login\n' "$LAB_HOST" "$GITEA_HTTP_PORT"
+  printf 'Gitea: http://%s:%s/user/login\n' "$LAB_HOST" "$GITEA_HTTP_PORT"
   printf 'Username: %s\n' "$LAB_ADMIN_USER"
   printf 'Password: %s\n' "$shown"
   printf '\n'

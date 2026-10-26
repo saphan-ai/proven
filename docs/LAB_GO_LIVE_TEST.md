@@ -44,7 +44,7 @@ Start here: http://127.0.0.1:3302/lab
 
 To see demo pull requests scanned by proven please open:
 
-Gitea: http://127.0.0.1:3300/login
+Gitea: http://127.0.0.1:3300/user/login
 Username: proven
 Password: <the password>
 

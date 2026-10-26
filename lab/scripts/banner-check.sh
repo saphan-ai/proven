@@ -54,7 +54,7 @@ Start here: http://127.0.0.1:3302/lab
 
 To see demo pull requests scanned by proven please open:
 
-Gitea: http://127.0.0.1:3300/login
+Gitea: http://127.0.0.1:3300/user/login
 Username: proven
 Password: PASSWORD
 
@@ -114,7 +114,7 @@ set_out=$(emit_piped env LAB_BIND=10.1.2.3 LAB_PAGE_BIND=10.1.2.4 LAB_HOST=10.1.
   LAB_PAGE_PORT=4002 LAB_PAGE_PATH=/elsewhere LAB_ADMIN_USER=someone COMPOSE_PROJECT_NAME=mylab)
 for line in \
   'Start here: http://127.0.0.1:4002/elsewhere' \
-  'Gitea: http://127.0.0.1:4000/login' \
+  'Gitea: http://127.0.0.1:4000/user/login' \
   'Username: someone' \
   'Password: file /state/password in the volume mylab_seed-state' \
   'Grafana dashboard: http://127.0.0.1:4001/d/other-uid'; do

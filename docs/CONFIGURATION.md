@@ -346,7 +346,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `PROVEN_LAB_USE_DETECTED` | none | `yes` or `no`: use the Zetaris and Nightshift that already answer on this machine, on the `own` path |
 | `DETECT_ZETARIS_URL` | `http://localhost:8888/api/v1.0` | Where the `own` path looks for a Zetaris already running (the organisers' guide's address) |
 | `DETECT_NIGHTSHIFT_URL` | `http://127.0.0.1:8088/v1/models` | Where it looks for a Nightshift already running |
-| `LAB_JOB_HOST_ALIAS` | `host.docker.internal` | How the lab's review job names this machine when it uses a service found there |
+| `LAB_JOB_HOST_ALIAS` | Docker's name for the host (see `lab/versions.env`) | How the lab's review job names this machine when it uses a service found there |
 | `JUDGES_GATEWAY_CHECK_SECONDS` | `20` | Seconds the one check of the judges' gateway waits |
 | `JUDGES_GATEWAY_ACCESS_TOKEN` | none | The Cloudflare Access application token. The flow stores it as an Actions secret; you do not write it |
 | `METERLESS_BASE_URL`, `METERLESS_MODEL` | none | The organisers' guide's names, read in the lab as `PROVEN_GENERATOR_BASE_URL` and `PROVEN_GENERATOR_MODEL` when those are not set |

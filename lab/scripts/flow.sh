@@ -439,7 +439,10 @@ flow_detect_own() {
   fd_n=no
   flow_probe "$DETECT_ZETARIS_URL" && fd_z=yes
   flow_probe "$DETECT_NIGHTSHIFT_URL" && fd_n=yes
-  [ "$fd_z" = yes ] || [ "$fd_n" = yes ] || return 0
+  if [ "$fd_z" = no ] && [ "$fd_n" = no ]; then
+    echo "up: neither Zetaris ($DETECT_ZETARIS_URL) nor Nightshift ($DETECT_NIGHTSHIFT_URL) answers on this machine."
+    return 0
+  fi
   [ "$fd_z" = yes ] && echo "up: Zetaris already answers on this machine: $DETECT_ZETARIS_URL"
   [ "$fd_n" = yes ] && echo "up: Nightshift already answers on this machine: $DETECT_NIGHTSHIFT_URL"
   fd_use=${PROVEN_LAB_USE_DETECTED:-}
@@ -562,7 +565,7 @@ lab_flow() {
           echo "$LAB_FLOW_JUDGE_BANNER"
           flow_ask fl_backend PROVEN_LAB_BACKEND 'Which do you want? [ours/own]' ours own
         else
-          echo "up: PROVEN_LAB_JUDGE=yes needs PROVEN_LAB_BACKEND=ours or own, and there is no terminal to ask on. Nothing was started." >&2
+          echo "up: PROVEN_LAB_JUDGE=yes needs PROVEN_LAB_BACKEND=ours or own, and there is no terminal to ask on. Nothing was started. NEXT — set PROVEN_LAB_BACKEND=ours or own, or run make up on a terminal." >&2
           exit 1
         fi
       fi

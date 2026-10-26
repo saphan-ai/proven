@@ -19,7 +19,7 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 
    To see demo pull requests scanned by proven please open:
 
-   Gitea: http://127.0.0.1:3300/login
+   Gitea: http://127.0.0.1:3300/user/login
    Username: proven
    Password: <password>
 
@@ -145,7 +145,7 @@ Both: the credential is checked **once** against the gateway, with a request tha
 
 **Live, `own`, and every non-judge who chooses live** (paths A and C). The flow prints where the guide is (this file, the *Go live* section, and the docs site on `127.0.0.1` once the lab is up), then:
 
-1. It asks the two services a judge's machine may already run, one request each: Zetaris at `DETECT_ZETARIS_URL` (`http://localhost:8888/api/v1.0`) and Nightshift at `DETECT_NIGHTSHIFT_URL` (`http://127.0.0.1:8088/v1/models`). If one answers, it offers to use them as they are (`PROVEN_LAB_USE_DETECTED`). The lab's review job runs inside the lab's own Docker, so it names this machine as `LAB_JOB_HOST_ALIAS` (`host.docker.internal`). A service that listens on `127.0.0.1` only cannot be reached from there; the flow says so. Your keys stay yours and come from `lab/.env`.
+1. It asks the two services a judge's machine may already run, one request each: Zetaris at `DETECT_ZETARIS_URL` (`http://localhost:8888/api/v1.0`) and Nightshift at `DETECT_NIGHTSHIFT_URL` (`http://127.0.0.1:8088/v1/models`). If one answers, it offers to use them as they are (`PROVEN_LAB_USE_DETECTED`). The lab's review job runs inside the lab's own Docker, so it names this machine by `LAB_JOB_HOST_ALIAS` (Docker's name for the host it runs on, set in `lab/versions.env`). A service that listens on `127.0.0.1` only cannot be reached from there; the flow says so. Your keys stay yours and come from `lab/.env`.
 2. It points at what a judge's machine is set up with: Nightshift is the native app from meterless.ai (Windows, Mac M1+, Mac M5+, DGX); Zetaris is the bundle from your own account. Our Tart VM for Nightshift is an optional automation, not the first step.
 3. It offers the automated setup (`PROVEN_LAB_OWN_SETUP`): `make up ZETARIS=local` for Zetaris from your bundle, then `make nightshift` for the Tart VM on a Mac with Apple silicon (on any other host it says so and goes on).
 4. It prints, verbatim: `We cannot vouch for results on a setup we do not control: this is best effort.`
