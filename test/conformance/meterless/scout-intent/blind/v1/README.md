@@ -56,3 +56,26 @@ A case can carry more than one tag.
 - A path with look-alike letters is judged as the reader would judge it with
   Latin letters, because the point is that the lookalike must not buy a
   lighter review.
+
+## Path-only labels, read with care
+
+Scout Intent reads file paths and git status letters only, never contents. A
+reviewer given only the paths may reasonably answer a clarification where a
+gold label below names a kind. The labels stay as written: the file
+`cases.jsonl` and the counts in `REPORT.md` are not changed. A different label
+would be a new version of the set and a new measurement.
+
+- `blind-lookalike-02` (`README.mԁ`): the extension has a non-Latin letter, so
+  the path does not establish a prose file. A path-only clarification is a
+  reasonable answer. The gold label is `change.docs`.
+- `blind-lookalike-04` (`gо.mod`, with a Cyrillic letter): this is a different
+  path from `go.mod`, so a path-only reviewer cannot call it the Go module
+  manifest. A clarification is the safer answer. The gold label is
+  `change.dependency`.
+- `blind-plain-ref-01`, `blind-plain-ref-02` and `blind-th-03` (git `R`
+  renames): the `R` status means the files are similar, not byte-identical, so
+  the paths alone do not show a pure rename. The gold label `change.refactor`
+  holds only if the change is a pure rename, which the file list does not say.
+- `blind-plain-ref-03` (deleted files): a deletion does not show that the code
+  was dead. The gold label `change.refactor` holds only if the code was dead,
+  which the file list does not say.
