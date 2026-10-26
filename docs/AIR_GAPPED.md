@@ -81,8 +81,9 @@ Every other setting is on [CONFIGURATION.md](CONFIGURATION.md).
    the machine, the Prover is down, and the review says which image to load. The address of the container daemon is
    checked at load (see [The paths beyond the HTTP clients](#the-paths-beyond-the-http-clients)).
 4. **In git.** Git is run so that it cannot fetch, in a sample review as well: sample mode reads `PROVEN_NETWORK`, a value it cannot read is refused by name, and a sample review with a baseline commit runs git with the same switches. A review of a partial clone that needs an object the clone does not
-   hold fails by name, and git is not asked to fetch it.
-5. **In name resolution.** A name is looked up only when it is on `PROVEN_NETWORK_ALLOW`. Any other name is refused
+   hold fails by name, and git is not asked to fetch it. The git policy, and the size limits of the reads, belong to the review: each review fixes them when it is opened and every git command it starts carries them, so a review opened later in the same process, in either mode, cannot change them.
+5. **In the GitHub Action.** With `comment: true` the action starts `reviewdog`, which posts to `GITHUB_API_URL` (`api.github.com` when it is unset) or, on Gitea, to `GITEA_ADDRESS` (the server address). With `PROVEN_NETWORK=local` the action asks `proven check-address` about that address before the scan runs, and judges it like every other address: loopback, private, or on `PROVEN_NETWORK_ALLOW`, and an IP address, not a name, because `reviewdog` resolves a name with its own resolver. An address outside is refused by name (`GITHUB_API_URL` or `GITEA_ADDRESS`), the step exits 7, and nothing is scanned or posted.
+6. **In name resolution.** A name is looked up only when it is on `PROVEN_NETWORK_ALLOW`. Any other name is refused
    before a DNS query is sent.
 
 ## The paths beyond the HTTP clients
