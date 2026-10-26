@@ -17,8 +17,14 @@ package markov
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/saphan-ai/proven/internal/service"
 )
+
+// RefusalLead is the opening of a Markovian configuration refusal.
+// The shared error prints "configuration refused" when Lead is empty, and
+// this sentence is the one Markovian refusals already printed.
+const RefusalLead = "Markovian config refused"
 
 // Config is the spec's ChunkConfig (AGENTS.md section 2.1). JSON names follow the spec, so a run record reads
 // the same in Go and in the conformance runner.
@@ -69,27 +75,7 @@ func EstimateTokens(s string) int {
 
 // ConfigError is a refused configuration value. It names the field, the value and what is allowed; a value is
 // never clamped or silently replaced (AGENTS.md section 2.1, ADR-0013).
-type ConfigError struct {
-	Field   string
-	Value   string
-	Reason  string
-	Allowed []string
-}
-
-// Error names the field, the refused value, why, and what is allowed.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "Markovian config refused"
-	}
-	msg := fmt.Sprintf("Markovian config refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Validate refuses a configuration outside the spec's bounds, and one whose step budget cannot hold the framing,
 // the carried state and the answer. The context-window check of the spec is the caller's: this engine does not
@@ -107,14 +93,14 @@ func (c Config) Validate() error {
 	}
 	for _, f := range fields {
 		if f.v < f.b.min || f.v > f.b.max {
-			return &ConfigError{
+			return &ConfigError{Lead: RefusalLead,
 				Field: f.name, Value: fmt.Sprint(f.v), Reason: "outside the spec's bounds",
 				Allowed: []string{fmt.Sprintf("a whole number from %d to %d", f.b.min, f.b.max)},
 			}
 		}
 	}
 	if need := FramingTokens + c.CarryoverTokens + OutputBudget; c.ChunkSize < need {
-		return &ConfigError{
+		return &ConfigError{Lead: RefusalLead,
 			Field: "chunkSize", Value: fmt.Sprint(c.ChunkSize),
 			Reason:  fmt.Sprintf("below framing (%d) + carryover (%d) + output budget (%d)", FramingTokens, c.CarryoverTokens, OutputBudget),
 			Allowed: []string{fmt.Sprintf("at least %d with carryoverTokens %d", need, c.CarryoverTokens)},

@@ -13,13 +13,12 @@ package review
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -43,25 +42,9 @@ var ErrNotImplemented = errors.New("review: not implemented")
 func Open(opts Options) (Reviewer, error) { return open(opts) }
 
 // ConfigError names a refused setting and the values that are allowed (ADR-0013).
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
 // Error returns one line the shell prints as it is: the refused field and value, the reason,
 // and the allowed values, so a user can fix the setting without reading the code.
-func (e *ConfigError) Error() string {
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Options are what the shell passes to Open.
 type Options struct {

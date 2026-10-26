@@ -1,7 +1,6 @@
 package query
 
 import (
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -69,28 +68,7 @@ func Environment() []envdoc.Setting {
 // ConfigError names a refused Zetaris setting and the values that are allowed.
 // The Value of the API key and of the organisation id is always empty: a
 // refusal names the variable and the rule, and does not print either.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value, why, and what is allowed, as
-// ADR-0013 asks of every refusal.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Settings is one validated live-Zetaris configuration.
 // APIKey is held so the call can send it. It is not a value to print.

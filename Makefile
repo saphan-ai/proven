@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help check-flow password demo-check reports nightshift-receipts check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates check-links zetaris-usl-parity clean
+.PHONY: help check-flow password demo-check reports nightshift-receipts check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -95,6 +95,12 @@ check-lab-password: ## Check offline, with a stub docker, that the admin passwor
 
 check-review-gates: ## Check offline five properties of the lab: loopback in the compose file, password handling, Scout failure, push after scan, build context
 	@sh $(ROOT)/lab/scripts/check-review-gates.sh
+
+baseline-dependabot: ## Run Proven's dependency check at the commit Dependabot's 51 alerts are pinned to, on the store PROVEN_EVIDENCE_STORE names, and write test/corpus/reference/dependabot-fbdf7d3/REPORT.md
+	@sh $(ROOT)/lab/scripts/baseline-dependabot.sh evidence
+
+baseline-dependabot-manifests: ## The same run with no evidence store: which alerted packages Proven reads from the manifests at the pinned commit
+	@sh $(ROOT)/lab/scripts/baseline-dependabot.sh manifests
 
 check-links: ## Check that every relative Markdown link and metadata.json path resolves
 	@cd $(ROOT) && sh scripts/check-links.sh

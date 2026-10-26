@@ -40,11 +40,11 @@ inputs:
     required: false
     default: "false"
   comment:
-    description: true posts the review on the pull request through reviewdog (needs pull-requests write); false posts nothing and reads no token.
+    description: true posts ONE summary comment on the pull request, edited in place on every run (needs pull-requests write); false posts nothing and reads no token.
     required: false
     default: "false"
   github-token:
-    description: The token reviewdog posts with; read only when comment is true. Needs pull-requests write.
+    description: The token the summary comment is posted with; read only when comment is true. Needs pull-requests write.
     required: false
     default: ${{ github.token }}
 

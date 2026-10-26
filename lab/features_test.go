@@ -590,6 +590,15 @@ if [ -n "$post" ]; then cp "$post" "$FAKE_DIR/posted.json"; printf '{"id":1}' > 
 printf '%s' "$FAKE_COMMENTS" > "$out"
 `
 
+// fakeCommentHTTP stands in for the poster's HTTP client (COMMENT_HTTP, action/post-comment.sh): the pull request has
+// no comment yet, so the poster creates one, and the body it sends is kept as posted.json.
+const fakeCommentHTTP = `#!/bin/sh
+case "$1" in
+  GET) printf '[]' ;;
+  *) cp "$3" "$FAKE_DIR/posted.json"; printf '{"id":1}' ;;
+esac
+`
+
 // runBothSteps runs the review step and the post step of a workflow text for one head commit, against a pull request
 // whose comments are given, and returns whether the review ran and whether a comment was posted.
 func runBothSteps(t *testing.T, wf, comments string) (reviewed, posted bool) {
@@ -599,12 +608,13 @@ func runBothSteps(t *testing.T, wf, comments string) (reviewed, posted bool) {
 	bin := filepath.Join(tmp, "bin")
 	writeExec(t, bin, "docker", "#!/bin/sh\necho ran > \"$FAKE_DIR/docker.ran\"\nprintf 'review class: standard\\nfailed services: none\\n'\n")
 	writeExec(t, bin, "wget", fakeWgetSeen)
+	writeExec(t, bin, "comment-http", fakeCommentHTTP)
 	work := filepath.Join(tmp, "work")
 	if err := os.Mkdir(work, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	env := []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "HOME=" + tmp, "FAKE_DIR=" + tmp, "FAKE_COMMENTS=" + comments, "HEAD_REF=demo-discount",
-		"PROVEN_TOKEN=tok-0123456789", "API_URL=http://gitea.test/api/v1", "REPO=proven/discount", "PR=7", "HEAD_SHA=0123456789abcdef0123456789abcdef01234567", "RUN_NUMBER=19"}
+		"PROVEN_TOKEN=tok-0123456789", "API_URL=http://gitea.test/api/v1", "REPO=proven/discount", "PR=7", "HEAD_SHA=0123456789abcdef0123456789abcdef01234567", "RUN_NUMBER=19", "COMMENT_HTTP=" + filepath.Join(bin, "comment-http")}
 	for _, step := range []string{"Run the review", "Post the review on the pull request"} {
 		cmd := exec.Command("sh", "-e", "-c", workflowStepFrom(t, wf, step))
 		cmd.Dir = work

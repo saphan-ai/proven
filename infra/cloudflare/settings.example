@@ -1,0 +1,52 @@
+# The settings of infra/cloudflare/up.sh, down.sh and verify.sh.
+# One key=value per line. The file is read, never run. Copy it, fill it in, and
+# keep the copy out of the repository. It holds no secret.
+
+# The Cloudflare account (32 hex digits) and the domain that is already in it.
+account_id = 00000000000000000000000000000000
+zone       = example.org
+
+# The one public host name of the gateway, inside the zone.
+hostname   = judges-gateway.example.org
+
+# The port the gateway listens on (127.0.0.1 only). Default 8089.
+gateway_port = 8089
+
+# The judges: e-mail addresses and *@domain entries, comma-separated. Access
+# sends each of them a one-time PIN; nobody else gets in.
+judges = judge.one@example.com, *@jury.example
+
+# Names. Every object up.sh makes carries this name (the runner's service token
+# and the two policies add a suffix). Default proven-judges-gateway.
+name = proven-judges-gateway
+
+# How long a judge's Access session lasts, and how long the runner's service
+# token is valid, in hours. Defaults 24h and 336h.
+session_duration      = 24h
+runner_token_duration = 336h
+
+# Only when the account has no Zero Trust organisation yet: the team name to
+# create. The team domain is then <team_name>.cloudflareaccess.com.
+# team_name = jury
+
+# Where the API token is read from when CLOUDFLARE_API_TOKEN is not set. A file
+# whose first line is the token.
+# token_file = /path/to/token
+
+# Where the state and the generated files go. Defaults are under
+# ~/.local/state/proven-judges-gateway/.
+# state_dir = /path/to/state
+# runner_secret_file = /path/to/runner-service-token.env
+# gateway_env_file   = /path/to/gateway-access.env
+# tunnel_token_file  = /path/to/tunnel.token
+
+# To add the matching identity rows to the gateway's settings file in the same
+# run, name the built gateway binary, the settings file and the time the rows
+# expire (RFC 3339, the end of judging).
+# gateway_bin            = /path/to/judges-gateway
+# gateway_settings_file  = /path/to/gateway-settings.json
+# identities_expire      = 2026-10-28T00:00:00Z
+# judge_per_minute  = 20
+# judge_per_day     = 500
+# runner_per_minute = 20
+# runner_per_day    = 500

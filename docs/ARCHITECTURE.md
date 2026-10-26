@@ -7,10 +7,10 @@ are in [DESIGN.md](../hackathon/DESIGN.md) and in the decisions under [fleet/dec
 
 ```mermaid
 flowchart LR
-    C[change: base and head] --> SI[Scout Intent<br/>plans the review, off by default]
+    C[change: base and head] --> SI[Scout Intent<br/>plans the review, on by default]
     SI --> P
     subgraph PL[Planner reads the change]
-        M[large change: bounded steps,<br/>off by default] -.->|only when switched on| P[Planner<br/>names the risks]
+        M[large change: bounded steps,<br/>on by default] -.->|unless switched off| P[Planner<br/>names the risks]
     end
     P --> I[Investigator<br/>picks a query template]
     P --> V[Prover<br/>writes a test]
@@ -96,23 +96,27 @@ so it is never marked proved.
 - **The trace** (`<user cache>/proven/logs/trace.jsonl`, or the directory `PROVEN_LOG_DIR` names): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
   call, with the run id and the time. A reader follows any finding from claim to verdict.
 - **H-MEM** (`<user cache>/proven/state/hmem`, `<user cache>/proven/logs/hmem.jsonl`): what earlier reviews refuted, so a refuted finding does not come back.
-- **The World Model** (`<user cache>/proven/state/world`, `<user cache>/proven/logs/world.jsonl`): the entities a review has seen.
+- **The World Model** (`<user cache>/proven/state/world`, `<user cache>/proven/logs/world.jsonl`): the entities a review has seen, and the edges between them.
+  An edge chain (one from, type and context) holds at most one valid edge at any instant. A write that would break
+  this is refused, and so is opening a state file that already breaks it (`ErrEdgeOverlap`, naming both edges). Open also refuses a stored edge whose `valid_to` is not after its `valid_from`, or cannot be read (`ErrEdgeInterval`), before it looks for overlaps; `Relate` applies the same rule to a write.
 - **Scout Intent** (`internal/scout`, ADR-0049): the plan chosen for a review, written as one `plan` line to the trace
-  before any agent runs. Off by default; its eval harness is described below.
-- **Markovian** (`internal/markov`, OFF by default): the state carried from one step to the next when a large change is
+  before any agent runs. On by default (ADR-0053), switched off with `scout_intent: off`; its eval harness is described below.
+- **Markovian** (`internal/markov`, ON by default, switched off with `PROVEN_MARKOVIAN=off`): the state carried from one step to the next when a large change is
   reviewed in bounded steps. It is kept in memory for the length of one review, and each step's size is in the trace.
   See "Bounded steps" below.
 
 H-MEM, the World Model and Markovian follow the Meterless specifications (ADR-0003, ADR-0018, ADR-0048); their own
-conformance suites run through `test/conformance/meterless/run.sh`: H-MEM 9 of 13, World Model 8 of 8, Markovian 8 of
+conformance suites run through `test/conformance/meterless/run.sh`: H-MEM 13 of 13, World Model 8 of 8, Markovian 8 of
 8 (runner pinned at upstream commit `1742dec5`). Scout Intent follows Meterless's specification too (ADR-0049), and
 Meterless's eval harness, pinned at the same commit, runs through `test/conformance/meterless/run_scout.sh`. Markovian
-and Scout Intent are switched off by default, and their benefit is UNMEASURED until the corpus recordings exist.
+and Scout Intent are on by default (ADR-0053) and each is switched off by its setting; their benefit is UNMEASURED until the corpus recordings exist.
 
 ## Scout Intent plans each review (ADR-0049)
 
-**Off by default.** It is switched on only once the measurement below holds on recorded reviews, and that switch is a
-change of its own.
+**On by default (ADR-0053), switchable off with `scout_intent: off`.** Its benefit is UNMEASURED until the measurement
+below is run on recorded reviews. **The Scout guard (ADR-0053):** Scout may lighten a review only for a change whose
+every file is verified prose (documentation plan) or a manifest (dependency plan). A change it called documentation or
+dependency that is not so verified runs every agent in class `security`, doubled, never in class `docs`.
 
 **What it does.** Before any agent runs, `internal/scout` (Meterless's Scout Intent in Go) classifies the change from
 its changed files: `change.dependency`, `change.refactor`, `change.feature`, `change.security`, `change.docs` or
@@ -149,9 +153,9 @@ Five rules decide which plan runs, and a reader can check each one in the trace:
    band, the signals, the ambiguity and the plan, or says `no plan chosen (scout_intent is off)`. Each part a plan
    leaves out gets its own `… is not in the plan` line.
 
-**To switch it on** (a person's act, in the baseline's `proven.yaml`, because a change never chooses its own review):
+**To switch it off or change it** (a person's act, in the baseline's `proven.yaml`, because a change never chooses its own review):
 
-1. Add `scout_intent: on`.
+1. Add `scout_intent: off` to run every review in full. It is on when the key is absent.
 2. To change a kind's plan, set its key with all five fields, for example
    `plan_docs: class=docs, agents=none, tools=none, sources=none, doubled=class`. A wrong field stops Proven with
    exit 7 and names the field and the values allowed.
@@ -246,8 +250,8 @@ trace carries the same sentence. A bounded review that stops ends with that name
 `TestAClaimStillOpenAfterTheLastStepStopsTheReviewByName` (two files, the last answer holds one open claim and no risk).
 A model that leaves a claim out of the state it returns is a model error this bound cannot see.
 
-**Settings** (environment, live mode only; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`off` by
-default), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
+**Settings** (environment, live and sample mode; see [CONFIGURATION.md](CONFIGURATION.md)): `PROVEN_MARKOVIAN` (`on` by
+default, `off` switches it off), `PROVEN_MARKOVIAN_THRESHOLD` (estimated tokens of the Planner's whole prompt, default 8000),
 `PROVEN_MARKOVIAN_STEP_UNIT` (`file` or `hunk`), `PROVEN_MARKOVIAN_CARRY_TOKENS` (default 800). A wrong value stops the
 review before it starts, naming the variable and the values allowed.
 
@@ -269,8 +273,21 @@ carry bound caps the carried state only, never a part's own size: in file mode a
 a large changed region is one hunk, so a step over a very large file or region is as large as that part. With file steps the review as a whole costs more,
 about a quarter more, because every step repeats the instruction and the carried state; with hunk steps it costs less,
 because a step carries the changed region and not both whole copies of the file. Whether a model keeps the same findings
-across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row, and
-until it is measured the engine stays off (ADR-0048 point 4).
+across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row. It is not
+measured, and since ADR-0053 the engine is on by default anyway (superseding ADR-0048 point 4); `PROVEN_MARKOVIAN=off` switches it off.
+
+### The scale H-MEM is built for
+
+H-MEM is built for a small store: the refutations of one reviewer. It keeps all records in one JSON file,
+`state/hmem/state.json`. The file is read whole when the store opens, and it is rewritten whole on every write. Every
+query and every refutation match is a scan of all records. Nothing is indexed, so the cost of a query grows with the
+number of records. This page states no timing, because none was measured.
+
+Reading is bounded. A state file over `PROVEN_HMEM_MAX_STATE_BYTES` (default 64 MiB) is refused when the store opens,
+by name (`ErrStateTooLarge`), with the file's size and the cap; the reader takes at most the cap plus one byte (ADR-0013).
+The one extra byte proves an overflow when the file's reported size is wrong: if the reader gets the extra byte, the
+file is larger than the cap, whatever its size said. The number of leading query tokens that count is `PROVEN_HMEM_QUERY_TOKENS` (default 8). Both are listed in
+[CONFIGURATION.md](CONFIGURATION.md). A store that outgrows the cap needs a different design, not a larger number.
 
 ## Modes
 

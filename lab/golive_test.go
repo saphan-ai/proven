@@ -353,6 +353,9 @@ func TestGoLiveTheCommentStartsWithTheMarkerThenHowItWasMade(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bin, "wget"), []byte(fake), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(bin, "comment-http"), []byte(fakeCommentHTTP), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct{ mode, review, wantSecond, wantThird string }{
 		{"sample: no keys", "review class: standard\nfailed services: none\n", "sample: no keys", "clean: Proven kept no finding"},
 		{"live: NVIDIA via Nightshift, Zetaris on", "review class: standard\nfinding 1: x\n", "live: NVIDIA via Nightshift, Zetaris on", "review class: standard"},
@@ -371,7 +374,7 @@ func TestGoLiveTheCommentStartsWithTheMarkerThenHowItWasMade(t *testing.T) {
 		cmd := exec.Command("sh", "-c", workflowStep(t, "Post the review on the pull request"))
 		cmd.Dir = work
 		cmd.Env = []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "HOME=" + tmp, "FAKE_DIR=" + tmp,
-			"PROVEN_TOKEN=t", "API_URL=http://x/api/v1", "REPO=proven/discount", "PR=1", "RUN_NUMBER=4", "HEAD_SHA=abc123"}
+			"PROVEN_TOKEN=t", "API_URL=http://x/api/v1", "REPO=proven/discount", "PR=1", "RUN_NUMBER=4", "HEAD_SHA=abc123", "COMMENT_HTTP=" + filepath.Join(bin, "comment-http")}
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("the post step: %v\n%s", err, out)
 		}

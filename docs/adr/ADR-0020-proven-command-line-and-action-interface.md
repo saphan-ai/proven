@@ -3,7 +3,8 @@
 **Status:** accepted · **Date:** 2026-10-21
 **Decided by:** the owner, 2026-10-21: *"Yes for the ADR, and reviewdog."* · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-21
 **Amended:** 2026-10-25, decided by the owner: point 3 gains the `github-token` input; point 4's SARIF upload runs in its own job (point 5 is job-scoped on GitHub), so each swap changes more lines than first named
-**Amends:** [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4: the lab's comments are posted by reviewdog (point 7 below)
+**Amended:** 2026-10-26, on the owner's order of 2026-10-25 (one comment per pull request): point 7 now has the Action's own poster write the one summary comment, and reviewdog is no longer run; point 3's `github-token` row follows
+**Amends:** [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4: the lab's comment is posted by the Action's own poster (point 7 below)
 **Extends:** [ADR-0016](ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md) (a drop-in replacement for pipeline scanners)
 **Follows:** [ADR-0013](ADR-0013-no-hardcoded-settings.md) (no hardcoded settings), [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md) (the Gitea lab)
 **Trigger:** the owner, on what is decided before the build window and what is built in it ([`planning/CONVERSATION_2026-10-21_advisor.md`](../../hackathon/planning/CONVERSATION_2026-10-21_advisor.md), hop 12)
@@ -68,7 +69,7 @@ An `action.yml` at the root of this repository, a container action on Proven's p
 | `baseline-commit` | the pull request's base | `--baseline-commit` |
 | `sample-mode` | `false` | `--sample` |
 | `comment` | `false` | post the review on the pull request; needs `pull-requests: write` |
-| `github-token` | the workflow's token (`github.token`) | the token reviewdog posts with when `comment` is on; the scan itself never receives a token (amended 2026-10-25) |
+| `github-token` | the workflow's token (`github.token`) | the token the Action's own poster writes the one summary comment with when `comment` is on; the scan itself never receives a token (amended 2026-10-25 and 2026-10-26) |
 
 Outputs, with the Opengrep action's names: `results-file`, `json-file`, `sarif-file`, `findings-count`; and one of Proven's own, `unresolved-count`, the findings whose evidence did not settle them.
 
@@ -112,12 +113,15 @@ The owner (translated from Polish): *"But self-hosted too. Not everyone will wan
 4. **The runner's network reaches only what the review needs**: the Zetaris and Nightshift endpoints, the package registries; nothing else on the private network.
 5. **A team that cannot meet these keeps live mode for private repositories**, as GitHub recommends.
 
-### 7. Comments on the pull request, through reviewdog
+### 7. One comment on the pull request, written by the Action's own poster
 
-[reviewdog](https://github.com/reviewdog/reviewdog) reads SARIF 2.1.0 (`-f=sarif`) and posts it as review comments on a pull request: `-reporter=github-pr-review` on GitHub, `-reporter=gitea-pr-review` on Gitea, plus GitHub's checks and annotations. Many pipelines already use it for their linters.
+*Amended 2026-10-26, in place (this point first read: "Comments on the pull request, through reviewdog"; the owner's order of 2026-10-25 is: one comment per pull request).*
 
-- Proven writes SARIF; posting comments is reviewdog's job. The Action's `comment` input runs reviewdog on Proven's SARIF, and a team that already runs reviewdog adds one more input to it.
-- This replaces the Gitea comment adapter of [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4, as the owner accepted: less code of our own, and the same path on GitHub and Gitea.
+The pull request gets **one comment**, the summary: Proven's Markdown ([`OUTPUT_FORMATS.md`](../OUTPUT_FORMATS.md#markdown)), written by the Action's own poster, `action/post-comment.sh`, and edited in place on every run. The same script serves GitHub and Gitea (`GET /user`, the comments list and `PATCH` of one comment). The Action no longer runs [reviewdog](https://github.com/reviewdog/reviewdog): line comments beside the summary would be more than one comment, so none are written. Per-line results travel in the SARIF file, which a team sends to code scanning (point 4), a channel that is not a comment.
+
+- Proven writes SARIF and Markdown; the Action's `comment` input posts the Markdown only. A team that runs reviewdog on its own can still give it Proven's SARIF; the Action does not.
+- This still replaces the Gitea comment adapter of [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4, as the owner accepted, with one path on GitHub and Gitea. It costs code of our own (one shell file, tested offline), which the reviewdog path had avoided; the owner chose one comment over that saving.
+- The comments list is read to its end before anything is created, so a comment on a late page is edited, never duplicated; a walk that cannot reach the end creates nothing and fails the step.
 
 ### 8. Other pull-request review tools
 

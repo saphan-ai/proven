@@ -51,10 +51,10 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	defer s.mu.Unlock()
 	qEmb := Embed(query)
 	qTokens := Tokenize(query)
-	// Only the first eight query tokens count, so a long query cannot drown
-	// the keyword and tag terms.
-	if len(qTokens) > 8 {
-		qTokens = qTokens[:8]
+	// Only the first QueryTokens query tokens count (default eight, ADR-0013),
+	// so a long query cannot drown the keyword and tag terms.
+	if n := s.limits.QueryTokens; len(qTokens) > n {
+		qTokens = qTokens[:n]
 	}
 	qEntities := extractEntities(query)
 	qDomain := classifyDomain(query, nil, TypeGeneral)
@@ -79,6 +79,7 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	// saved, which feeds its recency on the next query.
 	now := s.now()
 	saved := make(map[string]Record, len(scored))
+	entries := make([]auditEntry, 0, len(scored))
 	for i := range scored {
 		id := scored[i].Record.ID
 		if _, ok := saved[id]; !ok {
@@ -88,20 +89,14 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 		rec.LastAccessed = now
 		rec.AccessCount++
 		s.records[rec.ID] = rec
-		scored[i].Record = rec
-		if err := s.audit("read", rec.ID, "retrieval"); err != nil {
-			// A partial touch must not stay: the state file was not written.
-			for id, prev := range saved {
-				s.records[id] = prev
-			}
-			return QueryResult{}, err
-		}
+		// The hit carries its own copy, so a caller editing it cannot change the store.
+		scored[i].Record = rec.detached()
+		entries = append(entries, auditEntry{action: "read", id: rec.ID, actor: "retrieval"})
 	}
 	if len(scored) > 0 {
-		if err := s.persist(); err != nil {
-			for id, prev := range saved {
-				s.records[id] = prev
-			}
+		// The state first, then every read line in one write: a failure leaves
+		// no touch in memory and no read line in the ledger.
+		if err := s.commitRecords(entries, s.seq, saved, nil); err != nil {
 			return QueryResult{}, err
 		}
 	}
@@ -125,10 +120,15 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 
 // Score is the final ranking value for one record. It does not touch the store.
 // It applies the same query trimming as Query, so a test can check one score by hand.
-func Score(rec Record, query string, now int64) float64 {
+// queryTokens is the store's query-token limit (Limits.QueryTokens); zero or
+// less means DefaultQueryTokens, as it does for a store (ADR-0013).
+func Score(rec Record, query string, now int64, queryTokens int) float64 {
+	if queryTokens <= 0 {
+		queryTokens = DefaultQueryTokens
+	}
 	tokens := Tokenize(query)
-	if len(tokens) > 8 {
-		tokens = tokens[:8]
+	if len(tokens) > queryTokens {
+		tokens = tokens[:queryTokens]
 	}
 	return score(rec, Embed(query), tokens, extractEntities(query), classifyDomain(query, nil, TypeGeneral), now)
 }
@@ -196,7 +196,10 @@ func (s *Store) Feedback(id, kind string) error {
 		rec.Tags = append(append([]string(nil), rec.Tags...), "review")
 	}
 	s.records[id] = rec
-	if err := s.publish("feedback", id, "retrieval", s.seq, map[string]Record{id: prev}, nil); err != nil {
+	// The ledger keeps the state before and after, so a history can show what
+	// the feedback changed (the trust ledger, Meterless H-MEM section 9.1).
+	states := map[string]any{"previousState": ledgerState(prev), "newState": ledgerState(rec)}
+	if err := s.publishWith("feedback", id, "retrieval", states, s.seq, map[string]Record{id: prev}, nil); err != nil {
 		return err
 	}
 	return nil

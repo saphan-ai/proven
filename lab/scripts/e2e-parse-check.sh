@@ -80,5 +80,9 @@ expect "a failed run is not a succeeded one" "$(success_runs "$failed19" "$ctx" 
 expect "a pending run is not a succeeded one" "$(success_runs '[{"id":1,"status":"pending","target_url":"/p/d/actions/runs/5/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:00:50Z"}]' "$ctx")" ""
 expect "other context ignored in success_runs" "$(success_runs "$two" "other / job (push)")" ""
 
+# The poster that keeps one comment per pull request (find, then edit in place), and
+# the proof that the workflow's copy of it is the Action's: lab/scripts/post-comment-check.sh.
+sh "$here/post-comment-check.sh" || fail=1
+
 [ "$fail" -eq 0 ] && echo "e2e-parse-check: ok"
 exit "$fail"

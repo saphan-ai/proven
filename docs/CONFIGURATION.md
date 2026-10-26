@@ -7,7 +7,7 @@ environment only). The names and defaults below were read from the code on `main
 setting, the value and what is allowed. An empty secret does not: that service is down and the review names it, and an empty guardrail key refuses every model call unless `PROVEN_GUARDRAIL_MODE` is `off`.
 
 The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads none of the
-settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
+settings below except `proven.yaml`'s `timeout` and the switches of the four Meterless engines (`PROVEN_MARKOVIAN` and its three tuning variables, `PROVEN_HMEM`, `PROVEN_WORLD_MODEL`; ADR-0053): see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
 <!-- generated: settings -->
 ## The model generator: Meterless Nightshift or NVIDIA's hosted API
@@ -74,7 +74,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
 
 ## The Prover's container
 
@@ -105,12 +105,21 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_MARKOVIAN` | `off` | `on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. Off until its measurement holds |
+| `PROVEN_MARKOVIAN` | `on` | `on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. On by default (ADR-0053); its benefit is not measured yet |
 | `PROVEN_MARKOVIAN_THRESHOLD` | `8000` | the size, in estimated tokens (characters / 4) of the Planner's whole prompt, above which a change is reviewed in bounded steps; at or below it the review is one whole step |
 | `PROVEN_MARKOVIAN_STEP_UNIT` | `file` | what one step reads: `file` (one changed file, its base and its change) or `hunk` (one changed region of a file) |
 | `PROVEN_MARKOVIAN_CARRY_TOKENS` | `800` | the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from 128 to 32768. When it cannot hold every claim that awaits evidence, the review stops and names itself incomplete; it never drops such a claim |
 
-ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these.
+ADR-0053 (superseding the "off until measured" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way.
+
+## The two stores: Meterless's H-MEM and World Model
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_HMEM` | `on` | `on` opens H-MEM, so a finding an earlier review of the same change refuted is dropped and a landed refutation is remembered; `off` neither opens, reads nor writes it. On by default (ADR-0053); its benefit is not measured yet |
+| `PROVEN_WORLD_MODEL` | `on` | `on` opens the World Model and folds each finished review's trace into it; `off` neither opens nor writes it. With H-MEM off the World Model still folds and records no refutation. On by default (ADR-0053); its benefit is not measured yet |
+
+ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches.
 
 ## One adapter call
 
@@ -159,6 +168,15 @@ A repository's `proven.yaml` may make a policy setting stricter, never weaker, a
 | `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
 
 The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
+
+## H-MEM: the memory store
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_HMEM_MAX_STATE_BYTES` | `67108864` | the largest H-MEM `state.json` that opens; above it the store refuses by name and reads nothing more (`ErrStateTooLarge`). A positive number of bytes, at most 1 TiB (1099511627776); a larger value is refused. Sample mode uses the default and does not read this variable |
+| `PROVEN_HMEM_QUERY_TOKENS` | `8` | how many leading query tokens count when H-MEM scores a query; a positive integer up to 1024. Sample mode uses the default and does not read this variable |
+
+H-MEM reads its whole state file at open and scans every record on each query, so it is built for a small store; see the scale section of `docs/ARCHITECTURE.md`. A state file over the cap is refused by name with its size and the cap. Sample mode reads none of these.
 
 ## The trace
 
@@ -246,7 +264,7 @@ No environment variable sets these keys.
 | `autofix_timeout` | `10m` | The time limit of the whole-change attempt: the generator's answer and every run of evidence again. An attempt that runs past it ends `rejected` and says the time limit ended it. | A Go duration greater than zero, for example `90s` or `10m`. |
 | `investigator_templates` | every template | The query templates the Investigator may ask (ADR-0013, ADR-0032). Its prompt lists only these, and a request for any other is refused before a store is asked: the finding goes on with no query evidence and the trace says `refused: query template is outside the evidence scope of this role: <template> for the investigator`. Unset narrows nothing. | A comma-separated list of template names from `docs/QUERIES.md`, each once. A name that is not on the list, a name twice or an empty entry is refused on load. |
 | `skeptic_templates` | every template | The query templates the Skeptic may ask. Its prompt lists only these, and a refuting query for any other is refused before a store is asked: the proposal is dropped, the finding is judged on the rest of the attempt, and the refutation says `refused: query template is outside the evidence scope of this role: <template> for the skeptic`. The two lists are independent, so the Skeptic can be held to fewer templates than the Investigator. Unset narrows nothing. | The same as `investigator_templates`. |
-| `scout_intent` | `off` | Scout Intent classifies the change before the agents run, and the kind picks the review plan (ADR-0049). `off` runs every review in full, and the trace says no plan was chosen. See [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049). | `on` or `off`. |
+| `scout_intent` | `on` | Scout Intent classifies the change before the agents run, and the kind picks the review plan (ADR-0049). On by default (ADR-0053); its benefit is UNMEASURED until the corpus recordings exist. It lightens a review only for a change whose every file is verified prose or a manifest; any other change it called docs or dependency runs in class security, doubled. `off` runs every review in full, and the trace says no plan was chosen. See [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049). | `on` or `off`. |
 | `plan_dependency`, `plan_refactor`, `plan_feature`, `plan_security`, `plan_docs`, `plan_config` | see [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) | The plan for one kind of change: its class, the agents, tools and sources that run, and whether it is doubled. All five fields are required. A plan never goes below the class the path rules choose. | `class=<configured or a class>, agents=<planner+investigator+prover+skeptic+fixer, all or none>, tools=<govulncheck, all or none>, sources=<osv+epss, all or none>, doubled=<class or on>`. |
 | `prose_suffixes` | `.md, .markdown, .rst, .txt, .adoc` | With Scout Intent on, the file suffixes that count as prose never built or executed (ADR-0049). The documentation plan, which runs no model, is chosen only when every changed file has one of these suffixes, is not executable and has no shebang line on either side of the change; any other change runs its configured class in full. | A comma-separated list of suffixes, each a dot and then letters, digits, `+`, `-` or `_`, each once. A source, script, build or template suffix (`.go`, `.py`, `.js`, `.sh`, `.mk`, `.tmpl` and the like) is refused by name. |
 
