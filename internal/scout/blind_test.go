@@ -1,9 +1,19 @@
-package scout
+package scout_test
 
 // This file runs Scout Intent once over the frozen blind set (test/conformance/meterless/scout-intent/blind/v1)
 // and, on request, writes the report. The set was written without reading Scout Intent and is frozen: the
 // round that runs it measures and never tunes, so no test here asserts that a case passes. A miss is a
 // line in the report, not a failure.
+//
+// The test is an external test package (scout_test) because it calls the review's exported entry point,
+// and the review package imports scout: an internal test could not import it.
+//
+// Two things are measured, and the report keeps them apart:
+//
+//  1. The kind Scout Intent chose for each case (blindClassify), the same calls the review makes to pick a kind.
+//  2. For every case whose kind is a lighter one (docs or dependency) and is not the expected answer, the plan
+//     the live review path actually runs for that change (blindLivePlan): review.Open with scout_intent on,
+//     everything else at its shipped default, on a real git change built from the case's file list.
 //
 // Without the -blind-report flag, the test only checks that every case runs. With it, the test also writes
 // blind/v1/REPORT.md. To regenerate the report:
@@ -12,14 +22,23 @@ package scout
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/saphan-ai/proven/internal/pipeline"
+	"github.com/saphan-ai/proven/internal/review"
+	"github.com/saphan-ai/proven/internal/scout"
 )
 
 // blindReportFlag asks TestBlindSet to write REPORT.md; without it the test writes nothing.
@@ -28,8 +47,8 @@ var blindReportFlag = flag.Bool("blind-report", false, "write blind/v1/REPORT.md
 // blindDir is the frozen set's directory, relative to this package.
 const blindDir = "../../test/conformance/meterless/scout-intent/blind/v1"
 
-// blindRunCommit is the commit whose Scout Intent code this report measures; blindSetCommit is the commit
-// that froze the set. They are the same commit because the set was frozen on the base this round runs on.
+// blindRunCommit is the commit whose Scout Intent code the kind measurement ran on; blindSetCommit is the
+// commit that froze the set. They are the same commit because the set was frozen on the base the first run used.
 const (
 	blindRunCommit = "ec7896fe80ca62bc8b95053728791f68667add49"
 	blindSetCommit = "ec7896fe80ca62bc8b95053728791f68667add49"
@@ -67,29 +86,28 @@ func (a blindAnswer) String() string {
 // pick a kind: the shipped change registry with no extra security patterns, Decide on the formatted
 // change, then the review's two rules: a security signal is never outvoted, and an ambiguous or
 // not-high-band decision is a clarification (the review runs the full plan and names no kind).
-// The review's later steps (prose verification, the plan table) need real files and are not part of
-// the kind, so they are not run here.
+// This is the kind only. The plan the review then runs is measured separately, by blindLivePlan.
 func blindClassify(t *testing.T, prompt string) blindAnswer {
 	t.Helper()
-	reg, err := ChangeRegistry(nil)
+	reg, err := scout.ChangeRegistry(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := New(reg, Options{})
+	eng, err := scout.New(reg, scout.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := eng.Decide(Input{Prompt: FormatChange(ParseChange(prompt)), User: User{ID: "proven", Role: "review"}, Surface: "change"})
+	d, err := eng.Decide(scout.Input{Prompt: scout.FormatChange(scout.ParseChange(prompt)), User: scout.User{ID: "proven", Role: "review"}, Surface: "change"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	detail := fmt.Sprintf("band %s, confidence %.3f", d.Band, d.Confidence)
 	for _, c := range d.Candidates {
-		if c.Intent == KindSecurity && c.Score > 0 {
-			return blindAnswer{Kind: KindSecurity, Detail: detail}
+		if c.Intent == scout.KindSecurity && c.Score > 0 {
+			return blindAnswer{Kind: scout.KindSecurity, Detail: detail}
 		}
 	}
-	if d.Ambiguity.Ambiguous || d.Clarification != nil || d.Band != BandHigh {
+	if d.Ambiguity.Ambiguous || d.Clarification != nil || d.Band != scout.BandHigh {
 		return blindAnswer{Clarification: true, Detail: detail}
 	}
 	return blindAnswer{Kind: d.Intent, Detail: detail}
@@ -104,30 +122,39 @@ func blindMatch(c blindCase, a blindAnswer) bool {
 	return !a.Clarification && a.Kind == c.Expected.Intent
 }
 
-// blindLighter reports whether a miss lets the change in under a lighter plan than its expected answer
-// needs: Scout answered docs or dependency (ADR-0049 point 2's lighter plans) and the case expects a
-// heavier kind or a clarification. Order of weight: docs, then dependency, then everything else.
-func blindLighter(c blindCase, a blindAnswer) bool {
+// blindLighterKind reports whether a miss is a lighter-kind answer: Scout answered docs or dependency (the
+// two kinds ADR-0049 point 2 gives a plan with less work) and the case expects a heavier kind or a
+// clarification. It says what kind Scout chose. It does not say what review ran: the live plan can still be
+// full (a docs answer for a source file is turned into a full plan), and that is measured by blindLivePlan.
+// Order of weight: docs, then dependency, then everything else.
+func blindLighterKind(c blindCase, a blindAnswer) bool {
 	if a.Clarification || blindMatch(c, a) {
 		return false
 	}
-	weight := func(kind string) int {
-		switch kind {
-		case KindDocs:
-			return 0
-		case KindDependency:
-			return 1
-		}
-		return 2
-	}
-	if a.Kind != KindDocs && a.Kind != KindDependency {
+	if a.Kind != scout.KindDocs && a.Kind != scout.KindDependency {
 		return false
 	}
-	want := 2
-	if !c.Expected.Clarification {
-		want = weight(c.Expected.Intent)
+	return blindExpectedRank(c) > blindKindRank(a.Kind)
+}
+
+// blindKindRank is how much work the default plan table gives a kind (ADR-0049 point 2): docs runs
+// nothing (0), dependency skips the Prover (1), every other kind runs in full (2).
+func blindKindRank(kind string) int {
+	switch kind {
+	case scout.KindDocs:
+		return 0
+	case scout.KindDependency:
+		return 1
 	}
-	return want > weight(a.Kind)
+	return 2
+}
+
+// blindExpectedRank is the work the case's expected answer would plan: a clarification runs the full plan.
+func blindExpectedRank(c blindCase) int {
+	if c.Expected.Clarification {
+		return 2
+	}
+	return blindKindRank(c.Expected.Intent)
 }
 
 // blindExpected is the case's expected answer as text.
@@ -138,9 +165,202 @@ func blindExpected(c blindCase) string {
 	return c.Expected.Intent
 }
 
-// TestBlindSet proves one property: every case of the frozen blind set can be run through the review's
-// call path and gets an answer. It never asserts that a case matches; that is the report's business.
-func TestBlindSet(t *testing.T) {
+// livePlan is the plan the review's live path ran for one case, read from the plan line the review writes
+// on its trace before any agent runs.
+type livePlan struct {
+	Text string // the plan in words, for the report
+	Rank int    // 0 runs no agent, tool or source; 1 runs some; 2 runs all of them
+}
+
+// blindPlanLine finds the plan line in the review's trace: the first event of kind plan that names the
+// class Scout chose. The trace is the only place a review states the plan it chose.
+func blindPlanLine(tracePath string) (string, error) {
+	f, err := os.Open(tracePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 1<<20), 1<<24)
+	for sc.Scan() {
+		var ev struct {
+			Kind string `json:"kind"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
+			return "", err
+		}
+		if ev.Kind == "plan" && strings.HasPrefix(ev.Text, "scout-intent: class ") {
+			return ev.Text, nil
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("no plan line in %s", tracePath)
+}
+
+// planParts reads the agents, tools and sources a chosen plan runs, as "name+name" lists.
+var planParts = regexp.MustCompile(`agents ([^,]+), tools ([^,]+), sources ([^,]+), doubled`)
+
+// blindParsePlan turns a plan line into the words and the work rank the report shows.
+func blindParsePlan(line string) livePlan {
+	if m := planParts.FindStringSubmatch(line); m != nil {
+		n := 0
+		for _, part := range m[1:4] {
+			if part != "none" {
+				n += len(strings.Split(part, "+"))
+			}
+		}
+		all := len(pipeline.PlanAgents) + len(pipeline.PlanTools) + len(pipeline.PlanSources)
+		rank := 1
+		switch n {
+		case 0:
+			rank = 0
+		case all:
+			rank = 2
+		}
+		i := strings.Index(line, "plan: class ")
+		return livePlan{Text: line[i+len("plan: "):], Rank: rank}
+	}
+	// A full plan says why in the last clause of the line, after the Scout signals.
+	reason := line
+	if j := strings.LastIndex(line, "; "); j >= 0 {
+		reason = line[j+2:]
+	}
+	return livePlan{Text: reason, Rank: 2}
+}
+
+// blindGit runs one git command in dir and fails the test with its output when it fails.
+func blindGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-c", "user.name=blind", "-c", "user.email=blind@example.invalid",
+		"-c", "commit.gpgsign=false", "-c", "core.quotepath=off", "-C", dir}, args...)...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// blindWrite writes one file under root, creating its folders. Content is plain text with no shebang and no
+// executable bit, so the review's prose check judges the file by its name and its real git facts.
+func blindWrite(t *testing.T, root, rel, body string) {
+	t.Helper()
+	p := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// blindBuildChange builds a git repository whose change from base to head has the case's file list: the
+// status letter and path of every line. It returns the root and the two commits. A renamed file keeps its
+// content, so git reports a rename; every other file differs between base and head.
+func blindBuildChange(t *testing.T, prompt string) (root, base, head string) {
+	t.Helper()
+	root = t.TempDir()
+	blindGit(t, root, "init", "-q")
+	// A file the change never touches, so a change made only of additions still has a base commit.
+	blindWrite(t, root, "untouched.txt", "untouched\n")
+	type step struct{ status, path, from string }
+	var steps []step
+	for _, line := range strings.Split(prompt, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		status, rest, _ := strings.Cut(line, " ")
+		if from, to, ok := strings.Cut(rest, " -> "); ok && status == "R" {
+			steps = append(steps, step{status, to, from})
+			continue
+		}
+		steps = append(steps, step{status, rest, ""})
+	}
+	for _, s := range steps {
+		switch s.status {
+		case "M", "D":
+			blindWrite(t, root, s.path, "base "+s.path+"\n")
+		case "R":
+			blindWrite(t, root, s.from, "base "+s.from+"\n")
+		}
+	}
+	blindGit(t, root, "add", "-A")
+	blindGit(t, root, "commit", "-q", "-m", "[blind] fixture: base")
+	base = blindGit(t, root, "rev-parse", "HEAD")
+	for _, s := range steps {
+		switch s.status {
+		case "A":
+			blindWrite(t, root, s.path, "head "+s.path+"\n")
+		case "M":
+			blindWrite(t, root, s.path, "head "+s.path+"\nchanged\n")
+		case "D":
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(s.path))); err != nil {
+				t.Fatal(err)
+			}
+		case "R":
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(s.from))); err != nil {
+				t.Fatal(err)
+			}
+			blindWrite(t, root, s.path, "base "+s.from+"\n")
+		default:
+			t.Fatalf("unknown status %q in %q", s.status, prompt)
+		}
+	}
+	blindGit(t, root, "add", "-A")
+	blindGit(t, root, "commit", "-q", "-m", "[blind] fixture: head")
+	head = blindGit(t, root, "rev-parse", "HEAD")
+	return root, base, head
+}
+
+// blindLivePlan runs the review's exported entry point on a git change with the case's file list and reads
+// back the plan it chose. The only setting changed from the shipped defaults is scout_intent: on, because
+// the shipped default is off and then every review runs the full plan with no plan chosen. No model is called:
+// the plan is chosen before any agent runs, from the real git status and file modes.
+func blindLivePlan(t *testing.T, c blindCase) livePlan {
+	t.Helper()
+	root, base, head := blindBuildChange(t, c.Prompt)
+	work := t.TempDir()
+	cfg := filepath.Join(work, "proven.yaml")
+	if err := os.WriteFile(cfg, []byte("scout_intent: on\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Sample mode reads a fixture.json that an arbitrary git change does not have, so the review opens in live
+	// mode. Its generator is a local stub that refuses every call: the plan is chosen and traced before any
+	// agent runs, so no model answer is needed, and the review ends degraded, which is not read here.
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "blind set: no model is called", http.StatusServiceUnavailable)
+	}))
+	defer stub.Close()
+	env := func(key string) string {
+		switch {
+		case key == "PROVEN_GENERATOR_BASE_URL":
+			return stub.URL
+		case strings.HasSuffix(key, "_TOKEN"):
+			return "placeholder" // the live adapter will not open without a bearer value; the stub ignores it
+		}
+		return ""
+	}
+	r, err := review.Open(review.Options{ConfigPath: cfg, LogDir: filepath.Join(work, "logs"), Env: env})
+	if err != nil {
+		t.Fatalf("%s: open: %v", c.ID, err)
+	}
+	res, err := r.Review(context.Background(), review.Request{Target: root, BaselineCommit: base, HeadCommit: head})
+	if err != nil {
+		t.Fatalf("%s: review: %v", c.ID, err)
+	}
+	line, err := blindPlanLine(res.TracePath)
+	if err != nil {
+		t.Fatalf("%s: %v", c.ID, err)
+	}
+	return blindParsePlan(line)
+}
+
+// blindLoad reads the frozen set.
+func blindLoad(t *testing.T) []blindCase {
+	t.Helper()
 	f, err := os.Open(filepath.Join(blindDir, "cases.jsonl"))
 	if err != nil {
 		t.Fatal(err)
@@ -167,27 +387,40 @@ func TestBlindSet(t *testing.T) {
 	if len(cases) == 0 {
 		t.Fatal("the blind set is empty")
 	}
+	return cases
+}
+
+// TestBlindSet proves one property: every case of the frozen blind set can be run through the review's
+// call path and gets an answer, and every lighter-kind answer gets a live plan read back from a review.
+// It never asserts that a case matches; that is the report's business.
+func TestBlindSet(t *testing.T) {
+	cases := blindLoad(t)
 	answers := make([]blindAnswer, len(cases))
+	plans := make([]*livePlan, len(cases))
 	for i, c := range cases {
 		answers[i] = blindClassify(t, c.Prompt)
 		if !answers[i].Clarification && answers[i].Kind == "" {
 			t.Errorf("%s: no answer", c.ID)
+		}
+		if blindLighterKind(c, answers[i]) {
+			p := blindLivePlan(t, c)
+			plans[i] = &p
 		}
 	}
 	if !*blindReportFlag {
 		return
 	}
 	out := filepath.Join(blindDir, "REPORT.md")
-	if err := os.WriteFile(out, []byte(blindReport(cases, answers)), 0o644); err != nil {
+	if err := os.WriteFile(out, []byte(blindReport(cases, answers, plans)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("wrote %s", out)
 }
 
 // blindReport renders the report. It lists every case and every miss; nothing is dropped.
-func blindReport(cases []blindCase, answers []blindAnswer) string {
+func blindReport(cases []blindCase, answers []blindAnswer, plans []*livePlan) string {
 	var b strings.Builder
-	matched, lighter := 0, 0
+	matched, lighterKind, lighterPlan := 0, 0, 0
 	tagTotal, tagMatch := map[string]int{}, map[string]int{}
 	var misses, lights []int
 	for i, c := range cases {
@@ -197,9 +430,12 @@ func blindReport(cases []blindCase, answers []blindAnswer) string {
 		} else {
 			misses = append(misses, i)
 		}
-		if blindLighter(c, answers[i]) {
-			lighter++
+		if blindLighterKind(c, answers[i]) {
+			lighterKind++
 			lights = append(lights, i)
+			if plans[i].Rank < blindExpectedRank(c) {
+				lighterPlan++
+			}
 		}
 		for _, tg := range c.Tags {
 			tagTotal[tg]++
@@ -211,11 +447,12 @@ func blindReport(cases []blindCase, answers []blindAnswer) string {
 	fmt.Fprintf(&b, "# Scout Intent on the blind set, v1: report\n\n")
 	fmt.Fprintf(&b, "Scout Intent ran once over the frozen set. Nothing was changed to improve a result. Every miss is as it came out.\n\n")
 	fmt.Fprintf(&b, "- Scout Intent code measured: commit `%s`.\n- Set frozen at: commit `%s`.\n", blindRunCommit, blindSetCommit)
-	fmt.Fprintf(&b, "- Call path: `scout.ChangeRegistry(nil)` (the shipped registry, no extra security patterns), `Decide` on the formatted change, then the two kind rules of `choosePlan` in `internal/review/plan.go` (a security candidate wins; an ambiguous or not-high decision is a clarification).\n")
+	fmt.Fprintf(&b, "- Kind measured by: `scout.ChangeRegistry(nil)` (the shipped registry, no extra security patterns), `Decide` on the formatted change, then the two kind rules of `choosePlan` in `internal/review/plan.go` (a security candidate wins; an ambiguous or not-high decision is a clarification). This is the kind Scout Intent chose.\n")
+	fmt.Fprintf(&b, "- Plan measured by: `review.Open` and `Review` (live mode, against a local stub that refuses every model call, so no model runs) on a real git change built from the case's file list, with `scout_intent: on` and every other setting at its shipped default. The plan is read from the plan line the review writes on its trace before any agent runs. It is measured only for the lighter-kind answers below. `scout_intent` is off in the shipped default, and then every review runs the full plan.\n")
 	fmt.Fprintf(&b, "- Regenerate: `go test -count=1 -run TestBlindSet ./internal/scout/ -args -blind-report`.\n")
-	fmt.Fprintf(&b, "- Not run: the prose check of `choosePlan` (a docs answer is also turned into a full plan when a file is not verified prose). The set holds file lists, not files, so a docs answer here is the kind Scout chose, not the plan a review would run.\n\n")
+	fmt.Fprintf(&b, "- Not measured: the plan for any case whose kind is not a lighter-kind answer; the file contents (each file in the built change holds a one-line placeholder, no shebang, not executable, so the prose check judges the name and the git mode only); any model verdict; the doubled review a security plan adds when a special reviewer is configured (none is configured by default), so the plan comparison is on agents, tools and sources only.\n\n")
 	fmt.Fprintf(&b, "## Totals\n\n")
-	fmt.Fprintf(&b, "Overall: %d of %d match; %d miss; %d lighter-review misses.\n\n", matched, len(cases), len(cases)-matched, lighter)
+	fmt.Fprintf(&b, "Overall: %d of %d match; %d miss; %d lighter-kind answers; %d of those still run a lighter plan than the expected answer would.\n\n", matched, len(cases), len(cases)-matched, lighterKind, lighterPlan)
 	fmt.Fprintf(&b, "| tag | cases | match | miss |\n|---|---|---|---|\n")
 	var tags []string
 	for tg := range tagTotal {
@@ -225,14 +462,20 @@ func blindReport(cases []blindCase, answers []blindAnswer) string {
 	for _, tg := range tags {
 		fmt.Fprintf(&b, "| %s | %d | %d | %d |\n", tg, tagTotal[tg], tagMatch[tg], tagTotal[tg]-tagMatch[tg])
 	}
-	fmt.Fprintf(&b, "\n## Lighter-review misses\n\nCases Scout answered as docs or dependency (a lighter plan) where the expected answer is a heavier kind or a clarification: %d.\n\n", lighter)
+	fmt.Fprintf(&b, "\n## Lighter-kind answers\n\nCases Scout answered with a lighter kind (docs or dependency) where the expected answer is a heavier kind or a clarification: %d. This lists the kind Scout chose, then the plan the live path ran for that change. A lighter kind is not a lighter review: the plan column says which it was. %d of the %d ran a plan with less work than the expected answer would.\n\n", lighterKind, lighterPlan, lighterKind)
+	for _, i := range lights {
+		c, a := cases[i], answers[i]
+		verdict := "not lighter than expected"
+		if plans[i].Rank < blindExpectedRank(c) {
+			verdict = "LIGHTER than expected"
+		}
+		fmt.Fprintf(&b, "- `%s` (%s): expected %s, actual kind %s (%s). Files: `%s`. Live plan: %s. This plan is %s. Reviewer's reason: %s\n",
+			c.ID, strings.Join(c.Tags, ", "), blindExpected(c), a, a.Detail, strings.ReplaceAll(c.Prompt, "\n", "; "), plans[i].Text, verdict, c.Expected.Why)
+	}
 	row := func(i int) {
 		c, a := cases[i], answers[i]
 		fmt.Fprintf(&b, "- `%s` (%s): expected %s, actual %s (%s). Files: `%s`. Reviewer's reason: %s\n",
 			c.ID, strings.Join(c.Tags, ", "), blindExpected(c), a, a.Detail, strings.ReplaceAll(c.Prompt, "\n", "; "), c.Expected.Why)
-	}
-	for _, i := range lights {
-		row(i)
 	}
 	fmt.Fprintf(&b, "\n## All misses\n\n%d cases.\n\n", len(misses))
 	for _, i := range misses {
@@ -243,8 +486,8 @@ func blindReport(cases []blindCase, answers []blindAnswer) string {
 		m := "yes"
 		if !blindMatch(c, answers[i]) {
 			m = "MISS"
-			if blindLighter(c, answers[i]) {
-				m = "MISS (lighter review)"
+			if blindLighterKind(c, answers[i]) {
+				m = "MISS (lighter kind)"
 			}
 		}
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", c.ID, strings.Join(c.Tags, ", "), blindExpected(c), answers[i], m)
