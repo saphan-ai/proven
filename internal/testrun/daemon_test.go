@@ -10,7 +10,8 @@ import (
 )
 
 func localEnv(extra map[string]string) func(string) string {
-	m := map[string]string{"PROVEN_NETWORK": "local", "PROVEN_NETWORK_ALLOW": "docker.corp.example"}
+	// HOME is set because local mode refuses a runtime whose home it cannot read. It names no directory.
+	m := map[string]string{"PROVEN_NETWORK": "local", "PROVEN_NETWORK_ALLOW": "docker.corp.example", "HOME": "/nonexistent-proven-home"}
 	for k, v := range extra {
 		m[k] = v
 	}

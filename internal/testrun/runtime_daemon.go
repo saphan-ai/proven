@@ -44,68 +44,157 @@ func checkRuntime(policy *network.Policy, env func(string) string, runtime strin
 		"docker or podman, whose daemon address Proven reads and checks")
 }
 
+// podmanConfNames are the main files podman reads in one configuration
+// directory, and podmanDropInDirs the drop-in directories beside them. Podman
+// reads containers.conf, then the rootless or rootful variant for the user it
+// runs as, then the *.conf files of each drop-in directory in name order;
+// the rootless directory also holds one subdirectory per user id. Proven cannot
+// tell which user or mode the runtime will run in, so it judges the files of
+// both (containers.conf(5), containers/common; the variant names are read from
+// that manual and not verified against a podman on this seat).
+var (
+	podmanConfNames    = []string{"containers.conf", "containers.rootless.conf", "containers.rootful.conf"}
+	podmanDropInDirs   = []string{"containers.conf.d", "containers.rootless.conf.d", "containers.rootful.conf.d"}
+	podmanConnectionsF = "podman-connections.json"
+)
+
 // checkPodman reads every file podman takes a remote service from and checks
 // each destination, not only the active one: an address that is configured
 // is an address a changed active_service or --connection reaches. A file that
-// exists and cannot be read is refused, because its content is not judged.
+// exists and cannot be read, and a directory that exists and cannot be listed,
+// is refused, because its content is not judged. With HOME unset the runtime
+// falls back to the home of the passwd entry, which Proven does not read, so
+// local mode refuses.
 func checkPodman(policy *network.Policy, env func(string) string) error {
-	var files []string
-	files = append(files, podmanSystemConfs...)
-	files = append(files, confDropIns("/etc/containers")...)
-	if home := env("HOME"); home != "" {
-		dir := filepath.Join(home, ".config", "containers")
-		files = append(files, filepath.Join(dir, "containers.conf"))
-		files = append(files, confDropIns(dir)...)
+	home := env("HOME")
+	if home == "" {
+		return refuse(envRuntimeSetting, "HOME", "HOME is not set, so Proven cannot tell which configuration files the runtime reads under the user's home",
+			"HOME set to the home directory of the user that runs Proven")
 	}
-	for _, path := range files {
-		b, err := readSmall(path)
-		if os.IsNotExist(err) {
-			continue
-		}
+	var dirs []string
+	for _, conf := range podmanSystemConfs {
+		dirs = append(dirs, filepath.Dir(conf))
+	}
+	dirs = append(dirs, filepath.Join(home, ".config", "containers"))
+	for _, dir := range dirs {
+		files, err := podmanConfFiles(dir)
 		if err != nil {
-			return refuse(envRuntimeSetting, clip(path), "a podman configuration file cannot be read: "+err.Error(),
-				"a podman configuration that Proven can read, or none")
+			return refuse(envRuntimeSetting, clip(dir), "a podman configuration directory cannot be listed: "+err.Error(),
+				"a podman configuration that Proven can list, or none")
 		}
-		uris, err := serviceDestinations(b)
-		if err != nil {
-			return refuse(envRuntimeSetting, clip(path), "a podman configuration file is not TOML Proven can read: "+err.Error(),
-				"a podman configuration that Proven can read, or none")
-		}
-		for _, uri := range uris {
-			if err := policy.CheckDaemon("podman service destination in "+clip(path), uri); err != nil {
-				return fromNetwork(err)
+		for _, path := range files {
+			if err := checkConfFile(policy, path); err != nil {
+				return err
 			}
 		}
-	}
-	if home := env("HOME"); home != "" {
-		path := filepath.Join(home, ".config", "containers", "podman-connections.json")
-		b, err := readSmall(path)
-		if os.IsNotExist(err) {
-			return nil
-		}
-		if err != nil {
-			return refuse(envRuntimeSetting, clip(path), "podman's connections file cannot be read: "+err.Error(),
-				"a connections file that Proven can read, or none")
-		}
-		uris, err := connectionURIs(b)
-		if err != nil {
-			return refuse(envRuntimeSetting, clip(path), "podman's connections file is not JSON Proven can read: "+err.Error(),
-				"a connections file that Proven can read, or none")
-		}
-		for _, uri := range uris {
-			if err := policy.CheckDaemon("podman connection in "+clip(path), uri); err != nil {
-				return fromNetwork(err)
-			}
+		if err := checkConnections(policy, filepath.Join(dir, podmanConnectionsF)); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-// confDropIns lists the *.conf files of dir/containers.conf.d, in name order.
-func confDropIns(dir string) []string {
-	matches, _ := filepath.Glob(filepath.Join(dir, "containers.conf.d", "*.conf"))
-	sort.Strings(matches)
-	return matches
+// checkConfFile judges the destinations of one containers.conf file. A file
+// that is not there is none.
+func checkConfFile(policy *network.Policy, path string) error {
+	b, err := readSmall(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return refuse(envRuntimeSetting, clip(path), "a podman configuration file cannot be read: "+err.Error(),
+			"a podman configuration that Proven can read, or none")
+	}
+	uris, err := serviceDestinations(b)
+	if err != nil {
+		return refuse(envRuntimeSetting, clip(path), "a podman configuration file is not TOML Proven can read: "+err.Error(),
+			"a podman configuration that Proven can read, or none")
+	}
+	for _, uri := range uris {
+		if err := policy.CheckDaemon("podman service destination in "+clip(path), uri); err != nil {
+			return fromNetwork(err)
+		}
+	}
+	return nil
+}
+
+// checkConnections judges every URI of one podman-connections.json. A file
+// that is not there is none.
+func checkConnections(policy *network.Policy, path string) error {
+	b, err := readSmall(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return refuse(envRuntimeSetting, clip(path), "podman's connections file cannot be read: "+err.Error(),
+			"a connections file that Proven can read, or none")
+	}
+	uris, err := connectionURIs(b)
+	if err != nil {
+		return refuse(envRuntimeSetting, clip(path), "podman's connections file is not JSON Proven can read: "+err.Error(),
+			"a connections file that Proven can read, or none")
+	}
+	for _, uri := range uris {
+		if err := policy.CheckDaemon("podman connection in "+clip(path), uri); err != nil {
+			return fromNetwork(err)
+		}
+	}
+	return nil
+}
+
+// podmanConfFiles lists, in the order podman reads them, the main files and
+// the drop-ins of one configuration directory. A path that is not there is
+// not listed. A drop-in directory that exists and cannot be listed is an
+// error: an unlisted directory is not an empty one.
+func podmanConfFiles(dir string) ([]string, error) {
+	var files []string
+	for _, name := range podmanConfNames {
+		files = append(files, filepath.Join(dir, name))
+	}
+	for _, name := range podmanDropInDirs {
+		found, err := dropIns(filepath.Join(dir, name), true)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, found...)
+	}
+	return files, nil
+}
+
+// dropIns lists the *.conf files of a drop-in directory in name order, and,
+// when descend is set, those of each directory inside it (podman's per-user-id
+// directories). A directory that is not there is empty; any other failure to
+// list one is returned.
+func dropIns(dir string, descend bool) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, e := range entries {
+		path := filepath.Join(dir, e.Name())
+		info, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			continue // a dangling link: nothing to read
+		}
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case info.IsDir() && descend:
+			sub, err := dropIns(path, false)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, sub...)
+		case !info.IsDir() && strings.HasSuffix(e.Name(), ".conf"):
+			files = append(files, path)
+		}
+	}
+	return files, nil
 }
 
 // serviceDestinations parses a containers.conf as TOML and returns the uri of

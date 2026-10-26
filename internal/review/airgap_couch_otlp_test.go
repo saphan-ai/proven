@@ -40,6 +40,7 @@ func TestLocalRefusesAPublicTelemetryEndpoint(t *testing.T) {
 			t.Setenv("PATH", t.TempDir())
 			env := map[string]string{
 				"PROVEN_NETWORK": "local",
+				"HOME":           t.TempDir(),
 				field:            "https://otel.example.com",
 			}
 			_, err := Open(Options{LogDir: t.TempDir(), Env: func(k string) string { return env[k] }})
@@ -71,6 +72,7 @@ func TestLocalAcceptsPrivateCouchDBAndTelemetry(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	env := map[string]string{
 		"PROVEN_NETWORK":              "local",
+		"HOME":                        t.TempDir(),
 		"PROVEN_EVIDENCE_STORE":       "couchdb",
 		"PROVEN_COUCHDB_URL":          "http://10.0.0.5:5984",
 		"PROVEN_COUCHDB_USER":         "reviewer",

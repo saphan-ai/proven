@@ -19,6 +19,9 @@ func TestLocalNetworkNeverPullsTheImage(t *testing.T) {
 			if k == "PROVEN_NETWORK" {
 				return mode
 			}
+			if k == "HOME" {
+				return "/nonexistent-proven-home"
+			}
 			return ""
 		})
 		if err != nil {
@@ -44,6 +47,9 @@ func TestLocalMissingImageIsTheProverDownByName(t *testing.T) {
 		cfg, err := Load(func(k string) string {
 			if k == "PROVEN_NETWORK" {
 				return mode
+			}
+			if k == "HOME" {
+				return "/nonexistent-proven-home"
 			}
 			return ""
 		})

@@ -100,6 +100,7 @@ func TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts(t *testing
 	rec := &dialRecord{allowed: map[string]bool{"127.0.0.1": true, "nightshift.corp.example": true}}
 	env := map[string]string{
 		"PROVEN_NETWORK":            "local",
+		"HOME":                      t.TempDir(),
 		"PROVEN_NETWORK_ALLOW":      "nightshift.corp.example",
 		"METERLESS_RUNTIME_TOKEN":   "test-token",
 		"PROVEN_GENERATOR_BASE_URL": "http://nightshift.corp.example:8088",
