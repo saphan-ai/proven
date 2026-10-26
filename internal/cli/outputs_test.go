@@ -22,6 +22,7 @@ var outputFlags = []outputFlag{
 	{"--text-output", "--text-output="},
 	{"--json-output", "--json-output="},
 	{"--sarif-output", "--sarif-output="},
+	{"--md-output", "--md-output="},
 }
 
 // TestCollidingOutputPathsAreRefused proves that two outputs naming one file

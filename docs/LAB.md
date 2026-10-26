@@ -153,10 +153,21 @@ under `second-reviewer` in the review's failed services, and the findings show t
 Proven's Action is not on main yet, so the workflow does not use it. It runs:
 
 ```text
-proven scan --sample /opt/proven/fixture/discount
+proven scan --sample --md /opt/proven/fixture/discount
 ```
 
-That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
+That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the Markdown of that review ([Markdown](OUTPUT_FORMATS.md#markdown)): a verdict line, a findings table and each finding's evidence in a collapsible block. The lab, like the Action, posts that one comment and no line comments (ADR-0020 §7).
+
+### One comment per pull request
+
+The workflow posts ONE comment on a pull request and edits it in place on every new run, so `run=1`, `run=2` and so on no longer pile up. The comment's first line is still `<!-- proven-review run=N sha=<head commit> -->`, now with the latest run and head: `make e2e` reads that line and passes only when a comment by `proven-bot` starts with it for the current run and head.
+
+How the step finds its comment: it asks the server which account the token is (`GET /user`), lists the pull request's comments page by page (`GET /repos/{repo}/issues/{pr}/comments`), takes the first comment written by that account whose body starts with `<!-- proven-review`, and edits it (`PATCH /repos/{repo}/issues/comments/{id}`). It creates a comment (`POST` on the pull request's comments) only when it finds none. A comment with the marker by another account is never edited. The step carries a copy of `action/post-comment.sh` because a workflow in a user's repository cannot read files of this repository; `lab/scripts/post-comment-check.sh` fails when the two copies differ, and it checks the choices above offline (run by `make check-e2e-parse`).
+
+Two things this asks of the environment, measured as far as this repository can measure them:
+
+- The token needs `read:user` to answer `GET /user`. The seed now mints `lab-workflow` with `write:issue`, `write:repository` and `read:user`. A lab seeded before this change keeps the old token: run `make up` again (the seed mints a fresh token on every run), or the step stops and says to set `PROVEN_COMMENT_ACCOUNT` to the account's name. On GitHub, where `GITHUB_TOKEN` may not read `/user`, the account is `github-actions[bot]`.
+- Editing needs an HTTP client that can send `PATCH`. BusyBox `wget` (the `docker:cli` job image) cannot. The step uses `curl` or GNU `wget` when the image has one, and otherwise installs `curl` with `apk add` inside the job's own container. Not measured: this step on the `docker:cli` image (no Docker on the machine that wrote it); the routes are the ones Gitea's and GitHub's API documents serve, and the offline check uses their JSON shapes.
 
 The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that, and only after Docker Scout has passed on the image. This repository does not push it for you.
 
