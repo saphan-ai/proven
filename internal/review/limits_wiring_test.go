@@ -85,34 +85,47 @@ func TestAuthorRecordIsBoundedAsASum(t *testing.T) {
 	}
 }
 
-// TestOpenAppliesTheSizeSettings proves Open reads the size bounds from its environment, refuses a
-// wrong value without replacing it by the default, and that a sample-mode Open leaves the defaults in
-// force instead of a previous review's bounds (ADR-0013).
+// TestOpenAppliesTheSizeSettings proves Open reads the size bounds from its environment into the review's
+// own policy, refuses a wrong value without replacing it by the default, and that a sample-mode review
+// reads under the defaults. The bounds belong to the review: a review opened later, with other settings,
+// does not change them (ADR-0013).
 func TestOpenAppliesTheSizeSettings(t *testing.T) {
-	defer change.UseLimits(change.UseLimits(change.DefaultLimits()))
 	env := func(m map[string]string) func(string) string {
 		return func(k string) string { return m[k] }
 	}
+	boundsOf := func(r Reviewer) change.Limits { return r.(*runner).ReadPolicy().Bounds() }
 
-	if _, err := Open(Options{LogDir: t.TempDir(), Env: env(map[string]string{change.EnvMaxFileBytes: "1234"})}); err != nil {
+	first, err := Open(Options{LogDir: t.TempDir(), Env: env(map[string]string{change.EnvMaxFileBytes: "1234"})})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if got := change.Bounds().File; got != 1234 {
+	if got := boundsOf(first).File; got != 1234 {
 		t.Fatalf("Open did not apply %s: file bound %d", change.EnvMaxFileBytes, got)
 	}
 
-	// A wrong value is refused, and the bound in force stays the last good one.
-	_, err := Open(Options{LogDir: t.TempDir(), Env: env(map[string]string{change.EnvMaxFileBytes: "lots"})})
+	// A wrong value is refused, and the review opened before it keeps its bound.
+	_, err = Open(Options{LogDir: t.TempDir(), Env: env(map[string]string{change.EnvMaxFileBytes: "lots"})})
 	var cfg *ConfigError
 	if !errors.As(err, &cfg) || !strings.Contains(cfg.Field, change.EnvMaxFileBytes) {
 		t.Fatalf("a wrong size setting was not refused by name: %v", err)
 	}
 
-	if _, err := Open(Options{Sample: true, LogDir: t.TempDir()}); err != nil {
+	sample, err := Open(Options{Sample: true, LogDir: t.TempDir()})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if got := change.Bounds(); got != change.DefaultLimits() {
-		t.Fatalf("a sample-mode Open kept the bounds of an earlier review: %+v", got)
+	if got := boundsOf(sample); got != change.DefaultLimits() {
+		t.Fatalf("a sample-mode review reads under bounds that are not the defaults: %+v", got)
+	}
+	other, err := Open(Options{LogDir: t.TempDir(), Env: env(map[string]string{change.EnvMaxFileBytes: "99"})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := boundsOf(first).File; got != 1234 {
+		t.Fatalf("a review opened later changed the bound of an earlier one: file bound %d", got)
+	}
+	if got := boundsOf(other).File; got != 99 {
+		t.Fatalf("the later review lost its own bound: file bound %d", got)
 	}
 }
 
