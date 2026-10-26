@@ -40,6 +40,9 @@ type stub struct {
 	reqs      []logged
 	fail      map[string]int // "METHOD /path-suffix" -> Cloudflare error code to answer
 	delay     time.Duration
+	// dnsFirst, when set, is listed first on every DNS listing, whatever its name: the API is not bound to list the
+	// asked-for record first, and the scripts must read the record they selected, never the first one.
+	dnsFirst obj
 	connected map[string]bool // tunnel id -> has live connections
 
 	Zones     []obj
@@ -185,7 +188,11 @@ func toMap(zs []obj) map[string]obj {
 func (s *stub) dnsCollection(w http.ResponseWriter, r *http.Request, in obj, name string) {
 	switch r.Method {
 	case "GET":
-		reply(w, 200, list(s.DNS, func(d obj) bool { return name == "" || d["name"] == name }))
+		found := list(s.DNS, func(d obj) bool { return name == "" || d["name"] == name })
+		if s.dnsFirst != nil {
+			found = append([]obj{s.dnsFirst}, found...)
+		}
+		reply(w, 200, found)
 	case "POST":
 		for _, d := range s.DNS {
 			if d["name"] == in["name"] {

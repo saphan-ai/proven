@@ -151,10 +151,10 @@ WANT_TARGET=$T_ID.cfargotunnel.com
 cfd GET "/zones/$ZONE_ID/dns_records?name=$(uri "$S_hostname")&per_page=100"
 DNS_ID=$(jq -r --arg n "$S_hostname" '[.result[]? | select(.name == $n) | .id][0] // empty' "$RESP")
 if [ -n "$DNS_ID" ]; then
-	DNS_TYPE=$(jq -r '.result[0].type' "$RESP")
-	DNS_COMMENT=$(jq -r '.result[0].comment // ""' "$RESP")
-	DNS_CONTENT=$(jq -r '.result[0].content' "$RESP")
-	DNS_PROXIED=$(jq -r '.result[0].proxied' "$RESP")
+	DNS_TYPE=$(jq -r --arg id "$DNS_ID" '.result[] | select(.id == $id) | .type' "$RESP")
+	DNS_COMMENT=$(jq -r --arg id "$DNS_ID" '.result[] | select(.id == $id) | .comment // ""' "$RESP")
+	DNS_CONTENT=$(jq -r --arg id "$DNS_ID" '.result[] | select(.id == $id) | .content' "$RESP")
+	DNS_PROXIED=$(jq -r --arg id "$DNS_ID" '.result[] | select(.id == $id) | .proxied' "$RESP")
 	[ "$DNS_TYPE" = CNAME ] || die "$S_hostname already has a $DNS_TYPE record that this script did not make; remove it or choose another hostname"
 	[ "$DNS_COMMENT" = "$TAG" ] || die "$S_hostname already has a CNAME that this script did not make (its comment is not $TAG); remove it or choose another hostname"
 	if [ "$DNS_CONTENT" = "$WANT_TARGET" ] && [ "$DNS_PROXIED" = true ]; then

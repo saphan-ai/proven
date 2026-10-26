@@ -121,7 +121,7 @@ ZONE_ID=$(jq -r --arg n "$S_zone" '[.result[]? | select(.name == $n) | .id][0] /
 if [ -n "$ZONE_ID" ]; then
 	cfd GET "/zones/$ZONE_ID/dns_records?name=$(uri "$S_hostname")&per_page=100"
 	DNS_ID=$(jq -r --arg n "$S_hostname" '[.result[]? | select(.name == $n) | .id][0] // empty' "$RESP")
-	DNS_COMMENT=$(jq -r '.result[0].comment // ""' "$RESP")
+	DNS_COMMENT=$(jq -r --arg id "$DNS_ID" '.result[]? | select(.id == $id) | .comment // ""' "$RESP")
 	if [ -z "$DNS_ID" ]; then
 		say "ok:   no DNS record $S_hostname"
 	elif [ "$DNS_COMMENT" = "$TAG" ] && mine dns "$DNS_ID"; then

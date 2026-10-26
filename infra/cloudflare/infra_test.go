@@ -676,3 +676,25 @@ func TestUpAddsTheGatewayIdentityRowsOnce(t *testing.T) {
 		t.Errorf("the second run changed the gateway's rows:\n%s", y.out)
 	}
 }
+
+// Each script reads the DNS record it selected by name, never the first record the API lists: an untagged record listed
+// first neither stops up.sh nor lends its tag to another record in down.sh.
+func TestTheScriptsReadTheRecordTheySelected(t *testing.T) {
+	r := newRig(t)
+	s := r.stub
+	mustOK(t, r.up("apply"), "first up")
+	s.dnsFirst = obj{"id": "dns-other", "type": "A", "name": "other.example.org", "content": "192.0.2.1", "comment": ""}
+	mustOK(t, r.up("apply"), "up with another record listed first")
+
+	r2 := newRig(t)
+	s2 := r2.stub
+	s2.DNS["dns-hand"] = obj{"id": "dns-hand", "type": "CNAME", "name": "gw.example.org", "content": "x.example.net", "comment": "mine"}
+	s2.dnsFirst = obj{"id": "dns-tagged", "type": "TXT", "name": "elsewhere.example.org", "content": "x", "comment": "managed-by:proven-judges-gateway"}
+	if err := os.MkdirAll(r2.state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	d := r2.down("apply", "--by-name")
+	if s2.DNS["dns-hand"] == nil {
+		t.Errorf("down deleted an untagged record on the tag of another record:\n%s%s", d.out, d.err)
+	}
+}
