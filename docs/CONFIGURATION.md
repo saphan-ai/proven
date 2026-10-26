@@ -310,7 +310,10 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LGTM_GRAFANA_CONTAINER_PORT` | `3000` | Port Grafana listens on inside the lab network |
 | `LGTM_OTLP_PORT` | `4318` | Host port for the collector's OTLP/HTTP endpoint, so a review run on the host can be exported to the lab too: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` |
 | `LGTM_OTLP_CONTAINER_PORT` | `4318` | Port the collector listens on inside the lab network |
-| `LGTM_DASHBOARD_UID` | `proven-review` | The dashboard's uid, from `lab/grafana/dashboards/proven-review.json`. `make up` prints the address built from it |
+| `LGTM_DASHBOARD_UID` | `proven-overview` | The uid of the dashboard the banner and the start page link to: the Overview, `lab/grafana/dashboards/proven-overview.json`. The other five dashboards are in the same directory. `make up` prints the address built from it |
+| `LGTM_LOKI_CONTAINER_PORT` | `3100` | The port Loki serves on inside the `lgtm` container, where the Nightshift receipts are loaded. Not published |
+| `DEMO_WAIT_SECONDS` | `1200` | The longest `make up` and `make demo-check` wait, in all, for Proven to review every demo pull request. `PROVEN_LAB_WAIT=no` skips the wait in `make up` |
+| `LAB_HELP_URL` | `https://github.com/saphan-ai/proven/blob/main/docs/WALKTHROUGH.md` | The help line of the ready block and the start page |
 | `LAB_OTEL_SERVICE_NAME` | `proven` | `OTEL_SERVICE_NAME` the lab's pull-request review is given |
 | `LAB_OTEL_METRIC_EXPORT_INTERVAL` | `1000` | `OTEL_METRIC_EXPORT_INTERVAL` it is given, in milliseconds. Short, so the dashboard moves while the review runs |
 | `LAB_SPECIAL_REVIEWER` | `qwen` | `special_reviewer` in the `proven.yaml` the lab's review runs with, so the dashboard has two reviewer models to show side by side (ADR-0009). Empty: one reviewer. The sample generator answers for both, so the findings do not change |

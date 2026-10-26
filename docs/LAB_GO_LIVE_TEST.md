@@ -39,7 +39,6 @@ make clean && PROVEN_LAB_MODE=sample make up
 You should see, as the **last 12 lines** and nothing after them (on a terminal the password line carries the password):
 
 ```
-Start here: http://127.0.0.1:3302/lab
 ########################################
 ####    Your proven lab is ready    ####
 ########################################
@@ -50,8 +49,16 @@ Gitea: http://127.0.0.1:3300/user/login
 Username: proven
 Password: <the password>
 
-Grafana dashboard: http://127.0.0.1:3301/d/proven-review
+Grafana dashboard: http://127.0.0.1:3301/d/proven-overview
+Wait for every review: make demo-check
+Help: https://github.com/saphan-ai/proven/blob/main/docs/WALKTHROUGH.md
+
+>>>>>>>>  START HERE:  http://127.0.0.1:3302/lab  <<<<<<<<
+
 ```
+
+Before the first Docker call it prints `What will happen next:` and five steps; after each step, one status line
+`==> [n/5] ... (NN s)`; and it waits for every demo review before it prints this block (`make demo-check` waits again).
 
 Earlier in the output, exactly one line `seed: no key is set; the lab reviews in sample mode`.
 

@@ -9,10 +9,25 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 ## Start
 
 1. From a checkout of this repository, run `make up`. On a terminal it asks how you want to see Proven ([The start-up flow](#the-start-up-flow)); with no terminal and no setting it starts the sample lab and asks nothing.
-2. Every run of `make up`, the first and each one after it, ends with the same block, and prints nothing after it:
+2. Before the first Docker call, `make up` says what it is about to do, with a rough time for each step, and after each step it prints one status line with the time the step took. A status line has an empty line before and after it, so it does not drown in Docker's output. Green on success; on a failure the same line in red, naming the step that failed and the log to read. Colour is for a terminal only: nothing is coloured when the output is piped or in CI, and `NO_COLOR` is respected.
 
    ```text
-   Start here: http://127.0.0.1:3302/lab
+   What will happen next:
+     1. Build Proven's image (about 1 min; the first run downloads more)
+     2. Start Gitea, Grafana and the lab's Docker for the CI runner
+     3. Create the demo repository and 7 pull requests, and start the CI runner
+     4. Proven reviews each pull request (a few minutes)
+     5. Show you where to start
+
+   ==> [1/5] Proven's image is built (58 s)
+
+   ==> [2/5] Gitea, Grafana and the lab's Docker are up (32 s)
+   ```
+
+   Step 4 waits for Proven to review every demo pull request, with a line for each one, for at most `DEMO_WAIT_SECONDS` (20 minutes) in all, so the block below appears when the dashboards already have data. A review that has not arrived by then is named in red, with the log to read, and the lab is shown anyway: it is up, and `make demo-check` waits again. `PROVEN_LAB_WAIT=no` skips the wait. `make up` exits with the status of that wait.
+3. Every run of `make up`, the first and each one after it, ends with the same block, and prints nothing after its last empty line:
+
+   ```text
    ########################################
    ####    Your proven lab is ready    ####
    ########################################
@@ -23,22 +38,27 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
    Username: proven
    Password: <password>
 
-   Grafana dashboard: http://127.0.0.1:3301/d/proven-review
+   Grafana dashboard: http://127.0.0.1:3301/d/proven-overview
+   Wait for every review: make demo-check
+   Help: https://github.com/saphan-ai/proven/blob/main/docs/WALKTHROUGH.md
+
+   >>>>>>>>  START HERE:  http://127.0.0.1:3302/lab  <<<<<<<<
+
    ```
 
-   On a terminal the Password line carries the password, read from the lab's state file. When the output is not a terminal (CI, a redirect, a pipe) the line names the file in the lab's volume that holds it instead, and the password is printed nowhere. On that first start it is also written to `lab/.state/admin-password`, readable only by you (mode 0600), and `make up` prints that path; `make clean` removes that file. The password is generated at the first start and kept in the lab's volume until `make clean`. To choose the password yourself, set `LAB_ADMIN_PASSWORD` (8 characters or more) in the environment of the first `make up`: it is used, `make up` does not print it (the Password line names the setting) and writes it to no file on the host, and it never appears in the Compose environment or in `docker compose config`; `make up` writes it into the lab's volume, and the seed reads it from there. `make password` prints the same block again, and so does `make status`. A later `make up` writes no file on the host. It does not stop because the volume is already there: it creates the admin user, the runner registration and the pull requests when any of those is missing.
-3. Open the start page, `http://127.0.0.1:3302/lab`. It holds the login with copy buttons, and links to Gitea, the dashboard and the documentation. Or open Gitea's address and sign in with that user and password.
-4. Open the `discount` repository. It has the demo pull requests, listed under [The demo pull requests](#the-demo-pull-requests).
-5. Each pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review of that pull request, and the marker names the run that posted it. Reviews take a few minutes each, and the runner works on up to three at a time, so a pull request without a comment is still waiting.
-6. The dashboard is at `http://127.0.0.1:3301/d/proven-review` by default. See [The dashboard](#the-dashboard).
+   The START HERE line is bold and green on a terminal and plain anywhere else. On a terminal the Password line carries the password, read from the lab's state file. When the output is not a terminal (CI, a redirect, a pipe) the line names the file in the lab's volume that holds it instead, and the password is printed nowhere. The step-by-step walkthrough is `docs/WALKTHROUGH.md`; this page is for troubleshooting. Outside the repository's folder, run `make -C <path to the repository> demo-check`.
+4. Open the start page, `http://127.0.0.1:3302/lab`. It holds the login with copy buttons, and links to Gitea, the dashboard and the documentation. Or open Gitea's address and sign in with that user and password.
+5. Open the `discount` repository. It has the demo pull requests, listed under [The demo pull requests](#the-demo-pull-requests).
+6. Each pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review of that pull request, and the marker names the run that posted it. Reviews take a few minutes each, and the runner works on up to three at a time, so a pull request without a comment is still waiting.
+7. The dashboards are at `http://127.0.0.1:3301`, the Overview first (`/d/proven-overview`). See [The dashboards](#the-dashboards).
 
 `make status` prints the containers, Gitea's health, whether the runner is registered, which pull requests have their review comment, and the login block.
 
-`make demo-check` is the check that the demo is whole. It needs the running lab. It requires every pull request of the list to have Proven's comment, a clean one to say clean and a defective one to carry a finding, and the trace store to hold at least one review trace per pull request.
+`make demo-check` is the check that the demo is whole, and the wait that `make up` runs itself. It needs the running lab. It prints one line per pull request, `[3/7] #3 demo-discount: defect, as the manifest says`, and then how many review traces reached the dashboards. It requires every pull request of the list to have Proven's comment, a clean one to say clean and a defective one to carry a finding, and the trace store to hold at least one review trace per pull request.
 
 ### The start page and the documentation
 
-The start page is one static page. A small web server (`LAB_PAGE_IMAGE`, a build of nginx that runs as a user that is not root, with a read-only filesystem) serves it at `LAB_PAGE_PATH` on `LAB_PAGE_PORT`, published on `127.0.0.1` only (see above). The seed renders it from `lab/page/lab.html.tmpl` into the lab's page volume each time `make up` runs. The login is filled in there and nowhere else: the template holds a placeholder, the password is not in any file of this repository, and it is not in an image. The page is also staged only inside that volume: the renderer writes one file there with mode 0600 and moves it into place, and removes it if it stops, so no copy of the page with the password in it exists outside the volume. The page also carries the three ways to [go live](#go-live). The table of pull requests is written from the pull requests the seed really made. Every link on the page opens in a new tab. The page needs no network: it has no web font and no outside script.
+The start page is one static page. A small web server (`LAB_PAGE_IMAGE`, a build of nginx that runs as a user that is not root, with a read-only filesystem) serves it at `LAB_PAGE_PATH` on `LAB_PAGE_PORT`, published on `127.0.0.1` only (see above). The seed renders it from `lab/page/lab.html.tmpl` into the lab's page volume each time `make up` runs. The login is filled in there and nowhere else: the template holds a placeholder, the password is not in any file of this repository, and it is not in an image. The page is also staged only inside that volume: the renderer writes one file there with mode 0600 and moves it into place, and removes it if it stops, so no copy of the page with the password in it exists outside the volume. The page also carries the three ways to [go live](#go-live). The table of pull requests is written from the pull requests the seed really made. Every link on the page opens in a new tab. The page needs no network: it has no web font and no outside script. Each pull request in its table has a **Report** link: [the report pages](#the-report-pages).
 
 The documentation site, the same `docs-site/Dockerfile` that builds Proven's documentation, is a lab service on `LAB_DOCS_PORT` (3303 by default), also published on `127.0.0.1` only. `make up` builds it. A build that fails is named and the lab goes on without it; the page's documentation link then does not open.
 
@@ -66,38 +86,53 @@ The seed always runs as a user that is not root, and that user owns the state vo
 
 `make down` stops the lab and removes its containers. The volume, the admin user and the password remain. `make clean` removes the volumes, the local images, `./bin` and `./dist`.
 
-## The dashboard
+## The dashboards
 
-A review is observable while it runs ([ADR-0045](adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)). Proven sends an OpenTelemetry trace and metrics. The lab runs `grafana/otel-lgtm` as one more container, `lgtm`: an OpenTelemetry collector, Prometheus, Tempo, Loki and Grafana in one image, pinned by `LGTM_VERSION`. It is not part of Proven's code or image. `make up` starts it, waits for Grafana, and prints the dashboard's address. `make down` removes the container with the others, and `make clean` removes it with the lab's volumes.
+A review is observable while it runs ([ADR-0045](adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)). Proven sends an OpenTelemetry trace and metrics. The lab runs `grafana/otel-lgtm` as one more container, `lgtm`: an OpenTelemetry collector, Prometheus, Tempo, Loki and Grafana in one image, pinned by `LGTM_VERSION`. It is not part of Proven's code or image. `make up` starts it and waits for it. `make down` removes the container with the others, and the dashboards with it.
 
-The lab's pull-request review is told where to send its data, with the standard variables and nothing of Proven's own: the seeded workflow starts Proven on the lab network with `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` and `OTEL_METRIC_EXPORT_INTERVAL` set from `lab/versions.env`. It also runs the review with a second reviewer model (`LAB_SPECIAL_REVIEWER`), so there are two reviewers to show. The sample generator answers for both; the findings are the same as with one. The same `proven.yaml` turns on `autofix`, the one automated fix attempt of ADR-0050, which is on in the lab and off everywhere else until it is measured; the lab's sample change records no answer for it, so the sample review prints what it printed before.
+The lab's pull-request review is told where to send its data, with the standard variables and nothing of Proven's own: the seeded workflow starts Proven on the lab network with `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` and `OTEL_METRIC_EXPORT_INTERVAL` set from `lab/versions.env`, and `OTEL_RESOURCE_ATTRIBUTES` naming the review: its instance id is `<unix time>-pr<number>-<fixture>`, so a dashboard knows a review by its pull request and change, and a clean change from a defect. The review runs with a second reviewer model (`LAB_SPECIAL_REVIEWER`), so there are two reviewers to show.
+
+Six dashboards, one style: dark, a title that says what you see, at most eight panels, a word beside every colour (green is good, red is bad, and the number always says what it counts), a sentence in each panel that can be empty, and a short description in each panel (the small `i` in its corner). The default time range is the last hour; the Nightshift dashboard shows six. Each has a row of links to the others at the top. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`.
+
+| Dashboard | Address | What you see |
+|---|---|---|
+| Every review at a glance | `/d/proven-overview` | Reviews finished, how many of the broken changes Proven flagged, false alarms on the clean ones, failed agents; a table with one row per review; findings by level of proof; reviews over time; reviews that had a failed service |
+| One review, step by step | `/d/proven-review` | Pick a review at the top (it is named `<time>-pr<number>-<change>`, newest first). Findings kept, claims dropped, failed model calls; each agent in order with how long it took; both reviewers' Skeptic verdicts side by side; where they disagree |
+| The evidence behind each finding | `/d/proven-evidence` | Findings by level of proof, claims dropped for no evidence, how long the Investigator and the Prover ran. Zetaris queries and Prover runs are **not measured yet**: two text panels name what is missing |
+| Which models answered, and what the guardrail checked | `/d/proven-models` | Model calls, calls with an error, unsafe guardrail checks; calls by agent and by the model asked and the model that answered; guardrail checks; what Proven refused to keep; model latency |
+| The four Meterless engines | `/d/proven-engines` | H-MEM's suppressed claims; what each review ran as (class, two reviewers, cut short). Scout Intent, Markovian and the World Model are **not measured yet**: text panels name what is missing |
+| The model gateway, from Nightshift's receipts | `/d/proven-nightshift` | Receipts loaded, calls that answered and failed, receipts that verified; calls over time by model and app; why calls failed; median latency; tokens ([the receipts](#the-nightshift-receipts)) |
+
+Three things on them that a reader should know:
+
+- **Model latency in sample mode is not latency.** The answers are recorded, so the panel's title says so. A live lab shows the real time of each call.
+- **"Model calls that returned an error"** counts a model call that returned an error. In sample mode that includes a call for which the recorded answers hold no answer (`generator: no recorded response`): the review goes on without it, so the count is not a defect of the review. In a live lab it is a failed call to the model.
+- **What is missing is named, not drawn.** The metrics Proven does not emit yet are listed in the text panels of the Evidence and Engines dashboards: Zetaris queries per table, rows, duration and refusals; the Prover's runs on the base and on the change, with the duration and whether the network was off; Scout's plans (light or full) and guard overrides; Markovian's steps; the World Model's claims and evidence. When Proven emits one, the panel that names it becomes a query.
+
+The dashboards are JSON files in `lab/grafana/dashboards`, written by `python3 lab/grafana/build_dashboards.py` and provisioned on start. Nothing in them is drawn by hand, and Grafana does not let the page change them. To change one, change the generator, run it, and commit both; a test regenerates the files and fails when they differ. Another test holds every query to what Proven emits (`internal/telemetry`) and to what the Nightshift importer writes, so a renamed metric or a misspelt one turns it red. How a panel looks needs Grafana: it is checked by the screenshots of a live `make up`, not by a test.
+
+`make trace` asks the trace store for the latest review's trace and prints its span names and the reviewers they name. It exits 1 when the trace is missing a span or a reviewer.
 
 ### Watch a review
 
-1. Run `make up`. Open the dashboard address it printed. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`. The lab publishes nothing beyond loopback, so only this machine reaches Grafana.
-2. Leave the dashboard open. It refreshes every 5 seconds and shows the last 24 hours, so the reviews `make up` started are still there when you come back to it.
-3. Start a review again: close and reopen a pull request in Gitea. The workflow runs on the runner (`make logs SERVICE=runner`).
-4. Watch the first panel. Each agent is a row, and the planner and the skeptic have one row per reviewer model. A row is grey while it waits, blue while it works, green when done, red when it failed. A review is short in sample mode: a live review, with a model behind each call, is the one where a reviewer finishes while the other still works.
-5. When the review is done, the other panels hold its numbers. The **Review** menu at the top picks one review; the default is all of them in the time range.
-6. `make trace` asks the trace store for the latest review's trace, the same query the last panel runs, and prints its span names and the reviewers they name. It exits 1 when the trace is missing a span or a reviewer.
+1. Run `make up`. It ends when every review is in, and prints the Overview's address.
+2. Open the Overview. It refreshes every 10 seconds. The table has one row per review, `clean` in green or the number of findings in red.
+3. Open **One review** and pick a review. The agent table lists each agent in the order it ran, with a bar for how long it took.
+4. Start a review again: close and reopen a pull request in Gitea. The workflow runs on the runner (`make logs SERVICE=runner`). The new review appears in the Overview's table as it finishes.
 
-### What each panel shows
+### The report pages
 
-| Panel | What it shows | Where it comes from |
-|---|---|---|
-| The agents and the two reviewers | A state timeline: every agent, and each reviewer model's planner and skeptic, waiting, working, done or failed | the `proven.agent.state` gauge, one value per agent and reviewer |
-| Verdicts, side by side | What each reviewer's skeptic said of each finding (refuted, upheld, not attempted), one column per reviewer | the `proven.reviewer.verdicts` counter |
-| Where the reviewers disagree | Findings on which they differ: `verdict` (both ran it and judged it differently) or `one_reviewer` (only one named it). `none` with a zero when they never differed, which is every sample review | the `proven.reviewer.disagreements` counter |
-| Claims dropped | What the Judge did not keep, by reason: `no_evidence`, `refuted`, `suppressed`. `none` with a zero when nothing was dropped | the `proven.review.claims.dropped` counter |
-| Findings by level of proof | What the review kept: proved by test, by tool, by data, or agreed by two models and not proven (ADR-0044) | the `proven.review.findings` counter |
-| Model latency | The mean time of a call to a model, by agent and reviewer | the `gen_ai.client.operation.duration` histogram |
-| Model calls | Calls made, by reviewer and outcome | the `proven.model.calls` counter |
-| Guardrail checks | Every prompt and answer that was checked, by side and verdict; red for `unsafe` and `refused` | the `proven.guardrail.checks` counter |
-| Unsafe verdicts | How many checks said unsafe | the `proven.guardrail.unsafe` counter |
-| Reviews seen | How many reviews reported in the time range | the `proven.agent.state` gauge |
-| The spans | The trace of each review from Tempo: one trace, one span per agent, one per model call under it, with its reviewer and model. A trace ID opens the waterfall, where the two reviewers sit side by side | the trace; TraceQL `{ span.proven.agent != "" }` |
+Each demo pull request has a **Report** page: the review Proven writes with `proven scan --md`, set in the way GitHub shows a Markdown comment. A verdict badge on top (blocked, clean), the findings table, and each finding folded under its table row with its evidence, in light or dark to match the reader's system. The page has no script and no remote address, and carries no password, no token and no name of anything private (a test holds that). It is served by the start page's nginx at `/lab/report/<pull request number>.html`.
 
-The dashboard is the JSON file `lab/grafana/dashboards/proven-review.json`, provisioned on start. Nothing in it is drawn by hand, and Grafana does not let the page change it. To change it, edit the file; Grafana reads it again within 10 seconds.
+`make up` builds the pages after the seed (`lab/scripts/reports.sh`; `make reports` builds them again): for each pull request it runs Proven's image with no network and no key, on that change's sample set, and the seed image turns the Markdown into the page (`lab/seed/report.sh`, `lab/seed/md2html.awk`). The seed writes a page that says the report is not ready for every pull request first, so a Report link is never dead. In a live lab the page says it is the sample review of the same change and that the live review is the comment in Gitea: the page is not a second live review, which would spend the lab's keys again.
+
+The stylesheet is written for the page, in GitHub's light and dark colours. No third-party stylesheet is copied in. The Markdown the CLI writes is documented in [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md).
+
+### The Nightshift receipts
+
+The Nightshift dashboard shows Nightshift's signed receipts, one per call Proven made through it. They are loaded into the lab's Loki from `lab/nightshift/receipts.public.jsonl` by `make up` and by `make nightshift-receipts` (`lab/seed/nightshift-import.sh`). What the lab ships is the **public** set: the receipts of Proven's own calls, with no prompt text. The full receipts file stays with whoever runs Nightshift.
+
+One JSON object per line, flat: `ts_ms`, `app`, `status` (`ok` or `failed`), `model`, `provider`, `reason` (a failed call's reason: `provider_deadline`, `empty_response`, `http_401`, ...), `verified` (whether its signature verified), `latency_ms`, `input_tokens`, `output_tokens`, `request_id`, `receipt_id`. The importer loads only lines of app `proven`, drops `prompt_preview` from every line and refuses a line that still names it, and refuses a line that is not an object with a numeric `ts_ms` and a status. It replays the receipts: the newest is stamped with the moment of the import and the rest keep their spacing, because Loki refuses samples older than a week; each line keeps its own `ts_ms`. A set already loaded in the last hours is not loaded twice (`FORCE=1` loads it again). With no file, the dashboard says no receipts are loaded.
 
 ### Use it outside the lab
 
@@ -406,6 +441,8 @@ The seeded copy replaces `saphan/proven` with `PROVEN_IMAGE` when that setting i
 
 `make livecheck` runs the live-service check **for the setup the workflow will use**. If `lab/.env` exists, it loads it, then runs the very lines of `lab/workflow/proven.yml` between `derive-begin` and `derive-end`, which decide the mode, the guardrail's mode and key and whether Zetaris is on. It prints `livecheck: the workflow will run: <the first line of the comment>`, then checks what that setup uses. So with only `PROVEN_GENERATOR_KEY` in `lab/.env` (path A) it checks NVIDIA direct and the guardrail with the same key, as the workflow does, and says `remark: the query line is not needed in this setup` for Zetaris, which is off there; the exit is `0` when nothing else is not ready. With a key, token or gateway and Zetaris set, the query line counts. With no key at all the workflow runs a sample review, so it prints `runs a SAMPLE review` and exits 1 (there is no live service to find ready). The container line is still checked in every live setup. With `ZETARIS=local` (`make livecheck ZETARIS=local`) and no `ZETARIS_REST_URL` of your own, it asks the loopback port the local platform is published on.
 
+`make reports` builds the report page of every demo pull request again ([The report pages](#the-report-pages)). `make nightshift-receipts` loads the public Nightshift receipts into the lab's Loki ([The Nightshift receipts](#the-nightshift-receipts)).
+
 `make nightshift` starts Nightshift in a Tart VM on a Mac with Apple silicon and prints its address (path C, steps 9 to 15). On any other host it says Tart is macOS-only and exits 0. `make zetaris` starts Zetaris from your bundle and registers the evidence (path C, steps 4 to 8); `make up ZETARIS=local` does the same as part of the lab. `make check-golive` runs the offline checks of all of this: the keys of `lab/.env` become secrets and an empty one does not (against a stub of Gitea's API), the workflow's live or sample choice and the first lines of its comment, the loopback bind of the start page, and the Zetaris registration against a stub. It needs no Docker and no key.
 
 `make image` builds Proven's image for this machine and loads it. The load is one platform, this machine's own. A local engine cannot load a manifest list, so this target does not build both platforms. `make seed-image`, which `make up` uses, is the same kind of load: one platform, because the lab has to start the image. The image is the static `proven` and `livecheck` binaries, `git`, and the `docker` client, on `RUNTIME_IMAGE`, and it runs as a user that is not root. Local tags: `latest` and the `git describe` value. OCI labels `created`, `revision` and `version` come from the date, `git rev-parse` and `git describe`.
@@ -476,6 +513,21 @@ make e2e-failed-run
 ```
 
 `make e2e-failed-run` commits a workflow that fails on purpose to the pull request's head branch, runs `make e2e`, and puts the original workflow back. It exits 0 when e2e exited non-zero and named the failed run, and 1 when e2e accepted it. It needs the first `make e2e` to have passed, so an old comment exists. Restoring the workflow starts one more run; wait for it to finish before you run `make e2e` again.
+
+### Test steps for the lab's look (the owner's)
+
+Run each with `make up` on a terminal unless it says otherwise. Each step names what you see.
+
+1. **The plan.** Run `make up`, answer `sample`, then Enter at the next question. You see `[SAMPLE/live]` in the first question and Enter takes it. Before any Docker output you see `What will happen next:` and five numbered steps, `7 pull requests` in the third.
+2. **The step lines.** Between Docker's output you see `==> [1/5] Proven's image is built (NN s)`, then `[2/5]`, `[3/5]` and `[4/5]`, each in green with an empty line above and below it.
+3. **The wait.** Step 4 prints a line for each pull request, `demo-check: [1/7] ... waiting for Proven's review`, then `defect, as the manifest says` or `clean, as the manifest says`. The ready block appears after the last one.
+4. **The ready block.** It ends on `>>>>>>>>  START HERE:  http://127.0.0.1:3302/lab  <<<<<<<<`, bold and green, with one empty line after it and nothing else.
+5. **No colour.** `NO_COLOR=1 make up` and `make up | cat` print the same words with no colour.
+6. **A failure.** Stop Docker, run `make up`: before any step line you see Docker's own refusal; stop it during step 2 instead and you see `==> [2/5] FAILED: Start Gitea, Grafana and the lab's Docker (after NN s). Read: make logs SERVICE=gitea, or SERVICE=lgtm, or SERVICE=dind` in red.
+7. **The start page.** Open START HERE. The table has a **Report** column. Open the report of `Apply a discount (it is taken off twice)`: a red **Blocked** badge, the findings table, and the findings folded; open one. Switch your system to light and dark: the page follows. Open the report of a clean change: a green **Clean** badge.
+8. **The dashboards.** Open the Overview. You see four numbers, each with a word: reviews finished, `5 of 5 flagged` (green), `0 false alarms` (green), `0 agents failed` (green). The table has seven rows. Use the links at the top to open the other five. Evidence and Meterless engines name what is missing in grey panels. Nightshift says no receipts are loaded until `lab/nightshift/receipts.public.jsonl` is there.
+9. **One review.** Open **One review**, pick the newest. Each agent is a row with a bar for its duration; both reviewers' verdicts are side by side.
+10. **Offline checks.** `go vet ./...`, `go test ./lab/...`, and `go test ./internal/telemetry/`.
 
 ## Third-party images
 
