@@ -104,7 +104,15 @@ func writeExtras(b *strings.Builder, ref Reference, f Findings) {
 		fmt.Fprintf(b, "none: every package version Proven found affected is named by an alert of the reference.\n\n")
 		return
 	}
-	fmt.Fprintf(b, "%d package versions are affected by an advisory no alert names for that package in that file.\n\n", len(extras))
+	versions := map[string]bool{}
+	for _, e := range extras {
+		versions[e.File+"|"+e.Package+"|"+e.Version] = true
+	}
+	noun := "package versions"
+	if len(versions) == 1 {
+		noun = "package version"
+	}
+	fmt.Fprintf(b, "%d advisories that no alert names for that package in that file affect %d %s.\n\n", len(extras), len(versions), noun)
 	fmt.Fprintf(b, "| manifest | package | version | advisory | aliases | KEV | evidence |\n|---|---|---|---|---|---|---|\n")
 	for _, e := range extras {
 		kev := "—"

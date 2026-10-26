@@ -157,18 +157,19 @@ Each alert gets one of three results, and a fourth for a run that asked no store
 |---|---|
 | `found` | A row of Proven's evidence names the alert's GHSA or CVE id, and the version Proven read lies inside that row's range. The row's evidence id is shown. |
 | `found differently` | Proven reads the package. Another advisory affects it, or the alert's advisory is in the evidence and the version lies outside its range. The row says which. |
-| `missed` | Proven does not read the package in that manifest, or reads it and no row of the evidence names the advisory. The row says which. |
-| `not checked` | A manifest-only run read the package and asked no store. |
+| `missed` | Proven does not read the package in that manifest, or reads it, the evidence names advisories for packages of that ecosystem, and no row names this one. The row says which. |
+| `not checked` | A manifest-only run read the package and asked no store, or the evidence named no advisory for any package of the alert's ecosystem that Proven read, so a miss cannot be told from a store without that ecosystem. |
 
 The report ends with what Proven found that Dependabot did not: package versions affected by an advisory that no alert names
 for that package in that file.
 
-**What it shows today.** This run was made on a machine with no evidence store and no OSV snapshot, so the committed report
-is the manifest-only run. The result is the manifest side alone. Proven reads all 51 alerted packages at the pinned commit,
-and for every alert at least one version it read lies inside the range Dependabot states (for `postcss`, 8.4.31 does and
-8.5.31 does not). It shows nothing yet about whether Proven finds the advisories: the 51 rows are `not checked`, and
-the report says so. We did not fill the gap with the alerts themselves: an OSV table built from `alerts.json` would find
-all 51 by construction and prove nothing.
+**What it shows today.** The committed report is the live run of 2026-10-26 against our Zetaris evidence store
+(`evidence: zetaris live evidence (OSV, KEV)`). All 6 Go alerts are `found` with Proven's own evidence, and Proven names 15
+more advisories affecting the same `golang.org/x/net@v0.16.0` that Dependabot did not raise. The 45 npm alerts are `not
+checked`: Proven read every alerted npm package from the lock file, but the live OSV table held no npm advisories at all
+(read-only count that morning: Go 96 rows, Maven 20, SwiftURL 1, npm 0), so the run says nothing about npm either way. We
+did not fill the gap with the alerts themselves: an OSV table built from `alerts.json` would find all 51 by construction
+and prove nothing.
 
 **Runbook: the run against Zetaris (owner's hand).**
 

@@ -77,7 +77,7 @@ remark: a KEV mark is shown only for a CVE the KEV view holds; an absent mark me
 
 ## What Proven found that Dependabot did not
 
-15 package versions are affected by an advisory no alert names for that package in that file.
+15 advisories that no alert names for that package in that file affect 1 package version.
 
 | manifest | package | version | advisory | aliases | KEV | evidence |
 |---|---|---|---|---|---|---|
