@@ -128,7 +128,7 @@ func TestFeaturesTheQuestionsAreAskedOnATerminalAndEachAnswerIsTheSetting(t *tes
 	}
 	// Mutated field: the mapping of n. The same assertion must fail.
 	tree := copyLab(t)
-	mutate(t, tree, "lab/scripts/flow.sh", `n) eval "$ff_var=off" ;;`, `n) eval "$ff_var=on" ;;`)
+	mutate(t, tree, "lab/scripts/flow.sh", `*) eval "$ff_var=off" ;;`, `*) eval "$ff_var=on" ;;`)
 	m := runUp(t, upOpts{tree: tree, tty: ttyAnswers(t, "sample", "y", "n", "y")})
 	if strings.Contains(m.dockerEnv, "PROVEN_LAB_SCOUT_INTENT=off\n") {
 		t.Error("the control did not turn red: with n mapped to on the lab still got off")

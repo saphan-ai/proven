@@ -206,7 +206,7 @@ func noRealCloudflared(t *testing.T) {
 	}
 }
 
-var questions = []string{"[sample/live]", "[y/n]", "[ours/own]", "Do you want to see Proven in SAMPLE mode"}
+var questions = []string{"[SAMPLE/live]", "[y/N]", "[Y/n]", "[OURS/own]", "Do you want to see Proven in SAMPLE mode"}
 
 func noQuestions(t *testing.T, out string) {
 	t.Helper()
@@ -542,7 +542,7 @@ func TestFlowOnATerminalPrintsTheOwnersBannerAndQuestionsWordForWord(t *testing.
 	for _, w := range []string{
 		"Proven: a pull-request review companion that only says what it can prove (and admits what it could not check)",
 		"Team Saphan.ai: built in public by one person and a fleet of AI agents.",
-		"Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]",
+		"Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [SAMPLE/live]",
 		"That is not one of: sample live. Again, please.",
 		"up: sample mode",
 	} {
@@ -560,9 +560,9 @@ func TestFlowOnATerminalPrintsTheOwnersBannerAndQuestionsWordForWord(t *testing.
 	gw, _ := stubGateway(t, 0, "Authorization", "Bearer "+goodToken)
 	r = runUp(t, upOpts{tty: ttyAnswers(t, "live", "", "Y", "ours", goodToken), env: []string{"PROVEN_LAB_GATEWAY_AUTH=token", "JUDGES_GATEWAY_URL=" + gw.URL}})
 	for _, w := range []string{
-		"Are you a judge of the Open Agent Hackathon? [y/n]",
+		"Are you a judge of the Open Agent Hackathon? [y/N]",
 		"For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.",
-		"[ours/own]",
+		"[OURS/own]",
 		"ready.",
 	} {
 		if !strings.Contains(r.out, w) {
@@ -576,7 +576,7 @@ func TestFlowOnATerminalPrintsTheOwnersBannerAndQuestionsWordForWord(t *testing.
 
 func TestFlowAnswersGivenInAdvanceAreNotAskedAgain(t *testing.T) {
 	r := runUp(t, upOpts{tty: ttyAnswers(t), env: []string{"PROVEN_LAB_MODE=sample"}})
-	if strings.Contains(r.out, "[sample/live]") || !strings.Contains(r.out, "up: sample mode") {
+	if strings.Contains(r.out, "[SAMPLE/live]") || !strings.Contains(r.out, "up: sample mode") {
 		t.Errorf("a question was asked though a setting answered it:\n%s", r.out)
 	}
 }
@@ -586,8 +586,8 @@ func TestFlowStopsByNameAfterThreeWrongAnswersAndWhenTheInputEnds(t *testing.T) 
 	if r.err == nil || r.reachedDocker() || !strings.Contains(r.out, "up: three answers in a row were not one of: sample, live. NEXT — answer in advance with PROVEN_LAB_MODE.") {
 		t.Errorf("three wrong answers did not stop by name:\n%s", r.out)
 	}
-	if strings.Count(r.out, "[sample/live]") != 3 {
-		t.Errorf("the question was asked %d times, want exactly 3", strings.Count(r.out, "[sample/live]"))
+	if strings.Count(r.out, "[SAMPLE/live]") != 3 {
+		t.Errorf("the question was asked %d times, want exactly 3", strings.Count(r.out, "[SAMPLE/live]"))
 	}
 	empty := filepath.Join(t.TempDir(), "tty")
 	if err := os.WriteFile(empty, nil, 0o600); err != nil {

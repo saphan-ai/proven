@@ -16,8 +16,8 @@
 #   PROVEN_LAB_USE_DETECTED  yes | no            (path own: use the Zetaris and Nightshift already answering here)
 #   PROVEN_MARKOVIAN         on | off            Proven's own setting for bounded steps; asked only when not set
 #   PROVEN_LAB_SCOUT_INTENT  on | off            the lab's spelling of proven.yaml's scout_intent; asked only when not set
-# Neither has a default here: an answer of Enter, and no terminal, leave the setting unset and Proven's own default
-# stands. H-MEM and the World Model have no switch in Proven, so they are not asked.
+# Enter takes the default of a question, the choice written in capitals; both features are on by default (the owner's
+# 2026-10-26 ruling), so Enter and no terminal both leave them on. H-MEM and the World Model have no switch in Proven, so they are not asked.
 # Test seam: PROVEN_LAB_TTY names a file or FIFO that stands for the terminal. It is not for use by hand.
 #
 # The gateway credential never reaches a file on the host, an output line, a command line or any container's environment:
@@ -26,13 +26,13 @@
 
 LAB_FLOW_BANNER_TITLE='Proven: a pull-request review companion that only says what it can prove (and admits what it could not check)'
 LAB_FLOW_BANNER_WHO='Team Saphan.ai: built in public by one person and a fleet of AI agents.'
-LAB_FLOW_Q_MODE='Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]'
-LAB_FLOW_Q_JUDGE='Are you a judge of the Open Agent Hackathon? [y/n]'
+LAB_FLOW_Q_MODE='Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [SAMPLE/live]'
+LAB_FLOW_Q_JUDGE='Are you a judge of the Open Agent Hackathon? [y/N]'
 LAB_FLOW_JUDGE_BANNER="For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk."
 LAB_FLOW_Q_TWEAK='Do you want to tweak Meterless features? [y/N]'
 LAB_FLOW_NOTE_ALWAYS='H-MEM (memory of refuted findings) and World Model (claims, evidence and verdicts as a graph) are on by default. Proven has no switch for either yet, so there is nothing to ask about them.'
-LAB_FLOW_Q_SCOUT='Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [y/n, Enter keeps the default]'
-LAB_FLOW_Q_MARKOV='Markovian: reviews a large change in bounded steps (on by default). Use it? [y/n, Enter keeps the default]'
+LAB_FLOW_Q_SCOUT='Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [Y/n]'
+LAB_FLOW_Q_MARKOV='Markovian: reviews a large change in bounded steps (on by default). Use it? [Y/n]'
 LAB_FLOW_BEST_EFFORT='We cannot vouch for results on a setup we do not control: this is best effort.'
 
 
@@ -179,13 +179,15 @@ flow_close_terminal() {
   fi
 }
 
-# flow_ask VAR SETTING PROMPT CHOICE...: sets VAR to one of the choices. A wrong answer asks again, three times in
-# all, and then stops by name. y and yes, n and no are the same answer. An input that ends is a stop, never a guess.
+# flow_ask VAR SETTING DEFAULT PROMPT CHOICE...: sets VAR to one of the choices. Enter alone takes DEFAULT, which is the
+# choice the prompt writes in capitals ([SAMPLE/live]). A wrong answer asks again, three times in all, and then stops by
+# name. y and yes, n and no are the same answer. An input that ends is a stop, never a guess.
 flow_ask() {
   fa_var=$1
   fa_setting=$2
-  fa_prompt=$3
-  shift 3
+  fa_default=$3
+  fa_prompt=$4
+  shift 4
   fa_try=0
   while [ "$fa_try" -lt 3 ]; do
     printf '%s ' "$fa_prompt"
@@ -196,9 +198,8 @@ flow_ask() {
       exit 1
     fi
     fa_ans=$(printf '%s' "$fa_ans" | tr 'A-Z' 'a-z' | tr -d ' \t\r')
-    # FLOW_ASK_DEFAULT, when set, is what an empty answer means. Only the feature questions set it.
-    if [ -z "$fa_ans" ] && [ -n "${FLOW_ASK_DEFAULT:-}" ]; then
-      eval "$fa_var=\$FLOW_ASK_DEFAULT"
+    if [ -z "$fa_ans" ]; then
+      eval "$fa_var=\$fa_default"
       return 0
     fi
     case $fa_ans in
@@ -503,7 +504,7 @@ flow_detect_own() {
   fd_use=${PROVEN_LAB_USE_DETECTED:-}
   if [ -z "$fd_use" ]; then
     if flow_open_terminal; then
-      flow_ask fd_use PROVEN_LAB_USE_DETECTED 'Use what is already running, as it is? [y/n]' y n
+      flow_ask fd_use PROVEN_LAB_USE_DETECTED y 'Use what is already running, as it is? [Y/n]' y n
       [ "$fd_use" = y ] && fd_use=yes || fd_use=no
     else
       fd_use=no
@@ -529,7 +530,7 @@ flow_path_own() {
   fo_setup=${PROVEN_LAB_OWN_SETUP:-}
   if [ -z "$fo_setup" ]; then
     if flow_open_terminal; then
-      flow_ask fo_setup PROVEN_LAB_OWN_SETUP 'Run the automated setup now (make up ZETARIS=local, then make nightshift)? [y/n]' y n
+      flow_ask fo_setup PROVEN_LAB_OWN_SETUP n 'Run the automated setup now (make up ZETARIS=local, then make nightshift)? [y/N]' y n
       [ "$fo_setup" = y ] && fo_setup=yes || fo_setup=no
     else
       fo_setup=no
@@ -576,19 +577,16 @@ flow_drop_keys() {
 
 # ---- the Meterless features -------------------------------------------------------------------------------------
 
-# flow_feature_answer VAR PROMPT: one feature. A setting given in advance is left as it is. Otherwise y is on,
-# n is off and Enter leaves the setting unset, so Proven's own default stands.
+# flow_feature_answer VAR PROMPT: one feature. A setting given in advance is left as it is. Otherwise y is on, n is off,
+# and Enter takes the default, which is on.
 flow_feature_answer() {
   ff_var=$1
   eval "ff_cur=\${$ff_var:-}"
   [ -z "$ff_cur" ] || return 0
-  FLOW_ASK_DEFAULT=keep
-  flow_ask ff_ans "$ff_var" "$2" y n
-  unset FLOW_ASK_DEFAULT
+  flow_ask ff_ans "$ff_var" y "$2" y n
   case $ff_ans in
     y) eval "$ff_var=on" ;;
-    n) eval "$ff_var=off" ;;
-    *) return 0 ;;
+    *) eval "$ff_var=off" ;;
   esac
   export "$ff_var"
 }
@@ -610,9 +608,7 @@ flow_features_ask() {
   if [ -n "${PROVEN_MARKOVIAN:-}" ] && [ -n "${PROVEN_LAB_SCOUT_INTENT:-}" ]; then
     return 0
   fi
-  FLOW_ASK_DEFAULT=n
-  flow_ask ff_tweak "PROVEN_MARKOVIAN and PROVEN_LAB_SCOUT_INTENT (on or off)" "$LAB_FLOW_Q_TWEAK" y n
-  unset FLOW_ASK_DEFAULT
+  flow_ask ff_tweak "PROVEN_MARKOVIAN and PROVEN_LAB_SCOUT_INTENT (on or off)" n "$LAB_FLOW_Q_TWEAK" y n
   [ "$ff_tweak" = y ] || return 0
   echo "$LAB_FLOW_NOTE_ALWAYS"
   flow_feature_answer PROVEN_LAB_SCOUT_INTENT "$LAB_FLOW_Q_SCOUT"
@@ -641,7 +637,7 @@ lab_flow() {
   fl_mode=${PROVEN_LAB_MODE:-}
   if [ -z "$fl_mode" ]; then
     if [ "$FLOW_ASK" = yes ]; then
-      flow_ask fl_mode PROVEN_LAB_MODE "$LAB_FLOW_Q_MODE" sample live
+      flow_ask fl_mode PROVEN_LAB_MODE sample "$LAB_FLOW_Q_MODE" sample live
     else
       fl_mode=sample
     fi
@@ -657,7 +653,7 @@ lab_flow() {
     fl_judge=${PROVEN_LAB_JUDGE:-}
     if [ -z "$fl_judge" ]; then
       if [ "$FLOW_ASK" = yes ]; then
-        flow_ask fl_judge PROVEN_LAB_JUDGE "$LAB_FLOW_Q_JUDGE" y n
+        flow_ask fl_judge PROVEN_LAB_JUDGE n "$LAB_FLOW_Q_JUDGE" y n
         [ "$fl_judge" = y ] && fl_judge=yes || fl_judge=no
       else
         fl_judge=no
@@ -669,7 +665,7 @@ lab_flow() {
       if [ -z "$fl_backend" ]; then
         if [ "$FLOW_ASK" = yes ]; then
           echo "$LAB_FLOW_JUDGE_BANNER"
-          flow_ask fl_backend PROVEN_LAB_BACKEND 'Which do you want? [ours/own]' ours own
+          flow_ask fl_backend PROVEN_LAB_BACKEND ours 'Which do you want? [OURS/own]' ours own
         else
           echo "up: PROVEN_LAB_JUDGE=yes needs PROVEN_LAB_BACKEND=ours or own, and there is no terminal to ask on. Nothing was started. NEXT — set PROVEN_LAB_BACKEND=ours or own, or run make up on a terminal." >&2
           exit 1

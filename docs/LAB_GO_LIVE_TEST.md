@@ -77,7 +77,7 @@ Proven: a pull-request review companion that only says what it can prove (and ad
 Team Saphan.ai: built in public by one person and a fleet of AI agents.
 No humans were harmed. Several agents were asked to try again.
 
-Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]
+Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [SAMPLE/live]
 ```
 
 Type `sample`. You should see `up: sample mode: recorded answers, no keys, nothing leaves this machine.`, then the lab
@@ -89,9 +89,9 @@ introduction it says `Mode: sample.`
 `up: three answers in a row were not one of: sample, live. NEXT — answer in advance with PROVEN_LAB_MODE. Nothing was started.`
 Check nothing started: `docker compose -p proven-lab ps` lists no new container.
 
-**1b.3 Live, a judge, ours.** `make up`; answer `live`, then `y`. You see `Are you a judge of the Open Agent Hackathon? [y/n]`,
+**1b.3 Live, a judge, ours.** `make up`; answer `live`, then `y`. You see `Are you a judge of the Open Agent Hackathon? [y/N]`,
 then `For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.`
-and `Which do you want? [ours/own]`. Answer `ours`. It asks for the gateway address if `JUDGES_GATEWAY_URL` is not in
+and `Which do you want? [OURS/own]`. Answer `ours`. It asks for the gateway address if `JUDGES_GATEWAY_URL` is not in
 `lab/.env`.
 - **By Cloudflare Access (default).** You need `cloudflared`. Without it: `up: the Access sign-in needs cloudflared, and it is not installed. NEXT — install it: …` and nothing starts.
   With it: `up: opening the sign-in for <address>. Cloudflare sends a one-time PIN to your e-mail; enter it in the browser.`
@@ -106,7 +106,7 @@ The start page then says `Mode: live via our gateway.`
 
 **1b.4 Live, own.** `make up`; answer `live`, then `n`. You see the guide's place (`docs/LAB.md`, the *Go live* section),
 the Nightshift and Zetaris lines, and, if either already answers on this machine, `up: Zetaris already answers on this machine: …`
-with `Use what is already running, as it is? [y/n]`. Then `Run the automated setup now (make up ZETARIS=local, then make nightshift)? [y/n]`.
+with `Use what is already running, as it is? [Y/n]`. Then `Run the automated setup now (make up ZETARIS=local, then make nightshift)? [y/N]`.
 The last line before the lab starts is, word for word: `We cannot vouch for results on a setup we do not control: this is best effort.`
 The start page says `Mode: live on your own setup.`
 
@@ -137,8 +137,8 @@ The explanation is [LAB.md](LAB.md#the-meterless-features). The offline controls
 Do you want to tweak Meterless features? [y/N]
 ```
 Answer `y`. You should see the sentence `H-MEM (memory of refuted findings) and World Model (claims, evidence and verdicts as a graph) are on by default. Proven has no switch for either yet, so there is nothing to ask about them.`
-then `Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [y/n, Enter keeps the default]`
-Answer `n`. Then `Markovian: reviews a large change in bounded steps (on by default). Use it? [y/n, Enter keeps the default]`
+then `Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [Y/n]`
+Answer `n`. Then `Markovian: reviews a large change in bounded steps (on by default). Use it? [Y/n]`
 Answer `y`.
 
 **1c.2 The page says what was passed.** When the lab is up, open the start page (the *Start here* address that

@@ -112,10 +112,10 @@ The same data goes to any OpenTelemetry backend. Set `OTEL_EXPORTER_OTLP_ENDPOIN
 1. It reads `lab/.env` and the environment, and refuses a bad value of any setting below by name.
 2. It checks that every port the lab publishes is free, and names each busy one with the program that holds it (see [Ports](#ports)).
 3. On a terminal it prints a banner, then asks what no setting has already answered:
-   - `Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [sample/live]`
-   - for LIVE: `Are you a judge of the Open Agent Hackathon? [y/n]`
-   - right after the mode (sample or live), `Do you want to tweak Meterless features? [y/N]`; on `y`, one question per feature that has a switch (see [The Meterless features](#the-meterless-features)). Enter is `N`
-   - for a judge: `For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.` and `Which do you want? [ours/own]`
+   - `Do you want to see Proven in SAMPLE mode (no keys, nothing leaves this machine) or LIVE mode (real models and live data)? [SAMPLE/live]`
+   - for LIVE: `Are you a judge of the Open Agent Hackathon? [y/N]`
+   - right after the mode (sample or live), `Do you want to tweak Meterless features? [y/N]`; on `y`, one question per feature that has a switch (see [The Meterless features](#the-meterless-features)). Enter is `N`. In every question the capitalised choice is the default and Enter takes it
+   - for a judge: `For Proven to prove anything live, it needs Zetaris and Meterless Nightshift. Connect your own instances, or use the ones Proven was built with, in Hua Hin, Thailand, under Marcin's desk.` and `Which do you want? [OURS/own]`
 4. It starts the lab and ends with the ready block and the *Start here* page, as every `make up` does.
 
 A question reads from the terminal only: standard input when it is a terminal, otherwise `/dev/tty`. An answer that is not one of the offered ones asks again, at most three times, and then stops by name, with the setting that answers it in advance. `y` and `yes`, `n` and `no` are the same answer. Input that ends is a stop, never a guess.
@@ -165,10 +165,10 @@ Proven carries four Meterless engines: H-MEM (memory of refuted findings), the W
 |---|---|---|---|---|
 | H-MEM | no: Proven has no switch for it | none | none | always on |
 | World Model | no: Proven has no switch for it | none | none | always on |
-| Scout Intent | `Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [y/n, Enter keeps the default]` | `scout_intent: on` or `off` in `proven.yaml`; there is no environment spelling | `PROVEN_LAB_SCOUT_INTENT` | the review job writes `scout_intent: <value>` to a file and points the review at it with `PROVEN_CONFIG` |
-| Markovian | `Markovian: reviews a large change in bounded steps (on by default). Use it? [y/n, Enter keeps the default]` | `PROVEN_MARKOVIAN`, `on` or `off` (also `PROVEN_MARKOVIAN_THRESHOLD`, `…_STEP_UNIT`, `…_CARRY_TOKENS`, which the lab does not ask about) | `PROVEN_MARKOVIAN` | passed to the review by name; Proven reads it in live reviews only |
+| Scout Intent | `Scout Intent: plans each review before the agents run (on by default; its benefit is not measured yet). Use it? [Y/n]` | `scout_intent: on` or `off` in `proven.yaml`; there is no environment spelling | `PROVEN_LAB_SCOUT_INTENT` | the review job writes `scout_intent: <value>` to a file and points the review at it with `PROVEN_CONFIG` |
+| Markovian | `Markovian: reviews a large change in bounded steps (on by default). Use it? [Y/n]` | `PROVEN_MARKOVIAN`, `on` or `off` (also `PROVEN_MARKOVIAN_THRESHOLD`, `…_STEP_UNIT`, `…_CARRY_TOKENS`, which the lab does not ask about) | `PROVEN_MARKOVIAN` | passed to the review by name; Proven reads it in live reviews only |
 
-How the questions work. After sample or live, on a terminal, `make up` asks `Do you want to tweak Meterless features? [y/N]`. On `y` it prints that H-MEM and the World Model are on by default and have no switch to ask about, then asks the two questions above, each only if its setting is not already given. `y` is `on`, `n` is `off`, and Enter (or `N` to the first question) leaves the setting unset. A setting given in advance (in the environment or `lab/.env`) is never asked, so a script or CI that gives both is never asked at all, and with no terminal nothing is asked and nothing is set. A value that is not `on` or `off` is refused by name before any container starts.
+How the questions work. After sample or live, on a terminal, `make up` asks `Do you want to tweak Meterless features? [y/N]`. On `y` it prints that H-MEM and the World Model are on by default and have no switch to ask about, then asks the two questions above, each only if its setting is not already given. `y` is `on`, `n` is `off`, and Enter takes the default, the capitalised choice of the prompt (`on` for a feature). With no terminal nothing is asked and both features are on. A setting given in advance (in the environment or `lab/.env`) is never asked, so a script or CI that gives both is never asked at all,. A value that is not `on` or `off` is refused by name before any container starts.
 
 The seed stores each given value as an Actions secret, as it stores a key, but a feature is not a key: with only a feature set the lab is still a sample lab, and sample mode keeps the feature settings. The workflow passes them to the review (`lab/workflow/proven.yml`).
 
