@@ -1,6 +1,6 @@
 package evidence
 
-// Bench part (d): the manifest marks a finding redaction-moved, and the same pack changes a
+// The manifest marks a finding redaction-moved, and the same pack changes a
 // component the recorded evidence decides.
 
 import (

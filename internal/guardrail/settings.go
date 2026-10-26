@@ -1,7 +1,6 @@
 package guardrail
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -80,27 +79,7 @@ func Environment() []envdoc.Setting {
 
 // ConfigError names a refused guardrail setting and the values that are allowed.
 // Value is empty when the field is the key: the secret is never printed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value and what is allowed.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Settings is one validated guardrail configuration.
 // Key is held so the call can send it. It is not a value to print.

@@ -506,6 +506,8 @@ func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
 // from a service that is down is noted and the review goes on without it; a
 // context that has ended returns the partial draft through cut; any other
 // error stops the review.
+//
+// Splitting this function into its stages is known debt, planned after 6 Nov.
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
 	// A git repository with neither a baseline commit nor prepared trees has
 	// nothing for the agents to read. Say what to pass, rather than failing
@@ -1285,7 +1287,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 			}
 			return err
 		}
-		r.QueryRows = copyRows(res.Rows)
+		r.QueryRows = service.CopyRows(res.Rows)
 		// A test result already gives the reason when it refutes; the query
 		// sets it only when the test did not run or did not refute.
 		if judge.QueryContradicts(*c, r.QueryRows) && (r.Reason == "" || r.TestFailsOnChange || !r.TestFound) {
@@ -1550,12 +1552,10 @@ type state struct {
 	skipped   []string
 }
 
-// event writes one plain trace line about a finding.
 func (s *state) event(id, kind, agent, text string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: kind, Agent: agent, Text: text})
 }
 
-// claim writes the Planner's claim for a risk, under the run that named it.
 func (s *state) claim(id, text, run string) error {
 	return s.trace.Append(trace.Event{FindingID: id, Kind: "claim", Agent: "planner", Text: text, Run: run})
 }
@@ -1956,7 +1956,7 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 			ev.Query = &trace.QueryEvidence{
 				SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 				Columns: append([]string(nil), q.Columns...),
-				Rows:    copyRows(q.Rows),
+				Rows:    service.CopyRows(q.Rows),
 			}
 		}
 		if e.Tool != nil {
@@ -1968,18 +1968,6 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 			}
 		}
 		out = append(out, ev)
-	}
-	return out
-}
-
-// copyRows deep-copies query rows.
-func copyRows(rows [][]string) [][]string {
-	if rows == nil {
-		return nil
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
 	}
 	return out
 }
@@ -2069,7 +2057,6 @@ func addAbsentVerdicts(req Request, cands []candidate.Candidate, defaultFailed, 
 	}
 }
 
-// hasVerdict reports whether run has a verdict on the candidate.
 func hasVerdict(c candidate.Candidate, run string) bool {
 	for _, v := range c.Verdicts {
 		if v.Run == run {
@@ -2095,7 +2082,6 @@ func noteRefuted(c *candidate.Candidate, run string, ref candidate.Refutation) {
 	}
 }
 
-// hasRun reports whether run named the candidate.
 func hasRun(c candidate.Candidate, run string) bool {
 	for _, r := range c.Runs {
 		if r == run {
@@ -2154,7 +2140,6 @@ func riskKey(r candidate.Risk) string {
 	return fmt.Sprintf("rule\x00%s\x00%s\x00%d\x00%d", r.RuleID, r.Path, r.StartLine, r.EndLine)
 }
 
-// appendNew appends the values of src that dst does not hold yet.
 func appendNew(dst, src []string) []string {
 	for _, s := range src {
 		seen := false

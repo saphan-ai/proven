@@ -104,7 +104,7 @@ so it is never marked proved.
   See "Bounded steps" below.
 
 H-MEM, the World Model and Markovian follow the Meterless specifications (ADR-0003, ADR-0018, ADR-0048); their own
-conformance suites run through `test/conformance/meterless/run.sh`: H-MEM 9 of 13, World Model 8 of 8, Markovian 8 of
+conformance suites run through `test/conformance/meterless/run.sh`: H-MEM 13 of 13, World Model 8 of 8, Markovian 8 of
 8 (runner pinned at upstream commit `1742dec5`). Scout Intent follows Meterless's specification too (ADR-0049), and
 Meterless's eval harness, pinned at the same commit, runs through `test/conformance/meterless/run_scout.sh`. Markovian
 and Scout Intent are on by default (ADR-0053) and each is switched off by its setting; their benefit is UNMEASURED until the corpus recordings exist.

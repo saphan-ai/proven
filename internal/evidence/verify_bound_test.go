@@ -1,7 +1,7 @@
 package evidence
 
-// Round 2 of verify-rederives: the tests the two round-1 reviews asked for. Each one changes the
-// one recorded fact its name says.
+// Each test changes the one recorded fact its name says. They are the checks an earlier
+// review of verify-rederives asked for.
 
 import (
 	"bytes"
