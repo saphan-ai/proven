@@ -31,6 +31,9 @@ RUN set -eu; \
     rm -f "/tmp/$file"; \
     reviewdog -version
 
-COPY entrypoint.sh /action/entrypoint.sh
-RUN chmod 755 /action/entrypoint.sh
+# curl edits the summary comment: BusyBox wget cannot send PATCH (post-comment.sh).
+RUN apk add --no-cache curl
+
+COPY entrypoint.sh post-comment.sh /action/
+RUN chmod 755 /action/entrypoint.sh && chmod 644 /action/post-comment.sh
 ENTRYPOINT ["/action/entrypoint.sh"]

@@ -18,6 +18,9 @@ bool() {
   esac
 }
 
+# The script's own directory, read before the scan changes the working directory:
+# post-comment.sh sits beside it.
+here=$(cd "$(dirname "$0")" && pwd)
 proven=${PROVEN_BIN:-proven}
 workspace=${GITHUB_WORKSPACE:-}
 [ -n "$workspace" ] || fail "GITHUB_WORKSPACE is not set; run this script from a GitHub Actions step."
@@ -124,6 +127,9 @@ git config --global --add safe.directory "$workspace" 2>/dev/null || true
 # A file left by an earlier run must not be counted as this run's.
 rm -f "$workspace/$json_file" "$workspace/$sarif_file" "$workspace/$text_file"
 scratch=$(mktemp -d)
+# The summary comment is the Markdown writer's output, kept in the scratch directory
+# with the trace: it is the comment's body, not a result file of the workspace.
+[ "$comment" != true ] || set -- "$@" "--md-output=$scratch/proven-comment.md"
 cd "$scratch"
 rc=0
 $scrub "$proven" scan "$@" "$target" || rc=$?
@@ -160,6 +166,31 @@ if [ "$comment" = true ] && [ -f "$workspace/$sarif_file" ]; then
   if [ "$postrc" -ne 0 ]; then
     echo "proven action: posting the review on the pull request failed: reviewdog ($reporter) exited $postrc. Check that github-token may write pull requests (pull-requests: write) and that this run is a pull request." >&2
     [ "$rc" -ne 0 ] || rc=2
+  fi
+fi
+
+# comment: the summary beside reviewdog's line comments is ONE comment per pull request,
+# edited in place on every run (post-comment.sh). The reviewing run, the head commit and
+# the pull request come from the event; a run that is not a pull request has none to post on.
+if [ "$comment" = true ] && [ -f "$scratch/proven-comment.md" ]; then
+  . "$here/post-comment.sh"
+  event=${GITHUB_EVENT_PATH:-}
+  pr=
+  head=
+  if [ -f "$event" ]; then
+    pr=$(awk '{ buf = buf $0 } END { if (match(buf, /"number" *: *[0-9]+/)) { s = substr(buf, RSTART, RLENGTH); sub(/^"number" *: */, "", s); print s } }' "$event")
+    head=$(awk '{ buf = buf $0 } END { if (match(buf, /"head" *: *\{/)) { rest = substr(buf, RSTART); if (match(rest, /"sha" *: *"[0-9a-f]+"/)) { s = substr(rest, RSTART, RLENGTH); sub(/^"sha" *: *"/, "", s); sub(/"$/, "", s); print s } } }' "$event")
+  fi
+  [ -n "$head" ] || head=${GITHUB_SHA:-}
+  if [ -n "$pr" ] && [ -n "${GITHUB_API_URL:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "$head" ]; then
+    sumrc=0
+    pc_post "$GITHUB_API_URL" "$GITHUB_REPOSITORY" "$pr" "${GITHUB_RUN_NUMBER:-0}" "$head" "$token" "$scratch/proven-comment.md" || sumrc=$?
+    if [ "$sumrc" -ne 0 ]; then
+      echo "proven action: posting the summary comment on the pull request failed. Check that github-token may write pull requests (pull-requests: write); on Gitea set PROVEN_COMMENT_ACCOUNT if the token cannot read /user." >&2
+      [ "$rc" -ne 0 ] || rc=2
+    fi
+  else
+    echo "proven action: no pull request, API address, repository or head commit in this run's environment; the summary comment was not posted." >&2
   fi
 fi
 

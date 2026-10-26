@@ -251,5 +251,65 @@ mkdir -p "$tmp/stale/ws"; printf '{"unresolved": true}\n' >"$tmp/stale/ws/proven
 stubrun stale STUB_RC=2 STUB_NOWRITE=1
 check "a stale JSON review is not counted" 0 "$(output findings-count)"
 
+# comment: the summary beside reviewdog's line comments is ONE comment, edited in place
+# (post-comment.sh). The stub server answers GET /user and GET comments from $STUB, answers
+# PATCH and POST with an id, and logs every request; a body is kept as $STUB/body.N.
+cat >"$tmp/http.sh" <<'EOF'
+#!/bin/sh
+method=$1
+url=$2
+n=$(wc -l <"$STUB/log" | tr -d ' ')
+printf '%s %s\n' "$method" "$url" >>"$STUB/log"
+[ -z "${3:-}" ] || cp "$3" "$STUB/body.$((n + 1))"
+[ "${HTTP_RC:-0}" -eq 0 ] || exit "$HTTP_RC"
+case "$method $url" in
+  "GET "*/comments*) if [ -f "$STUB/comments.json" ]; then cat "$STUB/comments.json"; else printf '[]'; fi ;;
+  PATCH* | POST*) printf '{"id":77}' ;;
+esac
+EOF
+chmod +x "$tmp/http.sh"
+printf '{"action":"synchronize","number":7,"pull_request":{"number":7,"head":{"sha":"abc123"},"base":{"sha":"def456"}}}\n' >"$tmp/event.json"
+summary() { # NAME, then VAR=value...: a comment run as the account proven-bot on pull request 7
+  name=$1
+  shift
+  STUB=$tmp/$name.stub
+  mkdir -p "$STUB"
+  : >"$STUB/log"
+  rdrun "$name" INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false \
+    GITHUB_API_URL=http://api.example/api/v1 GITHUB_REPOSITORY=o/r GITHUB_EVENT_PATH="$tmp/event.json" GITHUB_RUN_NUMBER=5 \
+    COMMENT_HTTP="$tmp/http.sh" STUB="$STUB" PROVEN_COMMENT_ACCOUNT=proven-bot "$@"
+}
+mine='{"id":31,"user":{"login":"proven-bot"},"body":"<!-- proven-review run=4 sha=old -->\\nold"}'
+theirs='{"id":41,"user":{"login":"someone-else"},"body":"<!-- proven-review run=4 sha=old -->\\nold"}'
+
+summary sumnew
+check "summary: exit 0" 0 "$rc"
+check "summary: no earlier comment, one comment is created" "GET http://api.example/api/v1/repos/o/r/issues/7/comments?limit=50&per_page=50&page=1
+POST http://api.example/api/v1/repos/o/r/issues/7/comments" "$(cat "$STUB/log")"
+check "summary: the marker is the first line, with this run and the head commit" '{"body":"<!-- proven-review run=5 sha=abc123 -->' "$(head -c 48 "$STUB/body.2")"
+check "summary: the body is Proven's Markdown" 1 "$(grep -c '\*\*Proven: blocked\*\*' "$STUB/body.2")"
+check "summary: the Markdown is not left in the workspace" "proven-results.json proven-results.sarif " "$(ls "$ws" | tr '\n' ' ')"
+
+mkdir -p "$tmp/sumedit.stub" && printf '[%s]' "$mine" >"$tmp/sumedit.stub/comments.json"
+summary sumedit
+check "summary: an earlier comment of the account is edited, none is added" "GET http://api.example/api/v1/repos/o/r/issues/7/comments?limit=50&per_page=50&page=1
+PATCH http://api.example/api/v1/repos/o/r/issues/comments/31" "$(cat "$STUB/log")"
+
+mkdir -p "$tmp/sumother.stub" && printf '[%s]' "$theirs" >"$tmp/sumother.stub/comments.json"
+summary sumother
+check "summary: another account's marker comment is not edited" 0 "$(grep -c PATCH "$STUB/log")"
+check "summary: another account's marker comment, a new one is created" 1 "$(grep -c '^POST ' "$STUB/log")"
+
+summary sumfail HTTP_RC=22
+check "summary: a failed post fails the step (2)" 2 "$rc"
+check "summary: the failure names the summary comment" 1 "$(grep -c 'posting the summary comment on the pull request failed' "$tmp/sumfail/stderr")"
+
+rdrun sumnoevent INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false COMMENT_HTTP="$tmp/http.sh" STUB="$tmp/sumnoevent.stub"
+check "summary: no pull request in the event, nothing is posted, exit 0" "0 0" "$rc $(test -e "$tmp/sumnoevent.stub/log" && echo 1 || echo 0)"
+check "summary: no pull request, the notice says so" 1 "$(grep -c 'the summary comment was not posted' "$tmp/sumnoevent/stderr")"
+
+rdrun sumoff INPUT_COMMENT=false INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://api.example/api/v1 GITHUB_REPOSITORY=o/r GITHUB_EVENT_PATH="$tmp/event.json" COMMENT_HTTP="$tmp/http.sh" STUB="$tmp/sumoff.stub"
+check "comment=false: no summary is posted" 0 "$(test -e "$tmp/sumoff.stub/log" && echo 1 || echo 0)"
+
 echo "passed $pass, failed $failed"
 [ "$failed" -eq 0 ]
