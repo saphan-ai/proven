@@ -50,6 +50,12 @@ type Proposal struct {
 	DerivedFrom     []string `json:"derivedFrom"`
 	SuggestedDomain string   `json:"suggestedDomain,omitempty"`
 	Status          string   `json:"status"`
+	// PreviousDomains is part of a domain approval's durable intent: the domain
+	// each source record had before the approval moved it, written with the
+	// "approving" state and before the first record moves. A run that stops
+	// after the move and before its ledger line still has it on reopen, so the
+	// update line can carry the previous state, not only the new one.
+	PreviousDomains map[string]string `json:"previousDomains,omitempty"`
 	// Reason says why a proposal is void; it is empty in every other state.
 	Reason string `json:"reason,omitempty"`
 	// Epoch is the store's Clear count when the proposal was made. A proposal

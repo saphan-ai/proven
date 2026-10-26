@@ -101,6 +101,14 @@ func (s *Store) completeApproval(p Proposal) (*Record, error) {
 		// proposal nobody has approved.
 		if p.Status == ProposalProposed {
 			p.Status = ProposalApproving
+			// The domains the records have now go into the same line, so the
+			// state before the approval survives an interruption.
+			p.PreviousDomains = map[string]string{}
+			for _, id := range p.DerivedFrom {
+				if rec := s.records[id]; rec.Domain != p.SuggestedDomain {
+					p.PreviousDomains[id] = rec.Domain
+				}
+			}
 			if err := s.appendDream(p); err != nil {
 				return nil, err
 			}
@@ -249,8 +257,11 @@ func (s *Store) recoverApprovals() error {
 // The caller holds s.mu. It is idempotent: a record already in the domain is
 // not moved again. The state file is written first, then one "update" ledger
 // line per record that has none for this proposal, so a retry after a failure
-// does only what is missing. A line written for a record that was already in
-// the new domain carries no previous state, because that state is gone.
+// does only what is missing. The previous domain of each record comes from the
+// approval's durable intent (Proposal.PreviousDomains), so a line written after
+// an interruption, when the record already shows the new domain, still carries
+// both states. Only a proposal written before the intent held the domains has
+// no previous state to give, and its line says only the new one.
 func (s *Store) reclassify(p Proposal) error {
 	type move struct {
 		id     string
@@ -264,7 +275,13 @@ func (s *Store) reclassify(p Proposal) error {
 		if !ok || p.SuggestedDomain == "" {
 			continue
 		}
-		moves = append(moves, move{id: id, before: ledgerState(rec), known: rec.Domain != p.SuggestedDomain})
+		m := move{id: id, before: ledgerState(rec), known: rec.Domain != p.SuggestedDomain}
+		if prev, ok := p.PreviousDomains[id]; ok && !m.known {
+			// A run that stopped after the move: the record already shows the new
+			// domain, and the approval's durable intent still has the old one.
+			m.before.Domain, m.known = prev, true
+		}
+		moves = append(moves, m)
 		if rec.Domain == p.SuggestedDomain {
 			continue
 		}

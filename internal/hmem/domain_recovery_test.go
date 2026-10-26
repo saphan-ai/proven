@@ -116,6 +116,42 @@ func TestReopenFinishesAnInterruptedDomainApproval(t *testing.T) {
 	}
 }
 
+// TestRecoveredDomainAuditKeepsBothStates proves a domain approval stopped
+// between the move and its update line is finished at reopen with a line that
+// carries BOTH the previous and the new domain, so a reader can rebuild the
+// domain before the approval. Without the previous domain in the approval's
+// durable intent the line has the new state only.
+func TestRecoveredDomainAuditKeepsBothStates(t *testing.T) {
+	e := newDomainEnv(t)
+	s := openApprove(t, e.dir, e.logs)
+	hook, boom := failing(func(op string) bool { return op == "audit:update" })
+	s.FailWrites(hook)
+	if _, err := s.Approve(e.proposal); !errors.Is(err, boom) {
+		t.Fatalf("approve error = %v, want the injected failure", err)
+	}
+	s = openApprove(t, e.dir, e.logs)
+	h, err := s.History(e.record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, en := range h {
+		if en.Action != "update" || en.Details["proposal"] != e.proposal {
+			continue
+		}
+		found = true
+		if en.PreviousState == nil || en.PreviousState.Domain != "general" {
+			t.Fatalf("update line previous state = %+v, want domain general", en.PreviousState)
+		}
+		if en.NewState == nil || en.NewState.Domain != "tech" {
+			t.Fatalf("update line new state = %+v, want domain tech", en.NewState)
+		}
+	}
+	if !found {
+		t.Fatal("no proposal-linked update line after reopen")
+	}
+}
+
 // TestReopenDoesNotApproveAPendingDomainProposal proves recovery finishes only
 // what a person decided: a pending domain proposal stays pending and its
 // record stays where it was.
