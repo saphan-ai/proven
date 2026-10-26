@@ -27,7 +27,7 @@ var ErrEdgeConflict = errors.New("world: another target already starts at that i
 var ErrEdgeOverlap = errors.New("world: the edge overlaps another valid edge of the same from, type and context")
 
 // ErrEdgeInterval is returned, wrapped, for an edge whose valid_to is not
-// after its valid_from, or cannot be read. Rule: an interval is non-empty, so
+// after its valid_from, or whose valid_from or valid_to cannot be read. Rule: an interval is non-empty, so
 // it can be seen by a point-in-time query. Relate refuses such a write and
 // Open refuses such a stored edge, from one check (checkInterval).
 var ErrEdgeInterval = errors.New("world: the edge interval ends before it starts")
@@ -264,21 +264,22 @@ func intervalsOverlap(a, b Edge) bool {
 }
 
 // checkInterval refuses an interval [from, to) that is empty or reversed, or
-// whose end cannot be read, with ErrEdgeInterval. An empty to is open and
-// always accepted. Both Relate and Open call it, so a write and a stored edge
-// are held to one rule. A start that cannot be read is not judged here:
-// Neighbors skips such an edge, so no query can see it.
+// whose start or end cannot be read, with ErrEdgeInterval. An empty to is
+// open and accepted. Both Relate and Open call it, so a write and a stored
+// edge are held to one rule. A start that cannot be read is refused for open
+// edges too: an open edge's query path never parses its start, so such an
+// edge would load and be returned beside another open edge of its chain.
 func checkInterval(from, to string) error {
+	start, ok := instantOf(from)
+	if !ok {
+		return fmt.Errorf("%w: valid_from %q cannot be read", ErrEdgeInterval, from)
+	}
 	if to == "" {
 		return nil
 	}
 	end, ok := instantOf(to)
 	if !ok {
 		return fmt.Errorf("%w: valid_to %q cannot be read", ErrEdgeInterval, to)
-	}
-	start, ok := instantOf(from)
-	if !ok {
-		return nil
 	}
 	if !end.After(start) {
 		return fmt.Errorf("%w: valid_to %s is not after valid_from %s", ErrEdgeInterval, to, from)
@@ -326,9 +327,6 @@ func checkChains(edges map[string]Edge) error {
 	type chainKey struct{ from, typ, context string }
 	chains := map[chainKey][]Edge{}
 	for _, e := range edges {
-		if _, ok := instantOf(e.ValidFrom); !ok {
-			continue
-		}
 		k := chainKey{e.From, e.Type, e.Context}
 		chains[k] = append(chains[k], e)
 	}

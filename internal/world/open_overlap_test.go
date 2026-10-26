@@ -152,6 +152,37 @@ func TestOpenRefusesAnOverlapOverAMiddleEdge(t *testing.T) {
 	}
 }
 
+// TestOpenRefusesAnUnreadableStoredStart proves a stored edge whose valid_from
+// cannot be read is refused at Open by name, open edges included. Without the
+// check, two open edges of one chain, one with a start "invalid", load, and
+// Neighbors with no time returns both targets.
+func TestOpenRefusesAnUnreadableStoredStart(t *testing.T) {
+	for name, edges := range map[string][]world.Edge{
+		"open pair": {
+			plays("rel_bad", "team:g:a", "invalid", ""),
+			plays("rel_ok", "team:g:b", "2087-01-01T00:00:00.000Z", ""),
+		},
+		"bounded": {
+			plays("rel_bad", "team:g:a", "invalid", "2089-01-01T00:00:00.000Z"),
+		},
+		"empty start": {
+			plays("rel_bad", "team:g:a", "", ""),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, dir, logs := graphFixture(t)
+			writeEdges(t, dir, edges)
+			s, err := reopen(t, dir, logs)
+			if err == nil || s != nil {
+				t.Fatalf("a state with an unreadable start was opened: %v", err)
+			}
+			if !errors.Is(err, world.ErrEdgeInterval) || !strings.Contains(err.Error(), "rel_bad") {
+				t.Fatalf("the refusal does not name the edge: %v", err)
+			}
+		})
+	}
+}
+
 // TestOpenRefusesAnEmptyOrUnreadableInterval proves each bad stored bound is
 // refused by name: an empty interval (valid_to equal to valid_from) and an end
 // that is not a time.
