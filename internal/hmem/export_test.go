@@ -37,9 +37,13 @@ func AppendLedgerLines(s *Store, n, spread int) error {
 func AppendProposalLines(s *Store, n int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.syncDreams(); err != nil {
+		return err
+	}
+	base := len(s.dreams.order)
 	ps := make([]Proposal, 0, n)
 	for i := 0; i < n; i++ {
-		ps = append(ps, Proposal{ID: fmt.Sprintf("dream-grown-%d", i), Type: "insight", Content: "grown", DerivedFrom: []string{"mem-1"}, Status: ProposalProposed})
+		ps = append(ps, Proposal{ID: fmt.Sprintf("dream-%d", base+i+1), Type: "insight", Content: "grown", DerivedFrom: []string{"mem-1"}, Status: ProposalProposed})
 	}
 	return s.appendDream(ps...)
 }
@@ -129,14 +133,28 @@ func ScanAllProposals(s *Store) int {
 	return len(ps)
 }
 
+// ScanAllWaiting is the full read of the waiting proposals that a page must not
+// make. The work-bound test calls it as the negative control: it moves the
+// visited counter and the allocation with the number waiting.
+func ScanAllWaiting(s *Store) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ps, _ := s.waiting()
+	return len(ps)
+}
+
 // AppendRejectedProposalLines writes n rejected proposals to the dream log,
 // without touching state: a history of finished proposals.
 func AppendRejectedProposalLines(s *Store, n int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.syncDreams(); err != nil {
+		return err
+	}
+	base := len(s.dreams.order)
 	ps := make([]Proposal, 0, n)
 	for i := 0; i < n; i++ {
-		ps = append(ps, Proposal{ID: fmt.Sprintf("dream-old-%d", i), Type: "insight", Content: "old", DerivedFrom: []string{"mem-1"}, Status: ProposalRejected})
+		ps = append(ps, Proposal{ID: fmt.Sprintf("dream-%d", base+i+1), Type: "insight", Content: "old", DerivedFrom: []string{"mem-1"}, Status: ProposalRejected})
 	}
 	return s.appendDream(ps...)
 }

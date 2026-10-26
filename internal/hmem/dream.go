@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -87,10 +88,13 @@ type dreamIndex struct {
 	cur   logCursor
 	order []string
 	byID  map[string]Proposal
-	// pending holds, per epoch, the ids whose newest state is proposed or
-	// approving. A Clear raises the epoch, so the old epochs' sets are never
-	// read again and cost no work.
-	pending map[int]map[string]bool
+	// pending holds, per epoch, the sequence numbers (the N of dream-N) of the
+	// proposals whose newest state is proposed or approving, in ascending order,
+	// which is the order they were made. It is kept sorted on every state
+	// change, so a page seeks to its cursor by binary search and stops after
+	// its limit, and no read sorts or copies the waiting set. A Clear raises
+	// the epoch, so the old epochs' lists are never read again and cost no work.
+	pending map[int][]int
 	// visited counts the proposals the lookups examined. The growth tests read
 	// it to prove the work does not follow the history.
 	visited int64
@@ -105,7 +109,7 @@ func newDreamIndex(path string) *dreamIndex {
 func (ix *dreamIndex) reset() {
 	ix.order = nil
 	ix.byID = map[string]Proposal{}
-	ix.pending = map[int]map[string]bool{}
+	ix.pending = map[int][]int{}
 }
 
 // isWaiting reports whether a proposal in this status still needs a decision.
@@ -113,21 +117,49 @@ func isWaiting(status string) bool {
 	return status == ProposalProposed || status == ProposalApproving
 }
 
+// dreamSeq returns the sequence number of a proposal id, the N of dream-N. The
+// number is the proposal's place in the order they were made, so it is the
+// stable cursor of a page: it names a proposal, never a position in a list that
+// a decision changes.
+func dreamSeq(id string) (int, error) {
+	n, err := strconv.Atoi(strings.TrimPrefix(id, "dream-"))
+	if err != nil || n < 1 || !strings.HasPrefix(id, "dream-") {
+		return 0, fmt.Errorf("hmem: dream log id %q is not dream-N", id)
+	}
+	return n, nil
+}
+
+// waitSet adds or removes one sequence number in the sorted list of an epoch.
+// The search is a binary one; the shift of the tail is a copy of integers, not
+// a visit of proposals.
+func (ix *dreamIndex) waitSet(epoch, seq int, in bool) {
+	list := ix.pending[epoch]
+	at := sort.SearchInts(list, seq)
+	has := at < len(list) && list[at] == seq
+	switch {
+	case in && !has:
+		list = append(list, 0)
+		copy(list[at+1:], list[at:])
+		list[at] = seq
+	case !in && has:
+		list = append(list[:at], list[at+1:]...)
+	}
+	ix.pending[epoch] = list
+}
+
 // note folds one dream log line into the index: byID takes the newest state and
-// the pending sets follow the status change.
-func (ix *dreamIndex) note(p Proposal) {
+// the pending lists follow the status change. seq is the id's number, checked
+// by dreamSeq.
+func (ix *dreamIndex) note(p Proposal, seq int) {
 	old, seen := ix.byID[p.ID]
 	if !seen {
 		ix.order = append(ix.order, p.ID)
 	} else if isWaiting(old.Status) {
-		delete(ix.pending[old.Epoch], p.ID)
+		ix.waitSet(old.Epoch, seq, false)
 	}
 	ix.byID[p.ID] = p
 	if isWaiting(p.Status) {
-		if ix.pending[p.Epoch] == nil {
-			ix.pending[p.Epoch] = map[string]bool{}
-		}
-		ix.pending[p.Epoch][p.ID] = true
+		ix.waitSet(p.Epoch, seq, true)
 	}
 }
 
@@ -140,7 +172,11 @@ func (s *Store) syncDreams() error {
 		if err := json.Unmarshal(line, &p); err != nil {
 			return fmt.Errorf("hmem: dream log line is not valid JSON: %w", err)
 		}
-		ix.note(p)
+		seq, err := dreamSeq(p.ID)
+		if err != nil {
+			return err
+		}
+		ix.note(p, seq)
 		return nil
 	})
 }
@@ -185,27 +221,19 @@ func (s *Store) proposalState(id string) (Proposal, bool, error) {
 }
 
 // waiting returns the proposals of the current epoch that still need a
-// decision, in the order they were made. Only those are visited: the work
-// follows the number waiting, not the number ever made. The caller holds s.mu.
+// decision, in the order they were made, from the sorted list (no sort). Only
+// those are visited: the work follows the number waiting, not the number ever
+// made. Only the sleep guards need all of them; a page uses PendingPage. The
+// caller holds s.mu.
 func (s *Store) waiting() ([]Proposal, error) {
 	if err := s.syncDreams(); err != nil {
 		return nil, err
 	}
-	ids := make([]string, 0, len(s.dreams.pending[s.epoch]))
-	for id := range s.dreams.pending[s.epoch] {
-		ids = append(ids, id)
-	}
-	// Ids are dream-N, so the shorter id is the older one within a prefix.
-	sort.Slice(ids, func(i, j int) bool {
-		if len(ids[i]) != len(ids[j]) {
-			return len(ids[i]) < len(ids[j])
-		}
-		return ids[i] < ids[j]
-	})
-	out := make([]Proposal, 0, len(ids))
-	for _, id := range ids {
+	seqs := s.dreams.pending[s.epoch]
+	out := make([]Proposal, 0, len(seqs))
+	for _, n := range seqs {
 		s.dreams.visited++
-		out = append(out, s.dreams.byID[id])
+		out = append(out, s.dreams.byID["dream-"+strconv.Itoa(n)])
 	}
 	return out, nil
 }
@@ -414,11 +442,16 @@ func (s *Store) Pending() ([]Proposal, error) {
 	return out, err
 }
 
-// PendingPage returns up to limit pending proposals, oldest first, starting at
-// the one numbered cursor (zero is the first). The second result is the cursor
-// of the next page, or -1 when this page reached the end. A limit above
-// pendingPageMax is cut to it; a limit below one is refused. The work is the
-// proposals that wait, never the rejected, approved or void ones.
+// PendingPage returns up to limit pending proposals, oldest first, that were
+// made after the proposal numbered cursor (the N of dream-N; zero starts at the
+// oldest). The second result is the cursor of the next page, the number of the
+// last proposal this page returned, or -1 when the list ended. A page that
+// fills exactly at the end of the list may still return a cursor; the next page
+// is then empty. The cursor names a proposal, not a place in the queue, so a
+// proposal decided between two calls leaves the others where they were: none
+// that still waits is skipped. A limit above pendingPageMax is cut to it; a
+// limit below one is refused. The work is one binary search and about limit
+// proposals, never the rest of the waiting ones nor the finished ones (R16).
 func (s *Store) PendingPage(cursor, limit int) ([]Proposal, int, error) {
 	if limit < 1 || cursor < 0 {
 		return nil, -1, fmt.Errorf("hmem: pending page needs a cursor of at least 0 and a limit of at least 1")
@@ -426,26 +459,26 @@ func (s *Store) PendingPage(cursor, limit int) ([]Proposal, int, error) {
 	limit = min(limit, pendingPageMax)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	w, err := s.waiting()
-	if err != nil {
+	if err := s.syncDreams(); err != nil {
 		return nil, -1, err
 	}
-	// An approving proposal is a decision already taken, so it is not offered.
-	queue := w[:0]
-	for _, p := range w {
-		if p.Status == ProposalProposed {
-			queue = append(queue, p)
+	seqs := s.dreams.pending[s.epoch]
+	out := []Proposal{}
+	last := cursor
+	for at := sort.SearchInts(seqs, cursor+1); at < len(seqs); at++ {
+		if len(out) == limit {
+			return out, last, nil
 		}
+		s.dreams.visited++
+		p := s.dreams.byID["dream-"+strconv.Itoa(seqs[at])]
+		// An approving proposal is a decision already taken, so it is not offered.
+		if p.Status != ProposalProposed {
+			continue
+		}
+		out = append(out, p)
+		last = seqs[at]
 	}
-	if cursor >= len(queue) {
-		return []Proposal{}, -1, nil
-	}
-	end := min(cursor+limit, len(queue))
-	out := append([]Proposal{}, queue[cursor:end]...)
-	if end >= len(queue) {
-		return out, -1, nil
-	}
-	return out, end, nil
+	return out, -1, nil
 }
 
 // pendingOne finds a proposal that is still waiting, by its id, in one lookup.
