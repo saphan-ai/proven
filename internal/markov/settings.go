@@ -10,7 +10,7 @@ import (
 
 // The environment settings of bounded steps (ADR-0013, ADR-0048). Sample mode reads none of them.
 const (
-	// EnvSwitch turns the engine on or off. ADR-0048 point 4: off until its measurement holds.
+	// EnvSwitch turns the engine on or off. ADR-0053: on by default, and switched off by setting it to off.
 	EnvSwitch = "PROVEN_MARKOVIAN"
 	// EnvThreshold is the size of a change, in estimated tokens of the Planner's whole prompt, above which the
 	// review runs in bounded steps.
@@ -40,7 +40,7 @@ const maxThreshold = 10_000_000
 
 // Settings is the loaded configuration of bounded steps.
 type Settings struct {
-	// On is the switch. The zero value is off, so a caller that sets nothing gets the review as it was.
+	// On is the switch. The zero value is off; DefaultSettings and an unset environment are on (ADR-0053).
 	On bool
 	// Threshold is in estimated tokens; only a change strictly above it is cut.
 	Threshold int
@@ -50,9 +50,9 @@ type Settings struct {
 	Carry int
 }
 
-// DefaultSettings is what an unset environment loads: off, with the documented defaults behind the switch.
+// DefaultSettings is what an unset environment loads: on (ADR-0053), with the documented defaults behind the switch.
 func DefaultSettings() Settings {
-	return Settings{On: false, Threshold: DefaultThreshold, Unit: UnitFile, Carry: DefaultCarry}
+	return Settings{On: true, Threshold: DefaultThreshold, Unit: UnitFile, Carry: DefaultCarry}
 }
 
 // allowedThreshold and allowedCarry are the value lists a refusal names.
@@ -69,11 +69,13 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	s := DefaultSettings()
 	switch v := strings.TrimSpace(env(EnvSwitch)); v {
-	case "", "off":
+	case "":
 	case "on":
 		s.On = true
+	case "off":
+		s.On = false
 	default:
-		return Settings{}, &ConfigError{Field: EnvSwitch, Value: v, Reason: "not on or off", Allowed: []string{"on", "off; empty means off"}}
+		return Settings{}, &ConfigError{Field: EnvSwitch, Value: v, Reason: "not on or off", Allowed: []string{"on", "off; empty means on"}}
 	}
 	if v := strings.TrimSpace(env(EnvThreshold)); v != "" {
 		n, err := strconv.Atoi(v)
@@ -105,8 +107,8 @@ func Environment() []envdoc.Setting {
 	return []envdoc.Setting{
 		{
 			Name:        EnvSwitch,
-			Default:     envdoc.Tick("off"),
-			Description: "`on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. Off until its measurement holds",
+			Default:     envdoc.Tick("on"),
+			Description: "`on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. On by default (ADR-0053); its benefit is not measured yet",
 		},
 		{
 			Name:        EnvThreshold,

@@ -389,17 +389,10 @@ func TestPlanTraceNamesClassSignalsAndPlan(t *testing.T) {
 	}
 }
 
-// TestScoutIntentIsOffByDefault proves the switch lands off (the owner's decision on ADR-0049), in the
-// defaults and in an empty proven.yaml, and that a file can switch it on.
-func TestScoutIntentIsOffByDefault(t *testing.T) {
-	if defaultSettings().ScoutIntent {
-		t.Fatal("on by default")
-	}
-	cfg, err := parseConfig([]byte("timeout: 0s\n"))
-	if err != nil || cfg.ScoutIntent {
-		t.Fatalf("%v %t", err, cfg.ScoutIntent)
-	}
-	cfg, err = parseConfig([]byte("scout_intent: on\n"))
+// TestScoutIntentCanBeSwitchedOnExplicitly proves a file can still say scout_intent: on, as it could when
+// the default was off. The default itself is pinned by TestMeterlessEnginesAreOnByDefault (ADR-0053).
+func TestScoutIntentCanBeSwitchedOnExplicitly(t *testing.T) {
+	cfg, err := parseConfig([]byte("scout_intent: on\n"))
 	if err != nil || !cfg.ScoutIntent {
 		t.Fatalf("%v %t", err, cfg.ScoutIntent)
 	}

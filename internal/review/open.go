@@ -562,6 +562,11 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	var planned *reviewPlan
 	plan := offPlan()
 	if cfg.ScoutIntent {
+		// ADR-0053: the plan reads the change first, so a target with nothing to read is refused here, by the
+		// sentence that says what to pass, and not by the plan's own failed read.
+		if cerr := r.p.CheckTarget(pipeline.Request{Target: req.Target, BaselineCommit: req.BaselineCommit, HeadCommit: req.HeadCommit}); cerr != nil {
+			return Result{}, cerr
+		}
 		files, ferr := changedPaths(req)
 		if ferr != nil {
 			return Result{}, ferr
