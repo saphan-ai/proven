@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Sleep thresholds, from the Meterless H-MEM specification (sleep cycle, section 8).
@@ -139,14 +142,13 @@ type guards struct {
 // rejection frees them.
 func (s *Store) guardsNow(all []Record) (guards, error) {
 	g := protections(all)
-	ps, err := s.proposals()
+	// Only the proposals that wait are read (R16): a sleep never walks the
+	// rejected, approved and void ones, however many there are.
+	ps, err := s.waiting()
 	if err != nil {
 		return guards{}, err
 	}
 	for _, p := range ps {
-		if p.Status != ProposalProposed && p.Status != ProposalApproving {
-			continue
-		}
 		for _, id := range p.DerivedFrom {
 			g.pending[id] = true
 		}
@@ -226,15 +228,12 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		prev[id] = rec
 	}
 	prevSeq := s.seq
-	rollback := func(err error) (SleepReport, error) {
-		s.records = prev
-		s.seq = prevSeq
-		// A synthesis writes the state file as it adds; writing the restored
-		// records keeps the file equal to memory. Its own failure adds nothing
-		// to the error already being returned.
-		_ = s.persist()
-		return SleepReport{}, err
-	}
+	// Every change is made in memory and its ledger line collected; commit then
+	// writes the state file once and the lines in one write, so a failure undoes
+	// the whole cycle and the ledger never holds a line for a change the state
+	// file does not (ADR-0018 point 3: no half-applied change). The backup file
+	// written above stays on a failed cycle: it is a snapshot, not state.
+	var entries []auditEntry
 	rep := SleepReport{BackupID: backupID, ActionLog: []string{"backup " + backupID + " created"}}
 	for _, id := range plan.ToConsolidate {
 		rec, ok := s.records[id]
@@ -245,12 +244,10 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		rec.Layer = LayerLong
 		s.records[id] = rec
 		after := ledgerState(rec)
-		if err := s.auditWith("sleep_consolidate", id, "sleep", map[string]any{
+		entries = append(entries, auditEntry{action: "sleep_consolidate", id: id, actor: "sleep", extra: map[string]any{
 			"previousState": before, "newState": after,
 			"details": map[string]any{"from": LayerShort, "to": LayerLong},
-		}); err != nil {
-			return rollback(err)
-		}
+		}})
 		rep.Consolidated++
 		rep.ActionLog = append(rep.ActionLog, "consolidated "+id)
 	}
@@ -258,7 +255,8 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 	// now: archiving one record must not unprotect another in the same cycle.
 	guard, err := s.guardsNow(s.snapshot())
 	if err != nil {
-		return rollback(err)
+		s.records, s.seq = prev, prevSeq
+		return SleepReport{}, err
 	}
 	for _, id := range plan.ToArchive {
 		rec, ok := s.records[id]
@@ -271,11 +269,9 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		}
 		// The backup above is the way back: archiving removes the record from
 		// the live store and the ledger keeps the line that says why.
-		if err := s.auditWith("sleep_archive", id, "sleep", map[string]any{
+		entries = append(entries, auditEntry{action: "sleep_archive", id: id, actor: "sleep", extra: map[string]any{
 			"details": map[string]any{"age": s.now() - rec.Timestamp, "accessCount": rec.AccessCount},
-		}); err != nil {
-			return rollback(err)
-		}
+		}})
 		delete(s.records, id)
 		rep.Archived++
 		rep.ActionLog = append(rep.ActionLog, "archived "+id)
@@ -293,20 +289,28 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 		}
 		merged, err := s.synthesize(members)
 		if err != nil {
-			return rollback(err)
+			s.records, s.seq = prev, prevSeq
+			return SleepReport{}, err
 		}
-		if err := s.auditWith("sleep_synthesize", merged.ID, "sleep", map[string]any{
-			"details": map[string]any{"sources": group},
-		}); err != nil {
-			return rollback(err)
-		}
+		entries = append(entries,
+			auditEntry{action: "create", id: merged.ID, actor: "sleep:synthesis"},
+			auditEntry{action: "sleep_synthesize", id: merged.ID, actor: "sleep", extra: map[string]any{
+				"details": map[string]any{"sources": group},
+			}})
 		// The sources stay: a synthesis is lineage, not replacement, and the
 		// derived record's DerivedFrom must name live records.
 		rep.Synthesized++
 		rep.ActionLog = append(rep.ActionLog, fmt.Sprintf("synthesized %s from %s", merged.ID, strings.Join(group, ", ")))
 	}
-	if err := s.persist(); err != nil {
-		return rollback(err)
+	post := make(map[string]Record, len(s.records))
+	for id, rec := range s.records {
+		post[id] = rec
+	}
+	postSeq := s.seq
+	undo := func() { s.records, s.seq = prev, prevSeq }
+	redo := func() { s.records, s.seq = post, postSeq }
+	if err := s.commit(entries, undo, redo); err != nil {
+		return SleepReport{}, err
 	}
 	return rep, nil
 }
@@ -342,21 +346,84 @@ func (s *Store) synthesize(members []Record) (Record, error) {
 		Origin:      "sleep_synthesis",
 		Label:       fmt.Sprintf("synthesized from %d memories", len(members)),
 		DerivedFrom: ids,
+		// SleepExecute writes the state and the ledger lines of the whole cycle together.
+		deferWrites: true,
 	})
 }
 
+// backupSeqFile holds the number of the last backup id handed out, in the
+// backups directory.
+const backupSeqFile = "SEQ"
+
+// backupCollisionTries bounds how far the allocator steps past a backup file
+// that already exists, so a stale sequence file cannot make it loop.
+const backupCollisionTries = 64
+
+// nextBackupID returns the next backup id from a persisted monotonic sequence
+// (R16): it reads one small file, not the backups directory, so a sleep costs
+// the same with ten backups or ten thousand. The new number is written before
+// the backup file, so a crash or a failed cycle never hands the same id out
+// twice; a failed cycle leaves a gap, which is harmless. A backup file already
+// at the number (a stale sequence) is stepped over, never overwritten. A store
+// that has backups but no sequence file yet (or an unreadable one) is
+// migrated once: the directory is listed to find the highest number, and the
+// sequence file is written, so no later sleep lists it. The caller holds s.mu.
+func (s *Store) nextBackupID(dir string) (string, error) {
+	seqPath := filepath.Join(dir, backupSeqFile)
+	last := -1
+	if b, err := os.ReadFile(seqPath); err == nil {
+		if n, perr := strconv.Atoi(strings.TrimSpace(string(b))); perr == nil && n >= 0 {
+			last = n
+		}
+	}
+	if last < 0 {
+		list := os.ReadDir
+		if s.readDir != nil {
+			list = s.readDir
+		}
+		entries, err := list(dir)
+		if err != nil {
+			return "", fmt.Errorf("hmem: backup directory: %w", err)
+		}
+		last = 0
+		for _, e := range entries {
+			name := strings.TrimSuffix(e.Name(), ".json")
+			if e.Name() != name && backupName.MatchString(name) {
+				if n, _ := strconv.Atoi(strings.TrimPrefix(name, "backup-")); n > last {
+					last = n
+				}
+			}
+		}
+	}
+	n := last + 1
+	for tries := 0; ; tries++ {
+		if _, err := os.Lstat(filepath.Join(dir, fmt.Sprintf("backup-%d.json", n))); os.IsNotExist(err) {
+			break
+		} else if err != nil {
+			return "", fmt.Errorf("hmem: backup directory: %w", err)
+		}
+		if tries >= backupCollisionTries {
+			return "", fmt.Errorf("hmem: backup directory: no free backup number after %d (the sequence file %s is stale)", n, seqPath)
+		}
+		n++
+	}
+	if err := writeAtomic(seqPath, []byte(strconv.Itoa(n)+"\n")); err != nil {
+		return "", fmt.Errorf("hmem: backup sequence: %w", err)
+	}
+	return fmt.Sprintf("backup-%d", n), nil
+}
+
 // writeBackup snapshots the whole store to backups/backup-N.json in the state
-// directory, with the next free N, and returns the id. The caller holds s.mu.
+// directory, with the next number of the persisted sequence, and returns the id. The caller holds s.mu.
 func (s *Store) writeBackup() (string, error) {
 	dir := filepath.Join(s.dir, "backups")
-	if err := privateDir(dir); err != nil {
+	if err := service.PrivateDir(dir); err != nil {
 		return "", fmt.Errorf("hmem: backup directory: %w", err)
 	}
-	entries, err := os.ReadDir(dir)
+	id, err := s.nextBackupID(dir)
 	if err != nil {
-		return "", fmt.Errorf("hmem: backup directory: %w", err)
+		return "", err
 	}
-	id := fmt.Sprintf("backup-%d", len(entries)+1)
 	b, err := json.MarshalIndent(backup{Seq: s.seq, Records: s.snapshot()}, "", "  ")
 	if err != nil {
 		return "", err
@@ -394,13 +461,9 @@ func (s *Store) Restore(backupID string) error {
 		s.records[rec.ID] = rec
 	}
 	s.seq = bk.Seq
-	if err := s.auditWith("restore", "*", "sleep", map[string]any{"details": map[string]any{"backupId": backupID}}); err != nil {
-		s.records, s.seq = prev, prevSeq
-		return err
-	}
-	if err := s.persist(); err != nil {
-		s.records, s.seq = prev, prevSeq
-		return err
-	}
-	return nil
+	next, nextSeq := s.records, s.seq
+	undo := func() { s.records, s.seq = prev, prevSeq }
+	redo := func() { s.records, s.seq = next, nextSeq }
+	entry := auditEntry{action: "restore", id: "*", actor: "sleep", extra: map[string]any{"details": map[string]any{"backupId": backupID}}}
+	return s.commit([]auditEntry{entry}, undo, redo)
 }

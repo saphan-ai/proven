@@ -95,20 +95,27 @@ func (p *Pipeline) begin(target string) error {
 		// ADR-0045: every line of the trace file also rides along as a span event.
 		tw.SetObserver(p.tel.Observe)
 	}
-	mem, err := hmem.Open(hmem.Options{
-		Dir: filepath.Join(p.stateDir, "hmem"), LogDir: p.logDir, RepoRoot: target,
-		Limits: p.hmemLimits,
-	})
-	if err != nil {
-		tw.Close()
-		return err
+	// ADR-0053: a store switched off is not opened, so it creates no directory and writes no file.
+	var mem *hmem.Store
+	if !p.stores.HMemOff {
+		mem, err = hmem.Open(hmem.Options{
+			Dir: filepath.Join(p.stateDir, "hmem"), LogDir: p.logDir, RepoRoot: target,
+			Limits: p.hmemLimits,
+		})
+		if err != nil {
+			tw.Close()
+			return err
+		}
 	}
-	wm, err := world.Open(world.Options{
-		Dir: filepath.Join(p.stateDir, "world"), LogDir: p.logDir, RepoRoot: target, Memory: mem,
-	})
-	if err != nil {
-		tw.Close()
-		return err
+	var wm *world.Store
+	if !p.stores.WorldOff {
+		wm, err = world.Open(world.Options{
+			Dir: filepath.Join(p.stateDir, "world"), LogDir: p.logDir, RepoRoot: target, Memory: mem,
+		})
+		if err != nil {
+			tw.Close()
+			return err
+		}
 	}
 	p.trace, p.mem, p.world = tw, mem, wm
 	return nil
@@ -118,6 +125,10 @@ func (p *Pipeline) begin(target string) error {
 // World Model, which records each landed refutation in H-MEM.
 // A second pass over the same file changes nothing.
 func (p *Pipeline) fold() error {
+	// ADR-0053: with the World Model switched off there is no fold, so H-MEM learns nothing from the trace either.
+	if p.world == nil {
+		return nil
+	}
 	f, err := os.Open(p.trace.Path())
 	if err != nil {
 		return err

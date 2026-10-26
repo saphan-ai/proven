@@ -1,0 +1,78 @@
+name: Proven
+description: Review a change with Proven. A drop-in for a Semgrep or Opengrep step (ADR-0020).
+author: saphan-ai
+
+inputs:
+  target:
+    description: The directory to review.
+    required: false
+    default: .
+  config:
+    description: Path to Proven's configuration file (not a Semgrep registry value).
+    required: false
+  output-format:
+    description: json/sarif, json, sarif or text. Names the file results-file points to and the format in the log.
+    required: false
+    default: json/sarif
+  severity:
+    description: Lowest severity reported, INFO, WARNING or ERROR.
+    required: false
+    default: INFO
+  include:
+    description: Comma-separated globs of changed paths to review.
+    required: false
+  exclude:
+    description: Comma-separated globs of changed paths to leave out.
+    required: false
+  timeout:
+    description: The whole review's time limit in seconds.
+    required: false
+  strict:
+    description: true fails the step when there are findings (--error); false does not.
+    required: false
+    default: "true"
+  baseline-commit:
+    description: Review only what changed since this commit. Defaults to the pull request's base.
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  sample-mode:
+    description: true runs the sample reviewer, with no network and no keys (--sample).
+    required: false
+    default: "false"
+  comment:
+    description: true posts ONE summary comment on the pull request, edited in place on every run (needs pull-requests write); false posts nothing and reads no token.
+    required: false
+    default: "false"
+  github-token:
+    description: The token the summary comment is posted with; read only when comment is true. Needs pull-requests write.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  results-file:
+    description: The file for the chosen output-format, relative to the workspace.
+  json-file:
+    description: Proven's JSON review, relative to the workspace.
+  sarif-file:
+    description: Proven's SARIF 2.1.0 review, relative to the workspace.
+  findings-count:
+    description: The number of findings in the JSON review.
+  unresolved-count:
+    description: The findings whose evidence did not settle them.
+
+runs:
+  using: docker
+  image: action/Dockerfile
+  env:
+    INPUT_TARGET: ${{ inputs.target }}
+    INPUT_CONFIG: ${{ inputs.config }}
+    INPUT_OUTPUT_FORMAT: ${{ inputs.output-format }}
+    INPUT_SEVERITY: ${{ inputs.severity }}
+    INPUT_INCLUDE: ${{ inputs.include }}
+    INPUT_EXCLUDE: ${{ inputs.exclude }}
+    INPUT_TIMEOUT: ${{ inputs.timeout }}
+    INPUT_STRICT: ${{ inputs.strict }}
+    INPUT_BASELINE_COMMIT: ${{ inputs.baseline-commit }}
+    INPUT_SAMPLE_MODE: ${{ inputs.sample-mode }}
+    INPUT_COMMENT: ${{ inputs.comment }}
+    INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}

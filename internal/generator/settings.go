@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -52,11 +51,12 @@ const (
 
 	// The defaults of nvidia mode (ADR-0031 point 3). The base is the hosted
 	// API's OpenAI-compatible root. The model is one id from the list NVIDIA
-	// publishes at build.nvidia.com; it is not the Skeptic's model, so the finder
-	// and the Skeptic differ (ADR-0006). Neither id has been confirmed by a call
-	// with a real key: that check is UNRUN, and a setting replaces either.
+	// publishes at build.nvidia.com. The earlier default was retired (HTTP 410,
+	// measured 2026-10-25), so the finder now asks for the Skeptic's model; the
+	// trace notes the shared family (ADR-0006). The API names this model's
+	// answer with an alias, accepted by modelAliases. A setting replaces either.
 	defaultNVIDIABase  = "https://integrate.api.nvidia.com/v1"
-	defaultNVIDIAModel = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+	defaultNVIDIAModel = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 )
 
 // Environment lists the live-generator settings in the order the page shows.
@@ -98,7 +98,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvModel,
 			Default:     envdoc.Tick(defaultModel) + " for `nightshift`; " + envdoc.Tick(defaultNVIDIAModel) + " for `nvidia`",
-			Description: "the model asked for; Nightshift's router chooses when `auto`. The hosted default is from NVIDIA's published list and is not yet confirmed by a live call",
+			Description: "the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only",
 		},
 		{
 			Name:        EnvTimeout,
@@ -113,7 +113,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvSkepticModel,
 			Default:     envdoc.Tick(DefaultSkepticModel),
-			Description: "the Skeptic's model (ADR-0006: another family than the finder's)",
+			Description: "the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family",
 		},
 	}
 }
@@ -123,28 +123,8 @@ func Environment() []envdoc.Setting {
 var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value and what is allowed. A refused
-// token is reported with an empty value, so the secret is never printed.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+// A refused token is reported with an empty value, so the secret is never printed.
+type ConfigError = service.ConfigError
 
 // Settings is one validated live-generator configuration.
 // The token is held so the call can send it. It is not a value to print.

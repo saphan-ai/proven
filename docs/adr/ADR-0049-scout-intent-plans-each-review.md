@@ -1,6 +1,7 @@
 # ADR-0049: Meterless's Scout Intent plans each review before a model runs
 
 **Status:** accepted · **Date:** 2026-10-24
+**Superseded in part by [ADR-0053](ADR-0053-all-four-meterless-engines-are-on-by-default.md):** point 5, "the benefit is measured, or the engine is not kept", no longer keeps the engine off; it is on by default.
 **Decided by:** the owner · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-24
 **Follows:** [ADR-0012](ADR-0012-review-classes-as-in-saphan-studio.md) and [ADR-0014](ADR-0014-review-class-chosen-by-configured-rules.md) (review classes), [ADR-0018](ADR-0018-meterless-engines-minimum-and-their-contract.md) (Meterless engines)
 **Trigger:** the owner, 24 October: *"which fourth one are we missing? … we must say clearly that we do not do art for art's sake, only what is really worth using in our scenario."*

@@ -1,0 +1,145 @@
+[
+  {
+    "name": "osv-by-package finds two ranges",
+    "template": "osv-by-package",
+    "params": {
+      "ecosystem": "Go",
+      "package": "evil.example/leftpad"
+    },
+    "columns": [
+      "id",
+      "aliases",
+      "ecosystem",
+      "package",
+      "introduced",
+      "fixed",
+      "last_affected",
+      "severity",
+      "published"
+    ],
+    "rows": [
+      [
+        "GHSA-px-sample-0001",
+        "CVE-2026-0001",
+        "Go",
+        "evil.example/leftpad",
+        "1.0.0",
+        "1.2.4",
+        "",
+        "HIGH",
+        "2026-01-15"
+      ],
+      [
+        "GHSA-px-sample-0002",
+        "",
+        "Go",
+        "evil.example/leftpad",
+        "2.0.0",
+        "2.1.0",
+        "",
+        "LOW",
+        "2026-03-01"
+      ]
+    ]
+  },
+  {
+    "name": "osv-by-package finds nothing",
+    "template": "osv-by-package",
+    "params": {
+      "ecosystem": "Go",
+      "package": "absent.example/nothing"
+    },
+    "columns": [
+      "id",
+      "aliases",
+      "ecosystem",
+      "package",
+      "introduced",
+      "fixed",
+      "last_affected",
+      "severity",
+      "published"
+    ],
+    "rows": []
+  },
+  {
+    "name": "osv-by-advisory finds one",
+    "template": "osv-by-advisory",
+    "params": {
+      "advisory_id": "GHSA-px-sample-0001"
+    },
+    "columns": [
+      "id",
+      "alias",
+      "published",
+      "severity"
+    ],
+    "rows": [
+      [
+        "GHSA-px-sample-0001",
+        "CVE-2026-0001",
+        "2026-01-15",
+        "HIGH"
+      ]
+    ]
+  },
+  {
+    "name": "kev-by-cve finds one",
+    "template": "kev-by-cve",
+    "params": {
+      "cve_id": "CVE-2026-0001"
+    },
+    "columns": [
+      "cve_id",
+      "vendor_project",
+      "product",
+      "date_added",
+      "known_ransomware"
+    ],
+    "rows": [
+      [
+        "CVE-2026-0001",
+        "evil.example",
+        "leftpad",
+        "2026-01-15",
+        "Known"
+      ]
+    ]
+  },
+  {
+    "name": "kev-by-cve finds nothing",
+    "template": "kev-by-cve",
+    "params": {
+      "cve_id": "CVE-2026-9999"
+    },
+    "columns": [
+      "cve_id",
+      "vendor_project",
+      "product",
+      "date_added",
+      "known_ransomware"
+    ],
+    "rows": []
+  },
+  {
+    "name": "epss-by-cve finds one",
+    "template": "epss-by-cve",
+    "params": {
+      "cve_id": "CVE-2021-44228"
+    },
+    "columns": [
+      "cve_id",
+      "epss",
+      "percentile",
+      "score_date"
+    ],
+    "rows": [
+      [
+        "CVE-2021-44228",
+        "0.99999",
+        "1.0",
+        "2026-10-20"
+      ]
+    ]
+  }
+]

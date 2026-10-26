@@ -13,11 +13,11 @@ package limit
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 const (
@@ -32,29 +32,8 @@ const (
 const Adapter = 5 * time.Second
 
 // ConfigError names a refused adapter-bound setting and the values that are
-// allowed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value, why, and what is allowed
-// (ADR-0013).
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+// allowed (ADR-0013).
+type ConfigError = service.ConfigError
 
 // Load reads EnvAdapter. An empty value is Adapter.
 // ADR-0013: a value that is set and is not a duration greater than zero is

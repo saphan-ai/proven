@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/redact"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Event is one claim, piece of evidence, refutation, verdict or guardrail check.
@@ -59,6 +60,10 @@ type Model struct {
 	Model       string `json:"model"`
 	ReceiptID   string `json:"receipt_id,omitempty"`
 	FromReceipt bool   `json:"from_receipt"`
+	// Requested is the model the request asked for and ResponseID the id of the
+	// completion response. The custody audit reads both; older lines omit them.
+	Requested  string `json:"requested,omitempty"`
+	ResponseID string `json:"response_id,omitempty"`
 }
 
 // Check is one guardrail check: the side, the verdict, the categories and the
@@ -163,7 +168,7 @@ func (w *Writer) SetObserver(f func(Event)) {
 
 // Open creates the logs directory and opens the trace for appending.
 func Open(dir string) (*Writer, error) {
-	if err := privateDir(dir); err != nil {
+	if err := service.PrivateDir(dir); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, "trace.jsonl")
@@ -278,14 +283,4 @@ func eventID(e Event) string {
 	}
 	sum := sha256.Sum256(bytes.TrimSpace(buf.Bytes()))
 	return hex.EncodeToString(sum[:])[:16]
-}
-
-// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
-// mode only when it creates, and a directory an earlier run left at 0755 must
-// not stay readable by others (Proven's own state is readable only by its user).
-func privateDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	return os.Chmod(dir, 0o700)
 }

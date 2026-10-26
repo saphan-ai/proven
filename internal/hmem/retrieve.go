@@ -79,6 +79,7 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	// saved, which feeds its recency on the next query.
 	now := s.now()
 	saved := make(map[string]Record, len(scored))
+	entries := make([]auditEntry, 0, len(scored))
 	for i := range scored {
 		id := scored[i].Record.ID
 		if _, ok := saved[id]; !ok {
@@ -88,20 +89,14 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 		rec.LastAccessed = now
 		rec.AccessCount++
 		s.records[rec.ID] = rec
-		scored[i].Record = rec
-		if err := s.audit("read", rec.ID, "retrieval"); err != nil {
-			// A partial touch must not stay: the state file was not written.
-			for id, prev := range saved {
-				s.records[id] = prev
-			}
-			return QueryResult{}, err
-		}
+		// The hit carries its own copy, so a caller editing it cannot change the store.
+		scored[i].Record = rec.detached()
+		entries = append(entries, auditEntry{action: "read", id: rec.ID, actor: "retrieval"})
 	}
 	if len(scored) > 0 {
-		if err := s.persist(); err != nil {
-			for id, prev := range saved {
-				s.records[id] = prev
-			}
+		// The state first, then every read line in one write: a failure leaves
+		// no touch in memory and no read line in the ledger.
+		if err := s.commitRecords(entries, s.seq, saved, nil); err != nil {
 			return QueryResult{}, err
 		}
 	}

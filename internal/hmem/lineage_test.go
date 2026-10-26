@@ -94,16 +94,15 @@ func TestSleepArchivesTheSourcesOfARejectedProposal(t *testing.T) {
 }
 
 // TestApproveRefusesAnAbsentSource proves approval never writes a lineage
-// reference to a record that is gone (an older log, or records cleared since
-// the dream): it refuses by name and creates nothing.
+// reference to a record that is gone (an older log that lost it; Clear voids
+// its proposals instead, see void_test.go): it refuses by name and creates
+// nothing.
 func TestApproveRefusesAnAbsentSource(t *testing.T) {
-	now := fixed
-	s := clocked(t, &now)
-	p, ids := dreamedPair(t, s)
-	if err := s.Clear(); err != nil {
-		t.Fatal(err)
-	}
-	rec, err := s.Approve(p.ID)
+	e := newApproveEnv(t)
+	ids := []string{"mem-1", "mem-2"}
+	emptyStateFile(t, e.dir)
+	s := openApprove(t, e.dir, e.logs)
+	rec, err := s.Approve(e.proposal)
 	if err == nil {
 		t.Fatalf("approved %+v with sources %v absent", rec, ids)
 	}

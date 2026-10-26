@@ -58,6 +58,55 @@ Saphan Studio is the product. What follows is how *this* fleet is set up to buil
 4. The **owner** reads the review and decides: accept, accept with conditions, reject, or close without shipping. His reason is written down.
 5. If the change goes back, it gets a new round. The documents of every round stay.
 
+### The trains that built Proven
+
+The work is split into **trains**: a train is one line of work with its own goal, its own order of small steps
+("wagons") and one master agent who runs it. Five masters ran eight trains:
+
+| train | what it builds | started |
+|---|---|---|
+| `proven-reviewer-core` | the reviewer itself: the six agents, the pipeline, the evidence sources and stores | 22 Oct |
+| `proven-cli-and-action` | the command line, the outputs people and machines read, the GitHub Action, the pull-request comment | 22 Oct |
+| `proven-cursor-infra` | the lab a judge starts with one command, the container image, the documentation site, telemetry | 22 Oct |
+| `proven-test-corpus` | the test cases Proven is scored on, and the held-out set it never saw | 22 Oct |
+| `proven-zetaris-local` | Zetaris as Proven's data layer: the evidence tables and the semantic layer | 22 Oct |
+| `proven-security-review` | a security review of Proven's own code, as a whole, in nine pieces | 23 Oct |
+| `proven-enterprise` | what an organisation asks for first: air-gapped mode, signed evidence packs, a policy file, this public record | 23 Oct |
+| `proven-meterless-engines` | the Meterless engines: Markovian and Scout Intent, then full conformance for H-MEM and World Model | 24 Oct |
+
+Trains are added when the work needs them, not planned all up front. On 23 October the owner asked for a systematic
+security review and enterprise features, and two trains started that day under one new master. On 24 October the
+core train held more than it could finish before the feature freeze, so half of it, the Meterless engines, moved to a
+new train with its own master. Each train's full story, step by step, is in [the record](fleet/).
+
+### How a review is ordered
+
+Nothing runs until the owner has read it and signed it. He sees what will be reviewed, by which model and for how
+long, then signs it with his passkey: one touch, in his name. The reviewer does not get "please review this". It gets
+the properties that must hold, so a wrong answer shows. Below is a real order from this week: NVIDIA Nemotron's second
+review of one of Proven's changes.
+
+![A review order in Saphan Studio: the order as the owner sees it, the passkey signature, and what the reviewer must check](../docs/images/saphan-review-order.png)
+
+### What comes back
+
+A review returns one verdict, a short abstract a person can read in a minute, and the full notes behind it. Three real
+reviews of Proven's changes from this week, as the owner reads them:
+
+**Reject.** Two output formats asked for the same path would silently overwrite each other, so the reviewer stopped
+the change, even though every existing test passed.
+
+![A review verdict in Saphan Studio: reject](../docs/images/saphan-review-reject.png)
+
+**Accept with conditions.** The check of Proven's container image can never report "ok" when either side fails, but
+the reviewer asked for the Docker runs to be shown before the change could merge.
+
+![A review verdict in Saphan Studio: accept with conditions](../docs/images/saphan-review-conditions.png)
+
+**Accept.** The proof level now appears in JSON and SARIF output; every test, schema check and unplug check passed.
+
+![A review verdict in Saphan Studio: accept](../docs/images/saphan-review-accept.png)
+
 ### The hardware this fleet runs on
 
 **One person, some silicon, and a fleet with rules and orchestration.**
