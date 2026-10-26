@@ -136,6 +136,8 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	// The severity floor is applied here as well as in the request, so the
 	// outputs and the exit code agree whatever a reviewer returns.
 	result.Findings = filterFindings(result.Findings, cfg.severity)
+	// The pack records counts of the findings it holds, so they are made after the floor.
+	result.ProofCounts = review.CountProofs(result.Findings)
 	if cfg.verbose && !cfg.quiet {
 		fmt.Fprintf(stderr, "target: %s\nbaseline: %s\nhead: %s\n", visible(cfg.target), visible(cfg.baseline), visible(cfg.head))
 	}
