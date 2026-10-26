@@ -51,6 +51,25 @@ func (s *Store) FailWrites(hook func(op string) error) {
 	s.writeHook = hook
 }
 
+// Append stages the hook of FailAppends is asked about, after the step each
+// names. They stand for the writes that place bytes and then fail.
+const (
+	StagePartial  = stagePartial
+	StageWritten  = stageWritten
+	StageSynced   = stageSynced
+	StageClosed   = stageClosed
+	StageRollback = stageRollback
+)
+
+// FailAppends installs a hook that runs after each step of every log append
+// (path is the log, stage one of the Stage constants). A non-nil error fails
+// the append at that step, after the step's bytes were placed.
+func (s *Store) FailAppends(hook func(path, stage string) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.appendFault = hook
+}
+
 // LedgerHas reports whether the audit log holds a line of this action for this
 // memory id, so a test can prove a line was or was not written.
 func LedgerHas(s *Store, action, id string) (bool, error) {

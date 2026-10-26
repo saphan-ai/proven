@@ -146,7 +146,7 @@ func (s *Store) appendDream(ps ...Proposal) error {
 			return err
 		}
 	}
-	if err := appendSynced(s.dreamLog(), buf.Bytes()); err != nil {
+	if err := appendSynced(s.dreamLog(), buf.Bytes(), s.appendFault); err != nil {
 		return fmt.Errorf("hmem: dream log: %w", err)
 	}
 	return nil

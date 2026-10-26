@@ -151,6 +151,13 @@ type Store struct {
 	// writeHook, when set, runs before each durable write ("dream", "state" or "audit:<action>") and may refuse it.
 	// It is the seam tests use to inject a failed write; production leaves it nil.
 	writeHook func(op string) error
+	// appendFault, when set, runs after each step of a log append and may refuse
+	// it, so a test can fail an append after its bytes were placed. Production
+	// leaves it nil.
+	appendFault appendFault
+	// readDir lists a directory; backups use it only to migrate a store that has
+	// no sequence file yet. Nil means os.ReadDir; tests count its calls.
+	readDir func(dir string) ([]os.DirEntry, error)
 }
 
 // disk is the shape of state.json. Seq is kept so Add never reuses an id after
@@ -703,33 +710,10 @@ func (s *Store) auditBatch(entries []auditEntry) error {
 			return err
 		}
 	}
-	if err := appendSynced(s.auditPath, buf.Bytes()); err != nil {
+	if err := appendSynced(s.auditPath, buf.Bytes(), s.appendFault); err != nil {
 		return fmt.Errorf("hmem: audit: %w", err)
 	}
 	return nil
-}
-
-// appendSynced appends b to path in one write and syncs it. The file is
-// created at 0600 and an existing one is narrowed to it, because OpenFile sets
-// the mode only when it creates. The close error is returned too: it is the
-// last chance to learn a write did not land.
-func appendSynced(path string, b []byte) (err error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-	}()
-	if err := f.Chmod(0o600); err != nil {
-		return err
-	}
-	if _, err := f.Write(b); err != nil {
-		return err
-	}
-	return f.Sync()
 }
 
 // findingKey joins the parts that name a finding across reviews.
