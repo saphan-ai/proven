@@ -13,3 +13,8 @@ The npm alerts were fixed after that commit, so they are `fixed` here; the refer
 The 6 Go alerts are on purpose: `demo/live/change` pins `golang.org/x/net v0.16.0`, the release before the HTTP/2
 rapid-reset fix (CVE-2023-44487), so the live demo can show a known-exploited dependency being caught
 (`demo/live/README.md`).
+
+`proven-findings.json` is what Proven's dependency check kept when it ran over the manifests of the pinned commit, and
+`REPORT.md` is the alert-by-alert comparison built from the two JSON files. Both are written by `make baseline-dependabot`
+(or `make baseline-dependabot-manifests` for a run with no evidence store) and are never edited by hand. How to run it, what
+evidence a run rests on and what the committed report shows are in [section 9 of the test README](../../../README.md).

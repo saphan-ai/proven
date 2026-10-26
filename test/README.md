@@ -119,3 +119,69 @@ independent of proven's code and design. Each file's date is its commit date; no
 re-dated.
 
 Licence: Apache-2.0, as the rest of this repository. All case material is synthetic and written for this corpus.
+The one exception is the reference set in section 9, which comes from our own repository.
+
+## 9. A reference set from our own repository: Dependabot's 51 alerts
+
+Dependabot raised 51 alerts on this repository. We found them on our own repository and turned them into a baseline for
+Proven: Proven must find the same vulnerable dependencies, with its own evidence, and the comparison is made alert by alert.
+45 alerts are npm advisories in `docs-site/package-lock.json`. They are real findings, and the docs-site dependency update
+closed them after the pin. 6 alerts are Go advisories for `golang.org/x/net` in `demo/live/change/go.mod`. They are on
+purpose: the live demo shows a known-exploited dependency being caught (`demo/live/README.md`).
+
+The alerts are frozen in `test/corpus/reference/dependabot-fbdf7d3/alerts.json`, with the commit they belong to
+(`fbdf7d3`), before any run. The set is a reference. It is not a case, and nothing in it is held out.
+
+**How Proven sees "the repository at a commit".** `cmd/dependabot-baseline` exports the manifests and lock files of the pinned
+commit, and nothing else, as a change from an empty base. Proven's dependency check reads the packages a change adds or
+raises. A first commit adds all of them, so the check reads every package version the manifests pin and not a diff. The
+check is `internal/osv`, the one a review runs, with every adapter in `internal/manifest`.
+
+**How to run it.**
+
+```sh
+make baseline-dependabot-manifests   # no evidence store: which alerted packages Proven reads
+make baseline-dependabot             # asks the store PROVEN_EVIDENCE_STORE names
+```
+
+The store is one setting, as in a review (`zetaris`, `local` or `couchdb`; [docs/CONFIGURATION.md](../docs/CONFIGURATION.md)).
+A run writes `proven-findings.json` and `REPORT.md` beside `alerts.json`. The report is generated and never edited by hand.
+`go test ./internal/baseline/` regenerates it from the two JSON files and fails when the committed report differs.
+Every verdict line carries an `evidence:` phrase that says what the verdict rests on. A run that cannot name its evidence is
+refused: a local store needs `BASELINE_EVIDENCE_LABEL` and `BASELINE_SNAPSHOT_DATE`, and a Zetaris store that is not
+configured stops the run and says so. A store that is down is a refusal, never a `missed`.
+
+Each alert gets one of three results, and a fourth for a run that asked no store:
+
+| result | meaning |
+|---|---|
+| `found` | A row of Proven's evidence names the alert's GHSA or CVE id, and the version Proven read lies inside that row's range. The row's evidence id is shown. |
+| `found differently` | Proven reads the package. Another advisory affects it, or the alert's advisory is in the evidence and the version lies outside its range. The row says which. |
+| `missed` | Proven does not read the package in that manifest, or reads it and no row of the evidence names the advisory. The row says which. |
+| `not checked` | A manifest-only run read the package and asked no store. |
+
+The report ends with what Proven found that Dependabot did not: package versions affected by an advisory that no alert names
+for that package in that file.
+
+**What it shows today.** This run was made on a machine with no evidence store and no OSV snapshot, so the committed report
+is the manifest-only run. The result is the manifest side alone. Proven reads all 51 alerted packages at the pinned commit,
+and for every alert at least one version it read lies inside the range Dependabot states (for `postcss`, 8.4.31 does and
+8.5.31 does not). It shows nothing yet about whether Proven finds the advisories: the 51 rows are `not checked`, and
+the report says so. We did not fill the gap with the alerts themselves: an OSV table built from `alerts.json` would find
+all 51 by construction and prove nothing.
+
+**Runbook: the run against Zetaris (owner's hand).**
+
+1. On a machine that can reach Zetaris, set the Zetaris settings as `docs/CONFIGURATION.md` lists them, in the environment
+   and not in a file of this repository. Leave `PROVEN_EVIDENCE_STORE` unset, or set it to `zetaris`.
+2. From the repository root, run `make baseline-dependabot`. It asks one OSV query for each package version the manifests
+   pin, and a KEV query for each CVE of an affecting row. It does not query EPSS.
+3. Open `test/corpus/reference/dependabot-fbdf7d3/REPORT.md`. The line under the title must read `evidence: zetaris live
+   evidence (OSV, KEV)`. The snapshot each query read is in `proven-findings.json`.
+4. Run `go test ./internal/baseline/`. It must pass: the report is what the two JSON files give.
+5. Commit `REPORT.md` and `proven-findings.json` together. Publish the report whatever it shows.
+
+To use a local OSV snapshot instead, set `PROVEN_EVIDENCE_STORE=local`, `PROVEN_EVIDENCE_FILE` to a file outside the
+repository, `BASELINE_ADVISORIES` to a directory of OSV advisories, `BASELINE_SNAPSHOT_DATE` to the date of that snapshot, and
+`BASELINE_EVIDENCE_LABEL` to a phrase such as `local OSV snapshot <date>`. The run builds the file with an empty KEV view
+and appends that fact to the phrase, so an absent KEV mark is not read as "not on the list".
