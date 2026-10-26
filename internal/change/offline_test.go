@@ -70,7 +70,7 @@ func TestOfflineGitCommandCarriesBothSwitches(t *testing.T) {
 	c := GitCommand("status")
 	joined := strings.Join(c.Args, " ")
 	env := strings.Join(c.Env, "\n")
-	if !strings.Contains(joined, "protocol.allow=never") || !strings.Contains(env, "GIT_NO_LAZY_FETCH=1") || !strings.Contains(env, "GIT_TERMINAL_PROMPT=0") || strings.Contains(env, marker) {
+	if !strings.Contains(joined, "protocol.allow=never") || !strings.Contains(env, "GIT_NO_LAZY_FETCH=1") || !strings.Contains(env, "GIT_TERMINAL_PROMPT=0") || !strings.Contains(env, "GIT_ATTR_NOSYSTEM=1") || !strings.Contains(joined, "log.showSignature=false") || strings.Contains(env, marker) {
 		t.Fatalf("offline command: args %v env %s", c.Args, env)
 	}
 	for _, name := range transports {

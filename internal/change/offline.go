@@ -37,7 +37,10 @@ func GitCommand(args ...string) *exec.Cmd {
 	argv := args
 	env := childenv.Minimal()
 	if offline.Load() {
-		pre := []string{"-c", "protocol.allow=never"}
+		// log.showSignature=false: git log would otherwise verify a signed commit
+		// by starting gpg.program, gpg.x509.program or gpg.ssh.program, a program
+		// the commit's header chooses and Proven does not judge.
+		pre := []string{"-c", "protocol.allow=never", "-c", "log.showSignature=false"}
 		for _, name := range transports {
 			pre = append(pre, "-c", "protocol."+name+".allow=never")
 		}
