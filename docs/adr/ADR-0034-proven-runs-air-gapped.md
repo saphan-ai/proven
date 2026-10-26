@@ -25,8 +25,8 @@ that keeps every call inside, and a proof that it does.
    everything Proven itself runs and reads, DNS and subprocesses included; the claim is not narrowed. For the one
    program started at a path the operator chooses, the container runtime, Proven checks two things in `local` mode: at
    start it prints and traces the absolute path and the version of the runtime, so the operator sees what runs; and it
-   refuses a relative `PROVEN_TEST_RUNTIME` and a runtime that any user could replace (a world-writable file, or one in
-   a world-writable directory without the sticky bit), by name. A refusal says what it found and what to do. The
+   refuses a relative `PROVEN_TEST_RUNTIME` and a runtime that any user could replace (a world-writable file, or one
+   under a world-writable directory without the sticky bit, at any level), by name. A refusal says what it found and what to do. The
    reviewer's alternative, refusing every runtime Proven cannot verify, is not adopted: a name is not an identity,
    and the operator's own `docker` or `podman` is the setup the docs name.
 5. **`docs/AIR_GAPPED.md`** tells an operator what to run locally, the settings, and how to check the mode holds.

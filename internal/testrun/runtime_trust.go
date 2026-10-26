@@ -34,9 +34,9 @@ func refuseRelativeRuntime(runtime string) error {
 }
 
 // vetRuntimeFile refuses a resolved runtime that any user could replace: the
-// file is world-writable, or its directory is world-writable without the
-// sticky bit. The link is followed, so the file that runs is the one judged;
-// the directory of the path that was found is judged as well.
+// file is world-writable, or a directory above it is world-writable without
+// the sticky bit. The link is followed, so the file that runs is the one judged;
+// the directories above the path that was found are judged as well.
 func vetRuntimeFile(path string) error {
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
@@ -53,7 +53,7 @@ func vetRuntimeFile(path string) error {
 			fmt.Sprintf("the runtime file is writable by every user (mode %04o), so any user could replace the program Proven starts; it is not run", info.Mode().Perm()),
 			"a runtime that only its owner can change: chmod o-w on the file, or another path")
 	}
-	for _, dir := range []string{filepath.Dir(path), filepath.Dir(real)} {
+	for _, dir := range ancestors(filepath.Dir(path), filepath.Dir(real)) {
 		di, err := os.Stat(dir)
 		if err != nil {
 			return refuse(envRuntimeSetting, clip(dir), "PROVEN_NETWORK=local cannot read the runtime's directory: "+err.Error(),
@@ -61,11 +61,33 @@ func vetRuntimeFile(path string) error {
 		}
 		if di.Mode().Perm()&0o002 != 0 && di.Mode()&os.ModeSticky == 0 {
 			return refuse(envRuntimeSetting, clip(dir),
-				fmt.Sprintf("the directory of the runtime is writable by every user and has no sticky bit (mode %04o), so any user could replace the program in it; it is not run", di.Mode().Perm()),
+				fmt.Sprintf("a directory above the runtime is writable by every user and has no sticky bit (mode %04o), so any user could replace the program under it; it is not run", di.Mode().Perm()),
 				"a runtime in a directory that only its owner can change: chmod o-w on the directory, or another path")
 		}
 	}
 	return nil
+}
+
+// ancestors lists each directory from dirs up to the root, once: a directory
+// any user can write without the sticky bit lets that user replace the entry
+// below it, so every one between the root and the runtime is judged.
+func ancestors(dirs ...string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, dir := range dirs {
+		for {
+			if !seen[dir] {
+				seen[dir] = true
+				out = append(out, dir)
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	return out
 }
 
 // Describe is the start line of local mode: the absolute path of the runtime

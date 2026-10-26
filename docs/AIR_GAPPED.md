@@ -115,7 +115,7 @@ Proven starts at a path you choose (`PROVEN_TEST_RUNTIME`):
 - **It refuses a runtime anyone could have replaced.** A runtime given as a relative path (`./docker`, `bin/docker`) is
   refused, because it names a different program in each directory. A bare name (`docker`, `podman`) is found through
   `PATH` once. The file found (after links are followed) is refused when it is writable by every user, and so is a
-  file in a directory that is writable by every user and has no sticky bit. The refusal names
+  file under a directory, at any level up to `/`, that is writable by every user and has no sticky bit. The refusal names
   `PROVEN_TEST_RUNTIME`, says what it found, and says what to do.
 
 Your act when one of them refuses: set `PROVEN_TEST_RUNTIME` to an absolute path, or leave it unset for `docker`, and
