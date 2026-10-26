@@ -152,6 +152,23 @@ func TestOpenRefusesAnOverlapOverAMiddleEdge(t *testing.T) {
 	}
 }
 
+// TestOpenRefusesOverlapWithFurthestMiddleEdge checks the running far end of a chain.
+func TestOpenRefusesOverlapWithFurthestMiddleEdge(t *testing.T) {
+	_, dir, logs := graphFixture(t)
+	writeEdges(t, dir, []world.Edge{
+		plays("rel_first", "team:g:a", "2087-01-01T00:00:00.000Z", "2088-01-01T00:00:00.000Z"),
+		plays("rel_middle", "team:g:b", "2089-01-01T00:00:00.000Z", "2095-01-01T00:00:00.000Z"),
+		plays("rel_last", "team:g:c", "2091-01-01T00:00:00.000Z", "2092-01-01T00:00:00.000Z"),
+	})
+	_, err := reopen(t, dir, logs)
+	if !errors.Is(err, world.ErrEdgeOverlap) {
+		t.Fatalf("middle edge overlap was opened: %v", err)
+	}
+	if !strings.Contains(err.Error(), "rel_middle") || !strings.Contains(err.Error(), "rel_last") {
+		t.Fatalf("refusal does not name the overlapping edges: %v", err)
+	}
+}
+
 // TestOpenRefusesAnUnreadableStoredStart proves a stored edge whose valid_from
 // cannot be read is refused at Open by name, open edges included. Without the
 // check, two open edges of one chain, one with a start "invalid", load, and
