@@ -343,4 +343,4 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `E2E_WAIT_SECONDS` | `900` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 
-`make livecheck` reads these keys from `lab/.env` when the file exists, and ignores an empty value: `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY`, `ZETARIS_API_KEY`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`.
+`make up` also reads `lab/.env` and stores each non-empty setting of `LAB_LIVE_KEYS` as an Actions secret of the lab's demo repository ([LAB.md](LAB.md#go-live), ADR-0052). `make livecheck` reads these keys from `lab/.env` when the file exists, and ignores an empty value: `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY`, `ZETARIS_API_KEY`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`.

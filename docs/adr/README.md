@@ -64,6 +64,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0048](ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md) | a large change is reviewed in bounded steps with Meterless's Markovian engine; kept only if it holds the findings and cuts the cost | accepted, 2026-10-24 |
 | [0049](ADR-0049-scout-intent-plans-each-review.md) | Meterless's Scout Intent plans each review before a model runs; never lowers a configured rule; kept only if measured worth it | accepted, 2026-10-24 |
 | [0050](ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md) | after a review, one automated fix attempt for all proved findings, judged only by the same deterministic evidence; then fixed or rejected; Proven never commits to the author's branch | accepted, 2026-10-25 |
+| [0052](ADR-0052-the-lab-goes-live-three-ways.md) | the lab goes live three ways with no hand edit: one NVIDIA key, our services through the judges' gateway, or Zetaris and Nightshift on your own machine; keys of `lab/.env` become Actions secrets; the comment's first line says live or sample | accepted, 2026-10-26 |
 
 **Rules for an ADR**
 

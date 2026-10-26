@@ -1,6 +1,6 @@
 # The judges' lab
 
-One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. It publishes five ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001), the start page (`LAB_PAGE_PORT`, 3002), the documentation site (`LAB_DOCS_PORT`, 3003) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318).
+One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. It publishes five ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001), the start page (`LAB_PAGE_PORT`, 3002), the documentation site (`LAB_DOCS_PORT`, 3003) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318). The start page carries the lab's password, so it has an address of its own, `LAB_PAGE_BIND` (`127.0.0.1`), and `make up` refuses any value that is not loopback, by name, before it starts a container: `refused: LAB_PAGE_BIND=0.0.0.0 is not a loopback address`.
 
 You need GNU make and Docker. Docker Compose v2 is the `docker compose` command. Windows is not a target. On macOS the `make` from Homebrew is GNU make; the make that ships with the system is not.
 
@@ -38,7 +38,7 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 
 ### The start page and the documentation
 
-The start page is one static page. A small web server (`LAB_PAGE_IMAGE`, a build of nginx that runs as a user that is not root, with a read-only filesystem) serves it at `LAB_PAGE_PATH` on `LAB_PAGE_PORT`, bound to `LAB_BIND`. The seed renders it from `lab/page/lab.html.tmpl` into the lab's page volume each time `make up` runs. The login is filled in there and nowhere else: the template holds a placeholder, the password is not in any file of this repository, and it is not in an image. The table of pull requests is written from the pull requests the seed really made. Every link on the page opens in a new tab. The page needs no network: it has no web font and no outside script.
+The start page is one static page. A small web server (`LAB_PAGE_IMAGE`, a build of nginx that runs as a user that is not root, with a read-only filesystem) serves it at `LAB_PAGE_PATH` on `LAB_PAGE_PORT`, bound to `LAB_PAGE_BIND` (loopback only; see above). The seed renders it from `lab/page/lab.html.tmpl` into the lab's page volume each time `make up` runs. The login is filled in there and nowhere else: the template holds a placeholder, the password is not in any file of this repository, and it is not in an image. The page is also staged only inside that volume: the renderer writes one file there with mode 0600 and moves it into place, and removes it if it stops, so no copy of the page with the password in it exists outside the volume. The page also carries the three ways to [go live](#go-live). The table of pull requests is written from the pull requests the seed really made. Every link on the page opens in a new tab. The page needs no network: it has no web font and no outside script.
 
 The documentation site, the same `docs-site/Dockerfile` that builds Proven's documentation, is a lab service on `LAB_DOCS_PORT` (3003 by default), also bound to `LAB_BIND`. `make up` builds it. A build that fails is named and the lab goes on without it; the page's documentation link then does not open.
 
@@ -56,7 +56,7 @@ The seed makes the repository's `main` from the base of the discount sample set,
 | Add a copyleft helper | `spdx-licence` | The new dependency has a licence the project's policy does not allow. |
 | Add a very young dependency | `project-health` | The new dependency has no maintainers, by its project-health score. |
 
-A clean pull request is reviewed like the others. Its comment starts with one line, `clean: Proven kept no finding on this change.`, and the lines of the review below it say who reviewed (the default reviewer and the second one) and `failed services: none`, which means every check ran. Its run is on the dashboard beside the others. The first two rows are a clean change and the botched version of the same change, so the lab shows what a score compares: a defect caught, and a clean change left alone. The check `lab/lab_test.go` keeps the list honest: every row names an existing sample set, the image holds it, and no two defective rows show the same class.
+A clean pull request is reviewed like the others. Its comment has one more line, `clean: Proven kept no finding on this change.`, after the line that says how the review was made, and the lines of the review below it say who reviewed (the default reviewer and the second one) and `failed services: none`, which means every check ran. Its run is on the dashboard beside the others. The first two rows are a clean change and the botched version of the same change, so the lab shows what a score compares: a defect caught, and a clean change left alone. The check `lab/lab_test.go` keeps the list honest: every row names an existing sample set, the image holds it, and no two defective rows show the same class.
 
 The sample generator answers for every reviewer, so the reviewers do not disagree here: that panel shows a zero, which is the true count. Sample mode reviews the sample set the branch names, not the diff itself; any other branch is reviewed with the discount sample set. A live review, with a model behind each call, is the one that reads a diff.
 
@@ -100,6 +100,82 @@ The dashboard is the JSON file `lab/grafana/dashboards/proven-review.json`, prov
 ### Use it outside the lab
 
 The same data goes to any OpenTelemetry backend. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to its OTLP/HTTP address, and Proven exports; leave it unset and Proven exports nothing and opens no connection. For a review run on the host against the lab's collector: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 proven scan --sample <path>`. The settings are listed in [CONFIGURATION.md](CONFIGURATION.md#telemetry-opentelemetry-adr-0045). The collector's Prometheus is inside the container and is not published; to scrape Proven's numbers from an existing monitoring stack, point `OTEL_EXPORTER_OTLP_ENDPOINT` at that stack's own collector.
+
+## Go live
+
+Out of the box the lab reviews in sample mode: recorded answers, no key, no call. Three ways make the next review live ([ADR-0052](adr/ADR-0052-the-lab-goes-live-three-ways.md)). The owner's step by step test of all three, with the output to expect, is [LAB_GO_LIVE_TEST.md](LAB_GO_LIVE_TEST.md).
+
+How it works, the same for all three:
+
+- `make up` reads `lab/.env` when it exists. Copy `lab/.env.example` to `lab/.env` and fill in what you have; the file is not committed and holds no value until you write one. A line is `NAME=value`, with no quotes.
+- Each **non-empty** setting named in `LAB_LIVE_KEYS` (`lab/versions.env`) is stored as an Actions secret of the demo repository. It goes from the environment of `make up` to Gitea over a pipe. It is not written to a file, not baked into an image and not printed: the log names the settings it stored and never their values. An **empty** setting is not stored, and a secret you emptied is removed, so taking a key out of `lab/.env` and running `make up` again returns the lab to sample mode.
+- The workflow runs a **live** review when a generator key, a Nightshift token or the gateway pair is stored, and a **sample** review otherwise. The first visible line of Proven's comment says which: `sample: no keys`, or `live: <generator>, Zetaris on|off`, for example `live: NVIDIA via Nightshift, Zetaris on`. The line above it is the `<!-- proven-review … -->` marker, an HTML comment that the browser does not show; `make e2e` reads it as the first line of the body.
+- A review that already ran is not run again when a key changes. Open a new pull request, or push a commit to a demo branch.
+- A live review of a demo pull request reads the sample set's change tree that is baked into Proven's image, the same files the pull request carries. It does not clone the pull request.
+
+### Path A: one NVIDIA key
+
+A free key is enough on its own.
+
+1. Get a key at <https://build.nvidia.com>: sign in, open any model, choose *Get API Key*. It is shown once.
+2. `cp lab/.env.example lab/.env`
+3. Put the key after `PROVEN_GENERATOR_KEY=` in `lab/.env`. Leave the mode lines empty: with only a key set, the lab runs in `nvidia` mode and uses the same key for the guardrail.
+4. `make up`. The log says `seed: stored as Actions secrets: PROVEN_GENERATOR_KEY`.
+5. Open a new pull request in the demo repository. Its comment starts with `live: NVIDIA direct, Zetaris off`.
+
+### Path B: our services through the judges' gateway
+
+The gateway holds our Nightshift token and our Zetaris key and injects them; you get an address and a token of your own, sent to you privately. The gateway is another wagon's work (W18, [ADR-0051](adr/README.md)); its order was not on this branch, so the lab names the settings `JUDGES_GATEWAY_URL` and `JUDGES_GATEWAY_TOKEN`, and where it serves Zetaris (`JUDGES_GATEWAY_ZETARIS_PATH`, default `/zetaris/api/v1.0`) and the organisation id it expects (`JUDGES_GATEWAY_ZETARIS_ORG_ID`, default `0`) are settings too. If the gateway uses other names, only those settings change.
+
+1. `cp lab/.env.example lab/.env`
+2. Set `JUDGES_GATEWAY_URL=` to the address you were sent and `JUDGES_GATEWAY_TOKEN=` to your token.
+3. `make up`. The log says `seed: stored as Actions secrets: JUDGES_GATEWAY_URL, JUDGES_GATEWAY_TOKEN`.
+4. Open a new pull request. Its comment starts with `live: NVIDIA via the judges' gateway, Zetaris on`.
+
+The guardrail (ADR-0005) is on by default and its default is your own model server. If neither the gateway nor you provide one, a review names the guardrail as the failed service. Set `PROVEN_GUARDRAIL_KEY` to an NVIDIA key and the lab uses NVIDIA's hosted guardrail.
+
+### Path C: Zetaris and Nightshift on your own machine
+
+Two parts. Each is optional; do either, or both.
+
+**Zetaris** is the sponsor's platform. Its images are in the sponsor's registry behind a sign-in, and the terms under which a judge may pull and run them are not in this repository (searched on 26 October 2026: `hackathon/fleet/infra/zetaris` holds a runbook and a console tool, no licence or terms file). So `make up ZETARIS=local` does not carry them: it runs **your** bundle with **your** registry sign-in, and says so.
+
+1. Download `zetaris-platform.zip` from your own Zetaris account and unpack it. Never commit the zip or the driver inside it.
+2. Sign in to the sponsor's registry with the command that came with your account, in a shell that is not logged. Wait for `Login Succeeded`.
+3. In the unpacked folder: `bash ./preflight.sh`. Every line must say PASS.
+4. `cp lab/.env.example lab/.env`, then set `ZETARIS_COMPOSE_FILE=` to the full path of that folder's `docker-compose.yml`.
+5. `make up ZETARIS=local`. The log shows `zetaris: the platform answers on http://127.0.0.1:8888`. The lab runs the bundle as its own compose project with `lab/zetaris/override.yml` on top: the console and the REST service are published on `127.0.0.1` only, and the REST service also joins the lab's network as `zetaris-api`, so the lab's reviews reach it with no address to write. The evidence is **not** registered yet: the log says which settings are missing.
+6. Open the console at `http://localhost:3004`. Open it as `localhost`, not as `127.0.0.1`: the console needs a secure context. This step cannot be made through an API. Sign in as the platform's default administrator (the bundle's README says how) and make an API key for the administrator. Then make a user for Proven with no role, sign in as it, and make its API key. Note the organisation's **numeric** id (the sign-in answer returns it as `orgId`; the 32-character id in the page's URL is a different value and is refused).
+7. In `lab/.env` set `ZETARIS_ADMIN_API_KEY` (the administrator's key; used once, not stored as a secret of the repository), `ZETARIS_PROVEN_USER` (the user's name), `ZETARIS_API_KEY` (that user's key) and `ZETARIS_ORG_ID`.
+8. `make zetaris`. It registers the definitions in `lab/zetaris/evidence.sql` as the administrator and grants them to Proven's user. Then `make livecheck ZETARIS=local` names Zetaris ready. Then `make up` again, so the keys become secrets.
+
+What is registered: the CISA known-exploited feed as one REST table and its view (`px_kev`, `px_kev_vulns`). No row is stored: a definition holds a URL. The other sources of [ADR-0023](adr/ADR-0023-how-proven-s-evidence-is-loaded-through-zetaris.md) (EPSS, OSV by id) are registered by the administrator's steps in `hackathon/fleet/infra/zetaris/zetaris-local.md`, section C. The Zetaris images run as the sponsor built them; the lab's override does not set a user for them, because it cannot know which users they allow.
+
+**Nightshift** runs in a macOS virtual machine, so its unsigned installer never touches your Mac. It needs a Mac with Apple silicon and about 25 GB of disk for the base image. On a Linux host `make nightshift` says that Tart is macOS-only, points to paths A and B, and exits 0.
+
+9. `make nightshift`. If Tart is not installed it names the command to run: `/bin/bash hackathon/fleet/infra/nightshift-vm/nightshift_vm.sh install-tools` downloads a pinned Tart release, checks its checksum and signature, and asks for your password once.
+10. `make nightshift` again. It checks the host, clones the base image (about 25 GB; minutes) when the VM named `NIGHTSHIFT_VM_NAME` does not exist, starts it with no shared folder and no shared clipboard, and waits for its address. The VM's window opens on your Mac.
+11. Download Nightshift's macOS installer from Meterless yourself, then `/bin/bash hackathon/fleet/infra/nightshift-vm/nightshift_vm.sh copy-installer <the .dmg>`. It checks the file against Meterless's published checksums, copies it into the VM and checks it again there.
+12. Inside the VM's window: open the image, drag Nightshift to Applications, start it. If macOS refuses it ("Apple could not verify…"), open System Settings → Privacy & Security, choose **Open Anyway**, confirm with the VM's password. Do this only in the VM.
+13. Pass Nightshift's email access gate in the VM.
+14. In Nightshift's Providers tab paste the NVIDIA key's value (`nvapi-…`, about 70 characters), never its identifier (a UUID). Nightshift's "verified" does not prove the key: the first real request does.
+15. Copy Nightshift's runtime token from its own window in the VM. This script never reads or prints it. Run `make nightshift` once more: it prints `Nightshift answers at http://<the VM's address>:8088`. Put that address after `PROVEN_GENERATOR_BASE_URL=` and the token after `METERLESS_RUNTIME_TOKEN=` in `lab/.env`.
+16. `make up`, then open a new pull request. Its comment starts with `live: NVIDIA via Nightshift, Zetaris on` (or `Zetaris off` when Zetaris is not set up).
+
+Steps 9 to 14 are done once. What the script cannot do, and why: the installer, the email gate, the provider key and the token are in an app window with no API.
+
+### When it does not work
+
+| You see | Meaning | Do |
+|---|---|---|
+| `lab/.env: refused line 7 (a setting is NAME=value)` | line 7 of `lab/.env` is not `NAME=value` | fix that line; no quotes |
+| `refused: LAB_PAGE_BIND=… is not a loopback address` | the start page carries the password and is never published on another address | unset `LAB_PAGE_BIND` |
+| the comment says `sample: no keys` after you set a key | the review ran before the key was stored, or the key line is empty | `make up` again, then open a **new** pull request |
+| `zetaris: pulling the platform's images failed` | you are not signed in to the sponsor's registry | step 2, then `make up ZETARIS=local` |
+| `zetaris: ZETARIS_COMPOSE_FILE is '', which is not a file` | the setting is empty or wrong | step 4 |
+| `register: the platform answered HTTP 4xx` | the administrator's key, the organisation id or the user name is wrong | steps 6 and 7 |
+| `nightshift: Nightshift is not answering` | the app is not installed or started in the VM | steps 11 to 14 |
+| a live comment lists `nightshift`, `zetaris` or `guardrail` as a failed service | that service refused or did not answer; the review went on without it | check its key and address; `make livecheck` names which |
 
 ## The keys a live review needs
 
@@ -193,10 +269,10 @@ under `second-reviewer` in the review's failed services, and the findings show t
 Proven's Action is not on main yet, so the workflow does not use it. It runs:
 
 ```text
-proven scan --sample /opt/proven/fixture/<set>
+SAMPLE_MODE=true proven scan /opt/proven/fixture/<set>
 ```
 
-`<set>` is the name after `demo-` in the pull request's branch, and `discount` for any other branch. Each set is a recorded sample in `testdata/fixture`, baked into Proven's image (the Dockerfile copies the ones the demo uses). It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
+With a key stored (see [Go live](#go-live)) the same command runs with `SAMPLE_MODE=false` and the settings that are stored, passed to the container by name. `<set>` is the name after `demo-` in the pull request's branch, and `discount` for any other branch. Each set is a recorded sample in `testdata/fixture`, baked into Proven's image (the Dockerfile copies the ones the demo uses). It does not review the diff of the demo pull request. The comment's first visible line says `sample: no keys` or `live: …`. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
 
 The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that. Docker Scout for that image is read on Docker Hub after the push. This repository does not push it for you.
 
@@ -221,7 +297,9 @@ The seeded copy replaces `saphan/proven` with `PROVEN_IMAGE` when that setting i
 
 `make sample` runs the sample review from a temporary directory outside this repository. It does not pass keys and it does not call Docker.
 
-`make livecheck` runs the live-service check. If `lab/.env` exists, it loads the keys listed in [CONFIGURATION.md](CONFIGURATION.md). With nothing set, the check names each service that is not ready and exits 1.
+`make livecheck` runs the live-service check. If `lab/.env` exists, it loads the keys listed in [CONFIGURATION.md](CONFIGURATION.md). With nothing set, the check names each service that is not ready and exits 1. With `ZETARIS=local` (`make livecheck ZETARIS=local`) and no `ZETARIS_REST_URL` of your own, it asks the loopback port the local platform is published on.
+
+`make nightshift` starts Nightshift in a Tart VM on a Mac with Apple silicon and prints its address (path C, steps 9 to 15). On any other host it says Tart is macOS-only and exits 0. `make zetaris` starts Zetaris from your bundle and registers the evidence (path C, steps 4 to 8); `make up ZETARIS=local` does the same as part of the lab. `make check-golive` runs the offline checks of all of this: the keys of `lab/.env` become secrets and an empty one does not (against a stub of Gitea's API), the workflow's live or sample choice and the first lines of its comment, the loopback bind of the start page, and the Zetaris registration against a stub. It needs no Docker and no key.
 
 `make image` builds Proven's image for this machine and loads it. The load is one platform, this machine's own. A local engine cannot load a manifest list, so this target does not build both platforms. `make seed-image`, which `make up` uses, is the same kind of load: one platform, because the lab has to start the image. The image is the static `proven` and `livecheck` binaries, `git`, and the `docker` client, on `RUNTIME_IMAGE`, and it runs as a user that is not root. Local tags: `latest` and the `git describe` value. OCI labels `created`, `revision` and `version` come from the date, `git rev-parse` and `git describe`.
 
