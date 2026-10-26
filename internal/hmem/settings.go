@@ -132,7 +132,7 @@ func clip(s string) string {
 func Environment() []envdoc.Setting {
 	d := DefaultLimits()
 	return []envdoc.Setting{
-		{Name: EnvMaxStateBytes, Default: envdoc.Tick(strconv.FormatInt(d.MaxStateBytes, 10)), Description: "the largest H-MEM `state.json` that opens; above it the store refuses by name and reads nothing more (`ErrStateTooLarge`). A positive number of bytes. Sample mode uses the default and does not read this variable"},
+		{Name: EnvMaxStateBytes, Default: envdoc.Tick(strconv.FormatInt(d.MaxStateBytes, 10)), Description: "the largest H-MEM `state.json` that opens; above it the store refuses by name and reads nothing more (`ErrStateTooLarge`). A positive number of bytes, at most 1 TiB (1099511627776); a larger value is refused. Sample mode uses the default and does not read this variable"},
 		{Name: EnvQueryTokens, Default: envdoc.Tick(strconv.Itoa(d.QueryTokens)), Description: "how many leading query tokens count when H-MEM scores a query; a positive integer up to 1024. Sample mode uses the default and does not read this variable"},
 	}
 }
