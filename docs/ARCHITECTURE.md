@@ -74,6 +74,18 @@ and a proposal becomes a record only when a person approves it. Sleep never arch
 proposal names as a source, so an approved record's lineage always names live records; approval refuses a proposal
 whose source is gone.
 
+### The scale H-MEM is built for
+
+H-MEM is built for a small store: the refutations of one reviewer. It keeps all records in one JSON file,
+`state/hmem/state.json`. The file is read whole when the store opens, and it is rewritten whole on every write. Every
+query and every refutation match is a scan of all records. Nothing is indexed, so the cost of a query grows with the
+number of records. This page states no timing, because none was measured.
+
+Reading is bounded. A state file over `PROVEN_HMEM_MAX_STATE_BYTES` (default 64 MiB) is refused when the store opens,
+by name (`ErrStateTooLarge`), with the file's size and the cap; the reader stops at the cap and reads nothing more
+(ADR-0013). The number of leading query tokens that count is `PROVEN_HMEM_QUERY_TOKENS` (default 8). Both are listed in
+[CONFIGURATION.md](CONFIGURATION.md). A store that outgrows the cap needs a different design, not a larger number.
+
 ## Modes
 
 - **Sample** (`--sample`): recorded answers, outcomes and rows; no network. See [SAMPLE_MODE.md](SAMPLE_MODE.md).
