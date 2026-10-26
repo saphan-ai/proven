@@ -41,12 +41,15 @@ func GitCommand(args ...string) *exec.Cmd {
 		// log.showSignature=false: git log would otherwise verify a signed commit
 		// by starting gpg.program, gpg.x509.program or gpg.ssh.program, a program
 		// the commit's header chooses and Proven does not judge.
-		pre := []string{"-c", "protocol.allow=never", "-c", "log.showSignature=false"}
+		// core.hooksPath=/dev/null: a working-tree read can refresh the index, and
+		// git then starts the clone's post-index-change hook, a program the clone
+		// chooses. GIT_OPTIONAL_LOCKS=0 keeps a read from writing the index at all.
+		pre := []string{"-c", "protocol.allow=never", "-c", "log.showSignature=false", "-c", "core.hooksPath=/dev/null"}
 		for _, name := range transports {
 			pre = append(pre, "-c", "protocol."+name+".allow=never")
 		}
 		argv = append(pre, args...)
-		env = append(env, "GIT_NO_LAZY_FETCH=1", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1")
+		env = append(env, "GIT_NO_LAZY_FETCH=1", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "GIT_OPTIONAL_LOCKS=0")
 	}
 	cmd := exec.Command("git", argv...)
 	cmd.Env = env
