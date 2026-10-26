@@ -20,9 +20,14 @@ each must be written down step by step (every act a person must do has numbered 
 ## Decision
 
 1. **One mechanism for the keys.** `make up` reads `lab/.env`. Each non-empty setting named in `LAB_LIVE_KEYS`
-   (`lab/versions.env`) becomes an Actions secret of the demo repository, sent over a pipe from the environment of
-   `make up`. It is never written to a file, an image or a log; the log names the settings it stored. An empty setting
-   is not stored, and a secret that was emptied is removed, so the lab can return to sample mode.
+   (`lab/versions.env`) becomes an Actions secret of the demo repository. A credential (`LAB_SECRET_KEYS`) reaches the
+   seed as one 0600 file of the lab's state volume, `/state/secrets`, written by `make up` over standard input and
+   removed by the seed on every exit and again by `make up`; it is named nowhere in Compose and is in no container's
+   environment, so `docker compose config` and `docker inspect` never show it. A setting that opens nothing (a mode, an
+   address, a model name) still passes by name through Compose. Each value goes to Gitea over a pipe and is never
+   written to an image or a log; the log names the settings it stored. An empty setting is not stored, and a secret
+   that was emptied is removed, so the lab can return to sample mode. (Amended in round 5: before it, the credentials
+   too were passed by name through Compose, and a render of the Compose file or an inspect of the seed showed them.)
 2. **The workflow chooses.** It runs a live review when the gateway pair, a Nightshift token or a generator key is
    stored, in that order of precedence, and a sample review otherwise. The first visible line of Proven's comment says
    which: `sample: no keys` or `live: <generator>, Zetaris on|off`. The marker comment stays the first line of the body,
