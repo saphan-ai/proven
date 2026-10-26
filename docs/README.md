@@ -18,6 +18,7 @@ Read in this order.
 | [ZETARIS_USL.md](ZETARIS_USL.md) | the semantic layer in Zetaris over the evidence: four entities and their relations, the data-quality gate, how to apply it, the parity check, and what to do when the gate refuses | first version; not yet applied to a live Zetaris |
 | [OSV_TABLE.md](OSV_TABLE.md) | the OSV package table, the CSV converter, and how an administrator loads and refreshes it | first version |
 | [RECEIPT_CUSTODY.md](RECEIPT_CUSTODY.md) | the custody check of model answers and the audit command that counts it over a receipts file and a trace | first version |
+| [JUDGES_GATEWAY.md](JUDGES_GATEWAY.md) | the owner's runbook for the gateway that gives a judge's lab our model service and our evidence, with the judge's own token: run it, the tunnel and Access, issue and revoke a token, read a refusal | first version; the Cloudflare steps are not yet run |
 | SETUP.md (not written yet) | running Proven live: Zetaris, Meterless Nightshift, the NVIDIA guardrail | written by the infrastructure track; not here yet |
 
 The design and its reasons are in [DESIGN.md](../hackathon/DESIGN.md); every decision is in [fleet/decisions/](adr/).

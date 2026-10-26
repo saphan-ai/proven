@@ -32,6 +32,20 @@ var exemptBanned = map[string]map[string]string{
 	"internal/cli/output_open_unix.go": {
 		"syscall": "O_NOFOLLOW on the output open, so a final symbolic link is not followed",
 	},
+	"internal/gateway/gateway.go": {
+		"net/http": "the judges' gateway serves a judge's call and forwards it to the two services it fronts (ADR-0051)",
+	},
+	"internal/gateway/config.go": {
+		"net/http": "builds the client that reaches the model service, and refuses a redirect so our token goes to no other host (ADR-0051)",
+	},
+	"cmd/judges-gateway/main.go": {
+		"net":      "listens on 127.0.0.1 only, the address the Cloudflare tunnel connects to (ADR-0051)",
+		"net/http": "the judges' gateway is an HTTP server (ADR-0051)",
+		"syscall":  "SIGTERM, so the systemd unit stops the gateway cleanly",
+	},
+	"internal/gateway/access.go": {
+		"net/http": "fetches the Access team's public signing keys to verify an assertion; it calls that one address and sends no secret (ADR-0051)",
+	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",
 	},
