@@ -65,6 +65,11 @@ gold label below names a kind. The labels stay as written: the file
 `cases.jsonl` and the counts in `REPORT.md` are not changed. A different label
 would be a new version of the set and a new measurement.
 
+Six labels are disputed this way (the six cases below). The 30 of 46 match
+figure in `REPORT.md` counts them against the frozen labels, so wherever it is
+quoted it carries this qualification: for those six cases a clarification
+would be a defensible answer.
+
 - `blind-lookalike-02` (`README.mԁ`): the extension has a non-Latin letter, so
   the path does not establish a prose file. A path-only clarification is a
   reasonable answer. The gold label is `change.docs`.

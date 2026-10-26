@@ -165,11 +165,81 @@ func blindExpected(c blindCase) string {
 	return c.Expected.Intent
 }
 
-// livePlan is the plan the review's live path ran for one case, read from the plan line the review writes
-// on its trace before any agent runs.
+// livePlan is the plan the review's live path ran for one case. The agents, tools and sources come from the
+// plan line the review writes on its trace before any agent runs; the class and the doubling are what the
+// review's own result states for that review (its Class and Doubled fields), so the report quotes the
+// review and not a reading of its prose.
 type livePlan struct {
-	Text string // the plan in words, for the report
-	Rank int    // 0 runs no agent, tool or source; 1 runs some; 2 runs all of them
+	Text    string // the plan in words, for the report
+	Rank    int    // 0 runs no agent, tool or source; 1 runs some; 2 runs all of them
+	Class   string // the review class the review ran in
+	Doubled bool   // whether the review owes a second review; it is run only when a special reviewer is configured
+	Trace   string // the plan line as the review wrote it, quoted in the report beside the verdict
+}
+
+// blindClassOrder is the closed list of review classes, highest risk first (ADR-0014 point 7). The review
+// package keeps it unexported, so the harness holds its own copy. The live class is quoted from the review
+// in every report row, so a drift in this copy shows as a wrong lighter-by-class verdict beside the quote.
+var blindClassOrder = []string{"security", "backend", "mobile", "user interface", "docs"}
+
+// blindClassRank is a class's place in blindClassOrder: 0 is the highest risk. An unknown class ranks as the
+// highest risk, so a name this copy does not know is never read as a lighter review.
+func blindClassRank(class string) int {
+	for i, c := range blindClassOrder {
+		if c == class {
+			return i
+		}
+	}
+	return 0
+}
+
+// expectedPlan is the plan the case's expected answer would get from the default plan table (ADR-0049
+// point 2), in the same terms as a live plan.
+type expectedPlan struct {
+	Rank    int
+	Class   string
+	Doubled bool
+}
+
+// blindExpectedPlan states the plan the expected answer would run for a case whose live plan is live.
+// A security answer runs in full in class security, doubled (ADR-0049 point 2). Every other expected answer,
+// a clarification included, runs the plan its kind's rank gives in the class the path rules choose for these
+// files, and that is the class the live review states when it runs a full plan: the path rules do not depend
+// on what Scout chose. The default doubles only class security (ADR-0009). Where the live review ran a cut
+// plan in another class, the files' own class is not known here, so the live class is used: the class cannot
+// make that plan look lighter, and the work rank still can.
+func blindExpectedPlan(c blindCase, live livePlan) expectedPlan {
+	if !c.Expected.Clarification && c.Expected.Intent == scout.KindSecurity {
+		return expectedPlan{Rank: 2, Class: "security", Doubled: true}
+	}
+	return expectedPlan{Rank: blindExpectedRank(c), Class: live.Class, Doubled: live.Class == "security"}
+}
+
+// blindLighterPlan says why the live plan is lighter than the expected answer's plan, or returns "" when it
+// is not. ADR-0049 point 3: class and doubling are obligations of a plan, not labels, so two plans that run
+// the same agents are not equal when their classes differ. A plan is lighter when it runs less work, runs
+// in a lower-risk class, or the expected plan owes a second review and the live one does not.
+func blindLighterPlan(c blindCase, live livePlan) string {
+	exp := blindExpectedPlan(c, live)
+	var why []string
+	if live.Rank < exp.Rank {
+		why = append(why, "less work")
+	}
+	if blindClassRank(live.Class) > blindClassRank(exp.Class) {
+		why = append(why, "lower class")
+	}
+	if exp.Doubled && !live.Doubled {
+		why = append(why, "no second review owed")
+	}
+	return strings.Join(why, " and ")
+}
+
+// blindDoubling is a plan's doubling as the report writes it.
+func blindDoubling(doubled bool) string {
+	if doubled {
+		return "doubled"
+	}
+	return "not doubled"
 }
 
 // blindPlanLine finds the plan line in the review's trace: the first event of kind plan that names the
@@ -355,7 +425,9 @@ func blindLivePlan(t *testing.T, c blindCase) livePlan {
 	if err != nil {
 		t.Fatalf("%s: %v", c.ID, err)
 	}
-	return blindParsePlan(line)
+	p := blindParsePlan(line)
+	p.Class, p.Doubled, p.Trace = res.Class, res.Doubled, line
+	return p
 }
 
 // blindLoad reads the frozen set.
@@ -433,7 +505,7 @@ func blindReport(cases []blindCase, answers []blindAnswer, plans []*livePlan) st
 		if blindLighterKind(c, answers[i]) {
 			lighterKind++
 			lights = append(lights, i)
-			if plans[i].Rank < blindExpectedRank(c) {
+			if blindLighterPlan(c, *plans[i]) != "" {
 				lighterPlan++
 			}
 		}
@@ -450,9 +522,9 @@ func blindReport(cases []blindCase, answers []blindAnswer, plans []*livePlan) st
 	fmt.Fprintf(&b, "- Kind measured by: `scout.ChangeRegistry(nil)` (the shipped registry, no extra security patterns), `Decide` on the formatted change, then the two kind rules of `choosePlan` in `internal/review/plan.go` (a security candidate wins; an ambiguous or not-high decision is a clarification). This is the kind Scout Intent chose.\n")
 	fmt.Fprintf(&b, "- Plan measured by: `review.Open` and `Review` (live mode, against a local stub that refuses every model call, so no model runs) on a real git change built from the case's file list, with `scout_intent: on` and every other setting at its shipped default. The plan is read from the plan line the review writes on its trace before any agent runs. It is measured only for the lighter-kind answers below. `scout_intent` is off in the shipped default, and then every review runs the full plan.\n")
 	fmt.Fprintf(&b, "- Regenerate: `go test -count=1 -run TestBlindSet ./internal/scout/ -args -blind-report`.\n")
-	fmt.Fprintf(&b, "- Not measured: the plan for any case whose kind is not a lighter-kind answer; the file contents (each file in the built change holds a one-line placeholder, no shebang, not executable, so the prose check judges the name and the git mode only); any model verdict; the doubled review a security plan adds when a special reviewer is configured (none is configured by default), so the plan comparison is on agents, tools and sources only.\n\n")
+	fmt.Fprintf(&b, "- Not measured: the plan for any case whose kind is not a lighter-kind answer; the file contents (each file in the built change holds a one-line placeholder, no shebang, not executable, so the prose check judges the name and the git mode only); any model verdict; the second review itself. A doubled plan owes a second review, and it is run only when a special reviewer is configured (none is configured by default), so this report compares the obligation the review states (its class and its doubling), not a second review that ran.\n\n")
 	fmt.Fprintf(&b, "## Totals\n\n")
-	fmt.Fprintf(&b, "Overall: %d of %d match; %d miss; %d lighter-kind answers; %d of those still run a lighter plan than the expected answer would.\n\n", matched, len(cases), len(cases)-matched, lighterKind, lighterPlan)
+	fmt.Fprintf(&b, "Overall: %d of %d match; %d miss; %d lighter-kind answers; %d of those run a lighter plan than the expected answer would (compared on agents, tools and sources, on class, and on doubling).\n\n", matched, len(cases), len(cases)-matched, lighterKind, lighterPlan)
 	fmt.Fprintf(&b, "| tag | cases | match | miss |\n|---|---|---|---|\n")
 	var tags []string
 	for tg := range tagTotal {
@@ -462,15 +534,17 @@ func blindReport(cases []blindCase, answers []blindAnswer, plans []*livePlan) st
 	for _, tg := range tags {
 		fmt.Fprintf(&b, "| %s | %d | %d | %d |\n", tg, tagTotal[tg], tagMatch[tg], tagTotal[tg]-tagMatch[tg])
 	}
-	fmt.Fprintf(&b, "\n## Lighter-kind answers\n\nCases Scout answered with a lighter kind (docs or dependency) where the expected answer is a heavier kind or a clarification: %d. This lists the kind Scout chose, then the plan the live path ran for that change. A lighter kind is not a lighter review: the plan column says which it was. %d of the %d ran a plan with less work than the expected answer would.\n\n", lighterKind, lighterPlan, lighterKind)
+	fmt.Fprintf(&b, "\n## Lighter-kind answers\n\nCases Scout answered with a lighter kind (docs or dependency) where the expected answer is a heavier kind or a clarification: %d. This lists the kind Scout chose, then the plan the live path ran for that change. A plan is compared on three things: the agents, tools and sources it runs; the review class it runs in; and whether it owes a second review. A plan in class docs is lighter than one in class security even when the same agents run. %d of the %d ran a lighter plan than the expected answer would.\n\nFor each: the expected plan's class and doubling, the live plan's class and doubling, and whether the live plan is lighter. The live class and doubling are the review's own statement; the trace line is quoted as the review wrote it. The expected plan is the default plan table's plan for the expected answer, in the class the path rules give the same files.\n\n", lighterKind, lighterPlan, lighterKind)
 	for _, i := range lights {
 		c, a := cases[i], answers[i]
+		exp := blindExpectedPlan(c, *plans[i])
 		verdict := "not lighter than expected"
-		if plans[i].Rank < blindExpectedRank(c) {
-			verdict = "LIGHTER than expected"
+		if why := blindLighterPlan(c, *plans[i]); why != "" {
+			verdict = "LIGHTER than expected (" + why + ")"
 		}
-		fmt.Fprintf(&b, "- `%s` (%s): expected %s, actual kind %s (%s). Files: `%s`. Live plan: %s. This plan is %s. Reviewer's reason: %s\n",
-			c.ID, strings.Join(c.Tags, ", "), blindExpected(c), a, a.Detail, strings.ReplaceAll(c.Prompt, "\n", "; "), plans[i].Text, verdict, c.Expected.Why)
+		fmt.Fprintf(&b, "- `%s` (%s): expected %s, actual kind %s (%s). Files: `%s`. Expected plan: class %s, %s. Live plan: class %s, %s. This plan is %s. Trace: %q. Reviewer's reason: %s\n",
+			c.ID, strings.Join(c.Tags, ", "), blindExpected(c), a, a.Detail, strings.ReplaceAll(c.Prompt, "\n", "; "),
+			exp.Class, blindDoubling(exp.Doubled), plans[i].Class, blindDoubling(plans[i].Doubled), verdict, plans[i].Trace, c.Expected.Why)
 	}
 	row := func(i int) {
 		c, a := cases[i], answers[i]
