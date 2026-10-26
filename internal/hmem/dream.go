@@ -23,8 +23,12 @@ const (
 // Proposal states.
 const (
 	ProposalProposed = "proposed"
-	ProposalApproved = "approved"
-	ProposalRejected = "rejected"
+	// ProposalApproving marks a domain approval that has begun: the person
+	// decided, and the move of the records may be half done. It is written
+	// before the first record moves, so a reopen can finish the decision.
+	ProposalApproving = "approving"
+	ProposalApproved  = "approved"
+	ProposalRejected  = "rejected"
 )
 
 // Proposal is one thing dreaming suggests: an insight, a domain change or an

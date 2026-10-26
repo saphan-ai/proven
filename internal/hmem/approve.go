@@ -109,6 +109,15 @@ func (s *Store) Approve(id string) (*Record, error) {
 func (s *Store) completeApproval(p Proposal) (*Record, error) {
 	var created *Record
 	if p.Type == "domain" {
+		// ADR-0018 point 3: the intent is durable before the first record
+		// moves, so an interruption after the move can be told from a
+		// proposal nobody has approved.
+		if p.Status == ProposalProposed {
+			p.Status = ProposalApproving
+			if err := s.appendDream(p); err != nil {
+				return nil, err
+			}
+		}
 		if err := s.reclassify(p); err != nil {
 			return nil, err
 		}
@@ -184,19 +193,27 @@ func (s *Store) ensureApprovedRecord(p Proposal) (Record, error) {
 // proposal whose record exists but whose approved state or ledger line is
 // missing. It needs no person. A proposal whose record is missing is left for
 // an explicit Approve: a record that is absent may have been cleared on
-// purpose, and recovery must not bring it back. Domain proposals are also
-// left, because a reclassified record cannot be told from one that was always
-// in the new domain. Open calls it before the store is shared.
+// purpose, and recovery must not bring it back. A domain proposal is
+// finished only when its state is "approving" or "approved": the "approving"
+// state is written before any record moves, so it proves the person decided
+// (a reclassified record alone cannot be told from one that was always in the
+// new domain). The rule is the same for every type: finish what was decided,
+// never decide. A pending domain proposal is left alone. Open calls it before
+// the store is shared.
 func (s *Store) recoverApprovals() error {
 	all, err := s.proposals()
 	if err != nil {
 		return err
 	}
 	for _, p := range all {
-		if p.Type == "domain" || p.Status == ProposalRejected {
+		if p.Status == ProposalRejected {
 			continue
 		}
-		if _, ok := s.records[approvedRecordID(p.ID)]; !ok {
+		if p.Type == "domain" {
+			if p.Status == ProposalProposed {
+				continue // nobody decided
+			}
+		} else if _, ok := s.records[approvedRecordID(p.ID)]; !ok {
 			continue
 		}
 		if p.Status == ProposalApproved {
