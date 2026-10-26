@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-links clean
+.PHONY: help build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -27,10 +27,10 @@ image-check: build image ## Check that the image prints the same version and sam
 seed-image: ## Build the lab seed for this machine and load it (one platform; make push publishes both)
 	@sh $(ROOT)/lab/scripts/seed-image.sh
 
-scan: ## Scout images when the plugin is present; otherwise name Docker Hub after make push
+scan: ## Scan our images with Docker Scout; refuses when Scout is missing, fails, or finds a fixable critical or high
 	@sh $(ROOT)/lab/scripts/scan.sh
 
-push: ## Push linux/amd64 and linux/arm64 as one tag per image, with provenance and an SBOM
+push: ## Build once for linux/amd64 and linux/arm64, scan every platform with Docker Scout, then publish those scanned digests as the final tags (refuses, publishing nothing, on any scan failure)
 	@sh $(ROOT)/lab/scripts/push.sh
 
 up: ## Start the judges' lab
@@ -62,6 +62,24 @@ e2e-failed-run: ## Negative control: with an old review comment present and the 
 
 check-e2e-parse: ## Check e2e's parsers offline against statuses a live Gitea served
 	@sh $(ROOT)/lab/scripts/e2e-parse-check.sh
+
+zetaris-usl-parity: ## Ask Zetaris the same requests with and without the semantic layer and require equal rows (skipped by name when the Zetaris settings are not set)
+	@cd $(ROOT) && go test -count=1 -run 'TestParityLive$$' -v ./internal/usl/
+
+check-lab-gates: ## Check offline, with a stub docker, that make up refuses the retired LAB_BIND and that make push publishes only digests that were all scanned
+	@sh $(ROOT)/lab/scripts/check-lab-gates.sh
+
+check-lab-password: ## Check offline, with a stub docker, that the admin password is never printed to a redirected stdout, is kept in a 0600 file, and a supplied one is used and not printed
+	@sh $(ROOT)/lab/scripts/check-lab-password.sh
+
+check-review-gates: ## Check offline five properties of the lab: loopback in the compose file, password handling, Scout failure, push after scan, build context
+	@sh $(ROOT)/lab/scripts/check-review-gates.sh
+
+baseline-dependabot: ## Run Proven's dependency check at the commit Dependabot's 51 alerts are pinned to, on the store PROVEN_EVIDENCE_STORE names, and write test/corpus/reference/dependabot-fbdf7d3/REPORT.md
+	@sh $(ROOT)/lab/scripts/baseline-dependabot.sh evidence
+
+baseline-dependabot-manifests: ## The same run with no evidence store: which alerted packages Proven reads from the manifests at the pinned commit
+	@sh $(ROOT)/lab/scripts/baseline-dependabot.sh manifests
 
 check-links: ## Check that every relative Markdown link and metadata.json path resolves
 	@cd $(ROOT) && sh scripts/check-links.sh

@@ -13,14 +13,14 @@ with this page's four new scenarios added. Long output is shortened where marked
 | The six agents in order: Planner, Investigator, Prover, Skeptic, Judge, Writer | Live model calls through Nightshift |
 | The Judge's rule: a finding without evidence is dropped | The Prover running a test in a container: the outcome is recorded |
 | The Skeptic's refutation step and the Judge's verdict | Live Zetaris queries: the same SQL runs over local sample tables |
-| The trace (`logs/trace.jsonl`), H-MEM and the World Model on disk | The live guardrail: the sample guardrail answers `safe`, or the verdict a fixture records |
+| The trace (`<user cache>/proven/logs/trace.jsonl`), H-MEM and the World Model on disk | The live guardrail: the sample guardrail answers `safe`, or the verdict a fixture records |
 
 To check that the live services are ready instead, run `go run ./cmd/livecheck` (it never prints a secret).
 
 ## Run it
 
-Run Proven from a directory **outside** the repository. Proven keeps its memory in `./state` and its trace in `./logs`,
-and it refuses to write its memory inside the repository it reviews.
+The trace is written to the user cache, in `proven/logs`, created so only that user can read it. `PROVEN_LOG_DIR`
+overrides that directory. A path that resolves inside the repository under review is refused when Proven loads.
 
 ```bash
 git clone https://github.com/saphan-ai/proven.git
@@ -93,14 +93,10 @@ failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
-Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `logs/trace.jsonl`
-in the directory it starts from.
-
-Run from inside the repository, it refuses (exit code 2):
-
-```text
-hmem: state directory <repository>/state/hmem is inside the repository
-```
+Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `trace.jsonl`
+in the user cache, under `proven/logs`, unless `PROVEN_LOG_DIR` names another directory. A path that resolves inside
+the repository under review is refused at load (exit 7). The `trace:` lines in the recorded output on this page are
+from the run that wrote the page.
 
 ## The scenario: `testdata/fixture/discount`
 
@@ -139,7 +135,7 @@ F3 is the point of the scenario: a plausible risk with no evidence never reaches
 
 ## Read the trace
 
-`logs/trace.jsonl` holds one JSON line per event. The run above wrote 62 lines: 5 `claim`, 8 `evidence` (with the
+`<user cache>/proven/logs/trace.jsonl` holds one JSON line per event. The run above wrote 62 lines: 5 `claim`, 8 `evidence` (with the
 EPSS rows), 4 `refutation`, 5 `verdict`, 13 `model` (one per model call, with its route, model and Nightshift receipt id
 when live), 26 `guardrail` (each prompt and each answer checked) and 1 `selection`. F3's last line:
 
@@ -348,6 +344,30 @@ same rule to a recorded run: its output must hold a `--- PASS:` line for the tes
 A patch that is not proved is not shown: there is no `fix edit` for F2, only the record of the last attempt. Two settings
 in `proven.yaml` change this ([CONFIGURATION.md](CONFIGURATION.md)): `fixes: off` shows no fix at all, and
 `fix_attempts: 1` ends F2 after its first patch.
+
+## The scenarios: `testdata/fixture/autofix-fixed` and `testdata/fixture/autofix-rejected`
+
+Both are the `fix` change (F1: the discount is taken off twice; F2: shipping is always free) with the whole-change
+attempt of ADR-0050 recorded. Neither prints the attempt in the review text: the attempt is on the `Result`, and the
+review comment that shows it is the shell's. Turn it on with a `proven.yaml` that holds `autofix: on`, then read the
+trace, where each verdict and each re-run is a line of `kind autofix`:
+
+```sh
+printf 'autofix: on\n' > autofix.yaml
+proven scan --sample --config autofix.yaml testdata/fixture/autofix-fixed
+```
+
+- `autofix-fixed` records one patch for both findings: subtract the discount once, and charge 500 cents below 5000. Each
+  finding's test, run again on the patched change, passes, and so do the tests of its package. The verdict is
+  `fixed automatically, waiting for a person`, and the patch is the diff of `billing/discount.go` and
+  `shipping/shipping.go`.
+- `autofix-rejected` records a patch that returns 500 for every order. F1 closes. F2's own test passes, but the package's
+  `TestFreeShipping` fails (the trace says `test proof open: go test -json ./shipping: the patch breaks another test of
+  the package`), so F2 stays open and the verdict is `rejected`. The patch is kept in the record and is not a suggestion.
+
+Both fixtures hold one recorded answer for the `autofix` agent and one recorded run of the proof per finding. The sample
+applies the patch's edits to the real trees, so a stale recording whose edits no longer apply is refused as it would be
+live. Without `autofix: on`, the same fixtures make no attempt, and the review text is the review text of `fix`.
 
 ## The scenario: `testdata/fixture/osv-php-composer`
 

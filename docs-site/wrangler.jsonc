@@ -1,0 +1,25 @@
+{
+  // The account id comes only from the environment (CLOUDFLARE_ACCOUNT_ID), never from this file.
+  "name": "proven-docs",
+  "main": "src/index.js",
+  "compatibility_date": "2025-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  // The route and its DNS record. DOCS_HOST below must name the same host.
+  "routes": [{ "pattern": "proven.saphan.ai", "custom_domain": true }],
+  "vars": { "DOCS_HOST": "proven.saphan.ai" },
+  "containers": [
+    {
+      "class_name": "DocsContainer",
+      "image": "./Dockerfile",
+      // the repository root: the image needs README.md, docs/ and the Go code
+      "image_build_context": "..",
+      "max_instances": 1,
+      "instance_type": "lite"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "DOCS_CONTAINER", "class_name": "DocsContainer" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DocsContainer"] }]
+}

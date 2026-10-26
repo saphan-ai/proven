@@ -44,8 +44,8 @@ func TestDial(t *testing.T) {
 // contractW1bDialModule is the module file the dial test needs to run with go test.
 const contractW1bDialModule = "module dial\n\ngo 1.22\n"
 
-// TestContractW1bT1 proves the run line turns the network off (ADR-0025 point 2).
-func TestContractW1bT1(t *testing.T) {
+// TestRunLineTurnsTheNetworkOff proves the run line turns the network off (ADR-0025 point 2).
+func TestRunLineTurnsTheNetworkOff(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
 	why := "T1: argv must carry --network none or --network=none"
@@ -55,10 +55,10 @@ func TestContractW1bT1(t *testing.T) {
 	}
 }
 
-// TestContractW1bT2 proves no environment variable of Proven reaches the
+// TestNoProvenEnvironmentReachesTheContainer proves no environment variable of Proven reaches the
 // container, even when one holds a secret; only the two fixed non-secret
 // values pass (ADR-0025 point 3).
-func TestContractW1bT2(t *testing.T) {
+func TestNoProvenEnvironmentReachesTheContainer(t *testing.T) {
 	t.Setenv("METERLESS_RUNTIME_TOKEN", contractW1bSecret)
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
@@ -72,9 +72,9 @@ func TestContractW1bT2(t *testing.T) {
 	}
 }
 
-// TestContractW1bT3 proves the container mounts the one checkout and no other
+// TestContainerMountsOnlyTheOneCheckout proves the container mounts the one checkout and no other
 // host path (ADR-0025 point 4).
-func TestContractW1bT3(t *testing.T) {
+func TestContainerMountsOnlyTheOneCheckout(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
 	why := "T3: argv must mount exactly the given dir and no other host path"
@@ -88,9 +88,9 @@ func TestContractW1bT3(t *testing.T) {
 	}
 }
 
-// TestContractW1bT4 proves the container is removed on exit and carries the
+// TestContainerRemovedOnExitWithCPUAndMemoryLimits proves the container is removed on exit and carries the
 // configured CPU and memory limits (ADR-0025 point 5).
-func TestContractW1bT4(t *testing.T) {
+func TestContainerRemovedOnExitWithCPUAndMemoryLimits(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	cfg := testrun.DefaultContainerConfig()
 	cfg.CPUs = "1"
@@ -113,9 +113,9 @@ func TestContractW1bT4(t *testing.T) {
 	}
 }
 
-// TestContractW1bT5 proves a missing runtime turns the Prover off and runs
+// TestMissingRuntimeTurnsTheProverOff proves a missing runtime turns the Prover off and runs
 // nothing on the host (ADR-0025 point 6).
-func TestContractW1bT5(t *testing.T) {
+func TestMissingRuntimeTurnsTheProverOff(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
 	runtime := contractW1bRuntime(t, "echo ran > "+contractW1bShQuote(t, marker)+"\nexit 0\n")
 	_, err := testrun.NewContainer(testrun.DefaultContainerConfig(), func(string) (string, error) {
@@ -134,9 +134,9 @@ func TestContractW1bT5(t *testing.T) {
 	}
 }
 
-// TestContractW1bT6 proves a test that fails on the change and passes on the
+// TestFailOnChangeAndPassOnBaseIsProof proves a test that fails on the change and passes on the
 // base is proof, from two runs of the runtime.
-func TestContractW1bT6(t *testing.T) {
+func TestFailOnChangeAndPassOnBaseIsProof(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
 	if strings.Contains(change, base) || strings.Contains(base, change) {
@@ -153,9 +153,9 @@ func TestContractW1bT6(t *testing.T) {
 	}
 }
 
-// TestContractW1bT7 proves a hung runtime returns within 10 seconds and the
+// TestHungRuntimeIsNotProof proves a hung runtime returns within 10 seconds and the
 // timed-out run is not proof.
-func TestContractW1bT7(t *testing.T) {
+func TestHungRuntimeIsNotProof(t *testing.T) {
 	pidfile := filepath.Join(t.TempDir(), "pids")
 	runtime := contractW1bRuntime(t, "echo $$ >> "+contractW1bShQuote(t, pidfile)+"\nexec sleep 30\n")
 	t.Cleanup(func() { contractW1bKillPids(pidfile) })
@@ -184,9 +184,9 @@ func TestContractW1bT7(t *testing.T) {
 	}
 }
 
-// TestContractW1bT8 proves an empty image and a zero time limit are refused
+// TestEmptyImageAndZeroTimeLimitAreRefused proves an empty image and a zero time limit are refused
 // by name, and the defaults carry both (ADR-0013).
-func TestContractW1bT8(t *testing.T) {
+func TestEmptyImageAndZeroTimeLimitAreRefused(t *testing.T) {
 	noImage := testrun.DefaultContainerConfig()
 	noImage.Image = ""
 	if err := noImage.Validate(); err == nil || !strings.Contains(err.Error(), "Image") {
@@ -206,9 +206,9 @@ func TestContractW1bT8(t *testing.T) {
 	}
 }
 
-// TestContractW1bT9 proves the base run mounts the base and the change run
+// TestBaseRunMountsBaseAndChangeRunMountsChange proves the base run mounts the base and the change run
 // mounts the change, one checkout each.
-func TestContractW1bT9(t *testing.T) {
+func TestBaseRunMountsBaseAndChangeRunMountsChange(t *testing.T) {
 	base := t.TempDir()
 	change := t.TempDir()
 	record := t.TempDir()
@@ -231,9 +231,9 @@ func TestContractW1bT9(t *testing.T) {
 	}
 }
 
-// TestContractW1bT10 proves, in a real container, that a dial out fails.
+// TestDialOutFailsInARealContainer proves, in a real container, that a dial out fails.
 // It needs a runtime and the image, so it runs only with PROVEN_TEST_DOCKER=1.
-func TestContractW1bT10(t *testing.T) {
+func TestDialOutFailsInARealContainer(t *testing.T) {
 	if os.Getenv("PROVEN_TEST_DOCKER") != "1" {
 		t.Skip("PROVEN_TEST_DOCKER=1")
 	}

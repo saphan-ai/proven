@@ -31,9 +31,11 @@ const (
 // documents for the command line. The table names PROVEN_OUTPUT_FORMAT,
 // PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT, SEMGREP_BASELINE_COMMIT,
 // SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE, PROVEN_EXCLUDE,
-// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY. That section's ci paragraph
-// names GITHUB_EVENT_PATH, GITHUB_BASE_REF and GITHUB_SHA. GITHUB_WORKSPACE is
-// not in the section. Adapter secrets are not in this set.
+// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY.
+// PROVEN_LOG_DIR is the trace directory; sample mode reads it too. That
+// section's ci paragraph names GITHUB_EVENT_PATH, GITHUB_BASE_REF and
+// GITHUB_SHA. GITHUB_WORKSPACE is not in the section. Adapter secrets are not
+// in this set.
 func KnownCLIEnv(name string) bool {
 	switch name {
 	case "GITHUB_BASE_REF",
@@ -44,6 +46,7 @@ func KnownCLIEnv(name string) bool {
 		"PROVEN_ERROR",
 		"PROVEN_EXCLUDE",
 		"PROVEN_INCLUDE",
+		"PROVEN_LOG_DIR",
 		"PROVEN_OUTPUT",
 		"PROVEN_OUTPUT_FORMAT",
 		"PROVEN_POLICY",
@@ -60,17 +63,21 @@ func KnownCLIEnv(name string) bool {
 
 // config is one resolved invocation. Flag wins over variable, variable over default.
 type config struct {
+	// outputDirs is set by Run after the load checks; resolve leaves it nil.
+	outputDirs      outputDirectories
 	command         string
 	target          string
 	format          string
 	textOutput      string
 	jsonOutput      string
 	sarifOutput     string
+	mdOutput        string
 	output          string
 	errorOnFindings bool
 	baseline        string
 	configPath      string
 	policyPath      string
+	logDir          string
 	include         []string
 	exclude         []string
 	severity        review.Severity
@@ -169,10 +176,11 @@ func (m *multiFlag) Set(v string) error {
 
 // holders is every flag of one parse, before the variables and defaults are applied.
 type holders struct {
-	text, asJSON, sarif                 boolPresence
+	text, asJSON, sarif, md             boolPresence
 	errorOn, noError                    boolPresence
 	sample, quiet, verbose, help, ver   boolPresence
 	textOutput, jsonOutput, sarifOutput setString
+	mdOutput                            setString
 	baseline, configPath, severity      setString
 	timeout, output, evidencePack       setString
 	include, exclude                    multiFlag
@@ -191,6 +199,8 @@ func knownFlagNames() []string {
 		"--include",
 		"--json",
 		"--json-output",
+		"--md",
+		"--md-output",
 		"--no-error",
 		"--output",
 		"--quiet",
@@ -217,6 +227,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	h.text.name = "--text"
 	h.asJSON.name = "--json"
 	h.sarif.name = "--sarif"
+	h.md.name = "--md"
 	h.errorOn.name = "--error"
 	h.noError.name = "--no-error"
 	h.sample.name = "--sample"
@@ -230,9 +241,11 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	fs.Var(&h.text, "text", "text on standard output")
 	fs.Var(&h.asJSON, "json", "json on standard output")
 	fs.Var(&h.sarif, "sarif", "sarif on standard output")
+	fs.Var(&h.md, "md", "markdown on standard output")
 	fs.Var(&h.textOutput, "text-output", "also write text to this file")
 	fs.Var(&h.jsonOutput, "json-output", "also write json to this file")
 	fs.Var(&h.sarifOutput, "sarif-output", "also write sarif to this file")
+	fs.Var(&h.mdOutput, "md-output", "also write markdown to this file")
 	fs.Var(&h.output, "output", "write the chosen format to this file")
 	fs.Var(&h.output, "o", "write the chosen format to this file")
 	fs.Var(&h.errorOn, "error", "exit 1 when findings are reported")
@@ -255,7 +268,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 // refusedBoolFlag names the boolean flag whose value the parse refused, if any.
 func refusedBoolFlag(h *holders) (string, string, bool) {
 	flags := []*boolPresence{
-		&h.text, &h.asJSON, &h.sarif, &h.errorOn, &h.noError,
+		&h.text, &h.asJSON, &h.sarif, &h.md, &h.errorOn, &h.noError,
 		&h.sample, &h.quiet, &h.verbose, &h.help, &h.ver,
 	}
 	for _, b := range flags {
@@ -271,7 +284,7 @@ func refusedBoolFlag(h *holders) (string, string, bool) {
 // which arrange needs to keep a value from being read as the command.
 func isValueFlag(name string) bool {
 	switch name {
-	case "text-output", "json-output", "sarif-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout", "evidence-pack":
+	case "text-output", "json-output", "sarif-output", "md-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout", "evidence-pack":
 		return true
 	default:
 		return false
@@ -388,6 +401,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.textOutput = h.textOutput.v
 	cfg.jsonOutput = h.jsonOutput.v
 	cfg.sarifOutput = h.sarifOutput.v
+	cfg.mdOutput = h.mdOutput.v
 	cfg.evidencePack = h.evidencePack.v
 	if h.output.set {
 		cfg.output = h.output.v
@@ -437,6 +451,11 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.sample = sample
 	cfg.quiet = h.quiet.set && h.quiet.v
 	cfg.verbose = h.verbose.set && h.verbose.v
+	logDir, err := resolveLogDir(getenv, cfg.target)
+	if err != nil {
+		return config{}, err
+	}
+	cfg.logDir = logDir
 	return cfg, nil
 }
 
@@ -451,6 +470,7 @@ func outputFiles(cfg config) []struct{ flag, path string } {
 		{"--text-output", cfg.textOutput},
 		{"--json-output", cfg.jsonOutput},
 		{"--sarif-output", cfg.sarifOutput},
+		{"--md-output", cfg.mdOutput},
 	}
 }
 
@@ -499,6 +519,133 @@ func refuseCollidingOutputs(cfg config) error {
 		existing = append(existing, seenOutput{flag: n.flag, info: info})
 	}
 	return nil
+}
+
+// refuseSymlinkOutputs refuses an output that a symbolic link could steer,
+// before the review and before any file is written (exit 7).
+//
+// WHY a link is not followed: the write would create or replace the file in
+// the directory the link names. Two cases. The final component is refused on
+// every path, inside the working directory or not. Any earlier component that
+// lies inside the working directory is refused too, so in proven ci a
+// directory of the output path that the checkout committed as a link cannot
+// choose where the report is written. A component outside the working
+// directory is the operator's path and is not checked here.
+//
+// Run calls this after refuseCollidingOutputs and refuseStdoutOnAnOutput, so
+// a link that is the same file as another output, or as standard output, is
+// still refused as that same file, with both sides named. A directory link
+// is still resolved by that same-file check. A regular file is not a link
+// and is overwritten at the write.
+func refuseSymlinkOutputs(cfg config) error {
+	named := []struct{ flag, path string }{
+		{"-o", cfg.output},
+		{"--text-output", cfg.textOutput},
+		{"--json-output", cfg.jsonOutput},
+		{"--sarif-output", cfg.sarifOutput},
+		{"--md-output", cfg.mdOutput},
+	}
+	for _, n := range named {
+		if n.path == "" {
+			continue
+		}
+		component, err := symlinkComponentInsideWorkingDirectory(n.path)
+		if err != nil {
+			return err
+		}
+		if component != "" {
+			return refuse(n.flag, n.path, component+" is a symbolic link inside the working directory; the directory it names is not written through", nil)
+		}
+		info, err := os.Lstat(n.path)
+		if err != nil {
+			continue
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return refuse(n.flag, n.path, "final component is a symbolic link; the file it names is not written", nil)
+		}
+	}
+	return nil
+}
+
+// symlinkComponentInsideWorkingDirectory reports the first component of path
+// that lies inside the working directory and is a symbolic link. The final
+// component is not included: a final link is refused on every path by the
+// caller. The result is empty when no earlier component inside the working
+// directory is a link. The walk does not follow links, so ".." is applied to
+// the spelling, not to a directory a link points at.
+func symlinkComponentInsideWorkingDirectory(path string) (string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("working directory: %w", err)
+	}
+	wd = filepath.Clean(wd)
+	root, rest := splitRoot(path)
+	cur := wd
+	if root != "" {
+		cur = root
+	}
+	parts := splitComponents(rest)
+	if len(parts) < 2 {
+		return "", nil
+	}
+	for _, name := range parts[:len(parts)-1] {
+		if name == "." {
+			continue
+		}
+		if name == ".." {
+			parent := filepath.Dir(cur)
+			if parent != cur {
+				cur = parent
+			}
+			continue
+		}
+		next := filepath.Join(cur, name)
+		if componentInsideWorkingDirectory(wd, next) {
+			info, lerr := os.Lstat(next)
+			if lerr == nil && info.Mode()&os.ModeSymlink != 0 {
+				return next, nil
+			}
+		}
+		cur = next
+	}
+	return "", nil
+}
+
+// componentInsideWorkingDirectory reports whether component is a strict
+// descendant of the working directory. The working directory itself is not
+// one of the path's components that this check refuses.
+//
+// WHY the prefix is resolved and the component is not: the component may be
+// the link under test, and resolving it would follow that link out of the
+// working directory and then look like a path outside it. The prefix already
+// walked is resolved, so a link outside the working directory that spells
+// the same directory another way still counts as that directory.
+func componentInsideWorkingDirectory(wd, component string) bool {
+	if filepath.Base(component) == ".." {
+		return false
+	}
+	prefix := filepath.Dir(component)
+	resolvedWD := resolvedPath(wd)
+	resolvedPrefix := resolvedPath(prefix)
+	if resolvedPrefix == resolvedWD {
+		return true
+	}
+	rel, err := filepath.Rel(resolvedWD, resolvedPrefix)
+	if err != nil || rel == "." || rel == "" {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// resolvedPath is path with symbolic links resolved. When the path cannot be
+// resolved, the cleaned spelling is returned, so two paths are compared as
+// written when one of them does not exist yet.
+func resolvedPath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	return filepath.Clean(resolved)
 }
 
 // regularFileInfo is the FileInfo of w when w is an *os.File on a regular
@@ -673,8 +820,11 @@ func refuseExclusive(h *holders) error {
 	if h.sarif.set {
 		formats++
 	}
+	if h.md.set {
+		formats++
+	}
 	if formats > 1 {
-		return &cliError{code: exitFatal, msg: "choose one of --text, --json, --sarif"}
+		return &cliError{code: exitFatal, msg: "choose one of --text, --json, --sarif, --md"}
 	}
 	if h.errorOn.set && h.noError.set {
 		return &cliError{code: exitFatal, msg: "choose one of --error, --no-error"}
@@ -697,6 +847,9 @@ func resolveFormat(getenv func(string) string, h *holders) (string, error) {
 	if h.sarif.set && h.sarif.v {
 		return "sarif", nil
 	}
+	if h.md.set && h.md.v {
+		return "md", nil
+	}
 	if v := getenv("PROVEN_OUTPUT_FORMAT"); v != "" {
 		return parseFormat(v)
 	}
@@ -705,10 +858,10 @@ func resolveFormat(getenv func(string) string, h *holders) (string, error) {
 
 func parseFormat(v string) (string, error) {
 	switch strings.ToLower(v) {
-	case "text", "json", "sarif":
+	case "text", "json", "sarif", "md":
 		return strings.ToLower(v), nil
 	default:
-		return "", refuse("PROVEN_OUTPUT_FORMAT", v, "output format is not one of the allowed values", []string{"text", "json", "sarif"})
+		return "", refuse("PROVEN_OUTPUT_FORMAT", v, "output format is not one of the allowed values", []string{"text", "json", "sarif", "md"})
 	}
 }
 

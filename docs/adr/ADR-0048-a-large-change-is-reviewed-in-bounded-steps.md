@@ -1,6 +1,7 @@
 # ADR-0048: A large change is reviewed in bounded steps, with Meterless's Markovian engine
 
 **Status:** accepted · **Date:** 2026-10-24
+**Superseded in part by [ADR-0053](ADR-0053-all-four-meterless-engines-are-on-by-default.md):** point 4, "the benefit is measured, or the engine is not kept", no longer keeps the engine off; it is on by default.
 **Decided by:** the owner · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-24
 **Follows:** [ADR-0003](ADR-0003-meterless-engines-in-go.md) and [ADR-0018](ADR-0018-meterless-engines-minimum-and-their-contract.md) (Meterless engines in Go), [ADR-0042](ADR-0042-a-proposed-fix-is-proved-by-the-same-test.md) (proved fixes)
 **Trigger:** the owner, 24 October: *"Markovian from Meterless — we do it"*, and *"we do not do art for art's sake, only what is really worth using in our scenario."*

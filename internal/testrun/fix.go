@@ -241,6 +241,42 @@ func stagePatched(src string, edits []Edit, maxBytes int) (string, error) {
 	return dst, nil
 }
 
+// StagePatchedRoot copies a review root, whose base/ and change/ trees are the two checkouts, into
+// a new directory and applies the edits to the copied change/ only (ADR-0050 point 2): the
+// dependency check can then be run again on the patched change without touching the review's own
+// trees. The checks are those of every patch (planEdits), so a refused patch stages nothing.
+// The caller removes the returned directory.
+func StagePatchedRoot(root string, edits []Edit, maxBytes int) (string, error) {
+	files, reason := planEdits(filepath.Join(root, "change"), edits, maxBytes)
+	if reason != "" {
+		return "", fmt.Errorf("testrun: patch refused: %s", reason)
+	}
+	dst, err := os.MkdirTemp("", "proven-patched-root-")
+	if err != nil {
+		return "", err
+	}
+	for _, side := range []string{"base", "change"} {
+		if err := copyTree(filepath.Join(root, side), filepath.Join(dst, side)); err != nil {
+			os.RemoveAll(dst)
+			return "", err
+		}
+	}
+	for rel, text := range files {
+		if err := writeInside(filepath.Join(dst, "change"), rel, text); err != nil {
+			os.RemoveAll(dst)
+			return "", err
+		}
+	}
+	return dst, nil
+}
+
+// StagePatched is stagePatched for a caller outside the package: the tool judge runs a tool
+// in a copy of the change with the patch applied (ADR-0050 point 2). The caller removes the
+// returned directory.
+func StagePatched(src string, edits []Edit, maxBytes int) (string, error) {
+	return stagePatched(src, edits, maxBytes)
+}
+
 // PackageArgv is the command that runs every test of the package that holds the
 // proving test: go test ./<package>, built from the same checked path as TestArgv.
 // A broken neighbour test is how a patch that fixes one thing breaks another.
