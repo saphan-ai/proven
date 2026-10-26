@@ -65,6 +65,21 @@ func (s *Store) FailWrites(hook func(op string) error) {
 	s.writeHook = hook
 }
 
+// StateFile is what the state read needs from an open file. A test supplies one
+// whose size is wrong or unknown and counts the bytes read from it.
+type StateFile interface {
+	Read(p []byte) (int, error)
+	Close() error
+	Stat() (os.FileInfo, error)
+}
+
+// OpenWithStateFile opens a store like Open, but reads state.json through the
+// file the test supplies. It is the only way a test sees how many bytes the
+// state read consumes.
+func OpenWithStateFile(opts Options, f StateFile) (*Store, error) {
+	return open(opts, func(string) (stateFile, error) { return f, nil })
+}
+
 // Append stages the hook of FailAppends is asked about, after the step each
 // names. They stand for the writes that place bytes and then fail.
 const (

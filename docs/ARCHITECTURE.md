@@ -96,7 +96,9 @@ so it is never marked proved.
 - **The trace** (`<user cache>/proven/logs/trace.jsonl`, or the directory `PROVEN_LOG_DIR` names): one JSON line per claim, evidence, refutation, verdict, guardrail check and model
   call, with the run id and the time. A reader follows any finding from claim to verdict.
 - **H-MEM** (`<user cache>/proven/state/hmem`, `<user cache>/proven/logs/hmem.jsonl`): what earlier reviews refuted, so a refuted finding does not come back.
-- **The World Model** (`<user cache>/proven/state/world`, `<user cache>/proven/logs/world.jsonl`): the entities a review has seen.
+- **The World Model** (`<user cache>/proven/state/world`, `<user cache>/proven/logs/world.jsonl`): the entities a review has seen, and the edges between them.
+  An edge chain (one from, type and context) holds at most one valid edge at any instant. A write that would break
+  this is refused, and so is opening a state file that already breaks it (`ErrEdgeOverlap`, naming both edges). Open also refuses a stored edge whose `valid_to` is not after its `valid_from`, or cannot be read (`ErrEdgeInterval`), before it looks for overlaps; `Relate` applies the same rule to a write.
 - **Scout Intent** (`internal/scout`, ADR-0049): the plan chosen for a review, written as one `plan` line to the trace
   before any agent runs. On by default (ADR-0053), switched off with `scout_intent: off`; its eval harness is described below.
 - **Markovian** (`internal/markov`, ON by default, switched off with `PROVEN_MARKOVIAN=off`): the state carried from one step to the next when a large change is
@@ -273,6 +275,19 @@ about a quarter more, because every step repeats the instruction and the carried
 because a step carries the changed region and not both whole copies of the file. Whether a model keeps the same findings
 across steps is not measured here: the scripted generator finds what it is scripted to find. That is the corpus row. It is not
 measured, and since ADR-0053 the engine is on by default anyway (superseding ADR-0048 point 4); `PROVEN_MARKOVIAN=off` switches it off.
+
+### The scale H-MEM is built for
+
+H-MEM is built for a small store: the refutations of one reviewer. It keeps all records in one JSON file,
+`state/hmem/state.json`. The file is read whole when the store opens, and it is rewritten whole on every write. Every
+query and every refutation match is a scan of all records. Nothing is indexed, so the cost of a query grows with the
+number of records. This page states no timing, because none was measured.
+
+Reading is bounded. A state file over `PROVEN_HMEM_MAX_STATE_BYTES` (default 64 MiB) is refused when the store opens,
+by name (`ErrStateTooLarge`), with the file's size and the cap; the reader takes at most the cap plus one byte (ADR-0013).
+The one extra byte proves an overflow when the file's reported size is wrong: if the reader gets the extra byte, the
+file is larger than the cap, whatever its size said. The number of leading query tokens that count is `PROVEN_HMEM_QUERY_TOKENS` (default 8). Both are listed in
+[CONFIGURATION.md](CONFIGURATION.md). A store that outgrows the cap needs a different design, not a larger number.
 
 ## Modes
 

@@ -51,10 +51,10 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	defer s.mu.Unlock()
 	qEmb := Embed(query)
 	qTokens := Tokenize(query)
-	// Only the first eight query tokens count, so a long query cannot drown
-	// the keyword and tag terms.
-	if len(qTokens) > 8 {
-		qTokens = qTokens[:8]
+	// Only the first QueryTokens query tokens count (default eight, ADR-0013),
+	// so a long query cannot drown the keyword and tag terms.
+	if n := s.limits.QueryTokens; len(qTokens) > n {
+		qTokens = qTokens[:n]
 	}
 	qEntities := extractEntities(query)
 	qDomain := classifyDomain(query, nil, TypeGeneral)
@@ -89,7 +89,8 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 		rec.LastAccessed = now
 		rec.AccessCount++
 		s.records[rec.ID] = rec
-		scored[i].Record = rec
+		// The hit carries its own copy, so a caller editing it cannot change the store.
+		scored[i].Record = rec.detached()
 		entries = append(entries, auditEntry{action: "read", id: rec.ID, actor: "retrieval"})
 	}
 	if len(scored) > 0 {
@@ -119,10 +120,15 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 
 // Score is the final ranking value for one record. It does not touch the store.
 // It applies the same query trimming as Query, so a test can check one score by hand.
-func Score(rec Record, query string, now int64) float64 {
+// queryTokens is the store's query-token limit (Limits.QueryTokens); zero or
+// less means DefaultQueryTokens, as it does for a store (ADR-0013).
+func Score(rec Record, query string, now int64, queryTokens int) float64 {
+	if queryTokens <= 0 {
+		queryTokens = DefaultQueryTokens
+	}
 	tokens := Tokenize(query)
-	if len(tokens) > 8 {
-		tokens = tokens[:8]
+	if len(tokens) > queryTokens {
+		tokens = tokens[:queryTokens]
 	}
 	return score(rec, Embed(query), tokens, extractEntities(query), classifyDomain(query, nil, TypeGeneral), now)
 }

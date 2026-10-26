@@ -18,6 +18,7 @@ import (
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/network"
@@ -70,6 +71,16 @@ func open(opts Options) (Reviewer, error) {
 	// The git policy and the size bounds are this review's own, fixed here. They are not process state: another
 	// review opened in this process, at the same time or later, cannot change them (ADR-0034).
 	rd := change.NewPolicy(netPol.Local(), reads)
+	// ADR-0013: H-MEM's state cap and query-token limit are settings too. Sample mode reads
+	// none and uses the defaults.
+	var memLimits hmem.Limits
+	if !opts.Sample {
+		loaded, merr := hmem.LoadLimits(opts.Env)
+		if merr != nil {
+			return nil, hmemConfig(merr)
+		}
+		memLimits = loaded
+	}
 	// ADR-0036: the organisation policy is read first, once, and refused here when it is missing or
 	// malformed. Whether it lies inside the repository is known only when a review names its target.
 	var pol *policy
@@ -100,6 +111,7 @@ func open(opts Options) (Reviewer, error) {
 		Sample: opts.Sample,
 		LogDir: opts.LogDir,
 		Env:    opts.Env,
+		HMem:   memLimits,
 	}
 	var kevView string
 	var adapterLimit time.Duration
@@ -1018,6 +1030,18 @@ func storesConfig(err error) error {
 // readLimitConfig turns a refused read-bound setting into the seam's *ConfigError.
 func readLimitConfig(err error) error {
 	var cfg *change.LimitError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// hmemConfig turns a refused H-MEM setting into the seam's *ConfigError.
+func hmemConfig(err error) error {
+	var cfg *hmem.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

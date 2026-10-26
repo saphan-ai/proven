@@ -80,12 +80,12 @@ func TestScoreMatchesTheFormula(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := hmem.Score(rec, "alpha beta", fixed)
+	got := hmem.Score(rec, "alpha beta", fixed, 0)
 	if math.Abs(got-0.74) > 1e-9 {
 		t.Fatalf("score %v, want 0.74", got)
 	}
 	rec.SupersededBy = "mem-other"
-	lower := hmem.Score(rec, "alpha beta", fixed)
+	lower := hmem.Score(rec, "alpha beta", fixed, 0)
 	if lower >= got {
 		t.Fatalf("superseded %v is not below %v", lower, got)
 	}

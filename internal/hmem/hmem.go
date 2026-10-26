@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -77,6 +78,30 @@ type Record struct {
 	FindingKey string `json:"findingKey,omitempty"`
 }
 
+// detached returns the record with its own copy of every slice field. Every
+// public call that hands out a Record returns it through detached, so editing
+// what a caller was given never changes a stored record: the stored tags would
+// otherwise change without the domain being classified again (see Dream).
+func (r Record) detached() Record {
+	r.Tags = cloneStrings(r.Tags)
+	if r.Embedding != nil {
+		r.Embedding = append(make([]float64, 0, len(r.Embedding)), r.Embedding...)
+	}
+	r.Entities = cloneStrings(r.Entities)
+	r.RelatedTo = cloneStrings(r.RelatedTo)
+	r.DerivedFrom = cloneStrings(r.DerivedFrom)
+	return r
+}
+
+// cloneStrings copies a slice and keeps nil as nil and empty as empty, so a
+// detached record encodes to the same JSON as the stored one.
+func cloneStrings(in []string) []string {
+	if in == nil {
+		return nil
+	}
+	return append(make([]string, 0, len(in)), in...)
+}
+
 // Provenance is where a record was learned.
 type Provenance struct {
 	Origin    string `json:"origin"`
@@ -128,6 +153,9 @@ type Options struct {
 	LogDir   string
 	RepoRoot string
 	Clock    func() time.Time
+	// Limits bounds the state read and the query tokens. A zero field means
+	// the default (ADR-0013).
+	Limits Limits
 }
 
 // Store is the durable memory. The generator is accepted and never called:
@@ -136,6 +164,7 @@ type Store struct {
 	dir       string
 	auditPath string
 	clock     func() time.Time
+	limits    Limits
 	gen       generator.Generator
 	mu        sync.Mutex
 	seq       int
@@ -173,6 +202,26 @@ type disk struct {
 
 // Open creates the directory, loads state.json when it exists, and refuses a bad file.
 func Open(opts Options) (*Store, error) {
+	return open(opts, openStateFile)
+}
+
+// stateFile is what the state read needs from an open file: its bytes, its
+// size, and a way to close it. *os.File satisfies it.
+type stateFile interface {
+	io.ReadCloser
+	Stat() (os.FileInfo, error)
+}
+
+// openStateFile is the production opener of state.json.
+func openStateFile(path string) (stateFile, error) {
+	return os.Open(path)
+}
+
+// open is Open with the opener of state.json passed in. It is the one seam of
+// the state read: a test hands in a file whose size is wrong or unknown and
+// counts the bytes the read consumes, so a read that checks the size and then
+// reads without a bound is seen by the bytes it takes, not by the refusal.
+func open(opts Options, opener func(path string) (stateFile, error)) (*Store, error) {
 	if opts.Dir == "" {
 		return nil, fmt.Errorf("hmem: state directory is empty")
 	}
@@ -207,6 +256,7 @@ func Open(opts Options) (*Store, error) {
 		dir:       dir,
 		auditPath: filepath.Join(logDir, "hmem.jsonl"),
 		clock:     opts.Clock,
+		limits:    opts.Limits.withDefaults(),
 		records:   map[string]Record{},
 	}
 	s.ledger = newLedgerIndex(s.auditPath)
@@ -216,12 +266,12 @@ func Open(opts Options) (*Store, error) {
 	if err := os.Chmod(path, 0o600); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("hmem: state file: %w", err)
 	}
-	b, err := os.ReadFile(path)
+	b, err := readBounded(opener, path, s.limits.MaxStateBytes)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return s, nil
 		}
-		return nil, fmt.Errorf("hmem: read state: %w", err)
+		return nil, err
 	}
 	var file disk
 	if err := json.Unmarshal(b, &file); err != nil {
@@ -247,6 +297,41 @@ func Open(opts Options) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// readBounded reads path through a reader that stops at limit+1 bytes, so a
+// state file of any size costs at most limit+1 bytes of memory. The size is
+// checked first so a file known to be too large is not read at all; the
+// bounded read then covers a file that grew after the check. A file over the
+// limit is refused with ErrStateTooLarge, naming its size and the cap.
+// A missing file is returned as the os error so Open can start empty.
+// A close that fails after a good read is returned, naming the path, because a
+// failed close can mean the bytes read are not the bytes on disk; when the
+// read or the size check failed too, that error stays the primary one.
+func readBounded(opener func(path string) (stateFile, error), path string, limit int64) (b []byte, err error) {
+	f, err := opener(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("hmem: read state: %w", err)
+	}
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			b, err = nil, fmt.Errorf("hmem: close state %s: %w", path, cerr)
+		}
+	}()
+	if info, serr := f.Stat(); serr == nil && info.Size() > limit {
+		return nil, fmt.Errorf("%w: %s is %d bytes, the cap is %d (%s)", ErrStateTooLarge, path, info.Size(), limit, EnvMaxStateBytes)
+	}
+	b, err = io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("hmem: read state: %w", err)
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%w: %s grew past %d bytes while it was read, the cap is %d (%s)", ErrStateTooLarge, path, limit, limit, EnvMaxStateBytes)
+	}
+	return b, nil
 }
 
 // refuseInside refuses a state directory at or below root.
@@ -384,12 +469,12 @@ func (s *Store) addLocked(in AddInput) (Record, error) {
 			delete(s.records, rec.ID)
 			return Record{}, err
 		}
-		return rec, nil
+		return rec.detached(), nil
 	}
 	if err := s.publish("create", rec.ID, in.Source, prevSeq, nil, []string{rec.ID}); err != nil {
 		return Record{}, err
 	}
-	return rec, nil
+	return rec.detached(), nil
 }
 
 // RememberRefutation stores a refuted finding. The same key returns the same record
@@ -407,7 +492,7 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	sum := sha256.Sum256([]byte(k.ChangeKey + "\n" + fk))
 	id := "mem_" + hex.EncodeToString(sum[:])[:16]
 	if rec, ok := s.records[id]; ok {
-		return rec, nil
+		return rec.detached(), nil
 	}
 	now := k.At
 	if now == 0 {
@@ -447,7 +532,7 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	if err := s.publish("create", id, "skeptic", s.seq, nil, []string{id}); err != nil {
 		return Record{}, err
 	}
-	return rec, nil
+	return rec.detached(), nil
 }
 
 // MatchRefutation returns the stored refutation of this finding on this change.
@@ -469,7 +554,7 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 			ok = true
 		}
 	}
-	return found, ok
+	return found.detached(), ok
 }
 
 // Clear drops every record, resets the id sequence, writes the empty store and
@@ -537,19 +622,25 @@ func (s *Store) MarkSuperseded(id, by string) error {
 	return nil
 }
 
-// Get returns one record.
+// Get returns one record. The caller owns the copy: editing its slices does
+// not change the store.
 func (s *Store) Get(id string) (Record, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.records[id]
-	return rec, ok
+	return rec.detached(), ok
 }
 
-// All returns every record, sorted by id.
+// All returns every record, sorted by id. The caller owns the copies: editing
+// their slices does not change the store.
 func (s *Store) All() []Record {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.snapshot()
+	out := s.snapshot()
+	for i := range out {
+		out[i] = out[i].detached()
+	}
+	return out
 }
 
 // snapshot returns the records sorted by id. The caller holds s.mu.

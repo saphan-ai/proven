@@ -222,6 +222,12 @@ func Open(opts Options) (*Store, error) {
 		}
 		s.edges[r.ID] = r
 	}
+	// A file written before Relate refused overlaps can hold two edges of one
+	// chain valid at one instant. Neighbors would return both, so the file is
+	// refused here, by name, before any query runs.
+	if err := checkChains(s.edges); err != nil {
+		return nil, fmt.Errorf("world: state.json: %w", err)
+	}
 	return s, nil
 }
 

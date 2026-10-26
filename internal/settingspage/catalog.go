@@ -13,6 +13,7 @@ import (
 	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/markov"
@@ -58,6 +59,9 @@ const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says lo
 
 // packAfter follows the evidence-pack table. It is not a setting.
 const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
+
+// hmemAfter follows the H-MEM table. It is not a setting.
+const hmemAfter = "H-MEM reads its whole state file at open and scans every record on each query, so it is built for a small store; see the scale section of `docs/ARCHITECTURE.md`. A state file over the cap is refused by name with its size and the cap. Sample mode reads none of these."
 
 // boundedAfter follows the bounded-steps table. It is not a setting.
 const boundedAfter = "ADR-0053 (superseding the \"off until measured\" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way."
@@ -146,6 +150,11 @@ func Catalog() []envdoc.Section {
 			Heading: "The evidence pack",
 			Rows:    evidence.Environment(),
 			After:   packAfter,
+		},
+		{
+			Heading: "H-MEM: the memory store",
+			Rows:    hmem.Environment(),
+			After:   hmemAfter,
 		},
 		{
 			Heading: "The trace",

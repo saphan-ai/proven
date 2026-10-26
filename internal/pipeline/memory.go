@@ -100,6 +100,7 @@ func (p *Pipeline) begin(target string) error {
 	if !p.stores.HMemOff {
 		mem, err = hmem.Open(hmem.Options{
 			Dir: filepath.Join(p.stateDir, "hmem"), LogDir: p.logDir, RepoRoot: target,
+			Limits: p.hmemLimits,
 		})
 		if err != nil {
 			tw.Close()
