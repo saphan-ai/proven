@@ -1,9 +1,10 @@
 # The lab's closing banner. Sourced after lib.sh by up.sh, password.sh, status.sh and banner-check.sh.
-# Every URL is built from the settings in lab/versions.env: LAB_BIND, the ports, the dashboard uid.
+# Every URL is built from the lab's address, LAB_HOST (127.0.0.1, a constant in lib.sh), and the settings in
+# lab/versions.env: the ports, the page's path, the dashboard uid.
 
 # The page the lab hands out. Its path is a setting, and so is its port.
 lab_page_url() {
-  printf 'http://%s:%s%s' "$LAB_PAGE_BIND" "$LAB_PAGE_PORT" "$LAB_PAGE_PATH"
+  printf 'http://%s:%s%s' "$LAB_HOST" "$LAB_PAGE_PORT" "$LAB_PAGE_PATH"
 }
 
 # What the Password line shows when stdout is not a terminal: where the password is, never the password.
@@ -28,16 +29,16 @@ lab_banner() {
   printf '\n'
   printf '%s\n' 'To see demo pull requests scanned by proven please open:'
   printf '\n'
-  printf 'Gitea: http://%s:%s/login\n' "$LAB_BIND" "$GITEA_HTTP_PORT"
+  printf 'Gitea: http://%s:%s/login\n' "$LAB_HOST" "$GITEA_HTTP_PORT"
   printf 'Username: %s\n' "$LAB_ADMIN_USER"
   printf 'Password: %s\n' "$shown"
   printf '\n'
-  printf 'Grafana dashboard: http://%s:%s/d/%s\n' "$LAB_BIND" "$LGTM_GRAFANA_PORT" "$LGTM_DASHBOARD_UID"
+  printf 'Grafana dashboard: http://%s:%s/d/%s\n' "$LAB_HOST" "$LGTM_GRAFANA_PORT" "$LGTM_DASHBOARD_UID"
   shown=
 }
 
 # lab_read_password: the password from the lab's 0600 state file, or nothing. It is read in the seed image, which
-# mounts the state volume, and goes to the caller's variable, never to a log.
+# mounts the state volume, as the image's own user (not root), and goes to the caller's variable, never to a log.
 lab_read_password() {
-  compose run --rm --no-deps -T --user 0:0 --entrypoint cat seed /state/password 2>/dev/null || true
+  compose run --rm --no-deps -T --entrypoint cat seed /state/password 2>/dev/null || true
 }

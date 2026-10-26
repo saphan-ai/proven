@@ -4,13 +4,30 @@ set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 . "$ROOT/lab/scripts/banner.sh"
 
-# The start page carries the lab's password: refuse any address but loopback before anything starts. This is the
-# first act, ahead of the Docker check, so a refused bind is named on a host with no Docker as well.
-lab_require_loopback LAB_PAGE_BIND "$LAB_PAGE_BIND" || exit 1
 # Keys for a live review (docs/LAB.md, "Go live"): lab/.env is read here, and the seed stores each non-empty one as
-# an Actions secret. Nothing is printed from it.
+# an Actions secret. Nothing is printed from it. It is read first so the refusals below see its settings too.
 load_lab_env || exit 1
+# LAB_BIND is retired: the lab publishes on 127.0.0.1 only. A LAB_BIND in the environment is refused by name.
+refuse_retired_bind
+# The start page carries the lab's password and is published on 127.0.0.1 in lab/compose.yaml. A LAB_PAGE_BIND that
+# names another address is refused by name. Both refusals come ahead of the Docker check, so a refused bind is named
+# on a host with no Docker as well, and before any container starts.
+if [ "${LAB_PAGE_BIND+set}" = set ]; then
+  lab_require_loopback LAB_PAGE_BIND "$LAB_PAGE_BIND" || exit 1
+fi
 need_docker
+
+# A password the judge supplies is checked before any container starts. Gitea
+# refuses one shorter than 8 characters, and a line break would split it.
+if [ -n "${LAB_ADMIN_PASSWORD:-}" ]; then
+  case $LAB_ADMIN_PASSWORD in
+    *'
+'*) die "up: LAB_ADMIN_PASSWORD holds a line break" ;;
+  esac
+  if [ "${#LAB_ADMIN_PASSWORD}" -lt 8 ]; then
+    die "up: LAB_ADMIN_PASSWORD is shorter than 8 characters, which Gitea refuses"
+  fi
+fi
 
 if [ -z "${GITEA_RUN_USER:-}" ]; then
   die "up: GITEA_RUN_USER is not set"
@@ -116,15 +133,31 @@ else
   echo "up: the tag resolved to ${pulled:-an unknown digest}. Set TEST_IMAGE_DIGEST in lab/versions.env to pin it." >&2
 fi
 
-pass=$(compose run --rm --no-deps -T --user 0:0 --entrypoint cat seed /state/password 2>/dev/null || true)
+pass=$(compose run --rm --no-deps -T --entrypoint cat seed /state/password 2>/dev/null || true)
 if [ -z "$pass" ]; then
-  pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
-  printf '%s' "$pass" | compose run --rm --no-deps -T --user 0:0 --entrypoint sh seed -c \
-    'mkdir -p /state /reg && cat > /state/password && chmod 600 /state/password && chown proven:proven /state /reg /state/password && chmod 700 /state /reg'
-  # The password goes into no log. The banner at the end shows it on a terminal, and make password shows it again.
-  echo "up: generated the lab admin password; it is in the lab volume until make clean"
+  if [ -n "${LAB_ADMIN_PASSWORD:-}" ]; then
+    pass=$LAB_ADMIN_PASSWORD
+    supplied=1
+  else
+    pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+    supplied=0
+  fi
+  printf '%s' "$pass" | compose run --rm --no-deps -T --entrypoint sh seed -c \
+    'umask 077 && cat > /state/password'
+  # The password goes into no log. On a terminal the banner at the end shows it, and make password shows it again.
+  # Anywhere else it is kept in a 0600 file and only the path is printed (deliver_admin_password in lib.sh).
+  if [ "$supplied" -eq 1 ]; then
+    echo "up: lab admin password: the value of LAB_ADMIN_PASSWORD, not printed"
+  elif stdout_is_terminal; then
+    echo "up: generated the lab admin password; it is in the lab volume until make clean"
+  else
+    deliver_admin_password "$pass"
+  fi
 else
   echo "up: the lab is already installed; the volume is kept; repairing the admin user, the runner and the pull requests"
+  if [ -n "${LAB_ADMIN_PASSWORD:-}" ] && [ "$LAB_ADMIN_PASSWORD" != "$pass" ]; then
+    echo "up: LAB_ADMIN_PASSWORD differs from the installed lab's password and is ignored. make clean, then make up, installs it." >&2
+  fi
 fi
 
 # The image refuses `gitea` as root. `compose exec` is root unless a user is
@@ -164,7 +197,8 @@ if ! grep -q "$LAB_ADMIN_USER" "$users"; then
 fi
 rm -f "$users" "$err"
 
-LAB_ADMIN_PASSWORD=$pass compose run --rm -T seed
+# The seed reads the password from /state/password, written above. It is not passed in.
+compose run --rm -T seed
 compose up -d runner
 
 # The start page is rendered by the seed into the page volume, so the service starts after it.
@@ -173,6 +207,11 @@ if [ "$docs_ready" -eq 1 ]; then
   compose up -d docs
 fi
 
-# The URL, the user and the password are the last lines of every run, the first and the ones after it.
+# The URL, the user and the password are the last lines of every run, the first and the ones after it. A password
+# the judge supplied in LAB_ADMIN_PASSWORD is the judge's own and is not printed: the line names the setting.
+shown=$pass
+if [ -n "${LAB_ADMIN_PASSWORD:-}" ] && [ "$LAB_ADMIN_PASSWORD" = "$pass" ]; then
+  shown="the value of LAB_ADMIN_PASSWORD"
+fi
 echo
-lab_banner "$pass"
+lab_banner "$shown"

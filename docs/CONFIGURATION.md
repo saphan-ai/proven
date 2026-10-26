@@ -70,6 +70,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `ZETARIS_TIMEOUT` | `60s` | the limit for one query |
 | `PROVEN_OSV_TABLE` | `px_osvfile.px_osv_pkg` | the OSV package table the dependency check queries; see [OSV_TABLE.md](OSV_TABLE.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_KEV_VIEW` | `px_evidence.px_kev_vulns` | the KEV view an advisory's CVE alias is looked up in. Sample mode uses the default and does not read this variable |
+| `PROVEN_OSV_ID_VIEW` | `px_evidence.px_osv_id` | the OSV advisory-id view the `osv-by-advisory` template reads; see [ZETARIS_USL.md](ZETARIS_USL.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
@@ -240,7 +241,7 @@ No environment variable sets these keys.
 | `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
 | `fixes` | `on` | Proposes a fix for a finding a test proved, and a fixed version for a dependency finding (ADR-0042). `off` proposes none, runs none of the three proof runs and names no version. | `on` or `off`. |
 | `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. With `autofix: on` this key is not read: the whole-change attempt has no retry (ADR-0050). |
-| `autofix` | `off` | The one automated fix attempt for the whole change (ADR-0050). With `on`, after the review, one generator call gets every proved finding with its evidence and writes one patch. Proven applies it to copies only and runs each finding's own evidence again: a finding proved by a test closes when that test passes and the package's other tests still pass; one proved by data closes when the same query no longer returns the row; one proved by a tool closes when the same tool run no longer reports it. Then nothing else may have broken: Proven runs `go test` on the patched copy for every package a patched file belongs to (the whole module for an edit to a module file), and a failure, or a run that did not happen, makes the attempt `rejected` and names the run. A touched package with no test cannot show that nothing broke, so a patch to one is `rejected` too. No model judges the patch. If every proved finding closed and those runs passed, the review says `fixed automatically, waiting for a person`; otherwise it says `rejected` and lists each open finding with its evidence. There is no second attempt, nothing is committed to the author's branch, and the per-finding suggestions of `fixes` are not made while it is on. `fixes: off` together with `autofix: on` does not stop the attempt: `fixes` governs only the per-finding suggestions, so the attempt still runs its own proof runs in the container. The judges' lab turns it on. | `on` or `off`. |
+| `autofix` | `off` | The one automated fix attempt for the whole change (ADR-0050). With `on`, after the review, one generator call gets every proved finding with its evidence and writes one patch. Proven applies it to copies only and runs each finding's own evidence again: a finding proved by a test closes when that test passes and the package's other tests still pass; one proved by data closes when the same query no longer returns the row; one proved by a tool closes when the same tool run no longer reports it. Then nothing else may have broken: Proven runs `go test` on the patched copy for every package a patched file belongs to (the whole module for an edit to a module file), and a failure, or a run that did not happen, makes the attempt `rejected` and names the run. A touched package with no test cannot show that nothing broke, so a patch to one is `rejected` too. An edited file in no package of the module, such as a script, a document or a file of a nested module, is a run that `could not run`, and the attempt is `rejected`. The container has no network and no module cache, so a dependency raise in a module that does not vendor its dependencies cannot build there and ends `rejected`. No model judges the patch. If every proved finding closed and those runs passed, the review says `fixed automatically, waiting for a person`; otherwise it says `rejected` and lists each open finding with its evidence. There is no second attempt, nothing is committed to the author's branch, and the per-finding suggestions of `fixes` are not made while it is on. `fixes: off` together with `autofix: on` does not stop the attempt: `fixes` governs only the per-finding suggestions, so the attempt still runs its own proof runs in the container. The judges' lab turns it on. | `on` or `off`. |
 | `autofix_generator` | `default` | Which generator writes the patch of the whole-change attempt. `default` is the review's own generator (NVIDIA's Nemotron unless the generator mode names another). `special` is the second reviewer's generator; with none connected the review makes no attempt and names the service as failed. | `default` or `special`. |
 | `autofix_timeout` | `10m` | The time limit of the whole-change attempt: the generator's answer and every run of evidence again. An attempt that runs past it ends `rejected` and says the time limit ended it. | A Go duration greater than zero, for example `90s` or `10m`. |
 | `investigator_templates` | every template | The query templates the Investigator may ask (ADR-0013, ADR-0032). Its prompt lists only these, and a request for any other is refused before a store is asked: the finding goes on with no query evidence and the trace says `refused: query template is outside the evidence scope of this role: <template> for the investigator`. Unset narrows nothing. | A comma-separated list of template names from `docs/QUERIES.md`, each once. A name that is not on the list, a name twice or an empty entry is refused on load. |
@@ -285,15 +286,15 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | Setting | Default | What it changes |
 |---|---|---|
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
-| `LAB_BIND` | `127.0.0.1` | Address the published ports bind to |
+| `LAB_BIND` | retired | No longer a setting. Every published port names `127.0.0.1` in `lab/compose.yaml` itself, so no value moves it. `make up` refuses a `LAB_BIND` that is set in the environment, an empty one included, and names it |
 | `GOLANG_IMAGE` | `golang:1.26.10` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
 | `RUNTIME_IMAGE` | `alpine:3.23` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
 | `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
-| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` refuse when the `docker scout` plugin is installed and a fix is available. `make push` does not run Scout |
+| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `LAB_BIND`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
+| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes five ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT`, `LGTM_OTLP_PORT`, `LAB_PAGE_PORT` and `LAB_DOCS_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
 | `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
@@ -322,24 +323,26 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `RUNNER_NAME` | `proven-lab` | Name the runner registers with |
 | `RUNNER_LABEL` | `ubuntu-latest` | Label the lab's jobs use. The workflow file's `runs-on` matches this default |
 | `LAB_ADMIN_USER` | `proven` | Admin user. `make up` creates it when the account is missing, including on a volume that already holds the password |
+| `LAB_ADMIN_PASSWORD` | empty | The admin password the judge supplies. Read from the environment only; never put it in `lab/versions.env` or another committed file. Used on the first `make up`, which neither prints it (the closing block's Password line names the setting) nor writes it to a file on the host. It is never in the Compose environment: the seed reads it from a file in the lab's volume, so `docker compose config` does not show it. Empty: `make up` generates one; on a terminal its closing block shows it, and otherwise the first `make up` writes it to `lab/.state/admin-password` at mode 0600 and prints the path. At least 8 characters and no line break, or `make up` refuses before any container starts. On an installed lab a different value is ignored with a notice |
+| `LAB_STATE_DIR` | `lab/.state` | Directory of the admin password file. `make clean` removes the file and the directory when it is empty |
 | `LAB_ADMIN_EMAIL` | `proven@localhost` | That user's email |
 | `LAB_BOT_USER` | `proven-bot` | The account the workflow posts its review as. Not an admin; a collaborator on the demo repository. The seed makes it, keeps its generated password in the lab's state volume and stores its token only as the repository's `PROVEN_TOKEN` secret. `make e2e` accepts a review only from this account |
 | `LAB_BOT_EMAIL` | `proven-bot@lab.local` | That account's email |
 | `LAB_DEMO_REPO` | `discount` | Demo repository name |
 | `LAB_DEMO_BASE` | `main` | Base branch |
 | `LAB_DEMO_HEAD` | `demo-discount` | Branch of the first demo pull request, the logic-bug change. The others are listed in `lab/seed/prs.tsv`; each branch is named `demo-<fixture>` |
-| `LAB_PAGE_PORT` | `3002` | Port of the lab's start page on `LAB_BIND`. The page is the one address to hand out: `http://127.0.0.1:3002/lab` |
+| `LAB_PAGE_PORT` | `3002` | Port of the lab's start page on `127.0.0.1`. The page is the one address to hand out: `http://127.0.0.1:3002/lab`. No setting moves its address; a `LAB_PAGE_BIND` that is set to an address that is not loopback is refused by name before any container starts |
 | `LAB_PAGE_PATH` | `/lab` | Path the page is served at. It is also written in `lab/page/nginx.conf`; a test holds the two together |
 | `LAB_PAGE_IMAGE` | `nginxinc/nginx-unprivileged` | The page's web server. It runs as a user that is not root |
 | `LAB_PAGE_IMAGE_VERSION` | `1.27-alpine` | Its tag. Not pulled when this file was written; the first `make up` is the check |
 | `LAB_PAGE_CONTAINER_PORT` | `8080` | The port that image serves on |
-| `LAB_DOCS_PORT` | `3003` | Port of the documentation site on `LAB_BIND` |
+| `LAB_DOCS_PORT` | `3003` | Port of the documentation site on `127.0.0.1` |
 | `LAB_DOCS_CONTAINER_PORT` | `3000` | The port the documentation image serves on |
 | `DOCS_IMAGE` | `saphan/proven-docs` | Name of the documentation image `make up` builds from `docs-site/Dockerfile` |
 | `DOCS_IMAGE_TAG` | `1` | Its tag |
 | `NODE_IMAGE` | `node:22-alpine` | The Node image the documentation build uses |
 | `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
-| `SEED_IMAGE_TAG` | `1` | Pin for that image. It is not tagged `latest` |
+| `SEED_IMAGE_TAG` | `2` | Pin for that image. It is not tagged `latest` |
 | `E2E_WAIT_SECONDS` | `900` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 

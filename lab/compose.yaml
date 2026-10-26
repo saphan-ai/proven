@@ -1,5 +1,5 @@
 # Judges' lab. Every value comes from the environment (lab/versions.env).
-# Published ports bind to LAB_BIND (default 127.0.0.1) only.
+# Every published port names 127.0.0.1 in its own line. No setting changes that.
 # The runner talks to the dind service. It does not mount the host's Docker socket.
 # SSH is off. The image's OpenSSH already holds :22, and Gitea's own server
 # on that port exited the container (measured 2026-10-23). No SSH port is published.
@@ -14,8 +14,8 @@ services:
       USER_GID: "1000"
       GITEA__database__DB_TYPE: sqlite3
       GITEA__database__PATH: /data/gitea/gitea.db
-      GITEA__server__DOMAIN: ${LAB_BIND}
-      GITEA__server__ROOT_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/
+      GITEA__server__DOMAIN: 127.0.0.1
+      GITEA__server__ROOT_URL: http://127.0.0.1:${GITEA_HTTP_PORT}/
       GITEA__server__HTTP_PORT: ${GITEA_CONTAINER_HTTP_PORT}
       GITEA__server__DISABLE_SSH: "${GITEA_DISABLE_SSH}"
       GITEA__server__START_SSH_SERVER: "${GITEA_START_SSH_SERVER}"
@@ -26,7 +26,7 @@ services:
       GITEA__repository__DEFAULT_REPO_UNITS: "repo.code,repo.releases,repo.issues,repo.pulls,repo.wiki,repo.projects,repo.packages,repo.actions"
       GITEA__security__INSTALL_LOCK: "true"
     ports:
-      - "${LAB_BIND}:${GITEA_HTTP_PORT}:${GITEA_CONTAINER_HTTP_PORT}"
+      - "127.0.0.1:${GITEA_HTTP_PORT}:${GITEA_CONTAINER_HTTP_PORT}"
     volumes:
       - gitea-data:/data
     networks:
@@ -47,19 +47,19 @@ services:
       - lab
 
   # Grafana's OpenTelemetry stack (ADR-0045). Proven sends its review here as
-  # OTLP; Grafana shows it on the provisioned dashboard. Both ports bind to LAB_BIND.
+  # OTLP; Grafana shows it on the provisioned dashboard. Both ports bind to 127.0.0.1.
   lgtm:
     image: ${LGTM_IMAGE}:${LGTM_VERSION}
     environment:
       # Open on the dashboard, not on Grafana's empty home page.
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /proven-dashboards/proven-review.json
-      # No sign-in: the lab binds to LAB_BIND (127.0.0.1). `make trace` also reads through this.
+      # No sign-in: the lab binds to 127.0.0.1. `make trace` also reads through this.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
     ports:
-      - "${LAB_BIND}:${LGTM_GRAFANA_PORT}:${LGTM_GRAFANA_CONTAINER_PORT}"
-      - "${LAB_BIND}:${LGTM_OTLP_PORT}:${LGTM_OTLP_CONTAINER_PORT}"
+      - "127.0.0.1:${LGTM_GRAFANA_PORT}:${LGTM_GRAFANA_CONTAINER_PORT}"
+      - "127.0.0.1:${LGTM_OTLP_PORT}:${LGTM_OTLP_CONTAINER_PORT}"
     volumes:
       - ./grafana/proven-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/proven.yaml:ro
       - ./grafana/dashboards:/proven-dashboards:ro
@@ -89,7 +89,8 @@ services:
 
   # The lab's start page: one static page at ${LAB_PAGE_PATH}, rendered by the seed into the lab-page volume.
   # The image runs as a user that is not root, so the container needs no capability, and its filesystem is
-  # read-only apart from /tmp. The port binds to LAB_PAGE_BIND, which make up refuses unless it is loopback.
+  # read-only apart from /tmp. The port names 127.0.0.1 in its own line, like every other port here: the page
+  # carries the lab's password, and no setting moves it.
   page:
     image: ${LAB_PAGE_IMAGE}:${LAB_PAGE_IMAGE_VERSION}
     read_only: true
@@ -100,14 +101,14 @@ services:
     tmpfs:
       - /tmp
     ports:
-      - "${LAB_PAGE_BIND}:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"
+      - "127.0.0.1:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"
     volumes:
       - lab-page:/usr/share/nginx/html:ro
       - ./page/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - lab
 
-  # Proven's documentation site (docs-site/Dockerfile): a Node server as user 10001. make up builds it.
+  # Proven's documentation site (docs-site/Dockerfile): a Node server as user 10001, on 127.0.0.1. make up builds it.
   docs:
     image: ${DOCS_IMAGE}:${DOCS_IMAGE_TAG}
     build:
@@ -121,19 +122,19 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "${LAB_BIND}:${LAB_DOCS_PORT}:${LAB_DOCS_CONTAINER_PORT}"
+      - "127.0.0.1:${LAB_DOCS_PORT}:${LAB_DOCS_CONTAINER_PORT}"
     networks:
       - lab
 
   seed:
     image: ${SEED_IMAGE}:${SEED_IMAGE_TAG}
-    user: "0:0"
+    # The admin password is not here: the seed reads it from /state/password in seed-state.
     environment:
       GITEA_INTERNAL_URL: http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}
-      LAB_URL: http://${LAB_BIND}:${GITEA_HTTP_PORT}/
-      LAB_GRAFANA_URL: http://${LAB_BIND}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}
-      LAB_DOCS_URL: http://${LAB_BIND}:${LAB_DOCS_PORT}/
-      LAB_PAGE_URL: http://${LAB_PAGE_BIND}:${LAB_PAGE_PORT}${LAB_PAGE_PATH}
+      LAB_URL: http://127.0.0.1:${GITEA_HTTP_PORT}/
+      LAB_GRAFANA_URL: http://127.0.0.1:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}
+      LAB_DOCS_URL: http://127.0.0.1:${LAB_DOCS_PORT}/
+      LAB_PAGE_URL: http://127.0.0.1:${LAB_PAGE_PORT}${LAB_PAGE_PATH}
       LAB_ADMIN_USER: ${LAB_ADMIN_USER}
       LAB_ADMIN_EMAIL: ${LAB_ADMIN_EMAIL}
       LAB_BOT_USER: ${LAB_BOT_USER}
@@ -143,7 +144,6 @@ services:
       LAB_DEMO_HEAD: ${LAB_DEMO_HEAD}
       PROVEN_IMAGE: ${PROVEN_IMAGE}
       RUNNER_LABEL: ${RUNNER_LABEL}
-      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:-}
       # ADR-0045: the seeded workflow exports its review to the lgtm service.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://${LGTM_INTERNAL_HOST}:${LGTM_OTLP_CONTAINER_PORT}
       OTEL_SERVICE_NAME: ${LAB_OTEL_SERVICE_NAME}

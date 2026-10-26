@@ -86,6 +86,34 @@ func BreakageArgvs(edits []Edit) [][]string {
 	return argvs
 }
 
+// unresolvable says why go test, run at the module root, cannot resolve target, or "" when it
+// can. A target in a nested module belongs to another module, and a directory with no Go file
+// is in no package: an edit to a script, a document or a config there touched no package.
+func unresolvable(root, target string) string {
+	if target == "./..." {
+		return ""
+	}
+	dir := strings.TrimSuffix(strings.TrimPrefix(target, "./"), "/...")
+	for d := dir; d != "." && d != ""; d = path.Dir(d) {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(d), "go.mod")); err == nil {
+			return "the edited file belongs to the nested module at " + d + ", which this module's go test does not run"
+		}
+	}
+	if strings.HasSuffix(target, "/...") {
+		return ""
+	}
+	entries, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(dir)))
+	if err != nil {
+		return "the edited file's directory " + dir + " is not in the patched copy"
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") {
+			return ""
+		}
+	}
+	return "the edited file is in " + dir + ", which holds no Go package"
+}
+
 // breakageLabel names one breakage run by the package it covers.
 func breakageLabel(argv []string) string { return RunBreakage + " " + argv[len(argv)-1] }
 
@@ -117,6 +145,15 @@ func (c *Container) RunBreakage(ctx context.Context, req BreakageRequest) (Break
 
 	var out BreakageOutcome
 	for _, argv := range BreakageArgvs(req.Edits) {
+		if why := unresolvable(patched, argv[len(argv)-1]); why != "" {
+			// go test would fail on a target it cannot resolve, and the record would then say the
+			// package failed. It is a run that cannot happen, and the attempt stays rejected.
+			out.Runs = append(out.Runs, FixRun{
+				Label: breakageLabel(argv), Command: displayCommand(argv), Result: ResultNotRun,
+				ExitCode: -1, Output: why,
+			})
+			continue
+		}
 		text, kind, code := c.sideExit(ctx, patched, argv)
 		if kind == kindCancelled {
 			return BreakageOutcome{}, withRemoval(ctx.Err(), text)

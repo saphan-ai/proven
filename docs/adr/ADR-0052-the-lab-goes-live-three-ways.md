@@ -46,8 +46,9 @@ each must be written down step by step (every act a person must do has numbered 
    numbered steps in `docs/LAB.md`.
 6. **Every address, port, image and VM name is a setting with a default** (`lab/versions.env`). No secret is baked in or
    printed. The runtime token is never read or printed by the lab: Nightshift shows it in its own window.
-7. **The start page carries its own bind.** It shows the lab's password, so it is published on `LAB_PAGE_BIND`
-   (`127.0.0.1`) and `make up` refuses any other value by name before it starts a container. The renderer stages the
+7. **The start page is loopback only.** It shows the lab's password, so it is published on `127.0.0.1`, named in its
+   own port line of `lab/compose.yaml` like every port of the lab (ADR-0026 point 7; no setting moves it), and `make up`
+   refuses a `LAB_PAGE_BIND` that names any other address, by name, before it starts a container. The renderer stages the
    page only inside the page volume, with mode 0600, and removes the staging file if it stops. (Both are repairs from the
    named review of round 1.)
 

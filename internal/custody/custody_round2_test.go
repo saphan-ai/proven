@@ -33,7 +33,7 @@ func TestAuditCountsOneReceiptForOneAnswer(t *testing.T) {
 	if rep.Failed() != 1 || d.Matched != 1 || d.InCustody != 1 {
 		t.Fatalf("report %#v", d)
 	}
-	if got := d.Failures[0].Reason; got != "response id already counted at trace.jsonl:1" {
+	if got := d.Failures[0].Reason; got != "response id already matched at trace.jsonl:1" {
 		t.Fatalf("reason %q", got)
 	}
 }

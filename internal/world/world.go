@@ -110,6 +110,7 @@ type Store struct {
 	applied   map[string]struct{}
 	findings  map[string]*Finding
 	entities  map[string]Entity
+	edges     map[string]Edge
 }
 
 // disk is the shape of state.json. Applied lists every event id already
@@ -119,6 +120,8 @@ type disk struct {
 	Applied  []string  `json:"applied"`
 	Findings []Finding `json:"findings"`
 	Entities []Entity  `json:"entities"`
+	// Edges is omitted when empty, so a store with no graph keeps its earlier canonical form.
+	Edges []Edge `json:"edges,omitempty"`
 }
 
 // Open loads state.json when it exists and refuses a bad file.
@@ -160,6 +163,7 @@ func Open(opts Options) (*Store, error) {
 		applied:   map[string]struct{}{},
 		findings:  map[string]*Finding{},
 		entities:  map[string]Entity{},
+		edges:     map[string]Edge{},
 	}
 	// A state file an earlier run left at a wider mode is narrowed before it is read.
 	if err := os.Chmod(filepath.Join(dir, "state.json"), 0o600); err != nil && !os.IsNotExist(err) {
@@ -208,6 +212,15 @@ func Open(opts Options) (*Store, error) {
 			return nil, fmt.Errorf("world: duplicate entity %s", e.ID)
 		}
 		s.entities[e.ID] = e
+	}
+	for _, r := range file.Edges {
+		if err := checkProvenance(r.Source); err != nil {
+			return nil, fmt.Errorf("world: edge %s: %w", r.ID, err)
+		}
+		if _, ok := s.edges[r.ID]; ok {
+			return nil, fmt.Errorf("world: duplicate edge %s", r.ID)
+		}
+		s.edges[r.ID] = r
 	}
 	return s, nil
 }
@@ -479,6 +492,14 @@ func (s *Store) Canonical() string {
 	for _, id := range eids {
 		file.Entities = append(file.Entities, s.entities[id])
 	}
+	rids := make([]string, 0, len(s.edges))
+	for id := range s.edges {
+		rids = append(rids, id)
+	}
+	sort.Strings(rids)
+	for _, id := range rids {
+		file.Edges = append(file.Edges, s.edges[id])
+	}
 	b, err := json.Marshal(file)
 	if err != nil {
 		return ""
@@ -492,6 +513,7 @@ type foldSnap struct {
 	applied  map[string]struct{}
 	findings map[string]*Finding
 	entities map[string]Entity
+	edges    map[string]Edge
 }
 
 func (s *Store) cloneState() foldSnap {
@@ -508,13 +530,14 @@ func (s *Store) cloneState() foldSnap {
 		e.Attrs = cloneAttrs(e.Attrs)
 		entities[id] = e
 	}
-	return foldSnap{applied: applied, findings: findings, entities: entities}
+	return foldSnap{applied: applied, findings: findings, entities: entities, edges: cloneEdges(s.edges)}
 }
 
 func (s *Store) restoreState(snap foldSnap) {
 	s.applied = snap.applied
 	s.findings = snap.findings
 	s.entities = snap.entities
+	s.edges = snap.edges
 }
 
 func cloneFinding(f *Finding) *Finding {

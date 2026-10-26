@@ -30,13 +30,47 @@ That work led to patent applications, filed in the U.S. and Europe and still pen
 
 Now that fleet takes on something new. At the hackathon it will build **Proven**, an open-source tool for checking code of the kind it writes itself.
 
+## Impact: the problem at its real size
+
+This repository is not here to show off a fleet. It shows, from the inside, how a fully agentic coding factory works,
+because that is the only way to show the size of the problem Proven solves.
+
+Most solo developers who code with AI agents feel the problem only lightly: an agent says "done", the tests are green,
+and now and then something is quietly wrong. At one or two agents you can still read every change yourself. At a fleet
+you cannot, and the question stops being "can agents write the code?" and becomes **"which of this can I trust, and on
+what evidence?"** That is why pull-request review and security are not extras here. **They are the foundation.** Without
+them, a fleet that writes code faster only produces unchecked code faster.
+
+So we do not ask you to imagine the scale. We show it:
+
+- **One person.** Marcin decides, rules on disputes and merges every change by hand. No agent ever merges or pushes.
+- **A coding fleet** that plans, builds, tests and reviews, with every change reviewed by a model family other than
+  the one that wrote it.
+- **Six days**, from 22 to 27 October 2026, to build a working evidence-based reviewer with its own lab, a GitHub
+  Action, four Meterless engines, live data through Zetaris, NVIDIA Nemotron as a reviewer, and a security review of
+  its own code on top.
+- **Every step in the open**: each order, each builder's report, each review and each decision is in this repository.
+- **And Proven is not the only thing the fleet builds this week.** In the same six days, under the same one person,
+  it keeps building three other projects: Saphan Studio itself (the platform that runs the fleet), the
+  [Quake Watch server](https://github.com/saphan-ai/quake-watch-server), an earthquake alert service built in public
+  as a step-by-step example, and its Android app. Four projects at once, one person deciding and merging all of them.
+
+By the end of day four, 100 changes had been merged. Counted from the fleet's own record on 25 October, 240
+independent reviews raised **201 blocking problems** in work that an agent had called finished, and **116 of them were
+stopped before the change reached the main branch**. That is the problem Proven exists for, measured on the project
+that builds it, not estimated.
+
+**And do not take our word for the quality of the code: judge it yourself.** Every line is public, with the order
+that asked for it, the review that checked it and the decision that merged it. The fleet is not ashamed of its work. It is proud of it.
+Open any package, read any test, pick any merge, and tell us what you find.
+
 ## Where things stand
 
 Updated every evening. The newest day comes first.
 
 ### Day four, 25 October
 
-Day four of six. **Thirty more changes were merged**, 98 in four days. With Scout Intent and Markovian, all four
+Day four of six. **Thirty-two more changes were merged**, 100 in four days. With Scout Intent and Markovian, all four
 Meterless engines are now in Proven, the two new ones switched off until their benefit is measured.
 
 **NVIDIA's model now writes Proven's code, not only reviews it.** NVIDIA made its hosted API free for us, and the fleet
@@ -182,7 +216,7 @@ What else came in today:
 | Sponsor | What works, measured | In a review |
 |---|---|---|
 | **Zetaris** | The platform runs on our own machine and its checks pass 9 of 9. Proven's own key reads over REST and is refused every write. OSV by package answers from a file in Zetaris storage, 0.10 to 0.15 s per query. | The Investigator's evidence (KEV, EPSS, OSV) is shaped as Zetaris queries; sample mode runs the same SQL over local tables. [setup](hackathon/fleet/infra/zetaris/README.md) |
-| **Meterless** | Nightshift answers every model call with a signed receipt: 241 receipts by 25 October, all 241 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 7 of 8; the rest are sections not built yet. Markovian is in Proven too and passes Meterless's runner 8 of 8 (pinned at upstream commit `1742dec5`); it is OFF by default, and its benefit is UNMEASURED. **Scout Intent**, which plans each review, runs Meterless's own eval harness (pinned at upstream commit `1742dec5`): on Meterless's regression set every metric is 1.000 and `clarification_rate` is 0.188; on Proven's 14 change fixtures `clarification_rate` is 0.429 against a ceiling of 0.25, so that gate fails, because 6 of the 14 are ambiguous on purpose. | H-MEM and the World Model run in every review, sample mode included; the fleet's own reviews also go through Nightshift. Markovian reviews a large change in bounded steps only when `PROVEN_MARKOVIAN` is switched on; by default the review is unchanged. **Scout Intent is OFF by default** (`scout_intent`), so no review plans itself unless a person switches it on; its benefit, the model calls and time saved per review on the test corpus, is **UNMEASURED** until the corpus recordings exist. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) · [Markovian](docs/ARCHITECTURE.md#bounded-steps-meterlesss-markovian-engine-adr-0048) · [how it plans](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) |
+| **Meterless** | Nightshift answers every model call with a signed receipt: 241 receipts by 25 October, all 241 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 8 of 8; the rest are sections not built yet. Markovian is in Proven too and passes Meterless's runner 8 of 8 (pinned at upstream commit `1742dec5`); it is OFF by default, and its benefit is UNMEASURED. **Scout Intent**, which plans each review, runs Meterless's own eval harness (pinned at upstream commit `1742dec5`): on Meterless's regression set every metric is 1.000 and `clarification_rate` is 0.188; on Proven's 14 change fixtures `clarification_rate` is 0.429 against a ceiling of 0.25, so that gate fails, because 6 of the 14 are ambiguous on purpose. | H-MEM and the World Model run in every review, sample mode included; the fleet's own reviews also go through Nightshift. Markovian reviews a large change in bounded steps only when `PROVEN_MARKOVIAN` is switched on; by default the review is unchanged. **Scout Intent is OFF by default** (`scout_intent`), so no review plans itself unless a person switches it on; its benefit, the model calls and time saved per review on the test corpus, is **UNMEASURED** until the corpus recordings exist. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) · [Markovian](docs/ARCHITECTURE.md#bounded-steps-meterlesss-markovian-engine-adr-0048) · [how it plans](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) |
 | **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. In the fleet, Nemotron now reviews changes beside OpenAI and Anthropic, straight on NVIDIA's API. |
 | **Cursor** | The command line was written by Cursor agents on Grok 4.7 and landed today; up to four agents code at once on one Linux machine, each inside its own jail, and every run's model traffic is recorded. | Cursor is how Proven is built. [how it works](hackathon/fleet/infra/cursor/README.md) |
 
@@ -201,11 +235,16 @@ Each day, what lands moves from this list to the day's summary.
 - **More sources**: severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)), and **your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
 - **More languages**: Java, C# and Ruby, after PHP, Rust and Kotlin, through the same small adapter ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
 - **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
-- **An evidence pack an auditor can check offline**: `proven verify` re-derives every finding from the recorded evidence instead of trusting the stored verdict ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)).
+- **An evidence pack an auditor can check offline** ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)): `proven verify` checks the signature and every hash, then works out again each finding's level of proof from the evidence the pack records, and refuses a pack whose verdict does not follow from it; a component the pack does not record enough to work out (for example the reported state of a finding whose text redaction changed) is named as not re-derived, finding by finding. A verified pack proves that each verdict it re-derived follows from the evidence it records, and it names each finding it could not fully re-derive; it does not prove that the evidence is true. A forgery bench changes one scalar value at a time in a sample pack: with the hashes left, 430 of 430 changes were refused (370 by the hash check, 60 by the signature check); with the hashes recomputed and the manifest signed again, 118 of 118 changes that move an outcome were refused (84 by the outcome check, 34 by the format check), and 149 changes that move none verify; a third part removes a finding's `Bound` fields and changes a result that the rest of the evidence decides, and 4 of 4 were refused. A missing `Bound`, or a redaction marker in the manifest, hides only the components it decides, and `verify` refuses a finding when no reading of what is hidden gives its recorded outcome as a whole; a part (d) marks a finding redaction-moved while changing a component the evidence decides: 16 of 16 were refused. The bench changes one value at a time (it does not empty a row list, null a refutation or change a `Kind`), and it decides what moves an outcome from the recorded level and open state and from the whole outcome of the function `verify` calls, so it shows that `verify` refuses those changes, not that none escapes and not that the rule is right ([the counts and how to run the bench](docs/EVIDENCE_PACK.md#the-forgery-bench)).
 - **Accepted risks that expire**, shown in every output, on top of today's organisation policy ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
 - **Watch a review live**: a dashboard of the agents and the two reviewers working side by side, their verdicts and where they disagree; the numbers go to any monitoring you already use, through OpenTelemetry ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
 - **NVIDIA's model in every review of the fleet's work**, beside OpenAI's and Anthropic's, now that its first review is in.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
+
+**Known debt, accepted on purpose.** The function that runs a review, `pipeline.review`, is one long function of about
+500 lines. It should become one function per stage (Planner, Investigator, Prover, Skeptic, Judge, Writer), which is about
+a day of work. We know it, and we accept the debt during the feature freeze: a refactor of the review's spine two days
+before the deadline is a bigger risk than the long function itself. We split it after 6 November.
 
 Two days to go.
 
@@ -221,7 +260,7 @@ What Proven can do at the end of day one, in sample mode (recorded data, no netw
 - **The Prover writes the test that proves a finding** and runs it only inside a container, once on the base and once on the change.
 - **The Investigator's evidence comes through Zetaris**: KEV, EPSS and OSV queries over REST, and the same queries run locally over samples in sample mode.
 - **Every prompt and every answer passes a guardrail**, on by default, with two backends: NVIDIA's safety model on our own machine, or NVIDIA's hosted API. An unsafe prompt or answer stops the step and is recorded with its categories.
-- **A minimum of Meterless's H-MEM and World Model in Go**, so a finding refuted once does not come back in the next review. Meterless's own conformance suites run against it, and the scorecard is recorded as it is: H-MEM 9 of 13, World Model 7 of 8. The failures are the sections not built yet.
+- **A minimum of Meterless's H-MEM and World Model in Go**, so a finding refuted once does not come back in the next review. Meterless's own conformance suites run against it, and the scorecard is recorded as it is: H-MEM 9 of 13, World Model 8 of 8. The failures are the sections not built yet.
 - **The live generator calls Meterless Nightshift**, reads which model answered, and refuses an answer that did not come from NVIDIA.
 - **One command checks every live service a review needs** before a demo, and names each one that is not ready, without printing a secret.
 
@@ -315,6 +354,27 @@ somewhere they do not:
   written or kept.
 - **A fix is proved too**: the same test that showed the problem shows the fix works.
 
+## What this week gave us, and thank you
+
+For us as developers, this week was a mega experience. Writing at this speed and at this scale, without dropping the
+rule that every change is reviewed and every claim is proved, taught us more than months of normal work.
+
+- **Scale shows what small projects hide.** A way of reading data that passes every test on a small project breaks
+  when the data has grown. At one or two agents you never see it; at a fleet working on four projects at once you see
+  it within hours. Each time, we turned the lesson into a written rule for every agent, so the next change is written
+  right the first time.
+- **Rigour is what makes speed safe.** Two independent reviews on every change, from different model families and run
+  at the same time, caught problems that green tests did not, and they did it without slowing the work down.
+- **Measure first, then say it.** More than once a first explanation turned out wrong when we measured it. What we
+  publish here is what we measured.
+- **We fixed a lot along the way**, in Proven and in how the fleet itself works, and the record of every fix is in this
+  repository.
+
+**Thank you to [GenAI Works](https://hackathon.genai.works/event/open-agent-hackathon-2026)** for organising the Open
+Agent Hackathon 2026 and for the chance to take part, and to the sponsors whose technology Proven is built on:
+**Zetaris**, **Meterless**, **NVIDIA** and **Cursor**. Building on your platforms under a deadline was the best possible
+test of what an agent fleet can do.
+
 ## Who builds it
 
 Two different groups of AI agents appear in this project. Do not mix them up:
@@ -349,7 +409,7 @@ Every public push is tagged, so you can see exactly what existed before the buil
 | 22 October, 15:17 UTC: **day 1** | [`day-1`](https://github.com/saphan-ai/proven/compare/start...day-1) | 17 changes merged: the six reviewer agents end to end in sample mode, the Skeptic and the Judge, the Prover writing and running its test in a container, evidence through Zetaris, the guardrail, the H-MEM and World Model minimum with Meterless's conformance scorecard, the live generator through Nightshift, the live-service check, and a small live demo a judge can rerun. The first documentation and the Cursor and NVIDIA setup pages. [What shipped, in a terminal](hackathon/SHIPPED_DAY_1.md). |
 | 23 October, 15:00 UTC: **day 2** | [`day-2`](https://github.com/saphan-ai/proven/compare/day-1...day-2) | 18 changes merged: Proven's command line (`scan`, `ci`), dependency evidence for go.sum, npm, requirements.txt and poetry.lock with OSV ranges, KEV and EPSS, one sample scenario per kind of evidence, a missing key named as a down service. A security review of the whole code in nine pieces, with its first fix. The repository split into the product and `hackathon/`; ADR-0026 to ADR-0036. [What shipped, in a terminal](hackathon/SHIPPED_DAY_2.md). |
 | 24 October, 23:00 UTC (late): **day 3** | [`day-3`](https://github.com/saphan-ai/proven/compare/day-2...day-3) | 33 changes merged: PHP and Rust through one language adapter each, tool runs as evidence (the race detector, `govulncheck` with reachability), one interface for the evidence store, every finding given a level of proof, fixes proved by the same test, any model as the second reviewer, NVIDIA's hosted API as a generator, JSON and SARIF output, a judges' lab with Gitea, the second round of security fixes, and the test corpus's code. NVIDIA Nemotron joins the fleet's reviewers. [What shipped, in a terminal](hackathon/SHIPPED_DAY_3.md). |
-| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 30 changes merged: NVIDIA's Nemotron writes its first Proven code, Meterless's Scout Intent and Markovian (all four Meterless engines in, the two new ones off by default), one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
+| 25 October, 17:00 UTC: **day 4** | [`day-4`](https://github.com/saphan-ai/proven/compare/day-3...day-4) | 32 changes merged: NVIDIA's Nemotron writes its first Proven code, Meterless's Scout Intent and Markovian (all four Meterless engines in, the two new ones off by default), one automated fix attempt per review (ADR-0050), Proven as a GitHub Action, a signed evidence pack, an organisation policy, evidence scope per agent role, a custody check on model answers, Kotlin and Gradle, adapter examples, CouchDB as an evidence store with a viewer, more Zetaris evidence, OpenTelemetry with a Grafana dashboard, the documentation site built, the held-out test set. |
 
 **Contact:** Marcin Marzec, [marcin.marzec@wato.org](mailto:marcin.marzec@wato.org), [LinkedIn](https://www.linkedin.com/in/marcinmarzec).
 

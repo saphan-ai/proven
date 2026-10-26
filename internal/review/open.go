@@ -205,6 +205,11 @@ func open(opts Options) (Reviewer, error) {
 			return nil, epssConfig(verr)
 		}
 		popts.EPSSView = view
+		idView, ierr := osv.LoadIDView(env)
+		if ierr != nil {
+			return nil, osvConfig(ierr)
+		}
+		popts.OSVIDView = idView
 		if opts.testRun != nil {
 			// A test supplies the runner, so Open does not look for a container.
 			// Production leaves testRun unset and uses the container below.
@@ -321,6 +326,11 @@ func openRecorder(opts Options) (*recorder, error) {
 	// viewer cannot be checked, and the link is shown unchecked with a failed service that says so.
 	if cfg, cerr := store.LoadCouch(env); cerr == nil {
 		rc.reader = store.NewCouchDB(cfg, opts.recordsClient)
+	} else {
+		var ce *store.ConfigError
+		if errors.As(cerr, &ce) {
+			rc.readerField = ce.Field
+		}
 	}
 	return rc, nil
 }
@@ -637,12 +647,9 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
 	out := Result{
-		Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{},
+		Partial: d.Partial, TracePath: d.TracePath,
 		// A guardrail that was off is named in the result, not only in the trace.
 		GuardrailStatement: d.GuardrailStatement,
-	}
-	for _, l := range ProofLevels {
-		out.ProofCounts[l] = 0
 	}
 	for _, c := range d.Findings {
 		f := Finding{
@@ -651,6 +658,7 @@ func fill(d candidate.Draft) (Result, error) {
 			Location:   Location{Path: c.Path, StartLine: c.StartLine, EndLine: c.EndLine},
 			Unresolved: c.Unresolved,
 			Models:     append([]string(nil), c.Models...),
+			Refutation: toRefutation(c.Refutation),
 		}
 		for _, e := range c.Evidence {
 			f.Evidence = append(f.Evidence, toEvidence(e))
@@ -668,9 +676,9 @@ func fill(d candidate.Draft) (Result, error) {
 			return Result{}, fmt.Errorf("finding %s: %w", c.ID, err)
 		}
 		f.ProofLevel = level
-		out.ProofCounts[level]++
 		out.Findings = append(out.Findings, f)
 	}
+	out.ProofCounts = CountProofs(out.Findings)
 	// ADR-0041: an opinion is copied beside the findings. It has no proof level,
 	// so it is not added to ProofCounts and it cannot fail the review.
 	for _, o := range d.Opinions {
@@ -802,6 +810,7 @@ func toEvidence(e candidate.Evidence) Evidence {
 			SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
 			Rows:    copyRows(q.Rows),
+			Bound:   q.Bound,
 		}
 	}
 	if e.Tool != nil {

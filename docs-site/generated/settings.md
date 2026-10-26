@@ -65,6 +65,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `ZETARIS_TIMEOUT` | `60s` | the limit for one query |
 | `PROVEN_OSV_TABLE` | `px_osvfile.px_osv_pkg` | the OSV package table the dependency check queries; see [OSV_TABLE.md](OSV_TABLE.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_KEV_VIEW` | `px_evidence.px_kev_vulns` | the KEV view an advisory's CVE alias is looked up in. Sample mode uses the default and does not read this variable |
+| `PROVEN_OSV_ID_VIEW` | `px_evidence.px_osv_id` | the OSV advisory-id view the `osv-by-advisory` template reads; see [ZETARIS_USL.md](ZETARIS_USL.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 

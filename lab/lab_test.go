@@ -430,9 +430,9 @@ func TestEveryPublishedPortBindsToTheLabAddress(t *testing.T) {
 			inPorts = true
 		case inPorts && strings.HasPrefix(trim, "- "):
 			published++
-			// The page carries the lab's password, so it has its own bind, which make up refuses unless it is loopback.
-			if !strings.HasPrefix(trim, `- "${LAB_BIND}:`) && !strings.HasPrefix(trim, `- "${LAB_PAGE_BIND}:${LAB_PAGE_PORT}:`) {
-				t.Errorf("a published port is not bound to LAB_BIND or LAB_PAGE_BIND: %s", trim)
+			// Every port, the page's (it carries the lab's password) included, names 127.0.0.1 itself: no setting moves it.
+			if !strings.HasPrefix(trim, `- "127.0.0.1:`) {
+				t.Errorf("a published port is not bound to 127.0.0.1: %s", trim)
 			}
 		case inPorts:
 			inPorts = false
@@ -443,8 +443,8 @@ func TestEveryPublishedPortBindsToTheLabAddress(t *testing.T) {
 		t.Errorf("the compose file publishes %d ports, expected 5 (gitea, grafana, otlp, page, docs)", published)
 	}
 	for _, want := range []string{
-		`"${LAB_PAGE_BIND}:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"`,
-		`"${LAB_BIND}:${LAB_DOCS_PORT}:${LAB_DOCS_CONTAINER_PORT}"`,
+		`"127.0.0.1:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"`,
+		`"127.0.0.1:${LAB_DOCS_PORT}:${LAB_DOCS_CONTAINER_PORT}"`,
 		"read_only: true",
 		"no-new-privileges:true",
 		"lab-page:/usr/share/nginx/html:ro",
@@ -462,7 +462,7 @@ func TestEveryPublishedPortBindsToTheLabAddress(t *testing.T) {
 func TestTheLabSettingsAreInVersionsEnv(t *testing.T) {
 	env := read(t, "lab", "versions.env")
 	for _, key := range []string{
-		"LAB_PAGE_BIND=127.0.0.1", "LAB_PAGE_PORT=3002", "LAB_PAGE_PATH=/lab", "LAB_PAGE_IMAGE=", "LAB_PAGE_IMAGE_VERSION=", "LAB_PAGE_CONTAINER_PORT=",
+		"LAB_PAGE_PORT=3002", "LAB_PAGE_PATH=/lab", "LAB_PAGE_IMAGE=", "LAB_PAGE_IMAGE_VERSION=", "LAB_PAGE_CONTAINER_PORT=",
 		"LAB_DOCS_PORT=3003", "LAB_DOCS_CONTAINER_PORT=", "DOCS_IMAGE=", "DOCS_IMAGE_TAG=", "NODE_IMAGE=",
 		"GITEA_HTTP_PORT=3000", "LGTM_GRAFANA_PORT=3001", "LGTM_DASHBOARD_UID=proven-review", "LAB_DEMO_HEAD=demo-discount",
 	} {

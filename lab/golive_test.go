@@ -408,8 +408,11 @@ func TestGoLiveTheExampleHoldsNoValue(t *testing.T) {
 
 func TestGoLiveThePageIsLoopbackOnly(t *testing.T) {
 	compose := read(t, "lab", "compose.yaml")
-	if !strings.Contains(compose, `"${LAB_PAGE_BIND}:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"`) {
-		t.Error("the page is not published on LAB_PAGE_BIND")
+	if !strings.Contains(compose, `"127.0.0.1:${LAB_PAGE_PORT}:${LAB_PAGE_CONTAINER_PORT}"`) {
+		t.Error("the page is not published on 127.0.0.1")
+	}
+	if strings.Contains(compose, "${LAB_PAGE_BIND") || strings.Contains(compose, "${LAB_BIND") {
+		t.Error("lab/compose.yaml interpolates an address setting: no setting may move a published port")
 	}
 	lib := mustAbs(t, filepath.Join(root, "lab", "scripts", "lib.sh"))
 	for _, bind := range []string{"127.0.0.1", "::1", "localhost"} {

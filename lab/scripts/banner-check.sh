@@ -3,7 +3,8 @@
 #   1. with the settings as lab/versions.env has them, the banner is the owner's block, line for line;
 #   2. when stdout is not a terminal, the Password line names the file and the password text is nowhere in the output;
 #   3. on a terminal, the Password line carries the password;
-#   4. every URL comes from the settings: change a setting and the line changes, the others do not.
+#   4. every URL comes from the settings: change a setting and the line changes, the others do not. The address is
+#      127.0.0.1 and no setting moves it: a LAB_BIND or LAB_PAGE_BIND in the environment leaves it where it is.
 # The terminal case needs script(1). Without it the check says so and exits 1, unless BANNER_CHECK_NO_TTY_OK=1.
 # `lab_banner` reads the terminal test itself, so the same function is run both ways.
 set -eu
@@ -109,20 +110,23 @@ else
 fi
 
 # 4: the URLs come from the settings.
-set_out=$(emit_piped env LAB_BIND=10.1.2.3 LAB_PAGE_BIND=10.1.2.4 GITEA_HTTP_PORT=4000 LGTM_GRAFANA_PORT=4001 LGTM_DASHBOARD_UID=other-uid \
+set_out=$(emit_piped env LAB_BIND=10.1.2.3 LAB_PAGE_BIND=10.1.2.4 LAB_HOST=10.1.2.5 GITEA_HTTP_PORT=4000 LGTM_GRAFANA_PORT=4001 LGTM_DASHBOARD_UID=other-uid \
   LAB_PAGE_PORT=4002 LAB_PAGE_PATH=/elsewhere LAB_ADMIN_USER=someone COMPOSE_PROJECT_NAME=mylab)
 for line in \
-  'Start here: http://10.1.2.4:4002/elsewhere' \
-  'Gitea: http://10.1.2.3:4000/login' \
+  'Start here: http://127.0.0.1:4002/elsewhere' \
+  'Gitea: http://127.0.0.1:4000/login' \
   'Username: someone' \
   'Password: file /state/password in the volume mylab_seed-state' \
-  'Grafana dashboard: http://10.1.2.3:4001/d/other-uid'; do
+  'Grafana dashboard: http://127.0.0.1:4001/d/other-uid'; do
   if ! printf '%s\n' "$set_out" | grep -qxF "$line"; then
     bad "with other settings the banner lacks the line: $line"
   fi
 done
 case $set_out in
-  *127.0.0.1* | *3000* | *3001* | *3002*) bad "a URL in the banner is not built from the settings: a default survived" ;;
+  *3000* | *3001* | *3002*) bad "a URL in the banner is not built from the settings: a default survived" ;;
+esac
+case $set_out in
+  *10.1.2.*) bad "an address setting moved a URL in the banner off 127.0.0.1" ;;
 esac
 
 # The page's path is written in two places: the setting and the nginx file. They must agree.

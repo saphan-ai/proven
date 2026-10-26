@@ -1,20 +1,14 @@
 #!/bin/sh
 # Create the demo repository, the workflow, the workflow's own account, the runner token, the demo pull requests
-# (lab/seed/prs.tsv) and the lab's start page. The admin user already exists. The password arrives in LAB_ADMIN_PASSWORD.
+# (lab/seed/prs.tsv) and the lab's start page. The admin user already exists. The password is read from
+# /state/password, a file in the lab's volume that make up wrote at mode 0600. It is never an environment variable.
+# The image runs as the user proven, which owns /state, /reg and /page (lab/seed/Dockerfile).
 set -eu
 
-if [ "$(id -u)" -eq 0 ]; then
-  mkdir -p /state /reg /page
-  chown proven:proven /state /reg /page
-  chmod 700 /state /reg
-  # The page volume is read by the page service, which is another user.
-  chmod 755 /page
-  exec su-exec proven "$0" "$@"
-fi
+umask 077
 
 : "${GITEA_INTERNAL_URL:?}"
 : "${LAB_ADMIN_USER:?}"
-: "${LAB_ADMIN_PASSWORD:?}"
 : "${LAB_BOT_USER:?}"
 : "${LAB_BOT_EMAIL:?}"
 : "${LAB_DEMO_REPO:?}"
@@ -66,11 +60,12 @@ wait_ready() {
   exit 1
 }
 
-save_password() {
+read_password() {
   if [ ! -s /state/password ]; then
-    printf '%s' "$LAB_ADMIN_PASSWORD" >/state/password
-    chmod 600 /state/password
+    echo "seed: /state/password is missing or empty" >&2
+    exit 1
   fi
+  LAB_ADMIN_PASSWORD=$(cat /state/password)
 }
 
 ensure_token() {
@@ -456,7 +451,7 @@ ensure_prs() {
 }
 
 wait_ready
-save_password
+read_password
 ensure_token
 ensure_repo
 ensure_actions_unit

@@ -102,6 +102,9 @@ type Options struct {
 	// EPSSView is the view a finding's CVE is scored from.
 	// Empty means epss.DefaultView. Sample mode leaves this empty and does not read the environment.
 	EPSSView string
+	// OSVIDView is the view the osv-by-advisory template reads.
+	// Empty means osv.IDView. Sample mode leaves this empty and does not read the environment.
+	OSVIDView string
 	// MaxWrittenBytes is the loaded container limit for a test the prover writes.
 	// Zero means DefaultMaxWrittenBytes. Sample mode leaves it zero.
 	MaxWrittenBytes int
@@ -142,6 +145,7 @@ type Pipeline struct {
 	skepticModel string
 	osvTable     string
 	epssView     string
+	osvIDView    string
 	env          func(string) string
 	maxWritten   int
 	govulnDB     string
@@ -210,7 +214,7 @@ func Build(opts Options) (*Pipeline, error) {
 	p := &Pipeline{
 		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
 		gen: opts.Generator, special: opts.Special, liveStore: opts.LiveStore, rail: opts.Guardrail, guardOff: opts.GuardOff,
-		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
+		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, osvIDView: opts.OSVIDView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
 		down:    append([]service.Down(nil), opts.Down...),
 		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
@@ -1206,9 +1210,10 @@ func bindQueries(c candidate.Candidate, facts osv.Facts) candidate.Candidate {
 // builds, so a setting that is not a plain name is refused there.
 func (p *Pipeline) relations(ctx context.Context) querytpl.Relations {
 	return querytpl.Relations{
-		OSVTable: p.osvTable,
-		KEVView:  osv.KEVViewOf(ctx),
-		EPSSView: p.epssView,
+		OSVTable:  p.osvTable,
+		KEVView:   osv.KEVViewOf(ctx),
+		EPSSView:  p.epssView,
+		OSVIDView: p.osvIDView,
 	}
 }
 

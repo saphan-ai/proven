@@ -30,23 +30,34 @@ and its logs.
 5. **Every image we build is minimal and scanned by Docker Scout** (the owner, 23 October). Proven's image carries the
    static binary and only the two programs Proven runs (`git`, and the container client the Prover calls), on the
    smallest base that holds them, and runs as a user that is not root. The same holds for any helper image of the lab
-   we build (the seed). `make scan` runs Docker Scout on each image we build, and `make push` runs it first and refuses
-   to push while Scout reports a critical or high vulnerability with a fix available; the severities that refuse are a
-   setting. The pinned images of others in the lab (Gitea, its runner, Docker) are scanned too and their result is
+   we build (the seed). `make scan` runs Docker Scout on each image we build, and `make push` builds once, scans every
+   platform of that build by digest, and makes the final tags from those digests only when every scan passes; it makes
+   none while Scout reports a critical or high vulnerability with a fix available on any platform; the severities that
+   refuse are a setting. The pinned images of others in the lab (Gitea, its runner, Docker) are scanned too and their result is
    written in `docs/LAB.md`: we cannot fix them, and a judge should know what they hold.
 6. **Proven's own image is tagged `latest`** (the owner, 23 October). Each push also carries the tag `git describe`
    gives, so the image a judge ran on a given day can still be pulled. Every other image in the lab (Gitea, its
    runner, `golang`, Docker) stays pinned to a version, as ADR-0017 point 6 says.
 7. **`make up` starts the lab of ADR-0017; `make down` stops it.** One Compose file: Gitea, a Gitea Actions runner, the
-   dashboard stack, a start page, the documentation site, and a one-time seed that creates the admin (password
-   generated once), the demo repository with its demo pull requests and Proven's workflow, the start page, and
-   registers the runner. Everything binds to localhost. *(Amended 25 October 2026, the owner: the password is no longer
-   printed once at first start. Every run of `make up`, the first and each one after it, ends with the same block and
-   prints nothing after it: the start page's address, the Gitea login URL, the user, the password and the dashboard's
-   address. On a terminal the Password line carries the password, read from the lab's state file; when stdout is
-   redirected it names the file instead, and the password is written to no log. `make password` and `make status` print
-   the same lines. The demo repository holds several pull requests, each reviewed by the lab's workflow: clean changes
-   that get a "clean" comment, and changes that each carry a different class of defect. See [LAB.md](../LAB.md).)*
+   dashboard stack, a start page, the documentation site, and a one-time seed that creates the admin, the demo
+   repository with its demo pull requests and Proven's workflow, the start page, and registers the runner. Everything
+   binds to localhost: each published port names `127.0.0.1` in the Compose file itself, and no setting moves it (the
+   retired `LAB_BIND` is refused when set). The admin's password is generated on the first `make up` and never goes through a log (the
+   owner, 25 October): no password goes into a log, a trace, a Compose output or a `make logs` line. *(Amended 25
+   October 2026, the owner: the password is no longer printed once at first start.)* Every run of `make up`, the first
+   and each one after it, ends with the same block and prints nothing after it: the start page's address, the Gitea
+   login URL, the user, the password and the dashboard's address. On a terminal the Password line carries the
+   password, read from the lab's state file. When stdout is not a terminal (CI, a redirect, a pipe), the line names
+   that file instead and the password is not printed; the first `make up` then also writes the password to a file
+   readable only by the user (mode 0600, created with that mode) in the lab's state directory, `lab/.state/`, and
+   prints only the path. `make clean` removes the file. `make password` and `make status` print the same block. A judge
+   may supply their own password in `LAB_ADMIN_PASSWORD`; it is read from the environment of `make up`, is used, is
+   neither printed by `make up` (the Password line names the setting) nor written to a file on the host, and is never
+   in a committed file. No password enters the Compose environment: `lab/compose.yaml` does not name it, so `docker
+   compose config` renders no password. `make up` writes the password, supplied or generated, at mode 0600, to a file
+   in the lab's state volume; the one-shot seed reads that file, and renders the start page from it. The demo
+   repository holds several pull requests, each reviewed by the lab's workflow: clean changes that get a "clean"
+   comment, and changes that each carry a different class of defect. See [LAB.md](../LAB.md).
 8. **The runner starts the Prover's containers in Docker in Docker** inside the lab, never through the host's Docker
    socket (the owner, 23 October). The lab's jobs get no control of the judge's Docker.
 9. **`make status`** shows the containers, Gitea's health, whether the runner is registered, the last workflow result on

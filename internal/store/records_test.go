@@ -21,9 +21,11 @@ import (
 
 // The two accounts of the recorded CouchDB. The writing account is a database
 // admin; the read-only account is a member of the database's security
-// document. The fake follows CouchDB's own rules: a member reads everything and
-// may write any document that is not a design document, and only an admin may
-// create the database or write a design document. What stops a member writing
+// document. The fake follows CouchDB's own rules where the Recorder goes: a
+// member reads everything and may POST `_bulk_docs`, the one path the Recorder
+// writes through; any other member write is refused before it reaches the
+// design document. Only an admin may create the database or write a design
+// document. What stops a member writing
 // is therefore the design document's validate_doc_update, which the fake runs
 // (in Node) on every write when the stored design document carries one. A test
 // that sends a write with the read-only account passes only if that function is
