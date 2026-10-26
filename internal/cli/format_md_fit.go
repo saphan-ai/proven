@@ -28,6 +28,7 @@ const (
 type mdLimits struct {
 	rows, out         int // rows of one query and bytes of one test, tool or fix output shown
 	cutRows, cutBytes int // what one finding's block left out, filled while it is written
+	cutEntries        int // pieces of evidence and fix edits the least proof left out (mdLeast)
 }
 
 var mdLevels = []mdLimits{{rows: 20, out: 4000}, {rows: 10, out: 1500}, {rows: 5, out: 500}, {rows: 2, out: 200}, {rows: 1, out: 80}}
@@ -61,6 +62,8 @@ func mdFit(result review.Result) string {
 		for _, lim := range mdLevels {
 			blocks[i] = append(blocks[i], mdBlock(f, lim))
 		}
+		least, lim := mdLeast(f)
+		blocks[i] = append(blocks[i], mdBlock(least, lim))
 	}
 	full := make([]string, len(findings))
 	for i := range blocks {
@@ -82,7 +85,9 @@ func mdFit(result review.Result) string {
 				hi = mid - 1
 			}
 		}
-		if body := mdBody(result, tabled, best); len(body) <= mdMaxComment {
+		// WHY len(best) > 0: a table so long that no <details> fits beside it would
+		// drop all proof, while a shorter table keeps some (review r4 of round 2).
+		if body := mdBody(result, tabled, best); len(body) <= mdMaxComment && (len(best) > 0 || tabled == 0) {
 			return body
 		}
 		if tabled == 0 {
@@ -92,6 +97,63 @@ func mdFit(result review.Result) string {
 	// WHY a last resort: the notes and the foot are bounded, so a real result does not
 	// get here; it is the guarantee that a post is never refused for its size.
 	return mdVerdict(result) + "\n\nThis comment would pass the size limit of the pull request page even without findings. The full review is in the JSON and SARIF files of this run.\n"
+}
+
+// mdLeast is a finding's last level of proof, bounded by construction whatever the
+// finding holds: its first piece of evidence only, with every name, column and cell
+// shortened, one row, and no fix edits. WHY: the levels above cut the length of
+// each piece, not their number, so a finding with many pieces of evidence or many
+// edits could exceed any share and lose all its proof (review r5 of round 2).
+// What it leaves out is counted in the returned limits and announced by the block.
+func mdLeast(f review.Finding) (review.Finding, mdLimits) {
+	const name, cols = 80, 4
+	lim := mdLevels[len(mdLevels)-1]
+	least := review.Finding{ID: f.ID, RuleID: f.RuleID, Severity: f.Severity, Title: f.Title, Message: f.Message}
+	if len(f.Evidence) > 0 {
+		e := f.Evidence[0]
+		switch {
+		case e.Query != nil:
+			q := *e.Query
+			q.Engine, q.Snapshot, q.Form = mdShort(q.Engine, name), mdShort(q.Snapshot, name), mdShort(q.Form, name)
+			// New slices: the finding's own columns and rows stay as they are for the
+			// levels above and for the JSON and SARIF writers.
+			columns := q.Columns
+			if len(columns) > cols {
+				columns = columns[:cols]
+			}
+			q.Columns = make([]string, len(columns))
+			for i, c := range columns {
+				q.Columns[i] = mdShort(c, name)
+			}
+			if len(q.Rows) > 0 {
+				lim.cutRows += len(q.Rows) - 1
+				row := q.Rows[0]
+				if len(row) > len(q.Columns) {
+					row = row[:len(q.Columns)]
+				}
+				short := make([]string, len(row))
+				for i, c := range row {
+					short[i] = mdShort(c, name)
+				}
+				q.Rows = [][]string{short}
+			}
+			e.Query = &q
+		case e.Test != nil:
+			t := *e.Test
+			t.Name, t.Path = mdShort(t.Name, name), mdShort(t.Path, name)
+			e.Test = &t
+		case e.Tool != nil:
+			t := *e.Tool
+			t.Tool, t.Version = mdShort(t.Tool, name), mdShort(t.Version, name)
+			e.Tool = &t
+		}
+		least.Evidence = []review.Evidence{e}
+		lim.cutEntries += len(f.Evidence) - 1
+	}
+	if f.Fix != nil {
+		lim.cutEntries++ // the fix itself, its edits and runs with it
+	}
+	return least, lim
 }
 
 // mdShares chooses a level for each of the first m findings so that, beside a table
@@ -109,10 +171,10 @@ func mdShares(result review.Result, tabled int, blocks [][]string, m int) (chose
 	for k, idx := range order {
 		share := budget / (m - k)
 		level := 0
-		for level < len(mdLevels) && len(blocks[idx][level]) > share {
+		for level < len(blocks[idx]) && len(blocks[idx][level]) > share {
 			level++
 		}
-		if level == len(mdLevels) {
+		if level == len(blocks[idx]) {
 			return nil, false
 		}
 		chosen[idx] = blocks[idx][level]

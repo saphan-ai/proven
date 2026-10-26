@@ -154,7 +154,7 @@ Proven's Action is not on main yet, so the workflow does not use it. It runs:
 proven scan --sample --md /opt/proven/fixture/discount
 ```
 
-That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the Markdown of that review ([Markdown](OUTPUT_FORMATS.md#markdown)): a verdict line, a findings table and each finding's evidence in a collapsible block. reviewdog, which will post review comments from SARIF, is not part of this lab.
+That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the Markdown of that review ([Markdown](OUTPUT_FORMATS.md#markdown)): a verdict line, a findings table and each finding's evidence in a collapsible block. The lab, like the Action, posts that one comment and no line comments (ADR-0020 §7).
 
 ### One comment per pull request
 

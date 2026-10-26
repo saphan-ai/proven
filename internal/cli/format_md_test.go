@@ -444,8 +444,10 @@ func TestMarkdownListsTheRestByRowWhenProofCannotFit(t *testing.T) {
 	if detailed == 0 || detailed >= 3000 {
 		t.Fatalf("%d findings are detailed, want some but not all", detailed)
 	}
-	if got := strings.Count(text, "**Failing test**"); got != detailed {
-		t.Fatalf("%d findings keep their test for %d <details>: a detailed finding lost its proof", got, detailed)
+	// Every <details> keeps at least the finding's first piece of proof (its query
+	// here); the least level may leave the second, the test, out, and says so.
+	if got := strings.Count(text, "**Query**"); got != detailed {
+		t.Fatalf("%d findings keep their query for %d <details>: a detailed finding lost its proof", got, detailed)
 	}
 	if !regexp.MustCompile(`\n\d+ more findings are (only in the table above|not listed here)`).MatchString(text) {
 		t.Fatal("the findings left out are not counted")
@@ -619,5 +621,73 @@ func TestMarkdownFlagsAndFormat(t *testing.T) {
 	stderr.Reset()
 	if code := Run([]string{"scan", "--sample", "--md", "--json", target}, env, &stdout, &stderr, nil); code == exitOK || !strings.Contains(stderr.String(), "--md") {
 		t.Fatalf("two formats: exit %d, stderr %s", code, stderr.String())
+	}
+}
+
+// TestMarkdownNeverTradesAllProofForALongerTable proves a body that fits only
+// because its table left no room for any <details> is not taken while a shorter
+// table keeps some proof. The mutated field is the number of findings whose rows
+// nearly fill the budget: 175 findings with 300-byte titles and 2000-byte messages
+// (review r4 of round 2 measured 0 <details> at 175 and 180).
+func TestMarkdownNeverTradesAllProofForALongerTable(t *testing.T) {
+	for _, n := range []int{175, 180} {
+		var findings []review.Finding
+		for i := 0; i < n; i++ {
+			findings = append(findings, review.Finding{
+				ID: "F" + strconv.Itoa(i), Severity: review.SeverityError, Title: strings.Repeat("t", mdMaxTitle),
+				Message: strings.Repeat("m", mdMaxMessage),
+				Evidence: []review.Evidence{{Kind: review.EvidenceTest, Test: &review.TestEvidence{
+					Name: "T", Path: "p", Command: "c", Output: "fails",
+				}}},
+			})
+		}
+		body, err := render("md", review.Result{Findings: findings})
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(body)
+		if len(body) > mdMaxComment {
+			t.Fatalf("n=%d: the comment is %d bytes, over %d", n, len(body), mdMaxComment)
+		}
+		if strings.Count(text, "<details>") == 0 || strings.Count(text, "**Failing test**") == 0 {
+			t.Fatalf("n=%d: the comment keeps no proof at all", n)
+		}
+	}
+}
+
+// TestMarkdownKeepsTheLeastProofOfAFindingWithManyPieces proves one finding whose
+// every level is too large, because it holds many pieces of evidence and many fix
+// edits rather than long ones, still keeps its first piece of proof, says how many
+// pieces were left out, and fits. The mutated field is the number of pieces: 400
+// tests and a proved fix of 200 edits (review r5 of round 2).
+func TestMarkdownKeepsTheLeastProofOfAFindingWithManyPieces(t *testing.T) {
+	var evidence []review.Evidence
+	for i := 0; i < 400; i++ {
+		evidence = append(evidence, review.Evidence{Kind: review.EvidenceTest, Test: &review.TestEvidence{
+			Name: "T" + strconv.Itoa(i), Path: "p", Command: "c", Output: strings.Repeat("x", 1000),
+		}})
+	}
+	var edits []review.FixEdit
+	for i := 0; i < 200; i++ {
+		edits = append(edits, review.FixEdit{Path: "p" + strconv.Itoa(i), Old: strings.Repeat("o", 500), New: "n"})
+	}
+	f := review.Finding{ID: "F1", Severity: review.SeverityError, Title: "many", Message: "m", Evidence: evidence,
+		Fix: &review.Fix{Proved: true, Attempts: 1, What: "w", Why: "y", Edits: edits}}
+	body, err := render("md", review.Result{Findings: []review.Finding{f}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if len(body) > mdMaxComment {
+		t.Fatalf("the comment is %d bytes, over %d", len(body), mdMaxComment)
+	}
+	if strings.Count(text, "<details>") != 1 || !strings.Contains(text, "**Failing test** `T0`") {
+		t.Fatalf("the finding lost its proof\n%.600s", text)
+	}
+	if !strings.Contains(text, "_cut: 400 more pieces of evidence and fix not shown") {
+		t.Fatalf("the pieces left out are not counted\n%.2000s", text)
+	}
+	if len(f.Evidence) != 400 || len(f.Fix.Edits) != 200 {
+		t.Fatal("the writer changed the finding it rendered")
 	}
 }
