@@ -27,6 +27,11 @@ func ExportCommit(target, rev, dst string) ([]string, error) {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return nil, err
 	}
+	// In local mode no filter driver may run, and git archive runs the one the
+	// attributes name; the blobs are read as stored instead (ADR-0034).
+	if offline.Load() {
+		return exportRaw(target, rev, dst)
+	}
 	// gitArchive lists the commit's tracked files and does not emit .git.
 	out, err := gitArchive(target, rev)
 	if err != nil {
@@ -200,7 +205,7 @@ func treeFileMode(src os.FileMode) os.FileMode {
 }
 
 // writeTarFile writes one regular file from the archive, at the mode treeFileMode gives it.
-func writeTarFile(tr *tar.Reader, dst string, mode os.FileMode) error {
+func writeTarFile(tr io.Reader, dst string, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}

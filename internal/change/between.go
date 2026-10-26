@@ -118,6 +118,12 @@ func Between(target, baseline, head string) ([]string, error) {
 	if head != "" {
 		args = append(args, head)
 	}
+	// The diff of a working tree converts each file it compares, so it is read
+	// with no attribute that could name a filter driver (local mode).
+	args, err := withoutAttributes(target, args)
+	if err != nil {
+		return nil, err
+	}
 	names, err := gitZ(args)
 	if err != nil {
 		return nil, err

@@ -1,6 +1,7 @@
 package change
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"sync/atomic"
@@ -41,11 +42,33 @@ func GitCommand(args ...string) *exec.Cmd {
 			pre = append(pre, "-c", "protocol."+name+".allow=never")
 		}
 		argv = append(pre, args...)
-		env = append(env, "GIT_NO_LAZY_FETCH=1", "GIT_TERMINAL_PROMPT=0")
+		env = append(env, "GIT_NO_LAZY_FETCH=1", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1")
 	}
 	cmd := exec.Command("git", argv...)
 	cmd.Env = env
 	return cmd
+}
+
+// withoutAttributes returns args with the switches that make git read no
+// attribute from anywhere but .git/info/attributes, when offline. A git command
+// that compares the working tree with a commit converts each file it compares
+// (the clean filter), and the filter driver is a program the repository's
+// .gitattributes and the user's git configuration choose, not Proven (git-lfs is
+// one). The attributes of the commit and of the working tree are read from an
+// empty tree, the user's attributes file is /dev/null, and GitCommand sets
+// GIT_ATTR_NOSYSTEM. The empty tree's id depends on the repository's hash, so
+// git names it. Needs git 2.40 or later; an older git refuses the switch by name.
+// Online, args come back unchanged.
+func withoutAttributes(target string, args []string) ([]string, error) {
+	if !offline.Load() {
+		return args, nil
+	}
+	out, err := GitCommand("-C", target, "hash-object", "-t", "tree", "/dev/null").Output()
+	if err != nil {
+		return nil, fmt.Errorf("git: cannot name the empty tree: %w", err)
+	}
+	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null"}
+	return append(pre, args...), nil
 }
 
 // offlineMessage names a refusal to fetch. git's own words for it are kept, so
