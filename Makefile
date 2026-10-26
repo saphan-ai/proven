@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help password demo-check check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates check-links zetaris-usl-parity clean
+.PHONY: help check-flow password demo-check check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -33,7 +33,7 @@ scan: ## Scan our images with Docker Scout; refuses when Scout is missing, fails
 push: ## Build once for linux/amd64 and linux/arm64, scan every platform with Docker Scout, then publish those scanned digests as the final tags (refuses, publishing nothing, on any scan failure)
 	@sh $(ROOT)/lab/scripts/push.sh
 
-up: ## Start the judges' lab. Keys in lab/.env make its reviews live; ZETARIS=local also starts Zetaris here
+up: ## Start the judges' lab. On a terminal it asks sample or live, and for a judge, ours or own; settings answer in advance (docs/LAB.md); with no terminal it is a sample lab
 	@sh $(ROOT)/lab/scripts/up.sh
 
 down: ## Stop the judges' lab
@@ -77,6 +77,9 @@ zetaris-usl-parity: ## Ask Zetaris the same requests with and without the semant
 
 check-lab-gates: ## Check offline, with a stub docker, that make up refuses the retired LAB_BIND and that make push publishes only digests that were all scanned
 	@sh $(ROOT)/lab/scripts/check-lab-gates.sh
+
+check-flow: ## Check offline the start-up flow of make up: each path by its settings with no terminal, the no-terminal default, the port check, where the credential goes, and the terminal after Ctrl-C
+	@cd $(ROOT) && go test -count=1 -run 'TestFlow' -v ./lab/
 
 check-lab-password: ## Check offline, with a stub docker, that the admin password is never printed to a redirected stdout, is kept in a 0600 file, and a supplied one is used and not printed
 	@sh $(ROOT)/lab/scripts/check-lab-password.sh

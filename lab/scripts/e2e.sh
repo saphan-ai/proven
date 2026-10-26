@@ -22,6 +22,10 @@ here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 need_docker
 
 if ! service_running gitea; then
+  # No question at a terminal: this check is run by a script. A setting (in the environment or lab/.env) still decides the mode.
+  load_lab_env || exit 1
+  PROVEN_LAB_MODE=${PROVEN_LAB_MODE:-sample}
+  export PROVEN_LAB_MODE
   sh "$ROOT/lab/scripts/up.sh"
 fi
 

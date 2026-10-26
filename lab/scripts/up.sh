@@ -15,6 +15,12 @@ refuse_retired_bind
 if [ "${LAB_PAGE_BIND+set}" = set ]; then
   lab_require_loopback LAB_PAGE_BIND "$LAB_PAGE_BIND" || exit 1
 fi
+
+# The flow (lab/scripts/flow.sh): the settings are validated, the lab's ports are checked free, and the questions are
+# asked on a terminal for what no setting answered. With no terminal and no setting it is a sample lab and nothing is
+# asked. It comes before any container, so a refusal here has started nothing.
+. "$ROOT/lab/scripts/flow.sh"
+lab_flow
 need_docker
 
 # A password the judge supplies is checked before any container starts. Gitea

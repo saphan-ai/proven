@@ -41,6 +41,8 @@ jobs:
           ZETARIS_ORG_ID: ${{ secrets.ZETARIS_ORG_ID }}
           JUDGES_GATEWAY_URL: ${{ secrets.JUDGES_GATEWAY_URL }}
           JUDGES_GATEWAY_TOKEN: ${{ secrets.JUDGES_GATEWAY_TOKEN }}
+          JUDGES_GATEWAY_ACCESS_TOKEN: ${{ secrets.JUDGES_GATEWAY_ACCESS_TOKEN }}
+          PROVEN_GENERATOR_MODEL: ${{ secrets.PROVEN_GENERATOR_MODEL }}
           GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0
           GATEWAY_ZETARIS_ORG_ID: "0"
         run: |
@@ -52,16 +54,24 @@ jobs:
           # (-e NAME), so none is on a command line, in a file or in the log.
           sample=true
           state="sample: no keys"
-          if [ -n "$JUDGES_GATEWAY_URL" ] && [ -n "$JUDGES_GATEWAY_TOKEN" ]; then
+          gateway_cred="$JUDGES_GATEWAY_TOKEN"
+          gateway_how=""
+          if [ -z "$gateway_cred" ] && [ -n "$JUDGES_GATEWAY_ACCESS_TOKEN" ]; then
+            gateway_cred="$JUDGES_GATEWAY_ACCESS_TOKEN"
+            gateway_how=" (Access sign-in)"
+          fi
+          if [ -n "$JUDGES_GATEWAY_URL" ] && [ -n "$gateway_cred" ]; then
             # Path B: the judges' gateway holds our Nightshift token and Zetaris key; the judge's own token opens it.
+            # With an Access sign-in the credential is the application token Cloudflare Access issued. The gateway reads it as
+            # the cf-access-token header; it is also given to the job as the Bearer value and by name as JUDGES_GATEWAY_ACCESS_TOKEN.
             sample=false
             export PROVEN_GENERATOR_MODE=nightshift
             export PROVEN_GENERATOR_BASE_URL="${JUDGES_GATEWAY_URL%/}"
-            export METERLESS_RUNTIME_TOKEN="$JUDGES_GATEWAY_TOKEN"
+            export METERLESS_RUNTIME_TOKEN="$gateway_cred"
             export ZETARIS_REST_URL="${JUDGES_GATEWAY_URL%/}$GATEWAY_ZETARIS_PATH"
-            export ZETARIS_API_KEY="$JUDGES_GATEWAY_TOKEN"
+            export ZETARIS_API_KEY="$gateway_cred"
             export ZETARIS_ORG_ID="$GATEWAY_ZETARIS_ORG_ID"
-            who="NVIDIA via the judges' gateway"
+            who="NVIDIA via the judges' gateway$gateway_how"
           elif [ -n "$METERLESS_RUNTIME_TOKEN" ]; then
             sample=false
             export PROVEN_GENERATOR_MODE=nightshift
@@ -90,7 +100,7 @@ jobs:
           fi
           printf '%s\n' "$state" > mode.txt
           live_env=""
-          for name in PROVEN_GENERATOR_MODE PROVEN_GENERATOR_KEY PROVEN_NVIDIA_BASE_URL PROVEN_GUARDRAIL_MODE PROVEN_GUARDRAIL_KEY PROVEN_GENERATOR_BASE_URL METERLESS_RUNTIME_TOKEN ZETARIS_REST_URL ZETARIS_API_KEY ZETARIS_ORG_ID; do
+          for name in PROVEN_GENERATOR_MODE PROVEN_GENERATOR_KEY PROVEN_NVIDIA_BASE_URL PROVEN_GUARDRAIL_MODE PROVEN_GUARDRAIL_KEY PROVEN_GENERATOR_BASE_URL METERLESS_RUNTIME_TOKEN ZETARIS_REST_URL ZETARIS_API_KEY ZETARIS_ORG_ID PROVEN_GENERATOR_MODEL JUDGES_GATEWAY_ACCESS_TOKEN; do
             eval "value=\${$name:-}"
             if [ -n "$value" ] && [ "$sample" = false ]; then
               live_env="$live_env -e $name"

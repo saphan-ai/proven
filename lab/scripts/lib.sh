@@ -119,6 +119,26 @@ lab_require_loopback() {
 # unset. The file is read, never executed. A NON-EMPTY value already in the environment wins (a setting that
 # lab/versions.env defaults to empty, such as ZETARIS_COMPOSE_FILE, is filled from here).
 load_lab_env() {
+  read_lab_env_file || return 1
+  map_guide_names
+}
+
+# map_guide_names: the organisers' Participant Setup Guide names two settings that Proven spells another way. A judge's
+# .env from the guide holds METERLESS_BASE_URL and METERLESS_MODEL; the lab reads them as PROVEN_GENERATOR_BASE_URL and
+# PROVEN_GENERATOR_MODEL, unless the Proven name is set too (it wins). METERLESS_RUNTIME_TOKEN and the ZETARIS_* names
+# are the same in both and need no mapping.
+map_guide_names() {
+  if [ -z "${PROVEN_GENERATOR_BASE_URL:-}" ] && [ -n "${METERLESS_BASE_URL:-}" ]; then
+    PROVEN_GENERATOR_BASE_URL=$METERLESS_BASE_URL
+    export PROVEN_GENERATOR_BASE_URL
+  fi
+  if [ -z "${PROVEN_GENERATOR_MODEL:-}" ] && [ -n "${METERLESS_MODEL:-}" ]; then
+    PROVEN_GENERATOR_MODEL=$METERLESS_MODEL
+    export PROVEN_GENERATOR_MODEL
+  fi
+}
+
+read_lab_env_file() {
   envfile=$ROOT/lab/.env
   [ -f "$envfile" ] || return 0
   n=0

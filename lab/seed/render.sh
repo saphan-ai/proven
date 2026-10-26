@@ -29,6 +29,8 @@ render_page() {
   esac
   # The value goes through the HTML escape; awk puts it in with index and substr, so no character in it is special.
   pw=$(printf '%s' "$LAB_ADMIN_PASSWORD" | html_escape)
+  # The mode is one of three fixed phrases; any other character is dropped, so nothing in it reaches sed as syntax.
+  lab_mode=$(printf '%s' "${LAB_MODE:-sample}" | tr -cd 'A-Za-z0-9 .,:-')
   trap 'rm -f "$stage"' EXIT INT TERM
   (
     umask 077
@@ -41,6 +43,7 @@ render_page() {
       -e "s|@@LAB_DEMO_REPO@@|$LAB_DEMO_REPO|g" \
       -e "s|@@CLEAN_COUNT@@|$clean_word|g" \
       -e "s|@@LIVE_STATE@@|${LAB_LIVE_STATE:-sample: no keys}|g" \
+      -e "s|@@LAB_MODE@@|$lab_mode|g" \
       "$PAGE_TEMPLATE" |
       LAB_PAGE_PW=$pw awk -v rows="$rows" '
         /^@@PR_ROWS@@$/ { while ((getline line < rows) > 0) print line; next }
