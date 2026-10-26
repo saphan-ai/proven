@@ -64,6 +64,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0048](ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md) | a large change is reviewed in bounded steps with Meterless's Markovian engine; kept only if it holds the findings and cuts the cost | accepted, 2026-10-24 |
 | [0049](ADR-0049-scout-intent-plans-each-review.md) | Meterless's Scout Intent plans each review before a model runs; never lowers a configured rule; kept only if measured worth it | accepted, 2026-10-24 |
 | [0050](ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md) | after a review, one automated fix attempt for all proved findings, judged only by the same deterministic evidence; then fixed or rejected; Proven never commits to the author's branch | accepted, 2026-10-25 |
+| [0053](ADR-0053-all-four-meterless-engines-are-on-by-default.md) | all four Meterless engines are on by default and each is switched off by its setting; the benefit of Markovian and Scout Intent stays unmeasured; Scout never lightens a change that is not verified prose | accepted, 2026-10-26 |
 
 **Rules for an ADR**
 

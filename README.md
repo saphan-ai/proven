@@ -71,10 +71,10 @@ What Proven does not do yet, or does not do well, measured and dated. This list 
 - **Scout Intent misses some cases.** On a blind set of 46 changes frozen before the run (English, Polish and Thai,
   including disguised ones) it matched 30 and missed 16, reported unpatched so the set stays blind. In 3 of the misses
   a security change was taken for a documentation change and got a lighter review than it should have
-  (26 October). It also asks for clarification more often than its own ceiling allows.
-- **Scout Intent and Markovian are not measured yet.** Their benefit on review quality is unknown. Today they are off
-  by default; turning all four engines on by default, each switchable off by a setting or when `make up` asks, is
-  being built.
+  (26 October). Since ADR-0053 a change that is not verified prose is never planned lighter than class security, doubled;
+  the blind set has not been run again with that guard. Scout also asks for clarification more often than its own ceiling allows.
+- **Scout Intent and Markovian are not measured yet.** Their benefit on review quality is unknown. All four engines are
+  ON by default (ADR-0053) and each is switched off by its setting; whether Markovian and Scout Intent help is UNMEASURED.
 - **H-MEM reads its whole state file** when it opens and rewrites it on every write. A size cap is being added; until
   then it is meant for one repository's memory, not a large organisation's.
 - **The corpus score was recorded while NVIDIA's API was failing** (HTTP 500 and timeouts on 26 October), so the NVIDIA
@@ -92,7 +92,7 @@ Updated every evening. The newest day comes first.
 ### Day four, 25 October
 
 Day four of six. **Thirty-two more changes were merged**, 100 in four days. With Scout Intent and Markovian, all four
-Meterless engines are now in Proven, the two new ones switched off until their benefit is measured.
+Meterless engines are now in Proven, the two new ones switched off until their benefit is measured (changed on 26 October: both are now on by default, ADR-0053).
 
 **NVIDIA's model now writes Proven's code, not only reviews it.** NVIDIA made its hosted API free for us, and the fleet
 added NVIDIA executor seats beside the Cursor, Claude and OpenAI ones. The first piece of Proven written by Nemotron, a
@@ -123,11 +123,11 @@ What else came in today:
 - **Three more security fixes**: what the command line outputs can no longer be steered by the reviewed change, it
   writes its state and trace outside the reviewed repository, and a vulnerable network library was raised to its fixed
   version. What was fixed: [SECURITY.md](SECURITY.md).
-- **Each review can be planned before a model runs, and it is switched OFF.** Meterless's Scout Intent, built in Go
+- **Each review can be planned before a model runs; it is ON by default and can be switched off.** Meterless's Scout Intent, built in Go
   (`internal/scout`), classifies a change as dependency, refactor, feature, security-sensitive, documentation only or
   configuration, and picks the plan inside the configured review classes. It never lowers a configured class, and a
-  configured class keeps every agent it requires. The setting is `scout_intent` and it is **off by default**: a person
-  turns it on in `proven.yaml`, and until then every review runs the full plan. Its **benefit is UNMEASURED**: the model
+  configured class keeps every agent it requires. The setting is `scout_intent` and it is **on by default** (ADR-0053): a person
+  turns it off in `proven.yaml` with `scout_intent: off`, and then every review runs the full plan. It lightens a review only for a change whose every file is verified prose or a manifest; any other change it called documentation runs in class security, doubled. Its **benefit is UNMEASURED**: the model
   calls and the time saved per review on the test corpus cannot be stated until the corpus recordings exist. The call
   counts in [the architecture page](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) are scripted, not live,
   and are labelled so ([ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
@@ -139,7 +139,7 @@ What else came in today:
   `clarification_agreement` is 1.000, so it asked at the right times on this small authored set. `injection_precision` and
   `override_frequency` have no positive examples there, so they measure nothing. Neither scorecard measures cost, speed or
   whether a plan keeps its findings on real changes.
-- **Large pull requests in bounded steps, switched OFF by default.** Proven carries Meterless's Markovian engine. When it is switched on with `PROVEN_MARKOVIAN`, a change above a configured size is reviewed one file or one hunk at a time, carrying only what is established, what is suspected and what awaits evidence. A claim that awaits evidence is carried whole, or the review stops by name: it never loses one in silence. A bounded review that stops ends with a named error and does not yet fall back to a whole review. Saphan Studio has its own engine, patent pending; for the hackathon we use Meterless's ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md), [how it works](docs/ARCHITECTURE.md#bounded-steps-meterlesss-markovian-engine-adr-0048)).
+- **Large pull requests in bounded steps, ON by default, switched off with `PROVEN_MARKOVIAN=off`.** Proven carries Meterless's Markovian engine. Its benefit is UNMEASURED. A change above a configured size is reviewed one file or one hunk at a time, carrying only what is established, what is suspected and what awaits evidence. A claim that awaits evidence is carried whole, or the review stops by name: it never loses one in silence. A bounded review that stops ends with a named error and does not yet fall back to a whole review. Saphan Studio has its own engine, patent pending; for the hackathon we use Meterless's ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md), [how it works](docs/ARCHITECTURE.md#bounded-steps-meterlesss-markovian-engine-adr-0048)).
   - **Conformance:** Meterless's own runner, pinned at upstream commit `1742dec5`, gives `markovian 8/8 checks passed` ([scorecard](test/conformance/meterless/SCORECARD_markovian.txt)).
   - **Benefit: UNMEASURED.** Model tokens per step on the test corpus cannot be read until the corpus recordings exist. The figures in the architecture page's measurement table come from a scripted generator and are labelled scripted. We keep the engine only if it finds the same problems for less; until that is measured it stays off.
 
@@ -237,7 +237,7 @@ What else came in today:
 | Sponsor | What works, measured | In a review |
 |---|---|---|
 | **Zetaris** | The platform runs on our own machine and its checks pass 9 of 9. Proven's own key reads over REST and is refused every write. OSV by package answers from a file in Zetaris storage, 0.10 to 0.15 s per query. | The Investigator's evidence (KEV, EPSS, OSV) is shaped as Zetaris queries; sample mode runs the same SQL over local tables. [setup](hackathon/fleet/infra/zetaris/README.md) |
-| **Meterless** | Nightshift answers every model call with a signed receipt: 241 receipts by 25 October, all 241 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 8 of 8; the rest are sections not built yet. Markovian is in Proven too and passes Meterless's runner 8 of 8 (pinned at upstream commit `1742dec5`); it is OFF by default, and its benefit is UNMEASURED. **Scout Intent**, which plans each review, runs Meterless's own eval harness (pinned at upstream commit `1742dec5`): on Meterless's regression set every metric is 1.000 and `clarification_rate` is 0.188; on Proven's 14 change fixtures `clarification_rate` is 0.429 against a ceiling of 0.25, so that gate fails, because 6 of the 14 are ambiguous on purpose. | H-MEM and the World Model run in every review, sample mode included; the fleet's own reviews also go through Nightshift. Markovian reviews a large change in bounded steps only when `PROVEN_MARKOVIAN` is switched on; by default the review is unchanged. **Scout Intent is OFF by default** (`scout_intent`), so no review plans itself unless a person switches it on; its benefit, the model calls and time saved per review on the test corpus, is **UNMEASURED** until the corpus recordings exist. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) · [Markovian](docs/ARCHITECTURE.md#bounded-steps-meterlesss-markovian-engine-adr-0048) · [how it plans](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) |
+| **Meterless** | Nightshift answers every model call with a signed receipt: 241 receipts by 25 October, all 241 signatures verify. H-MEM and the World Model run in Go and pass Meterless's own conformance suites 9 of 13 and 8 of 8; the rest are sections not built yet. Markovian is in Proven too and passes Meterless's runner 8 of 8 (pinned at upstream commit `1742dec5`); it is ON by default and can be switched off, and its benefit is UNMEASURED. Scout Intent is ON by default too, and its benefit is UNMEASURED. **Scout Intent**, which plans each review, runs Meterless's own eval harness (pinned at upstream commit `1742dec5`): on Meterless's regression set every metric is 1.000 and `clarification_rate` is 0.188; on Proven's 14 change fixtures `clarification_rate` is 0.429 against a ceiling of 0.25, so that gate fails, because 6 of the 14 are ambiguous on purpose. | H-MEM and the World Model run in every review, sample mode included; the fleet's own reviews also go through Nightshift. Markovian reviews a large change in bounded steps; it is ON by default and `PROVEN_MARKOVIAN=off` switches it off. Its benefit is **UNMEASURED**. **Scout Intent is ON by default** (`scout_intent: off` switches it off), so each review is planned; its benefit, the model calls and time saved per review on the test corpus, is **UNMEASURED** until the corpus recordings exist. [NVIDIA and Nightshift](hackathon/fleet/infra/nvidia/README.md) · [Markovian](docs/ARCHITECTURE.md#bounded-steps-meterlesss-markovian-engine-adr-0048) · [how it plans](docs/ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) |
 | **NVIDIA** | Nemotron 3.5 Super answers through Nightshift, named in each signed receipt. Nemotron 3.5 Content Safety runs on our own machine as the guardrail. | Every prompt and answer passes the guardrail; the Skeptic that tries to refute a finding defaults to Nemotron. In the fleet, Nemotron now reviews changes beside OpenAI and Anthropic, straight on NVIDIA's API. |
 | **Cursor** | The command line was written by Cursor agents on Grok 4.7 and landed today; up to four agents code at once on one Linux machine, each inside its own jail, and every run's model traffic is recorded. | Cursor is how Proven is built. [how it works](hackathon/fleet/infra/cursor/README.md) |
 
@@ -247,7 +247,7 @@ Each day, what lands moves from this list to the day's summary.
 
 - **NVIDIA's models, already local.** Today NVIDIA's safety model runs on our own AMD Ryzen AI Max+ 395 machine with 128 GB of memory and checks every prompt and answer of Proven's reviews, while Nemotron reviews and writes code through NVIDIA's API. A DGX Spark is the same class of machine, built on NVIDIA's own silicon: on it the same fleet could run Nemotron for reviewing and coding locally beside the guardrail, tune NeMo Guardrails on the fleet's own record of what it refused and why, and keep every line of code in the room.
 - **A score anyone can recompute, on two sets**: one command runs Proven over the cases it was built on and, separately, over a held-out set frozen before Proven ever saw it; the two scores are never merged into one number.
-- **Scout Intent and Markovian measured**: on the corpus, with each engine on and off, the same findings for less, or the engine stays off ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md), [ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
+- **Scout Intent and Markovian measured**: on the corpus, with each engine on and off, the same findings for less, or the default is revisited ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md), [ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
 - **Extending Proven, documented with examples**: a worked, tested example for every kind of adapter (a model provider, the guardrail, a reviewer, a language, a tool, a data source, an output format), and the documentation as a site at proven.saphan.ai.
 - **The coding sessions, published**: excerpts of the Cursor agents' recorded sessions next to the change they built, each tied to its original by a hash ([ADR-0024](docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md)).
 - **Run Proven live with a single free NVIDIA key** ([ADR-0031](docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
@@ -344,8 +344,8 @@ How one review is meant to run, and where each sponsor's technology does the wor
   │  CISA KEV    │  │   └─▶ NVIDIA NEMOTRON    │  │ World Model: claims, │
   │  FIRST EPSS  │  │       reviewer, Skeptic  │  │  evidence, verdicts  │
   │  git history │  │                          │  │ Scout Intent: plans  │
-  │              │  │                          │  │  each review, OFF    │
-  │              │  │                          │  │ Markovian: OFF by    │
+  │              │  │                          │  │  each review, ON     │
+  │              │  │                          │  │ Markovian: ON by     │
   │              │  │                          │  │  default, large      │
   │              │  │                          │  │  change in steps     │
   └──────┬───────┘  └──────────────────────────┘  └──────────┬───────────┘
