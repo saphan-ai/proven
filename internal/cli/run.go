@@ -636,10 +636,10 @@ func applyCI(cfg *config, getenv func(string) string) error {
 		return nil
 	}
 	// The merge base is read before review.Open loads the mode, so git is told here.
-	// A wrong PROVEN_NETWORK is not judged here: Open refuses it by name.
-	if pol, err := network.Load(getenv); err == nil {
-		defer change.UseOffline(change.UseOffline(pol.Local()))
-	}
+	// A wrong network setting is not judged here: Open refuses it by name. Until
+	// then git runs offline, so a setting that does not load cannot open a remote.
+	pol, err := network.Load(getenv)
+	defer change.UseOffline(change.UseOffline(err != nil || pol.Local()))
 	var ev pullRequestEvent
 	have := false
 	if path := getenv("GITHUB_EVENT_PATH"); path != "" {
