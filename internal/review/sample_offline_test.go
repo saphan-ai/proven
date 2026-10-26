@@ -1,7 +1,6 @@
 package review_test
 
 import (
-	"os/exec"
 	"slices"
 	"testing"
 
@@ -21,7 +20,7 @@ func TestSampleOpenInLocalModeKeepsGitOffline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if args := r.(interface{ Git(...string) *exec.Cmd }).Git("status").Args; !slices.Contains(args, "protocol.allow=never") {
+	if args := r.(interface{ ReadPolicy() change.Policy }).ReadPolicy().GitCommand("status").Args; !slices.Contains(args, "protocol.allow=never") {
 		t.Fatalf("sample mode in PROVEN_NETWORK=local builds a git that can fetch: %v", args)
 	}
 }

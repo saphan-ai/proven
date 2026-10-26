@@ -56,6 +56,10 @@ func (p Policy) GitCommand(args ...string) *exec.Cmd {
 	return cmd
 }
 
+// GitCommand builds a git command under the process-wide policy; see
+// Policy.GitCommand.
+func GitCommand(args ...string) *exec.Cmd { return ProcessPolicy().GitCommand(args...) }
+
 // withoutAttributes returns args with the switches that make git read no
 // attribute at all, when offline. A git command
 // that compares the working tree with a commit converts each file it compares

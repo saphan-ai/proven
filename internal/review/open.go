@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -508,9 +507,9 @@ type runner struct {
 	read    change.Policy    // how this review reads the repository, fixed at Open; the zero value is public mode
 }
 
-// Git builds a git command under the policy this review was opened with. It is the command every git
-// read of the review starts, and no other review in the process can change it (ADR-0034).
-func (r *runner) Git(args ...string) *exec.Cmd { return r.read.GitCommand(args...) }
+// ReadPolicy is the policy this review was opened with: the git policy and the size limits every read of
+// the review takes, which no other review in the process can change (ADR-0034).
+func (r *runner) ReadPolicy() change.Policy { return r.read }
 
 // Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
 // only observe: what the review decides is what review returns.

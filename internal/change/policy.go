@@ -2,7 +2,6 @@ package change
 
 import (
 	"context"
-	"os/exec"
 )
 
 // Policy is how one review reads a repository: whether its git may reach a
@@ -54,10 +53,6 @@ func PolicyFrom(ctx context.Context) Policy {
 	}
 	return ProcessPolicy()
 }
-
-// GitCommand builds a git command under the process-wide policy; see
-// Policy.GitCommand.
-func GitCommand(args ...string) *exec.Cmd { return ProcessPolicy().GitCommand(args...) }
 
 // Read reads a tree under the process-wide policy; see Policy.Read.
 func Read(root string) ([]File, error) { return ProcessPolicy().Read(root) }
