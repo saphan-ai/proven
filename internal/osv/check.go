@@ -449,8 +449,9 @@ func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 		Query: &candidate.QueryEvidence{
 			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: append([]string(nil), res.Columns...),
-			Rows:    copyRows(res.Rows),
-			Bound:   true,
+			// Nil becomes an empty list, so the evidence always carries one.
+			Rows:  service.ListRows(res.Rows),
+			Bound: true,
 		},
 	}
 }
@@ -494,19 +495,6 @@ func cveAliases(aliases string) []string {
 		if querytpl.ValidCVE(id) {
 			out = append(out, id)
 		}
-	}
-	return out
-}
-
-// copyRows copies the rows so the evidence does not share memory with the
-// adapter's result. nil becomes an empty list, so evidence always carries one.
-func copyRows(rows [][]string) [][]string {
-	if rows == nil {
-		return [][]string{}
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
 	}
 	return out
 }

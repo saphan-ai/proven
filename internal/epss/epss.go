@@ -37,35 +37,10 @@ const (
 // contains one is not a match, so a title or a sentence cannot name a score.
 func validCVE(s string) bool { return querytpl.ValidCVE(s) }
 
-// ConfigError names a refused EPSS setting and the values that are allowed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value, why, and what is allowed
-// (ADR-0013).
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := "configuration refused: " + e.Field + "=" + quote(e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
-
-// quote wraps the refused value in double quotes. It does not escape it.
-func quote(s string) string {
-	// %q escapes a quote or a control character, so a refusal prints the value as it is.
-	return fmt.Sprintf("%q", s)
-}
+// ConfigError names a refused EPSS setting and the values that are allowed
+// (ADR-0013). A quote or a control character in the value is escaped, so it
+// cannot break or forge the refusal line.
+type ConfigError = service.ConfigError
 
 // LoadView reads EnvView. An empty value is DefaultView.
 // ADR-0013: a wrong name is refused before the review starts, never replaced
@@ -199,7 +174,8 @@ func toEvidence(res query.Result, snapshot string) candidate.Evidence {
 		Query: &candidate.QueryEvidence{
 			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: append([]string(nil), res.Columns...),
-			Rows:    copyRows(res.Rows),
+			// Nil becomes an empty list, so the evidence prints [] and not null.
+			Rows: service.ListRows(res.Rows),
 		},
 	}
 }
@@ -389,18 +365,4 @@ func cellAt(row []string, i int) string {
 		return ""
 	}
 	return row[i]
-}
-
-// copyRows copies the rows, so the evidence shares no memory with the
-// adapter's answer. Nil becomes empty, so the evidence prints [] and not
-// null.
-func copyRows(rows [][]string) [][]string {
-	if rows == nil {
-		return [][]string{}
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
-	}
-	return out
 }

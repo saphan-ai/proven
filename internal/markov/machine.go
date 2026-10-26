@@ -91,7 +91,7 @@ func Start(cfg Config, opts Options, now int64) (*Machine, error) {
 	}
 	opts.Mode = modeOrDefault(opts.Mode)
 	if opts.Mode != ModeArchitect && opts.Mode != ModeResearch {
-		return nil, &ConfigError{Field: "mode", Value: opts.Mode, Reason: "unknown mode", Allowed: []string{ModeArchitect, ModeResearch}}
+		return nil, &ConfigError{Lead: RefusalLead, Field: "mode", Value: opts.Mode, Reason: "unknown mode", Allowed: []string{ModeArchitect, ModeResearch}}
 	}
 	return &Machine{
 		Config:  cfg,
