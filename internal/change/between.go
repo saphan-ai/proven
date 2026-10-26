@@ -13,8 +13,8 @@ import (
 
 // WorkTree reports whether target is inside a git working tree.
 // A missing git binary is an error. A directory that is not a repository is false.
-func WorkTree(target string) (bool, error) {
-	cmd := GitCommand("-C", target, "rev-parse", "--is-inside-work-tree")
+func (p Policy) WorkTree(target string) (bool, error) {
+	cmd := p.GitCommand("-C", target, "rev-parse", "--is-inside-work-tree")
 	out, err := cmd.Output()
 	if err == nil {
 		return strings.TrimSpace(string(out)) == "true", nil
@@ -29,12 +29,12 @@ func WorkTree(target string) (bool, error) {
 
 // TopLevel returns the top level of the git working tree that holds target, as git prints it. A target
 // that is not in a working tree is "", false. A missing git binary is an error.
-func TopLevel(target string) (string, bool, error) {
-	in, err := WorkTree(target)
+func (p Policy) TopLevel(target string) (string, bool, error) {
+	in, err := p.WorkTree(target)
 	if err != nil || !in {
 		return "", false, err
 	}
-	top, err := gitZText([]string{"-C", target, "rev-parse", "--show-toplevel"})
+	top, err := p.gitZText([]string{"-C", target, "rev-parse", "--show-toplevel"})
 	if err != nil {
 		return "", false, err
 	}
@@ -44,9 +44,9 @@ func TopLevel(target string) (string, bool, error) {
 // gitArchive returns the tar of rev's tracked files. It reads the commit and
 // does not run the change. The git directory is not in the archive. The
 // stream is bounded by the archive limit.
-func gitArchive(target, rev string) ([]byte, error) {
-	cmd := GitCommand("-C", target, "archive", "--format=tar", "--end-of-options", rev)
-	return outputBounded(cmd, Bounds().Archive, "the archive of the commit", EnvMaxArchiveBytes)
+func (p Policy) gitArchive(target, rev string) ([]byte, error) {
+	cmd := p.GitCommand("-C", target, "archive", "--format=tar", "--end-of-options", rev)
+	return p.outputBounded(cmd, p.Bounds().Archive, "the archive of the commit", EnvMaxArchiveBytes)
 }
 
 // maxFailureBytes is the most of a command's standard error kept for a failure message.
@@ -77,7 +77,7 @@ func (c *clippedBuffer) String() string { return c.buf.String() }
 // git print as much as it likes, so the read stops one byte past max and the
 // command is ended: the output is never held whole. The refusal names what was
 // read and the bound, and never the output.
-func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
+func (p Policy) outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
 	stderr := clippedBuffer{max: maxFailureBytes}
 	cmd.Stderr = &stderr
 	pipe, err := cmd.StdoutPipe()
@@ -106,7 +106,7 @@ func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
 		if msg == "" {
 			msg = waitErr.Error()
 		}
-		return nil, &gitFailure{msg: offlineMessage(cmd, msg)}
+		return nil, &gitFailure{msg: p.offlineMessage(cmd, msg)}
 	}
 	return out, nil
 }
@@ -114,14 +114,14 @@ func outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byte, error) {
 // Between lists the files changed between baseline and head in target's git
 // repository. An empty head means the working tree, including untracked files.
 // A baseline or a head that does not exist returns an error that names it.
-func Between(target, baseline, head string) ([]string, error) {
+func (p Policy) Between(target, baseline, head string) ([]string, error) {
 	// Check both commits first, so a wrong name is reported as that name and
 	// not as git's own diff error.
-	if err := ensureCommit(target, baseline, "baseline"); err != nil {
+	if err := p.ensureCommit(target, baseline, "baseline"); err != nil {
 		return nil, err
 	}
 	if head != "" {
-		if err := ensureCommit(target, head, "head"); err != nil {
+		if err := p.ensureCommit(target, head, "head"); err != nil {
 			return nil, err
 		}
 	}
@@ -132,7 +132,7 @@ func Between(target, baseline, head string) ([]string, error) {
 	if head != "" {
 		args = append(args, head)
 	}
-	names, err := gitZ(args)
+	names, err := p.gitZ(args)
 	if err != nil {
 		return nil, err
 	}
@@ -140,11 +140,11 @@ func Between(target, baseline, head string) ([]string, error) {
 	// tree is part of the change. ls-files names them from the repository
 	// root, so underTarget keeps only those inside target.
 	if head == "" {
-		extra, err := gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
+		extra, err := p.gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
 		if err != nil {
 			return nil, err
 		}
-		extra, err = underTarget(target, extra)
+		extra, err = p.underTarget(target, extra)
 		if err != nil {
 			return nil, err
 		}
@@ -165,12 +165,12 @@ type Status struct {
 // that need to know a file was added or moved, not only that it changed (ADR-0049). An empty head means
 // the working tree, and an untracked file there is added. Between is left as it is: the review classes
 // read paths only (ADR-0014).
-func StatusBetween(target, baseline, head string) ([]Status, error) {
-	if err := ensureCommit(target, baseline, "baseline"); err != nil {
+func (p Policy) StatusBetween(target, baseline, head string) ([]Status, error) {
+	if err := p.ensureCommit(target, baseline, "baseline"); err != nil {
 		return nil, err
 	}
 	if head != "" {
-		if err := ensureCommit(target, head, "head"); err != nil {
+		if err := p.ensureCommit(target, head, "head"); err != nil {
 			return nil, err
 		}
 	}
@@ -178,7 +178,7 @@ func StatusBetween(target, baseline, head string) ([]Status, error) {
 	if head != "" {
 		args = append(args, head)
 	}
-	fields, err := gitZ(args)
+	fields, err := p.gitZ(args)
 	if err != nil {
 		return nil, err
 	}
@@ -216,11 +216,11 @@ func StatusBetween(target, baseline, head string) ([]Status, error) {
 		}
 	}
 	if head == "" {
-		extra, err := gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
+		extra, err := p.gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
 		if err != nil {
 			return nil, err
 		}
-		extra, err = underTarget(target, extra)
+		extra, err = p.underTarget(target, extra)
 		if err != nil {
 			return nil, err
 		}
@@ -234,8 +234,8 @@ func StatusBetween(target, baseline, head string) ([]Status, error) {
 
 // Blob reads one file from rev. ok is false when that path is not in the commit.
 // A missing path is not an error. The caller decides what the absence means.
-func Blob(target, rev, rel string) ([]byte, bool, error) {
-	if err := ensureCommit(target, rev, "baseline"); err != nil {
+func (p Policy) Blob(target, rev, rel string) ([]byte, bool, error) {
+	if err := p.ensureCommit(target, rev, "baseline"); err != nil {
 		return nil, false, err
 	}
 	rel = filepath.ToSlash(rel)
@@ -244,8 +244,8 @@ func Blob(target, rev, rel string) ([]byte, bool, error) {
 		return nil, false, fmt.Errorf("git: path %q leaves the tree", rel)
 	}
 	// "./" makes the path relative to target, not to the repository root (git rev:path rule).
-	cmd := GitCommand("-C", target, "show", "--end-of-options", rev+":./"+rel)
-	out, err := outputBounded(cmd, Bounds().File, "the file "+rel+" in the commit", EnvMaxFileBytes)
+	cmd := p.GitCommand("-C", target, "show", "--end-of-options", rev+":./"+rel)
+	out, err := p.outputBounded(cmd, p.Bounds().File, "the file "+rel+" in the commit", EnvMaxFileBytes)
 	if err == nil {
 		return out, true, nil
 	}
@@ -271,22 +271,22 @@ func (e *gitFailure) Error() string { return "git: " + e.msg }
 // Messages returns the commit messages between baseline and head, oldest first.
 // The baseline commit itself is not included. An empty head means HEAD.
 // Proven reads these messages. It does not write a trailer.
-func Messages(target, baseline, head string) ([]string, error) {
-	if err := ensureCommit(target, baseline, "baseline"); err != nil {
+func (p Policy) Messages(target, baseline, head string) ([]string, error) {
+	if err := p.ensureCommit(target, baseline, "baseline"); err != nil {
 		return nil, err
 	}
 	end := head
 	if head == "" {
 		end = "HEAD"
-	} else if err := ensureCommit(target, head, "head"); err != nil {
+	} else if err := p.ensureCommit(target, head, "head"); err != nil {
 		return nil, err
 	}
 	// %x1e ends each message with an ASCII record separator, so a message
 	// with blank lines in it is still split in the right place.
-	cmd := GitCommand("-C", target, "log", "--reverse", "--format=%B%x1e", "--end-of-options", baseline+".."+end)
+	cmd := p.GitCommand("-C", target, "log", "--reverse", "--format=%B%x1e", "--end-of-options", baseline+".."+end)
 	// The log is repository content: a commit message can be as long as its
 	// author likes, so the read is bounded like a file.
-	out, err := outputBounded(cmd, Bounds().File, "the commit log", EnvMaxFileBytes)
+	out, err := p.outputBounded(cmd, p.Bounds().File, "the commit log", EnvMaxFileBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -316,11 +316,11 @@ func splitMessages(b []byte) []string {
 
 // ensureCommit checks that rev names a commit in target's repository. which is
 // "baseline" or "head", so the error says which input was wrong.
-func ensureCommit(target, rev, which string) error {
+func (p Policy) ensureCommit(target, rev, which string) error {
 	if rev == "" {
 		return fmt.Errorf("%s commit %q does not exist", which, rev)
 	}
-	cmd := GitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}")
+	cmd := p.GitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}")
 	_, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil
@@ -335,11 +335,11 @@ func ensureCommit(target, rev, which string) error {
 // ResolveCommit returns the full commit id rev names in target's repository.
 // It is empty when rev is empty or git cannot resolve it: the caller keeps the
 // name it was given and records no resolution.
-func ResolveCommit(target, rev string) string {
+func (p Policy) ResolveCommit(target, rev string) string {
 	if rev == "" {
 		return ""
 	}
-	out, err := GitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}").Output()
+	out, err := p.GitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}").Output()
 	if err != nil {
 		return ""
 	}
@@ -353,14 +353,14 @@ func ResolveCommit(target, rev string) string {
 // compares (the clean filter) and asks the file system monitor about the tree.
 // In local mode they run with no attribute and no monitor that could name a
 // program Proven did not choose (withoutAttributes).
-func gitZ(args []string) ([]string, error) {
-	args, err := withoutAttributes(args)
+func (p Policy) gitZ(args []string) ([]string, error) {
+	args, err := p.withoutAttributes(args)
 	if err != nil {
 		return nil, err
 	}
-	cmd := GitCommand(args...)
+	cmd := p.GitCommand(args...)
 	// A list of path names is repository content too, so it has the archive bound.
-	out, err := outputBounded(cmd, Bounds().Archive, "the list of file names", EnvMaxArchiveBytes)
+	out, err := p.outputBounded(cmd, p.Bounds().Archive, "the list of file names", EnvMaxArchiveBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -385,8 +385,8 @@ func splitZ(b []byte) []string {
 
 // underTarget keeps the repository-root paths that lie inside target and makes
 // them relative to target, to match what git diff --relative returns.
-func underTarget(target string, paths []string) ([]string, error) {
-	topRaw, err := gitZText([]string{"-C", target, "rev-parse", "--show-toplevel"})
+func (p Policy) underTarget(target string, paths []string) ([]string, error) {
+	topRaw, err := p.gitZText([]string{"-C", target, "rev-parse", "--show-toplevel"})
 	if err != nil {
 		return nil, err
 	}
@@ -420,8 +420,8 @@ func underTarget(target string, paths []string) ([]string, error) {
 }
 
 // gitZText runs git with args and returns its trimmed output as one string.
-func gitZText(args []string) (string, error) {
-	cmd := GitCommand(args...)
+func (p Policy) gitZText(args []string) (string, error) {
+	cmd := p.GitCommand(args...)
 	out, err := cmd.Output()
 	if err != nil {
 		detail := err.Error()
@@ -429,7 +429,7 @@ func gitZText(args []string) (string, error) {
 		if errors.As(err, &exitErr) && strings.TrimSpace(string(exitErr.Stderr)) != "" {
 			detail = strings.TrimSpace(string(exitErr.Stderr))
 		}
-		return "", fmt.Errorf("git: %s", offlineMessage(cmd, detail))
+		return "", fmt.Errorf("git: %s", p.offlineMessage(cmd, detail))
 	}
 	return strings.TrimSpace(string(out)), nil
 }

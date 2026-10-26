@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -67,13 +68,14 @@ func open(opts Options) (Reviewer, error) {
 	if nerr != nil {
 		return nil, networkConfig(nerr)
 	}
-	change.UseOffline(netPol.Local())
-	change.UseLimits(reads)
+	// The git policy and the size bounds are this review's own, fixed here. They are not process state: another
+	// review opened in this process, at the same time or later, cannot change them (ADR-0034).
+	rd := change.NewPolicy(netPol.Local(), reads)
 	// ADR-0036: the organisation policy is read first, once, and refused here when it is missing or
 	// malformed. Whether it lies inside the repository is known only when a review names its target.
 	var pol *policy
 	if opts.PolicyPath != "" {
-		loaded, err := loadPolicy(opts.PolicyPath)
+		loaded, err := loadPolicy(rd, opts.PolicyPath)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +86,7 @@ func open(opts Options) (Reviewer, error) {
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
 	// change's baseline (see runner.Review).
 	if opts.ConfigPath != "" {
-		loaded, err := loadConfigFileUnder(opts.ConfigPath, pol)
+		loaded, err := loadConfigFileUnder(rd, opts.ConfigPath, pol)
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +320,7 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec, read: rd}, nil
 }
 
 // openRecorder loads the records settings and the link base address. It returns a nil recorder
@@ -503,7 +505,12 @@ type runner struct {
 	records *recorder
 	pol     *policy          // the organisation policy, or nil (ADR-0036)
 	now     func() time.Time // the review's clock; nil in a runner built by a test means time.Now
+	read    change.Policy    // how this review reads the repository, fixed at Open; the zero value is public mode
 }
+
+// Git builds a git command under the policy this review was opened with. It is the command every git
+// read of the review starts, and no other review in the process can change it (ADR-0034).
+func (r *runner) Git(args ...string) *exec.Cmd { return r.read.GitCommand(args...) }
 
 // Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
 // only observe: what the review decides is what review returns.
@@ -539,6 +546,9 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 
 // review runs one review: settings, deadline, class, the six agents, then the decision lines.
 func (r *runner) review(ctx context.Context, req Request) (Result, error) {
+	// Every git command and size bound of this review comes from the policy fixed at Open, never from process state.
+	req.read = r.read
+	ctx = change.WithPolicy(ctx, r.read)
 	// ADR-0047: before anything reads or writes, the local evidence file must
 	// be outside the tree under review.
 	if err := checkLocalFile(r.localFile, req.Target); err != nil {
@@ -546,7 +556,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	}
 	// A policy inside the repository under review is refused before anything else is read: the change
 	// could have edited it.
-	if err := r.pol.refuseInside(req.Target); err != nil {
+	if err := r.pol.refuseInside(r.read, req.Target); err != nil {
 		return Result{}, err
 	}
 	cfg := r.cfg
@@ -556,9 +566,9 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		var loaded fileSettings
 		var err error
 		if req.BaselineCommit != "" {
-			loaded, err = loadSettingsAtBaselineUnder(req.Target, req.BaselineCommit, r.pol)
+			loaded, err = loadSettingsAtBaselineUnder(r.read, req.Target, req.BaselineCommit, r.pol)
 		} else {
-			loaded, err = loadSettingsInTargetUnder(req.Target, r.pol)
+			loaded, err = loadSettingsInTargetUnder(r.read, req.Target, r.pol)
 		}
 		if err != nil {
 			return Result{}, err

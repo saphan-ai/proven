@@ -1,6 +1,7 @@
 package review
 
 import (
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,7 +93,7 @@ func TestEachPolicyKeyRefusesAWeakerValueAndAcceptsAnEqualOrStricterOne(t *testi
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p, err := loadPolicy(writeFile(t, "policy.yaml", c.policy))
+			p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", c.policy))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,7 +139,7 @@ func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p, err := loadPolicy(writeFile(t, "policy.yaml", c.policy))
+			p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", c.policy))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -156,7 +157,7 @@ func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
 	}
 	// The same rule is free when the policy fixes no class and names no doubled class: it says nothing
 	// about paths.
-	p, err := loadPolicy(writeFile(t, "policy.yaml", "author_commit_trailers: on\n"))
+	p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", "author_commit_trailers: on\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +166,7 @@ func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
 	}
 	// A policy that doubles a class says which paths it doubles, so the same rule is refused: it would
 	// review go.mod, which the policy doubles as security, once as docs.
-	p, err = loadPolicy(writeFile(t, "policy.yaml", "doubled_classes: security\n"))
+	p, err = loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", "doubled_classes: security\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +174,7 @@ func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
 		t.Fatal("a policy that doubles security accepted a local rule that puts every path in docs")
 	}
 	// A rule at or above the policy's fallback, and the policy's own low rule, are accepted.
-	p, err = loadPolicy(writeFile(t, "policy.yaml", "path_rules: docs/**=docs\nfallback_class: security\n"))
+	p, err = loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", "path_rules: docs/**=docs\nfallback_class: security\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestNoPathLoosensTheClassAcrossFields(t *testing.T) {
 
 // TestALocalValueOfAKeyThePolicyDidNotSetIsFree:the policy sets one key; the repository changes another.
 func TestALocalValueOfAKeyThePolicyDidNotSetIsFree(t *testing.T) {
-	p, err := loadPolicy(writeFile(t, "policy.yaml", "author_commit_trailers: on\n"))
+	p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", "author_commit_trailers: on\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +217,7 @@ func TestARepositoryInheritsThePolicyValueItDoesNotSet(t *testing.T) {
 	if res.Class != "security" || res.ClassRule != "fallback" {
 		t.Fatalf("class %q rule %q, want the policy's fallback security", res.Class, res.ClassRule)
 	}
-	p, err := loadPolicy(writeFile(t, "policy.yaml", policyBody))
+	p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", policyBody))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +291,7 @@ func TestTheExpiryDayIsTheUTCDateInEveryZone(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p, err := loadPolicy(writeFile(t, "policy.yaml", discountException))
+			p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", discountException))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -344,7 +345,7 @@ func TestAnExceptionWithoutAnOwnerOrAnExpiryIsRefused(t *testing.T) {
 					kept = append(kept, line)
 				}
 			}
-			_, err := loadPolicy(writeFile(t, "policy.yaml", strings.Join(kept, "\n")+"\n"))
+			_, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", strings.Join(kept, "\n")+"\n"))
 			ce, ok := err.(*ConfigError)
 			if !ok || ce.Field != "exception.discount."+field || !strings.Contains(ce.Reason, "missing") {
 				t.Fatalf("err %v", err)
@@ -352,7 +353,7 @@ func TestAnExceptionWithoutAnOwnerOrAnExpiryIsRefused(t *testing.T) {
 		})
 	}
 	// An empty value is as missing as a missing line.
-	_, err := loadPolicy(writeFile(t, "policy.yaml", strings.Replace(discountException, "finance-platform", "''", 1)))
+	_, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", strings.Replace(discountException, "finance-platform", "''", 1)))
 	if ce, ok := err.(*ConfigError); !ok || ce.Field != "exception.discount.owner" {
 		t.Fatalf("empty owner: %v", err)
 	}
@@ -370,7 +371,7 @@ func TestAnExceptionWithABadDateOrKeyIsRefused(t *testing.T) {
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := loadPolicy(writeFile(t, "policy.yaml", body)); err == nil {
+			if _, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", body)); err == nil {
 				t.Fatal("not refused")
 			} else if _, ok := err.(*ConfigError); !ok || !strings.Contains(err.Error(), "policy.yaml") {
 				t.Fatalf("err %v", err)
@@ -449,7 +450,7 @@ func TestTheExampleOfPolicyMdLoads(t *testing.T) {
 	if len(parts) < 3 {
 		t.Fatal("no fenced example")
 	}
-	p, err := loadPolicy(writeFile(t, "policy.yaml", parts[1]))
+	p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", parts[1]))
 	if err != nil {
 		t.Fatal(err)
 	}

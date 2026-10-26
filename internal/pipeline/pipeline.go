@@ -505,15 +505,17 @@ func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
 // context that has ended returns the partial draft through cut; any other
 // error stops the review.
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
+	// The review's read policy rode the context from its runner; every git command and size bound below takes it from here.
+	rd := change.PolicyFrom(ctx)
 	// A git repository with neither a baseline commit nor prepared trees has
 	// nothing for the agents to read. Say what to pass, rather than failing
 	// later as a missing fixture file.
 	if !p.sample {
-		if err := p.refuseBareRepository(req); err != nil {
+		if err := p.refuseBareRepository(req, rd); err != nil {
 			return candidate.Draft{}, err
 		}
 	}
-	files, err := changedFiles(req)
+	files, err := changedFiles(req, rd)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -568,7 +570,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// Sample mode loads fixture.json and checks it. Live mode does not: an
 	// ordinary repository has no fixture file. The trees the Planner and the
 	// Prover read are fx.Root either way.
-	fx, skipped, cleanup, err := p.loadTarget(req)
+	fx, skipped, cleanup, err := p.loadTarget(req, rd)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -1819,11 +1821,11 @@ func (g recording) record(m candidate.ModelUse) error {
 
 // changedFiles lists the files of the change: from git when a baseline commit
 // is named, otherwise from the fixture's two trees.
-func changedFiles(req Request) ([]string, error) {
+func changedFiles(req Request, rd change.Policy) ([]string, error) {
 	if req.BaselineCommit != "" {
-		return change.Between(req.Target, req.BaselineCommit, req.HeadCommit)
+		return rd.Between(req.Target, req.BaselineCommit, req.HeadCommit)
 	}
-	files, err := change.Read(req.Target)
+	files, err := rd.Read(req.Target)
 	if err != nil {
 		return nil, err
 	}

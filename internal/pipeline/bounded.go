@@ -31,7 +31,7 @@ func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generato
 		}
 		return planner.Plan(ctx, root, gen)
 	}
-	files, err := change.Read(root)
+	files, err := change.PolicyFrom(ctx).Read(root)
 	if err != nil {
 		return nil, err
 	}

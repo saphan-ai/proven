@@ -20,9 +20,9 @@ import (
 // no driver, whatever the repository or the configuration say. The same files
 // are written as untar writes them: a link is left out and named, a submodule is
 // an empty directory, and each file and the whole tree are bounded.
-func exportRaw(target, rev, dst string) ([]string, error) {
-	list := GitCommand("-C", target, "ls-tree", "-r", "-z", "--end-of-options", rev)
-	listing, err := outputBounded(list, Bounds().Archive, "the list of the commit's files", EnvMaxArchiveBytes)
+func (p Policy) exportRaw(target, rev, dst string) ([]string, error) {
+	list := p.GitCommand("-C", target, "ls-tree", "-r", "-z", "--end-of-options", rev)
+	listing, err := p.outputBounded(list, p.Bounds().Archive, "the list of the commit's files", EnvMaxArchiveBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func exportRaw(target, rev, dst string) ([]string, error) {
 			blobs = append(blobs, blob)
 		}
 	}
-	if err := writeBlobs(target, dst, blobs); err != nil {
+	if err := p.writeBlobs(target, dst, blobs); err != nil {
 		return nil, err
 	}
 	return skipped, nil
@@ -99,7 +99,7 @@ func clipText(s string) string {
 // writeBlobs reads the blobs from one cat-file --batch process, in the order given, and writes each
 // under dst. The size of a blob is read before its bytes, so a file over the bound is refused without
 // being read, and the sizes together are held to the archive bound.
-func writeBlobs(target, dst string, blobs []treeBlob) error {
+func (p Policy) writeBlobs(target, dst string, blobs []treeBlob) error {
 	if len(blobs) == 0 {
 		return nil
 	}
@@ -107,7 +107,7 @@ func writeBlobs(target, dst string, blobs []treeBlob) error {
 	for _, b := range blobs {
 		ids.WriteString(b.oid + "\n")
 	}
-	cmd := GitCommand("-C", target, "cat-file", "--batch")
+	cmd := p.GitCommand("-C", target, "cat-file", "--batch")
 	cmd.Stdin = strings.NewReader(ids.String())
 	stderr := clippedBuffer{max: maxFailureBytes}
 	cmd.Stderr = &stderr
@@ -129,7 +129,7 @@ func writeBlobs(target, dst string, blobs []treeBlob) error {
 		size, missing, err := readBatchHeader(out)
 		if missing {
 			_ = cmd.Wait()
-			return &gitFailure{msg: offlineMessage(cmd, "object "+b.oid+" is missing")}
+			return &gitFailure{msg: p.offlineMessage(cmd, "object "+b.oid+" is missing")}
 		}
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			// git stopped before it answered: its own words say why (a refused fetch of a missing object).
@@ -138,17 +138,17 @@ func writeBlobs(target, dst string, blobs []treeBlob) error {
 			if msg == "" {
 				msg = "cat-file ended early"
 			}
-			return &gitFailure{msg: offlineMessage(cmd, msg)}
+			return &gitFailure{msg: p.offlineMessage(cmd, msg)}
 		}
 		if err != nil {
 			return fail(err)
 		}
-		if size > Bounds().File {
-			return fail(OverBound("the file "+b.rel, Bounds().File, EnvMaxFileBytes))
+		if size > p.Bounds().File {
+			return fail(OverBound("the file "+b.rel, p.Bounds().File, EnvMaxFileBytes))
 		}
 		total += size
-		if total > Bounds().Archive {
-			return fail(OverBound("the archive of the commit", Bounds().Archive, EnvMaxArchiveBytes))
+		if total > p.Bounds().Archive {
+			return fail(OverBound("the archive of the commit", p.Bounds().Archive, EnvMaxArchiveBytes))
 		}
 		path := filepath.Join(dst, filepath.FromSlash(b.rel))
 		if err := writeTarFile(io.LimitReader(out, size), path, b.mode); err != nil {
@@ -163,7 +163,7 @@ func writeBlobs(target, dst string, blobs []treeBlob) error {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return &gitFailure{msg: offlineMessage(cmd, msg)}
+		return &gitFailure{msg: p.offlineMessage(cmd, msg)}
 	}
 	return nil
 }

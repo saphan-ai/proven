@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/agent/judge"
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/store"
@@ -107,6 +108,10 @@ type Request struct {
 	Exclude        []string
 	MinSeverity    Severity // the shell filters the output by it
 	Description    string   // pull-request description; empty means the request carries none
+
+	// read is how this review reads the repository: its git policy and size bounds. The runner sets
+	// it from the policy fixed at Open, so no later Open in the process can change it (ADR-0034).
+	read change.Policy
 }
 
 // Severity is INFO, WARNING or ERROR (SARIF note, warning, error).

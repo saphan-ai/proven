@@ -188,7 +188,7 @@ func Check(ctx context.Context, q query.Runner, root, table, snapshot string) (O
 	if !ValidTable(table) {
 		return Outcome{}, fmt.Errorf("osv: table name %q is not allowed", table)
 	}
-	files, err := change.Read(root)
+	files, err := change.PolicyFrom(ctx).Read(root)
 	if err != nil {
 		return Outcome{}, err
 	}

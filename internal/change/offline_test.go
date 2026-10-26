@@ -38,7 +38,7 @@ func TestOfflineGitNamesAMissingObjectInsteadOfFetching(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "PROVEN_NETWORK=local") || !strings.Contains(err.Error(), "partial clone") {
 		t.Fatalf("offline read of a missing object: %v", err)
 	}
-	if _, err := gitArchive(clone, "HEAD"); err == nil || !strings.Contains(err.Error(), "PROVEN_NETWORK=local") {
+	if _, err := ProcessPolicy().gitArchive(clone, "HEAD"); err == nil || !strings.Contains(err.Error(), "PROVEN_NETWORK=local") {
 		t.Fatalf("offline archive of a missing object: %v", err)
 	}
 	// Still missing: nothing fetched it behind the refusal.
@@ -117,15 +117,15 @@ func TestOfflineMessageNamesAQuietGitInAPartialClone(t *testing.T) {
 	defer UseOffline(UseOffline(true))
 	quiet := "fatal: bad object HEAD:./f.txt"
 	partial := GitCommand("-C", clone, "show", "HEAD:./f.txt")
-	if got := offlineMessage(partial, quiet); !strings.Contains(got, "PROVEN_NETWORK=local") || !strings.Contains(got, quiet) {
+	if got := ProcessPolicy().offlineMessage(partial, quiet); !strings.Contains(got, "PROVEN_NETWORK=local") || !strings.Contains(got, quiet) {
 		t.Fatalf("a partial clone's quiet refusal is not named: %q", got)
 	}
-	if got := offlineMessage(partial, "fatal: path 'f.txt' does not exist in 'HEAD'"); strings.Contains(got, "PROVEN_NETWORK") {
+	if got := ProcessPolicy().offlineMessage(partial, "fatal: path 'f.txt' does not exist in 'HEAD'"); strings.Contains(got, "PROVEN_NETWORK") {
 		t.Fatalf("an absent path was named as a refused fetch: %q", got)
 	}
 	full := t.TempDir()
 	git(t, full, "init", full)
-	if got := offlineMessage(GitCommand("-C", full, "show", "HEAD:./f.txt"), quiet); strings.Contains(got, "PROVEN_NETWORK") {
+	if got := ProcessPolicy().offlineMessage(GitCommand("-C", full, "show", "HEAD:./f.txt"), quiet); strings.Contains(got, "PROVEN_NETWORK") {
 		t.Fatalf("a full clone was named as a partial one: %q", got)
 	}
 }

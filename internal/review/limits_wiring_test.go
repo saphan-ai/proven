@@ -73,10 +73,10 @@ func TestAuthorRecordIsBoundedAsASum(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := readRecord(target, "author-a.txt"); err != nil {
+	if _, err := readRecord(change.ProcessPolicy(), target, "author-a.txt"); err != nil {
 		t.Fatalf("one file under the bound was refused: %v", err)
 	}
-	_, err := readRecord(target, "author-*.txt")
+	_, err := readRecord(change.ProcessPolicy(), target, "author-*.txt")
 	if err == nil {
 		t.Fatal("two files whose sum is over the record bound were read")
 	}

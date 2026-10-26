@@ -17,15 +17,15 @@ var offline atomic.Bool
 // per-protocol key wins over protocol.allow, so each one is closed on its own.
 var transports = []string{"file", "git", "http", "https", "ssh", "ext"}
 
-// UseOffline makes every git command of this package, and of GitCommand's
-// callers, unable to reach a remote, and returns the setting it replaced so a
-// caller can restore it. It is process-wide, like UseLimits: the review loads
-// it once, before it reads the repository.
+// UseOffline sets the process-wide offline setting, the one the package-level
+// functions read (ProcessPolicy), and returns the setting it replaced so a
+// caller can restore it. A review does not use it: its git policy is a Policy
+// fixed when it is opened, so no other review in the process can change it.
 func UseOffline(on bool) (previous bool) {
 	return offline.Swap(on)
 }
 
-// GitCommand builds a git command. The environment is the minimal one of
+// GitCommand builds a git command under this policy. The environment is the minimal one of
 // ADR-0025: PATH and HOME, never Proven's own, so a key cannot reach git.
 // Offline, it also cannot fetch: GIT_NO_LAZY_FETCH stops the fetch of an
 // object a partial clone left out, protocol.allow=never and one
@@ -34,10 +34,10 @@ func UseOffline(on bool) (previous bool) {
 // first and outrank the repository's config and the user's ~/.gitconfig, so a
 // per-protocol policy set there cannot reopen a transport.
 // Both switches are honoured by git 2.43 (measured 2026-10-24).
-func GitCommand(args ...string) *exec.Cmd {
+func (p Policy) GitCommand(args ...string) *exec.Cmd {
 	argv := args
 	env := childenv.Minimal()
-	if offline.Load() {
+	if p.offline {
 		// log.showSignature=false: git log would otherwise verify a signed commit
 		// by starting gpg.program, gpg.x509.program or gpg.ssh.program, a program
 		// the commit's header chooses and Proven does not judge.
@@ -67,15 +67,15 @@ func GitCommand(args ...string) *exec.Cmd {
 // say, so a clone that sets anything there is refused (refuseInfoAttributes).
 // The empty tree's id depends on the repository's hash, so git names it. Needs git 2.40 or later; an older git refuses the switch by name.
 // Online, args come back unchanged.
-func withoutAttributes(args []string) ([]string, error) {
-	if !offline.Load() {
+func (p Policy) withoutAttributes(args []string) ([]string, error) {
+	if !p.offline {
 		return args, nil
 	}
-	out, err := GitCommand("-C", repoDir(args), "hash-object", "-t", "tree", "/dev/null").Output()
+	out, err := p.GitCommand("-C", repoDir(args), "hash-object", "-t", "tree", "/dev/null").Output()
 	if err != nil {
 		return nil, fmt.Errorf("git: cannot name the empty tree: %w", err)
 	}
-	if err := refuseInfoAttributes(repoDir(args)); err != nil {
+	if err := p.refuseInfoAttributes(repoDir(args)); err != nil {
 		return nil, err
 	}
 	// diff.ignoreSubmodules=all: a working-tree diff would otherwise start git in
@@ -111,8 +111,8 @@ func ignoreSubmodules(args []string) []string {
 // it can name a filter driver, a program the clone's configuration chooses and
 // Proven does not judge (ADR-0034). A file that is absent, or holds only blank
 // lines and comments, sets nothing and is not refused.
-func refuseInfoAttributes(dir string) error {
-	out, err := GitCommand("-C", dir, "rev-parse", "--path-format=absolute", "--git-path", "info/attributes").Output()
+func (p Policy) refuseInfoAttributes(dir string) error {
+	out, err := p.GitCommand("-C", dir, "rev-parse", "--path-format=absolute", "--git-path", "info/attributes").Output()
 	if err != nil {
 		return fmt.Errorf("git: cannot name .git/info/attributes: %w", err)
 	}
@@ -137,15 +137,15 @@ func refuseInfoAttributes(dir string) error {
 // cmd is the git command that failed. Some git versions print only "bad object"
 // for a missing object, so the words alone are not enough: a failure that is
 // not an absent path, in a partial clone, is named as the refused fetch.
-func offlineMessage(cmd *exec.Cmd, msg string) string {
-	if !offline.Load() {
+func (p Policy) offlineMessage(cmd *exec.Cmd, msg string) string {
+	if !p.offline {
 		return msg
 	}
 	lower := strings.ToLower(msg)
 	named := strings.Contains(lower, "promisor remote") || strings.Contains(lower, "lazy fetching disabled") ||
 		strings.Contains(lower, "not allowed")
 	absent := strings.Contains(lower, "does not exist") || strings.Contains(lower, "exists on disk, but not in")
-	if !named && !absent && isPartialClone(cmd) {
+	if !named && !absent && p.isPartialClone(cmd) {
 		named = true
 	}
 	if named {
@@ -167,7 +167,7 @@ func repoDir(args []string) string {
 // isPartialClone reports whether the repository cmd ran in has a promisor
 // remote, the thing that makes git fetch a missing object. cmd names the
 // repository with -C; without it git ran in the current directory.
-func isPartialClone(cmd *exec.Cmd) bool {
-	probe := GitCommand("-C", repoDir(cmd.Args), "config", "--get-regexp", `^(extensions\.partialclone|remote\..*\.promisor)$`)
+func (p Policy) isPartialClone(cmd *exec.Cmd) bool {
+	probe := p.GitCommand("-C", repoDir(cmd.Args), "config", "--get-regexp", `^(extensions\.partialclone|remote\..*\.promisor)$`)
 	return probe.Run() == nil
 }

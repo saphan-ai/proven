@@ -12,7 +12,7 @@ func TestGitEnvironmentOmitsSecrets(t *testing.T) {
 	const marker = "hardening-marker-5b1e"
 	t.Setenv("METERLESS_RUNTIME_TOKEN", marker)
 	t.Setenv("PROVEN_GUARDRAIL_KEY", marker)
-	text, err := gitZText([]string{"-c", "alias.dumpenv=!env", "dumpenv"})
+	text, err := ProcessPolicy().gitZText([]string{"-c", "alias.dumpenv=!env", "dumpenv"})
 	if err != nil {
 		t.Fatal(err)
 	}

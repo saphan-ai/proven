@@ -1,9 +1,13 @@
 package review
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/saphan-ai/proven/internal/change"
+)
 
 func TestLocalDoubledListCannotNarrowEffectivePolicyWithSecondReviewer(t *testing.T) {
-	p, err := loadPolicy(writeFile(t, "policy.yaml", "path_rules: go.mod=security\n"))
+	p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", "path_rules: go.mod=security\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
