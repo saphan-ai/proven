@@ -21,6 +21,7 @@ const (
 	EnvLogFile         = "JUDGES_GATEWAY_LOG"
 	EnvModels          = "JUDGES_GATEWAY_MODELS"
 	EnvUpstreamTimeout = "JUDGES_GATEWAY_UPSTREAM_TIMEOUT"
+	EnvMaxModelReply   = "JUDGES_GATEWAY_MAX_RESPONSE_BYTES"
 	EnvNightshiftToken = "METERLESS_RUNTIME_TOKEN"
 	EnvNightshiftURL   = "PROVEN_GENERATOR_BASE_URL"
 	EnvNightshiftApp   = "PROVEN_GENERATOR_APP"
@@ -38,6 +39,13 @@ const (
 	// prompt around it. MaxEvidenceBody is the largest template request.
 	MaxModelBody    = 4 << 20
 	MaxEvidenceBody = 16 << 10
+
+	// MaxModelReply is the most bytes the gateway relays from the model
+	// service in one call; the setting may be MinModelReply to
+	// MaxModelReplySetting.
+	MaxModelReply        = 4 << 20
+	MinModelReply        = 1 << 10
+	MaxModelReplySetting = 64 << 20
 )
 
 // Settings is a loaded gateway configuration, ready to serve.
@@ -122,6 +130,15 @@ func Load(env func(string) string) (Settings, error) {
 		timeout = d
 	}
 
+	reply := int64(MaxModelReply)
+	if raw := strings.TrimSpace(env(EnvMaxModelReply)); raw != "" {
+		n, perr := strconv.ParseInt(raw, 10, 64)
+		if perr != nil || n < MinModelReply || n > MaxModelReplySetting {
+			return s, &ConfigError{EnvMaxModelReply, "not a byte count in range", "an integer from " + strconv.Itoa(MinModelReply) + " to " + strconv.Itoa(MaxModelReplySetting) + "; empty means " + strconv.Itoa(MaxModelReply)}
+		}
+		reply = n
+	}
+
 	zs, err := query.Load(env)
 	if err != nil {
 		return s, err
@@ -142,6 +159,7 @@ func Load(env func(string) string) (Settings, error) {
 		Zetaris:         query.NewLive(zs, nil),
 		MaxModelBody:    MaxModelBody,
 		MaxEvidenceBody: MaxEvidenceBody,
+		MaxModelReply:   reply,
 	}
 	return s, nil
 }

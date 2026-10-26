@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -66,17 +65,21 @@ type rig struct {
 	gw     *httptest.Server
 	ns, zt *upstream
 	path   string
-	log    *bytes.Buffer
-	alarm  *bytes.Buffer
+	log    *failWriter
+	alarm  *failWriter
 	mu     sync.Mutex
 	now    time.Time
 }
 
 var t0 = time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)
 
-func newRig(t *testing.T) *rig {
+func newRig(t *testing.T) *rig { return newRigWith(t, nil) }
+
+// newRigWith builds the rig, then lets tweak change the gateway's
+// configuration before the gateway is created.
+func newRigWith(t *testing.T, tweak func(*Config)) *rig {
 	t.Helper()
-	r := &rig{t: t, now: t0, log: &bytes.Buffer{}, alarm: &bytes.Buffer{}}
+	r := &rig{t: t, now: t0, log: &failWriter{}, alarm: &failWriter{}}
 	r.ns = newUpstream(t, 200, "data: {\"model\":\"nvidia/x\"}\n\ndata: [DONE]\n\n")
 	r.zt = newUpstream(t, 200, `{"headers":["id"],"data":[["GHSA-1"]]}`)
 	r.zt.srv.Config.Handler = wrapJSON(r.zt)
@@ -93,7 +96,7 @@ func newRig(t *testing.T) *rig {
 		return s
 	}()
 	live := query.NewLive(query.Settings{BaseURL: r.zt.srv.URL, APIKey: zetarisSecret, OrgID: "42", RowLimit: 10, Timeout: 5 * time.Second}, nil)
-	g := New(Config{
+	cfg := Config{
 		Tokens: store, Limiter: NewLimiter(),
 		NightshiftURL: r.ns.srv.URL, NightshiftToken: nightshiftSecret, NightshiftApp: "proven",
 		Models:   []string{"meterless/auto"},
@@ -101,8 +104,11 @@ func newRig(t *testing.T) *rig {
 		Zetaris:  live, MaxModelBody: 1 << 16, MaxEvidenceBody: 1 << 10,
 		Log: r.log, Alarm: r.alarm,
 		Now: func() time.Time { r.mu.Lock(); defer r.mu.Unlock(); return r.now },
-	})
-	r.gw = httptest.NewServer(g)
+	}
+	if tweak != nil {
+		tweak(&cfg)
+	}
+	r.gw = httptest.NewServer(New(cfg))
 	t.Cleanup(r.gw.Close)
 	return r
 }

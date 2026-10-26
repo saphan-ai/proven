@@ -83,6 +83,7 @@ func serve(getenv func(string) string, stderr io.Writer, ready func(net.Addr)) i
 		return exitError
 	}
 	s.Config.Alarm = stderr
+	s.Config.Fault = stderr
 	s.Config.Log = os.Stdout
 	if s.LogFile != "" {
 		f, ferr := os.OpenFile(s.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)

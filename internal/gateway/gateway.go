@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ const (
 	RouteEvidence = "evidence"
 	PathModel     = "/v1/chat/completions"
 	PathEvidence  = "/v1/evidence/query"
+	PathHealth    = "/healthz"
 )
 
 // The refusal codes of the routes.
@@ -41,6 +43,8 @@ const (
 	CodeModelNotAllowed  = "model_not_allowed"
 	CodeUpstreamDown     = "upstream_unavailable"
 	CodeUpstreamError    = "upstream_error"
+	CodeLogUnavailable   = "log_unavailable"
+	CodeResponseTooLarge = "response_over_limit"
 )
 
 // Querier runs one SELECT on the evidence store. *query.Live is the one used.
@@ -65,16 +69,21 @@ type Config struct {
 
 	MaxModelBody    int64 // bytes of one chat request
 	MaxEvidenceBody int64 // bytes of one template request
+	MaxModelReply   int64 // bytes relayed from the model service in one call; zero means the default
 
 	Log   io.Writer // one JSON line per call
 	Alarm io.Writer // alarm lines
+	Fault io.Writer // the second channel: a sink that failed or recovered (standard error)
 	Now   func() time.Time
 }
 
 // Gateway is the http.Handler of both routes.
 type Gateway struct {
-	cfg   Config
-	logMu sync.Mutex
+	cfg       Config
+	logMu     sync.Mutex // guards the two sinks and unlogged
+	logSink   sink
+	alarmSink sink
+	unlogged  int // refusals not queued because the sink was down
 }
 
 // New builds the gateway. A nil Now means the wall clock.
@@ -88,7 +97,13 @@ func New(cfg Config) *Gateway {
 	if cfg.Alarm == nil {
 		cfg.Alarm = io.Discard
 	}
-	return &Gateway{cfg: cfg}
+	if cfg.Fault == nil {
+		cfg.Fault = io.Discard
+	}
+	if cfg.MaxModelReply <= 0 {
+		cfg.MaxModelReply = MaxModelReply
+	}
+	return &Gateway{cfg: cfg, logSink: sink{name: "log", w: cfg.Log}, alarmSink: sink{name: "alarm", w: cfg.Alarm}}
 }
 
 // entry is one log line. It has no field that can hold a body or a
@@ -135,15 +150,37 @@ func (r *recorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 // ServeHTTP checks the token, the route and the limits, in that order, then
 // serves the call. Every call, served or refused, leaves one log line.
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == PathHealth {
+		g.health(w)
+		return
+	}
 	rec := &recorder{ResponseWriter: w}
 	e := entry{Time: g.cfg.Now().UTC().Format(time.RFC3339), Token: "-", Route: "-"}
 	defer func() {
 		e.Status, e.Bytes = rec.status, rec.bytes
+		if e.Refused == CodeLogUnavailable {
+			// The sink is down: this refusal is counted, not queued, so the
+			// queue holds only calls that were served.
+			g.logMu.Lock()
+			g.unlogged++
+			g.logMu.Unlock()
+			return
+		}
 		g.write(e)
 	}()
 	refuse := func(ref *Refusal) {
 		e.Refused = ref.Code
 		writeRefusal(rec, ref)
+	}
+
+	// A call the gateway cannot log is not served: if the log or the alarm
+	// cannot be written, refuse before anything else happens.
+	g.logMu.Lock()
+	up := g.sinksUp()
+	g.logMu.Unlock()
+	if !up {
+		refuse(&Refusal{Status: http.StatusServiceUnavailable, Code: CodeLogUnavailable, Detail: "the gateway cannot write its call log; tell the owner"})
+		return
 	}
 
 	token := bearer(r.Header.Get("Authorization"))
@@ -202,17 +239,29 @@ func bearer(h string) string {
 func (g *Gateway) write(e entry) {
 	line, err := json.Marshal(e)
 	if err != nil {
+		g.fault("%s sink=log error=%q", FaultPrefix, "a log line could not be encoded")
 		return
 	}
 	g.logMu.Lock()
 	defer g.logMu.Unlock()
-	_, _ = g.cfg.Log.Write(append(line, '\n'))
+	g.put(&g.logSink, append(line, '\n'))
 }
 
 func (g *Gateway) alarm(line string) {
 	g.logMu.Lock()
 	defer g.logMu.Unlock()
-	_, _ = io.WriteString(g.cfg.Alarm, line+"\n")
+	g.put(&g.alarmSink, []byte(line+"\n"))
+}
+
+// health answers the owner's probe: 200 when both sinks write, 503 when not.
+// It needs no token and says nothing else.
+func (g *Gateway) health(w http.ResponseWriter) {
+	if g.Healthy() {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, "{\"status\":\"ok\"}\n")
+		return
+	}
+	writeRefusal(w, &Refusal{Status: http.StatusServiceUnavailable, Code: CodeLogUnavailable, Detail: "the gateway cannot write its call log or alarm; tell the owner"})
 }
 
 // writeRefusal sends the refusal as JSON. The body holds the code and a fixed
@@ -342,6 +391,12 @@ func (g *Gateway) model(w http.ResponseWriter, r *http.Request, e *entry) *Refus
 		e.Reason = "http " + http.StatusText(resp.StatusCode)
 		return &Refusal{Status: http.StatusBadGateway, Code: CodeUpstreamError, Detail: "the model service refused the call; tell the owner"}
 	}
+	limit := g.cfg.MaxModelReply
+	if resp.ContentLength > limit {
+		// Declared too large: refuse before one byte is relayed.
+		e.Reason = "declared " + strconv.FormatInt(resp.ContentLength, 10) + " bytes, limit " + strconv.FormatInt(limit, 10)
+		return &Refusal{Status: http.StatusBadGateway, Code: CodeResponseTooLarge, Detail: "the model answer is larger than the gateway relays; tell the owner"}
+	}
 	if ct := resp.Header.Get("Content-Type"); ct != "" {
 		w.Header().Set("Content-Type", ct)
 	}
@@ -349,13 +404,30 @@ func (g *Gateway) model(w http.ResponseWriter, r *http.Request, e *entry) *Refus
 	w.WriteHeader(http.StatusOK)
 	ctl := http.NewResponseController(w)
 	buf := make([]byte, 8192)
+	var sent int64
 	for {
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {
-			if _, werr := w.Write(buf[:n]); werr != nil {
-				return nil
+			chunk := buf[:n]
+			over := sent+int64(n) > limit
+			if over {
+				chunk = chunk[:limit-sent]
 			}
-			_ = ctl.Flush()
+			if len(chunk) > 0 {
+				if _, werr := w.Write(chunk); werr != nil {
+					return nil
+				}
+				sent += int64(len(chunk))
+				_ = ctl.Flush()
+			}
+			if over {
+				// Cut the stream. The status is already sent, so the end is
+				// an aborted connection (the judge's read fails; it never
+				// sees a clean end) and a log line that names the reason.
+				e.Refused = CodeResponseTooLarge
+				e.Reason = "relayed " + strconv.FormatInt(sent, 10) + " bytes, limit " + strconv.FormatInt(limit, 10)
+				panic(http.ErrAbortHandler)
+			}
 		}
 		if rerr != nil {
 			return nil
