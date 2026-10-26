@@ -2,6 +2,7 @@ package hmem_test
 
 import (
 	"errors"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -51,6 +52,10 @@ type countedFile struct {
 	body   *strings.Reader
 	closed bool
 	read   int64
+	// closeErr is what Close returns, to model a close that fails.
+	closeErr error
+	// readErr is what Read returns after the body, to model a failed read.
+	readErr error
 }
 
 func newCountedFile(size int64, supply int) *countedFile {
@@ -60,10 +65,13 @@ func newCountedFile(size int64, supply int) *countedFile {
 func (c *countedFile) Read(p []byte) (int, error) {
 	n, err := c.body.Read(p)
 	c.read += int64(n)
+	if err == io.EOF && c.readErr != nil {
+		err = c.readErr
+	}
 	return n, err
 }
 
-func (c *countedFile) Close() error { c.closed = true; return nil }
+func (c *countedFile) Close() error { c.closed = true; return c.closeErr }
 
 func (c *countedFile) Stat() (os.FileInfo, error) { return sizedInfo{c.size}, nil }
 
