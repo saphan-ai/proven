@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates check-links clean
+.PHONY: help build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -62,6 +62,9 @@ e2e-failed-run: ## Negative control: with an old review comment present and the 
 
 check-e2e-parse: ## Check e2e's parsers offline against statuses a live Gitea served
 	@sh $(ROOT)/lab/scripts/e2e-parse-check.sh
+
+zetaris-usl-parity: ## Ask Zetaris the same requests with and without the semantic layer and require equal rows (skipped by name when the Zetaris settings are not set)
+	@cd $(ROOT) && go test -count=1 -run 'TestParityLive$$' -v ./internal/usl/
 
 check-lab-gates: ## Check offline, with a stub docker, that make up refuses the retired LAB_BIND and that make push publishes only digests that were all scanned
 	@sh $(ROOT)/lab/scripts/check-lab-gates.sh

@@ -91,3 +91,40 @@ func TestAContainerWithNoRuntimeIsTheProverOffForABreakageRun(t *testing.T) {
 		t.Fatalf("%v %#v", err, out)
 	}
 }
+
+// TestABreakageTargetOutsideEveryPackageIsNotRun proves a target go test cannot
+// resolve at the module root is named as a run that could not happen, not a
+// package that failed: a directory holding no Go file, and a directory inside a
+// nested module. A package directory and the whole module resolve. The mutated
+// line is unresolvable's verdict: made to return "" always, the first two cases
+// fail.
+func TestABreakageTargetOutsideEveryPackageIsNotRun(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel string) {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("scripts/build.sh")
+	write("pkg/a.go")
+	write("tools/go.mod")
+	write("tools/gen/main.go")
+	for _, c := range []struct {
+		target string
+		notRun bool
+	}{
+		{"./scripts", true},
+		{"./tools/gen", true},
+		{"./tools/...", true},
+		{"./pkg", false},
+		{"./...", false},
+	} {
+		if got := unresolvable(root, c.target); (got != "") != c.notRun {
+			t.Errorf("unresolvable(%s) = %q, want not run %v", c.target, got, c.notRun)
+		}
+	}
+}

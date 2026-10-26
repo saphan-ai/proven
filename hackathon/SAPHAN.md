@@ -67,6 +67,25 @@ review of one of Proven's changes.
 
 ![A review order in Saphan Studio: the order as the owner sees it, the passkey signature, and what the reviewer must check](../docs/images/saphan-review-order.png)
 
+### What comes back
+
+A review returns one verdict, a short abstract a person can read in a minute, and the full notes behind it. Three real
+reviews of Proven's changes from this week, as the owner reads them:
+
+**Reject.** Two output formats asked for the same path would silently overwrite each other, so the reviewer stopped
+the change, even though every existing test passed.
+
+![A review verdict in Saphan Studio: reject](../docs/images/saphan-review-reject.png)
+
+**Accept with conditions.** The check of Proven's container image can never report "ok" when either side fails, but
+the reviewer asked for the Docker runs to be shown before the change could merge.
+
+![A review verdict in Saphan Studio: accept with conditions](../docs/images/saphan-review-conditions.png)
+
+**Accept.** The proof level now appears in JSON and SARIF output; every test, schema check and unplug check passed.
+
+![A review verdict in Saphan Studio: accept](../docs/images/saphan-review-accept.png)
+
 ### The hardware this fleet runs on
 
 **One person, some silicon, and a fleet with rules and orchestration.**

@@ -88,6 +88,22 @@ func TestOSVTableNameIsRefusedOnOpen(t *testing.T) {
 	}
 }
 
+// TestOSVIDViewNameIsRefusedOnOpen proves the same for the advisory-id view name.
+func TestOSVIDViewNameIsRefusedOnOpen(t *testing.T) {
+	// Mutated field: PROVEN_OSV_ID_VIEW.
+	_, err := review.Open(review.Options{
+		Sample: false,
+		LogDir: t.TempDir(),
+		Env: liveEnv("http://127.0.0.1:9", map[string]string{
+			"PROVEN_OSV_ID_VIEW": "px_usl.bad;drop",
+		}),
+	})
+	var cfg *review.ConfigError
+	if err == nil || !errorAs(err, &cfg) || cfg.Field != "PROVEN_OSV_ID_VIEW" || cfg.Value != "px_usl.bad;drop" {
+		t.Fatal(err)
+	}
+}
+
 // TestKEVViewNameIsRefusedOnOpen proves that a KEV view name that is not a plain identifier is refused
 // on Open, so it never reaches a query.
 func TestKEVViewNameIsRefusedOnOpen(t *testing.T) {
