@@ -62,6 +62,38 @@ func (s *Store) ledgerHas(action, id, proposal string) (bool, error) {
 	return false, nil
 }
 
+// approvedLines returns the ids of the proposals whose "dream_approved" ledger
+// line exists, in one pass over the log. The caller holds s.mu.
+func (s *Store) approvedLines() (map[string]bool, error) {
+	out := map[string]bool{}
+	f, err := os.Open(s.auditPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return out, nil
+		}
+		return nil, fmt.Errorf("hmem: ledger: %w", err)
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+	for sc.Scan() {
+		if len(sc.Bytes()) == 0 {
+			continue
+		}
+		var e LedgerEntry
+		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
+			return nil, fmt.Errorf("hmem: ledger line is not valid JSON: %w", err)
+		}
+		if e.Action == "dream_approved" {
+			out[e.MemoryID] = true
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("hmem: ledger: %w", err)
+	}
+	return out, nil
+}
+
 // Approve is the human's decision to keep a proposal. An insight becomes a
 // long-term factual record and an invariant a long-term preference, each with
 // derivedFrom lineage; a domain proposal moves the named records to the
@@ -117,10 +149,11 @@ func (s *Store) completeApproval(p Proposal) (*Record, error) {
 		// A source that is absent means no record can move. Refusing here,
 		// before the approving intent is written, keeps a proposal that did
 		// nothing from ever reaching "approved" or a dream_approved line.
-		if p.Status != ProposalApproved {
-			if err := s.requireLiveSources(p); err != nil {
-				return nil, err
-			}
+		// The check holds in every state, "approved" too: an approval whose
+		// final audit write failed must not record itself over a source that
+		// is gone, or no record would have moved.
+		if err := s.requireLiveSources(p); err != nil {
+			return nil, err
 		}
 		// ADR-0018 point 3: the intent is durable before the first record
 		// moves, so an interruption after the move can be told from a
@@ -249,7 +282,7 @@ func (s *Store) recoverApprovals() error {
 			// A source that is gone cannot be moved. Like an insight whose
 			// record is missing, the proposal is left for an explicit Approve,
 			// which refuses it by name; Open must not fail over it.
-			if p.Status == ProposalApproving && s.requireLiveSources(p) != nil {
+			if s.requireLiveSources(p) != nil {
 				continue
 			}
 		} else if _, ok := s.records[approvedRecordID(p.ID)]; !ok {

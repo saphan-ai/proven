@@ -307,27 +307,57 @@ func (s *Store) Reject(id string) error {
 	return s.audit("dream_rejected", p.ID, "dreaming")
 }
 
-// voidLiveProposals ends every proposed or approving proposal with the state
-// "void" and the given reason, in one dream-log write so the voiding is all or
-// nothing. The caller holds s.mu.
-func (s *Store) voidLiveProposals(reason string) error {
+// voidLiveProposals ends every unfinished proposal with the state "void" and
+// the given reason, in one dream-log write so the voiding is all or nothing.
+// Unfinished means proposed, approving, or approved with no "dream_approved"
+// ledger line yet: that last one is an approval whose final audit write failed,
+// and recovery would finish it, so it names sources the caller is about to
+// remove. It returns the proposals as they were, so a caller whose next step
+// fails can put them back with restoreProposals. The caller holds s.mu.
+func (s *Store) voidLiveProposals(reason string) ([]Proposal, error) {
 	all, err := s.proposals()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var voided []Proposal
+	var finished map[string]bool
+	var before, voided []Proposal
 	for _, p := range all {
-		if p.Status != ProposalProposed && p.Status != ProposalApproving {
+		switch p.Status {
+		case ProposalProposed, ProposalApproving:
+		case ProposalApproved:
+			if finished == nil {
+				if finished, err = s.approvedLines(); err != nil {
+					return nil, err
+				}
+			}
+			if finished[p.ID] {
+				continue
+			}
+		default:
 			continue
 		}
+		before = append(before, p)
 		p.Status = ProposalVoid
 		p.Reason = reason
 		voided = append(voided, p)
 	}
 	if len(voided) == 0 {
+		return nil, nil
+	}
+	if err := s.appendDream(voided...); err != nil {
+		return nil, err
+	}
+	return before, nil
+}
+
+// restoreProposals appends the earlier state of proposals a failed step had
+// voided. The dream log is append-only, so the newest line wins and the
+// restore is a new line, not a rewrite. The caller holds s.mu.
+func (s *Store) restoreProposals(before []Proposal) error {
+	if len(before) == 0 {
 		return nil
 	}
-	return s.appendDream(voided...)
+	return s.appendDream(before...)
 }
 
 // truncateRunes cuts text to at most n runes.

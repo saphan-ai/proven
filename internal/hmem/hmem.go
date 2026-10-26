@@ -448,18 +448,25 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 // A failed audit or persist leaves the records and the sequence as they were.
 //
 // The rule: a proposal never outlives the records it names. Clear first ends
-// every proposed or approving dream proposal with the durable state "void" and
-// the reason "cleared". The reset sequence hands out the same ids again, and a
+// every unfinished dream proposal (proposed, approving, or approved with its
+// final dream_approved line missing) with the durable state "void" and the
+// reason "cleared". The reset sequence hands out the same ids again, and a
 // proposal that survived would bind its old content to unrelated new records
-// (a false lineage). A voided proposal is refused by Approve by name. The void
-// is written before the records go, so a stop between the two leaves records
-// without a live proposal, never a proposal whose sources are gone; if the
-// clear itself then fails, the proposals stay void and dreaming makes new ones.
-// Approved and rejected proposals are history and stay as they are.
+// (a false lineage). A voided proposal is refused by Approve by name. Approved
+// and rejected proposals that finished are history and stay as they are.
+//
+// Clear is one transition across proposal and record state (ADR-0018 point 3:
+// no half-applied change). The order of writes is: 1. the void lines in the
+// dream log; 2. the clear audit line; 3. state.json with no records. If step 2
+// or 3 fails, Clear restores memory and appends the earlier state of every
+// voided proposal, so an error leaves records and proposals as they were. If
+// that restore write fails too, the error names the proposals left void: void
+// is the safe side, since it can bind nothing, and dreaming makes new ones.
 func (s *Store) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.voidLiveProposals(VoidReasonCleared); err != nil {
+	before, err := s.voidLiveProposals(VoidReasonCleared)
+	if err != nil {
 		return err
 	}
 	prev := s.records
@@ -468,6 +475,13 @@ func (s *Store) Clear() error {
 	s.seq = 0
 	// Clear has no caller name, so the actor is the store itself.
 	if err := s.publish("clear", "all", "store", prevSeq, prev, nil); err != nil {
+		if rerr := s.restoreProposals(before); rerr != nil {
+			ids := make([]string, 0, len(before))
+			for _, p := range before {
+				ids = append(ids, p.ID)
+			}
+			return fmt.Errorf("%w; the proposals %s stay void, because restoring them failed: %v", err, strings.Join(ids, ", "), rerr)
+		}
 		return err
 	}
 	return nil
