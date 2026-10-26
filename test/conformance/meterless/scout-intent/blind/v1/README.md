@@ -62,13 +62,28 @@ A case can carry more than one tag.
 Scout Intent reads file paths and git status letters only, never contents. A
 reviewer given only the paths may reasonably answer a clarification where a
 gold label below names a kind. The labels stay as written: the file
-`cases.jsonl` and the counts in `REPORT.md` are not changed. A different label
-would be a new version of the set and a new measurement.
+`cases.jsonl` is not changed. A different label would be a new version of the
+set and a new measurement.
 
-Six labels are disputed this way (the six cases below). The 30 of 46 match
+The counts in `REPORT.md` did change once, and not because of a label. The
+first run measured the kind on the change registry with no security patterns
+and read 30 of 46 match. A review builds that registry with its default
+security patterns, under which every manifest and lockfile counts as security.
+The report now measures the kind that way and reads 26 of 46 match, 20 miss, 6
+lighter-kind answers. The measurement changed; the labels did not.
+
+Six labels are disputed this way (the six cases below). The 26 of 46 match
 figure in `REPORT.md` counts them against the frozen labels, so wherever it is
 quoted it carries this qualification: for those six cases a clarification
 would be a defensible answer.
+
+- Not one of the six, and recorded here as a separate inconsistency:
+  `blind-mis-manifest-code-01` (`cases.jsonl` line 26). The frozen label is a
+  clarification, but the rule under Judgement calls above says a change that
+  touches install-time scripts is expected `change.security`, and the case's
+  own `why` calls `src/postinstall.js` a new install-time script. The label
+  contradicts the rule. It stays as written; a reviewer applying the rule would
+  expect `change.security`.
 
 - `blind-lookalike-02` (`README.mԁ`): the extension has a non-Latin letter, so
   the path does not establish a prose file. A path-only clarification is a

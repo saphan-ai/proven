@@ -83,13 +83,13 @@ func (a blindAnswer) String() string {
 }
 
 // blindClassify runs one change through the same calls internal/review/plan.go's choosePlan makes to
-// pick a kind: the shipped change registry with no extra security patterns, Decide on the formatted
-// change, then the review's two rules: a security signal is never outvoted, and an ambiguous or
+// pick a kind: the change registry with the review's default security patterns (blindSecurityPatterns),
+// Decide on the formatted change, then the review's two rules: a security signal is never outvoted, and an ambiguous or
 // not-high-band decision is a clarification (the review runs the full plan and names no kind).
 // This is the kind only. The plan the review then runs is measured separately, by blindLivePlan.
 func blindClassify(t *testing.T, prompt string) blindAnswer {
 	t.Helper()
-	reg, err := scout.ChangeRegistry(nil)
+	reg, err := scout.ChangeRegistry(blindSecurityPatterns)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,6 +175,20 @@ type livePlan struct {
 	Class   string // the review class the review ran in
 	Doubled bool   // whether the review owes a second review; it is run only when a special reviewer is configured
 	Trace   string // the plan line as the review wrote it, quoted in the report beside the verdict
+}
+
+// blindSecurityPatterns are the patterns a review with no proven.yaml hands to scout.ChangeRegistry: the
+// Class security rules of defaultPathRules in internal/review/config.go. The review package keeps them
+// unexported, so the harness holds its own copy; a manifest or lockfile matches here, so the review reads
+// it as security, not dependency. Measuring with a nil registry would answer a different question than a
+// review asks. Drift: the kind and trace quoted in every report row come from the review itself, so a
+// drift in this copy shows as a kind column that disagrees with its own quoted trace.
+var blindSecurityPatterns = []string{
+	"**/auth/**", "**/payment*/**", "**/*secret*", "**/migrations/**",
+	"go.mod", "go.sum", "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock",
+	"Cargo.toml", "Cargo.lock", "requirements.txt", "Pipfile.lock", "poetry.lock", "Gemfile.lock",
+	"composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts",
+	"libs.versions.toml", "gradle.lockfile",
 }
 
 // blindClassOrder is the closed list of review classes, highest risk first (ADR-0014 point 7). The review
@@ -519,7 +533,7 @@ func blindReport(cases []blindCase, answers []blindAnswer, plans []*livePlan) st
 	fmt.Fprintf(&b, "# Scout Intent on the blind set, v1: report\n\n")
 	fmt.Fprintf(&b, "Scout Intent ran once over the frozen set. Nothing was changed to improve a result. Every miss is as it came out.\n\n")
 	fmt.Fprintf(&b, "- Scout Intent code measured: commit `%s`.\n- Set frozen at: commit `%s`.\n", blindRunCommit, blindSetCommit)
-	fmt.Fprintf(&b, "- Kind measured by: `scout.ChangeRegistry(nil)` (the shipped registry, no extra security patterns), `Decide` on the formatted change, then the two kind rules of `choosePlan` in `internal/review/plan.go` (a security candidate wins; an ambiguous or not-high decision is a clarification). This is the kind Scout Intent chose.\n")
+	fmt.Fprintf(&b, "- Kind measured by: `scout.ChangeRegistry` with the review's default security patterns (the shipped registry plus the Class security rules of `defaultPathRules`, held in the harness as `blindSecurityPatterns`), `Decide` on the formatted change, then the two kind rules of `choosePlan` in `internal/review/plan.go` (a security candidate wins; an ambiguous or not-high decision is a clarification). This is the kind Scout Intent chose.\n")
 	fmt.Fprintf(&b, "- Plan measured by: `review.Open` and `Review` (live mode, against a local stub that refuses every model call, so no model runs) on a real git change built from the case's file list, with `scout_intent: on` and every other setting at its shipped default. The plan is read from the plan line the review writes on its trace before any agent runs. It is measured only for the lighter-kind answers below. `scout_intent` is off in the shipped default, and then every review runs the full plan.\n")
 	fmt.Fprintf(&b, "- Regenerate: `go test -count=1 -run TestBlindSet ./internal/scout/ -args -blind-report`.\n")
 	fmt.Fprintf(&b, "- Not measured: the plan for any case whose kind is not a lighter-kind answer; the file contents (each file in the built change holds a one-line placeholder, no shebang, not executable, so the prose check judges the name and the git mode only); any model verdict; the second review itself. A doubled plan owes a second review, and it is run only when a special reviewer is configured (none is configured by default), so this report compares the obligation the review states (its class and its doubling), not a second review that ran.\n\n")
