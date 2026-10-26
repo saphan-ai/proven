@@ -2,6 +2,7 @@ package change
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync/atomic"
@@ -53,14 +54,15 @@ func GitCommand(args ...string) *exec.Cmd {
 }
 
 // withoutAttributes returns args with the switches that make git read no
-// attribute from anywhere but .git/info/attributes, when offline. A git command
+// attribute at all, when offline. A git command
 // that compares the working tree with a commit converts each file it compares
 // (the clean filter), and the filter driver is a program the repository's
 // .gitattributes and the user's git configuration choose, not Proven (git-lfs is
 // one). The attributes of the commit and of the working tree are read from an
 // empty tree, the user's attributes file is /dev/null, and GitCommand sets
-// GIT_ATTR_NOSYSTEM. The empty tree's id depends on the repository's hash, so
-// git names it. Needs git 2.40 or later; an older git refuses the switch by name.
+// GIT_ATTR_NOSYSTEM; .git/info/attributes is read by git whatever the switches
+// say, so a clone that sets anything there is refused (refuseInfoAttributes).
+// The empty tree's id depends on the repository's hash, so git names it. Needs git 2.40 or later; an older git refuses the switch by name.
 // Online, args come back unchanged.
 func withoutAttributes(args []string) ([]string, error) {
 	if !offline.Load() {
@@ -70,8 +72,37 @@ func withoutAttributes(args []string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("git: cannot name the empty tree: %w", err)
 	}
+	if err := refuseInfoAttributes(repoDir(args)); err != nil {
+		return nil, err
+	}
 	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null", "-c", "core.fsmonitor=false"}
 	return append(pre, args...), nil
+}
+
+// refuseInfoAttributes refuses a clone whose .git/info/attributes sets any
+// attribute. git reads that file whatever the switches above say, and a line in
+// it can name a filter driver, a program the clone's configuration chooses and
+// Proven does not judge (ADR-0034). A file that is absent, or holds only blank
+// lines and comments, sets nothing and is not refused.
+func refuseInfoAttributes(dir string) error {
+	out, err := GitCommand("-C", dir, "rev-parse", "--path-format=absolute", "--git-path", "info/attributes").Output()
+	if err != nil {
+		return fmt.Errorf("git: cannot name .git/info/attributes: %w", err)
+	}
+	path := strings.TrimSpace(string(out))
+	body, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("PROVEN_NETWORK=local cannot read %s, which can choose a filter program git would start: %w", path, err)
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
+			return fmt.Errorf("PROVEN_NETWORK=local refuses this clone: %s sets git attributes, and one can choose a filter program that git starts while it reads the working tree; next: empty or remove that file, or review a clone without it", path)
+		}
+	}
+	return nil
 }
 
 // offlineMessage names a refusal to fetch. git's own words for it are kept, so
