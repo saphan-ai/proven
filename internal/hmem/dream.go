@@ -133,6 +133,16 @@ func relatedness(a, b Record) float64 {
 // related records, domain suggestions for uncategorized records, and
 // invariants from preference and correction records. It creates no record and
 // changes no record: only Approve does (the approval boundary, ADR-0018 point 2).
+//
+// When a domain proposal can arise: only for a stored record whose domain is
+// "general" while classifyDomain now returns something else. Add stores the
+// result of that same pure function on the same content, tags and type, and no
+// public call changes those three afterwards, so a store filled through Add,
+// Query, Feedback, SleepExecute and Approve never yields one. It arises when
+// the stored domain is stale: state written by a build with different
+// classifier rules, or restored from such a backup. That is by design: the
+// proposal is the way a person reviews a classifier change, not a second
+// opinion on the same rules. The classifier's rules are not changed here.
 func (s *Store) Dream() ([]Proposal, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
