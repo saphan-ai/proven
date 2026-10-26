@@ -237,6 +237,11 @@ fi
 if ! sh "$ROOT/lab/scripts/reports.sh"; then
   echo "up: not every report page was built; the Report links say which (make reports builds them again)" >&2
 fi
+# The Nightshift dashboard's data: the public receipts of Proven's own calls, when the file is there. Without it the dashboard
+# says so; the lab does not wait on it.
+if ! sh "$ROOT/lab/scripts/nightshift-receipts.sh"; then
+  echo "up: the Nightshift receipts were not loaded (make nightshift-receipts tries again)" >&2
+fi
 ui_done "The demo repository and its $(ui_pr_count) pull requests are created, and the CI runner is running"
 
 # Proven reviews each pull request in the runner. The banner appears when the dashboards have data, so this waits for
