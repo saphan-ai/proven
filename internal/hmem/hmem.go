@@ -446,9 +446,22 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 // Clear drops every record, writes one clear audit line, resets the id
 // sequence, and writes the empty store. Earlier audit lines stay.
 // A failed audit or persist leaves the records and the sequence as they were.
+//
+// The rule: a proposal never outlives the records it names. Clear first ends
+// every proposed or approving dream proposal with the durable state "void" and
+// the reason "cleared". The reset sequence hands out the same ids again, and a
+// proposal that survived would bind its old content to unrelated new records
+// (a false lineage). A voided proposal is refused by Approve by name. The void
+// is written before the records go, so a stop between the two leaves records
+// without a live proposal, never a proposal whose sources are gone; if the
+// clear itself then fails, the proposals stay void and dreaming makes new ones.
+// Approved and rejected proposals are history and stay as they are.
 func (s *Store) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.voidLiveProposals(VoidReasonCleared); err != nil {
+		return err
+	}
 	prev := s.records
 	prevSeq := s.seq
 	s.records = map[string]Record{}

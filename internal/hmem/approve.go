@@ -91,6 +91,11 @@ func (s *Store) Approve(id string) (*Record, error) {
 	if !found || p.Status == ProposalRejected {
 		return nil, fmt.Errorf("hmem: no pending proposal %s", id)
 	}
+	if p.Status == ProposalVoid {
+		// Clear removed the sources; approving now would bind the old content
+		// to whatever records reuse those ids.
+		return nil, fmt.Errorf("hmem: proposal %s is void (%s): the records it names were removed, so it cannot be approved", id, p.Reason)
+	}
 	if p.Status == ProposalApproved {
 		done, err := s.ledgerHas("dream_approved", p.ID, "")
 		if err != nil {
@@ -109,6 +114,14 @@ func (s *Store) Approve(id string) (*Record, error) {
 func (s *Store) completeApproval(p Proposal) (*Record, error) {
 	var created *Record
 	if p.Type == "domain" {
+		// A source that is absent means no record can move. Refusing here,
+		// before the approving intent is written, keeps a proposal that did
+		// nothing from ever reaching "approved" or a dream_approved line.
+		if p.Status != ProposalApproved {
+			if err := s.requireLiveSources(p); err != nil {
+				return nil, err
+			}
+		}
 		// ADR-0018 point 3: the intent is durable before the first record
 		// moves, so an interruption after the move can be told from a
 		// proposal nobody has approved.
@@ -160,10 +173,8 @@ func (s *Store) ensureApprovedRecord(p Proposal) (Record, error) {
 		// because a record that is absent may have been removed on purpose.
 		// Sleep keeps the sources of a pending proposal, so this only meets
 		// records removed some other way.
-		for _, d := range p.DerivedFrom {
-			if _, live := s.records[d]; !live {
-				return Record{}, fmt.Errorf("hmem: proposal %s names source %s, which is not a live record; it cannot be approved", p.ID, d)
-			}
+		if err := s.requireLiveSources(p); err != nil {
+			return Record{}, err
 		}
 		typ := TypePreference
 		if p.Type == "insight" {
@@ -200,6 +211,17 @@ func (s *Store) ensureApprovedRecord(p Proposal) (Record, error) {
 	return rec, nil
 }
 
+// requireLiveSources refuses a proposal that names a source which is not a
+// live record, naming the first one. The caller holds s.mu.
+func (s *Store) requireLiveSources(p Proposal) error {
+	for _, d := range p.DerivedFrom {
+		if _, live := s.records[d]; !live {
+			return fmt.Errorf("hmem: proposal %s names source %s, which is not a live record; it cannot be approved", p.ID, d)
+		}
+	}
+	return nil
+}
+
 // recoverApprovals finishes the approvals an earlier run left half done: a
 // proposal whose record exists but whose approved state or ledger line is
 // missing. It needs no person. A proposal whose record is missing is left for
@@ -217,12 +239,18 @@ func (s *Store) recoverApprovals() error {
 		return err
 	}
 	for _, p := range all {
-		if p.Status == ProposalRejected {
+		if p.Status == ProposalRejected || p.Status == ProposalVoid {
 			continue
 		}
 		if p.Type == "domain" {
 			if p.Status == ProposalProposed {
 				continue // nobody decided
+			}
+			// A source that is gone cannot be moved. Like an insight whose
+			// record is missing, the proposal is left for an explicit Approve,
+			// which refuses it by name; Open must not fail over it.
+			if p.Status == ProposalApproving && s.requireLiveSources(p) != nil {
+				continue
 			}
 		} else if _, ok := s.records[approvedRecordID(p.ID)]; !ok {
 			continue

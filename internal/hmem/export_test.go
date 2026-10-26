@@ -10,6 +10,14 @@ func (s *Store) FailWrites(hook func(op string) error) {
 	s.writeHook = hook
 }
 
+// LedgerHas reports whether the audit log holds a line of this action for this
+// memory id, so a test can prove a line was or was not written.
+func LedgerHas(s *Store, action, id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ledgerHas(action, id, "")
+}
+
 // ProposalStatus returns the newest status of one proposal, or "" when the
 // store has no such proposal. It lets a test read the dream log's last state.
 func ProposalStatus(s *Store, id string) string {

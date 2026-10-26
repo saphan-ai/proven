@@ -72,7 +72,9 @@ auto-resolve, the learning audit and dreaming with approval; the committed score
 `test/conformance/meterless/SCORECARD_hmem.txt`. No part of it calls a model: dreaming clusters what the store holds,
 and a proposal becomes a record only when a person approves it. Sleep never archives a record that a pending
 proposal names as a source, so an approved record's lineage always names live records; approval refuses a proposal
-whose source is gone.
+whose source is gone, for an insight, an invariant and a domain change alike. Clear ends every pending proposal
+(state `void`, reason `cleared`), so a proposal never outlives the records it names and cannot be bound to new
+records that reuse an id.
 
 ## Modes
 

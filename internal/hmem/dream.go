@@ -29,7 +29,14 @@ const (
 	ProposalApproving = "approving"
 	ProposalApproved  = "approved"
 	ProposalRejected  = "rejected"
+	// ProposalVoid marks a proposal whose source records were removed by Clear.
+	// It is final: a proposal never outlives the records it names, so a later
+	// record that reuses an id cannot be bound to it.
+	ProposalVoid = "void"
 )
+
+// VoidReasonCleared is the reason written on a proposal Clear voided.
+const VoidReasonCleared = "cleared"
 
 // Proposal is one thing dreaming suggests: an insight, a domain change or an
 // invariant. It is a suggestion only; no record exists for it until a person
@@ -41,6 +48,8 @@ type Proposal struct {
 	DerivedFrom     []string `json:"derivedFrom"`
 	SuggestedDomain string   `json:"suggestedDomain,omitempty"`
 	Status          string   `json:"status"`
+	// Reason says why a proposal is void; it is empty in every other state.
+	Reason string `json:"reason,omitempty"`
 }
 
 // dreamLog is the file proposals live in, beside the audit log. Each line is
@@ -296,6 +305,29 @@ func (s *Store) Reject(id string) error {
 		return err
 	}
 	return s.audit("dream_rejected", p.ID, "dreaming")
+}
+
+// voidLiveProposals ends every proposed or approving proposal with the state
+// "void" and the given reason, in one dream-log write so the voiding is all or
+// nothing. The caller holds s.mu.
+func (s *Store) voidLiveProposals(reason string) error {
+	all, err := s.proposals()
+	if err != nil {
+		return err
+	}
+	var voided []Proposal
+	for _, p := range all {
+		if p.Status != ProposalProposed && p.Status != ProposalApproving {
+			continue
+		}
+		p.Status = ProposalVoid
+		p.Reason = reason
+		voided = append(voided, p)
+	}
+	if len(voided) == 0 {
+		return nil
+	}
+	return s.appendDream(voided...)
 }
 
 // truncateRunes cuts text to at most n runes.
