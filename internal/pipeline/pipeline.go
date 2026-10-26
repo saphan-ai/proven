@@ -127,7 +127,7 @@ type Options struct {
 	// It only observes: nothing a review decides reads it.
 	Telemetry *telemetry.T
 	// Markov is the bounded-steps setting (ADR-0048). The zero value is off: the Planner reads the change whole
-	// and the Fixer sees every earlier attempt, as before. Sample mode leaves it unset.
+	// and the Fixer sees every earlier attempt, as before. Review sets it in live and sample mode (ADR-0053).
 	Markov markov.Settings
 	// Stores holds the switches of H-MEM and the World Model (ADR-0053). The zero value leaves both on.
 	Stores StoreSettings
