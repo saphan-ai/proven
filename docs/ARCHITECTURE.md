@@ -92,6 +92,19 @@ reads a longer trail by cursor. The index is built from the log by the first loo
 log that shrinks is read again from the start. The growth tests assert the bytes read stay within twice the log size
 over 200 lookups.
 
+The work of a call does not follow history either. A proposal is found by its id in one lookup; `Pending`, `Approve`
+and the sleep guards read only the proposals that wait (an index kept per epoch, so a Clear leaves nothing to walk), and
+`Pending` returns one page of at most 1,000 with `PendingPage` for the rest. A sleep takes its backup id from a
+persisted sequence (`backups/SEQ`), written before the backup and stepping past a file already at that number, so it
+never lists the backups directory; a store with backups and no sequence file is listed once to migrate. Growth tests
+count proposals visited and directory listings, with a whole-history scan as the red control.
+
+An append to either log leaves the file whole or as it was. The size before the append is kept; a failed write, sync or
+close truncates back to it and syncs the cut, so a rolled-back change leaves no line behind. If the cut itself fails,
+the error names the log and the offset after which its tail cannot be trusted. A torn tail from a crash is skipped by
+readers and cut before the next append. A domain approval records each record's previous domain in its `approving` line
+before the first record moves, so a line written after an interruption still carries both states.
+
 ## Modes
 
 - **Sample** (`--sample`): recorded answers, outcomes and rows; no network. See [SAMPLE_MODE.md](SAMPLE_MODE.md).
