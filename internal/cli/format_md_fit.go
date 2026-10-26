@@ -26,9 +26,11 @@ const (
 // The first level is the full proof; each next one keeps a smaller share of it, so
 // a large result still shows some proof of every finding rather than none of any.
 type mdLimits struct {
-	rows, out         int // rows of one query and bytes of one test, tool or fix output shown
-	cutRows, cutBytes int // what one finding's block left out, filled while it is written
-	cutEntries        int // pieces of evidence and fix edits the least proof left out (mdLeast)
+	rows, out         int  // rows of one query and bytes of one test, tool or fix output shown
+	cutRows, cutBytes int  // what one finding's block left out, filled while it is written
+	cutEntries        int  // pieces of evidence the least proof left out (mdLeast)
+	cutColumns        int  // query columns the least proof left out, with their cells (mdLeast)
+	cutFix            bool // the least proof left the fix out (mdLeast)
 }
 
 var mdLevels = []mdLimits{{rows: 20, out: 4000}, {rows: 10, out: 1500}, {rows: 5, out: 500}, {rows: 2, out: 200}, {rows: 1, out: 80}}
@@ -108,22 +110,33 @@ func mdFit(result review.Result) string {
 func mdLeast(f review.Finding) (review.Finding, mdLimits) {
 	const name, cols = 80, 4
 	lim := mdLevels[len(mdLevels)-1]
+	// short shortens s to name bytes and counts the bytes it removed, so the
+	// block's cut line says what the least proof left out.
+	short := func(s string) string {
+		kept, cut := cutRaw(s, name)
+		lim.cutBytes += cut
+		if cut > 0 {
+			return kept + "…"
+		}
+		return kept
+	}
 	least := review.Finding{ID: f.ID, RuleID: f.RuleID, Severity: f.Severity, Title: f.Title, Message: f.Message}
 	if len(f.Evidence) > 0 {
 		e := f.Evidence[0]
 		switch {
 		case e.Query != nil:
 			q := *e.Query
-			q.Engine, q.Snapshot, q.Form = mdShort(q.Engine, name), mdShort(q.Snapshot, name), mdShort(q.Form, name)
+			q.Engine, q.Snapshot, q.Form = short(q.Engine), short(q.Snapshot), short(q.Form)
 			// New slices: the finding's own columns and rows stay as they are for the
 			// levels above and for the JSON and SARIF writers.
 			columns := q.Columns
 			if len(columns) > cols {
+				lim.cutColumns += len(columns) - cols
 				columns = columns[:cols]
 			}
 			q.Columns = make([]string, len(columns))
 			for i, c := range columns {
-				q.Columns[i] = mdShort(c, name)
+				q.Columns[i] = short(c)
 			}
 			if len(q.Rows) > 0 {
 				lim.cutRows += len(q.Rows) - 1
@@ -131,28 +144,26 @@ func mdLeast(f review.Finding) (review.Finding, mdLimits) {
 				if len(row) > len(q.Columns) {
 					row = row[:len(q.Columns)]
 				}
-				short := make([]string, len(row))
+				cells := make([]string, len(row))
 				for i, c := range row {
-					short[i] = mdShort(c, name)
+					cells[i] = short(c)
 				}
-				q.Rows = [][]string{short}
+				q.Rows = [][]string{cells}
 			}
 			e.Query = &q
 		case e.Test != nil:
 			t := *e.Test
-			t.Name, t.Path = mdShort(t.Name, name), mdShort(t.Path, name)
+			t.Name, t.Path = short(t.Name), short(t.Path)
 			e.Test = &t
 		case e.Tool != nil:
 			t := *e.Tool
-			t.Tool, t.Version = mdShort(t.Tool, name), mdShort(t.Version, name)
+			t.Tool, t.Version = short(t.Tool), short(t.Version)
 			e.Tool = &t
 		}
 		least.Evidence = []review.Evidence{e}
 		lim.cutEntries += len(f.Evidence) - 1
 	}
-	if f.Fix != nil {
-		lim.cutEntries++ // the fix itself, its edits and runs with it
-	}
+	lim.cutFix = f.Fix != nil // the fix itself, its edits and runs with it
 	return least, lim
 }
 

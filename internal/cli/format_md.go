@@ -149,9 +149,18 @@ func mdBlock(f review.Finding, lim mdLimits) string {
 		mdEvidence(&b, e, &lim)
 	}
 	mdFix(&b, f.Fix, &lim)
+	var least []string
 	if lim.cutEntries > 0 {
-		fmt.Fprintf(&b, "_cut: %d more %s of evidence and fix not shown; the full evidence is in the JSON and SARIF files of this run._\n\n",
-			lim.cutEntries, pluralWord(lim.cutEntries, "piece", "pieces"))
+		least = append(least, fmt.Sprintf("%d more %s of evidence", lim.cutEntries, pluralWord(lim.cutEntries, "piece", "pieces")))
+	}
+	if lim.cutColumns > 0 {
+		least = append(least, fmt.Sprintf("%d more query %s", lim.cutColumns, pluralWord(lim.cutColumns, "column", "columns")))
+	}
+	if lim.cutFix {
+		least = append(least, "the fix")
+	}
+	if len(least) > 0 {
+		fmt.Fprintf(&b, "_cut: %s not shown; the full evidence is in the JSON and SARIF files of this run._\n\n", strings.Join(least, ", "))
 	}
 	if lim.cutRows > 0 || lim.cutBytes > 0 {
 		fmt.Fprintf(&b, "_cut: %d more %s and %d %s not shown; the full evidence is in the JSON and SARIF files of this run._\n\n",

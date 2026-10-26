@@ -684,10 +684,47 @@ func TestMarkdownKeepsTheLeastProofOfAFindingWithManyPieces(t *testing.T) {
 	if strings.Count(text, "<details>") != 1 || !strings.Contains(text, "**Failing test** `T0`") {
 		t.Fatalf("the finding lost its proof\n%.600s", text)
 	}
-	if !strings.Contains(text, "_cut: 400 more pieces of evidence and fix not shown") {
+	if !strings.Contains(text, "_cut: 399 more pieces of evidence, the fix not shown") {
 		t.Fatalf("the pieces left out are not counted\n%.2000s", text)
 	}
 	if len(f.Evidence) != 400 || len(f.Fix.Edits) != 200 {
 		t.Fatal("the writer changed the finding it rendered")
+	}
+}
+
+// TestMarkdownLeastProofCountsTheColumnsItLeavesOut proves the least proof of a
+// query announces the columns past the fourth and the bytes it shortened, so no
+// part of the proof goes unsaid (review r7 of round 3). The mutated field is the
+// column count: 6 columns name "2 more query columns"; 4 name none.
+func TestMarkdownLeastProofCountsTheColumnsItLeavesOut(t *testing.T) {
+	finding := func(cols int) review.Finding {
+		var names, row []string
+		for i := 0; i < cols; i++ {
+			names = append(names, "c"+strconv.Itoa(i))
+			row = append(row, strings.Repeat("v", 70000))
+		}
+		return review.Finding{ID: "F1", Severity: review.SeverityError, Title: "wide", Message: "m",
+			Evidence: []review.Evidence{{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{
+				SQL: "select 1", Engine: "e", Snapshot: "s", Form: "sql", Columns: names, Rows: [][]string{row},
+			}}}}
+	}
+	for _, tc := range []struct {
+		cols int
+		want bool
+	}{{6, true}, {4, false}} {
+		body, err := render("md", review.Result{Findings: []review.Finding{finding(tc.cols)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(body)
+		if len(body) > mdMaxComment {
+			t.Fatalf("cols=%d: the comment is %d bytes, over %d", tc.cols, len(body), mdMaxComment)
+		}
+		if got := strings.Contains(text, "2 more query columns"); got != tc.want {
+			t.Errorf("cols=%d: the cut line names 2 more query columns: %v, want %v\n%.1500s", tc.cols, got, tc.want, text)
+		}
+		if !regexp.MustCompile(`_cut: \d+ more rows? and [1-9]\d* bytes? not shown`).MatchString(text) {
+			t.Errorf("cols=%d: the shortened cells are not counted in bytes\n%.1500s", tc.cols, text)
+		}
 	}
 }
