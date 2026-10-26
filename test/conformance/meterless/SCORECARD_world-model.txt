@@ -7,8 +7,7 @@ World Model conformance: implementation = test/conformance/meterless/world-model
   PASS prov-001 writes without provenance are rejected
   PASS idem-001 ingest idempotency: same batch twice produces an empty diff
   PASS idem-002 the idempotency check can fail: a mutated batch changes the shape
-  FAIL bitemp-001 bitemporal edges: a superseding edge closes the old one; point-in-time queries respect validity
-       world: bitemporal graph is outside the minimum (ADR-0018)
+  PASS bitemp-001 bitemporal edges: a superseding edge closes the old one; point-in-time queries respect validity
   PASS audit-001 every mutation writes an audit entry in order
 
-  7/8 checks passed
+  8/8 checks passed

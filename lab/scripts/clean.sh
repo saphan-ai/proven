@@ -10,4 +10,5 @@ if command -v docker >/dev/null 2>&1; then
 else
   echo "docker: not found, no containers removed"
 fi
+remove_admin_password_file
 rm -rf "$ROOT/bin" "$ROOT/dist"

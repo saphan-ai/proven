@@ -15,6 +15,13 @@ const EnvTable = "PROVEN_OSV_TABLE"
 // Sample mode does not read it.
 const EnvKEVView = "PROVEN_KEV_VIEW"
 
+// EnvIDView is the environment variable that names the OSV advisory-id view,
+// the one the osv-by-advisory template reads. Sample mode does not read it.
+const EnvIDView = "PROVEN_OSV_ID_VIEW"
+
+// IDView is the advisory-id view a review queries when EnvIDView is empty.
+const IDView = querytpl.DefaultOSVIDView
+
 // DefaultTable is the table a review queries when EnvTable is empty.
 const DefaultTable = querytpl.DefaultOSVTable
 
@@ -81,7 +88,28 @@ func Environment() []envdoc.Setting {
 	return []envdoc.Setting{
 		{Name: EnvTable, Default: envdoc.Tick(DefaultTable), Description: "the OSV package table the dependency check queries; see [OSV_TABLE.md](OSV_TABLE.md). Sample mode uses the default and does not read this variable"},
 		{Name: EnvKEVView, Default: envdoc.Tick(KEVView), Description: "the KEV view an advisory's CVE alias is looked up in. Sample mode uses the default and does not read this variable"},
+		{Name: EnvIDView, Default: envdoc.Tick(IDView), Description: "the OSV advisory-id view the `osv-by-advisory` template reads; see [ZETARIS_USL.md](ZETARIS_USL.md). Sample mode uses the default and does not read this variable"},
 	}
+}
+
+// LoadIDView reads EnvIDView. An empty value is IDView.
+// ADR-0013: a value that is set and wrong refuses the run; it never falls
+// back to the default.
+func LoadIDView(env func(string) string) (string, error) {
+	if env == nil {
+		env = func(string) string { return "" }
+	}
+	raw := strings.TrimSpace(env(EnvIDView))
+	if raw == "" {
+		return IDView, nil
+	}
+	if !ValidView(raw) {
+		return "", &ConfigError{
+			Field: EnvIDView, Value: raw, Reason: "not a view name",
+			Allowed: []string{"a view or schema.view of letters, digits and underscores; empty means " + IDView},
+		}
+	}
+	return raw, nil
 }
 
 // LoadView reads EnvKEVView. An empty value is KEVView.

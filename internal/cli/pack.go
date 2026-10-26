@@ -205,6 +205,10 @@ func renderReport(path string, rep *evidence.Report) string {
 	for _, level := range levels {
 		fmt.Fprintf(&b, "  %s: %d\n", visible(level), rep.ProofCounts[level])
 	}
+	fmt.Fprintf(&b, "outcomes: %d of %d finding(s) re-derived from the recorded evidence\n", rep.Rederived, rep.Findings)
+	for _, n := range rep.NotRederived {
+		fmt.Fprintf(&b, "not re-derived: %s\n", n)
+	}
 	if len(rep.FailedSvcs) > 0 {
 		fmt.Fprintf(&b, "degraded: %s did not answer\n", visible(strings.Join(rep.FailedSvcs, ", ")))
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/review"
@@ -22,6 +23,7 @@ import (
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
+	"github.com/saphan-ai/proven/internal/trace"
 )
 
 //go:generate go run ../../cmd/settings-doc
@@ -54,6 +56,9 @@ const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says lo
 
 // packAfter follows the evidence-pack table. It is not a setting.
 const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
+
+// boundedAfter follows the bounded-steps table. It is not a setting.
+const boundedAfter = "ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
@@ -96,6 +101,11 @@ func Catalog() []envdoc.Section {
 			After:   toolAfter,
 		},
 		{
+			Heading: "Bounded steps: Meterless's Markovian engine",
+			Rows:    markov.Environment(),
+			After:   boundedAfter,
+		},
+		{
 			Heading: "One adapter call",
 			Rows:    limit.Environment(),
 		},
@@ -118,6 +128,11 @@ func Catalog() []envdoc.Section {
 			Heading: "The evidence pack",
 			Rows:    evidence.Environment(),
 			After:   packAfter,
+		},
+		{
+			Heading: "The trace",
+			Rows:    trace.Environment(),
+			After:   "The default is the user cache directory, with proven/logs under it, created so only that user can read it. An existing configured directory is narrowed to 0700. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. The link count of each file written in that directory is read on every OS. Sample mode reads this setting.",
 		},
 	}
 }

@@ -55,7 +55,7 @@ The reviewer sits behind `internal/review`. `review.Open` wires the packages bel
 | `internal/generator` | one generator interface; the sample answers are recorded by agent and prompt |
 | `internal/query` | query adapter; sample mode runs SQL on a local engine over `tables.sql` |
 | `internal/testrun` | test-run adapter; sample mode returns recorded outcomes and executes no code; the live adapter runs the test in a container, or names the Prover off when no runtime is on the path |
-| `internal/trace` | append-only JSONL trace at `logs/trace.jsonl` |
+| `internal/trace` | append-only JSONL trace at `<user cache>/proven/logs/trace.jsonl`, or under `PROVEN_LOG_DIR` |
 | `internal/candidate` | the finding record the agents pass along |
 | `internal/agent/planner` | reads the change and names the risks |
 | `internal/agent/investigator` | turns a risk into a query and runs it |

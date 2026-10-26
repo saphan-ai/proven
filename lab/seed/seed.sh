@@ -1,18 +1,13 @@
 #!/bin/sh
 # Create the demo repository, the workflow, the workflow's own account, the runner token and the pull request.
-# The admin user already exists. The password arrives in LAB_ADMIN_PASSWORD.
+# The admin user already exists. The password is read from /state/password, a file in
+# the lab's volume that make up wrote at mode 0600. It is never an environment variable.
 set -eu
 
-if [ "$(id -u)" -eq 0 ]; then
-  mkdir -p /state /reg
-  chown proven:proven /state /reg
-  chmod 700 /state /reg
-  exec su-exec proven "$0" "$@"
-fi
+umask 077
 
 : "${GITEA_INTERNAL_URL:?}"
 : "${LAB_ADMIN_USER:?}"
-: "${LAB_ADMIN_PASSWORD:?}"
 : "${LAB_BOT_USER:?}"
 : "${LAB_BOT_EMAIL:?}"
 : "${LAB_DEMO_REPO:?}"
@@ -52,11 +47,12 @@ wait_ready() {
   exit 1
 }
 
-save_password() {
+read_password() {
   if [ ! -s /state/password ]; then
-    printf '%s' "$LAB_ADMIN_PASSWORD" >/state/password
-    chmod 600 /state/password
+    echo "seed: /state/password is missing or empty" >&2
+    exit 1
   fi
+  LAB_ADMIN_PASSWORD=$(cat /state/password)
 }
 
 ensure_token() {
@@ -144,11 +140,16 @@ render_workflow() {
   fi
   # ADR-0009, ADR-0045: the lab's review runs a second reviewer model, so the dashboard shows two.
   # The sample generator answers for both, so the findings do not change; the review names the second reviewer.
+  # ADR-0050 point 6: the one automated fix attempt is on in the judges' lab and off everywhere else, so the
+  # lab's review runs with a proven.yaml that turns it on, with or without the second reviewer. The command
+  # sits inside single quotes in the workflow, so the file is written with echo and no quote of its own.
+  second=""
   if [ -n "${LAB_SPECIAL_REVIEWER:-}" ]; then
-    sed "s|proven scan --sample /opt|echo special_reviewer: ${LAB_SPECIAL_REVIEWER} > lab.yaml \&\& proven scan --sample --config lab.yaml /opt|" \
-      /tmp/proven.yml >/tmp/proven.two
-    mv /tmp/proven.two /tmp/proven.yml
+    second=" \&\& echo special_reviewer: ${LAB_SPECIAL_REVIEWER} >> lab.yaml"
   fi
+  sed "s|proven scan --sample /opt|echo autofix: on > lab.yaml${second} \&\& proven scan --sample --config lab.yaml /opt|" \
+    /tmp/proven.yml >/tmp/proven.two
+  mv /tmp/proven.two /tmp/proven.yml
 }
 
 ensure_workflow() {
@@ -332,7 +333,7 @@ ensure_pr() {
 }
 
 wait_ready
-save_password
+read_password
 ensure_token
 ensure_repo
 ensure_actions_unit

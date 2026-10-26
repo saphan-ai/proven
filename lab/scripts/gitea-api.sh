@@ -3,7 +3,7 @@
 # The admin's password is read once from the lab's state volume.
 
 gitea_login() {
-  LAB_PASSWORD=$(compose run --rm --no-deps -T --user 0:0 --entrypoint cat seed /state/password 2>/dev/null || true)
+  LAB_PASSWORD=$(compose run --rm --no-deps -T --entrypoint cat seed /state/password 2>/dev/null || true)
   if [ -z "$LAB_PASSWORD" ]; then
     die "the lab admin password is not in the lab's state volume; run make up"
   fi

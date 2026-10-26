@@ -1,6 +1,6 @@
 # The judges' lab
 
-One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address. The lab does not serve SSH. It publishes three ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318).
+One command builds Proven and starts a Gitea lab on this machine. The lab binds to `127.0.0.1`. Nothing in it is published on another address: each port line of `lab/compose.yaml` names `127.0.0.1` itself, so starting that file directly, with any environment, publishes nothing beyond loopback. No setting chooses the address. The old `LAB_BIND` is retired: `make up` refuses it when it is set (an empty value too), names it, and starts no container. The lab does not serve SSH. It publishes three ports, all on that address: Gitea's web UI (`GITEA_HTTP_PORT`, 3000), Grafana's (`LGTM_GRAFANA_PORT`, 3001) and the collector's OTLP/HTTP endpoint (`LGTM_OTLP_PORT`, 4318).
 
 You need GNU make and Docker. Docker Compose v2 is the `docker compose` command. Windows is not a target. On macOS the `make` from Homebrew is GNU make; the make that ships with the system is not.
 
@@ -9,7 +9,7 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 ## Start
 
 1. From a checkout of this repository, run `make up`.
-2. The first run prints the admin user, a generated password, and the lab URL. The password is printed once. It is kept in the lab's volume until `make clean`. A later `make up` does not print it again. It does not stop because the volume is already there. It creates the admin user, the runner registration and the pull request when any of those is missing.
+2. The first run prints the admin user and the lab URL, and generates a password. When the output is a terminal, the password is printed once. When it is not (CI, a redirect, a pipe), the password is not printed: it is written to `lab/.state/admin-password`, readable only by you (mode 0600), and `make up` prints that path. To choose the password yourself, set `LAB_ADMIN_PASSWORD` (8 characters or more) in the environment of the first `make up`: it is used, and neither printed nor written to a file on the host, and it never appears in the Compose environment or in `docker compose config`. The password is also kept in the lab's volume until `make clean`, which removes the file too. A later `make up` does not print it again and does not write the file again. It does not stop because the volume is already there. It creates the admin user, the runner registration and the pull request when any of those is missing.
 3. Open the URL in a browser. Sign in with that user and password.
 4. Open the `discount` repository. It has one open pull request.
 5. The pull request runs the workflow in `lab/workflow/proven.yml`. When the job finishes, the pull request has a comment whose body starts with `<!-- proven-review run=<run number> sha=<head commit> -->`. That comment is the sample review, and the marker names the run that posted it.
@@ -20,17 +20,19 @@ Every version, port and name is a setting in `lab/versions.env`. The environment
 
 `make logs` follows every service. `make logs SERVICE=gitea` follows one of `gitea`, `dind`, `runner`, `lgtm`.
 
+The seed always runs as a user that is not root, and that user owns the state volume, mode 700, with the password and tokens at mode 600. A state volume made by an older lab is owned by root and the seed cannot write to it: run `make clean`, then `make up`.
+
 `make down` stops the lab and removes its containers. The volume, the admin user and the password remain. `make clean` removes the volumes, the local images, `./bin` and `./dist`.
 
 ## The dashboard
 
 A review is observable while it runs ([ADR-0045](adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)). Proven sends an OpenTelemetry trace and metrics. The lab runs `grafana/otel-lgtm` as one more container, `lgtm`: an OpenTelemetry collector, Prometheus, Tempo, Loki and Grafana in one image, pinned by `LGTM_VERSION`. It is not part of Proven's code or image. `make up` starts it, waits for Grafana, and prints the dashboard's address. `make down` removes the container with the others, and `make clean` removes it with the lab's volumes.
 
-The lab's pull-request review is told where to send its data, with the standard variables and nothing of Proven's own: the seeded workflow starts Proven on the lab network with `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` and `OTEL_METRIC_EXPORT_INTERVAL` set from `lab/versions.env`. It also runs the review with a second reviewer model (`LAB_SPECIAL_REVIEWER`), so there are two reviewers to show. The sample generator answers for both; the findings are the same as with one.
+The lab's pull-request review is told where to send its data, with the standard variables and nothing of Proven's own: the seeded workflow starts Proven on the lab network with `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` and `OTEL_METRIC_EXPORT_INTERVAL` set from `lab/versions.env`. It also runs the review with a second reviewer model (`LAB_SPECIAL_REVIEWER`), so there are two reviewers to show. The sample generator answers for both; the findings are the same as with one. The same `proven.yaml` turns on `autofix`, the one automated fix attempt of ADR-0050, which is on in the lab and off everywhere else until it is measured; the lab's sample change records no answer for it, so the sample review prints what it printed before.
 
 ### Watch a review
 
-1. Run `make up`. Open the dashboard address it printed. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`. If you set `LAB_BIND` to another address, anyone who can reach it can use Grafana.
+1. Run `make up`. Open the dashboard address it printed. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`. The lab publishes nothing beyond loopback, so only this machine reaches Grafana.
 2. Leave the dashboard open. It refreshes every 5 seconds and shows the last 30 minutes.
 3. Start a review of the pull request: push a commit to the `change` branch of `discount`, or close and reopen the pull request in Gitea. The workflow runs on the runner (`make logs SERVICE=runner`).
 4. Watch the first panel. Each agent is a row, and the planner and the skeptic have one row per reviewer model. A row is grey while it waits, blue while it works, green when done, red when it failed. A review is short in sample mode: a live review, with a model behind each call, is the one where a reviewer finishes while the other still works.
@@ -156,14 +158,14 @@ proven scan --sample /opt/proven/fixture/discount
 
 That is the recorded sample in `testdata/fixture/discount`, baked into Proven's image. It does not review the diff of the demo pull request. Sample mode uses no keys, no Docker and no model: it makes no call to a service. In the lab the job also sends the review's telemetry to the lab's own collector (see [The dashboard](#the-dashboard)), which is why the seeded copy starts Proven on the inner daemon's network; the committed workflow does not. The comment is the text of that review. reviewdog, which will post review comments from SARIF, is not part of this lab.
 
-The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that. Docker Scout for that image is read on Docker Hub after the push. This repository does not push it for you.
+The same file is what a GitHub user commits. On GitHub the job's Docker runs `saphan/proven:latest` from Docker Hub, and the job posts with `PROVEN_TOKEN` or with `GITHUB_TOKEN`. The image has to have been pushed first. `make push` does that, and only after Docker Scout has passed on the image. This repository does not push it for you.
 
 ### Which account posts the review
 
 The workflow posts as its own account, `proven-bot` (`LAB_BOT_USER`). It is not an admin. The lab admin is the account you sign in with, so a review the workflow wrote and a comment you or any other person wrote must not look alike. If the admin posted the review, an admin who types the marker by hand would pass for the workflow.
 
 - The seed creates `proven-bot`, makes it a collaborator with write access on the demo repository, and mints that account's token. The token is stored only as the repository's Actions secret `PROVEN_TOKEN`, which the workflow reads. The admin's token is not given to the workflow.
-- The account's generated password stays in the lab's state volume until `make clean`. Neither it nor the token is printed, written to a tracked file or baked into an image layer.
+- The account's generated password stays in the lab's state volume until `make clean`. It is printed once, to a terminal, on the first `make up`; when stdout is not a terminal it is written to `lab/.state/admin-password` at mode 0600 instead. It is never in a log, a tracked file or an image layer, and the token is never printed.
 - `make e2e` accepts a review comment only from `proven-bot`, with the marker for the run and the head commit. The same marker from the admin or any other account is ignored, and e2e names the account it ignored.
 - If the secret is missing, the job falls back to `GITHUB_TOKEN`; on Gitea that posts as another account, and e2e then fails closed.
 
@@ -183,11 +185,18 @@ The seeded copy replaces `saphan/proven` with `PROVEN_IMAGE` when that setting i
 
 `make image` builds Proven's image for this machine and loads it. The load is one platform, this machine's own. A local engine cannot load a manifest list, so this target does not build both platforms. `make seed-image`, which `make up` uses, is the same kind of load: one platform, because the lab has to start the image. The image is the static `proven` and `livecheck` binaries, `git`, and the `docker` client, on `RUNTIME_IMAGE`, and it runs as a user that is not root. Local tags: `latest` and the `git describe` value. OCI labels `created`, `revision` and `version` come from the date, `git rev-parse` and `git describe`.
 
-`make push` builds Proven's image and the seed image for `PUSH_PLATFORMS` (`linux/amd64` and `linux/arm64`) and pushes each tag as one manifest list that carries both platforms. Proven's tags are `latest` and the `git describe` value, on `PROVEN_REGISTRY/PROVEN_IMAGE`. The seed's only tag is `SEED_IMAGE_TAG`, on `PROVEN_REGISTRY/SEED_IMAGE`. The build asks for provenance (`--provenance=mode=max`) and an SBOM (`--sbom=true`). `make push` does not run Docker Scout and does not need the `docker scout` plugin.
+`make push` writes nothing to a registry until every platform of both images has been scanned, and then publishes what was scanned, and only that. Each tag is one manifest list of `PUSH_PLATFORMS` (`linux/amd64` and `linux/arm64`). Proven's tags are `latest` and the `git describe` value, on `PROVEN_REGISTRY/PROVEN_IMAGE`. The seed's only tag is `SEED_IMAGE_TAG`, on `PROVEN_REGISTRY/SEED_IMAGE`. The build asks for provenance (`--provenance=mode=max`) and an SBOM (`--sbom=true`). The sequence:
 
-`make scan` runs Docker Scout when that plugin is installed. It refuses when Scout reports a critical or high finding that has a fix, on the images this repository builds. The severities are `SCOUT_REFUSE_SEVERITIES`. It also scans the pinned third-party images and writes that output between the markers at the bottom of this page. When the plugin is not installed, `make scan` exits 0 and names where to read the result: on Docker Hub, after `make push`.
+1. It checks that the `docker scout` plugin and `skopeo` are present. If either is missing, nothing is built or pushed. `skopeo` copies the scanned layouts to the registry.
+2. It builds each image once, for every platform in `PUSH_PLATFORMS`, into a local OCI layout in a temporary directory (`docker buildx build --output type=oci`). No build pushes, and no tag, staging or final, is written to a registry.
+3. It runs Docker Scout on the layout of each image, once per platform (`docker scout cves oci-dir://<layout> --platform <platform>`, the same severities as `make scan`, below), so the image scanned is the image that will be published, on every platform.
+4. Only when every scan of every platform of both images is green, `skopeo copy --all --preserve-digests` copies each scanned layout, unchanged, to its final tags. It then reads each tag back and refuses if it carries any other digest than the layout's. Nothing is rebuilt after a scan.
 
-Read that result on the image's page on Docker Hub, for the tag `make push` wrote. Proven is `saphan/proven`, tags `latest` and the `git describe` value. The seed is `saphan/proven-lab-seed`, tag `1`, unless `SEED_IMAGE` or `SEED_IMAGE_TAG` was overridden. Docker Hub shows Docker Scout for a tag after the push. No host measured on 2026-10-23 had the local plugin. The third-party pins (`gitea/gitea`, `gitea/act_runner`, `docker`) are on their own Docker Hub pages the same way. The block at the bottom of this page is filled only when `make scan` has the plugin.
+It exits non-zero and names the image and the platform when the plugin or `skopeo` is missing, when a scan cannot run, when Scout reports a critical or high finding that has a fix, or when a platform is missing from a build. In any of those cases nothing has been written to any registry: no tag of any kind exists for that build, and `latest` and the version tag keep pointing where they did.
+
+`make scan` runs Docker Scout on the images this repository builds, Proven (`saphan/proven`, tag `latest`) and the seed (`saphan/proven-lab-seed`, tag `2`, unless `SEED_IMAGE` or `SEED_IMAGE_TAG` was overridden). It fails closed: it exits non-zero and names the image when the `docker scout` plugin is missing, when a scan cannot run, or when Scout reports a critical or high finding that has a fix. The severities are `SCOUT_REFUSE_SEVERITIES`. When the images pass, it also scans the pinned third-party images (`gitea/gitea`, `gitea/act_runner`, `docker`) and writes that output between the markers at the bottom of this page.
+
+`make check-lab-gates` checks both gates offline, with a stub `docker` and a stub `skopeo` on `PATH`: `make up` refuses the retired `LAB_BIND` before any container starts, and `make scan` refuses without a green scan. For `make push` it checks that, with Scout missing, nothing is built and nothing is written; that a failed scan of either image, or of only one platform, causes zero registry writes (the stub records every push, copy and tag, and the list must be empty); and that on success every platform of both images was scanned from a local layout before the first registry write, no build pushes, the digests copied are the digests of the layouts that were scanned, and a tag that reads back another digest is an error. Six copies of `push.sh`, each with one line changed, must fail those checks. The loopback property is checked on `lab/compose.yaml` alone, by the Go test in `lab/labcheck` and by `make check-review-gates`, each with copies that put `0.0.0.0` or a variable back in a port line. The stub cannot show what a real registry, Docker Scout or `skopeo` does; the first live `make push` is that check.
 
 ## The runner and Docker
 

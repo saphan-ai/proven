@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
@@ -121,9 +122,9 @@ type Result struct {
 	Models               []ModelUse       // every model the review used, from the provider's receipt (ADR-0019)
 	Partial              bool             // the deadline was reached
 	TracePath            string           // the JSONL trace in LogDir
-	Class                string           // review class the path rules chose (ADR-0012, ADR-0014)
-	ClassRule            string           // path pattern that chose Class, or "fallback"
-	Doubled              bool             // Class is one of the doubled classes
+	Class                string           // review class the path rules chose (ADR-0012, ADR-0014), or that Scout Intent's plan raised it to (ADR-0049)
+	ClassRule            string           // path pattern that chose Class, "fallback", or "scout-intent: <kind>" when the plan raised it
+	Doubled              bool             // Class is one of the doubled classes, or the plan doubled the review (ADR-0049)
 	DefaultReviewer      string           // configured default reviewer
 	SpecialReviewer      string           // configured special-review model; empty means not configured
 	ReviewerModels       []string         // models this review uses, the default reviewer first
@@ -152,6 +153,10 @@ type Result struct {
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
+	// Autofix is the one whole-change fix attempt of the review (ADR-0050), or nil when none was made.
+	// The evidence pack encodes the Result as it is, so the tag keeps a review with no attempt
+	// byte-identical to one made before the field existed.
+	Autofix *Autofix `json:",omitempty"`
 }
 
 // The roles a reviewer takes in a review. The special role is the second reviewer of ADR-0037.
@@ -240,10 +245,28 @@ func (l ProofLevel) Valid() bool {
 	return false
 }
 
-// ProofLevelOf returns the level of the strongest evidence in ev, or an error when ev holds no
-// evidence of a kind that has a level. ADR-0002: a finding without evidence cannot exist, so
-// there is no level to fall back to, and a guess would show a reader proof that is not there.
+// ProofLevelOf returns the level of the strongest evidence in ev that counts, by the Judge's own
+// predicate (judge.EvidenceCounts): a test that did not fail on the change does not lift a finding
+// above the bound query that does count. When no evidence counts the Judge drops the finding, and
+// the level is that of the strongest kind present, so a refusal can still name it. It returns an
+// error when ev holds no evidence of a kind that has a level. ADR-0002: a finding without
+// evidence cannot exist, so there is no level to fall back to, and a guess would show a reader
+// proof that is not there.
 func ProofLevelOf(ev []Evidence) (ProofLevel, error) {
+	var counting []Evidence
+	for _, e := range ev {
+		if judge.EvidenceCounts(candidateEvidence(e)) {
+			counting = append(counting, e)
+		}
+	}
+	if len(counting) > 0 {
+		ev = counting
+	}
+	return strongestKind(ev)
+}
+
+// strongestKind returns the level of the strongest kind in ev.
+func strongestKind(ev []Evidence) (ProofLevel, error) {
 	level := ProofLevel("")
 	rank := len(ProofLevels)
 	for _, e := range ev {
@@ -312,6 +335,9 @@ type Finding struct {
 	// ProofLevel is the finding's one named level of proof (ADR-0044). It is never empty in a Result.
 	ProofLevel ProofLevel
 	Unresolved bool // the evidence did not settle it; counts in findings-count and in unresolved-count
+	// Refutation is the Skeptic's attempt as the Judge read it. Nil means the result does not
+	// record it, and Rederive then cannot say the finding was not refuted.
+	Refutation *Refutation
 	// Models names the reviewer models that reported this finding.
 	// One name when one run found it. Both names, the default reviewer first, when both did.
 	Models []string
@@ -391,6 +417,71 @@ type DependencyFix struct {
 	AdvisoryRow     []string
 }
 
+// The verdicts of the whole-change fix attempt (ADR-0050 point 3), in the words a person reads.
+const (
+	// AutofixFixed: every proved finding closed when its own evidence was run again on the patched change,
+	// and every package the patch touched still passes its tests. A person decides whether to apply the patch.
+	AutofixFixed = "fixed automatically, waiting for a person"
+	// AutofixRejected: after the one attempt a proved finding is still open, something broke, or the patch
+	// was refused before it ran. There is no second attempt.
+	AutofixRejected = "rejected"
+)
+
+// The kinds of proof a finding is judged by again on the patched change (ADR-0050 point 2).
+const (
+	AutofixProofTest = "test"
+	AutofixProofData = "data"
+	AutofixProofTool = "tool"
+	// AutofixProofBreakage is the run of every package the patch touched.
+	AutofixProofBreakage = "breakage"
+)
+
+// Autofix is the record of the one automated fix attempt for the whole change (ADR-0050). It is nil when no
+// attempt was made: the setting is off, or no finding was proved by a test, by data or by a tool.
+//
+// Edits and Diff are the patch the generator wrote, in two forms: Edits are exact replacements, and Diff is
+// the same change as a unified diff for a review comment to publish as suggested changes (point 4). They are
+// kept whatever the verdict, for the record, but ONLY a patch whose Verdict is AutofixFixed is a suggestion:
+// a renderer must not show a rejected patch as a fix (ADR-0042 point 3). Proven never commits the patch to the
+// author's branch. Findings has one row per proved finding with each re-run's command and output, open or closed.
+// Refused names why the patch was refused before any code ran, and is empty otherwise.
+type Autofix struct {
+	Verdict  string
+	What     string
+	Why      string
+	Edits    []FixEdit
+	Diff     string
+	Findings []AutofixFinding
+	// Breakage is the run of every package the patch touched, on the patched change, or nil when no
+	// code ran. A verdict of AutofixFixed needs it closed.
+	Breakage *AutofixProof `json:",omitempty"`
+	Refused  string
+}
+
+// Suggested reports whether the patch is a suggestion a person may apply: the verdict is AutofixFixed.
+func (a *Autofix) Suggested() bool { return a != nil && a.Verdict == AutofixFixed }
+
+// AutofixFinding is the verdict on one proved finding, named by its ID: Closed is true only when every one
+// of its proofs closed.
+type AutofixFinding struct {
+	ID     string
+	Closed bool
+	Proofs []AutofixProof
+}
+
+// AutofixProof is one of a finding's own pieces of evidence run again on the patched change. Kind is one of
+// the AutofixProof constants. Closed is true only when the run happened and the evidence no longer shows the
+// problem; Reason says why it is open. Command and Output are what Proven ran and printed, so a reader can run
+// it again. Runs holds the four runs of a test proof, each with its exit code.
+type AutofixProof struct {
+	Kind    string
+	Closed  bool
+	Reason  string
+	Command string
+	Output  string
+	Runs    []FixRun
+}
+
 // Location is where a finding is.
 type Location struct {
 	Path      string
@@ -446,6 +537,20 @@ type QueryEvidence struct {
 	Snapshot string // which snapshot of each source was read
 	Columns  []string
 	Rows     [][]string
+	// Bound is set by Proven when the rows are about the change's own package, version or
+	// advisory. The Judge counts rows as evidence only then, so a pack records it (ADR-0035).
+	Bound bool
+}
+
+// Refutation is what the Skeptic's attempt found, reduced to the facts the Judge's rule reads
+// (judge.Decide). A pack records it so that "reported" and "unresolved" can be re-derived
+// without the model (ADR-0035).
+type Refutation struct {
+	TestFound         bool
+	TestFailsOnChange bool
+	TestCannotRun     bool
+	QueryRows         [][]string
+	QueryCannotRun    bool
 }
 
 // ServiceFailure names an outside service that failed and why.

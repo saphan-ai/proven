@@ -64,21 +64,28 @@ func Evidenced(c candidate.Candidate) bool {
 // the base did not already have (ADR-0040).
 func counts(c candidate.Candidate) bool {
 	for _, e := range c.Evidence {
-		if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
-			return true
-		}
-		// Rows are evidence only when Proven tied them to the change's own
-		// package, version or advisory. A word a cell shares with the finding's
-		// text, which a model wrote, binds nothing.
-		if e.Kind == candidate.KindQuery && e.Query != nil && e.Query.Bound && len(e.Query.Rows) > 0 {
-			return true
-		}
-		// A result on both sides is the base, not the change, so it is not evidence.
-		if e.Kind == candidate.KindTool && e.Tool != nil && e.Tool.PresentOnChange && !e.Tool.PresentOnBase {
+		if EvidenceCounts(e) {
 			return true
 		}
 	}
 	return false
+}
+
+// EvidenceCounts reports whether one piece of evidence counts for the finding that holds it. It is
+// the one predicate: Decide keeps a finding on it, and a finding's proof level is taken from the
+// evidence that passes it.
+func EvidenceCounts(e candidate.Evidence) bool {
+	if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
+		return true
+	}
+	// Rows are evidence only when Proven tied them to the change's own
+	// package, version or advisory. A word a cell shares with the finding's
+	// text, which a model wrote, binds nothing.
+	if e.Kind == candidate.KindQuery && e.Query != nil && e.Query.Bound && len(e.Query.Rows) > 0 {
+		return true
+	}
+	// A result on both sides is the base, not the change, so it is not evidence.
+	return e.Kind == candidate.KindTool && e.Tool != nil && e.Tool.PresentOnChange && !e.Tool.PresentOnBase
 }
 
 // unsettled reports evidence whose refuting test or query could not run.

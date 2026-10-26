@@ -21,9 +21,11 @@ import (
 
 // The two accounts of the recorded CouchDB. The writing account is a database
 // admin; the read-only account is a member of the database's security
-// document. The fake follows CouchDB's own rules: a member reads everything and
-// may write any document that is not a design document, and only an admin may
-// create the database or write a design document. What stops a member writing
+// document. The fake follows CouchDB's own rules where the Recorder goes: a
+// member reads everything and may POST `_bulk_docs`, the one path the Recorder
+// writes through; any other member write is refused before it reaches the
+// design document. Only an admin may create the database or write a design
+// document. What stops a member writing
 // is therefore the design document's validate_doc_update, which the fake runs
 // (in Node) on every write when the stored design document carries one. A test
 // that sends a write with the read-only account passes only if that function is
@@ -820,7 +822,22 @@ func TestQueryKeysPullOfAndRecordID(t *testing.T) {
 			t.Errorf("PullOf(%q) = %q, want %q", ref, got, want)
 		}
 	}
-	if got := RecordID("", "", "20261025t070000z", "F 1/../x"); got != "local-tree-20261025t070000z-f-1-x" {
+	if got := RecordID("", "", "20261025t070000z", "F 1/../x"); !strings.HasPrefix(got, "local-tree-20261025t070000z-f-1-x-") || idUnsafe.MatchString(got) {
 		t.Fatalf("id %q", got)
+	}
+}
+
+// Property: two finding ids that differ only in a character the document id
+// cannot hold get two record ids, so neither loses its record in one bulk.
+// An id made only of safe characters keeps its plain spelling.
+// Mutated field: the finding id.
+func TestRecordIDKeepsFoldedFindingIDsApart(t *testing.T) {
+	a := RecordID("7", "abc", "run1", "F.1")
+	b := RecordID("7", "abc", "run1", "f-1")
+	if a == b {
+		t.Fatalf("both ids are %s", a)
+	}
+	if got := RecordID("7", "abc", "run1", "F1"); got != "7-abc-run1-f1" {
+		t.Fatalf("a safe id changed: %s", got)
 	}
 }

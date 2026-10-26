@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build meterless-conform and run both Meterless runners against the shims.
+# Build meterless-conform and run the three Meterless runners (H-MEM, World Model, Markovian) against the shims.
 # Works from any directory. Writes SCORECARD_<engine>.txt beside this script.
-# Exit 0 when both runners pass, 1 when a check fails, 2 when a shim does not load, 4 when no runner is found.
+# Exit 0 when every runner passes, 1 when a check fails, 2 when a shim does not load, 4 when no runner is found.
 # METERLESS_ENGINES names a Meterless engines/ directory (required; it is not part of this repository).
 set -u
 # HERE is this directory (test/conformance/meterless); ROOT is the repository, three levels up.
@@ -17,7 +17,7 @@ export METERLESS_CONFORM_BIN="$WORK/meterless-conform"
 
 # The Meterless engines directory (a checkout of Meterless's engines/, Apache-2.0). Not in this repository.
 REF="${METERLESS_ENGINES:-}"
-for e in hmem world-model; do
+for e in hmem world-model markovian; do
   if [[ ! -f "$REF/$e/conformance/runner.ts" ]]; then
     echo "run.sh: no Meterless runner at $REF/$e/conformance/runner.ts; set METERLESS_ENGINES to a Meterless engines/ directory" >&2
     exit 4
@@ -50,16 +50,27 @@ run_engine world-model WORLD_MODEL_IMPL \
   "$HERE/world-model/index.ts" \
   "$REF/world-model/conformance/runner.ts" || wstatus=$?
 
-if [[ "$hstatus" -eq 2 || "$wstatus" -eq 2 ]]; then
-  exit 2
-fi
-if [[ "$hstatus" -gt 2 || "$wstatus" -gt 2 ]]; then
-  if [[ "$hstatus" -gt "$wstatus" ]]; then
-    exit "$hstatus"
+# ADR-0048 point 3: the Markovian engine is checked by Meterless's own runner, like the other two.
+mstatus=0
+run_engine markovian MARKOVIAN_IMPL \
+  "$HERE/markovian/index.ts" \
+  "$REF/markovian/conformance/runner.ts" || mstatus=$?
+
+# The worst status wins, in the order the header names: a shim that does not load (2) before an infrastructure
+# failure (above 2, the highest first) before a failed check (1).
+worst=0
+for s in "$hstatus" "$wstatus" "$mstatus"; do
+  if [[ "$s" -eq 2 ]]; then
+    exit 2
   fi
-  exit "$wstatus"
+  if [[ "$s" -gt 2 && "$s" -gt "$worst" ]]; then
+    worst="$s"
+  fi
+done
+if [[ "$worst" -gt 2 ]]; then
+  exit "$worst"
 fi
-if [[ "$hstatus" -ne 0 || "$wstatus" -ne 0 ]]; then
+if [[ "$hstatus" -ne 0 || "$wstatus" -ne 0 || "$mstatus" -ne 0 ]]; then
   exit 1
 fi
 exit 0

@@ -3,7 +3,9 @@
 // The Planner is the first agent of the review. It reads each changed file's
 // base and change, asks the model for candidate risks, and hands them on to
 // the Investigator and the Prover. A risk it names is not a finding: only
-// evidence makes one (ADR-0002).
+// evidence makes one (ADR-0002). A change above the bounded-steps threshold is
+// read one file or hunk per step instead, with only a small carried state
+// between steps (PlanBounded, ADR-0048).
 package planner
 
 import (

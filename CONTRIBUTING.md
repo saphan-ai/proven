@@ -7,9 +7,15 @@ owner, and outside changes are not merged until the week is over. Issues and ide
 
 - **A vulnerability:** privately, never in an issue. See [SECURITY.md](SECURITY.md).
 - **A bug:** open an issue with the command you ran, what you expected, what happened, and the commit (`git rev-parse
-  HEAD`). If it came from a review, attach `logs/trace.jsonl` with any secret removed.
+  HEAD`). If it came from a review, attach `<user cache>/proven/logs/trace.jsonl`, or the file in the directory `PROVEN_LOG_DIR` names, with any secret removed.
 - **A wrong finding:** open an issue with the finding as Proven printed it and why you think it is wrong. A finding is
   only reported with evidence, so the evidence line is the most useful part.
+
+## Your language is missing?
+
+A language is one small adapter: where the dependencies are declared and which ecosystem to ask about. PHP, Rust and
+Kotlin were each added that way. [docs/ADAPTERS.md](docs/ADAPTERS.md) walks through it with worked examples. Open a pull
+request with yours: Proven will review it, and it is merged after the hackathon week.
 
 ## Building and testing
 

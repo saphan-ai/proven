@@ -76,6 +76,23 @@ OpenAI's model (on codex). On 24 October the review runs again with NVIDIA's Nem
 agent loop, on the commit with the first fixes in it: the pieces already reviewed, to see what a third family finds that
 the first two did not, and the pieces still ahead. Its verdicts are added beside the others.
 
+## Dependency alerts on this repository
+
+On 26 October 2026 GitHub's Dependabot reported **51 open alerts** on `main` (4 critical, 20 high, 24 moderate, 3 low).
+We read every one:
+
+- **45 were npm packages of the documentation site** (`docs-site/`): Next.js above all, plus sharp, postcss and zod. The
+  site's dependencies were upgraded to patched versions (Next.js 15.5.28; commit `f1567e9`) and the site rebuilt. The
+  open alerts fell from 51 to 6.
+- **The other 6 are on purpose.** They all point at `golang.org/x/net v0.16.0` in `demo/live/change/go.mod`. That module
+  is the "after" side of the [live demo](../../demo/live/README.md): a small change written to carry a known-exploited
+  dependency, so a judge can watch Proven find it and prove it with a query. The module does not import the package, and
+  it is never part of Proven itself. These alerts stay open because the demo needs them.
+
+We also turned the 51 alerts into a **reference set**: Proven reviews the repository at the commit where Dependabot
+counted them (`fbdf7d3`), and for every alert we record whether Proven found it with its own evidence, missed it, or
+found it differently, and what Proven finds that Dependabot does not. The comparison is published whatever it shows.
+
 ## What is published, and when
 
 - This page's status column is updated as each piece moves: *not started*, *in review*, *fixes in progress*, *holds*.
