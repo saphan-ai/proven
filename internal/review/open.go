@@ -49,7 +49,7 @@ func open(opts Options) (Reviewer, error) {
 	// ADR-0013: the size bounds on every read of the repository under review are
 	// settings. They are loaded first, so the explicit configuration below is read
 	// under them too. A wrong value stops Open before any review and is never
-	// replaced by the default. Sample mode reads no setting, so it puts the defaults back: the bounds
+	// replaced by the default. Sample mode reads no size setting, so it puts the defaults back: the bounds
 	// are process state, and a sample review must not run under an earlier review's bounds.
 	reads := change.DefaultLimits()
 	if !opts.Sample {
@@ -58,12 +58,15 @@ func open(opts Options) (Reviewer, error) {
 			return nil, readLimitConfig(rerr)
 		}
 		reads = loaded
-		// ADR-0034: in the air-gapped mode git cannot fetch, not even the objects of a partial clone.
-		// A wrong PROVEN_NETWORK is refused by name by the loaders below, so it is not judged here.
-		if pol, nerr := network.Load(opts.Env); nerr == nil {
-			change.UseOffline(pol.Local())
-		}
 	}
+	// ADR-0034: in the air-gapped mode git cannot fetch, not even the objects of a partial clone. A
+	// sample review still runs git (proven.yaml at the baseline, the commit log), so the mode is
+	// loaded in sample mode too, and a wrong PROVEN_NETWORK is refused here by name.
+	pol, nerr := network.Load(opts.Env)
+	if nerr != nil {
+		return nil, networkConfig(nerr)
+	}
+	change.UseOffline(pol.Local())
 	change.UseLimits(reads)
 	cfg := defaultSettings()
 	explicit := false
@@ -696,6 +699,17 @@ func queryConfig(err error) error {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
 			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// networkConfig turns a refused PROVEN_NETWORK setting into the seam's *ConfigError.
+func networkConfig(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{
+			Field: ne.Field, Value: ne.Value, Reason: ne.Reason,
+			Allowed: append([]string(nil), ne.Allowed...),
 		}
 	}
 	return err

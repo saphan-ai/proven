@@ -107,7 +107,7 @@ func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 			// ADR-0045: the OTEL_* variables are the one family sample mode reads, because the lab's
 			// pull-request review is a sample review and the dashboard shows it. They name no key of
 			// Proven's, and a review with none of them set exports nothing.
-			if !strings.HasPrefix(k, "OTEL_") {
+			if k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") {
 				t.Fatalf("sample mode read %s", k)
 			}
 			return ""
