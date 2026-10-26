@@ -55,7 +55,7 @@ docker buildx build \
   --platform "$PUSH_PLATFORMS" \
   --provenance=mode=max \
   --sbom=true \
-  --output "type=oci,dest=$work/proven.tar" \
+  --output "type=oci,dest=$work/proven.tar,name=$name:scan" \
   --build-arg "GOLANG_IMAGE=$GOLANG_IMAGE" \
   --build-arg "RUNTIME_IMAGE=$RUNTIME_IMAGE" \
   --build-arg "CREATED=$created" \
@@ -75,7 +75,7 @@ docker buildx build \
   --platform "$PUSH_PLATFORMS" \
   --provenance=mode=max \
   --sbom=true \
-  --output "type=oci,dest=$work/seed.tar" \
+  --output "type=oci,dest=$work/seed.tar,name=$seed_name:scan" \
   --build-arg "RUNTIME_IMAGE=$RUNTIME_IMAGE" \
   --label "org.opencontainers.image.created=$created" \
   --label "org.opencontainers.image.revision=$revision" \
