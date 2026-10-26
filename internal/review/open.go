@@ -19,6 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
@@ -204,6 +205,11 @@ func open(opts Options) (Reviewer, error) {
 			return nil, epssConfig(verr)
 		}
 		popts.EPSSView = view
+		idView, ierr := osv.LoadIDView(env)
+		if ierr != nil {
+			return nil, osvConfig(ierr)
+		}
+		popts.OSVIDView = idView
 		if opts.testRun != nil {
 			// A test supplies the runner, so Open does not look for a container.
 			// Production leaves testRun unset and uses the container below.
@@ -256,6 +262,13 @@ func open(opts Options) (Reviewer, error) {
 			return nil, limitConfig(aerr)
 		}
 		adapterLimit = bound
+		// ADR-0048, ADR-0013: the bounded-steps settings are checked here, so a wrong value stops Open before any
+		// review. Unset, the engine is off and the review is whole. Sample mode skips this block.
+		bounded, merr := markov.Load(env)
+		if merr != nil {
+			return nil, markovConfig(merr)
+		}
+		popts.Markov = bounded
 	}
 	// ADR-0045: telemetry is off unless the standard OTEL_* variables name an endpoint. A wrong value
 	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
@@ -313,6 +326,11 @@ func openRecorder(opts Options) (*recorder, error) {
 	// viewer cannot be checked, and the link is shown unchecked with a failed service that says so.
 	if cfg, cerr := store.LoadCouch(env); cerr == nil {
 		rc.reader = store.NewCouchDB(cfg, opts.recordsClient)
+	} else {
+		var ce *store.ConfigError
+		if errors.As(cerr, &ce) {
+			rc.readerField = ce.Field
+		}
 	}
 	return rc, nil
 }
@@ -538,7 +556,23 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	// With no special model configured there is nothing to double, so the class is not needed here;
 	// applyDecision still states it and says the special model is not configured.
 	double := false
-	if cfg.SpecialReviewer != "" {
+	// ADR-0049: with Scout Intent on, the plan is chosen here, before any agent runs, and it decides the
+	// class and the doubling. Off, nothing is classified and the review runs as before, its trace saying
+	// that no plan was chosen.
+	var planned *reviewPlan
+	plan := offPlan()
+	if cfg.ScoutIntent {
+		files, ferr := changedPaths(req)
+		if ferr != nil {
+			return Result{}, ferr
+		}
+		rp, perr := choosePlan(cfg, req, files)
+		if perr != nil {
+			return Result{}, perr
+		}
+		planned, plan = &rp, rp.Plan
+		double = cfg.SpecialReviewer != "" && rp.Doubled
+	} else if cfg.SpecialReviewer != "" {
 		files, ferr := changedPaths(req)
 		if ferr != nil {
 			return Result{}, ferr
@@ -572,9 +606,14 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		// ADR-0042: the settings that turn proposed fixes off and bound their attempts.
 		FixesOff:    !cfg.Fixes,
 		FixAttempts: cfg.FixAttempts,
+		// ADR-0050 point 6: the whole-change attempt, the generator that writes its patch and its time limit.
+		Autofix:        cfg.Autofix,
+		AutofixSpecial: cfg.AutofixGenerator == autofixGeneratorSpecial,
+		AutofixTimeout: cfg.AutofixTimeout,
 		// ADR-0013: the evidence scope of each role that can query.
 		InvestigatorScope: cfg.InvestigatorScope,
 		SkepticScope:      cfg.SkepticScope,
+		Plan:              plan,
 	})
 	if err != nil {
 		return Result{}, err
@@ -583,7 +622,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := applyDecision(&out, cfg, req); err != nil {
+	if err := applyDecision(&out, cfg, req, planned); err != nil {
 		return Result{}, err
 	}
 	if r.pol != nil {
@@ -608,12 +647,9 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
 	out := Result{
-		Partial: d.Partial, TracePath: d.TracePath, ProofCounts: map[ProofLevel]int{},
+		Partial: d.Partial, TracePath: d.TracePath,
 		// A guardrail that was off is named in the result, not only in the trace.
 		GuardrailStatement: d.GuardrailStatement,
-	}
-	for _, l := range ProofLevels {
-		out.ProofCounts[l] = 0
 	}
 	for _, c := range d.Findings {
 		f := Finding{
@@ -622,6 +658,7 @@ func fill(d candidate.Draft) (Result, error) {
 			Location:   Location{Path: c.Path, StartLine: c.StartLine, EndLine: c.EndLine},
 			Unresolved: c.Unresolved,
 			Models:     append([]string(nil), c.Models...),
+			Refutation: toRefutation(c.Refutation),
 		}
 		for _, e := range c.Evidence {
 			f.Evidence = append(f.Evidence, toEvidence(e))
@@ -639,9 +676,9 @@ func fill(d candidate.Draft) (Result, error) {
 			return Result{}, fmt.Errorf("finding %s: %w", c.ID, err)
 		}
 		f.ProofLevel = level
-		out.ProofCounts[level]++
 		out.Findings = append(out.Findings, f)
 	}
+	out.ProofCounts = CountProofs(out.Findings)
 	// ADR-0041: an opinion is copied beside the findings. It has no proof level,
 	// so it is not added to ProofCounts and it cannot fail the review.
 	for _, o := range d.Opinions {
@@ -665,6 +702,7 @@ func fill(d candidate.Draft) (Result, error) {
 	if len(d.SkippedPaths) > 0 {
 		out.SkippedPaths = append([]string(nil), d.SkippedPaths...)
 	}
+	out.Autofix = toAutofix(d.Autofix)
 	if out.Findings == nil {
 		out.Findings = []Finding{}
 	}
@@ -703,6 +741,39 @@ func toFix(f *candidate.Fix) *Fix {
 	return out
 }
 
+// toAutofix copies the whole-change fix attempt across the seam, field by field. A nil attempt stays nil
+// (ADR-0050): a review that made none says nothing about one.
+func toAutofix(a *candidate.Autofix) *Autofix {
+	if a == nil {
+		return nil
+	}
+	out := &Autofix{Verdict: a.Verdict, What: a.What, Why: a.Why, Diff: a.Diff, Refused: a.Refused}
+	for _, e := range a.Edits {
+		out.Edits = append(out.Edits, FixEdit{Path: e.Path, Old: e.Old, New: e.New})
+	}
+	for _, f := range a.Findings {
+		nf := AutofixFinding{ID: f.ID, Closed: f.Closed}
+		for _, p := range f.Proofs {
+			nf.Proofs = append(nf.Proofs, toAutofixProof(p))
+		}
+		out.Findings = append(out.Findings, nf)
+	}
+	if a.Breakage != nil {
+		b := toAutofixProof(*a.Breakage)
+		out.Breakage = &b
+	}
+	return out
+}
+
+// toAutofixProof copies one proof across the seam, with its runs.
+func toAutofixProof(p candidate.AutofixProof) AutofixProof {
+	np := AutofixProof{Kind: p.Kind, Closed: p.Closed, Reason: p.Reason, Command: p.Command, Output: p.Output}
+	for _, r := range p.Runs {
+		np.Runs = append(np.Runs, FixRun{Label: r.Label, Command: r.Command, Result: r.Result, ExitCode: r.ExitCode, Output: r.Output})
+	}
+	return np
+}
+
 // disagree reports whether the reviewers who answered gave different verdicts on one finding
 // (ADR-0037 point 4). The verdicts are compared, never merged: two different verdicts stay two.
 // A reviewer with no answer is left out, because a failed call says nothing about the finding.
@@ -739,6 +810,7 @@ func toEvidence(e candidate.Evidence) Evidence {
 			SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
 			Rows:    copyRows(q.Rows),
+			Bound:   q.Bound,
 		}
 	}
 	if e.Tool != nil {
@@ -830,6 +902,18 @@ func osvConfig(err error) error {
 // limitConfig turns a refused adapter-bound setting into the seam's *ConfigError.
 func limitConfig(err error) error {
 	var cfg *limit.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// markovConfig turns a refused bounded-steps setting into the seam's *ConfigError.
+func markovConfig(err error) error {
+	var cfg *markov.ConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

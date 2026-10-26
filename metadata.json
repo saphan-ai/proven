@@ -43,7 +43,7 @@
       "integration_working": true,
       "in_use_case": true,
       "use_case_note": "H-MEM and the World Model run in every review, sample mode included; the live model calls through Nightshift work, while the sample scenario uses recorded answers.",
-      "how": "H-MEM remembers findings refuted in earlier reviews, so they do not come back; the World Model holds the entities a review has seen, and its ingest survives a kill and a restart. Both are a minimum in Go, checked with Meterless's own conformance suites (H-MEM 9 of 13, World Model 7 of 8; the failures are the sections not built yet). Every model call goes through Meterless Nightshift, and the answering model is read from its signed receipt.",
+      "how": "H-MEM remembers findings refuted in earlier reviews, so they do not come back; the World Model holds the entities a review has seen, and its ingest survives a kill and a restart. Both are a minimum in Go, checked with Meterless's own conformance suites (World Model 8 of 8; H-MEM 9 of 13, its failures the sections not built yet). Every model call goes through Meterless Nightshift, and the answering model is read from its signed receipt.",
       "engines": ["H-MEM", "World Model"],
       "provider": "nightshift",
       "where": ["internal/hmem/", "internal/world/", "internal/generator/", "test/conformance/meterless/"],

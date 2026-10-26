@@ -6,6 +6,10 @@
 // "proved". A patch that fails is tried again by the same model with the failure in hand, up to the
 // number of attempts the settings name; after that the review says the fix is not proved and shows
 // no patch. The patch is applied to a scratch copy and is a suggestion: nothing here writes to the change.
+// With the whole-change attempt on (ADR-0050) this loop is not run; the attempt keeps the rule that judges
+// a test-proved finding, through Judge, and has no retry.
+// With the bounded-steps engine on (ADR-0048 point 2), a new attempt carries only what failed and why, as the
+// engine's bounded state, instead of every earlier attempt whole.
 package fixer
 
 import (
@@ -17,6 +21,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
@@ -50,6 +55,10 @@ type Options struct {
 	BaseDir   string
 	ChangeDir string
 	Attempts  int
+	// Carry is the bounded-steps engine's carried-state bound, in estimated tokens (ADR-0048 point 2). Zero shows
+	// each new attempt every earlier attempt whole, as before; above zero, a new attempt carries only what failed
+	// and why, within that bound, and nothing an earlier attempt proposed.
+	Carry int
 }
 
 // row is the answer as the model returns it. Command is read only so that an answer
@@ -103,6 +112,31 @@ func Prompt(c candidate.Candidate, test *candidate.TestEvidence, file string, pr
 	return answer.Instruct(fixSpec, b.String())
 }
 
+// CarriedPrompt asks for a patch with the earlier attempts carried as the engine's state (ADR-0048 point 2): the
+// finding, the test and the file as in Prompt, then only what failed and why, bounded to carry estimated tokens.
+// What an earlier attempt changed, and its edits, are not carried: the model starts each attempt from the change.
+func CarriedPrompt(c candidate.Candidate, test *candidate.TestEvidence, file string, previous []Attempt, attempts, carry int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "id: %s\ntitle: %s\nmessage: %s\nlocation: %s:%d-%d\n", c.ID, c.Title, c.Message, c.Path, c.StartLine, c.EndLine)
+	fmt.Fprintf(&b, "test: %s %s\ntest output on the change:\n%s\n", test.Path, test.Name, clip(test.Output, maxOutputBytes))
+	if file != "" {
+		fmt.Fprintf(&b, "file %s in the change:\n%s\n", c.Path, file)
+	}
+	if len(previous) > 0 {
+		failures := make([]markov.FixFailure, 0, len(previous))
+		for i, a := range previous {
+			f := markov.FixFailure{Attempt: i + 1, Reason: a.Reason}
+			if a.Failing != nil {
+				f.Run = fmt.Sprintf("%s, command %s, exit code %d: %s", a.Failing.Label, a.Failing.Command, a.Failing.ExitCode, clip(a.Failing.Output, maxOutputBytes))
+			}
+			failures = append(failures, f)
+		}
+		block, _ := markov.FixBlock(failures, attempts).Fit(carry)
+		fmt.Fprintf(&b, "\nthe earlier attempts did not prove the fix; carried state:\n%s\n", block.Render())
+	}
+	return answer.Instruct(fixSpec, b.String())
+}
+
 // Propose asks for a patch for every kind of finding the Fixer can fix: a finding proved by a
 // test gets a patch that is proved by that test (ADR-0042 point 2). A finding with no such test
 // is returned as it was, and so is a finding when the generator has no answer to give in sample
@@ -124,7 +158,12 @@ func Propose(ctx context.Context, c candidate.Candidate, gen generator.Generator
 	var tried []Attempt
 	for n := 1; n <= attempts; n++ {
 		var got row
-		err := answer.Read(ctx, gen, "fixer", Prompt(c, test, file, tried), fixSpec, &got)
+		prompt := Prompt(c, test, file, tried)
+		// ADR-0048 point 2: with the engine on, a new attempt carries the failures only, through the same engine.
+		if opts.Carry > 0 {
+			prompt = CarriedPrompt(c, test, file, tried, attempts, opts.Carry)
+		}
+		err := answer.Read(ctx, gen, "fixer", prompt, fixSpec, &got)
 		if err != nil {
 			var missing *generator.Missing
 			if errors.As(err, &missing) {
@@ -220,6 +259,16 @@ func prove(ctx context.Context, got row, c candidate.Candidate, test *candidate.
 	}
 	ok := judge(&a)
 	return result{Attempt: a, ok: ok}
+}
+
+// Judge decides the runs of one patched change by the rule of ADR-0042 points 2 and 3, which
+// the whole-change attempt keeps for a finding proved by a test (ADR-0050 point 2): the proving
+// test passes on the patched change and the package's other tests still pass. It returns the
+// reason the runs do not prove the fix, or "" when they do. No model is consulted.
+func Judge(runs []candidate.FixRun) (ok bool, reason string) {
+	a := Attempt{Runs: runs}
+	ok = judge(&a)
+	return ok, a.Reason
 }
 
 // judge decides a record. The fix is proved only when the proving test passes on the base,

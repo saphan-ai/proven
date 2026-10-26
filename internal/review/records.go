@@ -32,6 +32,9 @@ type recorder struct {
 	// nil when the read-only account is not configured, and the link is then
 	// shown unchecked, with a failed service that says so.
 	reader *store.CouchDB
+	// readerField names the setting that kept the read-only account from
+	// loading, so a malformed value is not reported as an absent one.
+	readerField string
 	// linkBase is PROVEN_EVIDENCE_LINK_BASE_URL; empty means no link.
 	linkBase string
 	// pr is the pull request number, "" outside a pull request.
@@ -65,7 +68,7 @@ func (rc *recorder) publish(ctx context.Context, req Request, res *Result) {
 	if rc.reader == nil {
 		// The link is shown, but the page could not be checked as the read-only account because
 		// that account is not configured. Say so, so a reader is not left to find out by a dead link.
-		res.FailedServices = append(res.FailedServices, ServiceFailure{Service: recordsService, Reason: "viewer: link not checked, the read-only account is not configured"})
+		res.FailedServices = append(res.FailedServices, ServiceFailure{Service: recordsService, Reason: "viewer: link not checked, " + unconfigured(rc.readerField)})
 	} else {
 		if cerr := rc.reader.CheckViewer(ctx, rc.writer.Database()); cerr != nil {
 			res.FailedServices = append(res.FailedServices, ServiceFailure{Service: recordsService, Reason: "viewer: " + reasonOf(cerr)})
@@ -81,6 +84,15 @@ func (rc *recorder) publish(ctx context.Context, req Request, res *Result) {
 
 // reasonOf is the text a failed service shows: the store's own reason for a
 // down store, which never holds a credential.
+// unconfigured says why the read-only account was not loaded. A setting that
+// is set but malformed is named, because "not configured" would hide it.
+func unconfigured(field string) string {
+	if field == "" {
+		return "the read-only account is not configured"
+	}
+	return "the read-only account is not configured or is set wrongly: " + field
+}
+
 func reasonOf(err error) string {
 	if d, ok := service.As(err); ok {
 		return d.Reason

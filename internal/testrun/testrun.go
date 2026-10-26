@@ -12,6 +12,8 @@
 // The same adapters also prove a proposed fix (ADR-0042): FixRunner runs the
 // proving test on the base, on the change and on the change with a patch applied,
 // then the package's other tests, and records every run with its command and exit code.
+// The whole-change attempt (ADR-0050) uses the same runs for each test-proved finding, and
+// StagePatchedRoot and StagePatched give it patched copies to run the other kinds of evidence on.
 package testrun
 
 import "context"
