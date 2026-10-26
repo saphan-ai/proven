@@ -286,6 +286,12 @@ routed localgiteaproxy
 # off in local mode. Mutated field: PROVEN_NETWORK (local here, unset in the public row).
 rdrun localnofetch PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 REVIEWDOG_TOKEN=rd-1
 check "local: reviewdog fetches nothing and uses no hosted service" "true|true|" "$(cat "$RD_TOKEN.fetch")"
+# The mode is Proven's reading: a value Go trims (a trailing carriage return) is local for the
+# action too. Mutated field: PROVEN_NETWORK ("local" followed by a carriage return).
+cr=$(printf '\r')
+rdrun localcr "PROVEN_NETWORK=local$cr" INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 GITHUB_API=https://203.0.113.7/api/v3/ REVIEWDOG_TOKEN=rd-1
+routed localcr
+check "local with a carriage return: reviewdog fetches nothing" "true|true|" "$(cat "$RD_TOKEN.fetch")"
 # Public mode is unchanged: the variables still reach reviewdog.
 rdrun publicproxy INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false HTTPS_PROXY=http://203.0.113.9:3128
 check "public mode: a proxy still reaches reviewdog" "|http://203.0.113.9:3128" "$(cat "$RD_TOKEN.route")"

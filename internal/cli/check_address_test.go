@@ -45,3 +45,20 @@ func TestCheckAddressJudgesTheForgeByTheNetworkMode(t *testing.T) {
 		t.Errorf("a wrong command line: exit %d, want %d", code, exitFatal)
 	}
 }
+
+// TestCheckAddressPrintsTheModeItLoaded: the action takes its local-mode steps
+// from the mode check-address prints, so the line ends with Proven's own
+// reading of PROVEN_NETWORK, a trimmed value included. Mutated field:
+// PROVEN_NETWORK ("local" with a trailing carriage return, then unset).
+func TestCheckAddressPrintsTheModeItLoaded(t *testing.T) {
+	for _, r := range []struct{ mode, want string }{{"local\r", ": local\n"}, {"", ": public\n"}} {
+		var stdout, stderr bytes.Buffer
+		env := map[string]string{"PROVEN_NETWORK": r.mode}
+		if code := Run([]string{"check-address", "GITHUB_API_URL", "http://10.1.2.3/api/v3"}, func(k string) string { return env[k] }, &stdout, &stderr, nil); code != exitOK {
+			t.Fatalf("%q: exit %d (stderr %q)", r.mode, code, stderr.String())
+		}
+		if !strings.HasSuffix(stdout.String(), r.want) {
+			t.Fatalf("%q: printed %q, want it to end with %q", r.mode, stdout.String(), r.want)
+		}
+	}
+}

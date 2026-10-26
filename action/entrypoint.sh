@@ -130,7 +130,7 @@ if [ -n "$reporter" ]; then
     forge_address=${GITHUB_API_URL:-https://api.github.com}
   fi
   forge_rc=0
-  $scrub "$proven" check-address "$forge_setting" "$forge_address" >/dev/null || forge_rc=$?
+  forge_said=$($scrub "$proven" check-address "$forge_setting" "$forge_address") || forge_rc=$?
   [ "$forge_rc" -eq 0 ] || exit "$forge_rc"
 fi
 # The judged address must be reviewdog's only route (reviewdog 0.21.2, cmd/reviewdog/main.go
@@ -139,8 +139,10 @@ fi
 # repository's web address, another host; and REVIEWDOG_TOKEN selects its hosted service.
 # None of those addresses was judged, so with PROVEN_NETWORK=local reviewdog starts without
 # them, and a run that needs the fetch fails and says so instead of fetching.
+# The mode is Proven's reading of PROVEN_NETWORK (the last word check-address prints), not
+# this script's; anything but an explicit public reading takes the local steps.
 route_scrub=
-if [ "$(printf %s "${PROVEN_NETWORK:-}" | tr -d ' \t')" = local ]; then
+if [ -n "$reporter" ] && [ "${forge_said##*: }" != public ]; then
   route_scrub="env -u GITHUB_API -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy -u ALL_PROXY -u all_proxy -u REVIEWDOG_TOKEN REVIEWDOG_SKIP_GIT_FETCH=true REVIEWDOG_SKIP_DOGHOUSE=true"
 fi
 
