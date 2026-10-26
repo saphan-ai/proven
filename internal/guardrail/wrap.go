@@ -10,6 +10,7 @@ import (
 
 // Observe is called once per check.
 // refused is empty when the guardrail returned a verdict, and the reason when it did not.
+// v always carries Backend and Model, and Down when refused is not empty.
 type Observe func(agent, side string, v Verdict, refused string) error
 
 // Wrap checks the prompt before the generator runs, and the answer before it is returned.
@@ -49,12 +50,16 @@ func (g *guarded) Complete(ctx context.Context, agent, prompt string) (string, e
 // a check that cannot be traced is not passed.
 func (g *guarded) side(ctx context.Context, agent, side, prompt, answer string) error {
 	v, err := g.rail.Check(ctx, prompt, answer)
+	// The wrapper names the backend, not the adapter's verdict, so a down
+	// check, which has no verdict, still says who failed to answer.
+	v.Backend, v.Model = identify(g.rail)
 	if err != nil {
 		// A cancelled review is a cancellation, not a guardrail failure.
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		down := asDown(err)
+		var down *service.Down
+		down, v.Down = asDown(err)
 		if g.observe != nil {
 			if oerr := g.observe(agent, side, v, down.Reason); oerr != nil {
 				return oerr
@@ -74,14 +79,16 @@ func (g *guarded) side(ctx context.Context, agent, side, prompt, answer string) 
 }
 
 // asDown turns any check error into a named guardrail refusal, so a failed
-// check is never mistaken for a safe one.
-func asDown(err error) *service.Down {
+// check is never mistaken for a safe one, and into its down value. An error
+// from outside this package keeps its text in the refusal, and its down value
+// is DownOther: the text is not ours, so it never becomes a value to count by.
+func asDown(err error) (*service.Down, string) {
 	var d *service.Down
 	if errors.As(err, &d) && d != nil && d.Service == Service {
-		return d
+		return d, downCode(d.Reason)
 	}
 	if err == nil {
-		return Refuse("unreachable")
+		return Refuse("unreachable"), DownUnreachable
 	}
-	return Refuse(err.Error())
+	return Refuse(err.Error()), DownOther
 }

@@ -4,9 +4,9 @@
 package cli
 
 import (
-	"encoding/json"
 	"io"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -23,14 +23,9 @@ const sarifSchemaURI = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/
 type sarifFormatter struct{}
 
 // Write encodes one review as one SARIF 2.1.0 log.
-// HTML escaping stays off for the same reason as the JSON writer: evidence
-// is text, and "<" must stay "<". The indent is two spaces, the same as
-// that writer, so a person can read either file of one run.
+// DEL and C1 are escaped after encoding, the same way as the JSON writer.
 func (sarifFormatter) Write(w io.Writer, result review.Result) error {
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	return enc.Encode(sarifFrom(result))
+	return writeEncoded(w, sarifFrom(result))
 }
 
 type sarifLog struct {
@@ -115,6 +110,8 @@ func sarifFrom(result review.Result) sarifLog {
 				"reviewer_statements":    stringSlice(result.ReviewerStatements),
 				"trace_path":             result.TracePath,
 				"family_sentence":        familySentence(result.TracePath),
+				// Same object the JSON document writes under proof_counts.
+				"proof_counts": proofCountsFrom(result.ProofCounts),
 			},
 		}},
 	}
@@ -129,12 +126,13 @@ func sarifResultFrom(finding review.Finding) sarifResult {
 		// codeFlows would need a path through code. A query has none, so the
 		// proof would be dropped. docs/OUTPUT_FORMATS.md puts evidence here.
 		Properties: map[string]any{
-			"id":         finding.ID,
-			"rule_id":    finding.RuleID,
-			"title":      finding.Title,
-			"severity":   string(finding.Severity),
-			"unresolved": finding.Unresolved,
-			"evidence":   evidenceFrom(finding.Evidence),
+			"id":          finding.ID,
+			"proof_level": string(finding.ProofLevel),
+			"rule_id":     finding.RuleID,
+			"title":       finding.Title,
+			"severity":    string(finding.Severity),
+			"unresolved":  finding.Unresolved,
+			"evidence":    evidenceFrom(finding.Evidence),
 		},
 	}
 	if uri := artifactURI(finding.Location.Path); uri != "" {
@@ -199,20 +197,47 @@ func sarifMessageText(finding review.Finding) string {
 }
 
 // artifactURI makes a SARIF artifact URI from a path.
-// Each segment is escaped on its own so "/" stays the separator.
-// A ":" in the first segment is escaped too: url.PathEscape leaves it, and
-// "a:b/c" would read as a URI with scheme "a" (RFC 3986 §4.2).
-// An empty path returns empty, and the result then has no location:
-// there is no artifact to point at.
-func artifactURI(path string) string {
-	path = filepath.ToSlash(strings.TrimSpace(path))
-	if path == "" {
+// The result is a relative reference under the repository root: no leading
+// "/", no authority, and no ".." segment. Each segment is escaped on its own
+// so "/" stays the separator. A ":" in the first segment is escaped too:
+// url.PathEscape leaves it, and "a:b/c" would read as a URI with scheme "a"
+// (RFC 3986 §4.2).
+//
+// WHY a path that cannot be made so has no location: this log does not set
+// uriBaseId. An absolute path, a path with an authority, or a ".." that
+// survives cleaning would name a file outside the checkout. The finding is
+// kept; sarifResultFrom omits the location when this returns empty. Cleaning
+// comes first so "dir/../a.go" is still "a.go", inside the repository.
+// An empty path returns empty: there is no artifact to point at.
+func artifactURI(p string) string {
+	p = filepath.ToSlash(strings.TrimSpace(p))
+	if p == "" {
 		return ""
 	}
-	parts := strings.Split(path, "/")
+	cleaned := path.Clean(p)
+	if !staysInRepository(cleaned) {
+		return ""
+	}
+	parts := strings.Split(cleaned, "/")
 	for i, part := range parts {
 		parts[i] = url.PathEscape(part)
 	}
 	parts[0] = strings.ReplaceAll(parts[0], ":", "%3A")
 	return strings.Join(parts, "/")
+}
+
+// staysInRepository reports whether cleaned is a relative path that does not
+// climb out of the repository. path.Clean has already collapsed inner ".."
+// and duplicate slashes, so a leading "/" is a root or an authority, and a
+// ".." segment is a path that still leaves the checkout.
+func staysInRepository(cleaned string) bool {
+	if cleaned == "" || strings.HasPrefix(cleaned, "/") || cleaned == ".." {
+		return false
+	}
+	for _, seg := range strings.Split(cleaned, "/") {
+		if seg == "" || seg == ".." {
+			return false
+		}
+	}
+	return true
 }

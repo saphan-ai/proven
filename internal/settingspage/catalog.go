@@ -15,14 +15,21 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/review"
 	"github.com/saphan-ai/proven/internal/store"
+	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
+	"github.com/saphan-ai/proven/internal/trace"
 )
 
 //go:generate go run ../../cmd/settings-doc
+
+// policyAfter follows the policy table. It is not a setting.
+const policyAfter = "A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036)."
 
 // guardrailAfter is the sentence that follows the guardrail table. It is
 // not a setting. It stays inside the generated block so the one marker pair
@@ -38,14 +45,20 @@ const toolAfter = "Each tool runs in the Prover's container with no network and 
 // readsAfter follows the read-bound table. It is not a setting.
 const readsAfter = "A read over its bound is refused by name before the review goes on; the refusal names the file and the bound, never its content. Sample mode reads none of these."
 
+// telemetryAfter follows the telemetry table. It is not a setting.
+const telemetryAfter = "Telemetry is off unless an endpoint is set. It only observes: once a review has started it never changes what the review decides, and a collector that cannot be reached never fails a review (the export is bounded at 5 seconds, and the failure goes to stderr). The one refusal is at the start: a malformed `OTEL_*` setting stops `Open` by name, like any other setting. No secret is put in an attribute, an event or a span status: the same redactor that cleans the trace file cleans the span events and the text of every failed review and failed agent, so a status carries the redactor's marker where a configured secret stood. The headers, timeout and certificates of the exporter are the SDK's own variables (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_CERTIFICATE`), read from the process environment. Sample mode reads the `OTEL_*` variables and no other."
+
 // generatorAfter says, per mode, which keys the generator needs and where to get them (ADR-0031 point 6).
 const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these."
 
 // evidenceAfter follows the evidence table. It is not a setting.
-const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. couchdb is named and refused until it is built. Sample mode uses the local store on the fixture file and reads none of these."
+const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md)."
 
 // packAfter follows the evidence-pack table. It is not a setting.
 const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
+
+// boundedAfter follows the bounded-steps table. It is not a setting.
+const boundedAfter = "ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
@@ -88,8 +101,18 @@ func Catalog() []envdoc.Section {
 			After:   toolAfter,
 		},
 		{
+			Heading: "Bounded steps: Meterless's Markovian engine",
+			Rows:    markov.Environment(),
+			After:   boundedAfter,
+		},
+		{
 			Heading: "One adapter call",
 			Rows:    limit.Environment(),
+		},
+		{
+			Heading: "Telemetry: OpenTelemetry (ADR-0045)",
+			Rows:    telemetry.Environment(),
+			After:   telemetryAfter,
 		},
 		{
 			Heading: "Reads of the repository under review",
@@ -97,9 +120,19 @@ func Catalog() []envdoc.Section {
 			After:   readsAfter,
 		},
 		{
+			Heading: "The organisation policy",
+			Rows:    review.EnvironmentPolicy(),
+			After:   policyAfter,
+		},
+		{
 			Heading: "The evidence pack",
 			Rows:    evidence.Environment(),
 			After:   packAfter,
+		},
+		{
+			Heading: "The trace",
+			Rows:    trace.Environment(),
+			After:   "The default is the user cache directory, with proven/logs under it, created so only that user can read it. An existing configured directory is narrowed to 0700. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. The link count of each file written in that directory is read on every OS. Sample mode reads this setting.",
 		},
 	}
 }

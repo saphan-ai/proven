@@ -54,11 +54,24 @@ func contractResult(t *testing.T) review.Result {
 		TracePath:            writeTrace(t, "family sentence text"),
 		Models:               []review.ModelUse{{Agent: "judge", Route: "route-x", Model: "model-y", ReceiptID: "receipt-z", FromReceipt: true}},
 		FailedServices:       []review.ServiceFailure{{Service: "nightshift", Reason: "timeout"}},
+		// The counts are not a recount of the findings below. A writer that
+		// counted the findings itself, instead of copying ProofCounts, would
+		// write 0, 1, 0, 1 and turn the contract red.
+		ProofCounts: map[review.ProofLevel]int{
+			review.ProvedByTest: 4, review.ProvedByTool: 1, review.ProvedByData: 0, review.AgreedNotProven: 9,
+		},
 		Findings: []review.Finding{
 			{
 				ID: "F1", RuleID: "rule-one", Title: "title one", Message: "message one",
 				Severity: review.SeverityError, Unresolved: true, Models: []string{"model-a", "model-b"},
-				Location: review.Location{Path: "dir/a.go", StartLine: 5, EndLine: 7},
+				// Evidence is a test, whose own level would be proved-by-test.
+				// The field says proved-by-tool, so a writer that derives the
+				// level from the evidence instead of copying ProofLevel fails.
+				ProofLevel: review.ProvedByTool,
+				// The first finding has a stored record and the second has none, so the
+				// JSON contract shows the field present on one and omitted on the other.
+				EvidenceRecordURL: "http://couch.test/proven_records/_design/evidence/viewer.html?doc=rec-1",
+				Location:          review.Location{Path: "dir/a.go", StartLine: 5, EndLine: 7},
 				Evidence: []review.Evidence{
 					{Kind: review.EvidenceTest, Test: &review.TestEvidence{
 						Path: "dir/a_test.go", Name: "TestA", Command: "go test ./dir", FailsOnChange: true, PassesOnBase: true, Output: "FAIL",
@@ -68,11 +81,13 @@ func contractResult(t *testing.T) review.Result {
 					}},
 				},
 			},
-			// Nothing optional is set: every list of this finding is empty.
+			// Every list of this finding is empty. Its level is not the one a query
+			// would derive, so the writer has to copy ProofLevel.
 			{
 				ID: "F2", Severity: review.SeverityInfo, Message: "message two",
-				Location: review.Location{Path: "b.go", StartLine: 1, EndLine: 1},
-				Evidence: []review.Evidence{{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{SQL: "SELECT 2", Engine: "e", Snapshot: "s"}}},
+				ProofLevel: review.AgreedNotProven,
+				Location:   review.Location{Path: "b.go", StartLine: 1, EndLine: 1},
+				Evidence:   []review.Evidence{{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{SQL: "SELECT 2", Engine: "e", Snapshot: "s"}}},
 			},
 		},
 	}
@@ -122,15 +137,20 @@ func TestJSONDocumentIsTheContract(t *testing.T) {
 			"agent": "judge", "route": "route-x", "model": "model-y", "receipt_id": "receipt-z", "from_receipt": true,
 		}},
 		"failed_services": wantFailedServices(),
+		"proof_counts": map[string]any{
+			"proved-by-test": float64(4), "proved-by-tool": float64(1),
+			"proved-by-data": float64(0), "agreed-by-two-models-not-proven": float64(9),
+		},
 		"findings": []any{
 			map[string]any{
-				"id": "F1", "rule_id": "rule-one", "title": "title one", "message": "message one",
+				"id": "F1", "proof_level": "proved-by-tool", "rule_id": "rule-one", "title": "title one", "message": "message one",
 				"severity": "ERROR", "unresolved": true, "models": []any{"model-a", "model-b"},
-				"location": map[string]any{"path": "dir/a.go", "start_line": float64(5), "end_line": float64(7)},
-				"evidence": wantEvidence(),
+				"location":            map[string]any{"path": "dir/a.go", "start_line": float64(5), "end_line": float64(7)},
+				"evidence":            wantEvidence(),
+				"evidence_record_url": "http://couch.test/proven_records/_design/evidence/viewer.html?doc=rec-1",
 			},
 			map[string]any{
-				"id": "F2", "rule_id": "", "title": "", "message": "message two",
+				"id": "F2", "proof_level": "agreed-by-two-models-not-proven", "rule_id": "", "title": "", "message": "message two",
 				"severity": "INFO", "unresolved": false, "models": []any{},
 				"location": map[string]any{"path": "b.go", "start_line": float64(1), "end_line": float64(1)},
 				"evidence": []any{map[string]any{"kind": "query", "query": map[string]any{
@@ -198,6 +218,10 @@ func TestSARIFPropertiesAreTheContract(t *testing.T) {
 		"reviewer_statements":    []any{"reviewer statement one", "reviewer statement two"},
 		"trace_path":             result.TracePath,
 		"family_sentence":        "family sentence text",
+		"proof_counts": map[string]any{
+			"proved-by-test": float64(4), "proved-by-tool": float64(1),
+			"proved-by-data": float64(0), "agreed-by-two-models-not-proven": float64(9),
+		},
 	}
 	if !jsonEqual(run.Properties, wantRun) {
 		gotB, _ := json.MarshalIndent(run.Properties, "", "  ")
@@ -209,8 +233,8 @@ func TestSARIFPropertiesAreTheContract(t *testing.T) {
 		t.Fatalf("results %d, want 2", len(run.Results))
 	}
 	wantResults := []map[string]any{
-		{"id": "F1", "rule_id": "rule-one", "title": "title one", "severity": "ERROR", "unresolved": true, "evidence": wantEvidence()},
-		{"id": "F2", "rule_id": "", "title": "", "severity": "INFO", "unresolved": false, "evidence": []any{
+		{"id": "F1", "proof_level": "proved-by-tool", "rule_id": "rule-one", "title": "title one", "severity": "ERROR", "unresolved": true, "evidence": wantEvidence()},
+		{"id": "F2", "proof_level": "agreed-by-two-models-not-proven", "rule_id": "", "title": "", "severity": "INFO", "unresolved": false, "evidence": []any{
 			map[string]any{"kind": "query", "query": map[string]any{
 				"sql": "SELECT 2", "engine": "e", "snapshot": "s", "columns": []any{}, "rows": []any{},
 			}},

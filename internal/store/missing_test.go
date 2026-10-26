@@ -24,46 +24,30 @@ func TestLocalMissingTableIsADownSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := querytpl.Request{
+	_, err = local.Run(context.Background(), querytpl.Request{
 		Template: querytpl.KEVByCVE,
 		Params:   map[string]string{querytpl.ParamCVEID: "CVE-2021-44228"},
+	}, querytpl.Relations{})
+	d, ok := service.As(err)
+	if !ok {
+		t.Fatalf("want a down source, got %v", err)
 	}
-	for name, run := range map[string]func() error{
-		"Run": func() error {
-			_, err := local.Run(context.Background(), req, querytpl.Relations{})
-			return err
-		},
-		"Query": func() error {
-			forms, err := querytpl.BuildForms(req, querytpl.Relations{})
-			if err != nil {
-				return err
-			}
-			_, err = local.Query(context.Background(), forms.SQL)
-			return err
-		},
-	} {
-		err := run()
-		d, ok := service.As(err)
-		if !ok {
-			t.Fatalf("%s: want a down source, got %v", name, err)
-		}
-		if d.Service != "local" || !strings.HasPrefix(d.Reason, "no table ") {
-			t.Fatalf("%s: %#v", name, d)
-		}
+	if d.Service != "local" || !strings.HasPrefix(d.Reason, "no table ") {
+		t.Fatalf("%#v", d)
 	}
 }
 
 // TestStoresAgreeOnAMissingTable proves a table the source never registered is
 // a named down source on every store, never an empty answer and never an
 // error that ends the review (ADR-0047). Zetaris is a recorded server that
-// answers 404 for the missing view. The mutated field is the table: neither
-// store holds it. Negative control: the local down conversion removed turns
-// the local half red.
+// answers 404 for the missing view, and the down source is named zetaris.
+// CouchDB is a recorded server with no database, and the reason starts with
+// "no table", as it does on the local store. Every template in the catalogue
+// is asked, so a new source table is the same kind of miss. The mutated
+// field is the request set: asking only mal-by-package turns the count red.
+// Negative control: the local down conversion removed turns the local half red.
 func TestStoresAgreeOnAMissingTable(t *testing.T) {
-	req := querytpl.Request{
-		Template: querytpl.KEVByCVE,
-		Params:   map[string]string{querytpl.ParamCVEID: "CVE-2021-44228"},
-	}
+	reqs := requestsForEveryTemplate(t)
 	ctx := context.Background()
 	local, err := OpenLocal(filepath.Join(t.TempDir(), "evidence.sql"))
 	if err != nil {
@@ -77,12 +61,56 @@ func TestStoresAgreeOnAMissingTable(t *testing.T) {
 		BaseURL: srv.URL, APIKey: "conform-key", OrgID: "1",
 		RowLimit: 100, Timeout: time.Second,
 	})
-	stores := map[string]Store{"local": local, "zetaris": z}
+	_, couchSrv := newFakeCouch(t)
+	stores := map[string]Store{"local": local, "zetaris": z, "couchdb": couchStore(couchSrv)}
+	seen := map[string]int{}
 	for name, s := range stores {
-		_, err := s.Run(ctx, req, querytpl.Relations{})
-		d, ok := service.As(err)
-		if !ok || d.Service != name {
-			t.Fatalf("%s: want a down source naming it, got %v", name, err)
+		for _, req := range reqs {
+			seen[req.Template]++
+			_, err := s.Run(ctx, req, querytpl.Relations{})
+			d, ok := service.As(err)
+			if !ok || d.Service != name {
+				t.Fatalf("%s %s: want a down source naming it, got %v", name, req.Template, err)
+			}
+			// Local and CouchDB say which table is missing. Zetaris answers
+			// 404 for the view and the reason is that status; the service
+			// name is still zetaris.
+			if name != "zetaris" && !strings.HasPrefix(d.Reason, "no table ") {
+				t.Fatalf("%s %s: reason %q", name, req.Template, d.Reason)
+			}
 		}
 	}
+	if len(seen) != len(reqs) {
+		t.Fatalf("ran %d templates, the catalogue gave %d", len(seen), len(reqs))
+	}
+}
+
+// requestsForEveryTemplate is one valid request per template in the catalogue.
+// A parameter this map does not know fails the test, so a new template cannot
+// pass by being skipped.
+func requestsForEveryTemplate(t *testing.T) []querytpl.Request {
+	t.Helper()
+	valid := map[string]string{
+		querytpl.ParamEcosystem:  "Go",
+		querytpl.ParamPackage:    "evil.example/drop",
+		querytpl.ParamCVEID:      "CVE-2021-44228",
+		querytpl.ParamAdvisoryID: "GHSA-jfh8-c2jp-5v3q",
+	}
+	cat := querytpl.Catalogue()
+	reqs := make([]querytpl.Request, 0, len(cat))
+	for _, tpl := range cat {
+		params := map[string]string{}
+		for _, p := range tpl.Params {
+			v, ok := valid[p.Name]
+			if !ok {
+				t.Fatalf("template %s parameter %s has no sample value", tpl.Name, p.Name)
+			}
+			params[p.Name] = v
+		}
+		reqs = append(reqs, querytpl.Request{Template: tpl.Name, Params: params})
+	}
+	if len(reqs) < 3 {
+		t.Fatalf("catalogue has %d templates; a single hard-coded request would still pass", len(reqs))
+	}
+	return reqs
 }

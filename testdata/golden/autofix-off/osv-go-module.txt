@@ -1,0 +1,30 @@
+review class: security
+review rule: go.mod
+author model not stated; default reviewer NVIDIA
+reviewer NVIDIA; role default; family NVIDIA; author model not stated
+special-review model: not configured
+finding osv:example.com/widget ERROR Dependency example.com/widget v1.4.0 is in an OSV affected range
+  EPSS 0.42000 (91st percentile, 2026-10-21)
+  go.mod:5-5
+  example.com/widget v1.4.0 matches GHSA-w19-sample-0001: introduced 1.3.0 <= v1.4.0 < fixed 1.5.0. GHSA-w19-sample-0002 does not match: v1.4.0 < introduced 2.0.0. alias CVE-2026-4242 is on the KEV list Reachability: not measured.
+  rule osv-affected-package
+  evidence query local-sample snapshot=sample-2026-10-23 form=sql
+  SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'example.com/widget'
+  columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  row: GHSA-w19-sample-0001 | CVE-2026-4242 | Go | example.com/widget | 1.3.0 | 1.5.0 |  | HIGH | 2026-04-01
+  row: GHSA-w19-sample-0002 |  | Go | example.com/widget | 2.0.0 | 2.1.0 |  | LOW | 2026-05-01
+  evidence query local-sample snapshot=sample-2026-10-23 form=sql
+  SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-4242'
+  columns: cve_id, vendor_project, product, date_added, known_ransomware
+  row: CVE-2026-4242 | example.com | widget | 2026-04-01 | Unknown
+  evidence query local-sample snapshot=sample-2026-10-23 form=sql
+  SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-4242'
+  columns: cve_id, epss, percentile, score_date
+  row: CVE-2026-4242 | 0.42000 | 0.91000 | 2026-10-21
+  fix named from the advisory table, not run by a test: raise example.com/widget v1.4.0 to 1.5.0
+  fix closes the problem because: 1.5.0 is the fixed version of advisory GHSA-w19-sample-0001, and it is the smallest fixed version of the rows returned that no affected range of those rows holds. No test proves a version change, so this fix is named from the table, not run.
+  fix advisory GHSA-w19-sample-0001 columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  fix advisory row: GHSA-w19-sample-0001 | CVE-2026-4242 | Go | example.com/widget | 1.3.0 | 1.5.0 |  | HIGH | 2026-04-01
+Agreed by two models, not proven
+  none: one reviewer; a claim only one model makes stays dropped
+failed services: none

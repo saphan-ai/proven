@@ -1,0 +1,20 @@
+Scout Intent eval: Meterless runner and regression set v1, unchanged
+reference: github.com/Meterless/Meterless at commit 1742dec56a66e58eef9dda2d2b865823758ca8cd, engines/scout-intent
+implementation: test/conformance/meterless/scout-intent/index.ts -> internal/scout (Stage 1 only; Stage 2 not built)
+
+Loaded 32 examples from v1/all
+Report written: engines/scout-intent/evals/reports/latest.md
+┌─────────────────────┬────────┐
+│ (index)             │ Values │
+├─────────────────────┼────────┤
+│ intent_top1         │ 1      │
+│ intent_top3_recall  │ 1      │
+│ injection_precision │ 1      │
+│ injection_recall    │ 1      │
+│ tool_precision      │ 1      │
+│ clarification_rate  │ 0.1875 │
+│ override_frequency  │ 0      │
+└─────────────────────┴────────┘
+note: override_frequency = 0.000 by definition of the corpus, not by measurement: no override data in corpus v1. Overrides are user corrections captured in telemetry ("No, I meant…" + intent switch within the same trace) ÷ contracts issued — measure this in production telemetry (docs/telemetry-and-learning.md).
+
+exit 0

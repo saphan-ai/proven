@@ -37,6 +37,11 @@ func redactEvent(e Event, r *redact.Redactor) Event {
 		g.Side = r.Text(g.Side)
 		g.Verdict = r.Text(g.Verdict)
 		g.Categories = r.Texts(g.Categories)
+		// The model id comes from a setting, so it is redacted like any other
+		// configured value; backend and down are fixed names, redacted for symmetry.
+		g.Backend = r.Text(g.Backend)
+		g.Model = r.Text(g.Model)
+		g.Down = r.Text(g.Down)
 		e.Guardrail = &g
 	}
 	if e.Model != nil {
@@ -44,6 +49,8 @@ func redactEvent(e Event, r *redact.Redactor) Event {
 		m.Route = r.Text(m.Route)
 		m.Model = r.Text(m.Model)
 		m.ReceiptID = r.Text(m.ReceiptID)
+		m.Requested = r.Text(m.Requested)
+		m.ResponseID = r.Text(m.ResponseID)
 		e.Model = &m
 	}
 	return e

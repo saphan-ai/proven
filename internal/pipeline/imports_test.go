@@ -26,11 +26,26 @@ var exemptBanned = map[string]map[string]string{
 	"internal/cli/run.go": {
 		"os/exec": "git merge-base names the fork point and does not run the change",
 	},
+	"internal/cli/linkcount_windows.go": {
+		"syscall": "reads the link count of the trace file on Windows; no process, no network",
+	},
+	"internal/cli/output_open_unix.go": {
+		"syscall": "O_NOFOLLOW on the output open, so a final symbolic link is not followed",
+	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",
 	},
 	"internal/query/live.go": {
 		"net/http": "the live query adapter calls the Zetaris REST API",
+	},
+	"internal/store/couchdb.go": {
+		"net/http": "the CouchDB store calls CouchDB's HTTP API (ADR-0047) and no other address",
+	},
+	"internal/review/review.go": {
+		"net/http": "Options holds the HTTP client a test gives the records store; this file dials nothing",
+	},
+	"internal/store/records.go": {
+		"net/http": "the evidence records are written to and read from CouchDB's HTTP API, the configured address only",
 	},
 }
 
