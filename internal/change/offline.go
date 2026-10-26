@@ -79,7 +79,28 @@ func withoutAttributes(args []string) ([]string, error) {
 	// each checked-out submodule, and that git reads the submodule's own
 	// info/attributes, which refuseInfoAttributes does not see.
 	pre := []string{"--attr-source=" + strings.TrimSpace(string(out)), "-c", "core.attributesFile=/dev/null", "-c", "core.fsmonitor=false", "-c", "diff.ignoreSubmodules=all"}
-	return append(pre, args...), nil
+	return append(pre, ignoreSubmodules(args)...), nil
+}
+
+// ignoreSubmodules adds --ignore-submodules=all after the diff subcommand of
+// args. A clone's .gitmodules or .git/config can say `ignore = none` for a
+// submodule, which outranks diff.ignoreSubmodules; the command-line switch
+// outranks both, so git never enters a submodule however the clone is set.
+func ignoreSubmodules(args []string) []string {
+	for i, a := range args {
+		if a == "-C" {
+			continue
+		}
+		if i > 0 && args[i-1] == "-C" {
+			continue
+		}
+		if a != "diff" {
+			return args
+		}
+		out := append(append(append([]string(nil), args[:i+1]...), "--ignore-submodules=all"), args[i+1:]...)
+		return out
+	}
+	return args
 }
 
 // refuseInfoAttributes refuses a clone whose .git/info/attributes sets any

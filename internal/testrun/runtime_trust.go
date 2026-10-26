@@ -36,7 +36,7 @@ func refuseRelativeRuntime(runtime string) error {
 // vetRuntimeFile refuses a resolved runtime that any user could replace: the
 // file is world-writable, or a directory above it is world-writable without
 // the sticky bit. The link is followed, so the file that runs is the one judged;
-// the directories above the path that was found are judged as well.
+// every directory on the way to it, links included, is judged as well.
 func vetRuntimeFile(path string) error {
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
@@ -53,7 +53,12 @@ func vetRuntimeFile(path string) error {
 			fmt.Sprintf("the runtime file is writable by every user (mode %04o), so any user could replace the program Proven starts; it is not run", info.Mode().Perm()),
 			"a runtime that only its owner can change: chmod o-w on the file, or another path")
 	}
-	for _, dir := range ancestors(filepath.Dir(path), filepath.Dir(real)) {
+	dirs, err := linkDirs(path)
+	if err != nil {
+		return refuse(envRuntimeSetting, clip(path), "PROVEN_NETWORK=local cannot follow the runtime's links: "+err.Error(),
+			"an absolute path to a runtime file Proven can read")
+	}
+	for _, dir := range dirs {
 		di, err := os.Stat(dir)
 		if err != nil {
 			return refuse(envRuntimeSetting, clip(dir), "PROVEN_NETWORK=local cannot read the runtime's directory: "+err.Error(),
@@ -68,26 +73,58 @@ func vetRuntimeFile(path string) error {
 	return nil
 }
 
-// ancestors lists each directory from dirs up to the root, once: a directory
-// any user can write without the sticky bit lets that user replace the entry
-// below it, so every one between the root and the runtime is judged.
-func ancestors(dirs ...string) []string {
+// maxLinks bounds the links linkDirs follows, as the kernel bounds a lookup.
+const maxLinks = 40
+
+// linkDirs lists every directory that holds a name on the way from path to the
+// file it names, once: each directory from the root down, and, for every link
+// met on the way (of the file or of a directory), each directory of its target.
+// A directory any user can write without the sticky bit lets that user replace
+// the name in it, so each one is judged.
+func linkDirs(path string) ([]string, error) {
 	seen := map[string]bool{}
 	var out []string
-	for _, dir := range dirs {
-		for {
-			if !seen[dir] {
-				seen[dir] = true
-				out = append(out, dir)
+	links := 0
+	var walk func(p string) (string, error)
+	walk = func(p string) (string, error) {
+		cur := string(filepath.Separator)
+		for _, part := range strings.Split(filepath.Clean(p), string(filepath.Separator)) {
+			if part == "" {
+				continue
 			}
-			parent := filepath.Dir(dir)
-			if parent == dir {
-				break
+			if !seen[cur] {
+				seen[cur] = true
+				out = append(out, cur)
 			}
-			dir = parent
+			next := filepath.Join(cur, part)
+			fi, err := os.Lstat(next)
+			if err != nil {
+				return "", err
+			}
+			if fi.Mode()&os.ModeSymlink == 0 {
+				cur = next
+				continue
+			}
+			if links++; links > maxLinks {
+				return "", fmt.Errorf("more than %d links", maxLinks)
+			}
+			target, err := os.Readlink(next)
+			if err != nil {
+				return "", err
+			}
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(cur, target)
+			}
+			if cur, err = walk(target); err != nil {
+				return "", err
+			}
 		}
+		return cur, nil
 	}
-	return out
+	if _, err := walk(path); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // Describe is the start line of local mode: the absolute path of the runtime

@@ -60,3 +60,26 @@ func TestLocalSubmoduleStartsNoFilter(t *testing.T) {
 		t.Fatalf("online, the fixture's filter did not start, so the local check proves nothing: %v", err)
 	}
 }
+
+// TestLocalSubmoduleIgnoreNone: the clone's own .gitmodules says `ignore = none`
+// for the submodule, which outranks diff.ignoreSubmodules. In local mode the
+// working-tree read must still never enter it. Mutated field: .gitmodules
+// submodule.sub.ignore (absent above, "none" here).
+func TestLocalSubmoduleIgnoreNone(t *testing.T) {
+	super, marker := submoduleClone(t)
+	body, err := os.ReadFile(filepath.Join(super, ".gitmodules"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(super, ".gitmodules"), string(body)+"\tignore = none\n")
+	git(t, super, "add", ".gitmodules")
+	git(t, super, "commit", "-m", "[probe] fixture: ignore none")
+	_ = os.Remove(marker)
+	defer UseOffline(UseOffline(true))
+	if _, err := Between(super, "HEAD", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("local mode entered the submodule (its .gitmodules says ignore = none) and started the filter its info/attributes names (%v)", err)
+	}
+}
