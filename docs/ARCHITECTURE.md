@@ -82,8 +82,9 @@ query and every refutation match is a scan of all records. Nothing is indexed, s
 number of records. This page states no timing, because none was measured.
 
 Reading is bounded. A state file over `PROVEN_HMEM_MAX_STATE_BYTES` (default 64 MiB) is refused when the store opens,
-by name (`ErrStateTooLarge`), with the file's size and the cap; the reader stops at the cap and reads nothing more
-(ADR-0013). The number of leading query tokens that count is `PROVEN_HMEM_QUERY_TOKENS` (default 8). Both are listed in
+by name (`ErrStateTooLarge`), with the file's size and the cap; the reader takes at most the cap plus one byte (ADR-0013).
+The one extra byte proves an overflow when the file's reported size is wrong: if the reader gets the extra byte, the
+file is larger than the cap, whatever its size said. The number of leading query tokens that count is `PROVEN_HMEM_QUERY_TOKENS` (default 8). Both are listed in
 [CONFIGURATION.md](CONFIGURATION.md). A store that outgrows the cap needs a different design, not a larger number.
 
 ## Modes
