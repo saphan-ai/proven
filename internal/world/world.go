@@ -28,6 +28,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/pathguard"
+	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
@@ -92,7 +93,9 @@ type Report struct {
 
 // Options open a store. Dir is durable state. LogDir receives the provenance JSONL.
 // RepoRoot, when set, refuses a Dir inside that tree. Memory is the H-MEM
-// store that keeps refutations; it is required.
+// store that keeps refutations. It may be nil, which is how a review with H-MEM
+// switched off (ADR-0053) opens the World Model: the fold records no refutation
+// in memory and Context matches none.
 type Options struct {
 	Dir      string
 	LogDir   string
@@ -110,6 +113,7 @@ type Store struct {
 	applied   map[string]struct{}
 	findings  map[string]*Finding
 	entities  map[string]Entity
+	edges     map[string]Edge
 }
 
 // disk is the shape of state.json. Applied lists every event id already
@@ -119,6 +123,8 @@ type disk struct {
 	Applied  []string  `json:"applied"`
 	Findings []Finding `json:"findings"`
 	Entities []Entity  `json:"entities"`
+	// Edges is omitted when empty, so a store with no graph keeps its earlier canonical form.
+	Edges []Edge `json:"edges,omitempty"`
 }
 
 // Open loads state.json when it exists and refuses a bad file.
@@ -129,9 +135,6 @@ func Open(opts Options) (*Store, error) {
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("world: logs directory is empty")
 	}
-	if opts.Memory == nil {
-		return nil, fmt.Errorf("world: memory store is missing")
-	}
 	dir, err := filepath.Abs(opts.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("world: state directory: %w", err)
@@ -139,7 +142,7 @@ func Open(opts Options) (*Store, error) {
 	if err := refuseInside(dir, opts.RepoRoot); err != nil {
 		return nil, err
 	}
-	if err := privateDir(dir); err != nil {
+	if err := service.PrivateDir(dir); err != nil {
 		return nil, fmt.Errorf("world: state directory: %w", err)
 	}
 	st, err := os.Stat(dir)
@@ -160,6 +163,7 @@ func Open(opts Options) (*Store, error) {
 		applied:   map[string]struct{}{},
 		findings:  map[string]*Finding{},
 		entities:  map[string]Entity{},
+		edges:     map[string]Edge{},
 	}
 	// A state file an earlier run left at a wider mode is narrowed before it is read.
 	if err := os.Chmod(filepath.Join(dir, "state.json"), 0o600); err != nil && !os.IsNotExist(err) {
@@ -208,6 +212,15 @@ func Open(opts Options) (*Store, error) {
 			return nil, fmt.Errorf("world: duplicate entity %s", e.ID)
 		}
 		s.entities[e.ID] = e
+	}
+	for _, r := range file.Edges {
+		if err := checkProvenance(r.Source); err != nil {
+			return nil, fmt.Errorf("world: edge %s: %w", r.ID, err)
+		}
+		if _, ok := s.edges[r.ID]; ok {
+			return nil, fmt.Errorf("world: duplicate edge %s", r.ID)
+		}
+		s.edges[r.ID] = r
 	}
 	return s, nil
 }
@@ -382,7 +395,7 @@ func (s *Store) apply(ev trace.Event) error {
 		// teaches the next review nothing, and the Skeptic's word alone is not a
 		// refutation. The time is the event's place in the fold, not the clock,
 		// so a replay stores the same record.
-		if ref.Refuted && ev.HasEvidence && evidenced {
+		if ref.Refuted && ev.HasEvidence && evidenced && s.mem != nil {
 			at := int64(len(s.applied) + 1)
 			rec, err := s.mem.RememberRefutation(hmem.RefutationKey{
 				ChangeKey: ev.ChangeKey,
@@ -441,6 +454,9 @@ func (s *Store) Context(findingID, changeKey, ruleID, path, title string) Contex
 		out.Verdict = f.Verdict
 		out.MemoryID = f.MemoryID
 	}
+	if s.mem == nil {
+		return out
+	}
 	if rec, ok := s.mem.MatchRefutation(changeKey, ruleID, path, title); ok {
 		out.Memories = []hmem.Record{rec}
 		// The finding's own memory id, set during the fold, wins over the match.
@@ -479,6 +495,14 @@ func (s *Store) Canonical() string {
 	for _, id := range eids {
 		file.Entities = append(file.Entities, s.entities[id])
 	}
+	rids := make([]string, 0, len(s.edges))
+	for id := range s.edges {
+		rids = append(rids, id)
+	}
+	sort.Strings(rids)
+	for _, id := range rids {
+		file.Edges = append(file.Edges, s.edges[id])
+	}
 	b, err := json.Marshal(file)
 	if err != nil {
 		return ""
@@ -492,6 +516,7 @@ type foldSnap struct {
 	applied  map[string]struct{}
 	findings map[string]*Finding
 	entities map[string]Entity
+	edges    map[string]Edge
 }
 
 func (s *Store) cloneState() foldSnap {
@@ -508,13 +533,14 @@ func (s *Store) cloneState() foldSnap {
 		e.Attrs = cloneAttrs(e.Attrs)
 		entities[id] = e
 	}
-	return foldSnap{applied: applied, findings: findings, entities: entities}
+	return foldSnap{applied: applied, findings: findings, entities: entities, edges: cloneEdges(s.edges)}
 }
 
 func (s *Store) restoreState(snap foldSnap) {
 	s.applied = snap.applied
 	s.findings = snap.findings
 	s.entities = snap.entities
+	s.edges = snap.edges
 }
 
 func cloneFinding(f *Finding) *Finding {
@@ -600,14 +626,4 @@ func (s *Store) audit(ev trace.Event) error {
 		return err
 	}
 	return f.Sync()
-}
-
-// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
-// mode only when it creates, and a directory an earlier run left at 0755 must
-// not stay readable by others (Proven's own state is readable only by its user).
-func privateDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	return os.Chmod(dir, 0o700)
 }

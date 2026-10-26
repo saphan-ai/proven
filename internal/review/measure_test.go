@@ -84,6 +84,7 @@ func TestPlanMeasurement(t *testing.T) {
 	table.WriteString("|---|---|---|---|---|---|---|---|\n")
 	for _, s := range scenarios {
 		off := defaultSettings()
+		off.ScoutIntent = false // the "without plan" side; the default is on (ADR-0053)
 		on := defaultSettings()
 		if s.cut && strings.HasPrefix(s.name, "dependency") {
 			off, on = manifestsNotSecurity(off), manifestsNotSecurity(on)

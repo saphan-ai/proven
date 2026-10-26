@@ -11,11 +11,14 @@ Read in this order.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | the six agents and the pipeline, on one page | first version |
 | [ADAPTERS.md](ADAPTERS.md) | how to add a language (PHP with Composer, and Kotlin with Gradle, as the worked examples), a deterministic tool (the Go race detector), a data source and an output format | first version |
 | [CONFIGURATION.md](CONFIGURATION.md) | every setting the reviewer reads, its default and what it changes, including every `proven.yaml` key | first version; the shell's flags are added by the shell's track |
+| [ENTERPRISE.md](ENTERPRISE.md) | Proven for organisations: where your code runs, how a finding is checked later, your rules, data and models, and what is still being built | first version |
 | [POLICY.md](POLICY.md) | one organisation policy for every repository's `proven.yaml`, and exceptions that name an owner and expire | first version |
 | [QUERIES.md](QUERIES.md) | every question Proven asks Zetaris: the query templates, each parameter's format, and what a refusal does | first version |
 | [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md) | JSON and SARIF, two writings of one review result | first version |
+| [ZETARIS_USL.md](ZETARIS_USL.md) | the semantic layer in Zetaris over the evidence: four entities and their relations, the data-quality gate, how to apply it, the parity check, and what to do when the gate refuses | first version; not yet applied to a live Zetaris |
 | [OSV_TABLE.md](OSV_TABLE.md) | the OSV package table, the CSV converter, and how an administrator loads and refreshes it | first version |
 | [RECEIPT_CUSTODY.md](RECEIPT_CUSTODY.md) | the custody check of model answers and the audit command that counts it over a receipts file and a trace | first version |
+| [JUDGES_GATEWAY.md](JUDGES_GATEWAY.md) | the owner's runbook for the gateway that gives a judge's lab our model service and our evidence, with the judge's own token: run it, the tunnel and Access, issue and revoke a token, read a refusal | first version; the Cloudflare steps are not yet run |
 | SETUP.md (not written yet) | running Proven live: Zetaris, Meterless Nightshift, the NVIDIA guardrail | written by the infrastructure track; not here yet |
 
 The design and its reasons are in [DESIGN.md](../hackathon/DESIGN.md); every decision is in [fleet/decisions/](adr/).

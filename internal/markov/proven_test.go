@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-// TestLoadDefaultsAreOffAndBadValuesAreRefusedByName proves ADR-0013 for the four settings: unset is the engine off
+// TestLoadDefaultsAreOnAndBadValuesAreRefusedByName proves ADR-0013 and ADR-0053 for the four settings: unset is the engine on
 // with the documented defaults, each other allowed value is taken, and a value that is not allowed is refused
 // with the variable named and the allowed values listed, never replaced by the default.
-func TestLoadDefaultsAreOffAndBadValuesAreRefusedByName(t *testing.T) {
+func TestLoadDefaultsAreOnAndBadValuesAreRefusedByName(t *testing.T) {
 	s, err := Load(nil)
-	if err != nil || s != (Settings{On: false, Threshold: 8000, Unit: UnitFile, Carry: 800}) {
+	if err != nil || s != (Settings{On: true, Threshold: 8000, Unit: UnitFile, Carry: 800}) {
 		t.Fatalf("%+v %v", s, err)
 	}
 	env := map[string]string{EnvSwitch: "on", EnvThreshold: "20000", EnvUnit: "hunk", EnvCarry: "1024"}
@@ -40,7 +40,7 @@ func TestLoadDefaultsAreOffAndBadValuesAreRefusedByName(t *testing.T) {
 }
 
 // TestEnvironmentDeclaresEverySettingLoadReads proves the configuration page lists exactly the four variables Load
-// reads, with off as the switch's default.
+// reads, with on as the switch's default.
 func TestEnvironmentDeclaresEverySettingLoadReads(t *testing.T) {
 	read := map[string]bool{}
 	if _, err := Load(func(k string) string { read[k] = true; return "" }); err != nil {
@@ -55,7 +55,7 @@ func TestEnvironmentDeclaresEverySettingLoadReads(t *testing.T) {
 			t.Errorf("%s is declared and not read", r.Name)
 		}
 	}
-	if rows[0].Name != EnvSwitch || rows[0].Default != "`off`" {
+	if rows[0].Name != EnvSwitch || rows[0].Default != "`on`" {
 		t.Fatalf("%+v", rows[0])
 	}
 }

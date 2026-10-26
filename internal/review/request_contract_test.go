@@ -14,11 +14,11 @@ import (
 
 // Request-contract tests. They hold the shell's side of the seam: Include, Exclude, BaselineCommit and
 // ConfigPath must each change what the reviewer does. They were written before that behaviour existed,
-// when every case failed on behaviour except TestContractW1cT8Defaults, which guards an empty
+// when every case failed on behaviour except TestEmptyConfigPathUsesDefaults, which guards an empty
 // configuration path; they now keep it from coming apart.
 
-// TestContractW1cT1Exclude proves that Exclude is honoured: excluding every path leaves no finding.
-func TestContractW1cT1Exclude(t *testing.T) {
+// TestExcludeEveryPathLeavesNoFinding proves that Exclude is honoured: excluding every path leaves no finding.
+func TestExcludeEveryPathLeavesNoFinding(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target:  contractW1cFixture(t),
@@ -32,9 +32,9 @@ func TestContractW1cT1Exclude(t *testing.T) {
 	}
 }
 
-// TestContractW1cT2Include proves that Include is honoured: including only go.mod leaves only go.mod's
+// TestIncludeOnlyGoModLeavesOnlyGoModFindings proves that Include is honoured: including only go.mod leaves only go.mod's
 // findings.
-func TestContractW1cT2Include(t *testing.T) {
+func TestIncludeOnlyGoModLeavesOnlyGoModFindings(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target:  contractW1cFixture(t),
@@ -56,8 +56,8 @@ func TestContractW1cT2Include(t *testing.T) {
 	}
 }
 
-// TestContractW1cT3ExcludeWins proves that Exclude wins over Include when both match a path.
-func TestContractW1cT3ExcludeWins(t *testing.T) {
+// TestExcludeWinsWhenBothMatch proves that Exclude wins over Include when both match a path.
+func TestExcludeWinsWhenBothMatch(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target:  contractW1cFixture(t),
@@ -80,9 +80,9 @@ func TestContractW1cT3ExcludeWins(t *testing.T) {
 	}
 }
 
-// TestContractW1cT4MissingBaseline proves that a baseline commit that does not exist is an error that
+// TestMissingBaselineCommitIsAnError proves that a baseline commit that does not exist is an error that
 // names it, never a silent review of the whole target.
-func TestContractW1cT4MissingBaseline(t *testing.T) {
+func TestMissingBaselineCommitIsAnError(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target:         contractW1cFixture(t),
@@ -96,9 +96,9 @@ func TestContractW1cT4MissingBaseline(t *testing.T) {
 	}
 }
 
-// TestContractW1cT5UnknownKey proves that ConfigPath is read: an unknown key in it is refused with the
+// TestConfigPathUnknownKeyIsRefused proves that ConfigPath is read: an unknown key in it is refused with the
 // allowed keys.
-func TestContractW1cT5UnknownKey(t *testing.T) {
+func TestConfigPathUnknownKeyIsRefused(t *testing.T) {
 	path := contractW1cWriteConfig(t, "colour: red\n")
 	_, err := review.Open(contractW1cOptions(t, path))
 	cfg := contractW1cAsConfig(err)
@@ -113,8 +113,8 @@ func TestContractW1cT5UnknownKey(t *testing.T) {
 	}
 }
 
-// TestContractW1cT6BadTimeout proves that the timeout value is parsed, so a bad one is refused.
-func TestContractW1cT6BadTimeout(t *testing.T) {
+// TestConfigPathBadTimeoutIsRefused proves that the timeout value is parsed, so a bad one is refused.
+func TestConfigPathBadTimeoutIsRefused(t *testing.T) {
 	path := contractW1cWriteConfig(t, "timeout: banana\n")
 	_, err := review.Open(contractW1cOptions(t, path))
 	cfg := contractW1cAsConfig(err)
@@ -123,9 +123,9 @@ func TestContractW1cT6BadTimeout(t *testing.T) {
 	}
 }
 
-// TestContractW1cT7MissingFile proves that a missing configuration file is refused and named, not read as
+// TestMissingConfigFileIsNotReadAsDefaults proves that a missing configuration file is refused and named, not read as
 // the defaults.
-func TestContractW1cT7MissingFile(t *testing.T) {
+func TestMissingConfigFileIsNotReadAsDefaults(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "no-such-config.yaml")
 	_, err := review.Open(contractW1cOptions(t, missing))
 	cfg := contractW1cAsConfig(err)
@@ -137,9 +137,9 @@ func TestContractW1cT7MissingFile(t *testing.T) {
 	}
 }
 
-// TestContractW1cT8Defaults proves that an empty ConfigPath means the defaults: the sample review finds F1
+// TestEmptyConfigPathUsesDefaults proves that an empty ConfigPath means the defaults: the sample review finds F1
 // and F2 where they are.
-func TestContractW1cT8Defaults(t *testing.T) {
+func TestEmptyConfigPathUsesDefaults(t *testing.T) {
 	rev := contractW1cOpen(t, "")
 	res, err := rev.Review(context.Background(), review.Request{Target: contractW1cFixture(t)})
 	if err != nil {
@@ -153,9 +153,9 @@ func TestContractW1cT8Defaults(t *testing.T) {
 	}
 }
 
-// TestContractW1cT9TimeoutBounds proves that the timeout setting is applied: a 1ns timeout must leave the
+// TestTimeoutSettingIsApplied proves that the timeout setting is applied: a 1ns timeout must leave the
 // review partial or with nothing proved.
-func TestContractW1cT9TimeoutBounds(t *testing.T) {
+func TestTimeoutSettingIsApplied(t *testing.T) {
 	path := contractW1cWriteConfig(t, "timeout: 1ns\n")
 	rev := contractW1cOpen(t, path)
 	res, err := rev.Review(context.Background(), review.Request{Target: contractW1cFixture(t)})

@@ -17,6 +17,7 @@ import (
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/osv"
+	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/review"
 	"github.com/saphan-ai/proven/internal/store"
@@ -52,13 +53,16 @@ const telemetryAfter = "Telemetry is off unless an endpoint is set. It only obse
 const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these."
 
 // evidenceAfter follows the evidence table. It is not a setting.
-const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md)."
+const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md)."
 
 // packAfter follows the evidence-pack table. It is not a setting.
 const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
 
 // boundedAfter follows the bounded-steps table. It is not a setting.
-const boundedAfter = "ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these."
+const boundedAfter = "ADR-0053 (superseding the \"off until measured\" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way."
+
+// storesAfter follows the stores table. It is not a setting.
+const storesAfter = "ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
@@ -104,6 +108,11 @@ func Catalog() []envdoc.Section {
 			Heading: "Bounded steps: Meterless's Markovian engine",
 			Rows:    markov.Environment(),
 			After:   boundedAfter,
+		},
+		{
+			Heading: "The two stores: Meterless's H-MEM and World Model",
+			Rows:    pipeline.Environment(),
+			After:   storesAfter,
 		},
 		{
 			Heading: "One adapter call",

@@ -73,7 +73,6 @@ func pathLeaves(path string) bool {
 	return clean == ".." || strings.HasPrefix(clean, "../")
 }
 
-// isGoTestFile reports whether path names a file ending in _test.go.
 func isGoTestFile(path string) bool {
 	base := filepath.Base(filepath.ToSlash(path))
 	if base == "." || base == ".." || base == string(filepath.Separator) {

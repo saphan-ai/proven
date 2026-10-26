@@ -17,19 +17,15 @@ H-MEM conformance: implementation = test/conformance/meterless/hmem/index.ts
     PASS ro-002 confidence multiplies the whole score: identical records rank by confidence
 
   sleep-guardrails
-    FAIL sg-001 old low-access plain record archives; dream-derived record with identical age does not
-         hmem: sleep is deferred (ADR-0018)
+    PASS sg-001 old low-access plain record archives; dream-derived record with identical age does not
 
   conflict-gate
-    FAIL cg-001 auto-resolve marks the loser supersededBy and deletes nothing
-         hmem: conflicts is deferred (ADR-0018)
+    PASS cg-001 auto-resolve marks the loser supersededBy and deletes nothing
 
   ledger-audit
-    FAIL la-001 create then feedback reconstructs: actions in order, previous and new confidence present
-         hmem: ledger is deferred (ADR-0018)
+    PASS la-001 create then feedback reconstructs: actions in order, previous and new confidence present
 
   dream-boundary
-    FAIL db-001 dream proposals never materialize before approval; approval creates a long_term record with lineage
-         hmem: dream is deferred (ADR-0018)
+    PASS db-001 dream proposals never materialize before approval; approval creates a long_term record with lineage
 
-  9/13 checks passed
+  13/13 checks passed

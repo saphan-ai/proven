@@ -71,6 +71,14 @@ type request struct {
 	Type         string            `json:"type"`
 	Similarity   float64           `json:"similarity"`
 	Observations []json.RawMessage `json:"observations"`
+	// Preview is a sleep plan and Conflict a scanned conflict, each handed back
+	// by the caller so a later process can act on what an earlier one found.
+	Preview  json.RawMessage `json:"preview"`
+	Conflict json.RawMessage `json:"conflict"`
+	View     string          `json:"view"`
+	Entity   string          `json:"entity"`
+	Via      string          `json:"via"`
+	AtTime   string          `json:"atTime"`
 	// Registry, PolicyPack, Prompt, User and Surface are Scout's (ADR-0049 point 4).
 	Registry   string          `json:"registry"`
 	PolicyPack json.RawMessage `json:"policyPack"`
@@ -126,10 +134,6 @@ func hmemOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"session": id})
-	// ADR-0018, point 1: these belong to the parts built after the minimum, so
-	// they are refused by name, not faked.
-	case "sleep", "dream", "conflicts", "ledger":
-		return fail(req.ID, "hmem: "+req.Op+" is deferred (ADR-0018)")
 	}
 	st, err := openH(req.Session, req.At)
 	if err != nil {
@@ -174,6 +178,55 @@ func hmemOp(req request) map[string]any {
 			hits = append(hits, map[string]any{"memory": h.Record, "relevance": h.Relevance})
 		}
 		return ok(req.ID, map[string]any{"result": map[string]any{"memories": hits}})
+	case "ledger":
+		h, err := st.History(req.MemoryID)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"history": h})
+	case "sleep":
+		return ok(req.ID, map[string]any{"preview": st.SleepPreview()})
+	case "sleepExecute":
+		var plan *hmem.SleepPreview
+		if len(bytes.TrimSpace(req.Preview)) > 0 && string(req.Preview) != "null" {
+			plan = &hmem.SleepPreview{}
+			if err := json.Unmarshal(req.Preview, plan); err != nil {
+				return fail(req.ID, err.Error())
+			}
+		}
+		rep, err := st.SleepExecute(plan)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"report": rep})
+	case "conflicts":
+		found, err := st.ScanConflicts()
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"conflicts": found})
+	case "autoResolve":
+		var c hmem.Conflict
+		if err := json.Unmarshal(req.Conflict, &c); err != nil {
+			return fail(req.ID, err.Error())
+		}
+		outcome, _, err := st.AutoResolve(c)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"outcome": outcome})
+	case "dream":
+		ps, err := st.Dream()
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"proposals": ps})
+	case "approve":
+		rec, err := st.Approve(req.MemoryID)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"record": rec})
 	default:
 		return fail(req.ID, "hmem: unknown op "+req.Op)
 	}
@@ -198,10 +251,6 @@ func worldOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"session": id})
-	// ADR-0018, point 1: the graph is outside the minimum, so it is refused by
-	// name.
-	case "relate", "neighbors":
-		return fail(req.ID, "world: bitemporal graph is outside the minimum (ADR-0018)")
 	}
 	st, err := openW(req.Session)
 	if err != nil {
@@ -220,6 +269,25 @@ func worldOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"changed": rep.Changed})
+	case "relate":
+		edge, err := relateW(st, req.Input)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"edge": edge})
+	case "neighbors":
+		// ADR-0018 point 1: the graph is the one view the suite reads.
+		if req.View != "" && req.View != "graph" {
+			return fail(req.ID, "world: unknown view "+req.View)
+		}
+		// An at that is not an instant is refused by name, never read as
+		// "nothing was valid then".
+		if req.AtTime != "" {
+			if _, err := world.ParseInstant(req.AtTime); err != nil {
+				return fail(req.ID, err.Error())
+			}
+		}
+		return ok(req.ID, map[string]any{"neighbors": st.Neighbors(req.Entity, req.Via, req.AtTime)})
 	case "canonical":
 		return ok(req.ID, map[string]any{"canonical": st.Canonical()})
 	case "audit":
@@ -298,15 +366,16 @@ func openH(id string, at int64) (*hmem.Store, error) {
 // decides.
 func addH(st *hmem.Store, at int64, raw json.RawMessage) (hmem.Record, error) {
 	var body struct {
-		Content    string   `json:"content"`
-		Type       string   `json:"type"`
-		Layer      string   `json:"layer"`
-		Tags       []string `json:"tags"`
-		Confidence *float64 `json:"confidence"`
-		Source     string   `json:"source"`
-		Origin     string   `json:"origin"`
-		Label      string   `json:"label"`
-		ChatID     string   `json:"chatId"`
+		Content     string   `json:"content"`
+		Type        string   `json:"type"`
+		Layer       string   `json:"layer"`
+		Tags        []string `json:"tags"`
+		Confidence  *float64 `json:"confidence"`
+		Source      string   `json:"source"`
+		Origin      string   `json:"origin"`
+		Label       string   `json:"label"`
+		ChatID      string   `json:"chatId"`
+		DerivedFrom []string `json:"derivedFrom"`
 	}
 	if len(bytes.TrimSpace(raw)) > 0 && string(raw) != "null" {
 		if err := json.Unmarshal(raw, &body); err != nil {
@@ -314,16 +383,17 @@ func addH(st *hmem.Store, at int64, raw json.RawMessage) (hmem.Record, error) {
 		}
 	}
 	return st.Add(hmem.AddInput{
-		Content:    body.Content,
-		Type:       body.Type,
-		Layer:      body.Layer,
-		Tags:       body.Tags,
-		Confidence: body.Confidence,
-		Source:     body.Source,
-		Origin:     body.Origin,
-		Label:      body.Label,
-		ChatID:     body.ChatID,
-		At:         at,
+		Content:     body.Content,
+		Type:        body.Type,
+		Layer:       body.Layer,
+		Tags:        body.Tags,
+		Confidence:  body.Confidence,
+		Source:      body.Source,
+		Origin:      body.Origin,
+		Label:       body.Label,
+		ChatID:      body.ChatID,
+		DerivedFrom: body.DerivedFrom,
+		At:          at,
 	})
 }
 
@@ -383,6 +453,34 @@ func upsertW(st *world.Store, raw json.RawMessage) (world.Entity, error) {
 		return world.Entity{}, err
 	}
 	return e, nil
+}
+
+// relateW decodes an edge and relates it. The ends are entity ids as the
+// suite names them.
+func relateW(st *world.Store, raw json.RawMessage) (world.Edge, error) {
+	var in struct {
+		From      string `json:"from"`
+		Type      string `json:"type"`
+		To        string `json:"to"`
+		Context   string `json:"context"`
+		ValidFrom string `json:"validFrom"`
+		ValidTo   string `json:"validTo"`
+		Source    *struct {
+			Kind string `json:"kind"`
+			At   string `json:"at"`
+			By   string `json:"by"`
+		} `json:"source"`
+	}
+	if len(bytes.TrimSpace(raw)) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &in); err != nil {
+			return world.Edge{}, err
+		}
+	}
+	e := world.Edge{From: in.From, Type: in.Type, To: in.To, Context: in.Context, ValidFrom: in.ValidFrom, ValidTo: in.ValidTo}
+	if in.Source != nil {
+		e.Source = world.Provenance{Kind: in.Source.Kind, At: in.Source.At, By: in.Source.By}
+	}
+	return st.Relate(e)
 }
 
 // ingestW writes the observations as JSONL and ingests them. A blank

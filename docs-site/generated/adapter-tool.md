@@ -27,4 +27,5 @@ type Adapter interface {
     Adapter is one deterministic tool (ADR-0040). The runner compares the two
     sides. The adapter does not.
 
+func ByID(id string) (Adapter, bool)
 ```

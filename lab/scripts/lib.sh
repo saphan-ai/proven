@@ -39,7 +39,73 @@ load_versions() {
   done <"$file"
 }
 
+# The lab's published ports name 127.0.0.1 in lab/compose.yaml itself, so no
+# setting and no way of starting that file moves them. LAB_HOST is that address,
+# for the URLs the scripts print; it is a constant, never read from the
+# environment. LAB_BIND, which once chose the address, is retired.
+LAB_HOST=127.0.0.1
+
+# refuse_retired_bind  — a LAB_BIND in the environment, empty or not, is refused
+# by name and no container starts: whoever set it expected another address.
+refuse_retired_bind() {
+  if [ "${LAB_BIND+set}" = set ]; then
+    echo "LAB_BIND=${LAB_BIND} is retired. The lab publishes on 127.0.0.1 only and no setting changes that. Unset LAB_BIND." >&2
+    exit 1
+  fi
+}
+
+# The admin password reaches the judge in one of two ways, and never through a
+# log. On a terminal it is printed once, by deliver_admin_password. Anywhere
+# else (CI, a redirect, a pipe) it is written to a file only the user can read,
+# in the lab's state directory, and only the path is printed. make clean removes
+# the file. LAB_STATE_DIR moves the directory.
+stdout_is_terminal() {
+  [ -t 1 ]
+}
+
+admin_password_file() {
+  printf '%s\n' "${LAB_STATE_DIR:-$ROOT/lab/.state}/admin-password"
+}
+
+# store_admin_password_file PASSWORD  — the file is created at mode 0600 by the
+# umask, never created wider and narrowed after. An older file or link at the
+# path is removed first, so the mode is the new file's.
+store_admin_password_file() {
+  f=$(admin_password_file)
+  d=$(dirname "$f")
+  (
+    umask 077
+    mkdir -p "$d"
+    rm -f "$f"
+    printf '%s\n' "$1" >"$f"
+  )
+}
+
+# deliver_admin_password PASSWORD  — called on the first make up only.
+deliver_admin_password() {
+  if stdout_is_terminal; then
+    echo "lab admin password: $1"
+    echo "This password is printed once. make clean removes it with the lab volume."
+  else
+    store_admin_password_file "$1"
+    echo "lab admin password: not printed, because stdout is not a terminal"
+    echo "lab admin password file: $(admin_password_file)"
+    echo "The file is readable only by you. make clean removes it."
+  fi
+}
+
+# remove_admin_password_file  — make clean. Removes the file, and the directory
+# when nothing else is in it.
+remove_admin_password_file() {
+  f=$(admin_password_file)
+  rm -f "$f"
+  rmdir "$(dirname "$f")" 2>/dev/null || true
+}
+
 compose() {
+  case ${1-} in
+    up | run | create | start) refuse_retired_bind ;;
+  esac
   docker compose \
     --env-file "$ROOT/lab/versions.env" \
     -f "$ROOT/lab/compose.yaml" \
