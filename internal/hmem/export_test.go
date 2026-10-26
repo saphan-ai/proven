@@ -1,6 +1,9 @@
 package hmem
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // BytesRead is how many bytes the ledger and dream-log readers have read from
 // disk since Open. The growth tests assert it stays near the log size however
@@ -68,6 +71,24 @@ func (s *Store) FailAppends(hook func(path, stage string) error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.appendFault = hook
+}
+
+// CountDirListings makes the store count the directory listings the backup
+// allocator makes, and returns the counter. A sleep must not list the backups
+// directory once a sequence file exists.
+func (s *Store) CountDirListings() func() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	s.readDir = func(dir string) ([]os.DirEntry, error) {
+		n++
+		return os.ReadDir(dir)
+	}
+	return func() int {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return n
+	}
 }
 
 // LedgerHas reports whether the audit log holds a line of this action for this

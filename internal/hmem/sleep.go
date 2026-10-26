@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -348,18 +349,79 @@ func (s *Store) synthesize(members []Record) (Record, error) {
 	})
 }
 
+// backupSeqFile holds the number of the last backup id handed out, in the
+// backups directory.
+const backupSeqFile = "SEQ"
+
+// backupCollisionTries bounds how far the allocator steps past a backup file
+// that already exists, so a stale sequence file cannot make it loop.
+const backupCollisionTries = 64
+
+// nextBackupID returns the next backup id from a persisted monotonic sequence
+// (R16): it reads one small file, not the backups directory, so a sleep costs
+// the same with ten backups or ten thousand. The new number is written before
+// the backup file, so a crash or a failed cycle never hands the same id out
+// twice; a failed cycle leaves a gap, which is harmless. A backup file already
+// at the number (a stale sequence) is stepped over, never overwritten. A store
+// that has backups but no sequence file yet (or an unreadable one) is
+// migrated once: the directory is listed to find the highest number, and the
+// sequence file is written, so no later sleep lists it. The caller holds s.mu.
+func (s *Store) nextBackupID(dir string) (string, error) {
+	seqPath := filepath.Join(dir, backupSeqFile)
+	last := -1
+	if b, err := os.ReadFile(seqPath); err == nil {
+		if n, perr := strconv.Atoi(strings.TrimSpace(string(b))); perr == nil && n >= 0 {
+			last = n
+		}
+	}
+	if last < 0 {
+		list := os.ReadDir
+		if s.readDir != nil {
+			list = s.readDir
+		}
+		entries, err := list(dir)
+		if err != nil {
+			return "", fmt.Errorf("hmem: backup directory: %w", err)
+		}
+		last = 0
+		for _, e := range entries {
+			name := strings.TrimSuffix(e.Name(), ".json")
+			if e.Name() != name && backupName.MatchString(name) {
+				if n, _ := strconv.Atoi(strings.TrimPrefix(name, "backup-")); n > last {
+					last = n
+				}
+			}
+		}
+	}
+	n := last + 1
+	for tries := 0; ; tries++ {
+		if _, err := os.Lstat(filepath.Join(dir, fmt.Sprintf("backup-%d.json", n))); os.IsNotExist(err) {
+			break
+		} else if err != nil {
+			return "", fmt.Errorf("hmem: backup directory: %w", err)
+		}
+		if tries >= backupCollisionTries {
+			return "", fmt.Errorf("hmem: backup directory: no free backup number after %d (the sequence file %s is stale)", n, seqPath)
+		}
+		n++
+	}
+	if err := writeAtomic(seqPath, []byte(strconv.Itoa(n)+"\n")); err != nil {
+		return "", fmt.Errorf("hmem: backup sequence: %w", err)
+	}
+	return fmt.Sprintf("backup-%d", n), nil
+}
+
 // writeBackup snapshots the whole store to backups/backup-N.json in the state
-// directory, with the next free N, and returns the id. The caller holds s.mu.
+// directory, with the next number of the persisted sequence, and returns the id. The caller holds s.mu.
 func (s *Store) writeBackup() (string, error) {
 	dir := filepath.Join(s.dir, "backups")
 	if err := privateDir(dir); err != nil {
 		return "", fmt.Errorf("hmem: backup directory: %w", err)
 	}
-	entries, err := os.ReadDir(dir)
+	id, err := s.nextBackupID(dir)
 	if err != nil {
-		return "", fmt.Errorf("hmem: backup directory: %w", err)
+		return "", err
 	}
-	id := fmt.Sprintf("backup-%d", len(entries)+1)
 	b, err := json.MarshalIndent(backup{Seq: s.seq, Records: s.snapshot()}, "", "  ")
 	if err != nil {
 		return "", err
