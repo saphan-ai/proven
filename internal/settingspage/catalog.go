@@ -13,6 +13,7 @@ import (
 	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/osv"
@@ -54,6 +55,9 @@ const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says lo
 
 // packAfter follows the evidence-pack table. It is not a setting.
 const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
+
+// hmemAfter follows the H-MEM table. It is not a setting.
+const hmemAfter = "H-MEM reads its whole state file at open and scans every record on each query, so it is built for a small store; see the scale section of `docs/ARCHITECTURE.md`. A state file over the cap is refused by name with its size and the cap. Sample mode reads none of these."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
@@ -118,6 +122,11 @@ func Catalog() []envdoc.Section {
 			Heading: "The evidence pack",
 			Rows:    evidence.Environment(),
 			After:   packAfter,
+		},
+		{
+			Heading: "H-MEM: the memory store",
+			Rows:    hmem.Environment(),
+			After:   hmemAfter,
 		},
 	}
 }

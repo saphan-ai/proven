@@ -83,6 +83,9 @@ type Options struct {
 	// StateDir is the durable directory for H-MEM and the world model.
 	// Empty uses a state directory beside the logs, never a path inside the module.
 	StateDir string
+	// HMem bounds H-MEM's state read and query tokens. Zero fields mean the
+	// defaults. Sample mode leaves it zero and reads no setting.
+	HMem hmem.Limits
 	// Guardrail checks every prompt and every answer. Sample mode with none
 	// uses the safe sample, unless the fixture records a verdict. A live
 	// pipeline with none is refused.
@@ -142,6 +145,7 @@ type Pipeline struct {
 	down         []service.Down
 	atBoundary   func(stage string)
 	mem          *hmem.Store
+	hmemLimits   hmem.Limits
 	world        *world.Store
 	// workDir is the run's working area. Live git trees are written here, not
 	// inside the repository under review, and removed when the review returns.
@@ -205,7 +209,7 @@ func Build(opts Options) (*Pipeline, error) {
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
 		down:    append([]service.Down(nil), opts.Down...),
 		workDir: area, redactor: rd, logDir: opts.LogDir, stateDir: stateDir,
-		tel: opts.Telemetry,
+		tel: opts.Telemetry, hmemLimits: opts.HMem,
 	}
 	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is

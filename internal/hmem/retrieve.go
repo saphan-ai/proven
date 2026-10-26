@@ -51,10 +51,10 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	defer s.mu.Unlock()
 	qEmb := Embed(query)
 	qTokens := Tokenize(query)
-	// Only the first eight query tokens count, so a long query cannot drown
-	// the keyword and tag terms.
-	if len(qTokens) > 8 {
-		qTokens = qTokens[:8]
+	// Only the first QueryTokens query tokens count (default eight, ADR-0013),
+	// so a long query cannot drown the keyword and tag terms.
+	if n := s.limits.QueryTokens; len(qTokens) > n {
+		qTokens = qTokens[:n]
 	}
 	qEntities := extractEntities(query)
 	qDomain := classifyDomain(query, nil, TypeGeneral)

@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -123,6 +124,9 @@ type Options struct {
 	LogDir   string
 	RepoRoot string
 	Clock    func() time.Time
+	// Limits bounds the state read and the query tokens. A zero field means
+	// the default (ADR-0013).
+	Limits Limits
 }
 
 // Store is the durable memory. The generator is accepted and never called:
@@ -131,6 +135,7 @@ type Store struct {
 	dir       string
 	auditPath string
 	clock     func() time.Time
+	limits    Limits
 	gen       generator.Generator
 	mu        sync.Mutex
 	seq       int
@@ -184,6 +189,7 @@ func Open(opts Options) (*Store, error) {
 		dir:       dir,
 		auditPath: filepath.Join(logDir, "hmem.jsonl"),
 		clock:     opts.Clock,
+		limits:    opts.Limits.withDefaults(),
 		records:   map[string]Record{},
 	}
 	path := filepath.Join(dir, "state.json")
@@ -191,12 +197,12 @@ func Open(opts Options) (*Store, error) {
 	if err := os.Chmod(path, 0o600); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("hmem: state file: %w", err)
 	}
-	b, err := os.ReadFile(path)
+	b, err := readBounded(path, s.limits.MaxStateBytes)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return s, nil
 		}
-		return nil, fmt.Errorf("hmem: read state: %w", err)
+		return nil, err
 	}
 	var file disk
 	if err := json.Unmarshal(b, &file); err != nil {
@@ -221,6 +227,34 @@ func Open(opts Options) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// readBounded reads path through a reader that stops at limit+1 bytes, so a
+// state file of any size costs at most limit+1 bytes of memory. The size is
+// checked first so a file known to be too large is not read at all; the
+// bounded read then covers a file that grew after the check. A file over the
+// limit is refused with ErrStateTooLarge, naming its size and the cap.
+// A missing file is returned as the os error so Open can start empty.
+func readBounded(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("hmem: read state: %w", err)
+	}
+	defer f.Close()
+	if info, serr := f.Stat(); serr == nil && info.Size() > limit {
+		return nil, fmt.Errorf("%w: %s is %d bytes, the cap is %d (%s)", ErrStateTooLarge, path, info.Size(), limit, EnvMaxStateBytes)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("hmem: read state: %w", err)
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%w: %s grew past %d bytes while it was read, the cap is %d (%s)", ErrStateTooLarge, path, limit, limit, EnvMaxStateBytes)
+	}
+	return b, nil
 }
 
 // refuseInside refuses a state directory at or below root.
