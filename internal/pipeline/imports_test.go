@@ -43,6 +43,9 @@ var exemptBanned = map[string]map[string]string{
 		"net/http": "the judges' gateway is an HTTP server (ADR-0051)",
 		"syscall":  "SIGTERM, so the systemd unit stops the gateway cleanly",
 	},
+	"internal/gateway/access.go": {
+		"net/http": "fetches the Access team's public signing keys to verify an assertion; it calls that one address and sends no secret (ADR-0051)",
+	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",
 	},
