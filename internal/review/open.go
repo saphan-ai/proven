@@ -262,14 +262,21 @@ func open(opts Options) (Reviewer, error) {
 			return nil, limitConfig(aerr)
 		}
 		adapterLimit = bound
-		// ADR-0048, ADR-0013: the bounded-steps settings are checked here, so a wrong value stops Open before any
-		// review. Unset, the engine is off and the review is whole. Sample mode skips this block.
-		bounded, merr := markov.Load(env)
-		if merr != nil {
-			return nil, markovConfig(merr)
-		}
-		popts.Markov = bounded
 	}
+	// ADR-0053, ADR-0013: the engine switches are read in sample mode too, because the lab's pull-request
+	// review is a sample review and the engines are on by default there as well. A wrong value stops Open
+	// before any review. Unset, Markovian is on (ADR-0048 gave it a cut threshold; below it the review is whole)
+	// and so are H-MEM and the World Model.
+	bounded, merr := markov.Load(opts.Env)
+	if merr != nil {
+		return nil, markovConfig(merr)
+	}
+	popts.Markov = bounded
+	stores, serr := pipeline.LoadStores(opts.Env)
+	if serr != nil {
+		return nil, storesConfig(serr)
+	}
+	popts.Stores = stores
 	// ADR-0045: telemetry is off unless the standard OTEL_* variables name an endpoint. A wrong value
 	// stops Open like any other setting. Sample mode reads no key of Proven's, but it does read these:
 	// the lab's pull-request review is a sample review, and it is the one the dashboard shows. Setup
@@ -919,6 +926,18 @@ func limitConfig(err error) error {
 // markovConfig turns a refused bounded-steps setting into the seam's *ConfigError.
 func markovConfig(err error) error {
 	var cfg *markov.ConfigError
+	if errors.As(err, &cfg) {
+		return &ConfigError{
+			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
+			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// storesConfig turns a refused store switch into the seam's *ConfigError.
+func storesConfig(err error) error {
+	var cfg *pipeline.StoreConfigError
 	if errors.As(err, &cfg) {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,

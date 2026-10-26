@@ -8,7 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
-// The environment settings of bounded steps (ADR-0013, ADR-0048). Sample mode reads none of them.
+// The environment settings of bounded steps (ADR-0013, ADR-0048). Sample mode reads them too (ADR-0053): the lab's review is a sample review.
 const (
 	// EnvSwitch turns the engine on or off. ADR-0053: on by default, and switched off by setting it to off.
 	EnvSwitch = "PROVEN_MARKOVIAN"
