@@ -73,12 +73,12 @@ func Load(env func(string) string) (Settings, error) {
 	case "on":
 		s.On = true
 	default:
-		return Settings{}, &ConfigError{Field: EnvSwitch, Value: v, Reason: "not on or off", Allowed: []string{"on", "off; empty means off"}}
+		return Settings{}, &ConfigError{Lead: RefusalLead, Field: EnvSwitch, Value: v, Reason: "not on or off", Allowed: []string{"on", "off; empty means off"}}
 	}
 	if v := strings.TrimSpace(env(EnvThreshold)); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 1 || n > maxThreshold {
-			return Settings{}, &ConfigError{Field: EnvThreshold, Value: v, Reason: "not a size in range", Allowed: []string{allowedThreshold}}
+			return Settings{}, &ConfigError{Lead: RefusalLead, Field: EnvThreshold, Value: v, Reason: "not a size in range", Allowed: []string{allowedThreshold}}
 		}
 		s.Threshold = n
 	}
@@ -87,13 +87,13 @@ func Load(env func(string) string) (Settings, error) {
 	case UnitFile, UnitHunk:
 		s.Unit = v
 	default:
-		return Settings{}, &ConfigError{Field: EnvUnit, Value: v, Reason: "unknown step unit", Allowed: []string{UnitFile, UnitHunk + "; empty means " + UnitFile}}
+		return Settings{}, &ConfigError{Lead: RefusalLead, Field: EnvUnit, Value: v, Reason: "unknown step unit", Allowed: []string{UnitFile, UnitHunk + "; empty means " + UnitFile}}
 	}
 	if v := strings.TrimSpace(env(EnvCarry)); v != "" {
 		// The spec's carryoverTokens bounds apply: the carried state is the spec's carryover.
 		n, err := strconv.Atoi(v)
 		if err != nil || n < boundCarryover.min || n > boundCarryover.max {
-			return Settings{}, &ConfigError{Field: EnvCarry, Value: v, Reason: "not a bound in range", Allowed: []string{allowedCarry}}
+			return Settings{}, &ConfigError{Lead: RefusalLead, Field: EnvCarry, Value: v, Reason: "not a bound in range", Allowed: []string{allowedCarry}}
 		}
 		s.Carry = n
 	}

@@ -55,7 +55,7 @@ func open(opts Options) (Reviewer, error) {
 	if !opts.Sample {
 		loaded, rerr := change.LoadLimits(opts.Env)
 		if rerr != nil {
-			return nil, readLimitConfig(rerr)
+			return nil, toConfigError(rerr)
 		}
 		reads = loaded
 	}
@@ -108,7 +108,7 @@ func open(opts Options) (Reviewer, error) {
 			popts.Down = append(popts.Down, *d)
 			popts.Generator = generator.Absent{Service: d.Service, Reason: d.Reason}
 		} else if lerr != nil {
-			return nil, generatorConfig(lerr)
+			return nil, toConfigError(lerr)
 		} else {
 			// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
 			popts.SkepticModel = settings.SkepticModel
@@ -124,7 +124,7 @@ func open(opts Options) (Reviewer, error) {
 		// one reviewer, as before.
 		sec, connected, serr := generator.LoadSecond(env)
 		if serr != nil {
-			return nil, generatorConfig(serr)
+			return nil, toConfigError(serr)
 		}
 		if connected {
 			popts.Special = generator.NewSecond(sec, nil)
@@ -140,7 +140,7 @@ func open(opts Options) (Reviewer, error) {
 			popts.Down = append(popts.Down, *d)
 			popts.Guardrail = guardrail.Absent{Reason: d.Reason}
 		} else if gerr != nil {
-			return nil, guardrailConfig(gerr)
+			return nil, toConfigError(gerr)
 		} else if gs.Mode == guardrail.ModeOff {
 			// ADR-0005: the guardrail is on unless a setting turns it off. When off, the pipeline is told
 			// so and the trace records one "no guardrail" line.
@@ -157,7 +157,7 @@ func open(opts Options) (Reviewer, error) {
 		// Zetaris settings, so a review with no Zetaris key still runs.
 		choice, serr := store.Load(env)
 		if serr != nil {
-			return nil, storeConfig(serr)
+			return nil, toConfigError(serr)
 		}
 		if choice.Name == store.NameLocal {
 			// ADR-0047: the file is opened on the first query, after Review has
@@ -176,7 +176,7 @@ func open(opts Options) (Reviewer, error) {
 				popts.Down = append(popts.Down, *d)
 				popts.LiveStore = downStore{service: "couchdb", reason: d.Reason}
 			} else if cerr != nil {
-				return nil, storeConfig(cerr)
+				return nil, toConfigError(cerr)
 			} else {
 				popts.LiveStore = store.NewCouchDB(cfg, nil)
 			}
@@ -186,7 +186,7 @@ func open(opts Options) (Reviewer, error) {
 				popts.Down = append(popts.Down, *d)
 				popts.LiveStore = downStore{service: "zetaris", reason: d.Reason}
 			} else if zerr != nil {
-				return nil, queryConfig(zerr)
+				return nil, toConfigError(zerr)
 			} else {
 				popts.LiveStore = store.NewZetaris(zset)
 			}
@@ -197,17 +197,17 @@ func open(opts Options) (Reviewer, error) {
 		}
 		table, terr := osv.LoadTable(env)
 		if terr != nil {
-			return nil, osvConfig(terr)
+			return nil, toConfigError(terr)
 		}
 		popts.OSVTable = table
 		view, verr := epss.LoadView(env)
 		if verr != nil {
-			return nil, epssConfig(verr)
+			return nil, toConfigError(verr)
 		}
 		popts.EPSSView = view
 		idView, ierr := osv.LoadIDView(env)
 		if ierr != nil {
-			return nil, osvConfig(ierr)
+			return nil, toConfigError(ierr)
 		}
 		popts.OSVIDView = idView
 		if opts.testRun != nil {
@@ -217,7 +217,7 @@ func open(opts Options) (Reviewer, error) {
 		} else {
 			boxCfg, berr := testrun.Load(env)
 			if berr != nil {
-				return nil, testrunConfig(berr)
+				return nil, toConfigError(berr)
 			}
 			popts.MaxWrittenBytes = boxCfg.MaxWrittenBytes
 			// ADR-0025: the Prover runs a test only in a container with no network and no secret.
@@ -241,12 +241,12 @@ func open(opts Options) (Reviewer, error) {
 		// skips this block and does not read either variable.
 		db, derr := tool.LoadDB(env)
 		if derr != nil {
-			return nil, toolConfig(derr)
+			return nil, toConfigError(derr)
 		}
 		popts.GovulnDB = db
 		tlim, terr2 := tool.Load(env)
 		if terr2 != nil {
-			return nil, toolConfig(terr2)
+			return nil, toConfigError(terr2)
 		}
 		popts.ToolTimeout = tlim
 		// ADR-0013: the KEV view and the adapter bound are settings. A wrong
@@ -254,19 +254,19 @@ func open(opts Options) (Reviewer, error) {
 		// and does not read either variable.
 		kev, kerr := osv.LoadView(env)
 		if kerr != nil {
-			return nil, osvConfig(kerr)
+			return nil, toConfigError(kerr)
 		}
 		kevView = kev
 		bound, aerr := limit.Load(env)
 		if aerr != nil {
-			return nil, limitConfig(aerr)
+			return nil, toConfigError(aerr)
 		}
 		adapterLimit = bound
 		// ADR-0048, ADR-0013: the bounded-steps settings are checked here, so a wrong value stops Open before any
 		// review. Unset, the engine is off and the review is whole. Sample mode skips this block.
 		bounded, merr := markov.Load(env)
 		if merr != nil {
-			return nil, markovConfig(merr)
+			return nil, toConfigError(merr)
 		}
 		popts.Markov = bounded
 	}
@@ -285,7 +285,7 @@ func open(opts Options) (Reviewer, error) {
 	if tel == nil {
 		set, terr := telemetry.Setup(context.Background(), opts.Env)
 		if terr != nil {
-			return nil, telemetryConfig(terr)
+			return nil, toConfigError(terr)
 		}
 		tel = set
 	}
@@ -307,11 +307,11 @@ func openRecorder(opts Options) (*recorder, error) {
 	}
 	rset, err := store.LoadRecords(env)
 	if err != nil {
-		return nil, storeConfig(err)
+		return nil, toConfigError(err)
 	}
 	link, err := store.LoadLinkBase(env)
 	if err != nil {
-		return nil, storeConfig(err)
+		return nil, toConfigError(err)
 	}
 	if !rset.Enabled() {
 		return nil, nil
@@ -422,13 +422,23 @@ func checkLocalFile(file, target string) error {
 // collector never holds a finished review back for long.
 const telemetryFlushBound = 5 * time.Second
 
-// telemetryConfig turns a refused OTEL_* setting into the seam's *ConfigError.
-func telemetryConfig(err error) error {
-	var cfg *telemetry.ConfigError
-	if errors.As(err, &cfg) {
+// toConfigError copies a refused setting into the seam's *ConfigError.
+// Lead is left empty, so the shell prints "configuration refused" as it did
+// when each adapter had its own type. A read-bound LimitError is copied the
+// same way. Any other error passes through unchanged.
+func toConfigError(err error) error {
+	var cfg *ConfigError
+	if errors.As(err, &cfg) && cfg != nil {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
 			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	var lim *change.LimitError
+	if errors.As(err, &lim) && lim != nil {
+		return &ConfigError{
+			Field: lim.Field, Value: lim.Value, Reason: lim.Reason,
+			Allowed: append([]string(nil), lim.Allowed...),
 		}
 	}
 	return err
@@ -809,7 +819,7 @@ func toEvidence(e candidate.Evidence) Evidence {
 		out.Query = &QueryEvidence{
 			SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 			Columns: append([]string(nil), q.Columns...),
-			Rows:    copyRows(q.Rows),
+			Rows:    service.CopyRows(q.Rows),
 			Bound:   q.Bound,
 		}
 	}
@@ -821,152 +831,6 @@ func toEvidence(e candidate.Evidence) Evidence {
 			Output: t.Output, BaseOutput: t.BaseOutput,
 			PresentOnChange: t.PresentOnChange, PresentOnBase: t.PresentOnBase,
 		}
-	}
-	return out
-}
-
-// queryConfig turns a refused Zetaris query setting into the seam's *ConfigError.
-// The shell exits 7 on that type. Any other error passes through unchanged.
-// The functions below do the same for the other adapters' settings.
-func queryConfig(err error) error {
-	var cfg *query.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// storeConfig turns a refused evidence-store setting into the seam's *ConfigError.
-func storeConfig(err error) error {
-	var cfg *store.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// guardrailConfig turns a refused guardrail setting into the seam's *ConfigError.
-func guardrailConfig(err error) error {
-	var cfg *guardrail.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// epssConfig turns a refused EPSS view setting into the seam's *ConfigError.
-func epssConfig(err error) error {
-	var cfg *epss.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// toolConfig turns a refused tool setting into the seam's *ConfigError.
-func toolConfig(err error) error {
-	var cfg *tool.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// osvConfig turns a refused OSV setting into the seam's *ConfigError.
-func osvConfig(err error) error {
-	var cfg *osv.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// limitConfig turns a refused adapter-bound setting into the seam's *ConfigError.
-func limitConfig(err error) error {
-	var cfg *limit.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// markovConfig turns a refused bounded-steps setting into the seam's *ConfigError.
-func markovConfig(err error) error {
-	var cfg *markov.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// readLimitConfig turns a refused read-bound setting into the seam's *ConfigError.
-func readLimitConfig(err error) error {
-	var cfg *change.LimitError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// testrunConfig turns a refused container setting into the seam's *ConfigError.
-func testrunConfig(err error) error {
-	var cfg *testrun.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// generatorConfig turns a refused Nightshift generator setting into the seam's *ConfigError.
-func generatorConfig(err error) error {
-	var cfg *generator.ConfigError
-	if errors.As(err, &cfg) {
-		return &ConfigError{
-			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
-			Allowed: append([]string(nil), cfg.Allowed...),
-		}
-	}
-	return err
-}
-
-// copyRows copies query rows deeply. A nil input stays nil, so "no rows" and "zero rows" stay distinct.
-func copyRows(rows [][]string) [][]string {
-	if rows == nil {
-		return nil
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
 	}
 	return out
 }

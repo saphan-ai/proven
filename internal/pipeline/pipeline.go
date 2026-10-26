@@ -1272,7 +1272,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 			}
 			return err
 		}
-		r.QueryRows = copyRows(res.Rows)
+		r.QueryRows = service.CopyRows(res.Rows)
 		// A test result already gives the reason when it refutes; the query
 		// sets it only when the test did not run or did not refute.
 		if judge.QueryContradicts(*c, r.QueryRows) && (r.Reason == "" || r.TestFailsOnChange || !r.TestFound) {
@@ -1943,7 +1943,7 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 			ev.Query = &trace.QueryEvidence{
 				SQL: q.SQL, Form: q.Form, Engine: q.Engine, Snapshot: q.Snapshot,
 				Columns: append([]string(nil), q.Columns...),
-				Rows:    copyRows(q.Rows),
+				Rows:    service.CopyRows(q.Rows),
 			}
 		}
 		if e.Tool != nil {
@@ -1955,18 +1955,6 @@ func traceEvidence(in []candidate.Evidence) []trace.Evidence {
 			}
 		}
 		out = append(out, ev)
-	}
-	return out
-}
-
-// copyRows deep-copies query rows.
-func copyRows(rows [][]string) [][]string {
-	if rows == nil {
-		return nil
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
 	}
 	return out
 }

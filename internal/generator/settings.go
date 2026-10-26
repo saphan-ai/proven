@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -124,28 +123,8 @@ func Environment() []envdoc.Setting {
 var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value and what is allowed. A refused
-// token is reported with an empty value, so the secret is never printed.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+// A refused token is reported with an empty value, so the secret is never printed.
+type ConfigError = service.ConfigError
 
 // Settings is one validated live-generator configuration.
 // The token is held so the call can send it. It is not a value to print.

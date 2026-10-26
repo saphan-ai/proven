@@ -22,6 +22,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // The standard variables Setup reads. Exporter details it does not read here
@@ -45,18 +46,9 @@ const DefaultServiceName = "proven"
 // protocolHTTP is the one OTLP transport built in. gRPC is not.
 const protocolHTTP = "http/protobuf"
 
-// ConfigError names a refused OTEL_* value and what is allowed. The reviewer
-// turns it into its own *ConfigError, so the shell exits 7 before any review.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Reason  string
-	Allowed []string
-}
-
-func (e *ConfigError) Error() string {
-	return fmt.Sprintf("telemetry: %s=%q: %s", e.Field, e.Value, e.Reason)
-}
+// ConfigError names a refused OTEL_* value and what is allowed.
+// Open copies it onto the seam's refusal, so the shell exits 7 before any review.
+type ConfigError = service.ConfigError
 
 // Environment lists the OTEL_* variables Proven reads, for docs/CONFIGURATION.md. Each is the
 // OpenTelemetry specification's own; Proven adds no setting of its own (ADR-0045 point 2).
