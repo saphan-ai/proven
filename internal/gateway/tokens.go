@@ -62,8 +62,9 @@ type Record struct {
 
 // file is the settings file: one JSON object.
 type file struct {
-	Version int      `json:"version"`
-	Tokens  []Record `json:"tokens"`
+	Version    int        `json:"version"`
+	Tokens     []Record   `json:"tokens"`
+	Identities []Identity `json:"identities,omitempty"`
 }
 
 // Hash is the SHA-256 of a token, in lower-case hex.
@@ -108,7 +109,7 @@ func (f *file) validate() error {
 		}
 		seen[r.ID] = true
 	}
-	return nil
+	return f.validateIdentities()
 }
 
 // Store reads the settings file and reloads it when it changes, so a
@@ -123,6 +124,7 @@ type Store struct {
 	size  int64
 	have  bool
 	recs  []Record
+	ids   []Identity
 	err   error
 }
 
@@ -159,7 +161,7 @@ func (s *Store) readLocked() error {
 		s.recs, s.err, s.have = nil, err, false
 		return err
 	}
-	s.recs, s.err, s.have = f.Tokens, nil, true
+	s.recs, s.ids, s.err, s.have = f.Tokens, f.Identities, nil, true
 	s.stamp, s.size = st.ModTime(), st.Size()
 	return nil
 }

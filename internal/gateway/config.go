@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,9 @@ const (
 	EnvModels          = "JUDGES_GATEWAY_MODELS"
 	EnvUpstreamTimeout = "JUDGES_GATEWAY_UPSTREAM_TIMEOUT"
 	EnvMaxModelReply   = "JUDGES_GATEWAY_MAX_RESPONSE_BYTES"
+	EnvAuth            = "JUDGES_GATEWAY_AUTH"
+	EnvAccessTeam      = "JUDGES_GATEWAY_ACCESS_TEAM"
+	EnvAccessAud       = "JUDGES_GATEWAY_ACCESS_AUD"
 	EnvNightshiftToken = "METERLESS_RUNTIME_TOKEN"
 	EnvNightshiftURL   = "PROVEN_GENERATOR_BASE_URL"
 	EnvNightshiftApp   = "PROVEN_GENERATOR_APP"
@@ -46,6 +50,18 @@ const (
 	MaxModelReply        = 4 << 20
 	MinModelReply        = 1 << 10
 	MaxModelReplySetting = 64 << 20
+)
+
+// The two ways in. Access is the default: a call must carry a Cloudflare Access
+// assertion. Token is the fallback: a call carries the judge's own token.
+const (
+	AuthAccess = "access"
+	AuthToken  = "token"
+)
+
+var (
+	teamFormat = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.com$`)
+	audFormat  = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
 // Settings is a loaded gateway configuration, ready to serve.
@@ -144,9 +160,27 @@ func Load(env func(string) string) (Settings, error) {
 		return s, err
 	}
 
+	var access *Verifier
+	switch mode := strings.TrimSpace(env(EnvAuth)); mode {
+	case "", AuthAccess:
+		team := strings.ToLower(strings.TrimSpace(env(EnvAccessTeam)))
+		if !teamFormat.MatchString(team) {
+			return s, &ConfigError{EnvAccessTeam, "not a team domain", "<team>.cloudflareaccess.com; or set " + EnvAuth + "=" + AuthToken + " for the judge-token method"}
+		}
+		aud := strings.TrimSpace(env(EnvAccessAud))
+		if !audFormat.MatchString(aud) {
+			return s, &ConfigError{EnvAccessAud, "not an application AUD tag", "64 lower-case hex digits, from the Access application; or set " + EnvAuth + "=" + AuthToken}
+		}
+		access = NewVerifier(team, aud, nil, nil)
+	case AuthToken:
+	default:
+		return s, &ConfigError{EnvAuth, "not a method", AuthAccess + " or " + AuthToken + "; empty means " + AuthAccess}
+	}
+
 	s.Config = Config{
 		Tokens:          store,
 		Limiter:         NewLimiter(),
+		Access:          access,
 		NightshiftURL:   base,
 		NightshiftToken: token,
 		NightshiftApp:   app,

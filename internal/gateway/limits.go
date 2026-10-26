@@ -42,28 +42,35 @@ func NewLimiter() *Limiter { return &Limiter{state: map[string]*usage{}} }
 // the day is full, and, when this call brings a window to 80% of its limit, one
 // alarm line. A refused call is not counted. Each window alarms once.
 func (l *Limiter) Allow(rec Record, now time.Time) (alarms []string, refused *Refusal) {
+	return l.AllowKey("token", rec.ID, rec.PerMinute, rec.PerDay, now)
+}
+
+// AllowKey is Allow for any caller: kind is "token" or "identity", name the
+// token id or the identity, and the limits those of its row.
+func (l *Limiter) AllowKey(kind, name string, perMinute, perDay int, now time.Time) (alarms []string, refused *Refusal) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	u := l.state[rec.ID]
+	key := kind + ":" + name
+	u := l.state[key]
 	if u == nil {
 		u = &usage{}
-		l.state[rec.ID] = u
+		l.state[key] = u
 	}
 	now = now.UTC()
 	roll(&u.minute, now.Truncate(time.Minute))
 	roll(&u.day, now.Truncate(24*time.Hour))
-	if u.day.n >= rec.PerDay {
-		return nil, &Refusal{Status: 429, Code: CodeAllowanceDay, Detail: fmt.Sprintf("this token's allowance of %d calls a day is used; it renews at 00:00 UTC", rec.PerDay)}
+	if u.day.n >= perDay {
+		return nil, &Refusal{Status: 429, Code: CodeAllowanceDay, Detail: fmt.Sprintf("this %s's allowance of %d calls a day is used; it renews at 00:00 UTC", kind, perDay)}
 	}
-	if u.minute.n >= rec.PerMinute {
-		return nil, &Refusal{Status: 429, Code: CodeRateMinute, Detail: fmt.Sprintf("this token may make %d calls a minute; wait for the next minute", rec.PerMinute)}
+	if u.minute.n >= perMinute {
+		return nil, &Refusal{Status: 429, Code: CodeRateMinute, Detail: fmt.Sprintf("this %s may make %d calls a minute; wait for the next minute", kind, perMinute)}
 	}
 	u.minute.n++
 	u.day.n++
-	if a := alarm(&u.minute, "minute", rec.ID, rec.PerMinute); a != "" {
+	if a := alarm(&u.minute, "minute", kind, name, perMinute); a != "" {
 		alarms = append(alarms, a)
 	}
-	if a := alarm(&u.day, "day", rec.ID, rec.PerDay); a != "" {
+	if a := alarm(&u.day, "day", kind, name, perDay); a != "" {
 		alarms = append(alarms, a)
 	}
 	return alarms, nil
@@ -75,11 +82,11 @@ func roll(w *window, start time.Time) {
 	}
 }
 
-func alarm(w *window, name, id string, limit int) string {
+func alarm(w *window, name, kind, id string, limit int) string {
 	threshold := (limit*alarmPercent + 99) / 100
 	if w.alarmed || w.n < threshold {
 		return ""
 	}
 	w.alarmed = true
-	return fmt.Sprintf("%s token=%s window=%s used=%d limit=%d", AlarmPrefix, id, name, w.n, limit)
+	return fmt.Sprintf("%s %s=%s window=%s used=%d limit=%d", AlarmPrefix, kind, id, name, w.n, limit)
 }

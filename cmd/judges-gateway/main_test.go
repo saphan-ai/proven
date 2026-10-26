@@ -53,6 +53,36 @@ func TestTokenCommandsPrintTheTokenOnceAndStoreOnlyTheHash(t *testing.T) {
 	}
 }
 
+func TestIdentityCommandsAddRevokeAndListOneRowAtATime(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "tokens.json")
+	e := env(map[string]string{"JUDGES_GATEWAY_TOKENS_FILE": file})
+	exp := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
+	var out, errb bytes.Buffer
+	for _, m := range []string{"Ada@Jury.Example", "*@panel.example", "abc123.access"} {
+		if code := run([]string{"identity", "add", "--match", m, "--expires", exp}, e, &out, &errb, nil); code != exitOK {
+			t.Fatalf("add %s: %d %s", m, code, errb.String())
+		}
+	}
+	if code := run([]string{"identity", "add", "--match", "not valid!", "--expires", exp}, e, &out, &errb, nil); code != exitError {
+		t.Errorf("a match with no shape: %d", code)
+	}
+	if code := run([]string{"identity", "revoke", "--match", "abc123.access"}, e, &out, &errb, nil); code != exitOK {
+		t.Fatalf("revoke: %d %s", code, errb.String())
+	}
+	out.Reset()
+	if code := run([]string{"identity", "list"}, e, &out, &errb, nil); code != exitOK {
+		t.Fatalf("list: %d", code)
+	}
+	rows := map[string]string{}
+	for _, l := range strings.Split(strings.TrimSpace(out.String()), "\n")[1:] {
+		f := strings.Fields(l)
+		rows[f[0]] = f[1] + " " + strings.Join(f[5:], " ")
+	}
+	if rows["ada@jury.example"] != "judge active" || rows["*@panel.example"] != "judge active" || !strings.HasPrefix(rows["abc123.access"], "runner revoked") {
+		t.Errorf("list: %q", out.String())
+	}
+}
+
 func TestTokenNewRefusals(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "tokens.json")
 	e := env(map[string]string{"JUDGES_GATEWAY_TOKENS_FILE": file})
@@ -83,6 +113,8 @@ func TestServeListensOnLoopbackOnly(t *testing.T) {
 		"ZETARIS_REST_URL":           "http://127.0.0.1:1",
 		"ZETARIS_API_KEY":            "test-key-00002",
 		"ZETARIS_ORG_ID":             "42",
+		"JUDGES_GATEWAY_ACCESS_TEAM": "jury.cloudflareaccess.com",
+		"JUDGES_GATEWAY_ACCESS_AUD":  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	})
 	addr := make(chan net.Addr, 1)
 	done := make(chan int, 1)
@@ -100,7 +132,7 @@ func TestServeListensOnLoopbackOnly(t *testing.T) {
 		}
 		resp.Body.Close()
 		if resp.StatusCode != 401 {
-			t.Errorf("a call with no token got %d, want 401", resp.StatusCode)
+			t.Errorf("a call with no assertion got %d, want 401", resp.StatusCode)
 		}
 	case code := <-done:
 		t.Fatalf("serve exited %d: %s", code, errb.String())
@@ -127,6 +159,8 @@ func TestServeRefusesBadSettingsByNameWithoutTheSecret(t *testing.T) {
 		"ZETARIS_REST_URL":           "http://127.0.0.1:1",
 		"ZETARIS_API_KEY":            "test-key-00002",
 		"ZETARIS_ORG_ID":             "42",
+		"JUDGES_GATEWAY_ACCESS_TEAM": "jury.cloudflareaccess.com",
+		"JUDGES_GATEWAY_ACCESS_AUD":  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
 	for name, tc := range map[string]struct{ key, val, names string }{
 		"bad port":         {"JUDGES_GATEWAY_PORT", "99999", "JUDGES_GATEWAY_PORT"},

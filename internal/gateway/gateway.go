@@ -55,8 +55,13 @@ type Querier interface {
 // Config is everything a Gateway needs. The two credentials are fields here
 // and nowhere else: nothing in this package prints, logs or returns them.
 type Config struct {
-	Tokens  *Store
+	Tokens  *Store // the settings file: token rows and identity rows
 	Limiter *Limiter
+
+	// Access, when it is set, is the only way in: a call must carry a valid
+	// Cloudflare Access assertion for a listed identity. When it is nil the
+	// judge's own token is the way in (the fallback method).
+	Access *Verifier
 
 	NightshiftURL   string // origin, no path
 	NightshiftToken string
@@ -111,7 +116,9 @@ func New(cfg Config) *Gateway {
 // gateway's own list, never as the caller sent them.
 type entry struct {
 	Time     string `json:"time"`
-	Token    string `json:"token"`
+	Token    string `json:"token,omitempty"`    // the token id, token method only
+	Identity string `json:"identity,omitempty"` // the e-mail or client id, Access method only
+	Class    string `json:"class,omitempty"`    // judge or runner
 	Route    string `json:"route"`
 	Model    string `json:"model,omitempty"`
 	Template string `json:"template,omitempty"`
@@ -155,7 +162,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rec := &recorder{ResponseWriter: w}
-	e := entry{Time: g.cfg.Now().UTC().Format(time.RFC3339), Token: "-", Route: "-"}
+	e := entry{Time: g.cfg.Now().UTC().Format(time.RFC3339), Route: "-"}
 	defer func() {
 		e.Status, e.Bytes = rec.status, rec.bytes
 		if e.Refused == CodeLogUnavailable {
@@ -183,20 +190,40 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := bearer(r.Header.Get("Authorization"))
-	if token == "" {
-		refuse(&Refusal{Status: http.StatusUnauthorized, Code: CodeMissingToken, Detail: "send the judge token as 'Authorization: Bearer <token>'"})
-		return
-	}
-	judge, err := g.cfg.Tokens.Lookup(token, g.cfg.Now())
-	if judge.ID != "" {
-		e.Token = judge.ID
-	}
-	if err != nil {
-		var ref *Refusal
-		errors.As(err, &ref)
-		refuse(ref)
-		return
+	// Who is calling: the Access assertion, or the judge's own token.
+	var who limited
+	if g.cfg.Access != nil {
+		e.Identity = "-"
+		sub, err := g.cfg.Access.Verify(r.Context(), r.Header.Get(HeaderAssertion))
+		if err != nil {
+			refuseWith(refuse, err)
+			return
+		}
+		res, err := g.cfg.Tokens.LookupIdentity(sub, g.cfg.Now())
+		if res.Name != "" {
+			e.Identity, e.Class = res.Name, res.Class
+		}
+		if err != nil {
+			refuseWith(refuse, err)
+			return
+		}
+		who = limited{kind: "identity", name: res.Name, perMinute: res.PerMinute, perDay: res.PerDay}
+	} else {
+		e.Token = "-"
+		token := bearer(r.Header.Get("Authorization"))
+		if token == "" {
+			refuse(&Refusal{Status: http.StatusUnauthorized, Code: CodeMissingToken, Detail: "send the judge token as 'Authorization: Bearer <token>'"})
+			return
+		}
+		judge, err := g.cfg.Tokens.Lookup(token, g.cfg.Now())
+		if judge.ID != "" {
+			e.Token = judge.ID
+		}
+		if err != nil {
+			refuseWith(refuse, err)
+			return
+		}
+		who = limited{kind: "token", name: judge.ID, perMinute: judge.PerMinute, perDay: judge.PerDay}
 	}
 
 	var serve func(http.ResponseWriter, *http.Request, *entry) *Refusal
@@ -214,7 +241,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	alarms, ref := g.cfg.Limiter.Allow(judge, g.cfg.Now())
+	alarms, ref := g.cfg.Limiter.AllowKey(who.kind, who.name, who.perMinute, who.perDay, g.cfg.Now())
 	for _, a := range alarms {
 		g.alarm(a)
 	}
@@ -225,6 +252,22 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if ref := serve(rec, r, &e); ref != nil {
 		refuse(ref)
 	}
+}
+
+// limited is the caller as the limiter sees it.
+type limited struct {
+	kind, name        string
+	perMinute, perDay int
+}
+
+// refuseWith turns the error of an authentication step into its refusal. An
+// error that is not a refusal is a failure of the gateway, not of the caller.
+func refuseWith(refuse func(*Refusal), err error) {
+	var ref *Refusal
+	if !errors.As(err, &ref) {
+		ref = &Refusal{Status: http.StatusServiceUnavailable, Code: CodeSettingsDown, Detail: "the gateway cannot check who you are; tell the owner"}
+	}
+	refuse(ref)
 }
 
 // bearer returns the token of an Authorization header, or "".

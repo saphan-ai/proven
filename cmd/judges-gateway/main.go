@@ -47,10 +47,14 @@ Usage:
   judges-gateway token new --id <id> --expires <RFC 3339 time> [--per-minute N] [--per-day N]
   judges-gateway token revoke --id <id>
   judges-gateway token list
+  judges-gateway identity add --match <e-mail | *@domain | client id> --expires <RFC 3339 time> [--per-minute N] [--per-day N]
+  judges-gateway identity revoke --match <e-mail | *@domain | client id>
+  judges-gateway identity list
 
 Settings come from the environment; docs/JUDGES_GATEWAY.md lists them.
-JUDGES_GATEWAY_TOKENS_FILE names the token settings file, which the token
+JUDGES_GATEWAY_TOKENS_FILE names the settings file, which the token and identity
 commands read and write. 'token new' prints the token once and stores only its hash.
+An e-mail or a *@domain is a judge; a service token's client id is the runner.
 
 Exit codes: 0 done, 1 refused or failed, 2 usage.
 `
@@ -71,6 +75,9 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer, re
 	}
 	if args[0] == "token" {
 		return token(args[1:], getenv, stdout, stderr)
+	}
+	if args[0] == "identity" {
+		return identity(args[1:], getenv, stdout, stderr)
 	}
 	fmt.Fprint(stderr, helpText)
 	return exitUsage
@@ -126,6 +133,72 @@ func serve(getenv func(string) string, stderr io.Writer, ready func(net.Addr)) i
 	}
 	<-done
 	return exitOK
+}
+
+// identity adds, revokes and lists the allowlist rows of the Access method.
+func identity(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprint(stderr, helpText)
+		return exitUsage
+	}
+	path := getenv(gateway.EnvTokensFile)
+	if path == "" {
+		fmt.Fprintf(stderr, "configuration refused: %s: the token settings file is not named\n", gateway.EnvTokensFile)
+		return exitError
+	}
+	fs := flag.NewFlagSet("identity "+args[0], flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	match := fs.String("match", "", "an e-mail, *@domain, or a service token's client id")
+	expires := fs.String("expires", "", "when the identity stops working, RFC 3339")
+	perMinute := fs.Int("per-minute", defaultPerMinute, "calls a minute")
+	perDay := fs.Int("per-day", defaultPerDay, "calls a day")
+	if err := fs.Parse(args[1:]); err != nil {
+		return exitUsage
+	}
+	now := time.Now()
+	switch args[0] {
+	case "add":
+		exp, err := time.Parse(time.RFC3339, *expires)
+		if err != nil {
+			fmt.Fprintln(stderr, "--expires is required and is an RFC 3339 time, for example 2026-10-28T00:00:00Z")
+			return exitUsage
+		}
+		if err := gateway.AddIdentity(path, *match, exp, *perMinute, *perDay, now); err != nil {
+			fmt.Fprintln(stderr, "identity add refused:", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "added: %s (%s) expires %s\n", *match, gateway.ClassOf(*match), exp.UTC().Format(time.RFC3339))
+		return exitOK
+	case "revoke":
+		if err := gateway.RevokeIdentity(path, *match, now); err != nil {
+			fmt.Fprintln(stderr, "identity revoke refused:", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "revoked: %s\n", *match)
+		return exitOK
+	case "list":
+		rows, err := gateway.ListIdentities(path)
+		if err != nil {
+			fmt.Fprintln(stderr, "identity list refused:", err)
+			return exitError
+		}
+		tw := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(tw, "match\tclass\texpires\tper_minute\tper_day\tstate")
+		for _, r := range rows {
+			state := "active"
+			switch {
+			case r.RevokedAt != "":
+				state = "revoked " + r.RevokedAt
+			case !now.Before(r.Expires):
+				state = "expired"
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%s\n", r.Match, r.Class, r.Expires.UTC().Format(time.RFC3339), r.PerMinute, r.PerDay, state)
+		}
+		_ = tw.Flush()
+		return exitOK
+	}
+	fmt.Fprint(stderr, helpText)
+	return exitUsage
 }
 
 func token(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
