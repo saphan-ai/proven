@@ -64,6 +64,27 @@ that builds it, not estimated.
 that asked for it, the review that checked it and the decision that merged it. The fleet is not ashamed of its work. It is proud of it.
 Open any package, read any test, pick any merge, and tell us what you find.
 
+## Honest limits
+
+What Proven does not do yet, or does not do well, measured and dated. This list is updated with every push.
+
+- **Scout Intent misses some cases.** On a blind set of 46 changes frozen before the run (English, Polish and Thai,
+  including disguised ones) it matched 30 and missed 16, reported unpatched so the set stays blind. In 3 of the misses
+  a security change was taken for a documentation change and got a lighter review than it should have
+  (26 October). It also asks for clarification more often than its own ceiling allows.
+- **Scout Intent and Markovian are not measured yet.** Their benefit on review quality is unknown. Today they are off
+  by default; turning all four engines on by default, each switchable off by a setting or when `make up` asks, is
+  being built.
+- **H-MEM reads its whole state file** when it opens and rewrites it on every write. A size cap is being added; until
+  then it is meant for one repository's memory, not a large organisation's.
+- **The corpus score was recorded while NVIDIA's API was failing** (HTTP 500 and timeouts on 26 October), so the NVIDIA
+  column shows mostly failed calls, every failure named. A second column on another model family, through Meterless
+  Nightshift, is recorded once and labelled "run 1 only".
+- **The lab's demo runs on sample data.** Live mode needs Zetaris and Meterless Nightshift, your own or ours through an
+  authenticated gateway.
+- **The review spine is one long function** (`pipeline.review`, about 500 lines). Splitting it is accepted debt until
+  after 6 November (see *Next*).
+
 ## Where things stand
 
 Updated every evening. The newest day comes first.
