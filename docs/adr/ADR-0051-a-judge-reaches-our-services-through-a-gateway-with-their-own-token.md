@@ -39,6 +39,28 @@ to a stranger's machine is not an option: a copied key cannot be taken back with
    line is written to stderr, once per window, starting `JUDGES-GATEWAY-ALARM` so the fleet's watchers can grep it.
 8. **Every call is logged**, one JSON line: time, token id, route, model or template, status, bytes, and the refusal
    code when there is one.
+9. **A call the gateway cannot log is not served for long.** The log line carries the status and the bytes sent, so it
+   can only be written after the answer; it cannot be written before the call. We chose that the gateway **serves the
+   call, makes the loss observable on a second channel, and refuses every later call until the sink works again**
+   (fail closed after the first loss, not before it). The first write that fails (the call log or the alarm: a full
+   disk, a broken pipe) does three things. It keeps the line in memory (at most 1024 lines). It writes one line on
+   standard error that starts `JUDGES-GATEWAY-FAULT` and names the sink (`sink=log` or `sink=alarm`) and the error. It
+   turns the health probe, `GET /healthz`, from 200 to 503. From then on each call is refused with `503
+   log_unavailable` before the token is looked at and before any upstream is called. Each call, and `/healthz`, first
+   tries to write the held lines; when they are written, one `JUDGES-GATEWAY-RECOVERED` line states how many lines were
+   lost and how many refusals were not logged, the probe returns to 200, and calls are served again. So no request ends
+   with a 200 whose log line is lost without the fault line and the probe saying so, and at most one call (the one that
+   finds the sink broken, plus calls already in flight) is served unlogged for a moment: its line is held and written
+   on recovery. The allowance alarm has the same treatment, because a lost alarm is a lost warning. We rejected
+   writing the line before the call: it could not hold the status or the bytes, and a second line per call would
+   break the one-line-per-call rule. If standard error fails too, nothing can name the fault, and only the probe says it.
+10. **The model answer is bounded in bytes.** The gateway relays at most `JUDGES_GATEWAY_MAX_RESPONSE_BYTES` bytes of a
+    model answer per call (default 4 MiB, the size of the request bound; allowed 1 KiB to 64 MiB). A time limit is not
+    a byte limit. If the model service declares a larger `Content-Length`, the judge gets `502 response_over_limit`
+    before any byte. If it does not declare one and the stream passes the bound, the gateway has already sent `200`,
+    so it relays exactly the bound and then aborts the connection: the judge's read ends in an error, never in a clean
+    end. The log line has status 200, `bytes` equal to what was relayed, `refused: response_over_limit` and a `reason`
+    that gives the bytes and the limit.
 
 ## The trust boundary
 
@@ -51,10 +73,11 @@ judge's lab ──▶ Cloudflare Access ──▶ tunnel ──▶ gateway (our 
 |---|---|
 | Cloudflare Access | anyone not on the allowlist: no email, no service token, no entry |
 | tunnel and `127.0.0.1` | a connection that does not come through the tunnel |
+| gateway: sinks | every call, while the call log or the alarm cannot be written (`log_unavailable`) |
 | gateway: token | a missing, unknown, foreign, expired or revoked token; a settings file it cannot read (the gateway then refuses every call) |
 | gateway: route | any path other than the two; any method other than `POST` |
 | gateway: limits | a call past the token's minute or day limit |
-| gateway: model route | a model not on the list; a body over 4 MiB |
+| gateway: model route | a model not on the list; a body over 4 MiB; an answer over the byte bound (declared: refused; undeclared: cut) |
 | gateway: evidence route | anything but a valid template request; a body over 16 KiB |
 | Nightshift, Zetaris | whatever their own services refuse; the gateway reports it only as `upstream_unavailable` or `upstream_error` |
 
@@ -64,7 +87,8 @@ A JSON body with two fields: `refused`, a stable name, and `detail`, a fixed sen
 the judge sent. The names: `missing_token`, `unknown_token`, `token_expired`, `token_revoked`, `rate_limit_minute`,
 `allowance_day`, `no_such_route`, `method_not_allowed`, `body_too_large`, `bad_request`, `model_not_allowed`,
 `not_a_template_request`, `unknown_template`, `missing_parameter`, `unknown_parameter`, `bad_parameter`,
-`template_refused`, `upstream_unavailable`, `upstream_error`, `gateway_settings_unreadable`.
+`template_refused`, `upstream_unavailable`, `upstream_error`, `gateway_settings_unreadable`, `log_unavailable`,
+`response_over_limit`. A cut stream has no refusal body: the judge's read ends in an error after the bound.
 
 ## What is logged, and what never is
 
@@ -87,6 +111,9 @@ token's expiry and state, and never a token. The settings file holds hashes only
   Nightshift. The gateway does not read it, log it or hide it. A judge who does not want that stays in sample mode.
 - **The allowance counts calls, not tokens.** One model call can be large (up to 4 MiB of request). The model list and
   the call limit bound the spend; they do not meter it.
+- **One call can be served with its log line held back.** The call that finds the sink broken is not stopped (decision
+  9). If the process dies before the sink recovers, the held line is lost; the fault line on standard error is then
+  the only trace.
 - **Counts live in memory.** If the gateway restarts, each token's minute and day counts start again. A judge cannot
   cause a restart; a crash can.
 - **The gateway does not check Cloudflare's own identity header.** It cannot verify one without fetching Cloudflare's
@@ -103,7 +130,7 @@ token's expiry and state, and never a token. The settings file holds hashes only
 - A judge can run a fully live review with nothing of their own but the token the owner sends.
 - The owner can end one judge's access in one command, and all of them by letting the date pass.
 - Settings: `JUDGES_GATEWAY_TOKENS_FILE`, `JUDGES_GATEWAY_PORT`, `JUDGES_GATEWAY_LOG`, `JUDGES_GATEWAY_MODELS`,
-  `JUDGES_GATEWAY_UPSTREAM_TIMEOUT`, and the credential and address variables Proven already reads. None is hardcoded
+  `JUDGES_GATEWAY_UPSTREAM_TIMEOUT`, `JUDGES_GATEWAY_MAX_RESPONSE_BYTES`, and the credential and address variables Proven already reads. None is hardcoded
   (ADR-0013); the defaults are in the runbook.
 - The lab side (the lab's `.env` and the Gitea Actions secrets) and the lab's "Go live with our services" section are the
   next round and are not part of this decision.

@@ -34,6 +34,7 @@ The gateway reads its settings from the environment. Put them in one file that o
 | `JUDGES_GATEWAY_LOG` | none: the log goes to standard output | A file the call log is appended to (mode `0600`) |
 | `JUDGES_GATEWAY_MODELS` | `meterless/auto` | The models a judge may name, comma-separated. Any other model is refused |
 | `JUDGES_GATEWAY_UPSTREAM_TIMEOUT` | `120s` | The bound on one model call |
+| `JUDGES_GATEWAY_MAX_RESPONSE_BYTES` | `4194304` (4 MiB) | The most bytes the gateway relays from the model service in one call. An integer from `1024` to `67108864` |
 | `METERLESS_RUNTIME_TOKEN` | none; required | Our Nightshift runtime token. The gateway puts it on each model call. Secret: it is never logged or sent to a judge |
 | `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address (an origin; a path is empty or `/v1`) |
 | `PROVEN_GENERATOR_APP` | `proven` | The application name sent to Nightshift |
@@ -73,6 +74,36 @@ Alarms are on standard error and start with `JUDGES-GATEWAY-ALARM`:
 ```
 journalctl --user -u judges-gateway -o cat | grep '^JUDGES-GATEWAY-ALARM'
 ```
+
+### If the log or the alarm cannot be written
+
+The gateway will not serve calls it cannot log. If the disk is full or the log file is gone, the first write that fails
+puts one line on standard error that starts `JUDGES-GATEWAY-FAULT` and names the sink (`sink=log` or `sink=alarm`).
+From then on every call gets `503 log_unavailable`, and the health probe says the same. Watch for it:
+
+```
+journalctl --user -u judges-gateway -o cat | grep '^JUDGES-GATEWAY-FAULT'
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8089/healthz
+```
+
+The probe prints `200` when the gateway is healthy and `503` when a sink is down. It needs no token and answers nothing
+else. To mend it: free the disk or restore the log path (for the file, check `JUDGES_GATEWAY_LOG`). The gateway needs
+no restart: on the next call, or the next probe, it writes the held lines, prints one `JUDGES-GATEWAY-RECOVERED` line
+with the number of lines lost, and serves again. Standard error is the second channel: if it is not read, only the probe tells you.
+
+### If an answer is cut
+
+A model answer larger than `JUDGES_GATEWAY_MAX_RESPONSE_BYTES` is never relayed whole. If the model service declares its
+size, the judge gets `502 response_over_limit` and no model byte. If not, the judge receives exactly the bound and the
+connection is then aborted, so the judge's tool reports a broken stream. The call-log line has `status` 200, `bytes` =
+what was relayed, `"refused":"response_over_limit"` and a `reason`. Find them:
+
+```
+grep '"refused":"response_over_limit"' <the call log>
+```
+
+An ordinary review answer is far smaller than 4 MiB. If a legitimate one is cut, raise the setting; if answers keep
+coming near the bound, read the model service's side, because something is wrong there.
 
 Check that it is up, from the host: a call with no token must be refused by name.
 
@@ -208,6 +239,8 @@ Ask the judge for the `refused` name in the answer. It says which layer spoke.
 | `body_too_large` | the request is over the size bound | The change is too large for one call; ask the judge to review a smaller one |
 | `upstream_unavailable`, `upstream_error` | Nightshift or Zetaris did not answer or refused | Not the judge's fault. Read the log line's `reason`, then the service's own state |
 | `gateway_settings_unreadable` | the token file cannot be read or fails its rules | Run `judges-gateway token list`: it says what is wrong. Until the file is right, every call is refused |
+| `log_unavailable` | the gateway cannot write its call log or its alarm, so it serves nothing | Not the judge's fault. Follow "If the log or the alarm cannot be written"; the judge may retry once you see `200` from `/healthz` |
+| `response_over_limit` | the model answer was larger than `JUDGES_GATEWAY_MAX_RESPONSE_BYTES` (on a stream that was cut, the judge sees a broken stream, not this name) | Look for it in the log; raise the setting only if the answer was legitimate |
 | `no_such_route`, `method_not_allowed` | wrong path or method | The gateway serves `POST /v1/chat/completions` and `POST /v1/evidence/query` only |
 
 To follow one judge's calls, search the log for their id: `grep '"token":"judge-ada"'`. The log holds no request body and
