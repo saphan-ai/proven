@@ -94,6 +94,12 @@ type Manifest struct {
 	Commits Commits   `json:"commits"`
 	Models  []Model   `json:"models"`
 	Files   []FileRef `json:"files"`
+	// RedactionMoved names the findings whose outcome the rule gives differently for the redacted
+	// text than for the text the review had: redaction wrote one marker where the review had two
+	// different values, or the other way round. verify runs the rule with the text read both ways
+	// and names only the components those readings disagree on not re-derived, because the pack
+	// no longer holds the text the Judge read.
+	RedactionMoved []string `json:"redaction_moved,omitempty"`
 }
 
 // Model is one model use as the provider's receipt names it.
@@ -169,6 +175,11 @@ func build(in Input) ([]byte, error) {
 		},
 		Models: redactedModels,
 	}
+	moved, err := redactionMoved(in.Result, files[FindingsName])
+	if err != nil {
+		return nil, err
+	}
+	m.RedactionMoved = moved
 	names := make([]string, 0, len(files))
 	for name := range files {
 		names = append(names, name)
@@ -187,6 +198,27 @@ func build(in Input) ([]byte, error) {
 	files[ManifestName] = manifest
 	files[SignatureName] = []byte(sig)
 	return archive(files)
+}
+
+// redactionMoved lists the ids (as written in the pack) of the findings whose outcome the rule gives
+// differently for the redacted findings.json than for the review's own result.
+func redactionMoved(orig review.Result, redacted []byte) ([]string, error) {
+	var res review.Result
+	if err := json.Unmarshal(redacted, &res); err != nil {
+		return nil, fmt.Errorf("evidence pack: %s after redaction: %w", FindingsName, err)
+	}
+	if len(res.Findings) != len(orig.Findings) {
+		return nil, fmt.Errorf("evidence pack: redaction changed the number of findings")
+	}
+	var out []string
+	for i, f := range orig.Findings {
+		a, errA := review.Rederive(f)
+		b, errB := review.Rederive(res.Findings[i])
+		if (errA == nil) != (errB == nil) || a != b {
+			out = append(out, res.Findings[i].ID)
+		}
+	}
+	return out, nil
 }
 
 // WriteFile writes the pack to path through a temporary file, so a failed write leaves no half pack.
@@ -330,6 +362,8 @@ type QueryRun struct {
 	Snapshot  string     `json:"snapshot"`
 	Columns   []string   `json:"columns"`
 	Rows      [][]string `json:"rows"`
+	// Bound is whether Proven tied the rows to the change; the Judge counts rows only then.
+	Bound bool `json:"bound"`
 }
 
 func tests(res review.Result) []TestRun {
@@ -356,7 +390,7 @@ func queries(res review.Result) []QueryRun {
 	for _, f := range res.Findings {
 		for _, e := range f.Evidence {
 			if q := e.Query; q != nil {
-				out = append(out, QueryRun{FindingID: f.ID, SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot, Columns: q.Columns, Rows: q.Rows})
+				out = append(out, QueryRun{FindingID: f.ID, SQL: q.SQL, Engine: q.Engine, Snapshot: q.Snapshot, Columns: q.Columns, Rows: q.Rows, Bound: q.Bound})
 			}
 		}
 	}

@@ -34,10 +34,11 @@ func sampleInput(t *testing.T) (Input, ed25519.PublicKey) {
 			Severity: review.SeverityError, ProofLevel: review.ProvedByTest,
 			Evidence: []review.Evidence{
 				{Kind: review.EvidenceTest, Test: &review.TestEvidence{Path: "discount_test.go", Name: "TestNeg", Command: "go test ./...", FailsOnChange: true, PassesOnBase: true, Output: "FAIL: TestNeg a<b"}},
-				{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{SQL: "select 1", Engine: "local-sample", Snapshot: "s1", Columns: []string{"n"}, Rows: [][]string{{"1"}}}},
+				{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{SQL: "select 1", Engine: "local-sample", Snapshot: "s1", Columns: []string{"n"}, Rows: [][]string{{"1"}}, Bound: true}},
 			},
+			Refutation: &review.Refutation{},
 		}},
-		ProofCounts: map[review.ProofLevel]int{review.ProvedByTest: 1},
+		ProofCounts: map[review.ProofLevel]int{review.ProvedByTest: 1, review.ProvedByTool: 0, review.ProvedByData: 0, review.AgreedNotProven: 0},
 		Models:      []review.ModelUse{{Agent: "planner", Route: "nvidia", Model: "nvidia/nemotron", ReceiptID: "rcpt-1", FromReceipt: true}},
 	}
 	trace := []byte(`{"run_id":"r","time":"t","kind":"claim","agent":"planner","text":"x"}` + "\n" +

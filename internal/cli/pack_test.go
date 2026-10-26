@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,6 +77,17 @@ func TestSampleReviewWritesAPackThatVerifies(t *testing.T) {
 		}
 	}
 
+	// A review's own pack re-derives every finding.
+	var rd, all int
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if _, err := fmt.Sscanf(line, "outcomes: %d of %d", &rd, &all); err == nil {
+			break
+		}
+	}
+	if all == 0 || rd != all || strings.Contains(stdout.String(), "not re-derived:") {
+		t.Errorf("a review's own pack must re-derive every finding, got %d of %d:\n%s", rd, all, stdout.String())
+	}
+
 	// The public key may come from the setting as well as the flag.
 	stdout.Reset()
 	code = Run([]string{"verify", pack}, packEnv(map[string]string{evidence.EnvPackPublicKey: pub}), &stdout, &stderr, nil)
@@ -130,5 +142,18 @@ func TestVerifyWithoutAPublicKeyNamesTheSetting(t *testing.T) {
 	code := Run([]string{"verify", "x.pack"}, packEnv(nil), &stdout, &stderr, nil)
 	if code != exitConfig || !strings.Contains(stderr.String(), evidence.EnvPackPublicKey) {
 		t.Fatalf("exit %d: %q", code, stderr.String())
+	}
+}
+
+// The report an auditor reads names every finding verify did not re-derive.
+func TestVerifyReportNamesEachFindingNotRederived(t *testing.T) {
+	line := "finding F1: the pack records no refutation, so whether it was refuted or left open is not re-derived"
+	rep := &evidence.Report{Findings: 2, Rederived: 1, NotRederived: []string{line}}
+	out := renderReport("x.pack", rep)
+	if !strings.Contains(out, "outcomes: 1 of 2 finding(s) re-derived") {
+		t.Fatalf("the report does not give the re-derived count:\n%s", out)
+	}
+	if !strings.Contains(out, "not re-derived: "+line) {
+		t.Fatalf("the report does not name F1 as not re-derived:\n%s", out)
 	}
 }

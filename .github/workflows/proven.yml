@@ -1,0 +1,32 @@
+# Proven reviews its own pull requests (docs/ACTION.md).
+# pull_request, never pull_request_target: a pull request from a fork runs with
+# no secrets and a read-only token, so this job is skipped for one.
+name: proven
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: saphan-ai/proven@c2d8b1167ec0fa6704c03aa23e34b6914b323549 # main with the Action (W4)
+        with:
+          strict: false
+          comment: true
+        env:
+          PROVEN_GENERATOR_MODE: nvidia
+          PROVEN_GENERATOR_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          PROVEN_GUARDRAIL_MODE: nvidia
+          PROVEN_GUARDRAIL_KEY: ${{ secrets.NVIDIA_API_KEY }}

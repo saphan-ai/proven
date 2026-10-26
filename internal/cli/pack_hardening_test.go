@@ -42,7 +42,8 @@ func TestVerifyShowsNoControlByteFromThePack(t *testing.T) {
 	}
 	hostile := "evil\x1b]0;owned\x07\x1b[2J" + string(rune(0x202e)) + "model"
 	pack, err := evidence.Build(evidence.Input{
-		Result:   review.Result{Models: []review.ModelUse{{Agent: "planner", Route: "r\x1b[31m", Model: hostile}}},
+		// A review with no finding still counts every level, as a real review does.
+		Result:   review.Result{ProofCounts: review.CountProofs(nil), Models: []review.ModelUse{{Agent: "planner", Route: "r\x1b[31m", Model: hostile}}},
 		Commits:  evidence.Commits{Target: ".", Baseline: "main\x1b[1m", Head: "HEAD"},
 		Redactor: redact.New(nil),
 		Key:      priv,

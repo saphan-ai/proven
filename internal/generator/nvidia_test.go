@@ -75,7 +75,7 @@ func TestNVIDIAKeepsAnNVIDIAAnswerWithNoReceipt(t *testing.T) {
 	live := hostedAt(t, func(r *http.Request) *http.Response {
 		got = r
 		_ = json.NewDecoder(r.Body).Decode(&sent)
-		return answer(http.StatusOK, hostedStream("nvidia/llama-3.3-nemotron-super-49b-v1.5"))
+		return answer(http.StatusOK, hostedStream("nvidia/nemotron-3.5-super-vl-120b-a12b"))
 	}, nil)
 	text, err := live.Complete(context.Background(), "planner", "prompt")
 	if err != nil || text != "ready" {
@@ -91,11 +91,11 @@ func TestNVIDIAKeepsAnNVIDIAAnswerWithNoReceipt(t *testing.T) {
 	if got.Header.Get("meterless-app") != "" || got.Header.Get("meterless-scope") != "" {
 		t.Errorf("Nightshift headers sent to the hosted API")
 	}
-	if sent.Model != "nvidia/llama-3.3-nemotron-super-49b-v1.5" || !sent.Stream {
+	if sent.Model != "nvidia/nemotron-3.5-super-vl-120b-a12b" || !sent.Stream {
 		t.Errorf("body %+v", sent)
 	}
 	u, ok := live.LastUse()
-	if !ok || u.Model != "nvidia/llama-3.3-nemotron-super-49b-v1.5" || u.ReceiptID != generator.NoReceipt || u.FromReceipt {
+	if !ok || u.Model != "nvidia/nemotron-3.5-super-vl-120b-a12b" || u.ReceiptID != generator.NoReceipt || u.FromReceipt {
 		t.Fatalf("use %#v ok %v", u, ok)
 	}
 }
@@ -159,7 +159,9 @@ func TestNVIDIASendsTheSkepticItsOwnModel(t *testing.T) {
 		_ = json.NewDecoder(r.Body).Decode(&sent)
 		models = append(models, sent.Model)
 		return answer(http.StatusOK, hostedStream(sent.Model))
-	}, nil)
+	}, map[string]string{generator.EnvModel: "nvidia/finder-model"})
+	// The two defaults are one model since 2026-10-26, so the finder is set to
+	// another one: the Skeptic must still be sent its own.
 	for _, agent := range []string{"planner", "skeptic"} {
 		if _, err := live.Complete(context.Background(), agent, "prompt"); err != nil {
 			t.Fatal(err)
@@ -262,7 +264,7 @@ func TestNVIDIAModeIgnoresTheNightshiftBase(t *testing.T) {
 	var host string
 	live := hostedAt(t, func(r *http.Request) *http.Response {
 		host = r.URL.Host
-		return answer(http.StatusOK, hostedStream("nvidia/llama-3.3-nemotron-super-49b-v1.5"))
+		return answer(http.StatusOK, hostedStream("nvidia/nemotron-3.5-super-vl-120b-a12b"))
 	}, map[string]string{generator.EnvBaseURL: "http://127.0.0.1:8088"})
 	if _, err := live.Complete(context.Background(), "planner", "prompt"); err != nil {
 		t.Fatal(err)
@@ -282,5 +284,24 @@ func TestLoadNVIDIAModeDefaults(t *testing.T) {
 	}
 	if cfg.BaseURL != "https://integrate.api.nvidia.com/v1" || !strings.HasPrefix(cfg.Model, "nvidia/") || cfg.Mode != generator.ModeNVIDIA {
 		t.Fatalf("settings %+v", cfg)
+	}
+}
+
+// Proves the alias is accepted only for the model it stands for: asked for the
+// VL model, an answer named with its private alias is kept; asked for another
+// model, the same alias is refused. Mutated field: the requested model.
+func TestNVIDIAAcceptsAnAliasOnlyForTheModelAskedFor(t *testing.T) {
+	const alias = "private/nvidia/nemotron-3.5-super-120b-a12b"
+	serve := func(*http.Request) *http.Response { return answer(http.StatusOK, hostedStream(alias)) }
+	live := hostedAt(t, serve, nil)
+	if text, err := live.Complete(context.Background(), "planner", "prompt"); err != nil || text != "ready" {
+		t.Fatalf("asked for the VL model: text %q err %v", text, err)
+	}
+	if u, ok := live.LastUse(); !ok || u.Model != alias {
+		t.Fatalf("the trace must name the alias as answered: %#v", u)
+	}
+	other := hostedAt(t, serve, map[string]string{generator.EnvModel: "nvidia/other-model"})
+	if _, err := other.Complete(context.Background(), "planner", "prompt"); err == nil || !strings.Contains(err.Error(), "not an NVIDIA model") {
+		t.Fatalf("asked for another model: err %v, want a refusal", err)
 	}
 }

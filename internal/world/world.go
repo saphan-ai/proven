@@ -28,6 +28,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/pathguard"
+	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
@@ -92,7 +93,9 @@ type Report struct {
 
 // Options open a store. Dir is durable state. LogDir receives the provenance JSONL.
 // RepoRoot, when set, refuses a Dir inside that tree. Memory is the H-MEM
-// store that keeps refutations; it is required.
+// store that keeps refutations. It may be nil, which is how a review with H-MEM
+// switched off (ADR-0053) opens the World Model: the fold records no refutation
+// in memory and Context matches none.
 type Options struct {
 	Dir      string
 	LogDir   string
@@ -132,9 +135,6 @@ func Open(opts Options) (*Store, error) {
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("world: logs directory is empty")
 	}
-	if opts.Memory == nil {
-		return nil, fmt.Errorf("world: memory store is missing")
-	}
 	dir, err := filepath.Abs(opts.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("world: state directory: %w", err)
@@ -142,7 +142,7 @@ func Open(opts Options) (*Store, error) {
 	if err := refuseInside(dir, opts.RepoRoot); err != nil {
 		return nil, err
 	}
-	if err := privateDir(dir); err != nil {
+	if err := service.PrivateDir(dir); err != nil {
 		return nil, fmt.Errorf("world: state directory: %w", err)
 	}
 	st, err := os.Stat(dir)
@@ -401,7 +401,7 @@ func (s *Store) apply(ev trace.Event) error {
 		// teaches the next review nothing, and the Skeptic's word alone is not a
 		// refutation. The time is the event's place in the fold, not the clock,
 		// so a replay stores the same record.
-		if ref.Refuted && ev.HasEvidence && evidenced {
+		if ref.Refuted && ev.HasEvidence && evidenced && s.mem != nil {
 			at := int64(len(s.applied) + 1)
 			rec, err := s.mem.RememberRefutation(hmem.RefutationKey{
 				ChangeKey: ev.ChangeKey,
@@ -459,6 +459,9 @@ func (s *Store) Context(findingID, changeKey, ruleID, path, title string) Contex
 		out.Refutations = append([]Refutation(nil), f.Refutations...)
 		out.Verdict = f.Verdict
 		out.MemoryID = f.MemoryID
+	}
+	if s.mem == nil {
+		return out
 	}
 	if rec, ok := s.mem.MatchRefutation(changeKey, ruleID, path, title); ok {
 		out.Memories = []hmem.Record{rec}
@@ -629,14 +632,4 @@ func (s *Store) audit(ev trace.Event) error {
 		return err
 	}
 	return f.Sync()
-}
-
-// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
-// mode only when it creates, and a directory an earlier run left at 0755 must
-// not stay readable by others (Proven's own state is readable only by its user).
-func privateDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	return os.Chmod(dir, 0o700)
 }

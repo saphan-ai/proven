@@ -1,10 +1,11 @@
-// Command meterless-conform exposes the H-MEM and world stores on stdin.
+// Command meterless-conform exposes the H-MEM and world stores, Scout Intent and the Markovian engine, on stdin.
 // One JSON request per line, one JSON answer per line. No network.
 //
 // It lets Meterless's own conformance suites test the Go engines through the
 // TypeScript bridge in test/conformance/meterless (ADR-0003, point 4; ADR-0018,
-// point 7). The bridge starts one process per request, so a session is a
-// directory under the temp dir, and the next process opens the same store.
+// point 7; ADR-0048, point 3). The bridge starts one process per request, so a session is a
+// directory under the temp dir, and the next process opens the same store. The Markovian
+// engine keeps no store: each answer carries the run's machine, and the next request hands it back.
 package main
 
 import (
@@ -20,6 +21,8 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/hmem"
+	"github.com/saphan-ai/proven/internal/markov"
+	"github.com/saphan-ai/proven/internal/scout"
 	"github.com/saphan-ai/proven/internal/world"
 )
 
@@ -68,10 +71,34 @@ type request struct {
 	Type         string            `json:"type"`
 	Similarity   float64           `json:"similarity"`
 	Observations []json.RawMessage `json:"observations"`
-	View         string            `json:"view"`
-	Entity       string            `json:"entity"`
-	Via          string            `json:"via"`
-	AtTime       string            `json:"atTime"`
+	// Preview is a sleep plan and Conflict a scanned conflict, each handed back
+	// by the caller so a later process can act on what an earlier one found.
+	Preview  json.RawMessage `json:"preview"`
+	Conflict json.RawMessage `json:"conflict"`
+	View     string          `json:"view"`
+	Entity   string          `json:"entity"`
+	Via      string          `json:"via"`
+	AtTime   string          `json:"atTime"`
+	// Registry, PolicyPack, Prompt, User and Surface are Scout's (ADR-0049 point 4).
+	Registry   string          `json:"registry"`
+	PolicyPack json.RawMessage `json:"policyPack"`
+	Prompt     string          `json:"prompt"`
+	User       scout.User      `json:"user"`
+	Surface    string          `json:"surface"`
+	// The Markovian engine's fields: a partial or full chunk configuration, a run's options, the machine a
+	// previous answer carried, one generator answer or failure, and the inputs of the two efficiency functions.
+	ChunkConfig   json.RawMessage     `json:"chunkConfig"`
+	Goal          string              `json:"goal"`
+	Mode          string              `json:"mode"`
+	Reflect       *bool               `json:"reflect"`
+	MemoryContext string              `json:"memoryContext"`
+	Attachments   []markov.Attachment `json:"attachments"`
+	Machine       json.RawMessage     `json:"machine"`
+	Text          string              `json:"text"`
+	Failure       *string             `json:"failure"`
+	Aborted       bool                `json:"aborted"`
+	N             int                 `json:"n"`
+	Chunks        []markov.Chunk      `json:"chunks"`
 }
 
 // handle decodes one line and sends it to its engine. A line that does not
@@ -86,6 +113,10 @@ func handle(line []byte) map[string]any {
 		return hmemOp(req)
 	case "world":
 		return worldOp(req)
+	case "scout":
+		return scoutOp(req)
+	case "markov":
+		return markovOp(req)
 	default:
 		return fail(req.ID, "unknown engine "+req.Engine)
 	}
@@ -103,10 +134,6 @@ func hmemOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"session": id})
-	// ADR-0018, point 1: these belong to the parts built after the minimum, so
-	// they are refused by name, not faked.
-	case "sleep", "dream", "conflicts", "ledger":
-		return fail(req.ID, "hmem: "+req.Op+" is deferred (ADR-0018)")
 	}
 	st, err := openH(req.Session, req.At)
 	if err != nil {
@@ -151,6 +178,55 @@ func hmemOp(req request) map[string]any {
 			hits = append(hits, map[string]any{"memory": h.Record, "relevance": h.Relevance})
 		}
 		return ok(req.ID, map[string]any{"result": map[string]any{"memories": hits}})
+	case "ledger":
+		h, err := st.History(req.MemoryID)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"history": h})
+	case "sleep":
+		return ok(req.ID, map[string]any{"preview": st.SleepPreview()})
+	case "sleepExecute":
+		var plan *hmem.SleepPreview
+		if len(bytes.TrimSpace(req.Preview)) > 0 && string(req.Preview) != "null" {
+			plan = &hmem.SleepPreview{}
+			if err := json.Unmarshal(req.Preview, plan); err != nil {
+				return fail(req.ID, err.Error())
+			}
+		}
+		rep, err := st.SleepExecute(plan)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"report": rep})
+	case "conflicts":
+		found, err := st.ScanConflicts()
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"conflicts": found})
+	case "autoResolve":
+		var c hmem.Conflict
+		if err := json.Unmarshal(req.Conflict, &c); err != nil {
+			return fail(req.ID, err.Error())
+		}
+		outcome, _, err := st.AutoResolve(c)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"outcome": outcome})
+	case "dream":
+		ps, err := st.Dream()
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"proposals": ps})
+	case "approve":
+		rec, err := st.Approve(req.MemoryID)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"record": rec})
 	default:
 		return fail(req.ID, "hmem: unknown op "+req.Op)
 	}
@@ -290,15 +366,16 @@ func openH(id string, at int64) (*hmem.Store, error) {
 // decides.
 func addH(st *hmem.Store, at int64, raw json.RawMessage) (hmem.Record, error) {
 	var body struct {
-		Content    string   `json:"content"`
-		Type       string   `json:"type"`
-		Layer      string   `json:"layer"`
-		Tags       []string `json:"tags"`
-		Confidence *float64 `json:"confidence"`
-		Source     string   `json:"source"`
-		Origin     string   `json:"origin"`
-		Label      string   `json:"label"`
-		ChatID     string   `json:"chatId"`
+		Content     string   `json:"content"`
+		Type        string   `json:"type"`
+		Layer       string   `json:"layer"`
+		Tags        []string `json:"tags"`
+		Confidence  *float64 `json:"confidence"`
+		Source      string   `json:"source"`
+		Origin      string   `json:"origin"`
+		Label       string   `json:"label"`
+		ChatID      string   `json:"chatId"`
+		DerivedFrom []string `json:"derivedFrom"`
 	}
 	if len(bytes.TrimSpace(raw)) > 0 && string(raw) != "null" {
 		if err := json.Unmarshal(raw, &body); err != nil {
@@ -306,16 +383,17 @@ func addH(st *hmem.Store, at int64, raw json.RawMessage) (hmem.Record, error) {
 		}
 	}
 	return st.Add(hmem.AddInput{
-		Content:    body.Content,
-		Type:       body.Type,
-		Layer:      body.Layer,
-		Tags:       body.Tags,
-		Confidence: body.Confidence,
-		Source:     body.Source,
-		Origin:     body.Origin,
-		Label:      body.Label,
-		ChatID:     body.ChatID,
-		At:         at,
+		Content:     body.Content,
+		Type:        body.Type,
+		Layer:       body.Layer,
+		Tags:        body.Tags,
+		Confidence:  body.Confidence,
+		Source:      body.Source,
+		Origin:      body.Origin,
+		Label:       body.Label,
+		ChatID:      body.ChatID,
+		DerivedFrom: body.DerivedFrom,
+		At:          at,
 	})
 }
 

@@ -265,8 +265,8 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 	// cli.Run loads the variables ADR-0020 §1 documents (cli.KnownCLIEnv:
 	// PROVEN_OUTPUT_FORMAT, PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT,
 	// SEMGREP_BASELINE_COMMIT, SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE,
-	// PROVEN_EXCLUDE, PROVEN_SEVERITY, PROVEN_TIMEOUT, SAMPLE_MODE, and
-	// GITHUB_EVENT_PATH, GITHUB_BASE_REF, GITHUB_SHA). An empty answer keeps the
+	// PROVEN_EXCLUDE, PROVEN_SEVERITY, PROVEN_TIMEOUT, PROVEN_LOG_DIR, SAMPLE_MODE,
+	// and GITHUB_EVENT_PATH, GITHUB_BASE_REF, GITHUB_SHA). An empty answer keeps the
 	// default. Any other key, including an adapter secret, fails the test.
 	// W19 failed on every key; that predicate cannot survive the loader.
 	code := cli.Run(
@@ -274,7 +274,7 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 		func(k string) string {
 			// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
 			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-			if cli.KnownCLIEnv(k) || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink {
+			if cli.KnownCLIEnv(k) || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink || engineSwitch(k) {
 				return ""
 			}
 			t.Fatalf("sample mode read %s", k)

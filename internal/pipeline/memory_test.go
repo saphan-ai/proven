@@ -119,6 +119,12 @@ func findingMarker(id string) string { return `{"id":"` + id + `",` }
 // test that passes on the change, so the refutation carries evidence.
 func reviewWithRefutingTest(t *testing.T, logDir, state string) candidate.Draft {
 	t.Helper()
+	return reviewWithRefutingTestStores(t, logDir, state, StoreSettings{})
+}
+
+// reviewWithRefutingTestStores is reviewWithRefutingTest with the store switches the test chooses.
+func reviewWithRefutingTestStores(t *testing.T, logDir, state string, stores StoreSettings) candidate.Draft {
+	t.Helper()
 	fx := loadDiscount(t)
 	inner, err := generator.NewSample(fx.Answers)
 	if err != nil {
@@ -133,6 +139,7 @@ func reviewWithRefutingTest(t *testing.T, logDir, state string) candidate.Draft 
 			body: `{"refuted":true,"reason":"the test passes","path":"billing/discount_test.go","name":"TestRefute"}`,
 		},
 		TestRun: &scriptedRun{inner: testrun.NewSample(fx.Tests), pass: "TestRefute"},
+		Stores:  stores,
 		Env: func(k string) string {
 			t.Fatalf("sample mode read %s", k)
 			return ""

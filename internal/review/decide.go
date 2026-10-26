@@ -19,12 +19,18 @@ import (
 // applyDecision fills the class, the reviewer models and the author-model
 // statement. raise_class is validated on load and is not applied: this wagon
 // does not ask a model to raise a class (ADR-0014 point 9, off for the hackathon).
-func applyDecision(out *Result, cfg fileSettings, req Request) error {
+// planned, when set, is the plan Scout Intent chose (ADR-0049): its class and doubling are the review's,
+// so the statements describe the review that ran. Nil states the class the path rules chose.
+func applyDecision(out *Result, cfg fileSettings, req Request, planned *reviewPlan) error {
 	files, err := changedPaths(req)
 	if err != nil {
 		return err
 	}
 	class, rule := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
+	doubled := cfg.Doubled[class]
+	if planned != nil {
+		class, rule, doubled = planned.Class, planned.Rule, planned.Doubled
+	}
 	authors, unreadable, err := readAuthors(cfg, req)
 	if err != nil {
 		return err
@@ -34,7 +40,6 @@ func applyDecision(out *Result, cfg fileSettings, req Request) error {
 	}
 	// ADR-0009: every review uses the default reviewer; a doubled class adds the special model,
 	// even when it is the author's own model (a fresh agent is still a second look).
-	doubled := cfg.Doubled[class]
 	models := []string{cfg.DefaultReviewer}
 	lines := []string{reviewerLine("default", cfg.DefaultReviewer, familyOf(cfg.DefaultReviewer, cfg.Families), authors, unreadable)}
 	if doubled {
