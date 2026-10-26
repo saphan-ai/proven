@@ -177,6 +177,8 @@ for a in "$@"; do printf '%s\n' "$a"; done >"$RD_ARGS"
 cat >"$RD_STDIN"
 printf '%s|%s\n' "${REVIEWDOG_GITHUB_API_TOKEN:-}" "${REVIEWDOG_GITEA_API_TOKEN:-}" >"$RD_TOKEN"
 printf '%s|%s\n' "${GITHUB_API_URL:-}" "${GITEA_ADDRESS:-}" >"$RD_TOKEN.api"
+printf '%s|%s\n' "${GITHUB_API:-}" "${HTTPS_PROXY:-}${https_proxy:-}${HTTP_PROXY:-}${http_proxy:-}${ALL_PROXY:-}${all_proxy:-}" >"$RD_TOKEN.route"
+printf '%s|%s|%s\n' "${REVIEWDOG_SKIP_GIT_FETCH:-}" "${REVIEWDOG_SKIP_DOGHOUSE:-}" "${REVIEWDOG_TOKEN:-}" >"$RD_TOKEN.fetch"
 exit "${RD_RC:-0}"
 EOF
 chmod +x "$tmp/reviewdog.sh"
@@ -258,7 +260,36 @@ check "local, private address: exit 0" 0 "$rc"
 check "local, private address: posted to it" "http://10.1.2.3/api/v3|" "$(cat "$RD_TOKEN.api")"
 rdrun localgitea PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=http://127.0.0.1:3000
 check "local, loopback Gitea: exit 0" 0 "$rc"
+
 check "local, loopback Gitea: posted to it" "|http://127.0.0.1:3000" "$(cat "$RD_TOKEN.api")"
+
+# PROVEN_NETWORK=local: reviewdog may take no route the check did not judge. GITHUB_API outranks
+# GITHUB_API_URL in reviewdog, and a proxy variable sends its connection to the proxy. A fixed
+# entrypoint either refuses (exit 7, nothing posted) or starts reviewdog without the variable.
+# Mutated field: GITHUB_API / HTTPS_PROXY in the action's environment.
+routed() { # name: refused with 7, or reviewdog saw no unjudged route
+  if [ "$rc" -eq 7 ] && [ ! -e "$RD_ARGS" ]; then got=refused-or-dropped
+  elif [ -f "$RD_TOKEN.route" ] && [ "$(cat "$RD_TOKEN.route")" = "|" ]; then got=refused-or-dropped
+  else got="reached reviewdog: $(cat "$RD_TOKEN.route" 2>/dev/null)"; fi
+  check "$1: an unjudged route never reaches reviewdog" refused-or-dropped "$got"
+}
+rm -f "$tmp/localghapi.rdtoken.route"
+rdrun localghapi PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 GITHUB_API=https://203.0.113.7/api/v3/
+routed localghapi
+rm -f "$tmp/localproxy.rdtoken.route"
+rdrun localproxy PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 HTTPS_PROXY=http://203.0.113.9:3128
+routed localproxy
+rm -f "$tmp/localgiteaproxy.rdtoken.route"
+rdrun localgiteaproxy PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITEA_ACTIONS=true GITHUB_SERVER_URL=http://127.0.0.1:3000 https_proxy=http://203.0.113.9:3128
+routed localgiteaproxy
+# reviewdog's own git fetch (from the repository's web address) and its hosted service are
+# off in local mode. Mutated field: PROVEN_NETWORK (local here, unset in the public row).
+rdrun localnofetch PROVEN_NETWORK=local INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://10.1.2.3/api/v3 REVIEWDOG_TOKEN=rd-1
+check "local: reviewdog fetches nothing and uses no hosted service" "true|true|" "$(cat "$RD_TOKEN.fetch")"
+# Public mode is unchanged: the variables still reach reviewdog.
+rdrun publicproxy INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false HTTPS_PROXY=http://203.0.113.9:3128
+check "public mode: a proxy still reaches reviewdog" "|http://203.0.113.9:3128" "$(cat "$RD_TOKEN.route")"
+check "public mode: reviewdog's fetch is left as it was" "||" "$(cat "$RD_TOKEN.fetch")"
 rdrun localallowlist PROVEN_NETWORK=local PROVEN_NETWORK_ALLOW=203.0.113.7 INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=https://203.0.113.7/api/v3
 check "local, address on the allow list: exit 0" 0 "$rc"
 rdrun localnocomment PROVEN_NETWORK=local INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false

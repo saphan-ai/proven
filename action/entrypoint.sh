@@ -133,6 +133,16 @@ if [ -n "$reporter" ]; then
   $scrub "$proven" check-address "$forge_setting" "$forge_address" >/dev/null || forge_rc=$?
   [ "$forge_rc" -eq 0 ] || exit "$forge_rc"
 fi
+# The judged address must be reviewdog's only route (reviewdog 0.21.2, cmd/reviewdog/main.go
+# and service/*/diff.go). GITHUB_API outranks GITHUB_API_URL; a proxy variable sends the
+# connection to the proxy; a missing commit makes reviewdog run `git fetch` from the
+# repository's web address, another host; and REVIEWDOG_TOKEN selects its hosted service.
+# None of those addresses was judged, so with PROVEN_NETWORK=local reviewdog starts without
+# them, and a run that needs the fetch fails and says so instead of fetching.
+route_scrub=
+if [ "$(printf %s "${PROVEN_NETWORK:-}" | tr -d ' \t')" = local ]; then
+  route_scrub="env -u GITHUB_API -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy -u ALL_PROXY -u all_proxy -u REVIEWDOG_TOKEN REVIEWDOG_SKIP_GIT_FETCH=true REVIEWDOG_SKIP_DOGHOUSE=true"
+fi
 
 # The runner owns the checkout and this container runs as root, so git would
 # refuse it as "dubious ownership" when Proven reads the pull request's base.
@@ -172,7 +182,7 @@ if [ "$comment" = true ] && [ -f "$workspace/$sarif_file" ]; then
     # Enterprise Server it reads the runner's own GITHUB_API_URL.
     if [ "$reporter" = gitea-pr-review ]; then export GITEA_ADDRESS="${GITHUB_SERVER_URL:-}"; fi
     REVIEWDOG_GITHUB_API_TOKEN=$token REVIEWDOG_GITEA_API_TOKEN=$token \
-      "$reviewdog" -f=sarif -name=proven "-reporter=$reporter" -fail-level=none <"$sarif_file"
+      $route_scrub "$reviewdog" -f=sarif -name=proven "-reporter=$reporter" -fail-level=none <"$sarif_file"
   ) || postrc=$?
   if [ "$postrc" -ne 0 ]; then
     echo "proven action: posting the review on the pull request failed: reviewdog ($reporter) exited $postrc. Check that github-token may write pull requests (pull-requests: write) and that this run is a pull request." >&2

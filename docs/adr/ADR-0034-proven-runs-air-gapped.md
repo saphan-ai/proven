@@ -32,7 +32,8 @@ that keeps every call inside, and a proof that it does.
    The git policy belongs to the review, not to the process: a review fixes it, with its read limits, when it is
    opened, and every git command it starts carries it, whatever another review in the same process does. The forge
    address that the action's `reviewdog` posts to is judged in `local` mode by the same rule as every other address
-   (`proven check-address`, before the scan), and is refused by name when it is outside.
+   (`proven check-address`, before the scan), and is refused by name when it is outside; `reviewdog` then starts without
+   every other route to a host (`GITHUB_API`, the proxy variables, its own `git fetch`, its hosted service).
 5. **`docs/AIR_GAPPED.md`** tells an operator what to run locally, the settings, and how to check the mode holds.
 
 ## Consequences
