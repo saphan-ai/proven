@@ -254,6 +254,40 @@ Then run: make build
 EOF
 }
 
+# lab_write_secrets: the credentials named in LAB_SECRET_KEYS (lab/versions.env) reach the seed as ONE file of the
+# lab's state volume, /state/secrets, written over standard input at mode 0600 (the way the admin password is). They are
+# not an environment variable of any container, not in lab/compose.yaml, not an argument of any process: printf is a
+# builtin, so no process lists a value. A name that is empty or unset is left out, so the seed removes that secret.
+# The lines are NAME=value; a value holds no line break (flow_secret_ok, and the loader refuses one in lab/.env).
+lab_write_secrets() {
+  lws_dropped=
+  for lws_name in $LAB_SECRET_KEYS; do
+    eval "lws_val=\${$lws_name:-}"
+    case $lws_val in
+      *'
+'*) lws_dropped="${lws_dropped:+$lws_dropped, }$lws_name" ;;
+    esac
+  done
+  if [ -n "$lws_dropped" ]; then
+    echo "up: refused: $lws_dropped holds a line break. NEXT — put the value on one line in lab/.env." >&2
+    return 1
+  fi
+  {
+    for lws_name in $LAB_SECRET_KEYS; do
+      eval "lws_val=\${$lws_name:-}"
+      if [ -n "$lws_val" ]; then
+        printf '%s=%s\n' "$lws_name" "$lws_val"
+      fi
+    done
+  } | compose run --rm --no-deps -T --entrypoint sh seed -c 'umask 077 && cat > /state/secrets'
+}
+
+# lab_remove_secrets: the transfer file is removed after the seed, whether it finished or failed. The seed removes it
+# too, on every exit path of its own; this is the second hand, for a seed that was killed.
+lab_remove_secrets() {
+  compose run --rm --no-deps -T --entrypoint rm seed -f /state/secrets </dev/null >/dev/null 2>&1 || true
+}
+
 service_running() {
   compose ps --status running --services 2>/dev/null | grep -x "$1" >/dev/null 2>&1
 }

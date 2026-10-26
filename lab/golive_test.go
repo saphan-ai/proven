@@ -28,6 +28,16 @@ func cleanEnv(t *testing.T, tmp string, extra ...string) []string {
 	return append([]string{"PATH=" + os.Getenv("PATH"), "HOME=" + tmp, "TMPDIR=" + tmp}, extra...)
 }
 
+// secretsFile writes the credentials file make up hands the seed (NAME=value lines, mode 0600) and returns its path.
+func secretsFile(t *testing.T, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "secrets")
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
 func needTool(t *testing.T, name string) {
 	t.Helper()
 	if _, err := exec.LookPath(name); err != nil {
@@ -92,14 +102,19 @@ func TestGoLiveEachKeyBecomesASecretAndAnEmptyOneIsNotStored(t *testing.T) {
 	generator := `nvapi-aaaa"quote\back&amp|pipe-1234567890`
 	token := "tok-0123456789abcdef"
 	cmd := exec.Command("sh", "-c", `. "$ROOT/lab/seed/golive.sh"; ensure_live_secrets; printf 'state=%s\n' "$LAB_LIVE_STATE"`)
+	// The credentials arrive in the state volume's file, as make up writes it: NAME=value lines. ZETARIS_API_KEY is set
+	// and empty there: not stored.
+	secrets := filepath.Join(t.TempDir(), "secrets")
+	if err := os.WriteFile(secrets, []byte("PROVEN_GENERATOR_KEY="+generator+"\nMETERLESS_RUNTIME_TOKEN="+token+"\nZETARIS_API_KEY=\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	cmd.Env = cleanEnv(t, tmp,
 		"ROOT="+mustAbs(t, root),
 		"GITEA_INTERNAL_URL="+srv.URL,
 		"LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount", "API_TOKEN=lab-api-token",
 		"LAB_LIVE_KEYS=PROVEN_GENERATOR_KEY METERLESS_RUNTIME_TOKEN ZETARIS_API_KEY",
-		"PROVEN_GENERATOR_KEY="+generator,
-		"METERLESS_RUNTIME_TOKEN="+token,
-		"ZETARIS_API_KEY=", // set and empty: not stored
+		"LAB_SECRET_KEYS=PROVEN_GENERATOR_KEY METERLESS_RUNTIME_TOKEN ZETARIS_API_KEY",
+		"LAB_SECRETS_FILE="+secrets,
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -176,7 +191,7 @@ func TestGoLiveARefusedStoreStopsTheSeedByName(t *testing.T) {
 	cmd.Env = cleanEnv(t, t.TempDir(),
 		"ROOT="+mustAbs(t, root), "GITEA_INTERNAL_URL="+srv.URL,
 		"LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount", "API_TOKEN=x",
-		"LAB_LIVE_KEYS=PROVEN_GENERATOR_KEY", "PROVEN_GENERATOR_KEY=secret-value-12345")
+		"LAB_LIVE_KEYS=PROVEN_GENERATOR_KEY", "LAB_SECRET_KEYS=PROVEN_GENERATOR_KEY", "LAB_SECRETS_FILE="+secretsFile(t, "PROVEN_GENERATOR_KEY=secret-value-12345\n"))
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatal("a refused store did not stop the seed")
@@ -384,8 +399,14 @@ func TestGoLiveEveryNameTheSettingsListIsHeldTogether(t *testing.T) {
 	compose := read(t, "lab", "compose.yaml")
 	wf := read(t, "lab", "workflow", "proven.yml")
 	example := read(t, "lab", ".env.example")
+	secret := strings.Fields(versionsList(t, "LAB_SECRET_KEYS"))
 	for _, k := range keys {
-		if !regexp.MustCompile(`(?m)^      ` + k + `:$`).MatchString(compose) {
+		isSecret := false
+		for _, s := range secret {
+			isSecret = isSecret || s == k
+		}
+		// A credential is named nowhere in Compose (lab/secrets_test.go); a setting is passed by name.
+		if !isSecret && !regexp.MustCompile(`(?m)^      `+k+`:$`).MatchString(compose) {
 			t.Errorf("the seed service does not pass %s by name (lab/compose.yaml)", k)
 		}
 		if !strings.Contains(wf, "secrets."+k+" }}") {
@@ -599,8 +620,9 @@ func TestGoLiveRegisterSendsTheDefinitionsAndTheGrantsAsTheAdministrator(t *test
 		fmt.Fprint(w, `{"msg":"ok"}`)
 	}))
 	defer srv.Close()
-	run := func(extra ...string) (string, error) {
+	run := func(stdin string, extra ...string) (string, error) {
 		cmd := exec.Command("sh", filepath.Join(mustAbs(t, root), "lab", "zetaris", "register.sh"))
+		cmd.Stdin = strings.NewReader(stdin)
 		cmd.Env = cleanEnv(t, t.TempDir(), append([]string{
 			"ZETARIS_REGISTER_URL=" + srv.URL + "/api/v1.0",
 			"ZETARIS_EVIDENCE_SQL=" + mustAbs(t, filepath.Join(root, "lab", "zetaris", "evidence.sql")),
@@ -609,8 +631,8 @@ func TestGoLiveRegisterSendsTheDefinitionsAndTheGrantsAsTheAdministrator(t *test
 		return string(out), err
 	}
 	// The negative control: leave out exactly the administrator's key, and nothing is sent.
-	out, err := run("ZETARIS_ORG_ID=7", "ZETARIS_PROVEN_USER=proven_user")
-	if err == nil || !strings.Contains(out, "ZETARIS_ADMIN_API_KEY is not set") {
+	out, err := run("", "ZETARIS_ORG_ID=7", "ZETARIS_PROVEN_USER=proven_user")
+	if err == nil || !strings.Contains(out, "no administrator key arrived") {
 		t.Errorf("a missing administrator key was not refused by name: %v\n%s", err, out)
 	}
 	mu.Lock()
@@ -618,7 +640,7 @@ func TestGoLiveRegisterSendsTheDefinitionsAndTheGrantsAsTheAdministrator(t *test
 		t.Error("a request was sent without the administrator's key")
 	}
 	mu.Unlock()
-	out, err = run("ZETARIS_ORG_ID=7", "ZETARIS_PROVEN_USER=proven_user", "ZETARIS_ADMIN_API_KEY=admin-key-0123456789")
+	out, err = run("admin-key-0123456789", "ZETARIS_ORG_ID=7", "ZETARIS_PROVEN_USER=proven_user")
 	if err != nil {
 		t.Fatalf("register: %v\n%s", err, out)
 	}

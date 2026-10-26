@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help check-flow password demo-check check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates check-links zetaris-usl-parity clean
+.PHONY: help check-flow password demo-check check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -80,6 +80,9 @@ check-lab-gates: ## Check offline, with a stub docker, that make up refuses the 
 
 check-flow: ## Check offline the start-up flow of make up: each path by its settings with no terminal, the no-terminal default, the port check, where the credential goes, and the terminal after Ctrl-C
 	@cd $(ROOT) && go test -count=1 -run 'TestFlow' -v ./lab/
+
+check-lab-secrets: ## Live, on a Docker host after make up with a sentinel in each credential: no sentinel in compose config, inspect or process arguments; each is an Actions secret; the transfer file is gone
+	@sh $(ROOT)/lab/scripts/check-lab-secrets.sh
 
 check-lab-password: ## Check offline, with a stub docker, that the admin password is never printed to a redirected stdout, is kept in a 0600 file, and a supplied one is used and not printed
 	@sh $(ROOT)/lab/scripts/check-lab-password.sh

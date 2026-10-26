@@ -7,6 +7,13 @@ set -eu
 
 umask 077
 
+# The credentials file make up wrote (lab/seed/golive.sh reads it). It is removed on every way out of this script: a
+# finish, a failure under set -e, a TERM or an INT. Only a KILL leaves it, and make up removes it again after the seed.
+LAB_SECRETS_FILE=${LAB_SECRETS_FILE:-/state/secrets}
+trap 'rm -f "$LAB_SECRETS_FILE"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+
 : "${GITEA_INTERNAL_URL:?}"
 : "${LAB_ADMIN_USER:?}"
 : "${LAB_BOT_USER:?}"
@@ -460,6 +467,7 @@ ensure_workflow
 ensure_bot
 ensure_secret
 ensure_live_secrets
+rm -f "$LAB_SECRETS_FILE"
 ensure_runner_token
 ensure_base
 : >/tmp/pr-numbers.tsv

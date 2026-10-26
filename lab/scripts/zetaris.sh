@@ -62,7 +62,7 @@ echo "zetaris: the platform answers on http://127.0.0.1:${ZETARIS_API_HOST_PORT}
 # Registering the evidence is the administrator's act. It needs the administrator's key, the organisation id and the
 # name of Proven's non-admin user, all from lab/.env. Without them the platform is up and the step says what is missing.
 if [ -n "${ZETARIS_ADMIN_API_KEY:-}" ] && [ -n "${ZETARIS_ORG_ID:-}" ] && [ -n "${ZETARIS_PROVEN_USER:-}" ]; then
-  compose --profile zetaris run --rm -T zetaris-register
+  printf '%s' "$ZETARIS_ADMIN_API_KEY" | compose --profile zetaris run --rm -T zetaris-register
 else
   echo "zetaris: the evidence definitions are NOT registered yet: ZETARIS_ADMIN_API_KEY, ZETARIS_ORG_ID and ZETARIS_PROVEN_USER must all be set in lab/.env (docs/LAB.md, path C, steps 6 to 8). Then run make zetaris."
 fi

@@ -5,15 +5,32 @@
 
 # Going live (ADR-0052). Each setting named in LAB_LIVE_KEYS that is set and not empty becomes an Actions secret of
 # the demo repository; one that is empty is removed from it, so taking a key out of lab/.env returns the lab to
-# sample mode. The value reaches this container by name from the environment of `make up`. It goes to Gitea over a
-# pipe (printf is a shell builtin, so no process lists it), is never written to a file, and is never printed:
-# the log carries NAMES and counts only. Sets LIVE_STORED to the names stored, one line.
+# sample mode. A credential (LAB_SECRET_KEYS) reaches this container in a 0600 file of the state volume that make up
+# wrote over stdin, never as an environment variable; a plain setting reaches it by name from Compose. The value goes
+# to Gitea over a pipe (printf is a shell builtin, so no process lists it), is copied to no other file, and is never
+# printed: the log carries NAMES and counts only. Sets LIVE_STORED to the names stored, one line.
 # feature_word VALUE: how the start page names a feature's stored setting. Anything but on or off is not stored by the
 # workflow's guard either, so it reads as Proven's own default.
 feature_word() {
   case $1 in
     on | off) printf '%s' "$1" ;;
     *) printf "Proven's default" ;;
+  esac
+}
+
+# live_value NAME: the value of one setting. A name in LAB_SECRET_KEYS is a credential: it is read from the file make up
+# wrote into the state volume (LAB_SECRETS_FILE, NAME=value lines, mode 0600), never from the environment, which holds
+# none. Any other name is a setting and comes from the environment. The name was checked by the caller.
+live_value() {
+  case " ${LAB_SECRET_KEYS:-} " in
+    *" $1 "*)
+      f=${LAB_SECRETS_FILE:-/state/secrets}
+      [ -s "$f" ] || return 0
+      sed -n "s/^$1=//p" "$f" | head -n 1
+      ;;
+    *)
+      eval "printf '%s' \"\${$1:-}\""
+      ;;
   esac
 }
 
@@ -27,7 +44,7 @@ ensure_live_secrets() {
         exit 1
         ;;
     esac
-    eval "value=\${$name:-}"
+    value=$(live_value "$name")
     url="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/actions/secrets/$name"
     if [ -z "$value" ]; then
       # 404: there was none. 204: it was removed.

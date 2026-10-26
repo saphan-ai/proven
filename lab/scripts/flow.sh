@@ -20,8 +20,9 @@
 # stands. H-MEM and the World Model have no switch in Proven, so they are not asked.
 # Test seam: PROVEN_LAB_TTY names a file or FIFO that stands for the terminal. It is not for use by hand.
 #
-# The gateway credential never reaches a file, an output line, a command line or a container's environment file:
-# it lives in this shell's environment, goes to curl over a pipe, and reaches Compose by name. See docs/LAB.md.
+# The gateway credential never reaches a file on the host, an output line, a command line or any container's environment:
+# it lives in this shell's environment, goes to curl over a pipe, and reaches the seed in the 0600 file /state/secrets, written
+# over stdin (lab_write_secrets in lib.sh), never through Compose. See docs/LAB.md.
 
 LAB_FLOW_BANNER_TITLE='Proven: a pull-request review companion that only says what it can prove (and admits what it could not check)'
 LAB_FLOW_BANNER_WHO='Team Saphan.ai: built in public by one person and a fleet of AI agents.'

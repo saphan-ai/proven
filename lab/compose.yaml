@@ -154,24 +154,22 @@ services:
       # Going live (ADR-0052). The names the seed stores as Actions secrets, and the settings that are not secret.
       LAB_LIVE_KEYS: ${LAB_LIVE_KEYS}
       LAB_FEATURE_KEYS: ${LAB_FEATURE_KEYS}
+      # The NAMES of the credentials (lab/versions.env). Their values are not here: make up writes them to
+      # /state/secrets over stdin at mode 0600, the seed reads that file and removes it.
+      LAB_SECRET_KEYS: ${LAB_SECRET_KEYS}
       JUDGES_GATEWAY_ZETARIS_PATH: ${JUDGES_GATEWAY_ZETARIS_PATH}
       JUDGES_GATEWAY_ZETARIS_ORG_ID: ${JUDGES_GATEWAY_ZETARIS_ORG_ID}
-      # The values come from the environment of the `make up` that started this container, by NAME only: they are
-      # not in this file, not in an image, and not in `docker compose config` unless you exported them yourself.
-      # An empty or absent one is not stored. Keep this list equal to LAB_LIVE_KEYS (a test holds the two).
+      # The settings that open nothing (modes, addresses, a model name, an organisation id, the feature switches),
+      # by NAME only: the value comes from the environment of the `make up` that started this container. No
+      # credential is listed: those are LAB_SECRET_KEYS and never enter Compose. An empty or absent setting is not
+      # stored. Keep this list equal to LAB_LIVE_KEYS minus LAB_SECRET_KEYS (a test holds it).
       PROVEN_GENERATOR_MODE:
-      PROVEN_GENERATOR_KEY:
       PROVEN_NVIDIA_BASE_URL:
       PROVEN_GUARDRAIL_MODE:
-      PROVEN_GUARDRAIL_KEY:
       PROVEN_GENERATOR_BASE_URL:
-      METERLESS_RUNTIME_TOKEN:
       ZETARIS_REST_URL:
-      ZETARIS_API_KEY:
       ZETARIS_ORG_ID:
       JUDGES_GATEWAY_URL:
-      JUDGES_GATEWAY_TOKEN:
-      JUDGES_GATEWAY_ACCESS_TOKEN:
       PROVEN_GENERATOR_MODEL:
       PROVEN_MARKOVIAN:
       PROVEN_LAB_SCOUT_INTENT:
@@ -194,7 +192,7 @@ services:
   # lab/scripts/zetaris.sh started, as the judge's own Zetaris administrator. The sponsor's platform itself is the
   # judge's bundle, run as its own compose project with lab/zetaris/override.yml (127.0.0.1 only, on the lab
   # network); its images are in the sponsor's registry behind the judge's own sign-in. The administrator key reaches
-  # this container by name from the environment and is never stored. The seed image runs as the user `proven`.
+  # this container on its standard input, never in its environment, and is never stored. The seed image runs as `proven`.
   zetaris-register:
     image: ${SEED_IMAGE}:${SEED_IMAGE_TAG}
     profiles: ["zetaris"]
@@ -203,7 +201,6 @@ services:
     environment:
       ZETARIS_REGISTER_URL: http://${ZETARIS_LAB_ALIAS}:${ZETARIS_API_PORT}${ZETARIS_REST_PATH}
       ZETARIS_ORG_ID:
-      ZETARIS_ADMIN_API_KEY:
       ZETARIS_PROVEN_USER:
     cap_drop:
       - ALL

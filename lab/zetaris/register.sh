@@ -1,13 +1,14 @@
 #!/bin/sh
 # Register the evidence definitions (lab/zetaris/evidence.sql) in the Zetaris platform and grant them to Proven's own
 # user. Runs in the `zetaris-register` service of the lab (profile zetaris), as the judge's Zetaris administrator.
-# The administrator's key is read from the environment by name, never printed, never written. A statement that
+# The administrator's key is read from standard input (make zetaris pipes it in), never from the environment, never printed, never written. A statement that
 # the platform answers with anything but 200 stops the run and is named with the platform's own message.
 set -eu
 
 : "${ZETARIS_REGISTER_URL:?ZETARIS_REGISTER_URL is not set}"
 : "${ZETARIS_ORG_ID:?register: ZETARIS_ORG_ID is not set. NEXT: put the numeric organisation id in lab/.env (docs/LAB.md, path C).}"
-: "${ZETARIS_ADMIN_API_KEY:?register: ZETARIS_ADMIN_API_KEY is not set. NEXT: put the administrator key in lab/.env (docs/LAB.md, path C). It is used here and stored nowhere.}"
+ZETARIS_ADMIN_API_KEY=$(cat)
+[ -n "$ZETARIS_ADMIN_API_KEY" ] || { echo "register: no administrator key arrived on standard input. NEXT: put ZETARIS_ADMIN_API_KEY in lab/.env and run make zetaris (docs/LAB.md, path C). It is used here and stored nowhere." >&2; exit 1; }
 : "${ZETARIS_PROVEN_USER:?register: ZETARIS_PROVEN_USER is not set. NEXT: put the name of the non-admin user you made for Proven in lab/.env.}"
 
 sql_file=${ZETARIS_EVIDENCE_SQL:-/zetaris/evidence.sql}
