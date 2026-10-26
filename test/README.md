@@ -151,7 +151,7 @@ Every verdict line carries an `evidence:` phrase that says what the verdict rest
 refused: a local store needs `BASELINE_EVIDENCE_LABEL` and `BASELINE_SNAPSHOT_DATE`, and a Zetaris store that is not
 configured stops the run and says so. A store that is down is a refusal, never a `missed`.
 
-Each alert gets one of three results, and a fourth for a run that asked no store:
+Each alert gets one of four results; `not checked` covers a run that asked no store and a store that holds no advisory for the alert's ecosystem:
 
 | result | meaning |
 |---|---|
