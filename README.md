@@ -279,20 +279,33 @@ What else came in today:
 
 Each day, what lands moves from this list to the day's summary.
 
+**Already done from this plan** (checked on `main`, 26 October):
+- **Run Proven live with a single free NVIDIA key** ([ADR-0031](docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
+- **An evidence pack an auditor can check offline**: `proven verify` checks the signature and every hash, then works
+  out each finding's level of proof again from the recorded evidence and refuses a pack whose verdict does not follow
+  ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md); the forgery bench and its counts are in
+  [EVIDENCE_PACK.md](docs/EVIDENCE_PACK.md#the-forgery-bench)).
+- **Watch a review live**: a Grafana dashboard of the agents and the two reviewers, through OpenTelemetry
+  ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
+- **An organisation policy with exceptions that expire**: an exception accepts one known finding until a date, with an
+  owner and a reason ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
+- **More sources, first part**: CVSS severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)).
+- **More languages, first part**: PHP, Rust, Kotlin, and Java projects built with Gradle.
+- **Worked, tested adapter examples** for extending Proven, and the documentation site, built.
+
+**Still in the plan:**
+
 - **NVIDIA's models, already local.** Today NVIDIA's safety model runs on our own AMD Ryzen AI Max+ 395 machine with 128 GB of memory and checks every prompt and answer of Proven's reviews, while Nemotron reviews and writes code through NVIDIA's API. A DGX Spark is the same class of machine, built on NVIDIA's own silicon: on it the same fleet could run Nemotron for reviewing and coding locally beside the guardrail, tune NeMo Guardrails on the fleet's own record of what it refused and why, and keep every line of code in the room.
 - **A score anyone can recompute, on two sets**: one command runs Proven over the cases it was built on and, separately, over a held-out set frozen before Proven ever saw it; the two scores are never merged into one number.
 - **Scout Intent and Markovian measured**: on the corpus, with each engine on and off, the same findings for less, or the engine stays off ([ADR-0048](docs/adr/ADR-0048-a-large-change-is-reviewed-in-bounded-steps.md), [ADR-0049](docs/adr/ADR-0049-scout-intent-plans-each-review.md)).
-- **Extending Proven, documented with examples**: a worked, tested example for every kind of adapter (a model provider, the guardrail, a reviewer, a language, a tool, a data source, an output format), and the documentation as a site at proven.saphan.ai.
+- **The documentation site live at proven.saphan.ai**, and a worked example for the adapter kinds still without one.
 - **The coding sessions, published**: excerpts of the Cursor agents' recorded sessions next to the change they built, each tied to its original by a hash ([ADR-0024](docs/adr/ADR-0024-every-cursor-coding-session-is-recorded-and-published.md)).
-- **Run Proven live with a single free NVIDIA key** ([ADR-0031](docs/adr/ADR-0031-anyone-with-an-nvidia-key-can-run-a-live-review.md)).
 - **Reports people can read**, in HTML and Markdown, next to JSON and SARIF for machines ([ADR-0033](docs/adr/ADR-0033-the-text-review-is-written-for-a-person.md)).
 - **A readable comment on the pull request**, in GitHub and in Gitea, with a plain-language summary first and the automated fix as suggested changes.
-- **More sources**: severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)), and **your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
-- **More languages**: Java, C# and Ruby, after PHP, Rust and Kotlin, through the same small adapter ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
+- **Your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
+- **More languages**: C# and Ruby, and Java projects built with Maven, through the same small adapter ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
 - **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
-- **An evidence pack an auditor can check offline** ([ADR-0035](docs/adr/ADR-0035-every-review-leaves-a-signed-evidence-pack.md)): `proven verify` checks the signature and every hash, then works out again each finding's level of proof from the evidence the pack records, and refuses a pack whose verdict does not follow from it; a component the pack does not record enough to work out (for example the reported state of a finding whose text redaction changed) is named as not re-derived, finding by finding. A verified pack proves that each verdict it re-derived follows from the evidence it records, and it names each finding it could not fully re-derive; it does not prove that the evidence is true. A forgery bench changes one scalar value at a time in a sample pack: with the hashes left, 430 of 430 changes were refused (370 by the hash check, 60 by the signature check); with the hashes recomputed and the manifest signed again, 118 of 118 changes that move an outcome were refused (84 by the outcome check, 34 by the format check), and 149 changes that move none verify; a third part removes a finding's `Bound` fields and changes a result that the rest of the evidence decides, and 4 of 4 were refused. A missing `Bound`, or a redaction marker in the manifest, hides only the components it decides, and `verify` refuses a finding when no reading of what is hidden gives its recorded outcome as a whole; a part (d) marks a finding redaction-moved while changing a component the evidence decides: 16 of 16 were refused. The bench changes one value at a time (it does not empty a row list, null a refutation or change a `Kind`), and it decides what moves an outcome from the recorded level and open state and from the whole outcome of the function `verify` calls, so it shows that `verify` refuses those changes, not that none escapes and not that the rule is right ([the counts and how to run the bench](docs/EVIDENCE_PACK.md#the-forgery-bench)).
-- **Accepted risks that expire**, shown in every output, on top of today's organisation policy ([ADR-0036](docs/adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
-- **Watch a review live**: a dashboard of the agents and the two reviewers working side by side, their verdicts and where they disagree; the numbers go to any monitoring you already use, through OpenTelemetry ([ADR-0045](docs/adr/ADR-0045-a-review-is-observable-through-opentelemetry.md)).
+- **Accepted risks shown in every output**, on top of the organisation policy.
 - **NVIDIA's model in every review of the fleet's work**, beside OpenAI's and Anthropic's, now that its first review is in.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.
 
@@ -301,7 +314,7 @@ Each day, what lands moves from this list to the day's summary.
 a day of work. We know it, and we accept the debt during the feature freeze: a refactor of the review's spine two days
 before the deadline is a bigger risk than the long function itself. We split it after 6 November.
 
-Two days to go.
+One day to go.
 
 ### Day one, 22 October
 
