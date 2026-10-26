@@ -1,7 +1,6 @@
 package store
 
 import (
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -181,27 +180,8 @@ func fromNetwork(err error) error {
 	return err
 }
 
-// checkCouchBase accepts an absolute http or https URL. User info is refused,
-// so a password cannot travel in the URL. A query, a fragment and a trailing
-// slash are refused or removed, so the paths the store builds are exact.
+// checkCouchBase accepts the CouchDB address. The rules are checkBaseURL's,
+// which the records settings share.
 func checkCouchBase(raw string) (string, error) {
-	allowed := "an absolute http or https URL with no user info, query or fragment"
-	// ADR-0013: an address that may carry user info is never echoed. The
-	// redactor knows the password setting only, not a password typed into
-	// the address, so the refusal shows no value for such an address.
-	shown := clip(raw)
-	if strings.Contains(raw, "@") {
-		shown = ""
-	}
-	if len(raw) > 2048 || strings.ContainsAny(raw, "\r\n\t ") {
-		return "", refuse(EnvCouchURL, shown, "not a base URL", allowed)
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		shown = ""
-	}
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Contains(raw, "?") || strings.Contains(raw, "#") {
-		return "", refuse(EnvCouchURL, shown, "not a base URL", allowed)
-	}
-	return strings.TrimRight(raw, "/"), nil
+	return checkBaseURL(EnvCouchURL, raw)
 }

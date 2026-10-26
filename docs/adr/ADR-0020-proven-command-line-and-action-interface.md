@@ -2,6 +2,7 @@
 
 **Status:** accepted · **Date:** 2026-10-21
 **Decided by:** the owner, 2026-10-21: *"Yes for the ADR, and reviewdog."* · **Written by:** the advisor (claude-code, `claude-opus-5-5`), 2026-10-21
+**Amended:** 2026-10-25, decided by the owner: point 3 gains the `github-token` input; point 4's SARIF upload runs in its own job (point 5 is job-scoped on GitHub), so each swap changes more lines than first named
 **Amends:** [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md), point 4: the lab's comments are posted by reviewdog (point 7 below)
 **Extends:** [ADR-0016](ADR-0016-a-drop-in-replacement-for-pipeline-scanners.md) (a drop-in replacement for pipeline scanners)
 **Follows:** [ADR-0013](ADR-0013-no-hardcoded-settings.md) (no hardcoded settings), [ADR-0017](ADR-0017-a-gitea-lab-for-the-judges.md) (the Gitea lab)
@@ -67,6 +68,7 @@ An `action.yml` at the root of this repository, a container action on Proven's p
 | `baseline-commit` | the pull request's base | `--baseline-commit` |
 | `sample-mode` | `false` | `--sample` |
 | `comment` | `false` | post the review on the pull request; needs `pull-requests: write` |
+| `github-token` | the workflow's token (`github.token`) | the token reviewdog posts with when `comment` is on; the scan itself never receives a token (amended 2026-10-25) |
 
 Outputs, with the Opengrep action's names: `results-file`, `json-file`, `sarif-file`, `findings-count`; and one of Proven's own, `unresolved-count`, the findings whose evidence did not settle them.
 
@@ -74,15 +76,15 @@ The Opengrep action's `patterns`, `jobs` and `opengrep-version` have no meaning 
 
 ### 4. Before and after, in the documentation
 
-**Semgrep → Proven:** the container `semgrep/semgrep` becomes Proven's image; `run: semgrep ci` becomes `run: proven ci`; `SEMGREP_APP_TOKEN` becomes the Proven secrets above. A `upload-sarif` step, if there is one, stays and only its file name changes.
+**Semgrep → Proven:** the container `semgrep/semgrep` becomes Proven's image; `run: semgrep ci` becomes `run: proven ci`; `SEMGREP_APP_TOKEN` becomes the Proven secrets above. A `upload-sarif` step, if there is one, moves into its own job that downloads the SARIF the scan job saved as an artifact, because GitHub grants permissions per job and point 5 gives `security-events: write` only to the upload (amended 2026-10-25; the swap is then 27 changed lines, not 9).
 
-**Opengrep action → Proven:** `uses: platform-sec/opengrep-action@<sha>` becomes `uses: saphan-ai/proven@<sha>`; `target`, `config`, `output-format`, `severity`, `include`, `exclude`, `timeout`, `strict` and `baseline-commit` stay as they are; `patterns` is removed. The outputs a later step reads keep their names.
+**Opengrep action → Proven:** `uses: platform-sec/opengrep-action@<sha>` becomes `uses: saphan-ai/proven@<sha>`; `target`, `config`, `output-format`, `severity`, `include`, `exclude`, `timeout`, `strict` and `baseline-commit` stay as they are; `patterns` is removed. The outputs a later step reads keep their names. The SARIF upload moves into its own job as in the Semgrep swap (amended 2026-10-25; the swap is then 24 changed lines, not 4).
 
 **SARIF into GitHub code scanning:** `github/codeql-action/upload-sarif` with `sarif_file` set to Proven's SARIF and `category: proven`, so it does not replace another tool's analysis of the same commit.
 
 ### 5. Permissions
 
-`contents: read` always. `security-events: write` only for the SARIF upload step. `pull-requests: write` only when `comment` is on. Proven asks for nothing more.
+`contents: read` always. `security-events: write` only for the SARIF upload, which on GitHub means its own job, since permissions are granted per job. `pull-requests: write` only when `comment` is on. Proven asks for nothing more.
 
 ### 6. Runners
 

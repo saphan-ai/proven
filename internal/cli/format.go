@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/epss"
+	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -64,6 +65,11 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 	if _, err := fmt.Fprintf(w, "review rule: %s\n", visible(result.ClassRule)); err != nil {
 		return err
 	}
+	if result.PolicyStatement != "" {
+		if _, err := fmt.Fprintln(w, visible(result.PolicyStatement)); err != nil {
+			return err
+		}
+	}
 	if result.SettingsStatement != "" {
 		if _, err := fmt.Fprintln(w, visible(result.SettingsStatement)); err != nil {
 			return err
@@ -94,6 +100,17 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 	// line that starts with "finding " is never an opinion.
 	if err := writeOpinions(w, result); err != nil {
 		return err
+	}
+	for _, accepted := range result.Accepted {
+		if err := writeAccepted(w, accepted); err != nil {
+			return err
+		}
+	}
+	for _, expired := range result.Expired {
+		if _, err := fmt.Fprintf(w, "exception %s expired on %s: finding %s counts again (rule %s at %s, owner %s, reason: %s)\n",
+			visible(expired.ExceptionID), visible(expired.Expires), visible(expired.Finding), visible(expired.Rule), visible(expired.Location), visible(expired.Owner), visible(expired.Reason)); err != nil {
+			return err
+		}
 	}
 	if len(result.FailedServices) == 0 {
 		if _, err := fmt.Fprintln(w, "failed services: none"); err != nil {
@@ -316,6 +333,29 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+// writeAccepted prints a finding an exception of the organisation policy accepts (ADR-0036): where it
+// is and which rule found it, then the exception's reason, owner and expiry. It is shown, never hidden,
+// and it is not counted: it is not in result.Findings.
+func writeAccepted(w io.Writer, accepted review.AcceptedFinding) error {
+	finding := accepted.Finding
+	name := finding.ID
+	if name == "" {
+		name = finding.RuleID
+	}
+	if _, err := fmt.Fprintf(w, "accepted finding %s %s %s\n", visible(name), visible(string(finding.Severity)), visible(finding.Title)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s:%d-%d\n", visible(finding.Location.Path), finding.Location.StartLine, finding.Location.EndLine); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  rule %s\n", visible(finding.RuleID)); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(w, "  accepted by exception %s: reason: %s; owner: %s; expires: %s\n",
+		visible(accepted.ExceptionID), visible(accepted.Reason), visible(accepted.Owner), visible(accepted.Expires))
+	return err
+}
+
 // writeEvidence prints the proof under a finding: the test the Prover wrote,
 // with whether it fails on the change and passes on the base, the query
 // that was run and the rows it returned, or a tool's run on both sides.
@@ -392,15 +432,17 @@ const continuationPrefix = "    | "
 //
 //   - C0 (U+0000 to U+001F), tab and newline included, DEL (U+007F) and C1
 //     (U+0080 to U+009F) are shown as \xNN of the code point, e.g. \x1b, \x09.
+//   - A bidirectional control or an invisible mark (evidence.IsBidi) is shown
+//     as a backslash, u and four hex digits of the code point.
 //   - A byte that is not part of valid UTF-8 is shown as \xNN of the original
 //     byte, so what the change held is what the reader sees, not U+FFFD.
 //   - Everything else is written unchanged.
 //
 // Every text the writer prints that can come from the change goes through it,
 // so the change cannot move the cursor, recolour or rewrite the reader's
-// terminal. This is the text writer's contract only: encoding/json escapes C0
-// but leaves DEL and C1 bytes raw, so a JSON or SARIF writer must not assume
-// its encoder covers this range.
+// terminal. This is the text writer's contract. encoding/json escapes C0 and
+// leaves DEL and C1 raw, so the JSON and SARIF writers escape that range
+// after encoding (writeEncoded).
 func visible(s string) string {
 	return escapeControls(s, false)
 }
@@ -424,6 +466,8 @@ func escapeControls(s string, keepNewline bool) string {
 			b.WriteString("\n" + continuationPrefix)
 		case isControl(r):
 			fmt.Fprintf(&b, `\x%02x`, r)
+		case evidence.IsBidi(r):
+			fmt.Fprintf(&b, `\u%04x`, r)
 		default:
 			b.WriteString(s[i : i+size])
 		}
@@ -434,6 +478,43 @@ func escapeControls(s string, keepNewline bool) string {
 
 func isControl(r rune) bool {
 	return r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f)
+}
+
+// writeEncoded writes v as one indented JSON document, then escapes DEL and C1.
+// HTML escaping stays off: evidence and messages are text, and the default
+// encoder would turn "<" into an escape a person would have to undo.
+// The indent is two spaces, so a person can read the file.
+func writeEncoded(w io.Writer, v any) error {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		return err
+	}
+	_, err := w.Write(escapeDELAndC1(buf.Bytes()))
+	return err
+}
+
+// escapeDELAndC1 rewrites U+007F and U+0080 to U+009F as \u00XX.
+// WHY after the encoder: encoding/json escapes C0 (U+0000 to U+001F) and writes
+// this range as raw UTF-8. A terminal that prints the file treats C1 as a
+// control sequence (U+009B starts one). The escape is still JSON and decodes
+// to the same rune. A document with none of these runes is unchanged.
+func escapeDELAndC1(b []byte) []byte {
+	var out bytes.Buffer
+	out.Grow(len(b))
+	for i := 0; i < len(b); {
+		r, size := utf8.DecodeRune(b[i:])
+		if r == 0x7f || (r >= 0x80 && r <= 0x9f) {
+			fmt.Fprintf(&out, `\u%04x`, r)
+			i += size
+			continue
+		}
+		out.Write(b[i : i+size])
+		i += size
+	}
+	return out.Bytes()
 }
 
 // filterFindings keeps the findings at or above min.

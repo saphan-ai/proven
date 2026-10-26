@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/saphan-ai/proven/internal/store"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,6 +96,40 @@ func TestOSVPHPComposerReportsTheDependency(t *testing.T) {
 	}
 	if strings.Contains(body, "other/unused") {
 		t.Fatalf("an unrelated package was queried\n%s", body)
+	}
+}
+
+// TestOSVKotlinGradleReportsTheDependency proves the Maven adapter reports
+// the raised Gradle package from gradle.lockfile, inside one sample range
+// and outside the other. build.gradle.kts writes the same coordinate.
+// preferLock keeps the lock file when both files in one directory name the
+// package. The catalog in gradle/ does not raise it. Making
+// mavenver.Compare report every pair as equal turns this test red. Taking
+// GradleKts and GradleLock out of Readers together also turns it red.
+// Taking only GradleLock out does not: the literal in build.gradle.kts is
+// still a raise.
+func TestOSVKotlinGradleReportsTheDependency(t *testing.T) {
+	body, _ := scanScenario(t, "osv-kotlin-gradle")
+	for _, want := range []string{
+		"review class: security",
+		"review rule: build.gradle.kts",
+		"finding osv:com.example:widget ERROR Dependency com.example:widget 1.4.0 is in an OSV affected range",
+		"EPSS 0.27000 (91st percentile, 2026-10-25)",
+		"gradle.lockfile:5-5",
+		"introduced 1.3.0 <= 1.4.0 < fixed 1.5.0",
+		"GHSA-kt-sample-0002 does not match: 1.4.0 < introduced 2.0.0",
+		"alias CVE-2026-9291 is on the KEV list",
+		"Reachability: not measured",
+		"ecosystem = 'Maven' AND package = 'com.example:widget'",
+		"fix named from the advisory table, not run by a test: raise com.example:widget 1.4.0 to 1.5.0",
+		"failed services: none",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "com.example:unused") || strings.Contains(body, "Dependency com.example:quiet") {
+		t.Fatalf("a package that was not raised was queried\n%s", body)
 	}
 }
 
@@ -230,15 +265,16 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 	// cli.Run loads the variables ADR-0020 §1 documents (cli.KnownCLIEnv:
 	// PROVEN_OUTPUT_FORMAT, PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT,
 	// SEMGREP_BASELINE_COMMIT, SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE,
-	// PROVEN_EXCLUDE, PROVEN_SEVERITY, PROVEN_TIMEOUT, SAMPLE_MODE, and
-	// GITHUB_EVENT_PATH, GITHUB_BASE_REF, GITHUB_SHA). An empty answer keeps the
+	// PROVEN_EXCLUDE, PROVEN_SEVERITY, PROVEN_TIMEOUT, PROVEN_LOG_DIR, SAMPLE_MODE,
+	// and GITHUB_EVENT_PATH, GITHUB_BASE_REF, GITHUB_SHA). An empty answer keeps the
 	// default. Any other key, including an adapter secret, fails the test.
 	// W19 failed on every key; that predicate cannot survive the loader.
 	code := cli.Run(
 		[]string{"scan", "--sample", filepath.Join(root, "testdata", "fixture", name)},
 		func(k string) string {
 			// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
-			if cli.KnownCLIEnv(k) || (k == "PROVEN_NETWORK" || k == "PROVEN_NETWORK_ALLOW") || strings.HasPrefix(k, "OTEL_") {
+			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+			if cli.KnownCLIEnv(k) || (k == "PROVEN_NETWORK" || k == "PROVEN_NETWORK_ALLOW") || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink {
 				return ""
 			}
 			t.Fatalf("sample mode read %s", k)

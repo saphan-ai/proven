@@ -1,10 +1,11 @@
-// Command meterless-conform exposes the H-MEM and world stores on stdin.
+// Command meterless-conform exposes the H-MEM and world stores, Scout Intent and the Markovian engine, on stdin.
 // One JSON request per line, one JSON answer per line. No network.
 //
 // It lets Meterless's own conformance suites test the Go engines through the
 // TypeScript bridge in test/conformance/meterless (ADR-0003, point 4; ADR-0018,
-// point 7). The bridge starts one process per request, so a session is a
-// directory under the temp dir, and the next process opens the same store.
+// point 7; ADR-0048, point 3). The bridge starts one process per request, so a session is a
+// directory under the temp dir, and the next process opens the same store. The Markovian
+// engine keeps no store: each answer carries the run's machine, and the next request hands it back.
 package main
 
 import (
@@ -20,6 +21,8 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/hmem"
+	"github.com/saphan-ai/proven/internal/markov"
+	"github.com/saphan-ai/proven/internal/scout"
 	"github.com/saphan-ai/proven/internal/world"
 )
 
@@ -68,6 +71,30 @@ type request struct {
 	Type         string            `json:"type"`
 	Similarity   float64           `json:"similarity"`
 	Observations []json.RawMessage `json:"observations"`
+	View         string            `json:"view"`
+	Entity       string            `json:"entity"`
+	Via          string            `json:"via"`
+	AtTime       string            `json:"atTime"`
+	// Registry, PolicyPack, Prompt, User and Surface are Scout's (ADR-0049 point 4).
+	Registry   string          `json:"registry"`
+	PolicyPack json.RawMessage `json:"policyPack"`
+	Prompt     string          `json:"prompt"`
+	User       scout.User      `json:"user"`
+	Surface    string          `json:"surface"`
+	// The Markovian engine's fields: a partial or full chunk configuration, a run's options, the machine a
+	// previous answer carried, one generator answer or failure, and the inputs of the two efficiency functions.
+	ChunkConfig   json.RawMessage     `json:"chunkConfig"`
+	Goal          string              `json:"goal"`
+	Mode          string              `json:"mode"`
+	Reflect       *bool               `json:"reflect"`
+	MemoryContext string              `json:"memoryContext"`
+	Attachments   []markov.Attachment `json:"attachments"`
+	Machine       json.RawMessage     `json:"machine"`
+	Text          string              `json:"text"`
+	Failure       *string             `json:"failure"`
+	Aborted       bool                `json:"aborted"`
+	N             int                 `json:"n"`
+	Chunks        []markov.Chunk      `json:"chunks"`
 }
 
 // handle decodes one line and sends it to its engine. A line that does not
@@ -82,6 +109,10 @@ func handle(line []byte) map[string]any {
 		return hmemOp(req)
 	case "world":
 		return worldOp(req)
+	case "scout":
+		return scoutOp(req)
+	case "markov":
+		return markovOp(req)
 	default:
 		return fail(req.ID, "unknown engine "+req.Engine)
 	}
@@ -171,10 +202,6 @@ func worldOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"session": id})
-	// ADR-0018, point 1: the graph is outside the minimum, so it is refused by
-	// name.
-	case "relate", "neighbors":
-		return fail(req.ID, "world: bitemporal graph is outside the minimum (ADR-0018)")
 	}
 	st, err := openW(req.Session)
 	if err != nil {
@@ -193,6 +220,25 @@ func worldOp(req request) map[string]any {
 			return fail(req.ID, err.Error())
 		}
 		return ok(req.ID, map[string]any{"changed": rep.Changed})
+	case "relate":
+		edge, err := relateW(st, req.Input)
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		return ok(req.ID, map[string]any{"edge": edge})
+	case "neighbors":
+		// ADR-0018 point 1: the graph is the one view the suite reads.
+		if req.View != "" && req.View != "graph" {
+			return fail(req.ID, "world: unknown view "+req.View)
+		}
+		// An at that is not an instant is refused by name, never read as
+		// "nothing was valid then".
+		if req.AtTime != "" {
+			if _, err := world.ParseInstant(req.AtTime); err != nil {
+				return fail(req.ID, err.Error())
+			}
+		}
+		return ok(req.ID, map[string]any{"neighbors": st.Neighbors(req.Entity, req.Via, req.AtTime)})
 	case "canonical":
 		return ok(req.ID, map[string]any{"canonical": st.Canonical()})
 	case "audit":
@@ -356,6 +402,34 @@ func upsertW(st *world.Store, raw json.RawMessage) (world.Entity, error) {
 		return world.Entity{}, err
 	}
 	return e, nil
+}
+
+// relateW decodes an edge and relates it. The ends are entity ids as the
+// suite names them.
+func relateW(st *world.Store, raw json.RawMessage) (world.Edge, error) {
+	var in struct {
+		From      string `json:"from"`
+		Type      string `json:"type"`
+		To        string `json:"to"`
+		Context   string `json:"context"`
+		ValidFrom string `json:"validFrom"`
+		ValidTo   string `json:"validTo"`
+		Source    *struct {
+			Kind string `json:"kind"`
+			At   string `json:"at"`
+			By   string `json:"by"`
+		} `json:"source"`
+	}
+	if len(bytes.TrimSpace(raw)) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &in); err != nil {
+			return world.Edge{}, err
+		}
+	}
+	e := world.Edge{From: in.From, Type: in.Type, To: in.To, Context: in.Context, ValidFrom: in.ValidFrom, ValidTo: in.ValidTo}
+	if in.Source != nil {
+		e.Source = world.Provenance{Kind: in.Source.Kind, At: in.Source.At, By: in.Source.By}
+	}
+	return st.Relate(e)
 }
 
 // ingestW writes the observations as JSONL and ingests them. A blank

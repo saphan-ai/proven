@@ -10,20 +10,27 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/epss"
+	"github.com/saphan-ai/proven/internal/evidence"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
+	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
+	"github.com/saphan-ai/proven/internal/review"
 	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
 	"github.com/saphan-ai/proven/internal/testrun"
 	"github.com/saphan-ai/proven/internal/tool"
+	"github.com/saphan-ai/proven/internal/trace"
 )
 
 //go:generate go run ../../cmd/settings-doc
+
+// policyAfter follows the policy table. It is not a setting.
+const policyAfter = "A repository's `proven.yaml` may make a policy setting stricter, never weaker, and an exception without an owner or an expiry is refused on load (ADR-0036)."
 
 // guardrailAfter is the sentence that follows the guardrail table. It is
 // not a setting. It stays inside the generated block so the one marker pair
@@ -46,7 +53,13 @@ const telemetryAfter = "Telemetry is off unless an endpoint is set. It only obse
 const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these."
 
 // evidenceAfter follows the evidence table. It is not a setting.
-const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these."
+const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md)."
+
+// packAfter follows the evidence-pack table. It is not a setting.
+const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
+
+// boundedAfter follows the bounded-steps table. It is not a setting.
+const boundedAfter = "ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these."
 
 // networkAfter follows the network table. It is not a setting.
 const networkAfter = "In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds."
@@ -59,8 +72,8 @@ const networkAfter = "In `local` mode every address in the tables below is check
 // The evidence table joins the store choice, the Zetaris adapter, OSV, EPSS
 // and livecheck.
 func Catalog() []envdoc.Section {
-	evidence := append(store.Environment(), query.Environment()...)
-	evidence = append(append(append(evidence, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
+	evidenceRows := append(store.Environment(), query.Environment()...)
+	evidenceRows = append(append(append(evidenceRows, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
 		{
 			Heading: "The network mode: air-gapped",
@@ -83,7 +96,7 @@ func Catalog() []envdoc.Section {
 		},
 		{
 			Heading: "Evidence: the store, and Zetaris over REST",
-			Rows:    evidence,
+			Rows:    evidenceRows,
 			After:   evidenceAfter,
 		},
 		{
@@ -95,6 +108,11 @@ func Catalog() []envdoc.Section {
 			Heading: "Deterministic tools",
 			Rows:    tool.Environment(),
 			After:   toolAfter,
+		},
+		{
+			Heading: "Bounded steps: Meterless's Markovian engine",
+			Rows:    markov.Environment(),
+			After:   boundedAfter,
 		},
 		{
 			Heading: "One adapter call",
@@ -109,6 +127,21 @@ func Catalog() []envdoc.Section {
 			Heading: "Reads of the repository under review",
 			Rows:    change.Environment(),
 			After:   readsAfter,
+		},
+		{
+			Heading: "The organisation policy",
+			Rows:    review.EnvironmentPolicy(),
+			After:   policyAfter,
+		},
+		{
+			Heading: "The evidence pack",
+			Rows:    evidence.Environment(),
+			After:   packAfter,
+		},
+		{
+			Heading: "The trace",
+			Rows:    trace.Environment(),
+			After:   "The default is the user cache directory, with proven/logs under it, created so only that user can read it. An existing configured directory is narrowed to 0700. A path that resolves inside the repository under review is refused when Proven loads, and the refusal names PROVEN_LOG_DIR and the target. The link count of each file written in that directory is read on every OS. Sample mode reads this setting.",
 		},
 	}
 }

@@ -27,6 +27,12 @@ type Use struct {
 	Route       string
 	ReceiptID   string
 	FromReceipt bool
+	// Requested is the model field the request sent. The routed Model may
+	// differ from it; the custody audit compares the two.
+	Requested string
+	// ResponseID is the id of the completion response, "" when the stream
+	// carried none. A Nightshift receipt names it as its request id.
+	ResponseID string
 }
 
 // Reported names the model of the completion that just finished.
@@ -177,7 +183,10 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	if l.cfg.Mode == ModeNVIDIA {
 		return l.finishHosted(agent, text, meta)
 	}
-	use := Use{Model: "unknown", Route: meta.route, ReceiptID: meta.receipt}
+	use := Use{
+		Model: "unknown", Route: meta.route, ReceiptID: meta.receipt,
+		Requested: l.cfg.ModelFor(agent), ResponseID: meta.responseID,
+	}
 	if meta.model != "" {
 		use.Model = meta.model
 		use.FromReceipt = true
@@ -194,6 +203,9 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	if !use.FromReceipt {
 		return "", l.down("answer carries no receipt, refused: the model cannot be shown to be NVIDIA's")
 	}
+	// The alias is a name the hosted API gives; Nightshift's signed receipt
+	// names the model itself, and the custody audit checks that name. So no
+	// alias counts here, and the gate and the audit agree.
 	if !nvidiaModel(use.Model) {
 		return "", l.down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
@@ -212,7 +224,10 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error) {
 	// Route carries the host the answer came from, so the trace's model event
 	// names where the trusted model field was read.
-	use := Use{Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt}
+	use := Use{
+		Model: "unknown", Route: l.cfg.BaseHost(), ReceiptID: NoReceipt,
+		Requested: l.cfg.ModelFor(agent), ResponseID: meta.responseID,
+	}
 	if meta.chunkModel != "" {
 		use.Model = meta.chunkModel
 	}
@@ -225,10 +240,28 @@ func (l *Live) finishHosted(agent, text string, meta streamMeta) (string, error)
 	if use.Model == "unknown" {
 		return "", l.down("answer names no model, refused: the model cannot be shown to be NVIDIA's")
 	}
-	if !nvidiaModel(use.Model) {
+	if !nvidiaAnswer(use.Model, use.Requested) {
 		return "", l.down("answered by " + use.Model + ", refused: not an NVIDIA model")
 	}
 	return text, nil
+}
+
+// modelAliases maps a name the hosted API answers under to the model asked
+// for that it stands for (the owner's ruling of 2026-10-26: asked for the
+// VL model, the API names its answer with this private alias). An alias counts
+// only for the model it stands for, only when that model was asked for, and
+// only in nvidia mode.
+var modelAliases = map[string]string{
+	"private/nvidia/nemotron-3.5-super-120b-a12b": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+}
+
+// nvidiaAnswer reports whether model, answering a request for requested, is
+// NVIDIA's: a nvidia/* name, or a listed alias of the model asked for.
+func nvidiaAnswer(model, requested string) bool {
+	if stands, ok := modelAliases[model]; ok {
+		return stands == requested
+	}
+	return nvidiaModel(model)
 }
 
 // nvidiaModel reports whether model is "nvidia/" followed by a name.

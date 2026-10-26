@@ -83,6 +83,9 @@ func TestClassRules(t *testing.T) {
 		{"service/go.mod", "security", "go.mod"},
 		{"composer.json", "security", "composer.json"},
 		{"app/composer.lock", "security", "composer.lock"},
+		{"build.gradle.kts", "security", "build.gradle.kts"},
+		{"gradle/libs.versions.toml", "security", "libs.versions.toml"},
+		{"gradle.lockfile", "security", "gradle.lockfile"},
 		{"README.md", "docs", "**/*.md"},
 		{"docs/guide.md", "docs", "**/*.md"},
 		{"billing/discount.go", "backend", "fallback"},
@@ -182,7 +185,7 @@ func treeWith(t *testing.T, rel, body string) string {
 func decideOn(t *testing.T, cfg fileSettings, req Request) Result {
 	t.Helper()
 	var out Result
-	if err := applyDecision(&out, cfg, req); err != nil {
+	if err := applyDecision(&out, cfg, req, nil); err != nil {
 		t.Fatal(err)
 	}
 	return out

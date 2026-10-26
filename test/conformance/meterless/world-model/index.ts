@@ -1,6 +1,6 @@
 // World Model shim. Forwards each call to proven's store through meterless-conform.
 // Stable ids, merge bands, provenance, ingest idempotency and the audit log
-// are the store's. A bitemporal graph is outside that minimum.
+// are the store's, and so are the bitemporal edges (relate, neighbors).
 
 import { rpc } from "../bridge.ts";
 

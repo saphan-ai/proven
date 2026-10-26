@@ -76,11 +76,8 @@ func TestSampleModeOpensNoConnection(t *testing.T) {
 	}
 }
 
-func TestMain(m *testing.M) {
-	if os.Getenv("PROVEN_CONNECT_CHILD") == "1" {
-		os.Exit(connectChild())
-	}
-	os.Exit(m.Run())
+func init() {
+	connectChildMain = connectChild
 }
 
 func connectChild() int {

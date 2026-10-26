@@ -27,6 +27,20 @@ func WorkTree(target string) (bool, error) {
 	return false, nil
 }
 
+// TopLevel returns the top level of the git working tree that holds target, as git prints it. A target
+// that is not in a working tree is "", false. A missing git binary is an error.
+func TopLevel(target string) (string, bool, error) {
+	in, err := WorkTree(target)
+	if err != nil || !in {
+		return "", false, err
+	}
+	top, err := gitZText([]string{"-C", target, "rev-parse", "--show-toplevel"})
+	if err != nil {
+		return "", false, err
+	}
+	return top, top != "", nil
+}
+
 // gitArchive returns the tar of rev's tracked files. It reads the commit and
 // does not run the change. The git directory is not in the archive. The
 // stream is bounded by the archive limit.
@@ -139,6 +153,85 @@ func Between(target, baseline, head string) ([]string, error) {
 	return uniqueSorted(names), nil
 }
 
+// Status is one changed file and how it changed: A added, M modified, D deleted, R renamed. From is
+// the old path of a rename.
+type Status struct {
+	Status string
+	Path   string
+	From   string
+}
+
+// StatusBetween lists the files changed between baseline and head with their status, for the readers
+// that need to know a file was added or moved, not only that it changed (ADR-0049). An empty head means
+// the working tree, and an untracked file there is added. Between is left as it is: the review classes
+// read paths only (ADR-0014).
+func StatusBetween(target, baseline, head string) ([]Status, error) {
+	if err := ensureCommit(target, baseline, "baseline"); err != nil {
+		return nil, err
+	}
+	if head != "" {
+		if err := ensureCommit(target, head, "head"); err != nil {
+			return nil, err
+		}
+	}
+	args := []string{"-C", target, "diff", "--name-status", "--find-renames", "--relative", "-z", "--end-of-options", baseline}
+	if head != "" {
+		args = append(args, head)
+	}
+	fields, err := gitZ(args)
+	if err != nil {
+		return nil, err
+	}
+	var out []Status
+	// With -z, each entry is the status, then the path, and a rename or copy adds the new path after the old.
+	for i := 0; i < len(fields); {
+		st := fields[i]
+		if st == "" {
+			i++
+			continue
+		}
+		letter := st[:1]
+		switch letter {
+		case "R", "C":
+			if i+2 >= len(fields) {
+				return nil, fmt.Errorf("git: a rename entry without its two paths")
+			}
+			s := Status{Status: "R", From: fields[i+1], Path: fields[i+2]}
+			// A copy leaves the old file in place: the new path is an added file.
+			if letter == "C" {
+				s = Status{Status: "A", Path: fields[i+2]}
+			}
+			out = append(out, s)
+			i += 3
+		default:
+			if i+1 >= len(fields) {
+				return nil, fmt.Errorf("git: a status entry without its path")
+			}
+			// T (type changed) and U (unmerged) are changes to an existing path, read as modified.
+			if !strings.Contains("AMD", letter) {
+				letter = "M"
+			}
+			out = append(out, Status{Status: letter, Path: fields[i+1]})
+			i += 2
+		}
+	}
+	if head == "" {
+		extra, err := gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
+		if err != nil {
+			return nil, err
+		}
+		extra, err = underTarget(target, extra)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range extra {
+			out = append(out, Status{Status: "A", Path: p})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out, nil
+}
+
 // Blob reads one file from rev. ok is false when that path is not in the commit.
 // A missing path is not an error. The caller decides what the absence means.
 func Blob(target, rev, rel string) ([]byte, bool, error) {
@@ -237,6 +330,20 @@ func ensureCommit(target, rev, which string) error {
 		return fmt.Errorf("git: %w", err)
 	}
 	return fmt.Errorf("%s commit %q does not exist", which, rev)
+}
+
+// ResolveCommit returns the full commit id rev names in target's repository.
+// It is empty when rev is empty or git cannot resolve it: the caller keeps the
+// name it was given and records no resolution.
+func ResolveCommit(target, rev string) string {
+	if rev == "" {
+		return ""
+	}
+	out, err := GitCommand("-C", target, "rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // gitZ runs git with args and splits its NUL-separated output into slash
