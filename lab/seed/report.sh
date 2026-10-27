@@ -93,7 +93,7 @@ mkdir -p "$stage_dir"
 chmod 755 "$stage_dir"
 stage="$stage_dir/.$num.html.new"
 body=$(mktemp "$stage_dir/.body.XXXXXX")
-trap 'rm -f "$stage" "$body" "$body.md"' EXIT INT TERM
+trap 'rm -f "$stage" "$body" "$body.md" "$body.raw"' EXIT INT TERM
 
 badge_class=neutral
 badge_text="Report"
@@ -106,9 +106,12 @@ if [ "$mode" = stub ]; then
   footer='This page is a placeholder: no review is rendered here yet.'
   printf '<p>No report has been built for this pull request yet. The review is the comment on the pull request in Gitea.</p>\n' >"$body"
 else
-  # One byte past the bound is read so a longer review is refused, never cut short.
-  head -c "$((REPORT_MAX_BYTES + 1))" | tr -d '\r' >"$body.md"
-  [ "$(wc -c <"$body.md")" -le "$REPORT_MAX_BYTES" ] || fail "the review is longer than $REPORT_MAX_BYTES bytes; the page would not be all of it"
+  # One byte past the bound is read so a longer review is refused, never cut short. The bound counts the bytes as they
+  # came, before a carriage return is dropped, so no character can hide the tail.
+  head -c "$((REPORT_MAX_BYTES + 1))" >"$body.raw"
+  [ "$(wc -c <"$body.raw")" -le "$REPORT_MAX_BYTES" ] || fail "the review is longer than $REPORT_MAX_BYTES bytes; the page would not be all of it"
+  tr -d '\r' <"$body.raw" >"$body.md"
+  rm -f "$body.raw"
   [ -s "$body.md" ] || fail "no Markdown on standard input"
   # The verdict line, wherever the comment puts it: the lab's comment opens with how the review was made ("sample: no keys").
   first=$(grep -m 1 -E 'Proven: (blocked|clean)' "$body.md" || true)

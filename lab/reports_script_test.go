@@ -162,9 +162,14 @@ func TestReportRefusesAReviewLongerThanItsBound(t *testing.T) {
 	if _, err := renderReportErr(t, root, long); err == nil {
 		t.Error("a review one byte past the bound was rendered, so part of it was dropped")
 	}
+	// Review r6: carriage returns are dropped after reading, so the bound must count them, or a tail hides behind them.
+	crs := "**Proven: clean**\n" + strings.Repeat("\r", 1000) + "SENTINEL-AFTER-BOUND\n"
+	if _, err := renderReportErr(t, root, crs); err == nil {
+		t.Error("a review past the bound in carriage returns was rendered without its tail")
+	}
 	mut := copyLab(t)
 	copyInto(t, mut, "lab/seed", "lab/page")
-	mutate(t, mut, "lab/seed/report.sh", `[ "$(wc -c <"$body.md")" -le "$REPORT_MAX_BYTES" ] || fail`, `true || fail`)
+	mutate(t, mut, "lab/seed/report.sh", `[ "$(wc -c <"$body.raw")" -le "$REPORT_MAX_BYTES" ] || fail`, `true || fail`)
 	if _, err := renderReportErr(t, mut, long); err != nil {
 		t.Errorf("the control did not turn red: with the check removed the long review still failed: %v", err)
 	}
