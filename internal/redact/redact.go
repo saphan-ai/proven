@@ -42,10 +42,6 @@ type Redactor struct {
 	lengths map[string]int
 }
 
-// MarkerPrefix begins every marker a redacted value is replaced by; the marker is the prefix, the
-// variable's name and a closing bracket. Text that holds it was redacted.
-const MarkerPrefix = "[redacted: "
-
 type needle struct {
 	value, marker string
 }
@@ -82,7 +78,7 @@ func New(values map[string]string) *Redactor {
 				continue
 			}
 			seen[form] = true
-			r.needles = append(r.needles, needle{value: form, marker: MarkerPrefix + name + "]"})
+			r.needles = append(r.needles, needle{value: form, marker: "[redacted: " + name + "]"})
 		}
 	}
 	sort.SliceStable(r.needles, func(i, j int) bool { return len(r.needles[i].value) > len(r.needles[j].value) })
