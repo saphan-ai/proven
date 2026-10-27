@@ -5,7 +5,7 @@ yourself: a test that fails on the change, or a data query and the rows it retur
 does not report the problem.
 
 > [!IMPORTANT]
-> **NOTICE: the reviewer is now GLM-5.3, not NVIDIA Nemotron. NVIDIA's safety model stays the guardrail.**
+> **NOTICE: the reviewers are now Qwen and DeepSeek, not NVIDIA Nemotron. NVIDIA's safety model stays the guardrail.**
 >
 > Proven was built around Nemotron, and Nemotron through Meterless Nightshift remains supported. But since 25 October
 > NVIDIA's hosted API fails in windows: HTTP 500 "Failed to generate completions", and calls that never answer. We
@@ -15,10 +15,10 @@ does not report the problem.
 >
 > **A reviewer must not be weaker than the developer it checks.** The code here is written by strong coding models; a
 > junior cannot judge a senior. A review that times out half-way is weaker than none, because it looks like a review.
-> So the pull-request reviews here use a strong model that answers: **GLM-5.3, called directly on QwenCloud, outside
-> Nightshift**, and every review comment names the model that answered. This stays the default. Nemotron through
-> Nightshift remains a supported choice for anyone who wants it, and NVIDIA's safety model still checks every prompt and
-> answer.
+> So the reviewers here are strong models that answer: **Qwen** reviews every pull request, and **DeepSeek**, a
+> different model family, is the second, independent reviewer for security changes. Every review comment names the
+> models that answered. Nemotron through Nightshift remains a supported choice for anyone who wants it, and NVIDIA's
+> safety model still checks every prompt and every answer.
 
 ## The problem
 
@@ -119,9 +119,7 @@ What Proven does not do yet, or does not do well, measured and dated. This list 
 - **H-MEM reads its whole state file** when it opens and rewrites it on every write. A size cap is being added; until
   then it is meant for one repository's memory, not a large organisation's.
 - **The corpus score was recorded while NVIDIA's API was failing** (HTTP 500 and timeouts on 26 October), so the NVIDIA
-  column shows mostly failed calls, every failure named. A second column on GLM-5.3 was tried on 27 October and stopped:
-  the model's reasoning made most calls run past 300 seconds, and the planner was sent unchanged files too. Both are
-  being fixed; until a run completes, there is no corpus score on GLM-5.3.
+  column shows mostly failed calls, every failure named. There is no corpus score yet for the current reviewers.
 - **Evidence first means some real bugs go unreported.** Proven reports a finding only with a failing test or a query
   and its rows. A real concurrency bug, design flaw or business-logic error that it cannot prove during the review is
   left out, not guessed at. This trades recall for precision, and the trade is not measured yet.
