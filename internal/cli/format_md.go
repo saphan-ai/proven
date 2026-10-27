@@ -188,11 +188,15 @@ func querySource(q *review.QueryEvidence) string {
 	if !ok {
 		form = q.Form
 	}
-	engine, ok := queryEngineNames[q.Engine]
-	if !ok {
-		engine = q.Engine
+	return fmt.Sprintf("%s on %s, snapshot %s", form, queryEngineName(q.Engine), q.Snapshot)
+}
+
+// queryEngineName is an evidence store as a reader knows it; an unknown one keeps its name.
+func queryEngineName(engine string) string {
+	if name, ok := queryEngineNames[engine]; ok {
+		return name
 	}
-	return fmt.Sprintf("%s on %s, snapshot %s", form, engine, q.Snapshot)
+	return engine
 }
 
 // mdServiceNames are the outside services a review calls, as a reader knows them.

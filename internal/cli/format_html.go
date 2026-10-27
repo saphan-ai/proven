@@ -161,7 +161,7 @@ func htmlHowWeKnow(e review.Evidence) string {
 			return ""
 		}
 		return fmt.Sprintf("A query to %s returned %d %s (snapshot %s)",
-			serviceNameIn(htmlStyle, q.Engine), len(q.Rows), pluralWord(len(q.Rows), "row", "rows"), htmlText(q.Snapshot))
+			htmlText(queryEngineName(q.Engine)), len(q.Rows), pluralWord(len(q.Rows), "row", "rows"), htmlText(q.Snapshot))
 	case review.EvidenceTool:
 		t := e.Tool
 		if t == nil {
@@ -341,6 +341,7 @@ pre { background: #eaeef2; padding: .75rem; overflow-x: auto; white-space: pre-w
 table { border-collapse: collapse; background: #fff; }
 th, td { border: 1px solid #d0d7de; padding: .3rem .6rem; text-align: left; vertical-align: top; }
 .summary { width: 100%; margin: 1rem 0; }
+.summary td code { overflow-wrap: anywhere; word-break: break-all; }
 .rows { overflow-x: auto; }
 .card { background: #fff; border: 1px solid #d0d7de; border-left: 6px solid #0969da; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
 .card.error { border-left-color: #cf222e; }

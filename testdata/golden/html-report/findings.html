@@ -20,6 +20,7 @@ pre { background: #eaeef2; padding: .75rem; overflow-x: auto; white-space: pre-w
 table { border-collapse: collapse; background: #fff; }
 th, td { border: 1px solid #d0d7de; padding: .3rem .6rem; text-align: left; vertical-align: top; }
 .summary { width: 100%; margin: 1rem 0; }
+.summary td code { overflow-wrap: anywhere; word-break: break-all; }
 .rows { overflow-x: auto; }
 .card { background: #fff; border: 1px solid #d0d7de; border-left: 6px solid #0969da; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
 .card.error { border-left-color: #cf222e; }
@@ -58,8 +59,8 @@ pre { background: #21262d; }
 <p>The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.</p>
 <h3>How we know</h3>
 <ul>
-<li>A query to <code>local-sample</code> returned 2 rows (snapshot sample-2026-10-22)</li>
-<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+<li>A query to the bundled sample data returned 2 rows (snapshot sample-2026-10-22)</li>
+<li>A query to the bundled sample data returned 1 row (snapshot sample-2026-10-22)</li>
 </ul>
 <details>
 <summary>Evidence and fix</summary>
@@ -90,8 +91,8 @@ pre { background: #21262d; }
 <p>The change requires evil.example/leftpad v1.2.3. The sample KEV view has CVE-2026-0001 for that advisory.</p>
 <h3>How we know</h3>
 <ul>
-<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
-<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+<li>A query to the bundled sample data returned 1 row (snapshot sample-2026-10-22)</li>
+<li>A query to the bundled sample data returned 1 row (snapshot sample-2026-10-22)</li>
 </ul>
 <details>
 <summary>Evidence and fix</summary>
@@ -121,9 +122,9 @@ pre { background: #21262d; }
 <p>evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 &lt;= v1.2.3 &lt; fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 &lt; introduced 2.0.0. alias CVE-2026-0001 is on the KEV list Reachability: not measured.</p>
 <h3>How we know</h3>
 <ul>
-<li>A query to <code>local-sample</code> returned 2 rows (snapshot sample-2026-10-22)</li>
-<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
-<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+<li>A query to the bundled sample data returned 2 rows (snapshot sample-2026-10-22)</li>
+<li>A query to the bundled sample data returned 1 row (snapshot sample-2026-10-22)</li>
+<li>A query to the bundled sample data returned 1 row (snapshot sample-2026-10-22)</li>
 </ul>
 <details>
 <summary>Evidence and fix</summary>

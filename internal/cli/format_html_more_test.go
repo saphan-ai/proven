@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -196,5 +197,28 @@ func TestHTMLFootCarriesTheGuardrailLine(t *testing.T) {
 	foot := page[strings.Index(page, "<footer>"):]
 	if !strings.Contains(foot, want+"</footer>") {
 		t.Fatalf("the foot does not end with the guardrail line\n%s", foot)
+	}
+}
+
+// TestHTMLNamesTheEvidenceStoreInWords proves the HTML page of the sample run names
+// the evidence store and the query language in words ("SQL on the bundled sample
+// data"), never the adapter's id or the form's enum (the owner's rule of 27 Oct).
+// Mutated line for the negative control: the store name in the How we know sentence.
+func TestHTMLNamesTheEvidenceStoreInWords(t *testing.T) {
+	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
+	t.Chdir(t.TempDir())
+	env := envOf(map[string]string{"PROVEN_LOG_DIR": t.TempDir()})
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"scan", "--sample", "--html", target}, env, &stdout, &stderr, nil); code != exitOK {
+		t.Fatalf("exit %d\nstderr: %s", code, stderr.String())
+	}
+	page := stdout.String()
+	for _, raw := range []string{"local-sample", "form sql"} {
+		if strings.Contains(page, raw) {
+			t.Errorf("the page shows the internal name %q", raw)
+		}
+	}
+	if !strings.Contains(page, "the bundled sample data") {
+		t.Error("the page does not name the evidence store in words")
 	}
 }
