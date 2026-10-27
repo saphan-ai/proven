@@ -37,10 +37,25 @@ render_page() {
   # The dashboards' own address: the dashboard link without its /d/<uid>, so the page can name all six.
   grafana_base=${LAB_GRAFANA_URL:-}
   grafana_base=${grafana_base%/d/*}
+  # The start page's scenarios link each demo change to the pull request that really carries it: @@PR_<fixture>@@ is that
+  # pull request's number, from the seed's list (number, branch, fixture, verdict). A fixture with no pull request leaves its
+  # token in the page, and the check below refuses the page.
+  pr_sed=
+  pr_numbers=${PR_NUMBERS_FILE:-/tmp/pr-numbers.tsv}
+  if [ -f "$pr_numbers" ]; then
+    while IFS="$(printf '\t')" read -r pr_n _ pr_fixture _; do
+      pr_n=$(printf '%s' "$pr_n" | tr -cd '0-9')
+      pr_fixture=$(printf '%s' "$pr_fixture" | tr -cd 'A-Za-z0-9._-')
+      [ -n "$pr_n" ] && [ -n "$pr_fixture" ] || continue
+      pr_sed="${pr_sed}s|@@PR_${pr_fixture}@@|${pr_n}|g
+"
+    done <"$pr_numbers"
+  fi
   trap 'rm -f "$stage"' EXIT INT TERM
   (
     umask 077
     sed \
+      -e "$pr_sed" \
       -e "s|@@GITEA_URL@@|${LAB_URL%/}|g" \
       -e "s|@@GRAFANA_URL@@|${LAB_GRAFANA_URL:-}|g" \
       -e "s|@@GRAFANA_BASE@@|$grafana_base|g" \
@@ -65,7 +80,7 @@ render_page() {
         }
       ' >"$stage"
   )
-  if grep -q '@@[A-Z_]*@@' "$stage"; then
+  if grep -q '@@[A-Za-z0-9_.-]*@@' "$stage"; then
     echo "seed: the start page still holds a placeholder" >&2
     exit 1
   fi

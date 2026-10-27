@@ -195,6 +195,7 @@ func pageFeatures(t *testing.T, tree string, env ...string) (line string, stored
 		"ROOT=" + tree, "GITEA_INTERNAL_URL=" + srv.URL, "LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount", "API_TOKEN=x",
 		"LAB_LIVE_KEYS=" + versionsList(t, "LAB_LIVE_KEYS"), "LAB_FEATURE_KEYS=" + versionsList(t, "LAB_FEATURE_KEYS"),
 		"PAGE_TEMPLATE=" + filepath.Join(tree, "lab", "page", "lab.html.tmpl"), "PAGE_DIR=" + pageDir, "PR_ROWS_FILE=" + rows,
+		"PR_NUMBERS_FILE=" + writePRNumbers(t, dir),
 		"CLEAN_COUNT=2", "LAB_URL=http://127.0.0.1:3300/", "LAB_PASSWORD_PLACEHOLDER=x", "LAB_ADMIN_PASSWORD=pw-0123456789",
 	}, env...)...)
 	out, err := cmd.CombinedOutput()

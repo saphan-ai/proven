@@ -7,15 +7,27 @@
 <!-- A template. lab/seed/render.sh fills every marked place and writes the copy the lab serves into the lab's page volume.
      The password is filled in there and nowhere else: it is never committed and never baked into an image. -->
 <style>
-  /* Colours from saphan.ai (assets/site.css). No web fonts: the lab works offline. */
+  /* Light and airy by default (the owner, 27 Oct); the same palette reads in dark when the reader's system is dark.
+     Colours from saphan.ai (assets/site.css). No web fonts: the lab works offline. */
   :root {
-    color-scheme: dark;
-    --ground:#0c0e0d; --surface:#101312; --rule:#1d211e; --edge:#22271f;
-    --ink:#eef1ef; --ink-body:#d6dad7; --ink-code:#c3cbc5; --ink-muted:#9aa39d; --ink-dim:#758078;
-    --accent:#86a98f; --accent-hi:#a3c2ab; --accent-wash:rgba(134,169,143,0.14); --accent-edge:rgba(134,169,143,0.35);
-    --bad:#c98a7d; --bad-wash:rgba(201,138,125,0.12);
+    color-scheme: light dark;
+    --ground:#f7f9f8; --surface:#ffffff; --rule:#e4e9e6; --edge:#d3dbd6;
+    --ink:#13201a; --ink-body:#2a3830; --ink-code:#23302a; --ink-muted:#52625a; --ink-dim:#69786f;
+    --accent:#2b6a46; --accent-hi:#1b5236; --accent-wash:rgba(43,106,70,0.09); --accent-edge:rgba(43,106,70,0.35);
+    --bad:#a8402f; --bad-wash:rgba(168,64,47,0.09);
+    --logo:#13201a;
     --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#0c0e0d; --surface:#101312; --rule:#1d211e; --edge:#22271f;
+      --ink:#eef1ef; --ink-body:#d6dad7; --ink-code:#c3cbc5; --ink-muted:#9aa39d; --ink-dim:#758078;
+      --accent:#86a98f; --accent-hi:#a3c2ab; --accent-wash:rgba(134,169,143,0.14); --accent-edge:rgba(134,169,143,0.35);
+      --bad:#c98a7d; --bad-wash:rgba(201,138,125,0.12);
+      /* The bridge logo is white on the dark page (owner, 25 Oct) and dark on the light one, where white would not show. */
+      --logo:#ffffff;
+    }
   }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--ground); color:var(--ink-body); font:16px/1.6 var(--sans); }
@@ -24,8 +36,7 @@
   a:hover { color:var(--accent-hi); border-color:var(--accent-hi); }
   a.ext::after { content:" ↗"; font-size:.8em; color:var(--ink-dim); }
   header { display:flex; align-items:center; gap:14px; margin-bottom:8px; }
-  /* The bridge logo is always white (owner, 25 Oct). */
-  header svg { width:34px; height:34px; color:#ffffff; }
+  header svg { width:34px; height:34px; color:var(--logo); }
   h1 { margin:0; font-size:2rem; color:var(--ink); letter-spacing:-.01em; }
   .tag { font:500 .75rem var(--mono); color:var(--accent); background:var(--accent-wash); border:1px solid var(--accent-edge); border-radius:999px; padding:2px 10px; }
   .lead { font-size:1.15rem; color:var(--ink-muted); margin:6px 0 36px; max-width:46em; }
@@ -52,6 +63,11 @@
   a.btn-sm { font:600 .78rem var(--mono); color:var(--accent); background:var(--accent-wash); border:1px solid var(--accent-edge); border-radius:4px; padding:2px 10px; white-space:nowrap; }
   a.btn-sm:hover { color:var(--accent-hi); border-color:var(--accent-hi); }
   .muted { color:var(--ink-muted); font-size:.9rem; }
+  .scn .card { display:flex; flex-direction:column; gap:2px; }
+  .scn .card p b { color:var(--ink); }
+  .scn .card .btn, .scn .card a.ext { align-self:flex-start; margin-top:auto; }
+  .scn .card a.ext { margin-top:10px; }
+  .scn .card .creds { margin-top:auto; }
   footer { margin-top:56px; padding-top:16px; border-top:1px solid var(--rule); color:var(--ink-dim); font-size:.85rem; }
 </style>
 </head>
@@ -98,6 +114,65 @@ Nothing here leaves your machine unless you went live.</p>
     <h3>Help</h3>
     <p>The step-by-step walkthrough, and <code>docs/LAB.md</code> for troubleshooting.</p>
     <a class="btn" href="@@HELP_URL@@" target="_blank" rel="noopener">Open the walkthrough</a>
+  </div>
+</div>
+
+<h2>What Proven does: try it yourself</h2>
+<p class="muted">Six things, each in plain words: what happens, what you see, and a button that runs it here. The first three are the demo pull requests already in this lab.</p>
+<div class="grid scn">
+  <div class="card">
+    <h3>A clean change passes</h3>
+    <p><b>What happens.</b> Proven reads a small, correct change, runs the tests on the base and on the change, and checks its dependencies.</p>
+    <p><b>What you see.</b> A short "clean" verdict that says what was checked. No false alarm.</p>
+    <a class="btn" href="@@PAGE_URL@@/report/@@PR_discount-clean@@.html" target="_blank" rel="noopener">Try yourself: open the review</a>
+  </div>
+  <div class="card">
+    <h3>A vulnerable dependency is blocked</h3>
+    <p><b>What happens.</b> A change adds a library whose version is inside a known-vulnerable range. Proven asks Zetaris, which holds the OSV, KEV and EPSS advisory tables.</p>
+    <p><b>What you see.</b> "Blocked", with the advisory rows that matched, each under its query.</p>
+    <a class="btn" href="@@PAGE_URL@@/report/@@PR_osv-go-module@@.html" target="_blank" rel="noopener">Try yourself: open the review</a>
+  </div>
+  <div class="card">
+    <h3>A code defect is blocked by a failing test</h3>
+    <p><b>What happens.</b> A change takes a discount off twice. Proven writes a test, runs it on the base and on the change, and keeps the finding only because the test fails on the change and passes on the base.</p>
+    <p><b>What you see.</b> "Blocked", with the failing test and its output.</p>
+    <a class="btn" href="@@PAGE_URL@@/report/@@PR_discount@@.html" target="_blank" rel="noopener">Try yourself: open the review</a>
+  </div>
+  <div class="card">
+    <h3>A forged evidence pack is refused</h3>
+    <p><b>What happens.</b> Every review can leave one signed evidence pack. One byte of a copy is changed after it was signed.</p>
+    <p><b>What you see.</b> <code>proven verify</code> accepts the real pack and refuses the changed copy, naming the check that failed.</p>
+    <div class="creds"><div><code id="c-forged">make try SCENARIO=forged</code><button class="copy" data-copy="c-forged">copy</button></div></div>
+  </div>
+  <div class="card">
+    <h3>The Prover has no network and no secret</h3>
+    <p><b>What happens.</b> The Prover runs a test in a container with no network, no password or token passed in, and the code mounted read-only.</p>
+    <p><b>What you see.</b> A container with those flags tries to reach the network, find a secret and change the code, and fails at all three.</p>
+    <div class="creds"><div><code id="c-prover">make try SCENARIO=prover</code><button class="copy" data-copy="c-prover">copy</button></div></div>
+  </div>
+  <div class="card">
+    <h3>The Meterless engines, on and off</h3>
+    <p><b>What happens.</b> H-MEM, Scout Intent, Markovian and the World Model help a review. Two of them can be switched off for a run: <code>make up PROVEN_MARKOVIAN=off PROVEN_LAB_SCOUT_INTENT=off</code>.</p>
+    <p><b>What you see.</b> The same reviews, and on the Engines dashboard what each engine did.</p>
+    <a class="btn" href="@@GRAFANA_BASE@@/d/proven-engines" target="_blank" rel="noopener">Try yourself: open the engines</a>
+  </div>
+</div>
+
+<h2>Security: code and image</h2>
+<p class="muted">Two reviews, side by side. Each claim links to the live proof, not to a picture of it.</p>
+<div class="grid scn">
+  <div class="card">
+    <h3>Code review</h3>
+    <p>Proven reports a problem only with its evidence: a query on advisory data, or a test that fails on the change and passes before it. A claim it cannot prove, or that its own Skeptic refutes, is dropped.</p>
+    <p><b>Live proof.</b> The review of each demo pull request is a comment in Gitea in this lab, and the same reviews run on every change to Proven's own repository.</p>
+    <a class="btn" href="@@GITEA_URL@@/@@LAB_ADMIN_USER@@/@@LAB_DEMO_REPO@@/pulls?state=all" target="_blank" rel="noopener">The comments in this lab</a>
+    <a class="ext" href="https://github.com/saphan-ai/proven/actions" target="_blank" rel="noopener">The build pipeline on GitHub Actions</a>
+  </div>
+  <div class="card">
+    <h3>Image security review</h3>
+    <p>The image this lab runs is scanned by Docker Scout on every build, with its software bill of materials and its build provenance attached to the image.</p>
+    <p><b>Live proof.</b> The image on Docker Hub, with Docker Scout's own result for it.</p>
+    <a class="btn ext" href="https://hub.docker.com/r/saphan/proven" target="_blank" rel="noopener">The image on Docker Hub</a>
   </div>
 </div>
 

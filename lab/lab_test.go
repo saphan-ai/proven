@@ -246,6 +246,21 @@ func TestTheStartPageTemplate(t *testing.T) {
 	}
 }
 
+// writePRNumbers writes the seed's list of pull requests (number, branch, fixture, verdict) into dir, numbering the manifest
+// from 10, and returns its path: the start page's scenarios link each fixture to its number.
+func writePRNumbers(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "pr-numbers.tsv")
+	var b strings.Builder
+	for i, r := range manifest(t) {
+		fmt.Fprintf(&b, "%d\t%s\t%s\t%s\n", 10+i, r.branch, r.fixture, r.verdict)
+	}
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 	dir := t.TempDir()
 	rows := filepath.Join(dir, "rows.html")
@@ -253,6 +268,8 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 	if err := os.WriteFile(rows, []byte(row), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// The seed's list of pull requests (number, branch, fixture, verdict): the scenarios link each fixture to its number.
+	numbers := writePRNumbers(t, dir)
 	pageDir := filepath.Join(dir, "page")
 	tmp := filepath.Join(dir, "tmp")
 	for _, d := range []string{pageDir, tmp} {
@@ -281,7 +298,7 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 		"ROOT="+mustAbs(t, root),
 		"PAGE_TEMPLATE="+mustAbs(t, filepath.Join(root, "lab", "page", "lab.html.tmpl")),
 		"PAGE_DIR="+pageDir,
-		"PR_ROWS_FILE="+rows,
+		"PR_ROWS_FILE="+rows, "PR_NUMBERS_FILE="+numbers,
 		// Every temp file the renderer or its tools make lands in tmp, so a copy outside the page volume is seen.
 		"TMPDIR="+tmp,
 		"PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"), "REAL_PATH="+os.Getenv("PATH"), "PROBE="+probe,
@@ -321,6 +338,11 @@ func TestTheStartPageIsRenderedWithTheLoginAndNothingLeaks(t *testing.T) {
 		`Two are clean changes`,
 		`Mode: <b>live via our gateway</b>.`,
 		`<code id="u">proven</code>`,
+		// A scenario button opens the report of the pull request that carries its change.
+		`href="http://127.0.0.1:3302/lab/report/10.html"`,
+		`make try SCENARIO=forged`,
+		`make try SCENARIO=prover`,
+		`https://hub.docker.com/r/saphan/proven`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the rendered page lacks %s", want)

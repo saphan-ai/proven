@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help check-flow password demo-check reports nightshift-receipts check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean
+.PHONY: help check-flow password demo-check reports try nightshift-receipts check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -53,6 +53,9 @@ reports: ## Build the report page of every demo pull request again: its review a
 
 nightshift-receipts: ## Load the public Nightshift receipts (lab/nightshift/receipts.public.jsonl) into the lab's Loki, for the Nightshift dashboard
 	@sh $(ROOT)/lab/scripts/nightshift-receipts.sh
+
+try: ## Try one thing Proven does and see it print: SCENARIO=forged (a changed evidence pack is refused) or SCENARIO=prover (no network, no secret)
+	@sh $(ROOT)/lab/scripts/try.sh "$(SCENARIO)"
 
 check-banner: ## Check the closing banner offline: the exact lines, the password on a terminal, the path when redirected
 	@sh $(ROOT)/lab/scripts/banner-check.sh
