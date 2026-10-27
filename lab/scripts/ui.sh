@@ -19,6 +19,7 @@ UI_N=
 UI_TITLE=
 UI_LOG=
 UI_T0=
+UI_ADJOIN=
 
 # ui_color FD: exit 0 when a line written to file descriptor FD may carry colour.
 ui_color() {
@@ -75,7 +76,9 @@ ui_begin() {
 # ui_done MESSAGE: the open phase finished. One green line, an empty line on each side.
 ui_done() {
   ud_secs=$(($(date +%s) - UI_T0))
-  echo
+  # A line that follows a line with nothing printed between them shares its empty line: UI_ADJOIN is set for it.
+  [ -n "${UI_ADJOIN:-}" ] || echo
+  UI_ADJOIN=
   ui_paint 1 32 "==> [$UI_N/$UI_TOTAL] $1 ($(ui_duration "$ud_secs"))"
   echo
   echo

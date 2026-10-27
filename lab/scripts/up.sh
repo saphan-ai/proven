@@ -268,7 +268,8 @@ if [ -n "${LAB_ADMIN_PASSWORD:-}" ] && [ "$LAB_ADMIN_PASSWORD" = "$pass" ]; then
 fi
 
 # The fifth status line has one empty line after it (ui_done), which is the one empty line before the banner: nothing else
-# is printed between them.
+# is printed between them. Nor is anything printed between the fourth and the fifth, so they share their empty line.
+UI_ADJOIN=1
 ui_begin 5 "Show you where to start" "make status"
 ui_done "The lab is ready"
 lab_banner "$shown"

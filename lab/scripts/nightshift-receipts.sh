@@ -10,7 +10,9 @@ set -eu
 
 file=${NIGHTSHIFT_RECEIPTS_FILE:-$ROOT/lab/nightshift/receipts.public.jsonl}
 if [ ! -f "$file" ]; then
-  echo "nightshift-receipts: no public receipts file at $file; the Nightshift dashboard says so. To load them, put the file there and run make nightshift-receipts."
+  # Named from the repository root, never by the host's absolute path.
+  case $file in "$ROOT"/*) shown=${file#"$ROOT"/} ;; *) shown=$(basename "$file") ;; esac
+  echo "nightshift-receipts: no public receipts file at $shown; the Nightshift dashboard says so. To load them, put the file there and run make nightshift-receipts."
   exit 0
 fi
 need_docker

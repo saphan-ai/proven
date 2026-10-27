@@ -157,6 +157,10 @@ func TestUpPrintsOneGreenLineAfterEachPhaseWithAnEmptyLineOnEachSide(t *testing.
 	if !strings.Contains(r.out, "==> [5/5] The lab is ready (0 s)\n\n####") {
 		t.Errorf("the fifth step line is not followed by exactly one empty line and the banner:\n%q", tail(r.out, 400))
 	}
+	// Two step lines with nothing printed between them share one empty line, not two (mutated field: UI_ADJOIN in up.sh).
+	if joined := regexp.MustCompile(`(?m)^==> \[4/5\] .*\n(\n*)==> \[5/5\]`).FindStringSubmatch(r.out); joined == nil || joined[1] != "\n" {
+		t.Errorf("the fourth and the fifth step lines are not separated by exactly one empty line:\n%q", tail(r.out, 600))
+	}
 	if strings.Contains(r.out, "\x1b") {
 		t.Errorf("a control character was printed with no terminal:\n%q", r.out)
 	}
