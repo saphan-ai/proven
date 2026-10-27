@@ -2,6 +2,7 @@ package generator
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -16,16 +17,17 @@ import (
 // token, which has none. ADR-0013: no value the generator runs with is
 // hardcoded; each comes from one of these settings or its named default.
 const (
-	EnvMode          = "PROVEN_GENERATOR_MODE"
-	EnvKey           = "PROVEN_GENERATOR_KEY"
-	EnvToken         = "METERLESS_RUNTIME_TOKEN"
-	EnvBaseURL       = "PROVEN_GENERATOR_BASE_URL"
-	EnvNVIDIABaseURL = "PROVEN_NVIDIA_BASE_URL"
-	EnvApp           = "PROVEN_GENERATOR_APP"
-	EnvModel         = "PROVEN_GENERATOR_MODEL"
-	EnvTimeout       = "PROVEN_GENERATOR_TIMEOUT"
-	EnvRequireNVIDIA = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
-	EnvSkepticModel  = "PROVEN_SKEPTIC_MODEL"
+	EnvMode           = "PROVEN_GENERATOR_MODE"
+	EnvKey            = "PROVEN_GENERATOR_KEY"
+	EnvToken          = "METERLESS_RUNTIME_TOKEN"
+	EnvBaseURL        = "PROVEN_GENERATOR_BASE_URL"
+	EnvNVIDIABaseURL  = "PROVEN_NVIDIA_BASE_URL"
+	EnvApp            = "PROVEN_GENERATOR_APP"
+	EnvModel          = "PROVEN_GENERATOR_MODEL"
+	EnvTimeout        = "PROVEN_GENERATOR_TIMEOUT"
+	EnvRequireNVIDIA  = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
+	EnvSkepticModel   = "PROVEN_SKEPTIC_MODEL"
+	EnvThinkingBudget = "PROVEN_GENERATOR_THINKING_BUDGET"
 )
 
 // DefaultSkepticModel is Nemotron through Nightshift (ADR-0006 point 5).
@@ -116,6 +118,11 @@ func Environment() []envdoc.Setting {
 			Default:     envdoc.Tick(DefaultSkepticModel),
 			Description: "the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family",
 		},
+		{
+			Name:        EnvThinkingBudget,
+			Default:     "empty (nothing is sent)",
+			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call: for a model that always thinks, such as GLM-5.3 on Alibaba Cloud Model Studio, which refuses to turn thinking off. Empty sends nothing, so a provider that does not know the field never sees it",
+		},
 	}
 }
 
@@ -139,7 +146,9 @@ type Settings struct {
 	Token        string
 	Timeout      time.Duration
 	SkepticModel string
-	plain        bool
+	// ThinkingBudget is PROVEN_GENERATOR_THINKING_BUDGET; zero sends no thinking_budget field.
+	ThinkingBudget int
+	plain          bool
 	// Network is the air-gapped policy of ADR-0034. Nil means public.
 	Network       *network.Policy
 	requireAll    bool
@@ -268,6 +277,14 @@ func Load(env func(string) string) (Settings, error) {
 		}
 		timeout = d
 	}
+	budget := 0
+	if raw := env(EnvThinkingBudget); raw != "" {
+		n, perr := strconv.Atoi(raw)
+		if perr != nil || n < 1 || n > 1000000 {
+			return Settings{}, refuse(EnvThinkingBudget, clip(raw), "not a token count", "a whole number from 1 to 1000000, or empty")
+		}
+		budget = n
+	}
 	req := env(EnvRequireNVIDIA)
 	if req == "" {
 		req = defaultRequire
@@ -283,7 +300,7 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	return Settings{
 		Mode: mode, BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
-		SkepticModel: skepticModel, Network: policy,
+		SkepticModel: skepticModel, Network: policy, ThinkingBudget: budget,
 		requireAll: all, requireNone: none, requireNVIDIA: set,
 	}, nil
 }
