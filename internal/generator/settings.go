@@ -121,7 +121,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvThinkingBudget,
 			Default:     "empty (nothing is sent)",
-			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call. Empty sends nothing, so a provider that does not know the field never sees it",
+			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call, the second reviewer's included. Empty sends nothing, so a provider that does not know the field never sees it",
 		},
 	}
 }
@@ -277,13 +277,9 @@ func Load(env func(string) string) (Settings, error) {
 		}
 		timeout = d
 	}
-	budget := 0
-	if raw := env(EnvThinkingBudget); raw != "" {
-		n, perr := strconv.Atoi(raw)
-		if perr != nil || n < 1 || n > 1000000 {
-			return Settings{}, refuse(EnvThinkingBudget, clip(raw), "not a token count", "a whole number from 1 to 1000000, or empty")
-		}
-		budget = n
+	budget, err := thinkingBudget(env)
+	if err != nil {
+		return Settings{}, err
 	}
 	req := env(EnvRequireNVIDIA)
 	if req == "" {
@@ -320,6 +316,19 @@ func fromNetwork(err error) error {
 		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
 	}
 	return err
+}
+
+// thinkingBudget reads PROVEN_GENERATOR_THINKING_BUDGET: zero when it is empty, refused by name when it is not a count.
+func thinkingBudget(env func(string) string) (int, error) {
+	raw := env(EnvThinkingBudget)
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > 1000000 {
+		return 0, refuse(EnvThinkingBudget, clip(raw), "not a token count", "a whole number from 1 to 1000000, or empty")
+	}
+	return n, nil
 }
 
 // refuse builds the refusal for one setting with one allowed form.

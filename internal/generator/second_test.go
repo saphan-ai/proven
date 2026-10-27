@@ -179,3 +179,36 @@ func TestSecondFailureNamesTheSecondReviewerAndNotTheKey(t *testing.T) {
 		}
 	}
 }
+
+// The generator's thinking budget bounds the second reviewer's calls too: LoadSecond reads
+// PROVEN_GENERATOR_THINKING_BUDGET and the request carries it; unset, the body has no such field, and a
+// value that is not a count is refused by name. Mutated field: PROVEN_GENERATOR_THINKING_BUDGET.
+func TestTheSecondReviewerSendsTheGeneratorsThinkingBudget(t *testing.T) {
+	base := map[string]string{EnvSecondKey: secondKey, EnvSecondBaseURL: "https://api.example.test/v1", EnvSecondModel: "gpt-test"}
+	for setting, want := range map[string]int{"512": 512, "": 0} {
+		env := map[string]string{EnvThinkingBudget: setting}
+		for k, v := range base {
+			env[k] = v
+		}
+		s, connected, err := LoadSecond(secondEnv(env))
+		if err != nil || !connected {
+			t.Fatalf("connected %v err %v", connected, err)
+		}
+		api := &fakeAPI{answer: "an answer"}
+		if _, err := NewSecond(s, &http.Client{Transport: api}).Complete(context.Background(), "planner", "p"); err != nil {
+			t.Fatal(err)
+		}
+		if api.body.ThinkingBudget != want {
+			t.Fatalf("setting %q: thinking_budget %d", setting, api.body.ThinkingBudget)
+		}
+	}
+	env := map[string]string{EnvThinkingBudget: "lots"}
+	for k, v := range base {
+		env[k] = v
+	}
+	_, _, err := LoadSecond(secondEnv(env))
+	var cfg *ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != EnvThinkingBudget {
+		t.Fatalf("a bad budget was not refused by name: %v", err)
+	}
+}
