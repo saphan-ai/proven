@@ -406,7 +406,7 @@ under `second-reviewer` in the review's failed services, and the findings show t
 
 ## What the workflow runs
 
-Proven's Action is not on main yet, so the workflow does not use it. It runs:
+The lab's Gitea runs no GitHub Action, so the workflow does not use Proven's Action (GitHub users can: docs/ACTION.md). It runs:
 
 ```text
 SAMPLE_MODE=true proven scan /opt/proven/fixture/<set>
