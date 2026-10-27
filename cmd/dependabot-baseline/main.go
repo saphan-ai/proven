@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/baseline"
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/query"
 	"github.com/saphan-ai/proven/internal/querytpl"
@@ -93,6 +94,12 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 
 // execute runs one comparison and writes its two files.
 func execute(s settings, getenv func(string) string, stdout io.Writer) error {
+	// The export reads a local repository and never fetches, so the git policy is the offline one.
+	limits, err := change.LoadLimits(getenv)
+	if err != nil {
+		return err
+	}
+	rd := change.NewPolicy(true, limits)
 	ref, err := baseline.LoadReference(s.alerts)
 	if err != nil {
 		return err
@@ -105,7 +112,7 @@ func execute(s settings, getenv func(string) string, stdout io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tree) // scratch copy of the manifests; a failed removal leaves only scratch files
-	manifests, err := baseline.Export(s.repo, ref.PinnedCommit, tree)
+	manifests, err := baseline.Export(rd, s.repo, ref.PinnedCommit, tree)
 	if err != nil {
 		return err
 	}
@@ -121,7 +128,7 @@ func execute(s settings, getenv func(string) string, stdout io.Writer) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
-	f, err := baseline.Analyze(ctx, tree, manifests, ref, runner, opt)
+	f, err := baseline.Analyze(ctx, rd, tree, manifests, ref, runner, opt)
 	if err != nil {
 		return err
 	}

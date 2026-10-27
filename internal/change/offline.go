@@ -37,7 +37,7 @@ func UseOffline(on bool) (previous bool) {
 func (p Policy) GitCommand(args ...string) *exec.Cmd {
 	argv := args
 	env := childenv.Minimal()
-	if p.offline {
+	if !p.public {
 		// log.showSignature=false: git log would otherwise verify a signed commit
 		// by starting gpg.program, gpg.x509.program or gpg.ssh.program, a program
 		// the commit's header chooses and Proven does not judge.
@@ -72,7 +72,7 @@ func GitCommand(args ...string) *exec.Cmd { return ProcessPolicy().GitCommand(ar
 // The empty tree's id depends on the repository's hash, so git names it. Needs git 2.40 or later; an older git refuses the switch by name.
 // Online, args come back unchanged.
 func (p Policy) withoutAttributes(args []string) ([]string, error) {
-	if !p.offline {
+	if p.public {
 		return args, nil
 	}
 	out, err := p.GitCommand("-C", repoDir(args), "hash-object", "-t", "tree", "/dev/null").Output()
@@ -139,7 +139,7 @@ func (p Policy) refuseInfoAttributes(dir string) error {
 // for a missing object, so the words alone are not enough: a failure that is
 // not an absent path, in a partial clone, is named as the refused fetch.
 func (p Policy) offlineMessage(cmd *exec.Cmd, msg string) string {
-	if !p.offline {
+	if p.public {
 		return msg
 	}
 	lower := strings.ToLower(msg)

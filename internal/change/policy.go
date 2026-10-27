@@ -8,22 +8,24 @@ import (
 // remote, and the size bounds of its reads. It is a value fixed when the review
 // is opened, and every git command and every read of that review takes it from
 // there, so another review opened in the same process, at the same time or
-// later, cannot change it (ADR-0034). The zero Policy is the public mode with
-// the default bounds.
+// later, cannot change it (ADR-0034). The zero Policy is the closed one: offline,
+// with the default bounds. Public mode has to be asked for, with NewPolicy or the
+// process default, so a Policy built any other way (a literal, new, a variable
+// with no value) can never reach a remote.
 type Policy struct {
-	offline bool
-	limits  Limits
+	public bool
+	limits Limits
 }
 
-// NewPolicy is the policy of a review. offline is the air-gapped mode; a field
+// NewPolicy is the policy of a review. airGapped is the air-gapped mode; a field
 // of l that is zero or below keeps its default, so a partly filled Limits is
 // never an unbounded one.
-func NewPolicy(offline bool, l Limits) Policy {
-	return Policy{offline: offline, limits: fillLimits(l)}
+func NewPolicy(airGapped bool, l Limits) Policy {
+	return Policy{public: !airGapped, limits: fillLimits(l)}
 }
 
 // Offline reports whether git, under this policy, cannot reach a remote.
-func (p Policy) Offline() bool { return p.offline }
+func (p Policy) Offline() bool { return !p.public }
 
 // Bounds returns the size bounds this policy applies to a read.
 func (p Policy) Bounds() Limits { return fillLimits(p.limits) }
@@ -32,7 +34,7 @@ func (p Policy) Bounds() Limits { return fillLimits(p.limits) }
 // settings of UseOffline and UseLimits. A review does not read it; a command
 // line step that runs before any review is opened, and a test, may.
 func ProcessPolicy() Policy {
-	return Policy{offline: offline.Load(), limits: processBounds()}
+	return Policy{public: !offline.Load(), limits: processBounds()}
 }
 
 type policyKey struct{}
@@ -45,13 +47,14 @@ func WithPolicy(ctx context.Context, p Policy) context.Context {
 }
 
 // PolicyFrom is the policy a review put in ctx. A context that carries none
-// gets the process-wide policy, which is how a reader outside a review (a test,
-// a command line step) behaves.
+// gets the closed policy: offline, with the default limits. It never reads the
+// process-wide settings, so production code that is handed a context with no
+// policy cannot run git under the always-public process policy.
 func PolicyFrom(ctx context.Context) Policy {
 	if p, ok := ctx.Value(policyKey{}).(Policy); ok {
 		return p
 	}
-	return ProcessPolicy()
+	return NewPolicy(true, DefaultLimits())
 }
 
 // Read reads a tree under the process-wide policy; see Policy.Read.

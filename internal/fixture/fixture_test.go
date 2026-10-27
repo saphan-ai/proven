@@ -2,6 +2,7 @@ package fixture
 
 import (
 	"bytes"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ import (
 // exactly the prompts those agents build today, so a change to an agent's
 // prompt shows up here and not as a missing answer in sample mode.
 func TestRecordedPromptsFollowTheAgents(t *testing.T) {
-	f, err := Load(discount(t))
+	f, err := LoadUnder(change.ProcessPolicy(), discount(t))
 	if err != nil {
 		t.Fatal(err)
 	}

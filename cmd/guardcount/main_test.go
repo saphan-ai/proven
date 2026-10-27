@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,7 +164,7 @@ func TestMedian(t *testing.T) {
 // switched off and returns its trace path.
 func reviewWithGuardOff(t *testing.T) string {
 	t.Helper()
-	fx, err := fixture.Load(filepath.Join("..", "..", "testdata", "fixture", "discount"))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), filepath.Join("..", "..", "testdata", "fixture", "discount"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -29,7 +29,7 @@ func (p Policy) ExportCommit(target, rev, dst string) ([]string, error) {
 	}
 	// In local mode no filter driver may run, and git archive runs the one the
 	// attributes name; the blobs are read as stored instead (ADR-0034).
-	if p.offline {
+	if !p.public {
 		return p.exportRaw(target, rev, dst)
 	}
 	// gitArchive lists the commit's tracked files and does not emit .git.

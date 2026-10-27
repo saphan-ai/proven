@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,7 +121,7 @@ func TestNegativeControl_F3RecordedQueryRow(t *testing.T) {
 // Negative control: remove the schema degrade (the service.Down returned after
 // the second decode) and this test turns red.
 func TestProseTwiceDegradesByNameAndDropsUnevidenced(t *testing.T) {
-	fx, err := fixture.Load(fixturePath(t))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), fixturePath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,7 +457,7 @@ func TestCheckoutRunFillsEmptyDirectories(t *testing.T) {
 
 // Mutated field: Options.MaxWrittenBytes. A body over that limit is not run.
 func TestWrittenLimitFromOptionsRefusesBeforeTheRun(t *testing.T) {
-	fx, err := fixture.Load(fixturePath(t))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), fixturePath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -632,7 +633,7 @@ func buildSample(t *testing.T, logDir string, run testrun.Adapter) *Pipeline {
 // A written test that passes on the change and on the base is not evidence.
 // The trace names that reason. The runner is the only thing that runs.
 func TestWrittenTestThatPassesOnBothIsNamedInTheTrace(t *testing.T) {
-	fx, err := fixture.Load(fixturePath(t))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), fixturePath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
