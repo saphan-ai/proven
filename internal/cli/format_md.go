@@ -33,8 +33,9 @@ func mdVerdict(result review.Result) string {
 			infos++
 		}
 	}
-	line := fmt.Sprintf("**Proven: blocked** — %d %s: %d error, %d warning, %d info",
-		len(result.Findings), pluralWord(len(result.Findings), "finding", "findings"), errs, warns, infos)
+	line := fmt.Sprintf("**Proven: blocked** — %d %s: %d %s, %d %s, %d info",
+		len(result.Findings), pluralWord(len(result.Findings), "finding", "findings"),
+		errs, pluralWord(errs, "error", "errors"), warns, pluralWord(warns, "warning", "warnings"), infos)
 	return line + mdCountsTail(result)
 }
 

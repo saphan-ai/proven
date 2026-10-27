@@ -69,7 +69,7 @@ func TestReportPageSetsTheReviewLikeAGitHubComment(t *testing.T) {
 		`<span class="badge bad">Blocked</span>`,
 		`Apply a discount (it is taken off twice) <span class="num">#3</span>`,
 		`href="http://127.0.0.1:3300/proven/discount/pulls/3"`,
-		`<strong>Proven: blocked</strong> — 4 findings: 4 error, 0 warning, 0 info`,
+		`<strong>Proven: blocked</strong> — 4 findings: 4 errors, 0 warnings, 0 info`,
 		// The findings table, with a coloured severity.
 		`<th>Severity</th>`, `<td class="sev sev-error">ERROR</td>`, `<code>go.mod:5</code>`, `<code>known-exploited-dependency</code>`,
 		// Each finding folded in a details block, closed.
@@ -136,7 +136,7 @@ func TestReportPageCarriesNoPasswordTokenOrPrivateName(t *testing.T) {
 
 func TestReportPageWritesNoTagTheReviewDidNotMean(t *testing.T) {
 	hostile := strings.Join([]string{
-		"**Proven: blocked** — 1 finding: 1 error, 0 warning, 0 info",
+		"**Proven: blocked** — 1 finding: 1 error, 0 warnings, 0 info",
 		"",
 		"<script>alert(1)</script>",
 		"<img src=x onerror=alert(2)>",
@@ -203,5 +203,15 @@ func TestReportRefusesWhatItCannotName(t *testing.T) {
 		if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "report: ") {
 			t.Errorf("%s: not refused by name: %v %s", c.name, err, out)
 		}
+	}
+}
+
+func TestReportFooterOnlyTellsTheReaderToOpenABlockWhenThereIsOne(t *testing.T) {
+	const open = "Open a block to read its evidence."
+	if page := renderReport(t, root, "render", goldenMD(t, "findings.md")); !strings.Contains(page, open) {
+		t.Error("a page with blocks does not tell the reader to open one")
+	}
+	if page := renderReport(t, root, "render", goldenMD(t, "clean.md")); strings.Contains(page, open) {
+		t.Error("a page with no block tells the reader to open one")
 	}
 }
