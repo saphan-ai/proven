@@ -30,7 +30,9 @@ that keeps every call inside, and a proof that it does.
    reviewer's alternative, refusing every runtime Proven cannot verify, is not adopted: a name is not an identity,
    and the operator's own `docker` or `podman` is the setup the docs name.
    The git policy belongs to the review, not to the process: a review fixes it, with its read limits, when it is
-   opened, and every git command it starts carries it, whatever another review in the same process does. A policy no one asked for public mode for (the zero value, however it is built) is the closed one, offline. The forge
+   opened, and every git command it starts carries it, whatever another review in the same process does. A policy no one asked for public mode for (the zero value, however it is built) is the closed one, offline. Two census tests read the source for code that reaches the process default or builds a public policy outside its
+   constructors; they are a guard against the common spellings, not a proof, and a spelling they miss is owed, not
+   assumed safe. The guarantee rests on the per-review policy and on the closed zero value. The forge
    address the action posts its summary comment to (`GITHUB_API_URL`) is judged in `local` mode by the same rule as
    every other address (`proven check-address`, before the scan), and is refused by name when it is outside; the
    comment is then posted with `curl` only, with no configuration file and no proxy, and nothing is installed.
