@@ -1,7 +1,7 @@
 {
   "uid": "proven-evidence",
   "title": "Proven: the evidence behind each finding",
-  "description": "Where findings get their proof. What Proven does not yet report as a number is named in the two grey panels.",
+  "description": "Where findings get their proof. What Proven does not yet report as a number is named in the two text panels.",
   "tags": [
     "proven"
   ],
@@ -11,7 +11,7 @@
   "graphTooltip": 1,
   "refresh": "10s",
   "time": {
-    "from": "now-1h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -22,7 +22,7 @@
       "1m"
     ]
   },
-  "style": "dark",
+  "style": "light",
   "links": [
     {
       "type": "dashboards",
@@ -65,44 +65,97 @@
   "panels": [
     {
       "id": 1,
-      "type": "text",
-      "title": "Zetaris queries: not measured yet",
-      "description": "What would be shown here, and the numbers that are missing.",
+      "type": "stat",
+      "title": "Findings kept, with their evidence",
+      "description": "Findings kept across the latest review of each pull request. The Judge keeps a finding only when a query or a test supports it.",
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 12,
-        "h": 6
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: findings kept, each with a query or a test as evidence",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 findings kept: nothing to prove",
+                  "color": "blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 finding kept, with a query or a test as evidence",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "decimals": 0
+        },
+        "overrides": []
       },
       "options": {
-        "mode": "markdown",
-        "content": "**Not emitted by Proven yet.** Proven asks Zetaris for each advisory check, but does not yet count it. Missing, so nothing is drawn here:\n\n- queries per table (OSV, KEV, EPSS)\n- rows returned\n- query duration\n- queries Zetaris refused\n\nThe proof level of each finding, which comes from these queries, is shown below."
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 48,
+          "titleSize": 15
+        }
       }
     },
     {
       "id": 2,
-      "type": "text",
-      "title": "Prover runs: not measured yet",
-      "description": "What would be shown here, and the numbers that are missing.",
+      "type": "stat",
+      "title": "Claims dropped",
+      "description": "Claims the Judge dropped for any reason: no query or test supported them, the Skeptic refuted them, or they were already refuted earlier. This is Proven refusing to guess.",
       "gridPos": {
         "x": 12,
         "y": 0,
-        "w": 12,
-        "h": 6
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**Not emitted by Proven yet.** The Prover runs a test on the base and on the change, with the network off. Missing, so nothing is drawn here:\n\n- runs, with the outcome on the base and on the change\n- run duration\n- runs that had the network off\n\nHow long the Prover and the Investigator ran is in the table below."
-      }
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Evidence agents that failed",
-      "description": "Investigator or Prover stages that ended failed. None is good: a failed one means evidence was not gathered.",
-      "gridPos": {
-        "x": 0,
-        "y": 6,
         "w": 6,
         "h": 5
       },
@@ -118,7 +171,83 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "count(last_over_time(proven_agent_state{proven_agent=~\"investigator|prover\"}[$__range]) == 3) or vector(0)",
+          "expr": "sum(last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dropped",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none dropped",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Evidence agents that failed",
+      "description": "Investigator or Prover stages that ended failed. None is good: a failed one means evidence was not gathered.",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "count(last_over_time(proven_agent_state{proven_agent=~\"investigator|prover\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 3) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -176,79 +305,35 @@
       }
     },
     {
-      "id": 4,
-      "type": "stat",
-      "title": "Claims dropped for no evidence",
-      "description": "Claims the Judge dropped because no query or test supported them. This is Proven refusing to guess.",
+      "id": 7,
+      "type": "text",
+      "title": "Zetaris queries: not measured yet",
+      "description": "What would be shown here, and the numbers that are missing.",
       "gridPos": {
-        "x": 6,
-        "y": 6,
-        "w": 6,
-        "h": 5
-      },
-      "transparent": false,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${ds_prom}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${ds_prom}"
-          },
-          "expr": "sum(last_over_time(proven_review_claims_dropped_total{reason=\"no_evidence\"}[$__range])) or vector(0)",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "suffix: dropped",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "0 · none dropped",
-                  "color": "blue"
-                }
-              }
-            }
-          ],
-          "decimals": 0
-        },
-        "overrides": []
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 6
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "text": {
-          "valueSize": 40,
-          "titleSize": 15
-        }
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** Proven asks Zetaris for each advisory check, but does not yet count it. Missing, so nothing is drawn here:\n\n- queries per table (OSV, KEV, EPSS)\n- rows returned\n- query duration\n- queries Zetaris refused"
+      }
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "Prover runs: not measured yet",
+      "description": "What would be shown here, and the numbers that are missing.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** The Prover runs a test on the base and on the change, with the network off. Missing, so nothing is drawn here:\n\n- runs, with the outcome on the base and on the change\n- run duration\n- runs that had the network off"
       }
     },
     {
@@ -257,10 +342,10 @@
       "title": "Findings by level of proof",
       "description": "How well each kept finding is proved: the strongest evidence it carries.",
       "gridPos": {
-        "x": 12,
-        "y": 6,
-        "w": 12,
-        "h": 5
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 6
       },
       "transparent": false,
       "datasource": {
@@ -274,7 +359,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total[$__range])) or on() label_replace(vector(0), \"proven_proof_level\", \"No finding kept: the reviews are still running, or every change was clean\", \"\", \"\")",
+          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range]))",
           "instant": true,
           "range": false,
           "legendFormat": "{{proven_proof_level}}"
@@ -284,21 +369,20 @@
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.proven_proof_level}",
+          "noValue": "No finding kept: the reviews are still running, or every change was clean",
           "color": {
             "mode": "fixed",
-            "fixedColor": "green"
+            "fixedColor": "blue"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -313,25 +397,29 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     },
     {
       "id": 6,
       "type": "table",
-      "title": "Investigator and Prover runs (the latest 20)",
-      "description": "Each row is one run of the Investigator (turns a risk into a query) or the Prover (asks for a test). The bar is how long it ran.",
+      "title": "Investigator and Prover runs, and how long each took",
+      "description": "Each row is one run of the Investigator (turns a risk into a query) or the Prover (asks for a test). The bar is how long it ran. In a sample-mode lab the agents answer from recorded answers and the Prover runs no test, so times of a few microseconds are the recorded answers, not real work. In a live lab they are real.",
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 17,
         "w": 24,
-        "h": 19
+        "h": 21
       },
       "transparent": false,
       "datasource": {
@@ -405,17 +493,21 @@
       },
       "transformations": [
         {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Start time",
+                "proven.agent",
+                "proven.reviewer",
+                "Duration"
+              ]
+            }
+          }
+        },
+        {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "traceIdHidden": true,
-              "spanID": true,
-              "Trace ID": true,
-              "Span ID": true,
-              "traceService": true,
-              "traceName": true,
-              "nested": true
-            },
             "renameByName": {
               "Start time": "Start time",
               "proven.agent": "Agent",

@@ -11,7 +11,7 @@
   "graphTooltip": 1,
   "refresh": "10s",
   "time": {
-    "from": "now-1h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -22,7 +22,7 @@
       "1m"
     ]
   },
-  "style": "dark",
+  "style": "light",
   "links": [
     {
       "type": "dashboards",
@@ -66,12 +66,12 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Model calls",
-      "description": "Calls to a model across all reviews.",
+      "title": "Model calls answered",
+      "description": "Calls to a model that returned an answer, across all reviews.",
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 8,
+        "w": 12,
         "h": 5
       },
       "transparent": false,
@@ -86,14 +86,14 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_model_calls_total[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_model_calls_total{outcome!=\"error\"}[$__range])) or vector(0)",
           "instant": true,
           "range": false
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: in total",
+          "unit": "suffix: model calls answered",
           "color": {
             "mode": "thresholds"
           },
@@ -111,7 +111,16 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "0 · none yet",
+                  "text": "0 model calls yet",
+                  "color": "blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 model call answered",
                   "color": "blue"
                 }
               }
@@ -134,7 +143,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 40,
+          "valueSize": 48,
           "titleSize": 15
         }
       }
@@ -145,9 +154,9 @@
       "title": "Model calls that returned an error",
       "description": "A model call that returned an error. In sample mode a call the recorded answers have no answer for is counted here (generator: no recorded response); the review goes on without it. In a live lab an error is a failed call to the model.",
       "gridPos": {
-        "x": 8,
+        "x": 12,
         "y": 0,
-        "w": 8,
+        "w": 6,
         "h": 5
       },
       "transparent": false,
@@ -225,9 +234,9 @@
       "title": "Guardrail checks that said unsafe",
       "description": "Model answers or prompts the guardrail judged unsafe. None is good.",
       "gridPos": {
-        "x": 16,
+        "x": 18,
         "y": 0,
-        "w": 8,
+        "w": 6,
         "h": 5
       },
       "transparent": false,
@@ -322,7 +331,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(proven_model_calls_total[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\") or on() label_replace(vector(0), \"who\", \"No model call yet\", \"\", \"\")",
+          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(proven_model_calls_total[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{who}}"
@@ -332,7 +341,7 @@
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.who}",
+          "noValue": "No model call yet",
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
@@ -345,8 +354,7 @@
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -361,20 +369,24 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     },
     {
       "id": 5,
       "type": "bargauge",
-      "title": "Calls, by the model asked and the one that answered",
-      "description": "The model a call asked for, and the model the provider says answered it. When a fallback answers, the two differ (NVIDIA first, then the fallback model). Sample mode names no answering model.",
+      "title": "Calls, by the model asked (and the one that answered)",
+      "description": "The model a call asked for. When the provider names the model that answered, the bar reads asked → answered; a fallback shows as two different names. Sample mode names no answering model.",
       "gridPos": {
         "x": 12,
         "y": 5,
@@ -393,7 +405,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_join(label_replace(sum by (gen_ai_request_model, gen_ai_response_model) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"gen_ai_response_model\", \"model not named\", \"gen_ai_response_model\", \"^$\"), \"route\", \" → \", \"gen_ai_request_model\", \"gen_ai_response_model\") or on() label_replace(vector(0), \"route\", \"No model call yet\", \"\", \"\")",
+          "expr": "label_replace(label_join(sum by (gen_ai_request_model, gen_ai_response_model) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"route\", \" → \", \"gen_ai_request_model\", \"gen_ai_response_model\"), \"route\", \"$1\", \"route\", \"(.*) → \")",
           "instant": true,
           "range": false,
           "legendFormat": "{{route}}"
@@ -403,7 +415,7 @@
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.route}",
+          "noValue": "No model call yet",
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
@@ -416,8 +428,7 @@
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -432,12 +443,16 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     },
@@ -464,7 +479,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_join(sum by (side, verdict) (last_over_time(proven_guardrail_checks_total[$__range])), \"check\", \" · \", \"side\", \"verdict\") or on() label_replace(vector(0), \"check\", \"No guardrail check yet\", \"\", \"\")",
+          "expr": "label_join(sum by (side, verdict) (last_over_time(proven_guardrail_checks_total[$__range])), \"check\", \" · \", \"side\", \"verdict\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{check}}"
@@ -474,21 +489,20 @@
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.check}",
+          "noValue": "No guardrail check yet",
           "color": {
             "mode": "fixed",
-            "fixedColor": "green"
+            "fixedColor": "blue"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -503,12 +517,16 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     },
@@ -516,7 +534,7 @@
       "id": 7,
       "type": "bargauge",
       "title": "What Proven refused to keep, by reason",
-      "description": "Claims the Judge dropped: refuted by the Skeptic, no evidence, or already refuted in an earlier review (suppressed).",
+      "description": "Claims the Judge dropped: not supported by a query or a test, refuted by the Skeptic, or already refuted in an earlier review.",
       "gridPos": {
         "x": 8,
         "y": 13,
@@ -535,7 +553,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (reason) (last_over_time(proven_review_claims_dropped_total[$__range])) or on() label_replace(vector(0), \"reason\", \"Nothing was dropped yet\", \"\", \"\")",
+          "expr": "label_replace(label_replace(label_replace(sum by (reason) (last_over_time(proven_review_claims_dropped_total[$__range])), \"reason\", \"no evidence\", \"reason\", \"no_evidence\"), \"reason\", \"refuted by the Skeptic\", \"reason\", \"refuted\"), \"reason\", \"already refuted earlier\", \"reason\", \"suppressed\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{reason}}"
@@ -545,21 +563,20 @@
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.reason}",
+          "noValue": "Nothing was dropped yet",
           "color": {
             "mode": "fixed",
-            "fixedColor": "yellow"
+            "fixedColor": "blue"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "yellow",
+                "color": "blue",
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -574,19 +591,23 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     },
     {
       "id": 8,
       "type": "bargauge",
-      "title": "Model latency (sample: recorded answers)",
+      "title": "Model latency (sample mode: recorded answers)",
       "description": "Mean time of a model call. In sample mode the answers are recorded, so this is not a measure of any model; in a live lab it is the real latency of each agent's calls.",
       "gridPos": {
         "x": 16,
@@ -606,7 +627,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\") or on() label_replace(vector(0), \"who\", \"No model call yet\", \"\", \"\")",
+          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{who}}"
@@ -616,7 +637,7 @@
         "defaults": {
           "unit": "s",
           "min": 0,
-          "displayName": "${__field.labels.who}",
+          "noValue": "No model call yet",
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
@@ -629,8 +650,7 @@
                 "value": null
               }
             ]
-          },
-          "decimals": 3
+          }
         },
         "overrides": []
       },
@@ -645,12 +665,16 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     }

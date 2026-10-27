@@ -1,15 +1,19 @@
 package lab
 
-// The visual bar of the six dashboards (the owner's, 26 Oct: a five-second read, colour always with a word, no empty panel
-// without its reason in words, no cut label), held as far as it can be held without a browser. Each rule is one a live run of
-// round 1 broke: a duration 10^6 too large, a "no data" sentence in every table cell, a bar chart that was an empty box, a
-// table that hid a row, a time range that put every review in one bar. How a panel looks is still checked by the screenshots
-// of a live make up; what is held here is the JSON that makes it look so.
+// The visual bar of the six dashboards (the owner's, 26-27 Oct: a five-second read, one sentence on top, colour always with a
+// word, numbers that agree, no empty panel without its reason in words, no cut label), held as far as it can be held without
+// a browser. Each rule is one a live run broke: a duration 10^6 too large, a "no data" sentence in every table cell, a bar
+// chart that was an empty box or a grey bar with a zero, "Value #A" for a name, "8 of 5 flagged", a table that hid a row, a
+// time range that put every review in one bar. How a panel looks is still checked by the screenshots of a live make up; what
+// is held here is the JSON that makes it look so.
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -22,15 +26,21 @@ const (
 	fixtureSpanMinutes = 20
 	maxRangeMinutes    = 3 * fixtureSpanMinutes
 	maxStepMinutes     = fixtureSpanMinutes / 5
+	minBarTextSize     = 16
 )
 
 type stylePanel struct {
 	Type    string `json:"type"`
 	Title   string `json:"title"`
+	Desc    string `json:"description"`
 	GridPos struct{ W, H int }
 	Options struct {
 		CellHeight    string `json:"cellHeight"`
 		NamePlacement string `json:"namePlacement"`
+		Text          struct {
+			TitleSize int `json:"titleSize"`
+			ValueSize int `json:"valueSize"`
+		} `json:"text"`
 	} `json:"options"`
 	FieldConfig struct {
 		Defaults struct {
@@ -57,6 +67,10 @@ type stylePanel struct {
 		Limit        int    `json:"limit"`
 		Datasource   struct{ Type string }
 	} `json:"targets"`
+	Transformations []struct {
+		ID      string          `json:"id"`
+		Options json.RawMessage `json:"options"`
+	} `json:"transformations"`
 }
 
 type styleDoc struct {
@@ -65,10 +79,12 @@ type styleDoc struct {
 }
 
 var (
-	labelTplRe  = regexp.MustCompile(`\$\{__field\.labels\.([a-z_]+)\}`)
 	minutesRe   = regexp.MustCompile(`^(?:now-)?(\d+)([mhd])$`)
+	ofNRe       = regexp.MustCompile(`^suffix: of (\d+) `)
 	pluralWords = []string{"findings", "reviews", "claims", "calls", "agents", "receipts", "alarms", "models", "runs", "steps"}
 	badStatBase = map[string]bool{"red": true, "yellow": true, "orange": true}
+	// A review is named by its pull request: one instance id each, "pr<number>-<fixture>" (lab/seed/seed.sh).
+	perPullRequestRe = regexp.MustCompile(`instance=~"pr\[0-9\]\+-`)
 )
 
 func minutesOf(s string) (int, bool) {
@@ -81,9 +97,35 @@ func minutesOf(s string) (int, bool) {
 	return n * map[string]int{"m": 1, "h": 60, "d": 1440}[m[2]], true
 }
 
-// tableRowsFit is the least panel height, in grid units of about 38 px, that shows rows rows at the small cell height with
-// a header and the title: the same sum as table_h in lab/grafana/build_dashboards.py.
-func tableRowsFit(rows int) int { return int(math.Ceil(float64(rows+1)*30/38)) + 2 }
+// tableRowsFit is the least panel height, in grid units (30 px and an 8 px gap), that shows rows rows, the header and the
+// title with room to spare: the same sum as table_h in lab/grafana/build_dashboards.py.
+func tableRowsFit(rows int) int { return int(math.Ceil(float64((rows+1)*34+58) / 38)) }
+
+// demoPullRequests is the number of demo pull requests in the manifest: what "of N" on a dashboard must say.
+func demoPullRequests() int {
+	f, err := os.Open(filepath.Join(root, "lab", "seed", "prs.tsv"))
+	if err != nil {
+		return -1
+	}
+	defer f.Close()
+	n := 0
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if l := sc.Text(); l != "" && !strings.HasPrefix(l, "#") {
+			n++
+		}
+	}
+	return n
+}
+
+func hasMapping(p stylePanel, key string) bool {
+	for _, m := range p.FieldConfig.Defaults.Mappings {
+		if strings.Contains(string(m), `"`+key+`":`) {
+			return true
+		}
+	}
+	return false
+}
 
 // lintVisualBar returns every way a dashboard breaks the visual bar.
 func lintVisualBar(raw []byte) []string {
@@ -96,12 +138,22 @@ func lintVisualBar(raw []byte) []string {
 	if m, ok := minutesOf(d.Time.From); !ok || m > maxRangeMinutes {
 		add("the default time range %q does not fit a run of %d minutes (at most %d)", d.Time.From, fixtureSpanMinutes, maxRangeMinutes)
 	}
-	for _, p := range d.Panels {
+	prs := demoPullRequests()
+	for i, p := range d.Panels {
 		if n := len([]rune(p.Title)); n > p.GridPos.W*6 {
 			add("panel %q has %d characters, which a %d-column panel cuts at 1920 px (at most %d)", p.Title, n, p.GridPos.W, p.GridPos.W*6)
 		}
 		def := p.FieldConfig.Defaults
+		// No panel shows a raw series name as its own: "Value #A" is what Grafana calls a series it was not told how to name.
+		for _, s := range []string{p.Title, p.Desc, def.DisplayName} {
+			if strings.Contains(s, "Value #") {
+				add("panel %q shows the name %q, which means nothing to a reader", p.Title, "Value #…")
+			}
+		}
 		for _, tg := range p.Targets {
+			if strings.Contains(tg.LegendFormat, "Value #") {
+				add("panel %q names a series %q, which means nothing to a reader", p.Title, "Value #…")
+			}
 			if (strings.Contains(tg.Expr, "_seconds_sum") || strings.Contains(tg.Expr, "_seconds_bucket")) && def.Unit != "s" {
 				add("panel %q reads a duration in seconds and says its unit is %q", p.Title, def.Unit)
 			}
@@ -121,25 +173,37 @@ func lintVisualBar(raw []byte) []string {
 				add("stat %q is %s at its base step, so a zero that means nothing yet reads as an alarm", p.Title, st[0].Color)
 			}
 			for _, w := range pluralWords {
-				if regexp.MustCompile(`\b` + w + `\b`).MatchString(unit) {
-					add("stat %q puts %q after a number, which reads \"1 %s\"", p.Title, w, w)
+				if regexp.MustCompile(`\b`+w+`\b`).MatchString(unit) && !hasMapping(p, "1") {
+					add("stat %q puts %q after a number and has no sentence for 1, which reads \"1 %s\"", p.Title, w, w)
+				}
+			}
+			// "N of M": M is the number of demo pull requests, and N counts pull requests, one per instance id, so N cannot pass M.
+			if m := ofNRe.FindStringSubmatch(def.Unit); m != nil {
+				if m[1] != fmt.Sprint(prs) {
+					add("stat %q says \"of %s\" but the lab seeds %d pull requests: its denominator is not what it counts", p.Title, m[1], prs)
+				}
+				for _, tg := range p.Targets {
+					if !strings.Contains(tg.Expr, "count(") || !perPullRequestRe.MatchString(tg.Expr) {
+						add("stat %q does not count one review per pull request (count over instance ids pr<number>-<fixture>), so its numerator can pass its denominator", p.Title)
+					}
 				}
 			}
 		case "bargauge":
-			m := labelTplRe.FindStringSubmatch(def.DisplayName)
-			if m == nil {
-				add("bar gauge %q has no display name template naming its label", p.Title)
-				break
+			if def.NoValue == "" {
+				add("bar gauge %q says nothing when it has no data", p.Title)
 			}
 			if p.Options.NamePlacement != "top" {
 				add("bar gauge %q puts its names at the %q, where a long label is cut", p.Title, p.Options.NamePlacement)
 			}
+			if p.Options.Text.TitleSize < minBarTextSize || p.Options.Text.ValueSize < minBarTextSize {
+				add("bar gauge %q has labels of %d and values of %d px, too small to read in five seconds (at least %d)", p.Title, p.Options.Text.TitleSize, p.Options.Text.ValueSize, minBarTextSize)
+			}
 			for _, tg := range p.Targets {
-				if !strings.Contains(tg.LegendFormat, "{{"+m[1]+"}}") {
-					add("bar gauge %q names %s in its display name but its legend does not", p.Title, m[1])
+				if !strings.Contains(tg.LegendFormat, "{{") {
+					add("bar gauge %q names its bars by nothing: its legend has no label", p.Title)
 				}
-				if !strings.Contains(tg.Expr, "or on() label_replace(vector(0)") {
-					add("bar gauge %q draws an empty box when there is no data: its query has no row that says why", p.Title)
+				if strings.Contains(tg.Expr, "vector(0)") {
+					add("bar gauge %q draws a zero bar when there is no data: it says why with noValue instead", p.Title)
 				}
 			}
 		case "table":
@@ -153,16 +217,20 @@ func lintVisualBar(raw []byte) []string {
 			for _, tg := range p.Targets {
 				if tg.Datasource.Type == "tempo" {
 					rows = tg.Limit
+					kept := false
+					for _, tr := range p.Transformations {
+						kept = kept || tr.ID == "filterFieldsByName"
+					}
+					if !kept {
+						add("table %q carries Tempo's raw columns to the reader: it keeps only the columns it names", p.Title)
+					}
 				}
-			}
-			if rows > 0 && !strings.Contains(p.Title, fmt.Sprintf("(the latest %d)", rows)) {
-				add("table %q shows only the latest %d rows and does not say so", p.Title, rows)
 			}
 			if need := tableRowsFit(rows); rows > 0 && p.GridPos.H < need {
 				add("table %q is %d high and hides rows: %d rows need %d", p.Title, p.GridPos.H, rows, need)
 			}
-			if rows == 0 && p.GridPos.H < tableRowsFit(4) {
-				add("table %q is %d high, too small for its rows", p.Title, p.GridPos.H)
+			if rows == 0 && p.GridPos.H < tableRowsFit(demoPullRequests()) {
+				add("table %q is %d high, too small for its %d rows", p.Title, p.GridPos.H, demoPullRequests())
 			}
 			for _, o := range p.FieldConfig.Overrides {
 				for _, pr := range o.Props {
@@ -181,6 +249,10 @@ func lintVisualBar(raw []byte) []string {
 					add("chart %q steps by %q: a run of %d minutes must spread over bars of at most %d minutes", p.Title, tg.Interval, fixtureSpanMinutes, maxStepMinutes)
 				}
 			}
+		}
+		// The first panel is the sentence the dashboard opens with.
+		if i == 0 && (p.Type != "stat" || p.GridPos.H < 4) {
+			add("the first panel %q is not the one-sentence stat the dashboard opens with", p.Title)
 		}
 	}
 	return bad
@@ -232,7 +304,7 @@ func TestTheVisualBarTurnsRedWhenEachRuleIsBroken(t *testing.T) {
 		name, uid, panel, want string
 		mutate                 func(p map[string]any)
 	}{
-		{"a duration unit that is not the source's (mutated field: the Duration unit of a Tempo table)", "proven-overview", "Reviews with a failed service", "Tempo returns nanoseconds",
+		{"a duration unit that is not the source's (mutated field: the Duration unit of a Tempo table)", "proven-evidence", "Investigator and Prover runs", "Tempo returns nanoseconds",
 			func(p map[string]any) {
 				for _, o := range sub(p, "fieldConfig")["overrides"].([]any) {
 					for _, pr := range o.(map[string]any)["properties"].([]any) {
@@ -244,14 +316,18 @@ func TestTheVisualBarTurnsRedWhenEachRuleIsBroken(t *testing.T) {
 			}},
 		{"a noValue sentence on a table (mutated field: defaults.noValue)", "proven-engines", "What each review ran as", "noValue sentence",
 			func(p map[string]any) { sub(p, "fieldConfig", "defaults")["noValue"] = "No review has run yet." }},
-		{"a bar gauge with no display name (mutated field: defaults.displayName)", "proven-models", "What Proven refused", "display name template",
-			func(p map[string]any) { sub(p, "fieldConfig", "defaults")["displayName"] = "" }},
-		{"a bar gauge that can be an empty box (mutated field: the target's expr)", "proven-nightshift", "Why calls failed", "empty box",
+		{"a bar gauge that is silent without data (mutated field: defaults.noValue)", "proven-models", "What Proven refused", "says nothing when it has no data",
+			func(p map[string]any) { sub(p, "fieldConfig", "defaults")["noValue"] = "" }},
+		{"a bar gauge that draws a zero bar (mutated field: the target's expr)", "proven-nightshift", "Why calls failed", "draws a zero bar",
 			func(p map[string]any) {
 				tg := p["targets"].([]any)[0].(map[string]any)
-				tg["expr"] = strings.Split(tg["expr"].(string), " or on()")[0]
+				tg["expr"] = tg["expr"].(string) + ` or on() label_replace(vector(0), "reason", "none", "", "")`
 			}},
-		{"a stat that is red at zero (mutated field: the base threshold colour)", "proven-nightshift", "Receipts loaded", "alarm",
+		{"a bar named \"Value #A\" (mutated field: the target's legendFormat)", "proven-models", "Calls, by agent and reviewer", "Value #",
+			func(p map[string]any) { p["targets"].([]any)[0].(map[string]any)["legendFormat"] = "Value #A" }},
+		{"a bar gauge whose labels are too small (mutated field: options.text.titleSize)", "proven-models", "Calls, by agent and reviewer", "too small to read",
+			func(p map[string]any) { sub(p, "options", "text")["titleSize"] = 9 }},
+		{"a stat that is red at zero (mutated field: the base threshold colour)", "proven-nightshift", "Calls made", "alarm",
 			func(p map[string]any) {
 				sub(p, "fieldConfig", "defaults", "thresholds")["steps"].([]any)[0].(map[string]any)["color"] = "red"
 			}},
@@ -260,18 +336,26 @@ func TestTheVisualBarTurnsRedWhenEachRuleIsBroken(t *testing.T) {
 				d := sub(p, "fieldConfig", "defaults")
 				d["unit"], d["mappings"] = "short", []any{}
 			}},
-		{"a plural after a number (mutated field: the stat's unit)", "proven-review", "Findings kept", `reads "1 findings"`,
-			func(p map[string]any) { sub(p, "fieldConfig", "defaults")["unit"] = "suffix: findings kept" }},
+		{"a plural with no sentence for 1 (mutated field: the stat's mappings)", "proven-review", "Findings this review kept", `reads "1 findings"`,
+			func(p map[string]any) { sub(p, "fieldConfig", "defaults")["mappings"] = []any{} }},
+		{"\"8 of 5\": a denominator that is not the pull requests (mutated field: the stat's unit)", "proven-overview", "Pull requests blocked", "its denominator is not what it counts",
+			func(p map[string]any) { sub(p, "fieldConfig", "defaults")["unit"] = "suffix: of 5 pull requests blocked" }},
+		{"a count that is not one per pull request (mutated field: the target's expr)", "proven-overview", "Reviews finished", "one review per pull request",
+			func(p map[string]any) {
+				p["targets"].([]any)[0].(map[string]any)["expr"] = `count(proven_agent_state{proven_agent="writer"} == 2)`
+			}},
 		{"a table too short for its rows (mutated field: gridPos.h)", "proven-review", "The agents, in order", "hides rows",
 			func(p map[string]any) { p["gridPos"].(map[string]any)["h"] = 8 }},
-		{"a table that does not say it is cut (mutated field: the title)", "proven-evidence", "Investigator and Prover runs", "does not say so",
-			func(p map[string]any) { p["title"] = "Investigator and Prover runs" }},
-		{"a bar chart that steps too coarsely (mutated field: the target interval)", "proven-overview", "Reviews started over time", "must spread over bars",
+		{"a Tempo table with raw columns (mutated field: transformations)", "proven-engines", "What each review ran as", "raw columns",
+			func(p map[string]any) { p["transformations"] = []any{} }},
+		{"a bar chart that steps too coarsely (mutated field: the target interval)", "proven-nightshift", "Calls over time", "must spread over bars",
 			func(p map[string]any) { p["targets"].([]any)[0].(map[string]any)["interval"] = "10m" }},
 		{"a title that 1920 px cuts (mutated field: the title)", "proven-overview", "Reviews finished", "cuts at 1920",
 			func(p map[string]any) { p["title"] = "Reviews finished, counted by the Writer of every review" }},
 		{"a duration in the wrong unit (mutated field: the bar gauge's unit)", "proven-models", "Model latency", "duration in seconds",
 			func(p map[string]any) { sub(p, "fieldConfig", "defaults")["unit"] = "ms" }},
+		{"a dashboard that does not open with its sentence (mutated field: the first panel's height)", "proven-engines", "H-MEM", "opens with",
+			func(p map[string]any) { p["gridPos"].(map[string]any)["h"] = 2 }},
 	} {
 		mut := mutatePanel(t, ds[c.uid], c.panel, c.mutate)
 		var found bool

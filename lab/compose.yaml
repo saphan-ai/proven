@@ -53,8 +53,9 @@ services:
     environment:
       # Open on the dashboard, not on Grafana's empty home page.
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /proven-dashboards/proven-overview.json
-      # Dark, for every visitor: the dashboards are made for it.
-      GF_USERS_DEFAULT_THEME: dark
+      # Light and airy for every visitor (the owner, 27 Oct): the palette is made to read in dark too, and a visitor
+      # may switch in the profile.
+      GF_USERS_DEFAULT_THEME: light
       # No sign-in: the lab binds to 127.0.0.1. `make trace` also reads through this.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin

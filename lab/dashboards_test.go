@@ -235,12 +235,13 @@ func TestTheOverviewHoldsTheDemoManifestToItsCounts(t *testing.T) {
 		}
 	}
 	raw := string(readDashboards(t)["proven-overview"])
-	for _, f := range append(append([]string{}, clean...), defect...) {
+	// The clean changes are named in the false-alarm query: a defect one is any other.
+	for _, f := range clean {
 		if !strings.Contains(raw, f) {
-			t.Errorf("the Overview does not know the demo change %q: lab/seed/prs.tsv changed, run python3 lab/grafana/build_dashboards.py", f)
+			t.Errorf("the Overview does not know the clean demo change %q: lab/seed/prs.tsv changed, run python3 lab/grafana/build_dashboards.py", f)
 		}
 	}
-	if want := fmt.Sprintf("of %d flagged", len(defect)); !strings.Contains(raw, want) {
+	if want := fmt.Sprintf("of %d pull requests blocked", len(clean)+len(defect)); !strings.Contains(raw, want) {
 		t.Errorf("the Overview does not say %q", want)
 	}
 	if want := fmt.Sprintf("on the %d clean demo pull requests", len(clean)); !strings.Contains(raw, want) {
@@ -291,8 +292,8 @@ func TestTheDashboardsThatLackMetricsSayWhichOnesAreMissing(t *testing.T) {
 func TestTheLabNamesEachReviewByItsPullRequestAndChange(t *testing.T) {
 	// The dashboards read a review's pull request and change from its instance id; the seed's workflow sets that id.
 	seed := read(t, "lab", "seed", "seed.sh")
-	if !strings.Contains(seed, `OTEL_RESOURCE_ATTRIBUTES=service.instance.id=\$(date +%s)-pr\${PR}-\${fixture}`) {
-		t.Error("the seed's workflow does not set the review's instance id to <time>-pr<number>-<fixture>")
+	if !strings.Contains(seed, `OTEL_RESOURCE_ATTRIBUTES=service.instance.id=pr\${PR}-\${fixture}`) {
+		t.Error("the seed's workflow does not set the review's instance id to pr<number>-<fixture>, with no time in it")
 	}
 	wf := read(t, "lab", "workflow", "proven.yml")
 	for _, w := range []string{"PR: ${{ github.event.pull_request.number }}", `fixture="${HEAD_REF#demo-}"`} {
@@ -301,7 +302,7 @@ func TestTheLabNamesEachReviewByItsPullRequestAndChange(t *testing.T) {
 		}
 	}
 	compose := read(t, "lab", "compose.yaml")
-	if !strings.Contains(compose, "GF_USERS_DEFAULT_THEME: dark") || !strings.Contains(compose, "proven-overview.json") {
-		t.Error("Grafana is not set to the dark theme and the Overview as its home")
+	if !strings.Contains(compose, "GF_USERS_DEFAULT_THEME: light") || !strings.Contains(compose, "proven-overview.json") {
+		t.Error("Grafana is not set to the light theme and the Overview as its home")
 	}
 }

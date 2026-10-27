@@ -11,7 +11,7 @@
   "graphTooltip": 1,
   "refresh": "10s",
   "time": {
-    "from": "now-1h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -22,7 +22,7 @@
       "1m"
     ]
   },
-  "style": "dark",
+  "style": "light",
   "links": [
     {
       "type": "dashboards",
@@ -85,12 +85,12 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Findings kept",
+      "title": "Findings this review kept",
       "description": "Findings this review kept. None means a clean verdict.",
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 8,
+        "w": 12,
         "h": 5
       },
       "transparent": false,
@@ -112,7 +112,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: · blocked",
+          "unit": "suffix: findings kept · blocked",
           "color": {
             "mode": "thresholds"
           },
@@ -134,8 +134,17 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "0 · clean",
+                  "text": "0 findings kept · clean",
                   "color": "green"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 finding kept · blocked",
+                  "color": "red"
                 }
               }
             }
@@ -157,7 +166,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 40,
+          "valueSize": 48,
           "titleSize": 15
         }
       }
@@ -168,9 +177,9 @@
       "title": "Claims the Judge dropped",
       "description": "Claims dropped for being refuted, unproved, or already refuted in an earlier review.",
       "gridPos": {
-        "x": 8,
+        "x": 12,
         "y": 0,
-        "w": 8,
+        "w": 6,
         "h": 5
       },
       "transparent": false,
@@ -244,9 +253,9 @@
       "title": "Model calls that failed",
       "description": "Calls to a model that returned an error. In sample mode a call the recorded set has no answer for counts here too; the review goes on.",
       "gridPos": {
-        "x": 16,
+        "x": 18,
         "y": 0,
-        "w": 8,
+        "w": 6,
         "h": 5
       },
       "transparent": false,
@@ -321,13 +330,13 @@
     {
       "id": 4,
       "type": "table",
-      "title": "The agents, in order, and how long each took (the latest 16)",
-      "description": "Each row is one agent of this review, from the trace. The bar is how long it ran. The two reviewers each run their own Planner and Skeptic.",
+      "title": "The agents, in order, and how long each took",
+      "description": "Each row is one agent of this review, from the trace. The bar is how long it ran. The two reviewers each run their own Planner and Skeptic. In a sample-mode lab the agents answer from recorded answers and the Prover runs no test, so times of a few microseconds are the recorded answers, not real work. In a live lab they are real.",
       "gridPos": {
         "x": 0,
         "y": 5,
         "w": 14,
-        "h": 16
+        "h": 15
       },
       "transparent": false,
       "datasource": {
@@ -344,7 +353,7 @@
           "queryType": "traceql",
           "query": "{ resource.service.instance.id = \"$run\" && span.proven.agent != \"\" } | select(span.proven.agent, span.proven.reviewer, span.gen_ai.request.model)",
           "tableType": "spans",
-          "limit": 16
+          "limit": 14
         }
       ],
       "fieldConfig": {
@@ -401,17 +410,22 @@
       },
       "transformations": [
         {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Start time",
+                "proven.agent",
+                "proven.reviewer",
+                "gen_ai.request.model",
+                "Duration"
+              ]
+            }
+          }
+        },
+        {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "traceIdHidden": true,
-              "spanID": true,
-              "Trace ID": true,
-              "Span ID": true,
-              "traceService": true,
-              "traceName": true,
-              "nested": true
-            },
             "renameByName": {
               "Start time": "Start time",
               "proven.agent": "Agent",
@@ -425,9 +439,9 @@
     },
     {
       "id": 5,
-      "type": "table",
-      "title": "Skeptic verdicts, by reviewer (empty: no finding)",
-      "description": "How each reviewer's Skeptic judged each finding: refuted, upheld, or not attempted. Where the two columns differ, the reviewers disagree. The table is empty when this review kept no finding for the Skeptic to judge.",
+      "type": "bargauge",
+      "title": "Skeptic verdicts, by reviewer",
+      "description": "How each reviewer's Skeptic judged each finding: refuted, upheld, or not attempted. Where the two differ, the reviewers disagree.",
       "gridPos": {
         "x": 14,
         "y": 5,
@@ -446,92 +460,30 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_reviewer, verdict) (last_over_time(proven_reviewer_verdicts_total{instance=\"$run\"}[$__range]))",
+          "expr": "label_join(sum by (proven_reviewer, verdict) (last_over_time(proven_reviewer_verdicts_total{instance=\"$run\"}[$__range])), \"who\", \" · \", \"proven_reviewer\", \"verdict\")",
           "instant": true,
           "range": false,
-          "format": "table"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "left"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm"
-      },
-      "transformations": [
-        {
-          "id": "groupingToMatrix",
-          "options": {
-            "columnField": "proven_reviewer",
-            "rowField": "verdict",
-            "valueField": "Value",
-            "emptyValue": "zero"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "renameByName": {
-              "verdict\\proven_reviewer": "Verdict"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "type": "bargauge",
-      "title": "Findings by level of proof",
-      "description": "How well each kept finding is proved: the strongest evidence it carries.",
-      "gridPos": {
-        "x": 14,
-        "y": 13,
-        "w": 10,
-        "h": 8
-      },
-      "transparent": false,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${ds_prom}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${ds_prom}"
-          },
-          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range])) or on() label_replace(vector(0), \"proven_proof_level\", \"No finding kept: the reviews are still running, or every change was clean\", \"\", \"\")",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{proven_proof_level}}"
+          "legendFormat": "{{who}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.proven_proof_level}",
+          "noValue": "No finding was kept, so the Skeptic had nothing to judge",
           "color": {
             "mode": "fixed",
-            "fixedColor": "green"
+            "fixedColor": "blue"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -546,25 +498,29 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     },
     {
-      "id": 7,
+      "id": 6,
       "type": "bargauge",
-      "title": "Where the two reviewers disagree",
-      "description": "Findings one reviewer named and the other did not, or that they judged differently.",
+      "title": "Findings by level of proof",
+      "description": "How well each kept finding is proved: the strongest evidence it carries.",
       "gridPos": {
-        "x": 0,
-        "y": 21,
-        "w": 12,
-        "h": 7
+        "x": 14,
+        "y": 13,
+        "w": 10,
+        "h": 6
       },
       "transparent": false,
       "datasource": {
@@ -578,7 +534,81 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=\"$run\"}[$__range])) or on() label_replace(vector(0), \"kind\", \"No disagreement: the two reviewers agree on this review\", \"\", \"\")",
+          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{proven_proof_level}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No finding kept: the reviews are still running, or every change was clean",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "minVizHeight": 28,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "auto",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Where the two reviewers disagree",
+      "description": "Findings one reviewer named and the other did not, or that they judged differently.",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 6
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=\"$run\"}[$__range]))",
           "instant": true,
           "range": false,
           "legendFormat": "{{kind}}"
@@ -588,7 +618,7 @@
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.kind}",
+          "noValue": "The two reviewers agree on this review",
           "color": {
             "mode": "fixed",
             "fixedColor": "yellow"
@@ -601,8 +631,7 @@
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -617,12 +646,16 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
     },
@@ -633,9 +666,9 @@
       "description": "Where to read the evidence behind a finding.",
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 20,
         "w": 12,
-        "h": 7
+        "h": 6
       },
       "options": {
         "mode": "markdown",

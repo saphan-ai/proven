@@ -1,7 +1,7 @@
 {
   "uid": "proven-overview",
-  "title": "Proven: every review at a glance",
-  "description": "Every review the lab ran, whether Proven flagged the broken changes, and whether it raised a false alarm on the clean ones.",
+  "title": "Proven: every pull request at a glance",
+  "description": "Every pull request the lab reviewed (its latest review), whether Proven blocked the broken ones, and whether it raised a false alarm on the clean ones.",
   "tags": [
     "proven"
   ],
@@ -11,7 +11,7 @@
   "graphTooltip": 1,
   "refresh": "10s",
   "time": {
-    "from": "now-1h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -22,7 +22,7 @@
       "1m"
     ]
   },
-  "style": "dark",
+  "style": "light",
   "links": [
     {
       "type": "dashboards",
@@ -66,12 +66,12 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Reviews finished",
-      "description": "Reviews whose last agent, the Writer, is done.",
+      "title": "Pull requests blocked",
+      "description": "Pull requests on which Proven kept at least one finding, out of the 7 demo pull requests (5 broken, 2 clean). Every kept finding carries evidence.",
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 6,
+        "w": 24,
         "h": 5
       },
       "transparent": false,
@@ -86,14 +86,14 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "count(last_over_time(proven_agent_state{proven_agent=\"writer\"}[$__range]) == 2) or vector(0)",
+          "expr": "count(sum by (instance) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])) > 0) or vector(0)",
           "instant": true,
           "range": false
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: finished",
+          "unit": "suffix: of 7 pull requests blocked",
           "color": {
             "mode": "thresholds"
           },
@@ -105,8 +105,12 @@
                 "value": null
               },
               {
-                "color": "green",
+                "color": "yellow",
                 "value": 1
+              },
+              {
+                "color": "green",
+                "value": 5
               }
             ]
           },
@@ -115,7 +119,91 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "0 · none yet",
+                  "text": "0 of 7 pull requests blocked",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 48,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Reviews finished",
+      "description": "Pull requests whose review is done: its last agent, the Writer, finished.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 8,
+        "h": 4
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "count(max by (instance) (last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range])) == 2) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: of 7 finished",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 7
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 of 7 finished",
                   "color": "blue"
                 }
               }
@@ -144,89 +232,15 @@
       }
     },
     {
-      "id": 2,
-      "type": "stat",
-      "title": "Broken changes Proven flagged",
-      "description": "Demo pull requests with a real defect (5 in the lab) on which Proven kept at least one finding. All of them is good.",
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 5
-      },
-      "transparent": false,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${ds_prom}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${ds_prom}"
-          },
-          "expr": "count(sum by (instance) (last_over_time(proven_review_findings_total{instance=~\"[0-9]+-pr[0-9]+-(discount|malicious-package|osv-go-module|spdx-licence|project-health)\"}[$__range])) > 0) or vector(0)",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "suffix: of 5 flagged",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "green",
-                "value": 5
-              }
-            ]
-          },
-          "mappings": [],
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "text": {
-          "valueSize": 40,
-          "titleSize": 15
-        }
-      }
-    },
-    {
       "id": 3,
       "type": "stat",
       "title": "False alarms on the clean changes",
       "description": "Findings Proven kept on the 2 clean demo pull requests. None is good: a clean change must get a clean verdict.",
       "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
-        "h": 5
+        "x": 8,
+        "y": 5,
+        "w": 8,
+        "h": 4
       },
       "transparent": false,
       "datasource": {
@@ -240,7 +254,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"[0-9]+-pr[0-9]+-(discount-clean|unknown-author)\"}[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-(discount-clean|unknown-author)\"}[$__range])) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -301,12 +315,12 @@
       "id": 4,
       "type": "stat",
       "title": "Agents that failed",
-      "description": "Agent stages that ended failed in any review. None is good: a failed agent means part of the review did not run.",
+      "description": "Agent stages that ended failed in the latest review of any pull request. None is good: a failed agent means part of the review did not run.",
       "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
-        "h": 5
+        "x": 16,
+        "y": 5,
+        "w": 8,
+        "h": 4
       },
       "transparent": false,
       "datasource": {
@@ -320,7 +334,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "count(last_over_time(proven_agent_state[$__range]) == 3) or vector(0)",
+          "expr": "count(last_over_time(proven_agent_state{instance=~\"pr[0-9]+-.+\"}[$__range]) == 3) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -378,15 +392,31 @@
       }
     },
     {
-      "id": 5,
-      "type": "table",
-      "title": "Every review: how it ended, findings kept, claims dropped",
-      "description": "One row per demo pull request, newest run of each. Verdict: clean when no finding was kept, blocked when one was. The table holds twelve rows; scroll inside it for more.",
+      "id": 7,
+      "type": "text",
+      "title": "What the numbers count",
+      "description": "Every number on this page counts the same thing.",
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 19,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Each number counts **pull requests**, using the **latest review** of each. 7 demo pull requests: 5 broken, 2 clean. A review that has not finished is counted as it stands."
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Every pull request: how its review ended",
+      "description": "One row per demo pull request, its latest review. Verdict: clean when no finding was kept, blocked when one was. Findings and Claims dropped count that one review.",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
         "w": 16,
-        "h": 13
+        "h": 10
       },
       "transparent": false,
       "datasource": {
@@ -400,7 +430,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "max by (pr, change) (label_replace(label_replace(last_over_time(proven_agent_state{proven_agent=\"writer\"}[$__range]), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\"))",
+          "expr": "max by (pr, change) (label_replace(label_replace(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\"))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -411,7 +441,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_findings_total[$__range])), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\"))",
+          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\"))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -422,7 +452,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_claims_dropped_total[$__range])), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\"))",
+          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\"))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -433,7 +463,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "clamp_max(max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_findings_total[$__range])), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\")), 1)",
+          "expr": "clamp_max(max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\")), 1)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -591,9 +621,9 @@
       "description": "How well each kept finding is proved: the strongest evidence it carries.",
       "gridPos": {
         "x": 16,
-        "y": 5,
+        "y": 9,
         "w": 8,
-        "h": 13
+        "h": 10
       },
       "transparent": false,
       "datasource": {
@@ -607,7 +637,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total[$__range])) or on() label_replace(vector(0), \"proven_proof_level\", \"No finding kept: the reviews are still running, or every change was clean\", \"\", \"\")",
+          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range]))",
           "instant": true,
           "range": false,
           "legendFormat": "{{proven_proof_level}}"
@@ -617,21 +647,20 @@
         "defaults": {
           "unit": "short",
           "min": 0,
-          "displayName": "${__field.labels.proven_proof_level}",
+          "noValue": "No finding kept: the reviews are still running, or every change was clean",
           "color": {
             "mode": "fixed",
-            "fixedColor": "green"
+            "fixedColor": "blue"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
               }
             ]
-          },
-          "decimals": 0
+          }
         },
         "overrides": []
       },
@@ -646,181 +675,18 @@
         "displayMode": "gradient",
         "valueMode": "color",
         "showUnfilled": true,
-        "minVizHeight": 16,
+        "minVizHeight": 28,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 20
         }
       }
-    },
-    {
-      "id": 7,
-      "type": "timeseries",
-      "title": "Reviews started over time",
-      "description": "Reviews that began in each two-minute step.",
-      "gridPos": {
-        "x": 0,
-        "y": 18,
-        "w": 12,
-        "h": 8
-      },
-      "transparent": false,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${ds_prom}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${ds_prom}"
-          },
-          "expr": "count(count by (instance) (proven_agent_state{proven_agent=\"writer\",proven_reviewer=\"shared\"}))",
-          "instant": false,
-          "range": true,
-          "legendFormat": "reviews",
-          "interval": "2m"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "min": 0,
-          "noValue": "No review has started in this time range.",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 2,
-            "fillOpacity": 60,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "normal",
-              "group": "A"
-            },
-            "axisPlacement": "auto"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 8,
-      "type": "table",
-      "title": "Reviews with a failed service (the latest 5)",
-      "description": "A review whose outside service (the guardrail, a model, Zetaris) did not answer. None is good: the table is empty then.",
-      "gridPos": {
-        "x": 12,
-        "y": 18,
-        "w": 12,
-        "h": 7
-      },
-      "transparent": false,
-      "datasource": {
-        "type": "tempo",
-        "uid": "${ds_tempo}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "tempo",
-            "uid": "${ds_tempo}"
-          },
-          "queryType": "traceql",
-          "query": "{ name = \"proven.review\" && span.proven.failed_services > 0 } | select(span.proven.failed_services, span.proven.class)",
-          "tableType": "spans",
-          "limit": 5
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "left",
-            "cellOptions": {
-              "type": "auto"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Duration"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "ns"
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "gradient"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "sortBy": [
-          {
-            "displayName": "Start time",
-            "desc": false
-          }
-        ]
-      },
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "traceIdHidden": true,
-              "spanID": true,
-              "Trace ID": true,
-              "Span ID": true,
-              "traceService": true,
-              "traceName": true,
-              "nested": true
-            },
-            "renameByName": {
-              "Start time": "Start time",
-              "proven.failed_services": "Failed services",
-              "proven.class": "Review class"
-            }
-          }
-        }
-      ]
     }
   ]
 }
