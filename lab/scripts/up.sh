@@ -218,14 +218,16 @@ ui_begin 3 "Create the demo repository and its pull requests" "make logs SERVICE
 # The seed reads the password from /state/password, written above, and every credential from /state/secrets, written
 # here at mode 0600 over standard input. Neither is passed in. The credentials file is removed when the seed exits,
 # and removed again here whatever the seed's status was, so a seed that failed midway leaves none.
-lab_write_secrets || die "up: the credentials were not handed to the lab. Nothing was seeded."
+lab_hand_secrets || die "up: the credentials were not handed to the lab. Nothing was seeded."
 seed_status=0
 compose run --rm -T seed </dev/null || seed_status=$?
-lab_remove_secrets
+removed=0
+lab_remove_secrets || removed=1
 if [ "$seed_status" -ne 0 ]; then
-  echo "up: the seed failed (status $seed_status); the credentials file was removed." >&2
+  echo "up: the seed failed (status $seed_status)." >&2
   exit "$seed_status"
 fi
+[ "$removed" -eq 0 ] || exit 1
 compose up -d runner
 
 # The start page is rendered by the seed into the page volume, so the service starts after it.

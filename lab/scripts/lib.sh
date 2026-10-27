@@ -282,10 +282,25 @@ lab_write_secrets() {
   } | compose run --rm --no-deps -T --entrypoint sh seed -c 'umask 077 && cat > /state/secrets'
 }
 
+# lab_hand_secrets: lab_write_secrets, and when it fails the transfer file is removed before the failure is returned:
+# a writer that stopped after it opened /state/secrets would otherwise leave every credential on the volume.
+lab_hand_secrets() {
+  if ! lab_write_secrets; then
+    lab_remove_secrets || true
+    return 1
+  fi
+}
+
 # lab_remove_secrets: the transfer file is removed after the seed, whether it finished or failed. The seed removes it
 # too, on every exit path of its own; this is the second hand, for a seed that was killed.
+# It says so when the file is gone and says so, by name, when it is not: a removal that failed is never reported as done.
 lab_remove_secrets() {
-  compose run --rm --no-deps -T --entrypoint rm seed -f /state/secrets </dev/null >/dev/null 2>&1 || true
+  if compose run --rm --no-deps -T --entrypoint sh seed -c 'rm -f /state/secrets && test ! -e /state/secrets' </dev/null >/dev/null 2>&1; then
+    echo "up: the credentials transfer file is removed."
+    return 0
+  fi
+  echo "up: the credentials transfer file /state/secrets in the lab's seed-state volume could NOT be removed. NEXT — run make clean, which deletes that volume, before anything else." >&2
+  return 1
 }
 
 service_running() {
