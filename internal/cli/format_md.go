@@ -425,7 +425,7 @@ func mdFix(b *strings.Builder, fix *review.Fix, lim *mdLimits) {
 	if fix == nil {
 		return
 	}
-	b.WriteString("**Fix**" + fixSentence(mdStyle, fix) + "\n\n")
+	b.WriteString("**Fix**" + fixInline(mdStyle, fix) + "\n\n")
 	if fix.Dependency != nil {
 		return
 	}
@@ -438,9 +438,9 @@ func mdFix(b *strings.Builder, fix *review.Fix, lim *mdLimits) {
 	mdFixRuns(b, fix.Runs, lim)
 }
 
-// fixSentence is what a fix says about itself, after the word "Fix": a named
+// fixInline is what a fix says about itself, after the word "Fix": a named
 // dependency raise, a proved suggestion, or a fix that was not proved.
-func fixSentence(st inlineStyle, fix *review.Fix) string {
+func fixInline(st inlineStyle, fix *review.Fix) string {
 	switch {
 	case fix.Dependency != nil:
 		d := fix.Dependency

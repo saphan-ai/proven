@@ -13,7 +13,7 @@ import (
 )
 
 // htmlStyle marks a value from the change for HTML text. The sentences shared
-// with the Markdown writer (verdictLine, checkedIn, fixSentence, notesIn, footIn)
+// with the Markdown writer (verdictLine, checkedIn, fixInline, notesIn, footIn)
 // take it, so both writers say the same words.
 var htmlStyle = inlineStyle{text: htmlText, code: htmlCode, unbounded: true}
 
@@ -242,7 +242,7 @@ func htmlFix(b *strings.Builder, fix *review.Fix) {
 	if fix == nil {
 		return
 	}
-	b.WriteString("<h4>Fix</h4>\n<p>" + strings.TrimSpace(fixSentence(htmlStyle, fix)) + "</p>\n")
+	b.WriteString("<h4>Fix</h4>\n<p>" + strings.TrimSpace(fixInline(htmlStyle, fix)) + "</p>\n")
 	if fix.Dependency != nil {
 		return
 	}
