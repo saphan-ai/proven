@@ -63,17 +63,10 @@ func censusFile(fset *token.FileSet, f *ast.File, name string) []string {
 		// skip holds the names that are not a package-level name: a method or field after a dot,
 		// and a key of a composite literal (`offline: offline` keys the Policy field).
 		skip := map[*ast.Ident]bool{}
-		state := map[*ast.Ident]bool{}
 		ast.Inspect(root, func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.SelectorExpr:
 				skip[x.Sel] = true
-				// The process-wide state is an atomic value: it is reached only as x.Load,
-				// x.Swap or x.Store, so a state name counts only on the left of a dot. A
-				// parameter of the same name (NewPolicy's offline) is not the state.
-				if id, ok := x.X.(*ast.Ident); ok && (id.Name == "offline" || id.Name == "limitsInUse") {
-					state[id] = true
-				}
 			case *ast.KeyValueExpr:
 				if id, ok := x.Key.(*ast.Ident); ok {
 					skip[id] = true
@@ -87,9 +80,15 @@ func censusFile(fset *token.FileSet, f *ast.File, name string) []string {
 			}
 			switch x := n.(type) {
 			case *ast.Ident:
-				if state[x] {
-					at("reads " + x.Name)
-				} else if !skip[x] && (slices.Contains(processDefault, x.Name) || x.Name == "processBounds") {
+				if skip[x] {
+					return true
+				}
+				// The state is named wherever it is used: read (offline.Load()), or taken as a
+				// value (&offline) that is read later. No parameter or local of this package
+				// carries its name.
+				if x.Name == "offline" || x.Name == "limitsInUse" {
+					at("uses the process-wide state " + x.Name)
+				} else if slices.Contains(processDefault, x.Name) || x.Name == "processBounds" {
 					at("names " + x.Name)
 				}
 			case *ast.CompositeLit:
@@ -108,8 +107,9 @@ func censusFile(fset *token.FileSet, f *ast.File, name string) []string {
 			}
 			inspect(d.Name.Name, d.Body, d.Name.Name == "NewPolicy" || d.Name.Name == "ProcessPolicy")
 		case *ast.GenDecl:
-			// A package-level declaration may hold an alias too (`var run = GitCommand`); the
-			// declarations of the state itself (`var offline atomic.Bool`) name it and are skipped.
+			// A package-level declaration may hold an alias too (`var run = GitCommand`,
+			// `var o = &offline`); only its values are read, so the declarations of the state
+			// itself (`var offline atomic.Bool`) are not named.
 			for _, spec := range d.Specs {
 				vs, ok := spec.(*ast.ValueSpec)
 				if !ok {
