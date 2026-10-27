@@ -95,7 +95,8 @@ func parseStream(r io.Reader) (streamMeta, error) {
 			continue
 		}
 		// The receipt may arrive across several chunks; a later empty field does not
-		// erase an earlier value.
+		// erase an earlier value. The routed model is the one that answered, which a
+		// router may choose instead of the model the request named.
 		if chunk.Meterless.RoutedModel != "" {
 			meta.model = chunk.Meterless.RoutedModel
 		}
