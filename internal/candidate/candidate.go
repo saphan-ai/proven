@@ -365,9 +365,24 @@ type Draft struct {
 	// switched off, so the result says so and not only the trace
 	// (ADR-0005). Empty when the guardrail was on.
 	GuardrailStatement string
+	// Guardrail counts the guardrail's checks in this review (ADR-0005). The
+	// zero value means no check was made.
+	Guardrail GuardrailCount
 	// Autofix is the record of the whole-change fix attempt, or nil when none was made:
 	// the setting is off, or no finding was proved (ADR-0050).
 	Autofix *Autofix
+}
+
+// GuardrailCount is what the guardrail did in one review, measured at the one
+// place every check passes through and never typed by hand.
+// Prompts and Answers are the checks that got a verdict, Blocked the ones whose
+// verdict was unsafe, and Unanswered the checks the guardrail could not make.
+// Backend and Model name the guardrail that answered, or failed to. Maker is
+// "NVIDIA" when the configuration says the model is NVIDIA's (guardrail.Maker),
+// and empty otherwise: it is never guessed from an arbitrary model id.
+type GuardrailCount struct {
+	Prompts, Answers, Blocked, Unanswered int
+	Backend, Model, Maker                 string
 }
 
 // GuardrailOffStatement is the sentence a review carries when its guardrail

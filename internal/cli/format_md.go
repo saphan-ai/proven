@@ -452,7 +452,6 @@ func mdNotes(b *strings.Builder, result review.Result) {
 	if result.Partial {
 		lines = append(lines, "- review partial: the deadline was reached")
 	}
-	statement(result.GuardrailStatement)
 	for i, a := range result.Accepted {
 		if i == mdMaxNotes {
 			lines = append(lines, fmt.Sprintf("- %d more accepted by exception, not listed", len(result.Accepted)-i))
@@ -477,9 +476,9 @@ func mdNotes(b *strings.Builder, result review.Result) {
 	b.WriteString("\n\n")
 }
 
-// mdFoot is the one line at the bottom: the reviewing models and whether the
-// guardrail checked every call. The guardrail words follow GuardrailStatement:
-// it is set exactly when the guardrail was switched off for the review.
+// mdFoot is the one line at the bottom: the reviewing models and the guardrail
+// line, the same words the text output prints (review.Result.GuardrailLine),
+// built from the checks the pipeline counted.
 func mdFoot(result review.Result) string {
 	models := result.ReviewerModels
 	if len(models) == 0 {
@@ -495,11 +494,7 @@ func mdFoot(result review.Result) string {
 		}
 		names = "reviewed by " + strings.Join(escaped, " and ")
 	}
-	guard := "guardrail checked every call"
-	if result.GuardrailStatement != "" {
-		guard = "guardrail was off"
-	}
-	return "<sub>" + names + " · " + guard + "</sub>"
+	return "<sub>" + names + " · " + mdText(result.GuardrailLine()) + "</sub>"
 }
 
 // pluralWord picks the singular for one and the plural for any other number.

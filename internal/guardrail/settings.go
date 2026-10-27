@@ -282,3 +282,14 @@ func modelName(s string) bool {
 	}
 	return true
 }
+
+// Maker names the maker of the guardrail model a check used, from the configuration
+// alone: "NVIDIA" for NVIDIA's hosted API, and for the NVIDIA content-safety models
+// Proven ships as its defaults (served by NVIDIA or by the operator's own server).
+// Any other model gets no maker: a name is never inferred from an arbitrary model id.
+func Maker(backend, model string) string {
+	if backend == ModeNVIDIA || model == defaultNVIDIAModel || model == defaultServerModel {
+		return "NVIDIA"
+	}
+	return ""
+}
