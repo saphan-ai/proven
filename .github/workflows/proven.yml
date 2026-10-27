@@ -27,16 +27,18 @@ jobs:
           strict: false
           comment: true
         env:
-          # The reviewer: GLM-5.3 on Alibaba Cloud Model Studio (QwenCloud), called directly,
-          # outside Nightshift (owner, 27 Oct: GLM-5.3 is the default reviewer). It is an
-          # OpenAI-compatible API, so the generator's nightshift mode reaches it by its base URL.
+          # The reviewer: qwen3.8-flash on Alibaba Cloud Model Studio, called directly, outside
+          # Nightshift (owner, 27 Oct, by measurement: the fastest model that finished a whole
+          # review of pull request #1, in about 2 minutes). It is an OpenAI-compatible API, so the
+          # generator's nightshift mode reaches it by its base URL.
           PROVEN_GENERATOR_MODE: nightshift
           PROVEN_GENERATOR_BASE_URL: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
-          PROVEN_GENERATOR_MODEL: glm-5.3
-          PROVEN_SKEPTIC_MODEL: glm-5.3
+          PROVEN_GENERATOR_MODEL: qwen3.8-flash
+          PROVEN_SKEPTIC_MODEL: qwen3.8-flash
           PROVEN_GENERATOR_REQUIRE_NVIDIA: none
-          # GLM-5.3 always thinks on this endpoint (enable_thinking=false is refused, HTTP 400), so
-          # one call takes about 25 s on a short prompt; the limit leaves room for a long one.
+          # Every model on this endpoint reasons before it answers; the budget bounds that
+          # reasoning per call (without it a Prover call ran to the limit).
+          PROVEN_GENERATOR_THINKING_BUDGET: "512"
           PROVEN_GENERATOR_TIMEOUT: 300s
           # The Planner reads a long change in bounded steps, each one diff hunk with a little
           # context, so no single call carries a whole large file (a two-file pull request was
@@ -44,12 +46,11 @@ jobs:
           PROVEN_MARKOVIAN_STEP_UNIT: hunk
           METERLESS_RUNTIME_TOKEN: ${{ secrets.BAILIAN_TOKEN_PLAN_API_KEY }}
           # The security reviewer: another model family on the same endpoint, so a security change
-          # is judged by two families (doubled_classes: security in proven.yaml).
+          # is judged by two families (doubled_classes: security in proven.yaml). It finished
+          # pull request #1 in about 17 minutes, which only security-class changes pay.
           PROVEN_SECOND_REVIEWER_BASE_URL: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
-          PROVEN_SECOND_REVIEWER_MODEL: qwen3.8-max
+          PROVEN_SECOND_REVIEWER_MODEL: deepseek-v4.1-flash
           PROVEN_SECOND_REVIEWER_KEY: ${{ secrets.BAILIAN_TOKEN_PLAN_API_KEY }}
           # The guardrail stays NVIDIA's content-safety model on every prompt and answer.
           PROVEN_GUARDRAIL_MODE: nvidia
           PROVEN_GUARDRAIL_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          # NVIDIA's hosted guardrail took 4 s on a long prompt and timed out at the 5 s default.
-          PROVEN_GUARDRAIL_TIMEOUT: 60s
