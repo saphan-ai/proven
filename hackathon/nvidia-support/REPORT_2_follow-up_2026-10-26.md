@@ -23,7 +23,7 @@ seconds apart, one at a time):
 | ~30 KB prompt | 200 | 2.67 s | `b06a63a8-beee-4e23-8f16-aca828cecc78` |
 | ~30 KB prompt | 200 | 2.48 s | `15b85674-89f7-45fc-8873-b20355f47275` |
 
-Minutes later, the same test on the same new key:
+Minutes later, the same test on a newer key (the key had been replaced again in between):
 
 | call | HTTP | time | nvcf-reqid |
 |---|---|---|---|
@@ -36,7 +36,7 @@ A third run: `tiny 1` 200 in 0.81 s (`8f097cc2-1c30-4245-b0c1-1fe7ff7025d9`), th
 
 ## The pattern we see
 
-- The service works in quiet windows and fails in others, on tiny and large prompts alike, on the old key and the new one.
+- The service works in quiet windows and fails in others, on tiny and large prompts alike, on every key we used.
 - **Latency rises just before a failure**: 0.58 s, then 1.31 s, then no answer at all.
 - Failure windows so far (UTC): 25 Oct 15:04 to 15:26; 26 Oct about 00:07 to 00:15, 00:37, 00:41 to 00:50, and around 14:10.
 - `GET /v1/models` answers 200 the whole time, so authentication and routing to the API are fine.
