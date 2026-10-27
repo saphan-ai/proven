@@ -29,8 +29,10 @@ vulnerable package in the image built this way (27 October 2026).
 
 | Image | Platforms | Digest of `:judging` | Built from commit | Docker Scout at push |
 |---|---|---|---|---|
-| `saphan/proven` | linux/amd64, linux/arm64 | added after the push | added after the push | added after the push |
-| `saphan/proven-lab-seed` | linux/amd64, linux/arm64 | added after the push | added after the push | added after the push |
+| `saphan/proven` | linux/amd64, linux/arm64 | `sha256:ddb2200c65c83ea8d0faa5de2ea7d9773a6371eb75bd0b7ee317a563d4cc2cbd` | `9f69464f2c1310b1698355cdd1977e2e8cd730e0` | no vulnerable package, every platform (0 critical, 0 high, 0 medium, 0 low) |
+| `saphan/proven-lab-seed` | linux/amd64, linux/arm64 | `sha256:0cb6ea9b1f22182919fb8ceda691519a9527a44b34d0e1108bed5de607b5a115` | `9f69464f2c1310b1698355cdd1977e2e8cd730e0` | no vulnerable package, every platform (0 critical, 0 high, 0 medium, 0 low) |
+
+Published on 27 October 2026 by `make push-judging`; Docker Scout 1.23.1 scanned each platform's layout before the push.
 
 ## Check it yourself
 
