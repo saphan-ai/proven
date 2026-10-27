@@ -602,3 +602,35 @@ func TestLiveSendsTheThinkingBudgetOnlyWhenSet(t *testing.T) {
 		}
 	}
 }
+
+// With PROVEN_GENERATOR_REQUIRE_REQUESTED=on, a Nightshift answer whose signed receipt names another model than the
+// one asked for is refused by name as a failed nightshift service, so the review says it was not reviewed instead of
+// shipping that model's verdict; a receipt naming the requested model passes, and with the setting off the
+// substituted answer is kept as before. Mutated field: meterless.routed_model.
+func TestLiveRefusesAModelOtherThanTheOneRequested(t *testing.T) {
+	const requested, substitute = "qwen3.8-flash", "poolside/laguna-s-2.1:free"
+	routed := func(model string) string {
+		return strings.Replace(streamFixture(t), `"routed_model":"`+routedNVIDIA+`"`, `"routed_model":"`+model+`"`, 1)
+	}
+	env := map[string]string{generator.EnvRequireNVIDIA: "none", generator.EnvModel: requested, generator.EnvRequireRequested: "on"}
+	srv := httptest.NewServer(replay(routed(substitute)))
+	defer srv.Close()
+	_, err := liveAt(t, srv.URL, env).Complete(context.Background(), "planner", "prompt")
+	d, ok := service.As(err)
+	if !ok || d.Service != "nightshift" || !strings.Contains(d.Reason, "answered by "+substitute) || !strings.Contains(d.Reason, requested+" was asked for") {
+		t.Fatalf("a substituted model was not refused by name: %v", err)
+	}
+	same := httptest.NewServer(replay(routed(requested)))
+	defer same.Close()
+	if text, err := liveAt(t, same.URL, env).Complete(context.Background(), "planner", "prompt"); err != nil || text != "ready" {
+		t.Fatalf("the requested model was refused: %q %v", text, err)
+	}
+	env[generator.EnvRequireRequested] = "off"
+	if _, err := liveAt(t, srv.URL, env).Complete(context.Background(), "planner", "prompt"); err != nil {
+		t.Fatalf("with the setting off the answer must be kept: %v", err)
+	}
+	_, err = generator.Load(envWith(generator.EnvRequireRequested, "yes"))
+	if cfg := configErr(t, err); cfg.Field != generator.EnvRequireRequested {
+		t.Fatalf("%#v", cfg)
+	}
+}

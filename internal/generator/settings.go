@@ -17,17 +17,18 @@ import (
 // token, which has none. ADR-0013: no value the generator runs with is
 // hardcoded; each comes from one of these settings or its named default.
 const (
-	EnvMode           = "PROVEN_GENERATOR_MODE"
-	EnvKey            = "PROVEN_GENERATOR_KEY"
-	EnvToken          = "METERLESS_RUNTIME_TOKEN"
-	EnvBaseURL        = "PROVEN_GENERATOR_BASE_URL"
-	EnvNVIDIABaseURL  = "PROVEN_NVIDIA_BASE_URL"
-	EnvApp            = "PROVEN_GENERATOR_APP"
-	EnvModel          = "PROVEN_GENERATOR_MODEL"
-	EnvTimeout        = "PROVEN_GENERATOR_TIMEOUT"
-	EnvRequireNVIDIA  = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
-	EnvSkepticModel   = "PROVEN_SKEPTIC_MODEL"
-	EnvThinkingBudget = "PROVEN_GENERATOR_THINKING_BUDGET"
+	EnvMode             = "PROVEN_GENERATOR_MODE"
+	EnvKey              = "PROVEN_GENERATOR_KEY"
+	EnvToken            = "METERLESS_RUNTIME_TOKEN"
+	EnvBaseURL          = "PROVEN_GENERATOR_BASE_URL"
+	EnvNVIDIABaseURL    = "PROVEN_NVIDIA_BASE_URL"
+	EnvApp              = "PROVEN_GENERATOR_APP"
+	EnvModel            = "PROVEN_GENERATOR_MODEL"
+	EnvTimeout          = "PROVEN_GENERATOR_TIMEOUT"
+	EnvRequireNVIDIA    = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
+	EnvRequireRequested = "PROVEN_GENERATOR_REQUIRE_REQUESTED"
+	EnvSkepticModel     = "PROVEN_SKEPTIC_MODEL"
+	EnvThinkingBudget   = "PROVEN_GENERATOR_THINKING_BUDGET"
 )
 
 // DefaultSkepticModel is Nemotron through Nightshift (ADR-0006 point 5).
@@ -114,6 +115,11 @@ func Environment() []envdoc.Setting {
 			Description: "which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name",
 		},
 		{
+			Name:        EnvRequireRequested,
+			Default:     envdoc.Tick("off"),
+			Description: "`on` or `off`. With `on`, in `nightshift` mode an answer whose signed receipt names a model other than the one asked for is refused by name as a failed service, so a review never ships another model's verdict; a request for `meterless/auto` lets the router choose and is not checked",
+		},
+		{
 			Name:        EnvSkepticModel,
 			Default:     envdoc.Tick(DefaultSkepticModel),
 			Description: "the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family",
@@ -150,10 +156,12 @@ type Settings struct {
 	ThinkingBudget int
 	plain          bool
 	// Network is the air-gapped policy of ADR-0034. Nil means public.
-	Network       *network.Policy
-	requireAll    bool
-	requireNone   bool
-	requireNVIDIA map[string]bool
+	Network *network.Policy
+	// requireRequested is PROVEN_GENERATOR_REQUIRE_REQUESTED: refuse a receipt that names another model.
+	requireRequested bool
+	requireAll       bool
+	requireNone      bool
+	requireNVIDIA    map[string]bool
 }
 
 // ModelFor is the model field one agent sends. The skeptic uses SkepticModel.
@@ -281,6 +289,14 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	requested := false
+	switch v := env(EnvRequireRequested); v {
+	case "", "off":
+	case "on":
+		requested = true
+	default:
+		return Settings{}, refuse(EnvRequireRequested, clip(v), "not on or off", "on, off, or empty")
+	}
 	req := env(EnvRequireNVIDIA)
 	if req == "" {
 		req = defaultRequire
@@ -297,7 +313,7 @@ func Load(env func(string) string) (Settings, error) {
 	return Settings{
 		Mode: mode, BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
 		SkepticModel: skepticModel, Network: policy, ThinkingBudget: budget,
-		requireAll: all, requireNone: none, requireNVIDIA: set,
+		requireAll: all, requireNone: none, requireNVIDIA: set, requireRequested: requested,
 	}, nil
 }
 
