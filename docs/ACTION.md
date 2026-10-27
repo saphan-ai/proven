@@ -2,7 +2,7 @@
 
 `action.yml` at the root of this repository makes Proven a step a team swaps in for a Semgrep or an Opengrep step. The names and meanings are decided in [ADR-0020](adr/ADR-0020-proven-command-line-and-action-interface.md), points 3 to 5. This page is the use, the two before-and-after workflows, and the runbook of the swap test the owner runs on GitHub.
 
-What is measured here, and what is not: the Action's script and `action.yml` are tested without GitHub (`sh action/test.sh`, see [Testing](#testing)). **No run on GitHub has happened.** The workflows below were written from the two tools' published documentation, not run; the runbook is how they get run.
+What is measured here, and what is not: the Action's script and `action.yml` are tested without GitHub (`sh action/test.sh`, see [Testing](#testing)). **The Action has run on GitHub:** on 27 October 2026 it reviewed this repository's pull request #1 and posted its one summary comment. The workflows below were written from the two tools' published documentation, not run; the runbook is how they get run.
 
 ## Use
 
