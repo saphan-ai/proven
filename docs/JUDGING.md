@@ -29,10 +29,10 @@ vulnerable package in the image built this way (27 October 2026).
 
 | Image | Platforms | Digest of `:judging` | Built from commit | Docker Scout at push |
 |---|---|---|---|---|
-| `saphan/proven` | linux/amd64, linux/arm64 | `sha256:105c10788f2c2dba79709cbdcbff70f4939f6e0cbbdd2947c384acd75a206762` | `c87bfb33859dd21fc994e08d66861abe548620a0` | no vulnerable package, every platform (0 critical, 0 high, 0 medium, 0 low) |
-| `saphan/proven-lab-seed` | linux/amd64, linux/arm64 | `sha256:253645d95c688afc4c964177e9324333c9d775d7974d44e2e097042ce8b20df6` | `c87bfb33859dd21fc994e08d66861abe548620a0` | no vulnerable package, every platform (0 critical, 0 high, 0 medium, 0 low) |
+| `saphan/proven` | linux/amd64, linux/arm64 | `sha256:bf7e6421fc57a1627005febbae0501ec33d91fcd43fb0a2e5d940608da90fa93` | `28cd9cfe33f49c7cba97f47e5a0dd8d10465167c` | no vulnerable package, every platform (0 critical, 0 high, 0 medium, 0 low) |
+| `saphan/proven-lab-seed` | linux/amd64, linux/arm64 | `sha256:5d0a22ef06a0f7b8952a52946a972bfa097b47acddea1d181b6ea87a317847dc` | `28cd9cfe33f49c7cba97f47e5a0dd8d10465167c` | no vulnerable package, every platform (0 critical, 0 high, 0 medium, 0 low) |
 
-Published on 27 October 2026 by `make push-judging`, a second time the same day so the image carries the change-size fix, the thinking budget and the guardrail counts; Docker Scout 1.23.1 scanned each platform's layout before the push.
+Published on 27 October 2026 by `make push-judging` from the submission point; Docker Scout 1.23.1 scanned each platform's layout before the push and refused on any vulnerable package, of any severity.
 
 ## Check it yourself
 
