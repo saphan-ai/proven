@@ -15,13 +15,13 @@ import (
 )
 
 // Formatter writes one review result in one format.
-// text, JSON, SARIF and Markdown each have a writer in this build (ADR-0020 §1).
+// text, JSON, SARIF, Markdown and HTML each have a writer in this build (ADR-0020 §1).
 type Formatter interface {
 	Write(w io.Writer, result review.Result) error
 }
 
-// FormatterFor returns the writer for format, one of text, json, sarif or md.
-// ADR-0020 §1: the same four names are the standard-output format and the --*-output files.
+// FormatterFor returns the writer for format, one of text, json, sarif, md or html.
+// ADR-0020 §1: the same five names are the standard-output format and the --*-output files.
 func FormatterFor(format string) (Formatter, error) {
 	switch format {
 	case "text":
@@ -32,6 +32,8 @@ func FormatterFor(format string) (Formatter, error) {
 		return sarifFormatter{}, nil
 	case "md":
 		return markdownFormatter{}, nil
+	case "html":
+		return htmlFormatter{}, nil
 	default:
 		// A name the flag parser did not offer still has to refuse, or a caller
 		// inside this package could write an empty file under an unknown format.

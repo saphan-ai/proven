@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proven review</title>
+<style>
+body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #1b1f24; background: #f6f8fa; }
+main { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+h1 { font-size: 1.6rem; margin: 0 0 1rem; }
+h2 { font-size: 1.2rem; margin: 0 0 .5rem; }
+h3 { font-size: 1rem; margin: 1rem 0 .25rem; }
+h4 { font-size: .95rem; margin: 1rem 0 .25rem; }
+code, pre { font: .9rem/1.4 ui-monospace, Menlo, Consolas, monospace; }
+pre { background: #eaeef2; padding: .75rem; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 4px; }
+.verdict { font-size: 1.1rem; padding: .75rem 1rem; border-left: 6px solid #6e7781; background: #fff; border-radius: 4px; }
+.verdict.blocked { border-color: #cf222e; }
+.verdict.clean { border-color: #1a7f37; }
+.verdict.not-reviewed { border-color: #9a6700; }
+table { border-collapse: collapse; background: #fff; }
+th, td { border: 1px solid #d0d7de; padding: .3rem .6rem; text-align: left; vertical-align: top; }
+.summary { width: 100%; margin: 1rem 0; }
+.rows { overflow-x: auto; }
+.card { background: #fff; border: 1px solid #d0d7de; border-left: 6px solid #0969da; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
+.card.error { border-left-color: #cf222e; }
+.card.warning { border-left-color: #bf8700; }
+.severity { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; margin-right: .4rem; }
+.place { margin: 0 0 .5rem; }
+summary { cursor: pointer; font-weight: 600; }
+.opinions { margin: 1.5rem 0; }
+.notes { color: #424a53; }
+footer { margin-top: 2rem; font-size: .85rem; color: #57606a; }
+@media (prefers-color-scheme: dark) {
+body { color: #e6edf3; background: #0d1117; }
+.verdict, table, .card { background: #161b22; border-color: #30363d; }
+th, td { border-color: #30363d; }
+pre { background: #21262d; }
+.notes, footer { color: #8b949e; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Proven review</h1>
+<p class="verdict blocked"><strong>Proven: blocked</strong>— 4 findings: 4 error, 0 warning, 0 info</p>
+<table class="summary">
+<thead><tr><th>Severity</th><th>Finding</th><th>Location</th></tr></thead>
+<tbody>
+<tr><td>Error</td><td><a href="#finding-1">Dependency leftpad v1.2.3 is on the known-exploited list</a></td><td><code>go.mod:5</code></td></tr>
+<tr><td>Error</td><td><a href="#finding-2">CVE-2026-0001 for leftpad v1.2.3 is on the KEV list</a></td><td><code>go.mod:5</code></td></tr>
+<tr><td>Error</td><td><a href="#finding-3">Dependency evil.example/leftpad v1.2.3 is in an OSV affected range</a></td><td><code>go.mod:5</code></td></tr>
+<tr><td>Error</td><td><a href="#finding-4">Discount is applied twice</a></td><td><code>billing/discount.go:5</code></td></tr>
+</tbody>
+</table>
+<section class="card error" id="finding-1">
+<h2><span class="severity">Error</span> Dependency leftpad v1.2.3 is on the known-exploited list</h2>
+<p class="place"><code>go.mod:5</code></p>
+<p>The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.</p>
+<h3>How we know</h3>
+<ul>
+<li>A query to <code>local-sample</code> returned 2 rows (snapshot sample-2026-10-22)</li>
+<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+</ul>
+<details>
+<summary>Evidence and fix</summary>
+<h4>Query</h4>
+<p>(local-sample, snapshot sample-2026-10-22, form sql)</p>
+<pre>SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = &#39;Go&#39; AND package = &#39;evil.example/leftpad&#39;</pre>
+<div class="rows"><table>
+<thead><tr><th>id</th><th>aliases</th><th>ecosystem</th><th>package</th><th>introduced</th><th>fixed</th><th>last_affected</th><th>severity</th><th>published</th></tr></thead>
+<tbody>
+<tr><td>GHSA-px-sample-0001</td><td>CVE-2026-0001</td><td>Go</td><td>evil.example/leftpad</td><td>1.0.0</td><td>1.2.4</td><td></td><td>HIGH</td><td>2026-01-15</td></tr>
+<tr><td>GHSA-px-sample-0002</td><td></td><td>Go</td><td>evil.example/leftpad</td><td>2.0.0</td><td>2.1.0</td><td></td><td>LOW</td><td>2026-03-01</td></tr>
+</tbody>
+</table></div>
+<h4>Query</h4>
+<p>(local-sample, snapshot sample-2026-10-22, form sql)</p>
+<pre>SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = &#39;CVE-2026-0001&#39;</pre>
+<div class="rows"><table>
+<thead><tr><th>cve_id</th><th>epss</th><th>percentile</th><th>score_date</th></tr></thead>
+<tbody>
+<tr><td>CVE-2026-0001</td><td>0.50000</td><td>0.90000</td><td>2026-10-20</td></tr>
+</tbody>
+</table></div>
+</details>
+</section>
+<section class="card error" id="finding-2">
+<h2><span class="severity">Error</span> CVE-2026-0001 for leftpad v1.2.3 is on the KEV list</h2>
+<p class="place"><code>go.mod:5</code></p>
+<p>The change requires evil.example/leftpad v1.2.3. The sample KEV view has CVE-2026-0001 for that advisory.</p>
+<h3>How we know</h3>
+<ul>
+<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+</ul>
+<details>
+<summary>Evidence and fix</summary>
+<h4>Query</h4>
+<p>(local-sample, snapshot sample-2026-10-22, form sql)</p>
+<pre>SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = &#39;CVE-2026-0001&#39;</pre>
+<div class="rows"><table>
+<thead><tr><th>cve_id</th><th>vendor_project</th><th>product</th><th>date_added</th><th>known_ransomware</th></tr></thead>
+<tbody>
+<tr><td>CVE-2026-0001</td><td>evil.example</td><td>leftpad</td><td>2026-01-15</td><td>Known</td></tr>
+</tbody>
+</table></div>
+<h4>Query</h4>
+<p>(local-sample, snapshot sample-2026-10-22, form sql)</p>
+<pre>SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = &#39;CVE-2026-0001&#39;</pre>
+<div class="rows"><table>
+<thead><tr><th>cve_id</th><th>epss</th><th>percentile</th><th>score_date</th></tr></thead>
+<tbody>
+<tr><td>CVE-2026-0001</td><td>0.50000</td><td>0.90000</td><td>2026-10-20</td></tr>
+</tbody>
+</table></div>
+</details>
+</section>
+<section class="card error" id="finding-3">
+<h2><span class="severity">Error</span> Dependency evil.example/leftpad v1.2.3 is in an OSV affected range</h2>
+<p class="place"><code>go.mod:5</code></p>
+<p>evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 &lt;= v1.2.3 &lt; fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 &lt; introduced 2.0.0. alias CVE-2026-0001 is on the KEV list Reachability: not measured.</p>
+<h3>How we know</h3>
+<ul>
+<li>A query to <code>local-sample</code> returned 2 rows (snapshot sample-2026-10-22)</li>
+<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+<li>A query to <code>local-sample</code> returned 1 row (snapshot sample-2026-10-22)</li>
+</ul>
+<details>
+<summary>Evidence and fix</summary>
+<h4>Query</h4>
+<p>(local-sample, snapshot sample-2026-10-22, form sql)</p>
+<pre>SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = &#39;Go&#39; AND package = &#39;evil.example/leftpad&#39;</pre>
+<div class="rows"><table>
+<thead><tr><th>id</th><th>aliases</th><th>ecosystem</th><th>package</th><th>introduced</th><th>fixed</th><th>last_affected</th><th>severity</th><th>published</th></tr></thead>
+<tbody>
+<tr><td>GHSA-px-sample-0001</td><td>CVE-2026-0001</td><td>Go</td><td>evil.example/leftpad</td><td>1.0.0</td><td>1.2.4</td><td></td><td>HIGH</td><td>2026-01-15</td></tr>
+<tr><td>GHSA-px-sample-0002</td><td></td><td>Go</td><td>evil.example/leftpad</td><td>2.0.0</td><td>2.1.0</td><td></td><td>LOW</td><td>2026-03-01</td></tr>
+</tbody>
+</table></div>
+<h4>Query</h4>
+<p>(local-sample, snapshot sample-2026-10-22, form sql)</p>
+<pre>SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = &#39;CVE-2026-0001&#39;</pre>
+<div class="rows"><table>
+<thead><tr><th>cve_id</th><th>vendor_project</th><th>product</th><th>date_added</th><th>known_ransomware</th></tr></thead>
+<tbody>
+<tr><td>CVE-2026-0001</td><td>evil.example</td><td>leftpad</td><td>2026-01-15</td><td>Known</td></tr>
+</tbody>
+</table></div>
+<h4>Query</h4>
+<p>(local-sample, snapshot sample-2026-10-22, form sql)</p>
+<pre>SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = &#39;CVE-2026-0001&#39;</pre>
+<div class="rows"><table>
+<thead><tr><th>cve_id</th><th>epss</th><th>percentile</th><th>score_date</th></tr></thead>
+<tbody>
+<tr><td>CVE-2026-0001</td><td>0.50000</td><td>0.90000</td><td>2026-10-20</td></tr>
+</tbody>
+</table></div>
+<h4>Fix</h4>
+<p>(named from the advisory table, no test ran): raise <code>evil.example/leftpad</code> <code>v1.2.3</code> to <code>1.2.4</code>. 1.2.4 is the fixed version of advisory GHSA-px-sample-0001, and it is the smallest fixed version of the rows returned that no affected range of those rows holds. No test proves a version change, so this fix is named from the table, not run.</p>
+</details>
+</section>
+<section class="card error" id="finding-4">
+<h2><span class="severity">Error</span> Discount is applied twice</h2>
+<p class="place"><code>billing/discount.go:5</code></p>
+<p>Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.</p>
+<h3>How we know</h3>
+<ul>
+<li>A test fails on the change and passes on the base: <code>TestDiscounted</code></li>
+</ul>
+<details>
+<summary>Evidence and fix</summary>
+<h4>Failing test</h4>
+<p><code>TestDiscounted</code> in <code>billing/discount_test.go</code> — fails on the change: yes, passes on the base: yes</p>
+<p>Command:</p>
+<pre>go test -run &#39;^TestDiscounted$&#39; ./billing</pre>
+<p>Output:</p>
+<pre>base: PASS
+change: FAIL got 60 want 80</pre>
+</details>
+</section>
+<section class="opinions">
+<h2>Agreed by two models, not proven</h2>
+<p>No claim was agreed by two models without proof.</p>
+<p>A claim only one model makes is not kept.</p>
+</section>
+<ul class="notes">
+<li>Author model: unknown, the change does not declare it</li>
+<li>Reviewer: <code>NVIDIA</code> (NVIDIA)</li>
+<li>Second reviewer: not configured</li>
+</ul>
+<footer>reviewed by <code>NVIDIA</code> · guardrail checked every call</footer>
+</main>
+</body>
+</html>
