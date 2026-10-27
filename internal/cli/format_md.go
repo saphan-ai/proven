@@ -422,7 +422,69 @@ func mdPeople(result review.Result) []string {
 	if result.SpecialReviewer == "" && result.Doubled {
 		lines = append(lines, "- Second reviewer: not configured")
 	}
+	if line := mdAnswered(result); line != "" {
+		lines = append(lines, line)
+	}
 	return lines
+}
+
+// mdAnswered says which models actually answered the review's calls, read from the provider's signed receipts
+// (ADR-0019), with the number of calls each. A router such as Nightshift may answer with another model than the
+// reviewer named above; the comment then says so, so a review is never shown under a model that did not write it.
+// A call whose stream named no routed model is counted as not named, never guessed; with no receipt at all, no line.
+func mdAnswered(result review.Result) string {
+	// No receipt named a model (a sample review, a provider that sends no receipt): nothing to report, no line.
+	receipt := false
+	for _, m := range result.Models {
+		receipt = receipt || m.FromReceipt
+	}
+	if !receipt {
+		return ""
+	}
+	named := map[string]bool{}
+	for _, r := range result.Reviewers {
+		named[mdModelTail(r.Model)] = true
+	}
+	var order []string
+	count := map[string]int{}
+	other := false
+	for _, m := range result.Models {
+		id := m.Model
+		if !m.FromReceipt || id == "" || id == "unknown" {
+			id = ""
+		} else if !named[mdModelTail(id)] {
+			other = true
+		}
+		if count[id] == 0 {
+			order = append(order, id)
+		}
+		count[id]++
+	}
+	parts := make([]string, 0, len(order))
+	for _, id := range order {
+		calls := "calls"
+		if count[id] == 1 {
+			calls = "call"
+		}
+		if id == "" {
+			parts = append(parts, fmt.Sprintf("not named by the provider (%d %s)", count[id], calls))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s (%d %s)", mdCode(mdShort(id, mdMaxTitle)), count[id], calls))
+	}
+	line := "- Answered by, from the provider's receipts: " + strings.Join(parts, ", ")
+	if other {
+		line += "; not the reviewer named above"
+	}
+	return line
+}
+
+// mdModelTail is a model id without its route prefix (openrouter/qwen/qwen3.8-flash is qwen3.8-flash), lower case.
+func mdModelTail(id string) string {
+	if i := strings.LastIndex(id, "/"); i >= 0 {
+		id = id[i+1:]
+	}
+	return strings.ToLower(id)
 }
 
 // mdFamily is a model family without the word "family".
