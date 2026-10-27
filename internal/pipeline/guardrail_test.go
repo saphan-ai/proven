@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/saphan-ai/proven/internal/change"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -261,7 +262,7 @@ func reviewWithRail(t *testing.T, fx *fixture.Fixture, rail guardrail.Adapter, o
 
 func loadFixture(t *testing.T) *fixture.Fixture {
 	t.Helper()
-	fx, err := fixture.Load(fixturePath(t))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), fixturePath(t))
 	if err != nil {
 		t.Fatal(err)
 	}

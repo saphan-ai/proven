@@ -219,12 +219,8 @@ func defaultPathRules() []pathRule {
 	return out
 }
 
-// loadConfigFile reads an explicit configuration path. A missing path is refused.
-func loadConfigFile(path string) (fileSettings, error) {
-	return loadConfigFileUnder(change.ProcessPolicy(), path, nil)
-}
-
-// loadConfigFileUnder is loadConfigFile under an organisation policy; nil means none.
+// loadConfigFileUnder reads an explicit configuration path under an organisation policy; nil means
+// none. A missing path is refused.
 func loadConfigFileUnder(rd change.Policy, path string, pol *policy) (fileSettings, error) {
 	st, err := os.Stat(path)
 	if err != nil {
@@ -256,15 +252,10 @@ func loadConfigFileUnder(rd change.Policy, path string, pol *policy) (fileSettin
 	return pol.parseLocal(b)
 }
 
-// loadSettingsAtBaseline reads proven.yaml as it is in the baseline commit.
-// The change's copy is not consulted. A change must not choose how strictly
-// it is reviewed. A baseline with no proven.yaml is the defaults.
-func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
-	return loadSettingsAtBaselineUnder(change.ProcessPolicy(), target, baseline, nil)
-}
-
-// loadSettingsAtBaselineUnder is loadSettingsAtBaseline under an organisation policy; nil means none.
-// A baseline with no proven.yaml is the policy's settings, or the defaults with no policy.
+// loadSettingsAtBaselineUnder reads proven.yaml as it is in the baseline commit, under an
+// organisation policy; nil means none. The change's copy is not consulted. A change must not choose
+// how strictly it is reviewed. A baseline with no proven.yaml is the policy's settings, or the
+// defaults with no policy.
 func loadSettingsAtBaselineUnder(rd change.Policy, target, baseline string, pol *policy) (fileSettings, error) {
 	b, ok, err := rd.Blob(target, baseline, "proven.yaml")
 	if err != nil {
@@ -280,13 +271,9 @@ func loadSettingsAtBaselineUnder(rd change.Policy, target, baseline string, pol 
 	return pol.parseLocal(b)
 }
 
-// loadSettingsInTarget reads proven.yaml in the review target when Open was
-// given no path and the request has no baseline commit. A missing file is the defaults.
-func loadSettingsInTarget(target string) (fileSettings, error) {
-	return loadSettingsInTargetUnder(change.ProcessPolicy(), target, nil)
-}
-
-// loadSettingsInTargetUnder is loadSettingsInTarget under an organisation policy; nil means none.
+// loadSettingsInTargetUnder reads proven.yaml in the review target when Open was given no path and
+// the request has no baseline commit, under an organisation policy; nil means none. A missing file
+// is the defaults.
 func loadSettingsInTargetUnder(rd change.Policy, target string, pol *policy) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
 	// ADR-0013, ADR-0025: the target's copy is repository content, so a link is refused by name

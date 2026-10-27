@@ -45,13 +45,14 @@ func WithPolicy(ctx context.Context, p Policy) context.Context {
 }
 
 // PolicyFrom is the policy a review put in ctx. A context that carries none
-// gets the process-wide policy, which is how a reader outside a review (a test,
-// a command line step) behaves.
+// gets the closed policy: offline, with the default limits. It never reads the
+// process-wide settings, so production code that is handed a context with no
+// policy cannot run git under the always-public process policy.
 func PolicyFrom(ctx context.Context) Policy {
 	if p, ok := ctx.Value(policyKey{}).(Policy); ok {
 		return p
 	}
-	return ProcessPolicy()
+	return NewPolicy(true, DefaultLimits())
 }
 
 // Read reads a tree under the process-wide policy; see Policy.Read.

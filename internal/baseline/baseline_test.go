@@ -2,6 +2,7 @@ package baseline
 
 import (
 	"context"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,7 +106,7 @@ func localRunner(t *testing.T, osvRows [][]string) *store.Local {
 func analyze(t *testing.T, ref Reference, lock string, rows [][]string) Findings {
 	t.Helper()
 	tree, manifests := writeTree(t, lock)
-	f, err := Analyze(context.Background(), tree, manifests, ref, store.Runner(localRunner(t, rows)),
+	f, err := Analyze(context.Background(), change.ProcessPolicy(), tree, manifests, ref, store.Runner(localRunner(t, rows)),
 		Options{Commit: ref.PinnedCommit, Evidence: "fixture OSV table, 2099-01-06", Store: "local"})
 	if err != nil {
 		t.Fatalf("Analyze: %v", err)
@@ -205,7 +206,7 @@ func TestExtrasAreAdvisoriesNoAlertNames(t *testing.T) {
 func TestManifestOnlyRunChecksNothing(t *testing.T) {
 	ref := fixtureReference()
 	tree, manifests := writeTree(t, fixtureLock)
-	f, err := Analyze(context.Background(), tree, manifests, ref, nil, Options{Commit: ref.PinnedCommit, Evidence: "none"})
+	f, err := Analyze(context.Background(), change.ProcessPolicy(), tree, manifests, ref, nil, Options{Commit: ref.PinnedCommit, Evidence: "none"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +224,7 @@ func TestManifestOnlyRunChecksNothing(t *testing.T) {
 func TestDownStoreRefusesTheRun(t *testing.T) {
 	ref := fixtureReference()
 	tree, manifests := writeTree(t, fixtureLock)
-	_, err := Analyze(context.Background(), tree, manifests, ref, downRunner{}, Options{Commit: ref.PinnedCommit, Evidence: "x"})
+	_, err := Analyze(context.Background(), change.ProcessPolicy(), tree, manifests, ref, downRunner{}, Options{Commit: ref.PinnedCommit, Evidence: "x"})
 	if err == nil || !strings.Contains(err.Error(), "evidence service zetaris is down") {
 		t.Fatalf("Analyze with a down store returned %v", err)
 	}
@@ -293,7 +294,7 @@ func TestExportKeepsOnlyTheManifestsOfTheCommit(t *testing.T) {
 		}
 	}
 	dir := t.TempDir()
-	got, err := Export(repo, "HEAD", dir)
+	got, err := Export(change.ProcessPolicy(), repo, "HEAD", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
