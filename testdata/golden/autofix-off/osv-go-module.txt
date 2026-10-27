@@ -28,3 +28,4 @@ finding osv:example.com/widget ERROR Dependency example.com/widget v1.4.0 is in 
 Agreed by two models, not proven
   none: one reviewer; a claim only one model makes stays dropped
 failed services: none
+Guardrail: model not named (sample), checked 1 prompts and 1 answers, 0 blocked

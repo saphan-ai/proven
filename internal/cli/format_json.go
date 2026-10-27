@@ -44,7 +44,33 @@ type jsonDocument struct {
 	// ProofCounts is the totals by level (ADR-0044). Every level is a key,
 	// with 0 when none, in the order review.ProofLevels lists them.
 	ProofCounts jsonProofCounts `json:"proof_counts"`
-	Findings    []jsonFinding   `json:"findings"`
+	// Guardrail is what NVIDIA's guardrail checked in this review, always written.
+	Guardrail jsonGuardrail `json:"guardrail"`
+	Findings  []jsonFinding `json:"findings"`
+}
+
+// jsonGuardrail is the review's guardrail, counted per review. State is
+// "checked", "off" or "no_call"; Line is the one line the text and Markdown
+// outputs print, so a consumer can show the same words without composing them.
+type jsonGuardrail struct {
+	State      string `json:"state"`
+	Line       string `json:"line"`
+	Prompts    int    `json:"prompts"`
+	Answers    int    `json:"answers"`
+	Blocked    int    `json:"blocked"`
+	Unanswered int    `json:"unanswered"`
+	Backend    string `json:"backend"`
+	Model      string `json:"model"`
+}
+
+// guardrailFrom is the guardrail object the JSON document and the SARIF run share.
+func guardrailFrom(result review.Result) jsonGuardrail {
+	c := result.Guardrail
+	return jsonGuardrail{
+		State: result.GuardrailState(), Line: result.GuardrailLine(),
+		Prompts: c.Prompts, Answers: c.Answers, Blocked: c.Blocked, Unanswered: c.Unanswered,
+		Backend: c.Backend, Model: c.Model,
+	}
 }
 
 type jsonAuthorModel struct {
@@ -158,6 +184,7 @@ func documentFrom(result review.Result) jsonDocument {
 		FamilySentence:       familySentence(result.TracePath),
 		Models:               uses,
 		FailedServices:       services,
+		Guardrail:            guardrailFrom(result),
 		ProofCounts:          proofCountsFrom(result.ProofCounts),
 		Findings:             findings,
 	}
