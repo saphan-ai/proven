@@ -1,6 +1,7 @@
 # The workflow a GitHub user commits, and the workflow the lab seeds.
-# Proven's Action is not on main yet, so this job runs the CLI itself and posts the text as ONE comment per pull
-# request, edited in place on every run. See docs/LAB.md.
+# The lab's Gitea runs no GitHub Action, so this job runs the CLI itself in Proven's image and posts the text as ONE
+# comment per pull request, edited in place on every run. GitHub users can use the Action instead (docs/ACTION.md).
+# See docs/LAB.md.
 # The sample set is chosen by the branch: a branch named demo-<name> is reviewed with the
 # fixture <name> (lab/seed/prs.tsv); any other branch is reviewed with the discount fixture.
 # The review is a SAMPLE review unless the repository holds a key (docs/LAB.md, "Go live"): `make up` stores each
