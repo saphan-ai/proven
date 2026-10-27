@@ -402,7 +402,7 @@
         "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
-        "sizing": "auto",
+        "sizing": "manual",
         "legend": {
           "showLegend": false
         },
@@ -446,7 +446,8 @@
           "custom": {
             "align": "left",
             "cellOptions": {
-              "type": "auto"
+              "type": "auto",
+              "wrapText": true
             }
           }
         },
@@ -462,22 +463,8 @@
                 "value": "ns"
               },
               {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "gradient"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
+                "id": "decimals",
+                "value": 1
               }
             ]
           },

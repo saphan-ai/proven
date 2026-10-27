@@ -190,7 +190,7 @@ def bars(pid, title, desc, expr, ds, label, reason, x, y, w, h, color=BLUE, step
                                   "displayName": "${__field.labels.%s}" % label}, "overrides": []},
         options={"reduceOptions": {"calcs": ["lastNotNull"], "values": False}, "orientation": "horizontal",
                  "displayMode": "gradient", "valueMode": "color", "showUnfilled": False, "minVizHeight": 32, "maxVizHeight": 48,
-                 "minVizWidth": 8, "namePlacement": "top", "sizing": "auto", "legend": {"showLegend": False}, "text": SIZE},
+                 "minVizWidth": 8, "namePlacement": "top", "sizing": "manual", "legend": {"showLegend": False}, "text": SIZE},
     )
 
 
@@ -236,12 +236,9 @@ def spans_table(pid, title, desc, traceql, x, y, w, limit, select):
     return panel(
         pid, "table", title, desc, x, y, w, table_h(limit),
         [{"refId": "A", "datasource": TEMPO, "queryType": "traceql", "query": traceql, "tableType": "spans", "limit": limit}],
-        fieldConfig={"defaults": {"custom": {"align": "left", "cellOptions": {"type": "auto"}}},
+        fieldConfig={"defaults": {"custom": {"align": "left", "cellOptions": {"type": "auto", "wrapText": True}}},
                      "overrides": [{"matcher": {"id": "byName", "options": "Duration"},
-                                    "properties": [{"id": "unit", "value": "ns"},
-                                                   {"id": "custom.cellOptions", "value": {"type": "gauge", "mode": "gradient"}},
-                                                   {"id": "min", "value": 0},
-                                                   {"id": "color", "value": {"mode": "fixed", "fixedColor": BLUE}}]}] + yes_no},
+                                    "properties": [{"id": "unit", "value": "ns"}, {"id": "decimals", "value": 1}]}] + yes_no},
         options={"showHeader": True, "cellHeight": "sm", "sortBy": [{"displayName": "Start time", "desc": False}]},
         transformations=[
             {"id": "filterFieldsByName", "options": {"include": {"names": list(select.keys())}}},
@@ -326,7 +323,8 @@ def overview():
                                                                "2": {"text": "finished", "color": GREEN}, "3": {"text": "failed", "color": RED}}}]},
                              {"id": "custom.cellOptions", "value": {"type": "color-text"}}]},
                          {"matcher": {"id": "byName", "options": "Pull request"}, "properties": [{"id": "decimals", "value": 0}]},
-                         {"matcher": {"id": "byName", "options": "Change"}, "properties": [{"id": "mappings", "value": value_words("change")}]},
+                         {"matcher": {"id": "byName", "options": "Change"}, "properties": [
+                             {"id": "mappings", "value": value_words("change")}, {"id": "custom.width", "value": 340}]},
                          {"matcher": {"id": "byName", "options": "Claims dropped"}, "properties": [
                              {"id": "mappings", "value": [{"type": "special", "options": {"match": "null+nan", "result": {"text": "0"}}}]}]}]},
         options={"showHeader": True, "cellHeight": "sm", "sortBy": [{"displayName": "Pull request", "desc": False}]},

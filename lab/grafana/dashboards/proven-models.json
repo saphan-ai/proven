@@ -374,7 +374,7 @@
         "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
-        "sizing": "auto",
+        "sizing": "manual",
         "legend": {
           "showLegend": false
         },
@@ -450,7 +450,7 @@
         "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
-        "sizing": "auto",
+        "sizing": "manual",
         "legend": {
           "showLegend": false
         },
@@ -526,7 +526,7 @@
         "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
-        "sizing": "auto",
+        "sizing": "manual",
         "legend": {
           "showLegend": false
         },
@@ -602,7 +602,7 @@
         "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
-        "sizing": "auto",
+        "sizing": "manual",
         "legend": {
           "showLegend": false
         },
@@ -678,7 +678,7 @@
         "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
-        "sizing": "auto",
+        "sizing": "manual",
         "legend": {
           "showLegend": false
         },
