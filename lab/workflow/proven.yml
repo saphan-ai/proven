@@ -247,13 +247,21 @@ jobs:
           # pc_json FILE — print FILE as the JSON object {"body": "..."} the comment routes take.
           pc_json() {
             awk '
+              # swap S SEP WITH: S with every SEP replaced by the literal WITH. split, not gsub: what
+              # a backslash means in a gsub replacement differs between awks (BusyBox kept one of two).
+              function swap(s, sep, with,   n, i, part, out) {
+                n = split(s, part, sep)
+                out = part[1]
+                for (i = 2; i <= n; i++) out = out with part[i]
+                return out
+              }
               BEGIN { printf "{\"body\":\"" }
               {
-                gsub(/\\/, "\\\\")
-                gsub(/"/, "\\\"")
-                gsub(/\t/, "\\t")
-                gsub(/[\001-\010\013-\037]/, "")
-                printf "%s\\n", $0
+                line = swap($0, "[\\\\]", "\\\\")
+                line = swap(line, "\"", "\\\"")
+                line = swap(line, "\t", "\\t")
+                gsub(/[\001-\010\013-\037]/, "", line)
+                printf "%s\\n", line
               }
               END { printf "\"}" }
             ' "$1"
