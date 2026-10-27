@@ -92,6 +92,10 @@ else
   esac
   awk -f "$here/md2html.awk" "$body.md" >"$body"
   rm -f "$body.md"
+  # A page with no block to open does not tell the reader to open one.
+  if ! grep -q '<details' "$body"; then
+    footer='The review as Proven wrote it with <code>proven scan --md</code>.'
+  fi
   if [ "${LAB_MODE:-sample}" = sample ]; then
     note='  <div class="note">Sample mode: recorded answers, no model was called. This is the review Proven writes for this change in the lab'"'"'s sample set.</div>'
   else

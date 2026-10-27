@@ -6,7 +6,8 @@
 # The review is Proven's sample review of that pull request's change: the same recorded answers the workflow's job uses in
 # sample mode, so the page says what the comment says. In a live lab the page says it is the sample review and that the live
 # review is the comment (lab/seed/report.sh). The run takes no network and no key: Proven's image, with no network, the
-# change's fixture, SAMPLE_MODE=true. Nothing here passes a credential: the lab's keys are not read.
+# change's fixture, SAMPLE_MODE=true, and the settings the workflow gives its review (the one automated fix, the special
+# reviewer), so the page names the reviewers the comment names. Nothing here passes a credential: the lab's keys are not read.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker
@@ -34,8 +35,8 @@ while IFS="$tab" read -r num branch fixture verdict <&3; do
   # $features is a fixed word or empty, never a value: the flag names a variable, it does not carry one.
   # shellcheck disable=SC2086
   if docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true \
-    -e SAMPLE_MODE=true -e FIXTURE="$fixture" -e SCOUT_INTENT="${PROVEN_LAB_SCOUT_INTENT:-}" $features \
-    --entrypoint sh "$PROVEN_IMAGE:latest" -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && if [ -n "$SCOUT_INTENT" ]; then printf "scout_intent: %s\n" "$SCOUT_INTENT" > /tmp/proven-run/proven.yaml && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml; fi && proven scan --md "$d"' \
+    -e SAMPLE_MODE=true -e FIXTURE="$fixture" -e SCOUT_INTENT="${PROVEN_LAB_SCOUT_INTENT:-}" -e SPECIAL_REVIEWER="${LAB_SPECIAL_REVIEWER:-}" $features \
+    --entrypoint sh "$PROVEN_IMAGE:latest" -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && echo autofix: on > /tmp/proven-run/proven.yaml && { [ -z "$SPECIAL_REVIEWER" ] || printf "special_reviewer: %s\n" "$SPECIAL_REVIEWER" >> /tmp/proven-run/proven.yaml; } && { [ -z "$SCOUT_INTENT" ] || printf "scout_intent: %s\n" "$SCOUT_INTENT" >> /tmp/proven-run/proven.yaml; } && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml && proven scan --md "$d"' \
     </dev/null >"$md" 2>/dev/null &&
     compose run --rm --no-deps -T --entrypoint sh seed -c 'exec sh /usr/local/bin/report.sh render "$1"' sh "$num" <"$md" >/dev/null; then
     echo "reports: #$num $branch: the report page is built"
