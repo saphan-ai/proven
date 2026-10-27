@@ -1,6 +1,6 @@
 # Proven — the design
 
-*The design, written on 20 October 2026, before the build window (22–27 October 2026) opened. It is the plan, and it is kept as written so you can compare it with what was built. What is built so far, day by day, is in the README ([Where things stand](../README.md#where-things-stand-end-of-day-1-22-october-2026) and [Timeline](../README.md#timeline-what-each-push-brought)); how to run it and every setting are in [`docs/`](../docs/README.md). Each decision is recorded, with its reasons, as an ADR in [`fleet/decisions/`](../docs/adr/).*
+*The design, written on 20 October 2026, before the build window (22–27 October 2026) opened. It is the plan, and it is kept as written so you can compare it with what was built. What is built so far, day by day, is in the build log ([Where things stand](../BUILD_LOG.md#where-things-stand) and [Timeline](../BUILD_LOG.md#timeline-what-each-push-brought)); how to run it and every setting are in [`docs/`](../docs/README.md). Each decision is recorded, with its reasons, as an ADR in [`fleet/decisions/`](../docs/adr/).*
 
 This page is for technical readers and the hackathon's judges. The short version is in the [README](../README.md).
 
