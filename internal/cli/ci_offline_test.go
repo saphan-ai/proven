@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -40,7 +41,32 @@ func runCI(t *testing.T, env map[string]string) int {
 // merge-base call carries protocol.allow=never and GIT_NO_LAZY_FETCH=1; with the mode unset it carries
 // neither, so the switches come from the mode and nothing else.
 // Mutated field: the UseOffline call of applyCI (a no-op leaves both switches off).
-func TestCIGitCannotFetchInLocalMode(t *testing.T) {
+func TestCIGitCannotFetchInLocalMode(t *testing.T) { ciGitSwitchesFollowTheMode(t) }
+
+// TestCIGitCannotFetchInLocalModeWithPaddedWC is the same proof on a host whose wc pads its count
+// with spaces, as BSD wc does. fakeGit counts its own calls with wc, so a padded count that is not
+// stripped names the record file "argv-<spaces>0" and both subtests read no record.
+// Mutated field: the `tr -d ' '` of fakeGit's count (removed, both subtests fail).
+func TestCIGitCannotFetchInLocalModeWithPaddedWC(t *testing.T) {
+	realWC, err := exec.LookPath("wc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shim := t.TempDir()
+	body := "#!/bin/sh\n'" + realWC + "' \"$@\" | sed 's/^/        /'\n"
+	if err := os.WriteFile(filepath.Join(shim, "wc"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shim+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out, err := exec.Command("sh", "-c", "ls / | wc -l").Output()
+	if err != nil || !strings.HasPrefix(string(out), " ") {
+		t.Fatalf("the shim does not pad wc's count (%q, %v), so this test would prove nothing", out, err)
+	}
+	ciGitSwitchesFollowTheMode(t)
+}
+
+func ciGitSwitchesFollowTheMode(t *testing.T) {
+	t.Helper()
 	for _, tc := range []struct {
 		mode string
 		want bool
