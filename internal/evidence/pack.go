@@ -201,7 +201,12 @@ func build(in Input) ([]byte, error) {
 }
 
 // redactionMoved lists the ids (as written in the pack) of the findings whose outcome the rule gives
-// differently for the redacted findings.json than for the review's own result.
+// differently for the redacted findings.json than for the review's own result. A review redacts a
+// finding's text and refutation rows after the Judge decided, so orig may be redacted already and
+// then differs from the pack in nothing. A finding whose text the pack holds with a redaction marker
+// in it, and whose recorded outcome is not the one the rule gives for that text, is listed too: the
+// Judge decided on the text before the marker stood in it. Verify then reads the text both ways and
+// names the finding; it still refuses a recorded outcome that no reading of the text gives.
 func redactionMoved(orig review.Result, redacted []byte) ([]string, error) {
 	var res review.Result
 	if err := json.Unmarshal(redacted, &res); err != nil {
@@ -214,11 +219,34 @@ func redactionMoved(orig review.Result, redacted []byte) ([]string, error) {
 	for i, f := range orig.Findings {
 		a, errA := review.Rederive(f)
 		b, errB := review.Rederive(res.Findings[i])
-		if (errA == nil) != (errB == nil) || a != b {
+		if (errA == nil) != (errB == nil) || a != b || (errB == nil && holdsMarker(res.Findings[i]) && !matchesRecorded(res.Findings[i], b)) {
 			out = append(out, res.Findings[i].ID)
 		}
 	}
 	return out, nil
+}
+
+// matchesRecorded reports whether o is the outcome f records as a whole: reported, its proof level,
+// and its open state when a refutation is recorded (the same test checkRecorded makes per reading).
+func matchesRecorded(f review.Finding, o review.Outcome) bool {
+	return o.Reported && o.Level == f.ProofLevel && (!o.Complete || o.Unresolved == f.Unresolved)
+}
+
+// holdsMarker reports whether any text the rule reads of f (its id, rule, title, message, path and
+// the cells of its refutation's query rows) holds a redaction marker.
+func holdsMarker(f review.Finding) bool {
+	texts := []string{f.ID, f.RuleID, f.Title, f.Message, f.Location.Path}
+	if f.Refutation != nil {
+		for _, row := range f.Refutation.QueryRows {
+			texts = append(texts, row...)
+		}
+	}
+	for _, s := range texts {
+		if strings.Contains(s, redact.MarkerPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // WriteFile writes the pack to path through a temporary file, so a failed write leaves no half pack.
