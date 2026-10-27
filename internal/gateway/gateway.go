@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -389,6 +390,60 @@ func templateCode(reason string) string {
 	return CodeTemplateRefused
 }
 
+// chatFields are the top-level fields a chat request may carry: the ones Proven's generator sends (internal/generator
+// chatRequest) and three common sampling bounds. Nightshift reads the body as it is sent, so the gateway checks and
+// forwards one and the same body: any other field (such as a fallback "models" list or a "provider" route that could
+// choose another model), a repeated key, or a key in another case is refused, never passed on.
+var chatFields = map[string]bool{
+	"model": true, "messages": true, "stream": true, "thinking_budget": true,
+	"max_tokens": true, "temperature": true, "top_p": true,
+}
+
+// chatBody reads a chat request strictly. It returns the model, the body to forward (the checked fields, encoded
+// again), or a problem in words.
+func chatBody(body []byte) (model string, clean []byte, problem string) {
+	const shape = `send an OpenAI-style chat request with a "model"`
+	dec := json.NewDecoder(bytes.NewReader(body))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return "", nil, shape
+	}
+	fields := map[string]json.RawMessage{}
+	seen := map[string]bool{}
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return "", nil, shape
+		}
+		key, _ := t.(string)
+		if !chatFields[key] {
+			return "", nil, fmt.Sprintf("the field %q is not served by this gateway", key)
+		}
+		if seen[strings.ToLower(key)] {
+			return "", nil, fmt.Sprintf("the field %q appears twice", key)
+		}
+		seen[strings.ToLower(key)] = true
+		var v json.RawMessage
+		if err := dec.Decode(&v); err != nil {
+			return "", nil, shape
+		}
+		fields[key] = v
+	}
+	if t, err := dec.Token(); err != nil || t != json.Delim('}') {
+		return "", nil, shape
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return "", nil, shape
+	}
+	if err := json.Unmarshal(fields["model"], &model); err != nil || model == "" {
+		return "", nil, shape
+	}
+	clean, err := json.Marshal(fields)
+	if err != nil {
+		return "", nil, shape
+	}
+	return model, clean, ""
+}
+
 // model forwards a chat completion to Nightshift with our token. The judge's
 // Authorization header is dropped and never copied; the upstream request is
 // built fresh from the body and two plain headers. An upstream error is not
@@ -398,18 +453,16 @@ func (g *Gateway) model(w http.ResponseWriter, r *http.Request, e *entry) *Refus
 	if ref != nil {
 		return ref
 	}
-	var head struct {
-		Model string `json:"model"`
+	model, clean, problem := chatBody(body)
+	if problem != "" {
+		return &Refusal{Status: http.StatusBadRequest, Code: CodeBadRequest, Detail: problem}
 	}
-	if err := json.Unmarshal(body, &head); err != nil || head.Model == "" {
-		return &Refusal{Status: http.StatusBadRequest, Code: CodeBadRequest, Detail: `send an OpenAI-style chat request with a "model"`}
-	}
-	if !g.modelAllowed(head.Model) {
+	if !g.modelAllowed(model) {
 		return &Refusal{Status: http.StatusBadRequest, Code: CodeModelNotAllowed, Detail: "this gateway serves only: " + strings.Join(g.cfg.Models, ", ")}
 	}
-	e.Model = head.Model
+	e.Model = model
 
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, g.cfg.NightshiftURL+"/v1/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, g.cfg.NightshiftURL+"/v1/chat/completions", bytes.NewReader(clean))
 	if err != nil {
 		return &Refusal{Status: http.StatusBadGateway, Code: CodeUpstreamDown, Detail: "the model service is not configured; tell the owner"}
 	}
