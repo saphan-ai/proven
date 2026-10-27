@@ -186,6 +186,14 @@ func TestReportStubSaysTheReportIsNotBuiltAndNamesTheCommand(t *testing.T) {
 	}
 }
 
+func TestReportBadgeIsTheVerdictBelowTheCommentsModeLine(t *testing.T) {
+	// The lab's comment opens with how the review was made; the badge is still the verdict.
+	p := renderReport(t, root, "render", "sample: no keys\n\n"+goldenMD(t, "findings.md"))
+	if !strings.Contains(p, `<span class="badge bad">Blocked</span>`) {
+		t.Error("a blocked review whose comment opens with its mode line did not get the Blocked badge")
+	}
+}
+
 func TestReportPageNamesTheModeItWasMadeIn(t *testing.T) {
 	if p := renderReport(t, root, "render", goldenMD(t, "clean.md")); !strings.Contains(p, "Sample mode: recorded answers") {
 		t.Error("a sample lab's report does not say it is a sample")

@@ -96,7 +96,8 @@ if [ "$mode" = stub ]; then
 else
   head -c "$REPORT_MAX_BYTES" | tr -d '\r' >"$body.md"
   [ -s "$body.md" ] || fail "no Markdown on standard input"
-  first=$(grep -m 1 -v '^[[:space:]]*$' "$body.md" || true)
+  # The verdict line, wherever the comment puts it: the lab's comment opens with how the review was made ("sample: no keys").
+  first=$(grep -m 1 -E 'Proven: (blocked|clean)' "$body.md" || true)
   case $first in
     *"Proven: blocked"*)
       badge_class=bad
