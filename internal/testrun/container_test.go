@@ -434,10 +434,19 @@ func TestOffRunsNothing(t *testing.T) {
 	}
 }
 
-// mustContainer builds a Container whose runtime lookup always succeeds.
+// mustContainer builds a Container whose runtime lookup always succeeds. Local
+// mode vets the runtime's file, so it is given a real one; otherwise the path is
+// only printed and need not exist.
 func mustContainer(t *testing.T, cfg ContainerConfig) *Container {
 	t.Helper()
-	c, err := NewContainer(cfg, func(string) (string, error) { return "/bin/docker", nil })
+	path := "/bin/docker"
+	if cfg.local {
+		path = filepath.Join(t.TempDir(), "docker")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := NewContainer(cfg, func(string) (string, error) { return path, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

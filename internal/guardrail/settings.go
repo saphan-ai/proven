@@ -1,13 +1,13 @@
 package guardrail
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -80,27 +80,7 @@ func Environment() []envdoc.Setting {
 
 // ConfigError names a refused guardrail setting and the values that are allowed.
 // Value is empty when the field is the key: the secret is never printed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value and what is allowed.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Settings is one validated guardrail configuration.
 // Key is held so the call can send it. It is not a value to print.
@@ -111,6 +91,8 @@ type Settings struct {
 	Model   string
 	Key     string
 	Timeout time.Duration
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network *network.Policy
 }
 
 // Load reads the guardrail settings. A wrong value is refused.
@@ -128,6 +110,16 @@ func Load(env func(string) string) (Settings, error) {
 	default:
 		return Settings{}, refuse(EnvMode, clip(mode), "not a guardrail mode", "server, nvidia, or off")
 	}
+	// ADR-0034: the air-gapped mode refuses NVIDIA's hosted API by name.
+	policy, perr := network.Load(env)
+	if perr != nil {
+		return Settings{}, fromNetwork(perr)
+	}
+	if mode == ModeNVIDIA {
+		if err := policy.Refuse(EnvMode, mode, "the hosted guardrail is outside the organisation's network"); err != nil {
+			return Settings{}, fromNetwork(err)
+		}
+	}
 	timeout := defaultTimeout
 	if raw := env(EnvTimeout); raw != "" {
 		d, err := time.ParseDuration(raw)
@@ -140,8 +132,12 @@ func Load(env func(string) string) (Settings, error) {
 	// caught before it is switched back on; the key is then dropped, not kept.
 	if mode == ModeOff {
 		if raw := env(EnvBaseURL); raw != "" {
-			if _, err := checkBase(raw); err != nil {
+			checked, err := checkBase(raw)
+			if err != nil {
 				return Settings{}, err
+			}
+			if err := policy.CheckURL(EnvBaseURL, checked); err != nil {
+				return Settings{}, fromNetwork(err)
 			}
 		}
 		if raw := env(EnvModel); raw != "" {
@@ -171,6 +167,9 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	if err := policy.CheckURL(EnvBaseURL, base); err != nil {
+		return Settings{}, fromNetwork(err)
+	}
 	model := env(EnvModel)
 	if model == "" {
 		if mode == ModeNVIDIA {
@@ -186,7 +185,16 @@ func Load(env func(string) string) (Settings, error) {
 	if err := checkKey(key); err != nil {
 		return Settings{}, err
 	}
-	return Settings{Mode: mode, BaseURL: base, Model: model, Key: key, Timeout: timeout}, nil
+	return Settings{Mode: mode, BaseURL: base, Model: model, Key: key, Timeout: timeout, Network: policy}, nil
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError,
+// so the shell reports it like any other refused setting. Any other error passes through.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+	}
+	return err
 }
 
 // refuse builds the refusal for one setting with one allowed form.

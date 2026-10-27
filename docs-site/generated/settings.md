@@ -12,7 +12,7 @@ description: Every setting, its environment variable and its default.
 | `PROVEN_GENERATOR_MODE` | `nightshift` | `nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031) |
 | `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
 | `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode |
-| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or GLM's `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it |
 | `PROVEN_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031) |
 | `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/nemotron-3.5-super-vl-120b-a12b` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only |
@@ -65,10 +65,11 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `ZETARIS_TIMEOUT` | `60s` | the limit for one query |
 | `PROVEN_OSV_TABLE` | `px_osvfile.px_osv_pkg` | the OSV package table the dependency check queries; see [OSV_TABLE.md](OSV_TABLE.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_KEV_VIEW` | `px_evidence.px_kev_vulns` | the KEV view an advisory's CVE alias is looked up in. Sample mode uses the default and does not read this variable |
+| `PROVEN_OSV_ID_VIEW` | `px_evidence.px_osv_id` | the OSV advisory-id view the `osv-by-advisory` template reads; see [ZETARIS_USL.md](ZETARIS_USL.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
 
 ## The Prover's container
 
@@ -99,12 +100,21 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_MARKOVIAN` | `off` | `on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. Off until its measurement holds |
+| `PROVEN_MARKOVIAN` | `on` | `on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. On by default (ADR-0053); its benefit is not measured yet |
 | `PROVEN_MARKOVIAN_THRESHOLD` | `8000` | the size, in estimated tokens (characters / 4) of the Planner's whole prompt, above which a change is reviewed in bounded steps; at or below it the review is one whole step |
 | `PROVEN_MARKOVIAN_STEP_UNIT` | `file` | what one step reads: `file` (one changed file, its base and its change) or `hunk` (one changed region of a file) |
 | `PROVEN_MARKOVIAN_CARRY_TOKENS` | `800` | the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from 128 to 32768. When it cannot hold every claim that awaits evidence, the review stops and names itself incomplete; it never drops such a claim |
 
-ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these.
+ADR-0053 (superseding the "off until measured" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way.
+
+## The two stores: Meterless's H-MEM and World Model
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_HMEM` | `on` | `on` opens H-MEM, so a finding an earlier review of the same change refuted is dropped and a landed refutation is remembered; `off` neither opens, reads nor writes it. On by default (ADR-0053); its benefit is not measured yet |
+| `PROVEN_WORLD_MODEL` | `on` | `on` opens the World Model and folds each finished review's trace into it; `off` neither opens nor writes it. With H-MEM off the World Model still folds and records no refutation. On by default (ADR-0053); its benefit is not measured yet |
+
+ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches.
 
 ## One adapter call
 

@@ -10,7 +10,7 @@ import (
 // standard output, which is repository content (ADR-0013).
 func TestFailureMessageNeverQuotesStandardOutput(t *testing.T) {
 	cmd := exec.Command("sh", "-c", "echo repository-content; echo the-error >&2; exit 1")
-	_, err := outputBounded(cmd, 1<<10, "the test output", EnvMaxFileBytes)
+	_, err := ProcessPolicy().outputBounded(cmd, 1<<10, "the test output", EnvMaxFileBytes)
 	if err == nil {
 		t.Fatal("a failing command returned no error")
 	}
@@ -26,7 +26,7 @@ func TestFailureMessageNeverQuotesStandardOutput(t *testing.T) {
 // so the error cannot grow with what a repository makes git print.
 func TestFailureMessageIsClipped(t *testing.T) {
 	cmd := exec.Command("sh", "-c", "head -c 200000 /dev/zero | tr '\\0' 'e' >&2; exit 1")
-	_, err := outputBounded(cmd, 1<<10, "the test output", EnvMaxFileBytes)
+	_, err := ProcessPolicy().outputBounded(cmd, 1<<10, "the test output", EnvMaxFileBytes)
 	if err == nil {
 		t.Fatal("a failing command returned no error")
 	}

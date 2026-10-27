@@ -1,7 +1,6 @@
 package query
 
 import (
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -9,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -69,28 +69,7 @@ func Environment() []envdoc.Setting {
 // ConfigError names a refused Zetaris setting and the values that are allowed.
 // The Value of the API key and of the organisation id is always empty: a
 // refusal names the variable and the rule, and does not print either.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value, why, and what is allowed, as
-// ADR-0013 asks of every refusal.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Settings is one validated live-Zetaris configuration.
 // APIKey is held so the call can send it. It is not a value to print.
@@ -100,6 +79,8 @@ type Settings struct {
 	OrgID    string
 	RowLimit int
 	Timeout  time.Duration
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network *network.Policy
 }
 
 // Load reads the live Zetaris settings. A wrong value is refused before a review runs.
@@ -113,6 +94,10 @@ func Load(env func(string) string) (Settings, error) {
 	// down, not that the review is refused. A value that is set but wrong is
 	// still refused. The first empty one is named after every set value has
 	// been checked, so a bad value is never hidden behind an empty one.
+	policy, perr := network.Load(env)
+	if perr != nil {
+		return Settings{}, fromNetwork(perr)
+	}
 	var missing string
 	base := strings.TrimSpace(env(EnvRESTURL))
 	if base == "" {
@@ -122,6 +107,10 @@ func Load(env func(string) string) (Settings, error) {
 		base, err = checkBase(base)
 		if err != nil {
 			return Settings{}, err
+		}
+		// ADR-0034: in the air-gapped mode a hosted address is refused here, by name.
+		if err := policy.CheckURL(EnvRESTURL, base); err != nil {
+			return Settings{}, fromNetwork(err)
 		}
 	}
 	// A line break or an over-long key is a wrong value, refused before any
@@ -170,7 +159,16 @@ func Load(env func(string) string) (Settings, error) {
 	if missing != "" {
 		return Settings{}, &service.Down{Service: "zetaris", Reason: missing + " is empty"}
 	}
-	return Settings{BaseURL: base, APIKey: key, OrgID: org, RowLimit: limit, Timeout: timeout}, nil
+	return Settings{BaseURL: base, APIKey: key, OrgID: org, RowLimit: limit, Timeout: timeout, Network: policy}, nil
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError,
+// so the shell reports it like any other refused setting. Any other error passes through.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+	}
+	return err
 }
 
 // refuse builds a ConfigError. The value of the key and of the organisation id

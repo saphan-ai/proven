@@ -8,3 +8,6 @@
 
 /bin/
 /dist/
+
+# The lab's state directory: the admin password file when stdout was not a terminal.
+/lab/.state/

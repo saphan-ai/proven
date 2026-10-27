@@ -72,5 +72,9 @@ c2=$(mk 2 proven-bot "$good" 2026-10-24T04:31:03Z)
 review_for "[$c1,$c2]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the run's review after an unrelated one was refused" >&2; fail=1; }
 review_for "[$c2,$c1]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the run's review before an unrelated one was refused" >&2; fail=1; }
 
+# The poster that keeps one comment per pull request (find, then edit in place), and
+# the proof that the workflow's copy of it is the Action's: lab/scripts/post-comment-check.sh.
+sh "$here/post-comment-check.sh" || fail=1
+
 [ "$fail" -eq 0 ] && echo "e2e-parse-check: ok"
 exit "$fail"

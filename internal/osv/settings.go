@@ -5,6 +5,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/querytpl"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // EnvTable is the environment variable that names the OSV package table.
@@ -26,33 +27,9 @@ const IDView = querytpl.DefaultOSVIDView
 const DefaultTable = querytpl.DefaultOSVTable
 
 // ConfigError names a refused OSV setting and the values that are allowed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error says which setting was refused, why, and what is allowed, on one
-// line (ADR-0013, point 4a).
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := "configuration refused: " + e.Field + "=" + quote(e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
-
-// quote shows the value in double quotes, so an empty or padded value is visible.
-func quote(s string) string {
-	return `"` + s + `"`
-}
+// The sentence is one line: which setting was refused, why, and what is
+// allowed (ADR-0013, point 4a).
+type ConfigError = service.ConfigError
 
 // LoadTable reads EnvTable. An empty value is DefaultTable.
 // ADR-0013: the table name is a setting with a documented default. A value
@@ -68,7 +45,8 @@ func LoadTable(env func(string) string) (string, error) {
 	if !ValidTable(raw) {
 		return "", &ConfigError{
 			Field: EnvTable, Value: raw, Reason: "not a table name",
-			Allowed: []string{"a table or schema.table of letters, digits and underscores; empty means " + DefaultTable},
+			Allowed:  []string{"a table or schema.table of letters, digits and underscores; empty means " + DefaultTable},
+			Sentence: service.SentenceRawQuote,
 		}
 	}
 	return raw, nil
@@ -106,7 +84,8 @@ func LoadIDView(env func(string) string) (string, error) {
 	if !ValidView(raw) {
 		return "", &ConfigError{
 			Field: EnvIDView, Value: raw, Reason: "not a view name",
-			Allowed: []string{"a view or schema.view of letters, digits and underscores; empty means " + IDView},
+			Allowed:  []string{"a view or schema.view of letters, digits and underscores; empty means " + IDView},
+			Sentence: service.SentenceRawQuote,
 		}
 	}
 	return raw, nil
@@ -126,7 +105,8 @@ func LoadView(env func(string) string) (string, error) {
 	if !ValidView(raw) {
 		return "", &ConfigError{
 			Field: EnvKEVView, Value: raw, Reason: "not a view name",
-			Allowed: []string{"a view or schema.view of letters, digits and underscores; empty means " + KEVView},
+			Allowed:  []string{"a view or schema.view of letters, digits and underscores; empty means " + KEVView},
+			Sentence: service.SentenceRawQuote,
 		}
 	}
 	return raw, nil

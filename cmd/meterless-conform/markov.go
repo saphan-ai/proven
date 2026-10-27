@@ -95,11 +95,11 @@ func chunkConfig(raw json.RawMessage) (markov.Config, error) {
 	for k, v := range fields {
 		dst, known := targets[k]
 		if !known {
-			return markov.Config{}, &markov.ConfigError{Field: k, Value: string(v), Reason: "unknown field",
+			return markov.Config{}, &markov.ConfigError{Lead: markov.RefusalLead, Field: k, Value: string(v), Reason: "unknown field",
 				Allowed: []string{"chunkSize", "maxChunks", "carryoverTokens", "overlapTokens"}}
 		}
 		if err := json.Unmarshal(v, dst); err != nil {
-			return markov.Config{}, &markov.ConfigError{Field: k, Value: string(v), Reason: "not a whole number",
+			return markov.Config{}, &markov.ConfigError{Lead: markov.RefusalLead, Field: k, Value: string(v), Reason: "not a whole number",
 				Allowed: []string{"a whole number"}}
 		}
 	}

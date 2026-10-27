@@ -52,7 +52,10 @@ func defaultPlans() map[string]planSetting {
 }
 
 // classSecurity is the review class whose execution obligations no plan may cut (ADR-0049 point 3).
-const classSecurity = "security"
+const (
+	classSecurity = "security"
+	classDocs     = "docs"
+)
 
 // cutsWork reports whether a plan leaves out any agent, tool or source the full plan runs.
 func cutsWork(ps planSetting) bool {
@@ -224,9 +227,18 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 	// Scout reads names, and a name proves nothing: docs/run.go, a script under docs/ or an executable
 	// file with a prose-like suffix would be reviewed by no model at all. A change that is not verified
 	// prose runs the configured class in full.
-	if kind == scout.KindDocs {
+	// ADR-0053: Scout reads names, so a lighter answer is only believed for a change it can be checked
+	// against. A file that is not verified prose, answered as docs, is code or an unreadable name that Scout
+	// could not place (a name in another language, code under docs/). The change is raised to security and
+	// doubled; the class only ever goes up, never down.
+	switch kind {
+	case scout.KindDocs:
 		if why := notProse(cfg, req, changed); why != "" {
-			return full(head + "; " + why + ", so it is not documentation-only"), nil
+			return raised(full, cfg, floor, head+"; "+why+", so it is not documentation-only"), nil
+		}
+	case scout.KindDependency:
+		if why := notManifestOnly(changed); why != "" {
+			return raised(full, cfg, floor, head+"; "+why+", so it is not a dependency-only change"), nil
 		}
 	}
 	ps, ok := cfg.Plans[kind]
@@ -259,6 +271,54 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 	rp.Plan.Note = head + "; plan: class " + class + " (" + rule + "), agents " + listOr(ps.Agents) + ", tools " + listOr(ps.Tools) +
 		", sources " + listOr(ps.Sources) + ", doubled " + onOff(rp.Doubled)
 	return rp, nil
+}
+
+// raised returns the full plan for a change Scout answered with a lighter kind than its files support.
+// ADR-0053 (the Scout guard): Scout may lighten a review only for a change that is verifiably prose or
+// verifiably a dependency manifest. For any other change it can have been misled by a name, so the class
+// is raised to security, with every agent and its doubled review, unless the configured floor already ranks
+// at least as high. WHY security and not the rules' class: the rules read the same names Scout did, and a
+// change they could not place is the change nobody has looked at.
+func raised(full func(string) reviewPlan, cfg fileSettings, floor, why string) reviewPlan {
+	rp := full(why)
+	if classRank(cfg.ClassOrder, classSecurity) < classRank(cfg.ClassOrder, floor) {
+		rp.Class = classSecurity
+		rp.Rule = "scout-guard: not verifiably lighter"
+		rp.Doubled = cfg.Doubled[classSecurity]
+		rp.Plan.Note = why + "; the full plan runs in class " + classSecurity + " (" + rp.Rule + ")"
+	}
+	return rp
+}
+
+// manifestNames is the closed set of file names a dependency change may touch: the module files, lockfiles
+// and package manifests of the ecosystems Scout's dependency class names (internal/scout/changes.json). A
+// name outside the set is code or something a review has not been told to trust, however Scout scored it.
+var manifestNames = set([]string{
+	"go.mod", "go.sum", "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock",
+	"Cargo.toml", "Cargo.lock", "requirements.txt", "Pipfile", "Pipfile.lock", "poetry.lock",
+	"Gemfile", "Gemfile.lock", "composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts",
+})
+
+// notManifestOnly returns why a change Scout called a dependency change is not verifiably one. ADR-0053:
+// Scout scores both paths of a rename, so a manifest renamed to a source file (or the reverse) can still
+// be answered as a dependency change. Every path of every file, the old path and the new, must therefore
+// be a name in manifestNames and lie outside any vendor directory, which is vendored code a review must
+// read. "" means that holds for every path.
+func notManifestOnly(changed []scout.ChangedFile) string {
+	for _, c := range changed {
+		for _, p := range []string{c.Path, c.From} {
+			if p == "" {
+				continue
+			}
+			if strings.HasPrefix(p, "vendor/") || strings.Contains(p, "/vendor/") {
+				return p + " is vendored code"
+			}
+			if !manifestNames[path.Base(p)] {
+				return p + " is not a dependency manifest or lockfile"
+			}
+		}
+	}
+	return ""
 }
 
 // allowedProseSuffixes is the value list a refused prose_suffixes key names.
@@ -333,7 +393,7 @@ func notProse(cfg fileSettings, req Request, changed []scout.ChangedFile) string
 	var facts map[string]change.Facts
 	if req.BaselineCommit != "" {
 		var err error
-		if facts, err = change.FactsBetween(req.Target, req.BaselineCommit, req.HeadCommit); err != nil {
+		if facts, err = req.read.FactsBetween(req.Target, req.BaselineCommit, req.HeadCommit); err != nil {
 			return "the files' modes could not be read (" + err.Error() + ")"
 		}
 	} else {
@@ -391,7 +451,7 @@ func classified(d scout.Decision) string {
 func changedStatus(req Request) ([]scout.ChangedFile, error) {
 	var out []scout.ChangedFile
 	if req.BaselineCommit != "" {
-		sts, err := change.StatusBetween(req.Target, req.BaselineCommit, req.HeadCommit)
+		sts, err := req.read.StatusBetween(req.Target, req.BaselineCommit, req.HeadCommit)
 		if err != nil {
 			return nil, err
 		}
@@ -400,7 +460,7 @@ func changedStatus(req Request) ([]scout.ChangedFile, error) {
 		}
 		return out, nil
 	}
-	files, err := change.Read(req.Target)
+	files, err := req.read.Read(req.Target)
 	if err != nil {
 		return nil, err
 	}

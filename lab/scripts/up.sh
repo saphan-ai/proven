@@ -2,7 +2,20 @@
 # Build the images, start the lab, create the admin when it is missing, seed the demo, start the runner.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
+refuse_retired_bind
 need_docker
+
+# A password the judge supplies is checked before any container starts. Gitea
+# refuses one shorter than 8 characters, and a line break would split it.
+if [ -n "${LAB_ADMIN_PASSWORD:-}" ]; then
+  case $LAB_ADMIN_PASSWORD in
+    *'
+'*) die "up: LAB_ADMIN_PASSWORD holds a line break" ;;
+  esac
+  if [ "${#LAB_ADMIN_PASSWORD}" -lt 8 ]; then
+    die "up: LAB_ADMIN_PASSWORD is shorter than 8 characters, which Gitea refuses"
+  fi
+fi
 
 if [ -z "${GITEA_RUN_USER:-}" ]; then
   die "up: GITEA_RUN_USER is not set"
@@ -18,7 +31,7 @@ sh "$ROOT/lab/scripts/seed-image.sh"
 compose up -d gitea dind lgtm
 
 internal="http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}"
-lab_url="http://${LAB_BIND}:${GITEA_HTTP_PORT}/"
+lab_url="http://${LAB_HOST}:${GITEA_HTTP_PORT}/"
 
 i=0
 ready=0
@@ -36,7 +49,7 @@ fi
 
 # ADR-0045: the dashboard is up before the pull request's review starts, so the review is exported to it.
 # A Grafana that does not answer is named, and the lab goes on: the review is still posted.
-dashboard_url="http://${LAB_BIND}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
+dashboard_url="http://${LAB_HOST}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
 grafana_internal="http://${LGTM_INTERNAL_HOST}:${LGTM_GRAFANA_CONTAINER_PORT}"
 grafana_ready=0
 waited=0
@@ -88,17 +101,29 @@ else
   echo "up: the tag resolved to ${pulled:-an unknown digest}. Set TEST_IMAGE_DIGEST in lab/versions.env to pin it." >&2
 fi
 
-pass=$(compose run --rm --no-deps -T --user 0:0 --entrypoint cat seed /state/password 2>/dev/null || true)
+pass=$(compose run --rm --no-deps -T --entrypoint cat seed /state/password 2>/dev/null || true)
 if [ -z "$pass" ]; then
-  pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
-  printf '%s' "$pass" | compose run --rm --no-deps -T --user 0:0 --entrypoint sh seed -c \
-    'mkdir -p /state /reg && cat > /state/password && chmod 600 /state/password && chown proven:proven /state /reg /state/password && chmod 700 /state /reg'
+  if [ -n "${LAB_ADMIN_PASSWORD:-}" ]; then
+    pass=$LAB_ADMIN_PASSWORD
+    supplied=1
+  else
+    pass=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+    supplied=0
+  fi
+  printf '%s' "$pass" | compose run --rm --no-deps -T --entrypoint sh seed -c \
+    'umask 077 && cat > /state/password'
   echo "lab admin user: $LAB_ADMIN_USER"
-  echo "lab admin password: $pass"
+  if [ "$supplied" -eq 1 ]; then
+    echo "lab admin password: the value of LAB_ADMIN_PASSWORD, not printed"
+  else
+    deliver_admin_password "$pass"
+  fi
   echo "lab url: $lab_url"
-  echo "This password is printed once. make clean removes it with the lab volume."
 else
-  echo "lab already installed; admin password was printed at first start"
+  echo "lab already installed; the admin password is not printed again"
+  if [ -n "${LAB_ADMIN_PASSWORD:-}" ] && [ "$LAB_ADMIN_PASSWORD" != "$pass" ]; then
+    echo "up: LAB_ADMIN_PASSWORD differs from the installed lab's password and is ignored. make clean, then make up, installs it." >&2
+  fi
   echo "lab url: $lab_url"
   echo "up: the volume is kept; repairing the admin user, the runner and the pull request"
 fi
@@ -140,7 +165,8 @@ if ! grep -q "$LAB_ADMIN_USER" "$users"; then
 fi
 rm -f "$users" "$err"
 
-LAB_ADMIN_PASSWORD=$pass compose run --rm -T seed
+# The seed reads the password from /state/password, written above. It is not passed in.
+compose run --rm -T seed
 compose up -d runner
 echo "lab: $lab_url"
 echo "dashboard: $dashboard_url"

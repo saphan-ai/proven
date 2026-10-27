@@ -85,9 +85,9 @@ func applyDecision(out *Result, cfg fileSettings, req Request, planned *reviewPl
 // there is a baseline, else the working tree's changes.
 func changedPaths(req Request) ([]string, error) {
 	if req.BaselineCommit != "" {
-		return change.Between(req.Target, req.BaselineCommit, req.HeadCommit)
+		return req.read.Between(req.Target, req.BaselineCommit, req.HeadCommit)
 	}
-	files, err := change.Read(req.Target)
+	files, err := req.read.Read(req.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error)
 	// Commits are read only between a baseline and the head; without a baseline there are no
 	// commits of the change to read.
 	if cfg.ReadCommits && req.BaselineCommit != "" {
-		msgs, err := change.Messages(req.Target, req.BaselineCommit, req.HeadCommit)
+		msgs, err := req.read.Messages(req.Target, req.BaselineCommit, req.HeadCommit)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -258,7 +258,7 @@ func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error)
 		take(req.Description, "description")
 	}
 	if cfg.Record != "" {
-		text, err := readRecord(req.Target, cfg.Record)
+		text, err := readRecord(req.read, req.Target, cfg.Record)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -356,7 +356,7 @@ func dedupeAuthors(in []AuthorModel) []AuthorModel {
 // readRecord reads the author record file or files the setting names, in sorted order so the
 // statement is the same on every run. A record that is configured but missing is refused: the team
 // said where the record is, so its absence is a setting to fix, not "author model not stated".
-func readRecord(target, pattern string) (string, error) {
+func readRecord(rd change.Policy, target, pattern string) (string, error) {
 	const allowed = "off, or a relative path or pattern inside the review target"
 	matches, err := recordPaths(target, pattern)
 	if err != nil {
@@ -373,7 +373,7 @@ func readRecord(target, pattern string) (string, error) {
 	// ADR-0013: the record is bounded as a whole. Each file may use only what
 	// the files before it left, so a pattern that matches many files cannot add up
 	// to a read without bound.
-	remaining := change.Bounds().Record
+	remaining := rd.Bounds().Record
 	for _, p := range matches {
 		body, err := change.ReadBounded(p, remaining, "the author record "+pattern, change.EnvMaxRecordBytes)
 		if err == nil {

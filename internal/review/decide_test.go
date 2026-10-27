@@ -111,16 +111,15 @@ func TestHighestRiskWinsOverEarlierLowerRule(t *testing.T) {
 	}
 }
 
-// TestConfiguredOrderCanPutDocsAboveSecurity proves that the order of risk is a setting: a configured
-// order decides, with no built-in preference for security.
-func TestConfiguredOrderCanPutDocsAboveSecurity(t *testing.T) {
-	cfg, err := parseConfig([]byte("class_order: docs, user interface, mobile, backend, security\n"))
+// TestConfiguredOrderCanPutDocsAboveBackend proves classes besides security may be reordered.
+func TestConfiguredOrderCanPutDocsAboveBackend(t *testing.T) {
+	cfg, err := parseConfig([]byte("class_order: security, docs, user interface, mobile, backend\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	rules := []pathRule{
 		{Pattern: "**/*.md", Class: "docs"},
-		{Pattern: "**/*secret*", Class: "security"},
+		{Pattern: "**/*secret*", Class: "backend"},
 	}
 	class, rule := chooseClass([]string{"docs/api_secret.md"}, rules, cfg.ClassOrder, cfg.Fallback)
 	if class != "docs" || rule != "**/*.md" {
@@ -320,7 +319,7 @@ func TestConfigRefusals(t *testing.T) {
 
 // TestClassOrderThatListsEveryClassIsAccepted proves that a reordered list naming every class is accepted.
 func TestClassOrderThatListsEveryClassIsAccepted(t *testing.T) {
-	_, err := parseConfig([]byte("class_order: docs, user interface, mobile, backend, security\n"))
+	_, err := parseConfig([]byte("class_order: security, docs, user interface, mobile, backend\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

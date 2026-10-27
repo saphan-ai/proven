@@ -1,5 +1,6 @@
-// Package hmem is the minimum memory store and retrieval service.
-// Dreaming, sleep and conflict resolution are not in this package.
+// Package hmem is the memory store and retrieval service, with sleep
+// (sleep.go), conflict resolution (conflict.go), the trust ledger (ledger.go)
+// and dreaming with approval (dream.go). None of them calls a model.
 //
 // It is the reviewer's memory across pull requests (ADR-0003 point 1), built
 // to the Meterless H-MEM specification (ADR-0018 point 1). In a review it
@@ -18,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/pathguard"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // schemaVersion is the state.json format. Open refuses any other version
@@ -75,6 +78,30 @@ type Record struct {
 	FindingKey string `json:"findingKey,omitempty"`
 }
 
+// detached returns the record with its own copy of every slice field. Every
+// public call that hands out a Record returns it through detached, so editing
+// what a caller was given never changes a stored record: the stored tags would
+// otherwise change without the domain being classified again (see Dream).
+func (r Record) detached() Record {
+	r.Tags = cloneStrings(r.Tags)
+	if r.Embedding != nil {
+		r.Embedding = append(make([]float64, 0, len(r.Embedding)), r.Embedding...)
+	}
+	r.Entities = cloneStrings(r.Entities)
+	r.RelatedTo = cloneStrings(r.RelatedTo)
+	r.DerivedFrom = cloneStrings(r.DerivedFrom)
+	return r
+}
+
+// cloneStrings copies a slice and keeps nil as nil and empty as empty, so a
+// detached record encodes to the same JSON as the stored one.
+func cloneStrings(in []string) []string {
+	if in == nil {
+		return nil
+	}
+	return append(make([]string, 0, len(in)), in...)
+}
+
 // Provenance is where a record was learned.
 type Provenance struct {
 	Origin    string `json:"origin"`
@@ -93,7 +120,17 @@ type AddInput struct {
 	Origin     string
 	Label      string
 	ChatID     string
-	At         int64
+	// DerivedFrom names the records a synthesized or dreamed record came from.
+	// Sleep never archives a record that carries lineage.
+	DerivedFrom []string
+	At          int64
+	// fixedID, when set, is the id of the new record instead of the next
+	// sequence id. An approved dream uses it so its record can be found again.
+	fixedID string
+	// deferWrites, when set, installs the record in memory only. The caller
+	// writes the state and the ledger line together with its other changes, so
+	// one failure undoes all of them (sleep synthesis uses it).
+	deferWrites bool
 }
 
 // RefutationKey names a finding a skeptic refuted on one change. ChangeKey,
@@ -116,6 +153,9 @@ type Options struct {
 	LogDir   string
 	RepoRoot string
 	Clock    func() time.Time
+	// Limits bounds the state read and the query tokens. A zero field means
+	// the default (ADR-0013).
+	Limits Limits
 }
 
 // Store is the durable memory. The generator is accepted and never called:
@@ -124,22 +164,64 @@ type Store struct {
 	dir       string
 	auditPath string
 	clock     func() time.Time
+	limits    Limits
 	gen       generator.Generator
 	mu        sync.Mutex
 	seq       int
 	records   map[string]Record
+	// epoch counts the Clears this store has had. A dream proposal carries the
+	// epoch it was made in and is bound only while that epoch is current, so
+	// Clear voids every old proposal with the one state write that empties the
+	// records (see Clear).
+	epoch int
+	// ledger and dreams are the incremental indexes of the two append-only
+	// logs; see logindex.go.
+	ledger *ledgerIndex
+	dreams *dreamIndex
+	// writeHook, when set, runs before each durable write ("dream", "state" or "audit:<action>") and may refuse it.
+	// It is the seam tests use to inject a failed write; production leaves it nil.
+	writeHook func(op string) error
+	// appendFault, when set, runs after each step of a log append and may refuse
+	// it, so a test can fail an append after its bytes were placed. Production
+	// leaves it nil.
+	appendFault appendFault
+	// readDir lists a directory; backups use it only to migrate a store that has
+	// no sequence file yet. Nil means os.ReadDir; tests count its calls.
+	readDir func(dir string) ([]os.DirEntry, error)
 }
 
 // disk is the shape of state.json. Seq is kept so Add never reuses an id after
 // a reopen. Clear sets it back to zero and writes that, so the next id starts again.
 type disk struct {
-	Version int      `json:"version"`
-	Seq     int      `json:"seq"`
+	Version int `json:"version"`
+	Seq     int `json:"seq"`
+	// Epoch is the Clear count; a file written before it existed reads as 0.
+	Epoch   int      `json:"epoch,omitempty"`
 	Records []Record `json:"records"`
 }
 
 // Open creates the directory, loads state.json when it exists, and refuses a bad file.
 func Open(opts Options) (*Store, error) {
+	return open(opts, openStateFile)
+}
+
+// stateFile is what the state read needs from an open file: its bytes, its
+// size, and a way to close it. *os.File satisfies it.
+type stateFile interface {
+	io.ReadCloser
+	Stat() (os.FileInfo, error)
+}
+
+// openStateFile is the production opener of state.json.
+func openStateFile(path string) (stateFile, error) {
+	return os.Open(path)
+}
+
+// open is Open with the opener of state.json passed in. It is the one seam of
+// the state read: a test hands in a file whose size is wrong or unknown and
+// counts the bytes the read consumes, so a read that checks the size and then
+// reads without a bound is seen by the bytes it takes, not by the refusal.
+func open(opts Options, opener func(path string) (stateFile, error)) (*Store, error) {
 	if opts.Dir == "" {
 		return nil, fmt.Errorf("hmem: state directory is empty")
 	}
@@ -153,7 +235,7 @@ func Open(opts Options) (*Store, error) {
 	if err := refuseInside(dir, opts.RepoRoot); err != nil {
 		return nil, err
 	}
-	if err := privateDir(dir); err != nil {
+	if err := service.PrivateDir(dir); err != nil {
 		return nil, fmt.Errorf("hmem: state directory: %w", err)
 	}
 	st, err := os.Stat(dir)
@@ -167,26 +249,29 @@ func Open(opts Options) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hmem: logs directory: %w", err)
 	}
-	if err := privateDir(logDir); err != nil {
+	if err := service.PrivateDir(logDir); err != nil {
 		return nil, fmt.Errorf("hmem: logs directory: %w", err)
 	}
 	s := &Store{
 		dir:       dir,
 		auditPath: filepath.Join(logDir, "hmem.jsonl"),
 		clock:     opts.Clock,
+		limits:    opts.Limits.withDefaults(),
 		records:   map[string]Record{},
 	}
+	s.ledger = newLedgerIndex(s.auditPath)
+	s.dreams = newDreamIndex(filepath.Join(logDir, "dreams.jsonl"))
 	path := filepath.Join(dir, "state.json")
 	// A state file an earlier run left at a wider mode is narrowed before it is read.
 	if err := os.Chmod(path, 0o600); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("hmem: state file: %w", err)
 	}
-	b, err := os.ReadFile(path)
+	b, err := readBounded(opener, path, s.limits.MaxStateBytes)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return s, nil
 		}
-		return nil, fmt.Errorf("hmem: read state: %w", err)
+		return nil, err
 	}
 	var file disk
 	if err := json.Unmarshal(b, &file); err != nil {
@@ -205,7 +290,48 @@ func Open(opts Options) (*Store, error) {
 		s.records[rec.ID] = rec
 	}
 	s.seq = file.Seq
+	s.epoch = file.Epoch
+	// An approval a crashed run left half done is finished now, so no person
+	// has to notice it.
+	if err := s.recoverApprovals(); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// readBounded reads path through a reader that stops at limit+1 bytes, so a
+// state file of any size costs at most limit+1 bytes of memory. The size is
+// checked first so a file known to be too large is not read at all; the
+// bounded read then covers a file that grew after the check. A file over the
+// limit is refused with ErrStateTooLarge, naming its size and the cap.
+// A missing file is returned as the os error so Open can start empty.
+// A close that fails after a good read is returned, naming the path, because a
+// failed close can mean the bytes read are not the bytes on disk; when the
+// read or the size check failed too, that error stays the primary one.
+func readBounded(opener func(path string) (stateFile, error), path string, limit int64) (b []byte, err error) {
+	f, err := opener(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("hmem: read state: %w", err)
+	}
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			b, err = nil, fmt.Errorf("hmem: close state %s: %w", path, cerr)
+		}
+	}()
+	if info, serr := f.Stat(); serr == nil && info.Size() > limit {
+		return nil, fmt.Errorf("%w: %s is %d bytes, the cap is %d (%s)", ErrStateTooLarge, path, info.Size(), limit, EnvMaxStateBytes)
+	}
+	b, err = io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("hmem: read state: %w", err)
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%w: %s grew past %d bytes while it was read, the cap is %d (%s)", ErrStateTooLarge, path, limit, limit, EnvMaxStateBytes)
+	}
+	return b, nil
 }
 
 // refuseInside refuses a state directory at or below root.
@@ -266,6 +392,12 @@ func (s *Store) Generator() generator.Generator { return s.gen }
 func (s *Store) Add(in AddInput) (Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.addLocked(in)
+}
+
+// addLocked is Add for a caller that already holds s.mu: sleep synthesis and
+// an approved dream both create a record inside their own locked step.
+func (s *Store) addLocked(in AddInput) (Record, error) {
 	if strings.TrimSpace(in.Source) == "" {
 		return Record{}, fmt.Errorf("hmem: a record with no source is refused")
 	}
@@ -294,9 +426,13 @@ func (s *Store) Add(in AddInput) (Record, error) {
 		label = in.Source
 	}
 	prevSeq := s.seq
-	s.seq++
+	id := in.fixedID
+	if id == "" {
+		s.seq++
+		id = fmt.Sprintf("mem-%d", s.seq)
+	}
 	rec := Record{
-		ID:           fmt.Sprintf("mem-%d", s.seq),
+		ID:           id,
 		Content:      in.Content,
 		Type:         typ,
 		Layer:        layer,
@@ -311,6 +447,10 @@ func (s *Store) Add(in AddInput) (Record, error) {
 		Entities:     extractEntities(in.Content),
 		RelatedTo:    []string{},
 		ChatID:       in.ChatID,
+		DerivedFrom:  append([]string(nil), in.DerivedFrom...),
+	}
+	if len(rec.DerivedFrom) == 0 {
+		rec.DerivedFrom = nil
 	}
 	rec.Namespace = namespace(rec.Domain, rec.Type)
 	// A refused record gives its sequence number back, so ids stay dense.
@@ -319,10 +459,22 @@ func (s *Store) Add(in AddInput) (Record, error) {
 		return Record{}, err
 	}
 	s.records[rec.ID] = rec
+	if in.deferWrites {
+		return rec, nil
+	}
+	if in.fixedID != "" {
+		// The caller writes the ledger line after this, so a failed state
+		// write leaves neither a record nor a line that names one.
+		if err := s.persist(); err != nil {
+			delete(s.records, rec.ID)
+			return Record{}, err
+		}
+		return rec.detached(), nil
+	}
 	if err := s.publish("create", rec.ID, in.Source, prevSeq, nil, []string{rec.ID}); err != nil {
 		return Record{}, err
 	}
-	return rec, nil
+	return rec.detached(), nil
 }
 
 // RememberRefutation stores a refuted finding. The same key returns the same record
@@ -340,7 +492,7 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	sum := sha256.Sum256([]byte(k.ChangeKey + "\n" + fk))
 	id := "mem_" + hex.EncodeToString(sum[:])[:16]
 	if rec, ok := s.records[id]; ok {
-		return rec, nil
+		return rec.detached(), nil
 	}
 	now := k.At
 	if now == 0 {
@@ -380,7 +532,7 @@ func (s *Store) RememberRefutation(k RefutationKey) (Record, error) {
 	if err := s.publish("create", id, "skeptic", s.seq, nil, []string{id}); err != nil {
 		return Record{}, err
 	}
-	return rec, nil
+	return rec.detached(), nil
 }
 
 // MatchRefutation returns the stored refutation of this finding on this change.
@@ -402,24 +554,40 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 			ok = true
 		}
 	}
-	return found, ok
+	return found.detached(), ok
 }
 
-// Clear drops every record, writes one clear audit line, resets the id
-// sequence, and writes the empty store. Earlier audit lines stay.
-// A failed audit or persist leaves the records and the sequence as they were.
+// Clear drops every record, resets the id sequence, writes the empty store and
+// then one clear audit line. Earlier audit lines stay.
+// A failed write leaves the records and the sequence as they were.
+//
+// The rule: a proposal never outlives the records it names. The reset sequence
+// hands out the same ids again, and a proposal that survived would bind its old
+// content to unrelated new records (a false lineage). Clear therefore raises
+// the store's epoch in the same state.json write that empties the records, and
+// a proposal made in an older epoch reads as void with the reason "cleared"
+// unless it finished (approved with its dream_approved line, or rejected). A
+// void proposal is refused by Approve by name.
+//
+// Clear is one transition (ADR-0018 point 3: no half-applied change), and its
+// only commit point is the state.json write: before it nothing durable has
+// changed, after it records and proposals are both gone, so no crash can leave
+// void proposals beside live records. The clear audit line comes after the
+// commit, so the ledger never reports a clear that did not happen. If the audit
+// write fails, Clear writes the old state back; if that fails too, memory is
+// left equal to the state file (cleared) and the error says the audit line is
+// missing (see commit).
 func (s *Store) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	prev := s.records
-	prevSeq := s.seq
+	prev, prevSeq, prevEpoch := s.records, s.seq, s.epoch
 	s.records = map[string]Record{}
 	s.seq = 0
+	s.epoch++
+	undo := func() { s.records, s.seq, s.epoch = prev, prevSeq, prevEpoch }
+	redo := func() { s.records, s.seq, s.epoch = map[string]Record{}, 0, prevEpoch+1 }
 	// Clear has no caller name, so the actor is the store itself.
-	if err := s.publish("clear", "all", "store", prevSeq, prev, nil); err != nil {
-		return err
-	}
-	return nil
+	return s.commit([]auditEntry{{action: "clear", id: "all", actor: "store"}}, undo, redo)
 }
 
 // MarkSuperseded records that id was replaced by by.
@@ -454,19 +622,25 @@ func (s *Store) MarkSuperseded(id, by string) error {
 	return nil
 }
 
-// Get returns one record.
+// Get returns one record. The caller owns the copy: editing its slices does
+// not change the store.
 func (s *Store) Get(id string) (Record, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.records[id]
-	return rec, ok
+	return rec.detached(), ok
 }
 
-// All returns every record, sorted by id.
+// All returns every record, sorted by id. The caller owns the copies: editing
+// their slices does not change the store.
 func (s *Store) All() []Record {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.snapshot()
+	out := s.snapshot()
+	for i := range out {
+		out[i] = out[i].detached()
+	}
+	return out
 }
 
 // snapshot returns the records sorted by id. The caller holds s.mu.
@@ -487,33 +661,88 @@ func (s *Store) now() int64 {
 	return time.Now().UnixMilli()
 }
 
-// publish writes the audit line and then the state file. On either failure it
-// puts seq and saved records back and drops the new ids, so a refused write
-// leaves memory equal to the state file.
+// publish writes the state file and then the audit line. On a failure it puts
+// seq and saved records back and drops the new ids, so a refused write leaves
+// memory equal to the state file and the ledger without a line for a change
+// that did not happen.
 func (s *Store) publish(action, id, actor string, seq int, saved map[string]Record, dropped []string) error {
-	err := s.audit(action, id, actor)
-	if err == nil {
-		err = s.persist()
+	return s.publishWith(action, id, actor, nil, seq, saved, dropped)
+}
+
+// publishWith is publish with extra fields on the audit line: the ledger
+// states (previousState, newState) and details a history is rebuilt from.
+func (s *Store) publishWith(action, id, actor string, extra map[string]any, seq int, saved map[string]Record, dropped []string) error {
+	return s.commitRecords([]auditEntry{{action: action, id: id, actor: actor, extra: extra}}, seq, saved, dropped)
+}
+
+// commitRecords is commit for a change to named records: saved holds the
+// records as they were before the change, dropped the ids the change added,
+// and seq the sequence before it. The change is already in memory.
+func (s *Store) commitRecords(entries []auditEntry, seq int, saved map[string]Record, dropped []string) error {
+	// What memory holds after the change, kept so a failed write-back can put
+	// memory equal to the state file again.
+	post := make(map[string]Record, len(saved)+len(dropped))
+	for rid := range saved {
+		post[rid] = s.records[rid]
 	}
+	for _, rid := range dropped {
+		post[rid] = s.records[rid]
+	}
+	postSeq := s.seq
+	undo := func() {
+		s.seq = seq
+		for rid, rec := range saved {
+			s.records[rid] = rec
+		}
+		for _, rid := range dropped {
+			delete(s.records, rid)
+		}
+	}
+	redo := func() {
+		s.seq = postSeq
+		for rid, rec := range post {
+			s.records[rid] = rec
+		}
+	}
+	return s.commit(entries, undo, redo)
+}
+
+// commit makes a change that is already in memory durable: the state file
+// first, then the audit lines in one write. The state file is the commit
+// point, so the ledger never holds a line for a change that is not in it.
+// undo puts memory back as it was and redo puts the change back.
+//
+// If the state write fails, undo runs and nothing durable changed. If the audit
+// write fails after the state is written, undo runs and the old state is
+// written back; the error is the audit failure. If that write-back fails as
+// well, the state file holds the change, so redo runs: memory equals the state
+// file, and the error says both that the state file holds the change and that
+// the ledger has no line for it. It never claims a restore the file contradicts.
+func (s *Store) commit(entries []auditEntry, undo, redo func()) error {
+	if err := s.persist(); err != nil {
+		undo()
+		return err
+	}
+	err := s.auditBatch(entries)
 	if err == nil {
 		return nil
 	}
-	// Clear installed a fresh map; copying the saved records back into it
-	// restores the old ones. Other callers pass the map they mutated, and
-	// the saved values overwrite those entries.
-	s.seq = seq
-	for rid, rec := range saved {
-		s.records[rid] = rec
-	}
-	for _, rid := range dropped {
-		delete(s.records, rid)
+	undo()
+	if perr := s.persist(); perr != nil {
+		redo()
+		return fmt.Errorf("%w; the state file already holds the change and writing the old state back failed (%v), so memory now matches the state file and the audit ledger has no line for it", err, perr)
 	}
 	return err
 }
 
 // persist writes the whole store. Sorted records make the file the same for the same state.
 func (s *Store) persist() error {
-	file := disk{Version: schemaVersion, Seq: s.seq, Records: s.snapshot()}
+	if s.writeHook != nil {
+		if err := s.writeHook("state"); err != nil {
+			return err
+		}
+	}
+	file := disk{Version: schemaVersion, Seq: s.seq, Epoch: s.epoch, Records: s.snapshot()}
 	b, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
 		return err
@@ -525,32 +754,58 @@ func (s *Store) persist() error {
 // audit appends one line to hmem.jsonl and syncs it (ADR-0018 point 3:
 // audit is append-only JSONL in the run's logs).
 func (s *Store) audit(action, id, actor string) error {
-	line := map[string]any{
-		"memoryId":  id,
-		"action":    action,
-		"actor":     actor,
-		"timestamp": s.now(),
+	return s.auditWith(action, id, actor, nil)
+}
+
+// auditEntry is one ledger line to write: the action, the memory id, the actor
+// and the extra fields (ledger states and details).
+type auditEntry struct {
+	action, id, actor string
+	extra             map[string]any
+}
+
+// auditWith is audit with extra fields. The four base fields cannot be
+// overwritten by extra, so every line stays readable as a ledger entry.
+func (s *Store) auditWith(action, id, actor string, extra map[string]any) error {
+	return s.auditBatch([]auditEntry{{action: action, id: id, actor: actor, extra: extra}})
+}
+
+// auditBatch appends the lines of entries in one write, so a failure writes
+// none of them: a change that needs several ledger lines never leaves some
+// of them behind. The write hook is asked once per line before anything is
+// written.
+func (s *Store) auditBatch(entries []auditEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	if s.writeHook != nil {
+		for _, e := range entries {
+			if err := s.writeHook("audit:" + e.action); err != nil {
+				return err
+			}
+		}
 	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	if err := enc.Encode(line); err != nil {
-		return err
+	now := s.now()
+	for _, e := range entries {
+		line := map[string]any{}
+		for k, v := range e.extra {
+			line[k] = v
+		}
+		line["memoryId"] = e.id
+		line["action"] = e.action
+		line["actor"] = e.actor
+		line["timestamp"] = now
+		if err := enc.Encode(line); err != nil {
+			return err
+		}
 	}
-	f, err := os.OpenFile(s.auditPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
+	if err := appendSynced(s.auditPath, buf.Bytes(), s.appendFault); err != nil {
 		return fmt.Errorf("hmem: audit: %w", err)
 	}
-	// OpenFile sets the mode only when it creates; an existing file is narrowed too.
-	if err := f.Chmod(0o600); err != nil {
-		f.Close()
-		return fmt.Errorf("hmem: audit: %w", err)
-	}
-	defer f.Close()
-	if _, err := f.Write(buf.Bytes()); err != nil {
-		return fmt.Errorf("hmem: audit: %w", err)
-	}
-	return f.Sync()
+	return nil
 }
 
 // findingKey joins the parts that name a finding across reviews.
@@ -574,7 +829,14 @@ func writeAtomic(path string, b []byte) error {
 	if err != nil {
 		return err
 	}
+	// The data is synced before the rename, so a crash after the rename cannot
+	// leave an empty state.json. The Close calls on the failure paths drop
+	// their error on purpose: the write error is the one being returned.
 	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
 		f.Close()
 		return err
 	}
@@ -593,14 +855,4 @@ func clamp01(x float64) float64 {
 		return 1
 	}
 	return x
-}
-
-// privateDir creates dir, or narrows an existing one, to 0700: MkdirAll sets a
-// mode only when it creates, and a directory an earlier run left at 0755 must
-// not stay readable by others (Proven's own state is readable only by its user).
-func privateDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	return os.Chmod(dir, 0o700)
 }

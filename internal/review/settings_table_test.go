@@ -94,14 +94,15 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	})
 
 	t.Run("class_order", func(t *testing.T) {
-		dir := treeWith(t, "docs/api_secret.md", "# secret\n")
-		def := decideOn(t, defaultSettings(), Request{Target: dir})
-		if def.Class != "security" || def.ClassRule != "**/*secret*" {
+		dir := treeWith(t, "docs/api.md", "# api\n")
+		rules := "path_rules: **/*.md=backend, docs/**=docs\n"
+		def := decideOn(t, mustParse(t, rules), Request{Target: dir})
+		if def.Class != "backend" || def.ClassRule != "**/*.md" {
 			t.Fatalf("default %s by %s", def.Class, def.ClassRule)
 		}
-		body := "class_order: docs, user interface, mobile, backend, security\n"
+		body := rules + "class_order: security, docs, user interface, mobile, backend\n"
 		other := decideOn(t, mustParse(t, body), Request{Target: dir})
-		if other.Class != "docs" || other.ClassRule != "**/*.md" {
+		if other.Class != "docs" || other.ClassRule != "docs/**" {
 			t.Fatalf("other %s by %s", other.Class, other.ClassRule)
 		}
 	})

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -62,6 +63,8 @@ type RecordsSettings struct {
 	User     string
 	Password string
 	Timeout  time.Duration
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network *network.Policy
 }
 
 // Enabled reports whether records are written.
@@ -92,6 +95,15 @@ func LoadRecords(env func(string) string) (RecordsSettings, error) {
 	if err != nil {
 		return RecordsSettings{}, err
 	}
+	// ADR-0034: in the air-gapped mode an address outside the network is
+	// refused here, by name, before the writing credential is ever sent to it.
+	policy, perr := network.Load(env)
+	if perr != nil {
+		return RecordsSettings{}, fromNetwork(perr)
+	}
+	if err := policy.CheckURL(EnvCouchURL, base); err != nil {
+		return RecordsSettings{}, fromNetwork(err)
+	}
 	user := env(EnvRecordsUser)
 	// The user name is not echoed: it is half of a credential.
 	if !userFormat.MatchString(user) {
@@ -114,7 +126,7 @@ func LoadRecords(env func(string) string) (RecordsSettings, error) {
 		}
 		timeout = d
 	}
-	return RecordsSettings{BaseURL: base, Database: db, User: user, Password: pass, Timeout: timeout}, nil
+	return RecordsSettings{BaseURL: base, Database: db, User: user, Password: pass, Timeout: timeout, Network: policy}, nil
 }
 
 // LoadLinkBase reads the address evidence-record links are built from. Empty

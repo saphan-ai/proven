@@ -7,9 +7,18 @@ environment only). The names and defaults below were read from the code on `main
 setting, the value and what is allowed. An empty secret does not: that service is down and the review names it, and an empty guardrail key refuses every model call unless `PROVEN_GUARDRAIL_MODE` is `off`.
 
 The shell's own flags (`proven scan …`) are documented by the shell's track. Sample mode (`--sample`) reads none of the
-settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MODE.md).
+settings below except `proven.yaml`'s `timeout` and the switches of the four Meterless engines (`PROVEN_MARKOVIAN` and its three tuning variables, `PROVEN_HMEM`, `PROVEN_WORLD_MODEL`; ADR-0053): see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
 <!-- generated: settings -->
+## The network mode: air-gapped
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_NETWORK` | `public` | `public` or `local`. `local` is the air-gapped mode: a setting that names an address outside the organisation's network is refused at load, and every connection to such an address is refused when it is made |
+| `PROVEN_NETWORK_ALLOW` | none | in `local` mode, host names that count as inside the network, comma-separated, for example `nightshift.corp.example`. A host name is never resolved to be judged: it is allowed by this list or it is refused. A listed name is resolved only through a name server inside the network, and an answer outside it is refused |
+
+In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds.
+
 ## The model generator: Meterless Nightshift or NVIDIA's hosted API
 
 | Environment variable | Default | What it changes |
@@ -17,7 +26,7 @@ settings below except `proven.yaml`'s `timeout`: see [SAMPLE_MODE.md](SAMPLE_MOD
 | `PROVEN_GENERATOR_MODE` | `nightshift` | `nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031) |
 | `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
 | `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode |
-| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or GLM's `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it |
 | `PROVEN_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031) |
 | `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/nemotron-3.5-super-vl-120b-a12b` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only |
@@ -53,7 +62,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 |---|---|---|
 | `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable |
 | `PROVEN_EVIDENCE_FILE` | none (required when the store is `local`) | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
-| `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it. In `PROVEN_NETWORK=local` an address outside the organisation's network is refused at load, and the store's client refuses to dial one |
 | `PROVEN_COUCHDB_PREFIX` | `proven_` | the start of every database name. One database holds one registered table, named the prefix, then the table name in lower case with `.` written as `-`. A lower-case letter, then at most 31 lower-case letters, digits or `_` |
 | `PROVEN_COUCHDB_USER` | none (required when the store is `couchdb`) | the CouchDB user Proven reads as. One line of printable ASCII with no `:`. Empty: CouchDB is down and the review names it |
 | `PROVEN_COUCHDB_PASSWORD` | none (required when the store is `couchdb`) | that user's password. Secret: never printed. Empty: CouchDB is down and the review names it |
@@ -74,7 +83,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
 | `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
+The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
 
 ## The Prover's container
 
@@ -105,12 +114,21 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_MARKOVIAN` | `off` | `on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. Off until its measurement holds |
+| `PROVEN_MARKOVIAN` | `on` | `on` reviews a change above the threshold in bounded steps (ADR-0048) and gives each new attempt of a proposed fix only what failed and why; `off` reviews every change whole, as before. On by default (ADR-0053); its benefit is not measured yet |
 | `PROVEN_MARKOVIAN_THRESHOLD` | `8000` | the size, in estimated tokens (characters / 4) of the Planner's whole prompt, above which a change is reviewed in bounded steps; at or below it the review is one whole step |
 | `PROVEN_MARKOVIAN_STEP_UNIT` | `file` | what one step reads: `file` (one changed file, its base and its change) or `hunk` (one changed region of a file) |
 | `PROVEN_MARKOVIAN_CARRY_TOKENS` | `800` | the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from 128 to 32768. When it cannot hold every claim that awaits evidence, the review stops and names itself incomplete; it never drops such a claim |
 
-ADR-0048: off by default, and kept off until its measurement holds. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads none of these.
+ADR-0053 (superseding the "off until measured" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way.
+
+## The two stores: Meterless's H-MEM and World Model
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_HMEM` | `on` | `on` opens H-MEM, so a finding an earlier review of the same change refuted is dropped and a landed refutation is remembered; `off` neither opens, reads nor writes it. On by default (ADR-0053); its benefit is not measured yet |
+| `PROVEN_WORLD_MODEL` | `on` | `on` opens the World Model and folds each finished review's trace into it; `off` neither opens nor writes it. With H-MEM off the World Model still folds and records no refutation. On by default (ADR-0053); its benefit is not measured yet |
+
+ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches.
 
 ## One adapter call
 
@@ -122,9 +140,9 @@ ADR-0048: off by default, and kept off until its measurement holds. Every review
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | none (telemetry is off) | the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | none | the full URL the trace is sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the trace and, set alone, turns the trace on |
-| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | none | the full URL the metrics are sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the metrics and, set alone, turns the metrics on |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | none (telemetry is off) | the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too. In `PROVEN_NETWORK=local` a host outside the organisation's network is refused at load, in sample mode as well, and both exporters refuse to dial one |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | none | the full URL the trace is sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the trace and, set alone, turns the trace on. In `PROVEN_NETWORK=local` the same network rule applies |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | none | the full URL the metrics are sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the metrics and, set alone, turns the metrics on. In `PROVEN_NETWORK=local` the same network rule applies |
 | `OTEL_SDK_DISABLED` | none | `true` turns telemetry off even when an endpoint is set |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | the OTLP transport. Only `http/protobuf` is built in; any other value is refused by name. `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` and `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` are read the same way |
 | `OTEL_SERVICE_NAME` | `proven` | the service name a backend shows |
@@ -159,6 +177,15 @@ A repository's `proven.yaml` may make a policy setting stricter, never weaker, a
 | `PROVEN_PACK_PUBLIC_KEY` | none (required by `proven verify` unless `--public-key` is given) | path to the PEM file of the Ed25519 public key (PKIX) that verifies a pack |
 
 The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
+
+## H-MEM: the memory store
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_HMEM_MAX_STATE_BYTES` | `67108864` | the largest H-MEM `state.json` that opens; above it the store refuses by name and reads nothing more (`ErrStateTooLarge`). A positive number of bytes, at most 1 TiB (1099511627776); a larger value is refused. Sample mode uses the default and does not read this variable |
+| `PROVEN_HMEM_QUERY_TOKENS` | `8` | how many leading query tokens count when H-MEM scores a query; a positive integer up to 1024. Sample mode uses the default and does not read this variable |
+
+H-MEM reads its whole state file at open and scans every record on each query, so it is built for a small store; see the scale section of `docs/ARCHITECTURE.md`. A state file over the cap is refused by name with its size and the cap. Sample mode reads none of these.
 
 ## The trace
 
@@ -231,7 +258,7 @@ No environment variable sets these keys.
 | `special_reviewer` | empty | The second reviewer for a doubled class. Empty prints `special-review model: not configured`. | A model name, or empty. |
 | `families` | `claude-*=Anthropic`, `gpt-*=OpenAI`, `codex-*=OpenAI`, `nemotron-*=NVIDIA`, `qwen*=Alibaba`, `NVIDIA=NVIDIA` | Maps a model name to a family. A model that matches nothing is `family unknown`. The same family as the author prints `yes`; a different known family prints `no`. | Comma-separated `pattern=name`. Any non-empty name is a family. An empty or malformed entry is refused. A bad pattern is refused. |
 | `path_rules` | the list under Default path rules | Maps a path pattern to a review class. The first matching rule of the highest class wins. A pattern with no slash also matches the base name, so `go.mod` matches a nested module. | Comma-separated `pattern=class`. A class is one of `security`, `backend`, `mobile`, `user interface`, `docs`. Patterns use `*` and `**`. |
-| `class_order` | `security`, `backend`, `mobile`, `user interface`, `docs` | Highest risk first. The matching rule whose class is earliest in this list wins. | Every class exactly once. An order that leaves a class out is refused, and the refusal lists the classes. |
+| `class_order` | `security`, `backend`, `mobile`, `user interface`, `docs` | Highest risk first. The matching rule whose class is earliest in this list wins. | Every class exactly once. An order that leaves a class out is refused, and the refusal lists the classes. Docs may not rank above security (ADR-0053). |
 | `fallback_class` | `backend` | The class when no path rule matches. The rule name is `fallback`. | One of the five classes. |
 | `doubled_classes` | `security` | Classes that use the default reviewer and the special reviewer. | `off`, or a comma-separated list of classes. |
 | `author_commit_trailers` | `on` | Read author trailers from commits after the baseline. The baseline commit itself is not read. | `on` or `off`. |
@@ -246,7 +273,7 @@ No environment variable sets these keys.
 | `autofix_timeout` | `10m` | The time limit of the whole-change attempt: the generator's answer and every run of evidence again. An attempt that runs past it ends `rejected` and says the time limit ended it. | A Go duration greater than zero, for example `90s` or `10m`. |
 | `investigator_templates` | every template | The query templates the Investigator may ask (ADR-0013, ADR-0032). Its prompt lists only these, and a request for any other is refused before a store is asked: the finding goes on with no query evidence and the trace says `refused: query template is outside the evidence scope of this role: <template> for the investigator`. Unset narrows nothing. | A comma-separated list of template names from `docs/QUERIES.md`, each once. A name that is not on the list, a name twice or an empty entry is refused on load. |
 | `skeptic_templates` | every template | The query templates the Skeptic may ask. Its prompt lists only these, and a refuting query for any other is refused before a store is asked: the proposal is dropped, the finding is judged on the rest of the attempt, and the refutation says `refused: query template is outside the evidence scope of this role: <template> for the skeptic`. The two lists are independent, so the Skeptic can be held to fewer templates than the Investigator. Unset narrows nothing. | The same as `investigator_templates`. |
-| `scout_intent` | `off` | Scout Intent classifies the change before the agents run, and the kind picks the review plan (ADR-0049). `off` runs every review in full, and the trace says no plan was chosen. See [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049). | `on` or `off`. |
+| `scout_intent` | `on` | Scout Intent classifies the change before the agents run, and the kind picks the review plan (ADR-0049). On by default (ADR-0053); its benefit is UNMEASURED until the corpus recordings exist. It lightens a review only for a change whose every file is verified prose or a manifest; any other change it called docs or dependency runs in class security, doubled. `off` runs every review in full, and the trace says no plan was chosen. See [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049). | `on` or `off`. |
 | `plan_dependency`, `plan_refactor`, `plan_feature`, `plan_security`, `plan_docs`, `plan_config` | see [ARCHITECTURE.md](ARCHITECTURE.md#scout-intent-plans-each-review-adr-0049) | The plan for one kind of change: its class, the agents, tools and sources that run, and whether it is doubled. All five fields are required. A plan never goes below the class the path rules choose. | `class=<configured or a class>, agents=<planner+investigator+prover+skeptic+fixer, all or none>, tools=<govulncheck, all or none>, sources=<osv+epss, all or none>, doubled=<class or on>`. |
 | `prose_suffixes` | `.md, .markdown, .rst, .txt, .adoc` | With Scout Intent on, the file suffixes that count as prose never built or executed (ADR-0049). The documentation plan, which runs no model, is chosen only when every changed file has one of these suffixes, is not executable and has no shebang line on either side of the change; any other change runs its configured class in full. | A comma-separated list of suffixes, each a dot and then letters, digits, `+`, `-` or `_`, each once. A source, script, build or template suffix (`.go`, `.py`, `.js`, `.sh`, `.mk`, `.tmpl` and the like) is refused by name. |
 
@@ -286,15 +313,15 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | Setting | Default | What it changes |
 |---|---|---|
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
-| `LAB_BIND` | `127.0.0.1` | Address the published ports bind to |
+| `LAB_BIND` | retired | No longer a setting. Every published port names `127.0.0.1` in `lab/compose.yaml` itself, so no value moves it. `make up` refuses a `LAB_BIND` that is set in the environment, an empty one included, and names it |
 | `GOLANG_IMAGE` | `golang:1.26.10` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
 | `RUNTIME_IMAGE` | `alpine:3.23` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
 | `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
-| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` refuse when the `docker scout` plugin is installed and a fix is available. `make push` does not run Scout |
+| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `LAB_BIND`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
+| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
 | `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
@@ -323,6 +350,8 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `RUNNER_NAME` | `proven-lab` | Name the runner registers with |
 | `RUNNER_LABEL` | `ubuntu-latest` | Label the lab's jobs use. The workflow file's `runs-on` matches this default |
 | `LAB_ADMIN_USER` | `proven` | Admin user. `make up` creates it when the account is missing, including on a volume that already holds the password |
+| `LAB_ADMIN_PASSWORD` | empty | The admin password the judge supplies. Read from the environment only; never put it in `lab/versions.env` or another committed file. Used on the first `make up`, which neither prints it nor writes it to a file on the host. It is never in the Compose environment: the seed reads it from a file in the lab's volume, so `docker compose config` does not show it. Empty: `make up` generates one, prints it once when stdout is a terminal, and otherwise writes it to `lab/.state/admin-password` at mode 0600 and prints the path. At least 8 characters and no line break, or `make up` refuses before any container starts. On an installed lab a different value is ignored with a notice |
+| `LAB_STATE_DIR` | `lab/.state` | Directory of the admin password file. `make clean` removes the file and the directory when it is empty |
 | `LAB_ADMIN_EMAIL` | `proven@localhost` | That user's email |
 | `LAB_BOT_USER` | `proven-bot` | The account the workflow posts its review as. Not an admin; a collaborator on the demo repository. The seed makes it, keeps its generated password in the lab's state volume and stores its token only as the repository's `PROVEN_TOKEN` secret. `make e2e` accepts a review only from this account |
 | `LAB_BOT_EMAIL` | `proven-bot@lab.local` | That account's email |
@@ -330,7 +359,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LAB_DEMO_BASE` | `main` | Base branch |
 | `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |
 | `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
-| `SEED_IMAGE_TAG` | `1` | Pin for that image. It is not tagged `latest` |
+| `SEED_IMAGE_TAG` | `2` | Pin for that image. It is not tagged `latest` |
 | `E2E_WAIT_SECONDS` | `600` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 

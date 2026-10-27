@@ -20,19 +20,24 @@ import (
 // revisions: a value that is not a commit, including one that begins with a
 // dash, is refused by name and never reaches the archive command as an
 // argument. Each file and the whole archive are bounded (ADR-0013).
-func ExportCommit(target, rev, dst string) ([]string, error) {
-	if err := ensureCommit(target, rev, "exported"); err != nil {
+func (p Policy) ExportCommit(target, rev, dst string) ([]string, error) {
+	if err := p.ensureCommit(target, rev, "exported"); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return nil, err
 	}
+	// In local mode no filter driver may run, and git archive runs the one the
+	// attributes name; the blobs are read as stored instead (ADR-0034).
+	if p.offline {
+		return p.exportRaw(target, rev, dst)
+	}
 	// gitArchive lists the commit's tracked files and does not emit .git.
-	out, err := gitArchive(target, rev)
+	out, err := p.gitArchive(target, rev)
 	if err != nil {
 		return nil, err
 	}
-	return untar(out, dst)
+	return p.untar(out, dst)
 }
 
 // ExportWorktree writes the tracked files of target's working tree into dst.
@@ -42,14 +47,14 @@ func ExportCommit(target, rev, dst string) ([]string, error) {
 // such path, slash-separated, relative to the repository. Each file is bounded
 // by the file limit and the files together by the archive limit, as in
 // ExportCommit, because the working tree is as untrusted as a commit.
-func ExportWorktree(target, dst string) ([]string, error) {
+func (p Policy) ExportWorktree(target, dst string) ([]string, error) {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return nil, err
 	}
 	// ls-files without --others is the index: tracked paths only. -z keeps
 	// unusual names intact. An empty head means this tree, not HEAD, so the
 	// bytes are read from the working tree rather than from a commit.
-	names, err := gitZ([]string{"-C", target, "ls-files", "-z", "--end-of-options"})
+	names, err := p.gitZ([]string{"-C", target, "ls-files", "-z", "--end-of-options"})
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +80,13 @@ func ExportWorktree(target, dst string) ([]string, error) {
 			skipped = append(skipped, clean)
 			continue
 		}
-		skip, n, err := copyTracked(src, out, clean)
+		skip, n, err := p.copyTracked(src, out, clean)
 		if err != nil {
 			return nil, err
 		}
 		total += n
-		if total > Bounds().Archive {
-			return nil, OverBound("the tracked files of the working tree", Bounds().Archive, EnvMaxArchiveBytes)
+		if total > p.Bounds().Archive {
+			return nil, OverBound("the tracked files of the working tree", p.Bounds().Archive, EnvMaxArchiveBytes)
 		}
 		if skip {
 			skipped = append(skipped, clean)
@@ -93,7 +98,7 @@ func ExportWorktree(target, dst string) ([]string, error) {
 // untar extracts a git archive into dst. A path that leaves dst, or a git
 // directory, is refused: the Prover mounts this tree, and the archive must
 // not name anything outside it. skipped names each symlink that was left out.
-func untar(data []byte, dst string) ([]string, error) {
+func (p Policy) untar(data []byte, dst string) ([]string, error) {
 	tr := tar.NewReader(bytes.NewReader(data))
 	var skipped []string
 	for {
@@ -127,8 +132,8 @@ func untar(data []byte, dst string) ([]string, error) {
 				continue
 			}
 			// The header says how large the file is before any byte is written.
-			if hdr.Size > Bounds().File {
-				return nil, OverBound("the file "+clean, Bounds().File, EnvMaxFileBytes)
+			if hdr.Size > p.Bounds().File {
+				return nil, OverBound("the file "+clean, p.Bounds().File, EnvMaxFileBytes)
 			}
 			if err := writeTarFile(tr, target, os.FileMode(hdr.Mode).Perm()); err != nil {
 				return nil, err
@@ -200,7 +205,7 @@ func treeFileMode(src os.FileMode) os.FileMode {
 }
 
 // writeTarFile writes one regular file from the archive, at the mode treeFileMode gives it.
-func writeTarFile(tr *tar.Reader, dst string, mode os.FileMode) error {
+func writeTarFile(tr io.Reader, dst string, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
@@ -251,7 +256,7 @@ func behindALink(root, rel string) (bool, error) {
 // the caller names the path. name is the path the refusal of an oversized file
 // names; the file is read no further than the file limit, even if it grows
 // while it is copied.
-func copyTracked(src, dst, name string) (skip bool, copied int64, err error) {
+func (p Policy) copyTracked(src, dst, name string) (skip bool, copied int64, err error) {
 	info, err := os.Lstat(src)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -269,7 +274,7 @@ func copyTracked(src, dst, name string) (skip bool, copied int64, err error) {
 	if !info.Mode().IsRegular() {
 		return false, 0, fmt.Errorf("change: unsupported file %s", src)
 	}
-	limit := Bounds().File
+	limit := p.Bounds().File
 	if info.Size() > limit {
 		return false, 0, OverBound("the file "+name, limit, EnvMaxFileBytes)
 	}

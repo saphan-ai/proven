@@ -1,0 +1,575 @@
+{
+  "repository": "saphan-ai/proven",
+  "commit": "fbdf7d32f57347fd89ae747ba0fe9faa28647414",
+  "mode": "evidence",
+  "evidence": "zetaris live evidence (OSV, KEV)",
+  "store": "zetaris",
+  "manifests": [
+    "demo/live/base/go.mod",
+    "demo/live/change/go.mod",
+    "docs-site/package-lock.json",
+    "docs-site/package.json",
+    "go.mod",
+    "go.sum",
+    "test/corpus/cases/PV-001/package-lock.json",
+    "test/corpus/cases/PV-001/package.json",
+    "test/corpus/cases/PV-004/package-lock.json",
+    "test/corpus/cases/PV-004/package.json",
+    "test/corpus/cases/PV-006/go.mod",
+    "test/corpus/cases/PV-008/go.mod",
+    "test/corpus/cases/PV-010/base/go.mod",
+    "test/corpus/cases/PV-010/change/go.mod",
+    "test/corpus/cases/PV-010/reference/go.mod",
+    "test/corpus/cases/PV-013/base/go.mod",
+    "test/corpus/cases/PV-013/change/go.mod",
+    "test/corpus/cases/PV-016/base/go.mod",
+    "test/corpus/cases/PV-016/change/go.mod",
+    "test/corpus/cases/PV-018/go.mod",
+    "test/corpus/cases/PV-019/go.mod",
+    "test/corpus/cases/PV-020/base/go.mod",
+    "test/corpus/cases/PV-020/change/go.mod",
+    "test/corpus/held-out/HO-003/base/go.mod",
+    "test/corpus/held-out/HO-003/change/go.mod",
+    "testdata/fixture/autofix-fixed/base/go.mod",
+    "testdata/fixture/autofix-fixed/change/go.mod",
+    "testdata/fixture/autofix-rejected/base/go.mod",
+    "testdata/fixture/autofix-rejected/change/go.mod",
+    "testdata/fixture/cvss-score/base/go.mod",
+    "testdata/fixture/cvss-score/change/go.mod",
+    "testdata/fixture/discount/base/go.mod",
+    "testdata/fixture/discount/change/go.mod",
+    "testdata/fixture/fix/base/go.mod",
+    "testdata/fixture/fix/change/go.mod",
+    "testdata/fixture/malicious-package/base/go.mod",
+    "testdata/fixture/malicious-package/change/go.mod",
+    "testdata/fixture/osv-go-module/base/go.mod",
+    "testdata/fixture/osv-go-module/change/go.mod",
+    "testdata/fixture/osv-kotlin-gradle/base/build.gradle.kts",
+    "testdata/fixture/osv-kotlin-gradle/base/gradle.lockfile",
+    "testdata/fixture/osv-kotlin-gradle/base/gradle/libs.versions.toml",
+    "testdata/fixture/osv-kotlin-gradle/change/build.gradle.kts",
+    "testdata/fixture/osv-kotlin-gradle/change/gradle.lockfile",
+    "testdata/fixture/osv-kotlin-gradle/change/gradle/libs.versions.toml",
+    "testdata/fixture/osv-php-composer/base/composer.json",
+    "testdata/fixture/osv-php-composer/base/composer.lock",
+    "testdata/fixture/osv-php-composer/change/composer.json",
+    "testdata/fixture/osv-php-composer/change/composer.lock",
+    "testdata/fixture/osv-rust-cargo/base/Cargo.lock",
+    "testdata/fixture/osv-rust-cargo/base/Cargo.toml",
+    "testdata/fixture/osv-rust-cargo/change/Cargo.lock",
+    "testdata/fixture/osv-rust-cargo/change/Cargo.toml",
+    "testdata/fixture/project-health/base/go.mod",
+    "testdata/fixture/project-health/change/go.mod",
+    "testdata/fixture/refuted/base/go.mod",
+    "testdata/fixture/refuted/change/go.mod",
+    "testdata/fixture/spdx-licence/base/go.mod",
+    "testdata/fixture/spdx-licence/change/go.mod",
+    "testdata/fixture/unknown-author/base/go.mod",
+    "testdata/fixture/unknown-author/change/go.mod",
+    "testdata/fixture/unsafe-prompt/base/go.mod",
+    "testdata/fixture/unsafe-prompt/change/go.mod"
+  ],
+  "reads_total": 498,
+  "reads": [
+    {
+      "file": "demo/live/change/go.mod",
+      "ecosystem": "Go",
+      "package": "golang.org/x/net",
+      "version": "v0.16.0"
+    },
+    {
+      "file": "docs-site/package-lock.json",
+      "ecosystem": "npm",
+      "package": "next",
+      "version": "15.3.0"
+    },
+    {
+      "file": "docs-site/package-lock.json",
+      "ecosystem": "npm",
+      "package": "postcss",
+      "version": "8.4.31"
+    },
+    {
+      "file": "docs-site/package-lock.json",
+      "ecosystem": "npm",
+      "package": "postcss",
+      "version": "8.5.31"
+    },
+    {
+      "file": "docs-site/package-lock.json",
+      "ecosystem": "npm",
+      "package": "sharp",
+      "version": "0.34.5"
+    },
+    {
+      "file": "docs-site/package-lock.json",
+      "ecosystem": "npm",
+      "package": "zod",
+      "version": "3.25.76"
+    }
+  ],
+  "matches": [
+    {
+      "file": "demo/live/change/go.mod",
+      "ecosystem": "Go",
+      "package": "golang.org/x/net",
+      "version": "v0.16.0",
+      "evidence_id": "ev-4d000375993e",
+      "engine": "zetaris",
+      "snapshot": "2026-10-26T08:08:59Z",
+      "advisories": [
+        {
+          "id": "GHSA-2wp2-chmh-r934",
+          "aliases": "CVE-2018-17142 GO-2022-0192",
+          "introduced": "0",
+          "fixed": "0.0.0-20180925071336-cf3bd585ca2a",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-2wrh-6pvc-2jm9",
+          "aliases": "CVE-2023-3978 GO-2023-1988",
+          "introduced": "0",
+          "fixed": "0.13.0",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-39qc-96h7-956f",
+          "aliases": "CVE-2019-9512 CVE-2019-9514 GHSA-hgr8-6h9x-f7q9 GO-2022-0536",
+          "introduced": "0",
+          "fixed": "0.0.0-20190813141303-74dc4d7220e7",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-4374-p667-p6c8",
+          "aliases": "BIT-golang-2023-39325 CVE-2023-39325 GO-2023-2102",
+          "introduced": "0",
+          "fixed": "0.17.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GHSA-4r78-hx75-jjj2",
+          "aliases": "CVE-2018-17847 CVE-2018-17848 GHSA-mv93-wvcp-7m7r GO-2022-0197",
+          "introduced": "0",
+          "fixed": "0.0.0-20190125002852-4b62a64f59f7",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-4v7x-pqxf-cx7m",
+          "aliases": "BIT-golang-2023-45288 CVE-2023-45288 GO-2024-2687",
+          "introduced": "0",
+          "fixed": "0.23.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GHSA-5cv4-jp36-h3mw",
+          "aliases": "CVE-2026-25680 GO-2026-5028",
+          "introduced": "0",
+          "fixed": "0.55.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GHSA-5p4h-3377-7w67",
+          "aliases": "CVE-2018-17075 GO-2021-0078",
+          "introduced": "0",
+          "fixed": "0.0.0-20180816102801-aaf60122140d",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-69cg-p879-7622",
+          "aliases": "BIT-golang-2022-27664 CVE-2022-27664 GO-2022-0969",
+          "introduced": "0",
+          "fixed": "0.0.0-20220906165146-f3363e06e74c",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-83g2-8m93-v3w7",
+          "aliases": "BIT-golang-2021-33194 CVE-2021-33194 GO-2021-0238",
+          "introduced": "0",
+          "fixed": "0.0.0-20210520170846-37e1c6afe023",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-fcf9-6fv2-fc5v",
+          "aliases": "CVE-2018-17143 GO-2022-0193",
+          "introduced": "0",
+          "fixed": "0.0.0-20180921000356-2f5d2388922f",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-fxg5-wq6x-vr4w",
+          "aliases": "CVE-2022-41721 GO-2023-1495",
+          "introduced": "0.0.0-20220524220425-1d687d428aca",
+          "fixed": "0.1.1-0.20221104162952-702349b0e862",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-h86h-8ppg-mxmh",
+          "aliases": "BIT-golang-2021-31525 CVE-2021-31525 GO-2022-0236",
+          "introduced": "0",
+          "fixed": "0.0.0-20210428140749-89ef3d95e781",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-hgr8-6h9x-f7q9",
+          "aliases": "CVE-2019-9512 CVE-2019-9514 GHSA-39qc-96h7-956f GO-2022-0536",
+          "introduced": "0",
+          "fixed": "0.0.0-20190813141303-74dc4d7220e7",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-mv93-wvcp-7m7r",
+          "aliases": "CVE-2018-17847 CVE-2018-17848 GHSA-4r78-hx75-jjj2 GO-2022-0197",
+          "introduced": "0",
+          "fixed": "0.0.0-20190125002852-4b62a64f59f7",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-qppj-fm5r-hxr3",
+          "aliases": "BIT-apisix-2023-44487 BIT-aspnet-core-2023-44487 BIT-contour-2023-44487 BIT-dotnet-2023-44487 BIT-dotnet-sdk-2023-44487 BIT-envoy-2023-44487 BIT-golang-2023-44487 BIT-jenkins-2023-44487 BIT-kong-2023-44487 BIT-nginx-2023-44487 BIT-nginx-gateway-2023-44487 BIT-node-2023-44487 BIT-node-min-2023-44487 BIT-solr-2023-44487 BIT-tomcat-2023-44487 BIT-varnish-2023-44487 CVE-2023-44487",
+          "introduced": "0",
+          "fixed": "0.17.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GHSA-qxp5-gwg8-xv66",
+          "aliases": "CVE-2025-22870 GO-2025-3503",
+          "introduced": "0",
+          "fixed": "0.36.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GHSA-vfw5-hrgq-h5wf",
+          "aliases": "CVE-2018-17846 GO-2020-0014",
+          "introduced": "0",
+          "fixed": "0.0.0-20190125091013-d26f9f9a57f3",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-vvgc-356p-c3xw",
+          "aliases": "CVE-2025-22872 GO-2025-3595",
+          "introduced": "0",
+          "fixed": "0.38.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GHSA-vvpx-j8f3-3w6h",
+          "aliases": "BIT-golang-2022-41723 CVE-2022-41723 GO-2023-1571",
+          "introduced": "0",
+          "fixed": "0.7.0",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GHSA-xrjj-mj9h-534m",
+          "aliases": "BIT-golang-2022-41717 CVE-2022-41717 GO-2022-1144",
+          "introduced": "0",
+          "fixed": "0.4.0",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2020-0014",
+          "aliases": "CVE-2018-17846 GHSA-vfw5-hrgq-h5wf",
+          "introduced": "0",
+          "fixed": "0.0.0-20190125091013-d26f9f9a57f3",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2021-0078",
+          "aliases": "CVE-2018-17075 GHSA-5p4h-3377-7w67",
+          "introduced": "0",
+          "fixed": "0.0.0-20180816102801-aaf60122140d",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2021-0238",
+          "aliases": "BIT-golang-2021-33194 CVE-2021-33194 GHSA-83g2-8m93-v3w7",
+          "introduced": "0",
+          "fixed": "0.0.0-20210520170846-37e1c6afe023",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-0192",
+          "aliases": "CVE-2018-17142 GHSA-2wp2-chmh-r934",
+          "introduced": "0",
+          "fixed": "0.0.0-20180925071336-cf3bd585ca2a",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-0193",
+          "aliases": "CVE-2018-17143 GHSA-fcf9-6fv2-fc5v",
+          "introduced": "0",
+          "fixed": "0.0.0-20180921000356-2f5d2388922f",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-0197",
+          "aliases": "CVE-2018-17847 CVE-2018-17848 GHSA-4r78-hx75-jjj2 GHSA-mv93-wvcp-7m7r",
+          "introduced": "0",
+          "fixed": "0.0.0-20190125002852-4b62a64f59f7",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-0236",
+          "aliases": "BIT-golang-2021-31525 CVE-2021-31525 GHSA-h86h-8ppg-mxmh",
+          "introduced": "0",
+          "fixed": "0.0.0-20210428140749-89ef3d95e781",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-0288",
+          "aliases": "BIT-golang-2021-44716 CVE-2021-44716 GHSA-vc3p-29h2-gpcp",
+          "introduced": "0",
+          "fixed": "0.0.0-20211209124913-491a49abca63",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-0536",
+          "aliases": "CVE-2019-9512 CVE-2019-9514 GHSA-39qc-96h7-956f GHSA-hgr8-6h9x-f7q9",
+          "introduced": "0",
+          "fixed": "0.0.0-20190813141303-74dc4d7220e7",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-0969",
+          "aliases": "BIT-golang-2022-27664 CVE-2022-27664 GHSA-69cg-p879-7622",
+          "introduced": "0",
+          "fixed": "0.0.0-20220906165146-f3363e06e74c",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2022-1144",
+          "aliases": "BIT-golang-2022-41717 CVE-2022-41717 GHSA-xrjj-mj9h-534m",
+          "introduced": "0",
+          "fixed": "0.4.0",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2023-1495",
+          "aliases": "CVE-2022-41721 GHSA-fxg5-wq6x-vr4w",
+          "introduced": "0.0.0-20220524220425-1d687d428aca",
+          "fixed": "0.1.1-0.20221104162952-702349b0e862",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2023-1571",
+          "aliases": "BIT-golang-2022-41723 CVE-2022-41723 GHSA-vvpx-j8f3-3w6h",
+          "introduced": "0",
+          "fixed": "0.7.0",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2023-1988",
+          "aliases": "CVE-2023-3978 GHSA-2wrh-6pvc-2jm9",
+          "introduced": "0",
+          "fixed": "0.13.0",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2023-2102",
+          "aliases": "BIT-golang-2023-39325 CVE-2023-39325 GHSA-4374-p667-p6c8",
+          "introduced": "0",
+          "fixed": "0.17.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2024-2687",
+          "aliases": "BIT-golang-2023-45288 CVE-2023-45288 GHSA-4v7x-pqxf-cx7m",
+          "introduced": "0",
+          "fixed": "0.23.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2024-3333",
+          "aliases": "CVE-2024-45338 GHSA-w32m-9786-jp63",
+          "introduced": "0",
+          "fixed": "0.33.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2025-3503",
+          "aliases": "CVE-2025-22870 GHSA-qxp5-gwg8-xv66",
+          "introduced": "0",
+          "fixed": "0.36.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2025-3595",
+          "aliases": "CVE-2025-22872 GHSA-vvgc-356p-c3xw",
+          "introduced": "0",
+          "fixed": "0.38.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-4440",
+          "aliases": "CVE-2025-47911 GHSA-w4gw-w5jq-g9jh",
+          "introduced": "0",
+          "fixed": "0.45.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-4441",
+          "aliases": "CVE-2025-58190",
+          "introduced": "0",
+          "fixed": "0.45.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-4559",
+          "aliases": "CVE-2026-27141",
+          "introduced": "0.50.0",
+          "fixed": "0.51.0",
+          "last_affected": "",
+          "affected": false
+        },
+        {
+          "id": "GO-2026-4918",
+          "aliases": "BIT-golang-2026-33814 CVE-2026-33814",
+          "introduced": "0",
+          "fixed": "0.53.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-5025",
+          "aliases": "CVE-2026-42506",
+          "introduced": "0",
+          "fixed": "0.55.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-5026",
+          "aliases": "CVE-2026-39821",
+          "introduced": "0",
+          "fixed": "0.55.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-5027",
+          "aliases": "CVE-2026-42502",
+          "introduced": "0",
+          "fixed": "0.55.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-5028",
+          "aliases": "CVE-2026-25680 GHSA-5cv4-jp36-h3mw",
+          "introduced": "0",
+          "fixed": "0.55.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-5029",
+          "aliases": "CVE-2026-25681",
+          "introduced": "0",
+          "fixed": "0.55.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-5030",
+          "aliases": "CVE-2026-27136",
+          "introduced": "0",
+          "fixed": "0.55.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-5942",
+          "aliases": "BIT-golang-2026-46600 CVE-2026-46600",
+          "introduced": "0",
+          "fixed": "0.56.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-6603",
+          "aliases": "BIT-golang-2026-78659 CVE-2026-78659",
+          "introduced": "0",
+          "fixed": "0.60.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-6610",
+          "aliases": "BIT-golang-2026-78660 CVE-2026-78660",
+          "introduced": "0",
+          "fixed": "0.60.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-6611",
+          "aliases": "BIT-golang-2026-78669 CVE-2026-78669",
+          "introduced": "0",
+          "fixed": "0.60.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-6612",
+          "aliases": "BIT-golang-2026-78663 CVE-2026-78663",
+          "introduced": "0",
+          "fixed": "0.60.0",
+          "last_affected": "",
+          "affected": true
+        },
+        {
+          "id": "GO-2026-6617",
+          "aliases": "BIT-golang-2026-97032 CVE-2026-97032",
+          "introduced": "0",
+          "fixed": "0.60.0",
+          "last_affected": "",
+          "affected": true
+        }
+      ],
+      "kev": [
+        "CVE-2023-44487"
+      ]
+    }
+  ]
+}

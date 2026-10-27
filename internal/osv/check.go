@@ -89,6 +89,36 @@ type Outcome struct {
 	// Proven derived them. The pipeline binds a model's query to the change
 	// with them.
 	Facts Facts
+	// Matches is one entry for every package whose query returned a row,
+	// whether or not the version fell inside a range. A reader that compares
+	// the review with another source of advisories reads it; the review does not.
+	Matches []Match
+}
+
+// Match is what one package's OSV query returned, and what the comparison made
+// of each row. It is the structured form of the finding's message.
+type Match struct {
+	Ecosystem string
+	Package   string
+	Version   string
+	File      string
+	Line      int
+	// Advisories is every row the query returned, in the order it returned them.
+	Advisories []Advisory
+	// KEV is the CVE aliases of a matching row that the KEV view holds.
+	KEV []string
+	// Form, Query, Engine and Snapshot are the OSV query as the store ran it.
+	Form     string
+	Query    string
+	Engine   string
+	Snapshot string
+}
+
+// Advisory is one OSV row and whether the package's version lies inside it.
+type Advisory struct {
+	Row      Row
+	Affected bool
+	Sentence string
 }
 
 // Facts is what the dependency check established about the change: the
@@ -188,7 +218,7 @@ func Check(ctx context.Context, q query.Runner, root, table, snapshot string) (O
 	if !ValidTable(table) {
 		return Outcome{}, fmt.Errorf("osv: table name %q is not allowed", table)
 	}
-	files, err := change.Read(root)
+	files, err := change.PolicyFrom(ctx).Read(root)
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -220,7 +250,11 @@ func Check(ctx context.Context, q query.Runner, root, table, snapshot string) (O
 		// Recorded before the OSV query, so a package with no advisory row
 		// still binds a malicious-package, scorecard or licence template.
 		out.Facts.noteRaised(hit.Ecosystem, hit.Package)
-		next, note, err := oneModule(ctx, q, table, snapshot, hit, &out.Facts)
+		var match Match
+		next, note, err := oneModule(ctx, q, table, snapshot, hit, &out.Facts, &match)
+		if len(match.Advisories) > 0 {
+			out.Matches = append(out.Matches, match)
+		}
 		if note != "" {
 			out.Notes = append(out.Notes, note)
 		}
@@ -243,7 +277,7 @@ func Check(ctx context.Context, q query.Runner, root, table, snapshot string) (O
 // oneModule runs the OSV query for one package and compares its version with
 // every row. It returns a candidate when at least one row matches, and
 // otherwise a trace note that says why.
-func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit manifest.Hit, facts *Facts) (*candidate.Candidate, string, error) {
+func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit manifest.Hit, facts *Facts, match *Match) (*candidate.Candidate, string, error) {
 	// ADR-0032, ADR-0046, ADR-0047: the seam takes the osv-by-package
 	// request. The store builds the form. A package name outside its
 	// ecosystem's format has no query: the check says so in a trace note
@@ -288,10 +322,18 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 		}
 		return nil, note, nil
 	}
+	*match = Match{
+		Ecosystem: hit.Ecosystem, Package: hit.Package, Version: hit.Version, File: hit.File, Line: hit.Line,
+		Form: res.Form, Query: res.SQL, Engine: res.Engine, Snapshot: res.Snapshot,
+	}
+	if match.Snapshot == "" {
+		match.Snapshot = snapshot
+	}
 	var matched []compared
 	var missed []compared
 	for _, row := range rows {
 		ok, sentence := InRangeEcosystem(hit.Ecosystem, hit.Version, row.Introduced, row.Fixed, row.LastAffected)
+		match.Advisories = append(match.Advisories, Advisory{Row: row, Affected: ok, Sentence: sentence})
 		item := compared{row: row, sentence: sentence}
 		if ok {
 			matched = append(matched, item)
@@ -380,6 +422,7 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 				continue
 			}
 			c.Evidence = append(c.Evidence, queryEvidence(kres, snapshot))
+			match.KEV = append(match.KEV, id)
 			kevNotes = append(kevNotes, "alias "+id+" is on the KEV list")
 		}
 	}
@@ -449,8 +492,9 @@ func queryEvidence(res query.Result, snapshot string) candidate.Evidence {
 		Query: &candidate.QueryEvidence{
 			SQL: res.SQL, Form: res.Form, Engine: res.Engine, Snapshot: snap,
 			Columns: append([]string(nil), res.Columns...),
-			Rows:    copyRows(res.Rows),
-			Bound:   true,
+			// Nil becomes an empty list, so the evidence always carries one.
+			Rows:  service.ListRows(res.Rows),
+			Bound: true,
 		},
 	}
 }
@@ -494,19 +538,6 @@ func cveAliases(aliases string) []string {
 		if querytpl.ValidCVE(id) {
 			out = append(out, id)
 		}
-	}
-	return out
-}
-
-// copyRows copies the rows so the evidence does not share memory with the
-// adapter's result. nil becomes an empty list, so evidence always carries one.
-func copyRows(rows [][]string) [][]string {
-	if rows == nil {
-		return [][]string{}
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
 	}
 	return out
 }

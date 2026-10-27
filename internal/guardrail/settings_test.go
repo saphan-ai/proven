@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -31,6 +32,8 @@ func TestLoadUsesServerDefaults(t *testing.T) {
 	for k := range seen {
 		switch k {
 		case guardrail.EnvMode, guardrail.EnvBaseURL, guardrail.EnvModel, guardrail.EnvKey, guardrail.EnvTimeout:
+		// ADR-0034: the air-gapped mode is read by every loader that holds an address.
+		case network.EnvNetwork, network.EnvAllow:
 		default:
 			t.Fatalf("Load read %s", k)
 		}

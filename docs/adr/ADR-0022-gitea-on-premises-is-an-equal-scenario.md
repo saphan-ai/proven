@@ -23,7 +23,7 @@ Many teams keep their code on their own servers: regulated industries, defence, 
    | where the code lives | GitHub | the team's own Gitea server |
    | the runner | GitHub-hosted, or the team's own (primary for live mode, [ADR-0020](ADR-0020-proven-command-line-and-action-interface.md)) | the team's own Gitea Actions runner, always on their premises |
    | the workflow | Proven's workflow file | **the same file**: Gitea Actions reads GitHub Actions' syntax |
-   | comments on the pull request | reviewdog, `github-pr-review` | reviewdog, `gitea-pr-review` |
+   | comments on the pull request | one summary comment, the Action's own poster | the same poster, the same comment |
    | SARIF | GitHub code scanning | kept as the run's artifact; Gitea has no page for it |
    | models | Nightshift on the team's network, or keys as secrets | Nightshift and local models on the team's network |
    | evidence | Zetaris on the team's machine | Zetaris on the team's machine |

@@ -33,12 +33,12 @@ func workArea(logDir string) (string, error) {
 
 // loadTarget is the trees the agents read. Sample mode loads and checks the
 // fixture. Live mode never reads fixture.json.
-func (p *Pipeline) loadTarget(req Request) (*fixture.Fixture, []string, func(), error) {
+func (p *Pipeline) loadTarget(req Request, rd change.Policy) (*fixture.Fixture, []string, func(), error) {
 	if p.sample {
-		fx, err := fixture.Load(req.Target)
+		fx, err := fixture.LoadUnder(rd, req.Target)
 		return fx, nil, nil, err
 	}
-	return p.loadLiveTarget(req)
+	return p.loadLiveTarget(req, rd)
 }
 
 // loadLiveTarget picks the live trees. With a baseline commit the git range
@@ -48,9 +48,9 @@ func (p *Pipeline) loadTarget(req Request) (*fixture.Fixture, []string, func(), 
 // into a temporary directory under the run's working area; the returned
 // function removes that directory. With no baseline, a directory that already
 // has base/ and change/ is used as it is, which is how the demo is laid out.
-func (p *Pipeline) loadLiveTarget(req Request) (*fixture.Fixture, []string, func(), error) {
+func (p *Pipeline) loadLiveTarget(req Request, rd change.Policy) (*fixture.Fixture, []string, func(), error) {
 	if req.BaselineCommit != "" {
-		return p.materialize(req)
+		return p.materialize(req, rd)
 	}
 	// refuseBareRepository already stopped a git repository that reached here
 	// with no baseline and no prepared trees. Anything else is not a pair of
@@ -58,13 +58,24 @@ func (p *Pipeline) loadLiveTarget(req Request) (*fixture.Fixture, []string, func
 	return &fixture.Fixture{Root: req.Target, Snapshot: liveSnapshotName}, nil, nil, nil
 }
 
+// CheckTarget refuses a live review whose target has nothing for the agents to read, with the sentence that
+// says what to pass. ADR-0053: Scout Intent is on by default and reads the change before the pipeline runs, so
+// the caller asks this first; otherwise the plan's own failed read would be the error a user sees. Sample mode
+// reads a fixture and is never refused here. rd is the review's read policy, fixed at Open.
+func (p *Pipeline) CheckTarget(req Request, rd change.Policy) error {
+	if p.sample {
+		return nil
+	}
+	return p.refuseBareRepository(req, rd)
+}
+
 // refuseBareRepository refuses a git target that has no baseline commit and
 // no base/ and change/ directories. The sentence says what to pass.
-func (p *Pipeline) refuseBareRepository(req Request) error {
+func (p *Pipeline) refuseBareRepository(req Request, rd change.Policy) error {
 	if hasPreparedTrees(req.Target) || req.BaselineCommit != "" {
 		return nil
 	}
-	git, err := change.WorkTree(req.Target)
+	git, err := rd.WorkTree(req.Target)
 	if err != nil {
 		return err
 	}
@@ -89,13 +100,13 @@ func hasPreparedTrees(target string) bool {
 // copied. A tracked symlink is left out of both trees and is not followed.
 // skipped names each such path once, sorted. The directory is under the run's
 // working area and the caller removes it when the review returns.
-func (p *Pipeline) materialize(req Request) (*fixture.Fixture, []string, func(), error) {
+func (p *Pipeline) materialize(req Request, rd change.Policy) (*fixture.Fixture, []string, func(), error) {
 	dir, err := os.MkdirTemp(p.workDir, "proven-trees-")
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	remove := func() { _ = os.RemoveAll(dir) }
-	baseSkipped, err := change.ExportCommit(req.Target, req.BaselineCommit, filepath.Join(dir, "base"))
+	baseSkipped, err := rd.ExportCommit(req.Target, req.BaselineCommit, filepath.Join(dir, "base"))
 	if err != nil {
 		remove()
 		return nil, nil, nil, err
@@ -103,9 +114,9 @@ func (p *Pipeline) materialize(req Request) (*fixture.Fixture, []string, func(),
 	changeDir := filepath.Join(dir, "change")
 	var changeSkipped []string
 	if req.HeadCommit == "" {
-		changeSkipped, err = change.ExportWorktree(req.Target, changeDir)
+		changeSkipped, err = rd.ExportWorktree(req.Target, changeDir)
 	} else {
-		changeSkipped, err = change.ExportCommit(req.Target, req.HeadCommit, changeDir)
+		changeSkipped, err = rd.ExportCommit(req.Target, req.HeadCommit, changeDir)
 	}
 	if err != nil {
 		remove()

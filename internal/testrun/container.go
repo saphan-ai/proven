@@ -102,6 +102,7 @@ type ContainerConfig struct {
 	User            string        // fixed unprivileged user and group, "uid:gid"
 	PidsLimit       int           // most processes one container may run
 	TmpSize         string        // size bound of each writable scratch mount
+	local           bool          // set by Load in local mode: the runtime file is vetted (ADR-0034)
 }
 
 // cpuPattern and memPattern accept only the plain forms docker-run(1)
@@ -297,6 +298,11 @@ func NewContainer(cfg ContainerConfig, lookPath func(string) (string, error)) (*
 			Reason:  fmt.Sprintf("Prover off: container runtime %q not found: %v", cfg.Runtime, err),
 		}
 	}
+	if cfg.local {
+		if err := vetRuntimeFile(path); err != nil {
+			return nil, err
+		}
+	}
 	return &Container{runtime: path, cfg: cfg}, nil
 }
 
@@ -441,8 +447,8 @@ func (c *Container) argv(dir string, test []string, name string) []string {
 	if name != "" {
 		args = append(args, "--name", name)
 	}
+	args = append(args, "--rm")
 	args = append(args,
-		"--rm",
 		"--network", "none",
 		// ADR-0025: the review never fetches an image at test time. An absent image is the
 		// Prover down, and Run names the pull the owner does by hand.

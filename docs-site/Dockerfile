@@ -55,7 +55,11 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 WORKDIR /app
-RUN addgroup -g 10001 -S docs && adduser -S -u 10001 -G docs docs
+# The server runs `node server.js` only; npm and its own dependencies (which carry fixable findings in the
+# base image) are removed from the run stage, so they are neither shipped nor scanned.
+RUN addgroup -g 10001 -S docs && adduser -S -u 10001 -G docs docs \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 COPY --from=build --chown=10001:10001 /repo/docs-site/.next/standalone ./
 COPY --from=build --chown=10001:10001 /repo/docs-site/.next/static ./.next/static
 COPY --from=build --chown=10001:10001 /repo/docs-site/public ./public

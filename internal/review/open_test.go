@@ -19,6 +19,23 @@ import (
 	"github.com/saphan-ai/proven/internal/store"
 )
 
+// TestOpenRefusesInvalidHMemLimits checks the public configuration seam before a review runs.
+func TestOpenRefusesInvalidHMemLimits(t *testing.T) {
+	for _, tc := range []struct{ field, value string }{
+		{"PROVEN_HMEM_MAX_STATE_BYTES", "0"},
+		{"PROVEN_HMEM_MAX_STATE_BYTES", "2000000000000"},
+		{"PROVEN_HMEM_QUERY_TOKENS", "0"},
+	} {
+		t.Run(tc.field+"="+tc.value, func(t *testing.T) {
+			_, err := review.Open(review.Options{LogDir: t.TempDir(), Env: liveEnv("http://127.0.0.1:9", map[string]string{tc.field: tc.value})})
+			var cfg *review.ConfigError
+			if !errors.As(err, &cfg) || cfg.Field != tc.field {
+				t.Fatalf("Open refusal = %v, want *ConfigError for %s", err, tc.field)
+			}
+		})
+	}
+}
+
 // TestOpenSampleReviewKeepsF1AndF2 proves the sample review end to end through the seam: F1 is kept on a
 // test that fails on the change and passes on the base, F2 and F4 on query rows with their EPSS rows,
 // F3 is dropped for no evidence with its full trail (claim, evidence, refutation, verdict) in the trace,
@@ -100,6 +117,23 @@ func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 	}
 }
 
+// engineSwitches are the variables of the four Meterless engines that sample mode reads (ADR-0053): the
+// lab's pull-request review is a sample review, and its engines are on by default and switched off by these.
+var engineSwitches = []string{
+	"PROVEN_MARKOVIAN", "PROVEN_MARKOVIAN_THRESHOLD", "PROVEN_MARKOVIAN_STEP_UNIT", "PROVEN_MARKOVIAN_CARRY_TOKENS",
+	"PROVEN_HMEM", "PROVEN_WORLD_MODEL",
+}
+
+// engineSwitch reports whether k is one of engineSwitches.
+func engineSwitch(k string) bool {
+	for _, s := range engineSwitches {
+		if k == s {
+			return true
+		}
+	}
+	return false
+}
+
 // TestSampleReviewDoesNotReadTheEnvironment proves that a sample review reads no environment variable, so
 // it needs no key and reaches no service (ADR-0001).
 func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
@@ -111,7 +145,7 @@ func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 			// pull-request review is a sample review and the dashboard shows it. They name no key of
 			// Proven's, and a review with none of them set exports nothing.
 			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-			if !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) {
+			if k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 				t.Fatalf("sample mode read %s", k)
 			}
 			return ""
@@ -159,8 +193,10 @@ func TestSampleReviewWithRecordsReadsExactlyTheDocumentedSet(t *testing.T) {
 		"GITHUB_REF",
 		"PROVEN_COUCHDB_PASSWORD", "PROVEN_COUCHDB_PREFIX", "PROVEN_COUCHDB_RECORDS", "PROVEN_COUCHDB_RECORDS_PASSWORD",
 		"PROVEN_COUCHDB_RECORDS_USER", "PROVEN_COUCHDB_ROW_LIMIT", "PROVEN_COUCHDB_TIMEOUT", "PROVEN_COUCHDB_URL",
-		"PROVEN_COUCHDB_USER", "PROVEN_EVIDENCE_LINK_BASE_URL",
+		"PROVEN_COUCHDB_USER", "PROVEN_EVIDENCE_LINK_BASE_URL", "PROVEN_NETWORK", "PROVEN_NETWORK_ALLOW",
 	}
+	want = append(want, engineSwitches...)
+	sort.Strings(want)
 	var got []string
 	for k := range read {
 		got = append(got, k)

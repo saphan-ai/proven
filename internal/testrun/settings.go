@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
+	"github.com/saphan-ai/proven/internal/service"
 )
 
 // Environment variables of the live container. The set is closed: Load reads
@@ -29,27 +30,7 @@ const (
 // Field is the Go field when Validate refuses the struct, and the environment
 // variable when Load refuses a setting. A refusal does not start a container.
 // There is no setting that gives the container a network or a secret (ADR-0013).
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the environment variable, the refused value, the reason and the allowed values.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+type ConfigError = service.ConfigError
 
 // Load reads the live container settings (ADR-0013). A wrong value is refused.
 // An empty lookup uses DefaultContainerConfig. Validate has accepted the result.
@@ -60,8 +41,26 @@ func Load(env func(string) string) (ContainerConfig, error) {
 		env = func(string) string { return "" }
 	}
 	cfg := DefaultContainerConfig()
+	// A wrong PROVEN_NETWORK is refused before a container starts. The image is
+	// never pulled: --pull never is on every run, so there is no PullNever switch.
+	policy, perr := network.Load(env)
+	if perr != nil {
+		if ne, ok := network.As(perr); ok {
+			return ContainerConfig{}, &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+		}
+		return ContainerConfig{}, perr
+	}
+	cfg.local = policy.Local()
+	// The daemon the runtime talks to is a connection the HTTP dial check never sees.
+	if derr := checkDaemon(policy, env); derr != nil {
+		return ContainerConfig{}, derr
+	}
 	if raw := env(EnvRuntime); raw != "" {
 		cfg.Runtime = raw
+	}
+	// Each runtime finds its daemon its own way. One Proven cannot judge is refused.
+	if rerr := checkRuntime(policy, env, cfg.Runtime); rerr != nil {
+		return ContainerConfig{}, rerr
 	}
 	if raw := env(EnvImage); raw != "" {
 		cfg.Image = raw

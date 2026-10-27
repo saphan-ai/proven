@@ -302,7 +302,7 @@ func shellEnv(t *testing.T) func(string) string {
 	return func(k string) string {
 		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
 		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-		if _, ok := allowed[k]; !ok && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) {
+		if _, ok := allowed[k]; !ok && k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 			t.Fatalf("unexpected environment key %s", k)
 		}
 		return ""
@@ -326,4 +326,10 @@ func repoRoot(t *testing.T) string {
 		}
 		dir = parent
 	}
+}
+
+// engineSwitch reports whether k is a switch of one of the four Meterless engines. ADR-0053: sample mode reads
+// them, because the lab's pull-request review is a sample review and its engines are on by default.
+func engineSwitch(k string) bool {
+	return strings.HasPrefix(k, "PROVEN_MARKOVIAN") || k == "PROVEN_HMEM" || k == "PROVEN_WORLD_MODEL"
 }

@@ -1,13 +1,13 @@
 package generator
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -84,7 +84,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvBaseURL,
 			Default:     envdoc.Tick(defaultBaseURL),
-			Description: "Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it",
+			Description: "Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or GLM's `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it",
 		},
 		{
 			Name:        EnvNVIDIABaseURL,
@@ -124,28 +124,8 @@ func Environment() []envdoc.Setting {
 var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
-type ConfigError struct {
-	Field   string
-	Value   string
-	Allowed []string
-	Reason  string
-}
-
-// Error names the setting, the refused value and what is allowed. A refused
-// token is reported with an empty value, so the secret is never printed.
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return "configuration refused"
-	}
-	msg := fmt.Sprintf("configuration refused: %s=%q", e.Field, e.Value)
-	if e.Reason != "" {
-		msg += ": " + e.Reason
-	}
-	if len(e.Allowed) > 0 {
-		msg += "; allowed: " + strings.Join(e.Allowed, ", ")
-	}
-	return msg
-}
+// A refused token is reported with an empty value, so the secret is never printed.
+type ConfigError = service.ConfigError
 
 // Settings is one validated live-generator configuration.
 // The token is held so the call can send it. It is not a value to print.
@@ -156,10 +136,12 @@ type Settings struct {
 	App     string
 	Model   string
 	// Token is the Nightshift runtime token or, in nvidia mode, the NVIDIA key.
-	Token         string
-	Timeout       time.Duration
-	SkepticModel  string
-	plain         bool
+	Token        string
+	Timeout      time.Duration
+	SkepticModel string
+	plain        bool
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network       *network.Policy
 	requireAll    bool
 	requireNone   bool
 	requireNVIDIA map[string]bool
@@ -242,6 +224,21 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	// ADR-0034: in the air-gapped mode a hosted address is refused here, by name.
+	// The hosted generator mode is refused by name even when its address is local,
+	// the same way the guardrail's nvidia mode is.
+	policy, err := network.Load(env)
+	if err != nil {
+		return Settings{}, fromNetwork(err)
+	}
+	if mode == ModeNVIDIA {
+		if err := policy.Refuse(EnvMode, mode, "the hosted generator is outside the organisation's network"); err != nil {
+			return Settings{}, fromNetwork(err)
+		}
+	}
+	if err := policy.CheckURL(baseEnv, base); err != nil {
+		return Settings{}, fromNetwork(err)
+	}
 	app := env(EnvApp)
 	if app == "" {
 		app = defaultApp
@@ -286,8 +283,8 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	return Settings{
 		Mode: mode, BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
-		SkepticModel: skepticModel,
-		requireAll:   all, requireNone: none, requireNVIDIA: set,
+		SkepticModel: skepticModel, Network: policy,
+		requireAll: all, requireNone: none, requireNVIDIA: set,
 	}, nil
 }
 
@@ -297,6 +294,15 @@ func (s Settings) serviceName() string {
 		return "nvidia"
 	}
 	return "nightshift"
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError,
+// so the shell reports it like any other refused setting. Any other error passes through.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+	}
+	return err
 }
 
 // refuse builds the refusal for one setting with one allowed form.
@@ -310,9 +316,9 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 // refusal. httpsOnly is set for the NVIDIA key's address: a key must not travel
 // over plain http.
 func checkBase(field, raw string, httpsOnly bool) (string, error) {
-	allowed := "an absolute http or https URL with no user info, query or fragment, and a path of empty or /v1"
+	allowed := "an absolute http or https URL with no user info, query or fragment, and a path that is empty or ends in a version such as /v1 or /api/paas/v4"
 	if httpsOnly {
-		allowed = "an absolute https URL with no user info, query or fragment, and a path of empty or /v1"
+		allowed = "an absolute https URL with no user info, query or fragment, and a path that is empty or ends in a version such as /v1 or /api/paas/v4"
 	}
 	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") {
 		return "", refuse(field, clip(raw), "not a base URL", allowed)
@@ -328,8 +334,8 @@ func checkBase(field, raw string, httpsOnly bool) (string, error) {
 		return "", refuse(field, clip(raw), "not a base URL", allowed)
 	}
 	path := strings.TrimRight(u.Path, "/")
-	if path != "" && path != "/v1" {
-		return "", refuse(field, clip(raw), "the path is not empty or /v1", allowed)
+	if path != "" && !versioned(path) {
+		return "", refuse(field, clip(raw), "the path is not empty and does not end in a version", allowed)
 	}
 	u.Path = path
 	return strings.TrimRight(u.String(), "/"), nil
@@ -410,13 +416,27 @@ func parseRequire(raw string) (all, none bool, set map[string]bool, err error) {
 }
 
 // endpoint joins the API root with a method path such as "/chat/completions".
-// A base whose path is /v1 is already the API root.
+// A base whose path ends in a version (/v1, or GLM's /api/paas/v4) is already the API root.
 func endpoint(base, method string) string {
 	b := strings.TrimRight(base, "/")
-	if strings.HasSuffix(b, "/v1") {
+	if u, err := url.Parse(b); err == nil && versioned(u.Path) {
 		return b + method
 	}
 	return b + "/v1" + method
+}
+
+// versioned reports whether path's last segment is an API version: v and one or more digits.
+func versioned(path string) bool {
+	last := path[strings.LastIndex(path, "/")+1:]
+	if len(last) < 2 || last[0] != 'v' {
+		return false
+	}
+	for _, r := range last[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // checkBaseFor checks the address in the setting named field, so the second reviewer's address
