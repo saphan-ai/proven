@@ -11,7 +11,8 @@ import (
 // whole-change attempt off, which is the default, the review text of two sample scenarios (one with proposed
 // fixes, one with a dependency finding) is byte for byte the text the base commit printed. The golden files
 // were captured by running `proven scan --sample` on those fixtures at the base commit, before any line of
-// the attempt was written, with the trace line cut because it names the machine's directory.
+// the attempt was written, with the trace line cut because it names the machine's directory. The one
+// later line is the guardrail line (docs/OUTPUT_FORMATS.md), added to every output on 2026-10-27.
 func TestWithAutofixOffTheSampleOutputIsTheOutputBeforeTheAttemptExisted(t *testing.T) {
 	// repoRoot reads the working directory, which scanWith changes, so it is read once, first, and each
 	// scenario is a subtest, whose working directory is restored when it ends.
@@ -47,7 +48,21 @@ func TestWithAutofixOnAScenarioWithNoRecordedAttemptPrintsTheSameReview(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != string(want) {
+	// The guardrail line is left out of this comparison on purpose: the attempt checks one more prompt
+	// (the model has no recorded answer to it), and the line counts that check, so it is the one line
+	// that is meant to differ. The review itself is the same.
+	if withoutGuardrailLine(got) != withoutGuardrailLine(string(want)) {
 		t.Fatalf("the output with the attempt on and no recorded answer differs\n--- got\n%s\n--- want\n%s", got, want)
 	}
+}
+
+// withoutGuardrailLine drops the lines that start with "Guardrail: " from a text review.
+func withoutGuardrailLine(s string) string {
+	var kept []string
+	for _, line := range strings.Split(s, "\n") {
+		if !strings.HasPrefix(line, "Guardrail: ") {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
 }

@@ -129,6 +129,9 @@ type Result struct {
 	AuthorModelStatement string           // "author model not stated" when the change names no model
 	SettingsStatement    string           // set when the change edits proven.yaml; empty otherwise
 	GuardrailStatement   string           // set when the guardrail was switched off for this review; empty when it was on
+	// Guardrail is what the guardrail checked in this review, counted where the checks are made (ADR-0005).
+	// A doubled review holds both runs' checks. GuardrailLine words it, the same in every format.
+	Guardrail GuardrailCount
 	// Reviewers names each reviewer that took part, the default one first, with whether it is the
 	// author's own model (ADR-0037 point 5). The shell renders from it, not from the statements.
 	Reviewers []ReviewerInfo

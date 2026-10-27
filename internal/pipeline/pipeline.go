@@ -37,6 +37,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/agent/fixer"
@@ -179,6 +180,9 @@ type Pipeline struct {
 	// stores is the switch of each store (ADR-0053). A store switched off is never opened, so mem or world
 	// stays nil and every use below is guarded by it.
 	stores StoreSettings
+	// guardSeen counts this review's guardrail checks; guardMu guards it, because agents check concurrently.
+	guardMu   sync.Mutex
+	guardSeen candidate.GuardrailCount
 }
 
 // Build opens the trace. Sample mode uses the recorded adapters. Those
@@ -356,6 +360,11 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 		return candidate.Draft{}, err
 	}
 	defer p.trace.Close()
+	// The guardrail count is this review's alone: a Pipeline the caller reuses starts
+	// each review from zero (review codex r2, owed).
+	p.guardMu.Lock()
+	p.guardSeen = candidate.GuardrailCount{}
+	p.guardMu.Unlock()
 	// Fold only a review that ended without an error. This defer runs before
 	// the trace is closed, and reads what the review wrote.
 	defer func() {
@@ -383,6 +392,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	if p.guardOff {
 		d.GuardrailStatement = candidate.GuardrailOffStatement
 	}
+	d.Guardrail = p.guardCount()
 	return d, nil
 }
 
@@ -1739,8 +1749,52 @@ func (p *Pipeline) guard(gen generator.Generator, rail guardrail.Adapter) (gener
 		rail = p.rail
 	}
 	return guardrail.Wrap(gen, rail, func(agent, side string, v guardrail.Verdict, refused string) error {
+		// Counted before the trace write: the check happened even if the
+		// trace line then fails.
+		p.countGuard(side, v, refused)
 		return p.trace.Append(guardEvent(agent, side, v, refused))
 	})
+}
+
+// countGuard adds one guardrail check to the review's count. This callback is
+// the one place every check of every run, the doubled review's second run and
+// the stores included, passes through, so the count cannot disagree with the
+// trace. A refusal is a check that was not made: it adds to Unanswered, not to
+// Prompts or Answers.
+func (p *Pipeline) countGuard(side string, v guardrail.Verdict, refused string) {
+	p.guardMu.Lock()
+	defer p.guardMu.Unlock()
+	c := &p.guardSeen
+	if v.Backend != "" {
+		c.Backend = v.Backend
+	}
+	if v.Model != "" {
+		c.Model = v.Model
+	}
+	c.Maker = guardrail.Maker(c.Backend, c.Model)
+	switch {
+	// A check that was not made carries a Down code on every error path (guardrail.Wrap
+	// sets it from the error), even when the refusal's text is empty, so the count keys
+	// on Down and never on the text (review claude r3 C1).
+	case v.Down != "" || refused != "":
+		c.Unanswered++
+		return
+	case side == "prompt":
+		c.Prompts++
+	default:
+		c.Answers++
+	}
+	if v.Unsafe() {
+		c.Blocked++
+	}
+}
+
+// guardCount is the count so far; a review run with the guardrail off made no
+// check, so it is the zero value.
+func (p *Pipeline) guardCount() candidate.GuardrailCount {
+	p.guardMu.Lock()
+	defer p.guardMu.Unlock()
+	return p.guardSeen
 }
 
 // guardEvent is the trace line for one guardrail check: the refusal when the

@@ -79,12 +79,6 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			return err
 		}
 	}
-	// A review run without the guardrail says so before any finding.
-	if result.GuardrailStatement != "" {
-		if _, err := fmt.Fprintln(w, result.GuardrailStatement); err != nil {
-			return err
-		}
-	}
 	if result.AuthorModelStatement != "" {
 		if _, err := fmt.Fprintln(w, visible(result.AuthorModelStatement)); err != nil {
 			return err
@@ -131,6 +125,11 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		if _, err := fmt.Fprintln(w, "review partial: the deadline was reached"); err != nil {
 			return err
 		}
+	}
+	// The guardrail line is in the footer of every output, off or on, so a
+	// reader of the end of the review sees whether NVIDIA's guardrail checked it.
+	if _, err := fmt.Fprintln(w, visible(result.GuardrailLine())); err != nil {
+		return err
 	}
 	if sentence := familySentence(result.TracePath); sentence != "" {
 		if _, err := fmt.Fprintln(w, visible(sentence)); err != nil {

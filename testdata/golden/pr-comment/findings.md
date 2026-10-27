@@ -124,4 +124,4 @@ change: FAIL got 60 want 80
 - Reviewer: `NVIDIA` (NVIDIA)
 - Second reviewer: not configured
 
-<sub>reviewed by `NVIDIA` · guardrail checked every call</sub>
+<sub>reviewed by `NVIDIA` · Guardrail: model not named (sample), checked 14 prompts and 13 answers, 0 blocked</sub>
