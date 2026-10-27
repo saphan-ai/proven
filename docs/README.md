@@ -4,6 +4,8 @@ Read in this order.
 
 | Page | For | Status |
 |---|---|---|
+| [WALKTHROUGH.md](WALKTHROUGH.md) | a judge's walkthrough: start the lab, read one review and its evidence, watch it on the dashboards, check the image, then Proven on your own GitHub repository | first version |
+| [TOUR.md](TOUR.md) | Proven in pictures: the lab's start page, a review as a page, and the six dashboards | first version |
 | [LAB.md](LAB.md) | the judges' lab (`make up`, the pull request, and how to stop it) and the keys a live review needs, per generator mode | first version |
 | [INSTALL.md](INSTALL.md) | the quick start: prerequisites, build, the first sample review, livecheck | first version |
 | [SAMPLE_MODE.md](SAMPLE_MODE.md) | a whole review with no network and no keys: the scenario, what comes out, how to add one | first version |

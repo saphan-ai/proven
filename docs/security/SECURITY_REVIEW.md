@@ -14,15 +14,15 @@ crossed, not only the files where it is expected.
 
 | # | Piece | The property that must hold | Status |
 |---|---|---|---|
-| 0 | **Tools first** | `govulncheck`, `gosec` and `staticcheck` run over the whole repository; their output is the baseline the other pieces start from | in review |
-| 1 | **The Prover's container** | code from the change runs with no network, no secret and bounded resources; nothing in the change can shape the container's arguments or reach beyond its read-only checkout | fixes in progress |
-| 2 | **Secrets** | no key reaches the trace, the logs, the reports, a pull-request comment or a container; a missing key is named, never printed | fixes in progress |
-| 3 | **The reviewed repository as input** | a git range, a path, a manifest, a lock file or `proven.yaml` from the change cannot inject arguments into a command or lead Proven to read or write outside the places it should | fixes in progress |
-| 4 | **Evidence queries** | a value from the change enters a query only as a literal and cannot change the query's meaning | fixes in progress |
-| 5 | **Models** | text in the change cannot make an agent drop its rules; the guardrail checks every prompt and answer; a model's answer without evidence never becomes a finding | fixes in progress |
-| 6 | **Output and CI** | a pull-request comment carries no active content taken from the change; the workflow asks for the least token permission, never runs on `pull_request_target`, and pins every action it uses | fixes in progress |
-| 7 | **The lab and the images** | the lab binds to localhost, generates its password, keeps the Prover's containers inside Docker in Docker; images are minimal, not root, and scanned by Docker Scout | fixes in progress |
-| 8 | **Data on disk** | the state and the trace are kept outside the reviewed repository, readable only by their user, and hold no secret | fixes in progress |
+| 0 | **Tools first** | `govulncheck`, `gosec` and `staticcheck` run over the whole repository; their output is the baseline the other pieces start from | fixes merged (`f9628fd`); `govulncheck` runs inside Proven (`891a7e9`) |
+| 1 | **The Prover's container** | code from the change runs with no network, no secret and bounded resources; nothing in the change can shape the container's arguments or reach beyond its read-only checkout | fixes merged (`1d23854`, `175fc39`) |
+| 2 | **Secrets** | no key reaches the trace, the logs, the reports, a pull-request comment or a container; a missing key is named, never printed | fixes merged (`37eabfb`, `2f0f44a`, `310bce5`) |
+| 3 | **The reviewed repository as input** | a git range, a path, a manifest, a lock file or `proven.yaml` from the change cannot inject arguments into a command or lead Proven to read or write outside the places it should | fixes merged (`b3e2648`) |
+| 4 | **Evidence queries** | a value from the change enters a query only as a literal and cannot change the query's meaning | fixes merged (`460da35`, `222dcca`) |
+| 5 | **Models** | text in the change cannot make an agent drop its rules; the guardrail checks every prompt and answer; a model's answer without evidence never becomes a finding | fixes merged (`53d88ba`) |
+| 6 | **Output and CI** | a pull-request comment carries no active content taken from the change; the workflow asks for the least token permission, never runs on `pull_request_target`, and pins every action it uses | fixes merged (`f723510`) |
+| 7 | **The lab and the images** | the lab binds to localhost, generates its password, keeps the Prover's containers inside Docker in Docker; images are minimal, not root, and scanned by Docker Scout | fixes merged (`f2f3b03`) |
+| 8 | **Data on disk** | the state and the trace are kept outside the reviewed repository, readable only by their user, and hold no secret | fixes merged (`492f03b`) |
 
 Pieces 0, 1 and 2 go first: they guard the machine and the keys. The others follow, two or three a day. Each piece reviews `main` at one named commit, and a piece whose code is not on `main` yet waits for it
 ([ADR-0029](../adr/ADR-0029-a-piece-is-reviewed-at-one-commit-when-its-code-is-on-main.md)). Pieces 0, 1 and 2 are reviewed at
@@ -95,7 +95,8 @@ found it differently, and what Proven finds that Dependabot does not. The compar
 
 ## What is published, and when
 
-- This page's status column is updated as each piece moves: *not started*, *in review*, *fixes in progress*, *holds*.
+- This page's status column is updated as each piece moves: *not started*, *in review*, *fixes in progress*, *fixes merged*
+  (every weakness the two reviews found is fixed on `main`; the piece's second review is still to say so), *holds*.
 - A weakness is written down publicly only **after** its fix is merged: in [SECURITY.md](../../SECURITY.md), with the piece,
   the property, the change that fixed it and the test that proves it.
 - The review orders and the reviews themselves are published in `hackathon/fleet/` with the fleet's other records, once the

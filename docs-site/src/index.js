@@ -15,11 +15,15 @@ export class DocsContainer extends DurableObject {
 
   async fetch(request) {
     const port = this.ctx.container.getTcpPort(PORT);
+    // the container speaks plain HTTP; the public side is already TLS
+    const url = new URL(request.url);
+    url.protocol = 'http:';
+    url.port = '';
     // the server needs a moment after a cold start; try for about 20 seconds
     let last;
     for (let attempt = 0; attempt < 20; attempt++) {
       try {
-        return await port.fetch(request.clone());
+        return await port.fetch(new Request(url, request.clone()));
       } catch (err) {
         last = err;
         await new Promise((resolve) => setTimeout(resolve, 1000));

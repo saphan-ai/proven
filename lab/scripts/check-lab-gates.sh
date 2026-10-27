@@ -12,7 +12,10 @@
 #        - on success every platform of every image was scanned before the first
 #          registry write, no build pushes, and what is copied is the layout that
 #          was scanned;
-#        - a tag that reads back another digest is an error.
+#        - a tag that reads back another digest is an error;
+#        - every scan refuses critical and high findings with or without a fix;
+#        - :judging is written only with PUSH_JUDGING=yes (make push-judging).
+#   4. The Action's image and the committed workflow pull Proven by :judging.
 #      Each property also has a negative control: the same checks run on a copy
 #      of push.sh with exactly the guarding line changed, and must fail.
 set -eu
@@ -134,7 +137,7 @@ run_push() {
   : >"$LOG"
   rm -rf "$LOG.state"
   rc=0
-  ROOT=$1 STUB_SCOUT=$2 STUB_FAIL_PLATFORM=${3:-} STUB_DRIFT=${4:-} STUB_FAIL_IMAGE=${5:-} \
+  ROOT=$1 STUB_SCOUT=$2 STUB_FAIL_PLATFORM=${3:-} STUB_DRIFT=${4:-} STUB_FAIL_IMAGE=${5:-} PUSH_JUDGING=${6:-} \
     sh "$1/lab/scripts/push.sh" >"$work/out" 2>"$work/err" </dev/null || rc=$?
 }
 
@@ -196,6 +199,17 @@ push_ok() {
   published_were_scanned || bad "clean scans: a published digest is not one that was scanned, or a write came before the last scan" || return 1
   grep -q "^skopeo copy.* docker://$name:latest" "$LOG" || bad "clean scans: $name:latest was not made" || return 1
   grep -q "^skopeo copy.* docker://$seed_name:$SEED_IMAGE_TAG" "$LOG" || bad "clean scans: the seed tag was not made" || return 1
+  # Every scan refuses a critical or high finding whether or not it has a fix: a published
+  # image carries none (docs/JUDGING.md). --only-fixed would let an unfixed one through.
+  ! grep 'scout cves' "$LOG" | grep -q -e '--only-fixed' || bad "clean scans: a scan passes unfixed critical or high findings" || return 1
+  # :judging moves only on request: an ordinary push never writes it.
+  ! grep -q '^skopeo copy.*:judging' "$LOG" || bad "clean scans: a push without PUSH_JUDGING wrote :judging" || return 1
+
+  run_push "$t" ok '' '' '' yes
+  [ "$rc" -eq 0 ] || bad "judging push: push exited $rc" || return 1
+  grep -q "^skopeo copy.* docker://$name:judging" "$LOG" || bad "judging push: $name:judging was not made" || return 1
+  grep -q "^skopeo copy.* docker://$seed_name:judging" "$LOG" || bad "judging push: $seed_name:judging was not made" || return 1
+  published_were_scanned || bad "judging push: a published digest is not one that was scanned" || return 1
 
   run_push "$t" ok '' 1
   [ "$rc" -ne 0 ] || bad "drift: a final tag with another digest exited 0" || return 1
@@ -226,6 +240,36 @@ control() {
   fi
 }
 
+# 4. Every image a judge's run pulls from Docker Hub is referenced by :judging, so a later
+# push to latest cannot change what judges run (docs/JUDGING.md): the Action's base image
+# and the workflow a GitHub user commits. judging_refs TREE fails and names the first other tag.
+judging_refs() {
+  n=0
+  for f in action/Dockerfile lab/workflow/proven.yml; do
+    for ref in $(grep -hoE 'saphan/proven(-lab-seed)?:[A-Za-z0-9._-]+' "$1/$f"); do
+      n=$((n + 1))
+      case $ref in
+        *:judging) ;;
+        *) why="$f references $ref, not :judging"; return 1 ;;
+      esac
+    done
+  done
+  [ "$n" -ge 2 ] || { why="fewer than two image references found"; return 1; }
+}
+if ! judging_refs "$ROOT"; then
+  echo "check-lab-gates: FAIL: judging refs: $why" >&2
+  fail=1
+fi
+mkdir -p "$work/c_latest/action" "$work/c_latest/lab/workflow"
+sed 's|saphan/proven:judging|saphan/proven:latest|' "$ROOT/action/Dockerfile" >"$work/c_latest/action/Dockerfile"
+cp "$ROOT/lab/workflow/proven.yml" "$work/c_latest/lab/workflow/proven.yml"
+if judging_refs "$work/c_latest"; then
+  echo "check-lab-gates: FAIL: control c_latest: judging_refs accepted an Action built from latest" >&2
+  fail=1
+else
+  echo "check-lab-gates: control ok: c_latest ($why)"
+fi
+
 tree=$work/real
 mkdir -p "$tree/lab"
 cp -R "$ROOT/lab/scripts" "$tree/lab/scripts"
@@ -238,6 +282,10 @@ fi
 # Negative controls. Each changes exactly one line of push.sh.
 mutate c_gate '/^\[ "\$refused" -eq 0 \]/ { next } { print }'
 control c_gate
+mutate c_only_fixed '/--only-severity "\$SCOUT_REFUSE_SEVERITIES"/ { print; print "      --only-fixed \\"; next } { print }'
+control c_only_fixed
+mutate c_judging_always '/^  if \[ "\$\{PUSH_JUDGING:-\}" = yes \]; then$/ { print "  if true; then"; next } { print }'
+control c_judging_always
 mutate c_first_platform_only '{ sub(/\| tr .,. . .\)/, "| cut -d, -f1)"); print }'
 control c_first_platform_only
 mutate c_ignore_seed_scan '/^scan_layout seed/ { next } { print }'

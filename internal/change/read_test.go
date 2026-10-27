@@ -65,3 +65,72 @@ func TestReadReturnsARegularFile(t *testing.T) {
 		t.Fatalf("%#v", files)
 	}
 }
+
+// Changed drops a file whose two sides are equal and keeps an edit, an addition and a deletion, an empty added file
+// included, and a file git names though its bytes are equal (a mode change). It never falls back to every file:
+// a change in which nothing differs and git names nothing leaves nothing. Mutated field: the file's two sides.
+func TestChangedKeepsOnlyFilesThatDiffer(t *testing.T) {
+	files := []File{
+		{Path: "same", Base: []byte("x"), Change: []byte("x")},
+		{Path: "edit", Base: []byte("x"), Change: []byte("y")},
+		{Path: "added-empty", Base: nil, Change: []byte{}},
+		{Path: "gone", Base: []byte("x"), Change: nil},
+	}
+	paths := func(fs []File) string {
+		var got []string
+		for _, f := range fs {
+			got = append(got, f.Path)
+		}
+		return strings.Join(got, ",")
+	}
+	if got := paths(Changed(files, nil)); got != "edit,added-empty,gone" {
+		t.Fatalf("%v", got)
+	}
+	same := []File{
+		{Path: "mode.sh", Base: []byte("x"), Change: []byte("x")},
+		{Path: "unrelated.go", Base: []byte("y"), Change: []byte("y")},
+	}
+	if got := paths(Changed(same, []string{"mode.sh"})); got != "mode.sh" {
+		t.Fatalf("a mode-only change kept %q, want only mode.sh", got)
+	}
+	if got := Changed(same, nil); len(got) != 0 {
+		t.Fatalf("a change with nothing changed kept %v", got)
+	}
+}
+
+// An empty file read through Read keeps a non-nil side and a missing one stays nil, so Changed keeps the addition
+// and the deletion of an empty file and drops an empty file that is on both sides. Closes O2 of the W65 review.
+// Mutated field: the side a file is missing from.
+func TestReadKeepsAnEmptyFileApartFromAMissingOne(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{"base/gone", "change/added", "base/both", "change/both"} {
+		p := filepath.Join(root, f)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := Read(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sides := map[string][2]bool{}
+	for _, f := range files {
+		sides[f.Path] = [2]bool{f.Base != nil, f.Change != nil}
+	}
+	want := map[string][2]bool{"added": {false, true}, "gone": {true, false}, "both": {true, true}}
+	for path, w := range want {
+		if sides[path] != w {
+			t.Errorf("%s: base present %v, change present %v; want %v", path, sides[path][0], sides[path][1], w)
+		}
+	}
+	var kept []string
+	for _, f := range Changed(files, nil) {
+		kept = append(kept, f.Path)
+	}
+	if strings.Join(kept, ",") != "added,gone" {
+		t.Fatalf("Changed kept %v, want added and gone", kept)
+	}
+}

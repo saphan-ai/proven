@@ -77,7 +77,7 @@ func NewLive(cfg Settings, client *http.Client) *Live {
 // does not follow redirects, so the key is not sent to another host (the same rule as NewLive).
 func NewSecond(s SecondSettings, client *http.Client) *Second {
 	cfg := Settings{
-		BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout,
+		BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout, ThinkingBudget: s.ThinkingBudget,
 		Network: s.Network,
 		plain:   true,
 		// requireNone: the NVIDIA check is Nightshift's rule (ADR-0019) and this reviewer is meant to
@@ -100,6 +100,8 @@ type chatRequest struct {
 	Model    string        `json:"model"`
 	Stream   bool          `json:"stream"`
 	Messages []chatMessage `json:"messages"`
+	// ThinkingBudget bounds a reasoning model's thinking (PROVEN_GENERATOR_THINKING_BUDGET). Zero sends nothing.
+	ThinkingBudget int `json:"thinking_budget,omitempty"`
 }
 
 // chatMessage is one message of the request. The review sends the whole prompt
@@ -279,9 +281,10 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 	ctx, cancel := context.WithTimeout(parent, l.cfg.Timeout)
 	defer cancel()
 	payload, err := json.Marshal(chatRequest{
-		Model:    model,
-		Stream:   true,
-		Messages: []chatMessage{{Role: "user", Content: prompt}},
+		Model:          model,
+		Stream:         true,
+		Messages:       []chatMessage{{Role: "user", Content: prompt}},
+		ThinkingBudget: l.cfg.ThinkingBudget,
 	})
 	if err != nil {
 		return "", streamMeta{}, err

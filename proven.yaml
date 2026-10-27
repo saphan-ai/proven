@@ -1,0 +1,6 @@
+# Proven's own review settings, read from the baseline commit of each pull request
+# (docs/CONFIGURATION.md). The models named here are the ones the workflow calls.
+default_reviewer: qwen3.8-flash
+special_reviewer: deepseek-v4.1-flash
+families: claude-*=Anthropic, gpt-*=OpenAI, codex-*=OpenAI, nemotron-*=NVIDIA, qwen*=Alibaba, NVIDIA=NVIDIA, glm-*=Zhipu, deepseek-*=DeepSeek
+doubled_classes: security

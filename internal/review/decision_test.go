@@ -47,7 +47,7 @@ func TestNoTrailerSaysAuthorModelNotStated(t *testing.T) {
 // TestDescriptionNamesTheAuthorModel proves that the pull-request description is read for author models
 // (ADR-0011 point 2), and that each reviewer line says whether it shares each author's family.
 func TestDescriptionNamesTheAuthorModel(t *testing.T) {
-	rev := openSample(t, t.TempDir())
+	rev := openWith(t, "author_description: on\n")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target:      fixturePath(t),
 		Description: "Notes.\n\nAssisted-by: Claude:claude-3-opus\nAssisted-by: Nemotron:nemotron-super\n",
@@ -70,7 +70,7 @@ func TestDescriptionNamesTheAuthorModel(t *testing.T) {
 // TestUnreadableDescriptionIsNotCalledUnstated proves that an author line Proven cannot read is quoted,
 // not turned into "author model not stated".
 func TestUnreadableDescriptionIsNotCalledUnstated(t *testing.T) {
-	rev := openSample(t, t.TempDir())
+	rev := openWith(t, "author_description: on\n")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target:      fixturePath(t),
 		Description: "Assisted-by: claude-opus-5-5\n",
@@ -158,7 +158,7 @@ func TestCommitTrailerUsesTheConfiguredKey(t *testing.T) {
 	gitRun(t, dir, "commit", "-m", "[fixture] change: head\n\nModel-of-record: Claude:claude-3-opus")
 	head := strings.TrimSpace(string(gitRun(t, dir, "rev-parse", "HEAD")))
 
-	rev := openSample(t, t.TempDir())
+	rev := openWith(t, "author_commit_trailers: on\n")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target: dir, BaselineCommit: base, HeadCommit: head,
 	})
@@ -169,7 +169,7 @@ func TestCommitTrailerUsesTheConfiguredKey(t *testing.T) {
 		t.Fatalf("default key read a custom trailer: %s", res.AuthorModelStatement)
 	}
 
-	path := writeConfig(t, "author_trailer_keys: Model-of-record\n")
+	path := writeConfig(t, "author_commit_trailers: on\nauthor_trailer_keys: Model-of-record\n")
 	rev, err = review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
 	if err != nil {
 		t.Fatal(err)
@@ -336,7 +336,7 @@ func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
 // TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused proves, through Open, that a new family name is
 // accepted and used, while a malformed families item and a path rule naming an unknown class are refused.
 func TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused(t *testing.T) {
-	path := writeConfig(t, "families: gemini-*=Google, NVIDIA=NVIDIA\n")
+	path := writeConfig(t, "families: gemini-*=Google, NVIDIA=NVIDIA\nauthor_description: on\n")
 	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
 	if err != nil {
 		t.Fatal(err)
@@ -368,5 +368,41 @@ func TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused(t *testing.T) {
 	cfg = nil
 	if !errors.As(err, &cfg) || cfg.Field != "path_rules" || cfg.Value != "frontend" || !strings.Contains(cfg.Reason, "unknown class") {
 		t.Fatal(err)
+	}
+}
+
+// openWith opens a sample reviewer with one proven.yaml.
+func openWith(t *testing.T, yaml string) review.Reviewer {
+	t.Helper()
+	rev, err := review.Open(review.Options{ConfigPath: writeConfig(t, yaml), Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rev
+}
+
+// The author model is declared in settings and no line of a pull request's text is read for it by
+// default (owner, 2026-10-27: an Assisted-by line is AI attribution and is not asked for). A declared
+// model is used and named as coming from settings. Mutated field: author_models.
+func TestTheAuthorModelIsDeclaredInSettingsNotReadFromThePullRequest(t *testing.T) {
+	desc := "Assisted-by: Claude:claude-3-opus\n"
+	res, err := openSample(t, t.TempDir()).Review(context.Background(), review.Request{Target: fixturePath(t), Description: desc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.AuthorModelStatement, "author model not stated") || strings.Contains(res.AuthorModelStatement, "claude-3-opus") {
+		t.Fatalf("the default read the description: %s", res.AuthorModelStatement)
+	}
+	res, err = openWith(t, "author_models: claude-code:claude-opus-5-5\n").Review(context.Background(), review.Request{Target: fixturePath(t), Description: desc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.AuthorModelStatement, "author claude-code:claude-opus-5-5 family Anthropic from settings") || strings.Contains(res.AuthorModelStatement, "claude-3-opus") {
+		t.Fatal(res.AuthorModelStatement)
+	}
+	_, err = review.Open(review.Options{ConfigPath: writeConfig(t, "author_models: claude-opus-5-5\n"), Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
+	var cfg *review.ConfigError
+	if !errors.As(err, &cfg) || cfg.Field != "author_models" {
+		t.Fatalf("a model without its agent was not refused by name: %v", err)
 	}
 }

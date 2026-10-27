@@ -35,6 +35,8 @@ func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generato
 	if err != nil {
 		return nil, err
 	}
+	// Sized and cut on the files planner.Plan reads: in a live review, the files that changed.
+	files = change.ChangedFor(ctx, files)
 	size := planner.Size(files)
 	// ADR-0048 point 1: only a change above the size set in the settings is cut; at the threshold it is still whole.
 	if size <= s.Threshold {

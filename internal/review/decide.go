@@ -231,12 +231,13 @@ func validPattern(pattern string) error {
 	return nil
 }
 
-// readAuthors collects the author models the change names, from the sources the settings switch
-// on, in ADR-0011's order: commit trailers, the pull-request description, the record file. It also
+// readAuthors collects the author models: those declared in settings (author_models), then, from the
+// sources the settings switch on, in ADR-0011's order: commit trailers, the pull-request description,
+// the record file. It also
 // returns the trailer lines it could not read, so the review can quote them instead of dropping them.
 // ADR-0011 point 7: it only reads; it never writes a trailer.
 func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error) {
-	var found []AuthorModel
+	found := append([]AuthorModel{}, cfg.Declared...)
 	var unreadable []string
 	take := func(text, source string) {
 		authors, bad := scanTrailers(text, cfg.TrailerKeys, source)

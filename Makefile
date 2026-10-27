@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean
+.PHONY: help build build-all image image-check seed-image scan push push-judging up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -27,11 +27,14 @@ image-check: build image ## Check that the image prints the same version and sam
 seed-image: ## Build the lab seed for this machine and load it (one platform; make push publishes both)
 	@sh $(ROOT)/lab/scripts/seed-image.sh
 
-scan: ## Scan our images with Docker Scout; refuses when Scout is missing, fails, or finds a fixable critical or high
+scan: ## Scan our images with Docker Scout; refuses when Scout is missing, fails, or finds any critical or high
 	@sh $(ROOT)/lab/scripts/scan.sh
 
 push: ## Build once for linux/amd64 and linux/arm64, scan every platform with Docker Scout, then publish those scanned digests as the final tags (refuses, publishing nothing, on any scan failure)
 	@sh $(ROOT)/lab/scripts/push.sh
+
+push-judging: ## make push, and the same scanned digests also as :judging, the tag judges' runs pull (docs/JUDGING.md)
+	@PUSH_JUDGING=yes sh $(ROOT)/lab/scripts/push.sh
 
 up: ## Start the judges' lab
 	@sh $(ROOT)/lab/scripts/up.sh

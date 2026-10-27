@@ -112,6 +112,8 @@ func sarifFrom(result review.Result) sarifLog {
 				"family_sentence":        familySentence(result.TracePath),
 				// Same object the JSON document writes under proof_counts.
 				"proof_counts": proofCountsFrom(result.ProofCounts),
+				// Same object the JSON document writes under guardrail.
+				"guardrail": guardrailFrom(result),
 			},
 		}},
 	}

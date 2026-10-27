@@ -1,7 +1,8 @@
 #!/bin/sh
 # Build the images we publish for this machine and scan each with Docker Scout.
 # Fails closed: it exits non-zero, naming the image, when Scout is missing, when
-# a scan cannot run, or when a finding of SCOUT_REFUSE_SEVERITIES has a fix.
+# a scan cannot run, or when it reports any finding of SCOUT_REFUSE_SEVERITIES, with a fix or
+# without one: a published image carries no critical or high finding at all.
 # make scan runs it. make push does not: it scans the exact images it publishes.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
@@ -23,9 +24,8 @@ for image in "$proven_image" "$seed_image"; do
   echo "scout: $image"
   if ! docker scout cves "$image" \
     --only-severity "$SCOUT_REFUSE_SEVERITIES" \
-    --only-fixed \
     --exit-code; then
-    echo "scout: refusing $image: the scan failed or a $SCOUT_REFUSE_SEVERITIES finding has a fix" >&2
+    echo "scout: refusing $image: the scan failed or a $SCOUT_REFUSE_SEVERITIES finding was reported" >&2
     refuse=1
   fi
 done

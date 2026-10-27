@@ -89,6 +89,22 @@ The image reference is `ARG PROVEN_IMAGE` in `action/Dockerfile`, and it reads `
 
 `include`, `exclude` and the rest are tested at their mapping with a stand-in for `proven`, because the sample fixture's four findings are all `ERROR` and one fixture cannot show a flag whose effect it does not exercise. The sample reviewer reads `fixture.json` in the target, so `sample-mode: true` needs those files in the target (the fixture is at `testdata/fixture/discount`).
 
+### The models this repository's workflow uses
+
+Proven's own workflow (`.github/workflows/proven.yml`) names every model in configuration; no model id is written in code.
+
+| Role | Model | How it is set |
+|---|---|---|
+| Reviewer (every class) | `qwen3.8-flash` on Alibaba Cloud Model Studio, called directly, outside Nightshift | `PROVEN_GENERATOR_MODE: nightshift` with `PROVEN_GENERATOR_BASE_URL` set to the Model Studio API root, `PROVEN_GENERATOR_MODEL` and `PROVEN_SKEPTIC_MODEL` set to `qwen3.8-flash`, `PROVEN_GENERATOR_THINKING_BUDGET: "512"`, `PROVEN_GENERATOR_REQUIRE_NVIDIA: none`, the key in the `BAILIAN_TOKEN_PLAN_API_KEY` secret passed as `METERLESS_RUNTIME_TOKEN` |
+| Second reviewer (security class) | `deepseek-v4.1-flash`, another family on the same API | `PROVEN_SECOND_REVIEWER_BASE_URL`, `PROVEN_SECOND_REVIEWER_MODEL`, `PROVEN_SECOND_REVIEWER_KEY`; `doubled_classes: security` in `proven.yaml` |
+| Guardrail (every prompt and answer) | NVIDIA's content-safety model | `PROVEN_GUARDRAIL_MODE: nvidia`, the key in the `NVIDIA_API_KEY` secret |
+
+The names the review prints come from `proven.yaml` at the pull request's baseline: `default_reviewer: qwen3.8-flash`, `special_reviewer: deepseek-v4.1-flash`, and a `families` list that adds `deepseek-*=DeepSeek`. The Planner reads a change in hunk-sized steps (`PROVEN_MARKOVIAN_STEP_UNIT: hunk`).
+
+How the models were chosen, measured on 27 October 2026 on pull request #1 with hunk steps and a thinking budget of 512: `qwen3.8-flash` finished the whole review in about 2 minutes, `qwen3.8-max` in about 3.4, `deepseek-v4.1-flash` in about 17; GLM-5.3 did not finish (a planner step over the 300 s limit at budget 512 and at 256). The second reviewer is from another family than the first, so a security change is judged twice independently, and only security-class changes take the longer second review. Nemotron through Nightshift stays a supported choice: set the generator back to `nightshift` without a base URL, or to `nvidia`.
+
+The author model is declared by the repository's owner in `proven.yaml` (`author_models: <agent>:<model>`); nothing in a pull request's description or commits is read for it unless the repository turns `author_description` or `author_commit_trailers` on. With no declaration the review says `author model not stated`.
+
 ## Before and after
 
 Both workflows are real shapes of the tools' documented jobs. `<full commit SHA>` stands for the 40-character SHA of the action named, which is the form GitHub recommends; it is not filled in here because this page was written without a network. The `fetch-depth: 0` line is in both "before" workflows: both tools, like Proven, need history to review only what a pull request changed.

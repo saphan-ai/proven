@@ -15,6 +15,8 @@
 package change
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -59,6 +61,45 @@ func (p Policy) Read(root string) ([]File, error) {
 		out = append(out, File{Path: n, Base: base[n], Change: chg[n]})
 	}
 	return out, nil
+}
+
+// Changed keeps the files whose two sides differ (an edited file, an added one and a deleted one) and the files
+// git names as changed (paths), which covers a change of mode only, whose two sides read the same bytes. Every
+// other file is dropped, so a reader of a whole exported repository gets the change and never the repository,
+// however few bytes differ. A side that is missing is nil and a side that is an empty file is not, so adding or
+// deleting an empty file is kept. The result may be empty: a change no byte and no path of git names.
+func Changed(files []File, paths []string) []File {
+	named := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		named[p] = true
+	}
+	out := make([]File, 0, len(files))
+	for _, f := range files {
+		if named[f.Path] || (f.Base == nil) != (f.Change == nil) || !bytes.Equal(f.Base, f.Change) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+type changedOnlyKey struct{}
+
+// changedOnly is a live review's mark: the paths git names as changed, nil when the trees were given prepared.
+type changedOnly struct{ paths []string }
+
+// WithChangedOnly marks a live review: its readers hand the Planner only what changed (Changed), with paths the
+// files git names between the baseline and the head. A sample review carries no mark, because its recorded
+// planner answers are keyed by the prompt over every file of its fixture.
+func WithChangedOnly(ctx context.Context, paths []string) context.Context {
+	return context.WithValue(ctx, changedOnlyKey{}, changedOnly{paths: paths})
+}
+
+// ChangedFor is Changed(files, paths) in a context WithChangedOnly marked, and files as they are in any other.
+func ChangedFor(ctx context.Context, files []File) []File {
+	if m, ok := ctx.Value(changedOnlyKey{}).(changedOnly); ok {
+		return Changed(files, m.paths)
+	}
+	return files
 }
 
 // walk reads every regular file under root into dst, keyed by its slash path

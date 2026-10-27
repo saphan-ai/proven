@@ -1,7 +1,7 @@
 # The workflow a GitHub user commits, and the workflow the lab seeds.
 # Proven's Action is not on main yet, so this job runs `proven scan --sample --md`
 # and posts the Markdown as ONE comment, edited in place on every run. See docs/LAB.md.
-# proven-image: saphan/proven:latest
+# proven-image: saphan/proven:judging
 
 name: proven
 
@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Run the sample review
         run: |
-          docker run --rm --entrypoint sh saphan/proven:latest -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && proven scan --sample --md /opt/proven/fixture/discount' > review.md
+          docker run --rm --entrypoint sh saphan/proven:judging -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && proven scan --sample --md /opt/proven/fixture/discount' > review.md
           grep -q 'Proven: blocked' review.md
 
       - name: Post the review on the pull request

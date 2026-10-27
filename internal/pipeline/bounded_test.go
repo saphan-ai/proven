@@ -437,3 +437,47 @@ func reviewFixtureWith(t *testing.T, root string, spy *fixSpy, gen *fixPrompts, 
 	}
 	return d
 }
+
+// TestTheBoundedPathCutsOnlyTheFilesThatChanged closes condition C1 of the W65 review: in a live review's context the
+// bounded path sizes and cuts only the files that changed, so no step prompt carries an unchanged file, and a change
+// in which nothing differs makes no generator call. Mutated field: the files sized and cut by the bounded path
+// (bounded.go, change.ChangedFor).
+func TestTheBoundedPathCutsOnlyTheFilesThatChanged(t *testing.T) {
+	root := boundedFixture(t, 24)
+	same := "package keep\n\n// UNCHANGED-BOUNDED-MARKER\n" + strings.Repeat("// filler line so the file has size\n", 40)
+	writeFile(t, filepath.Join(root, "base", "keep", "same.go"), same)
+	writeFile(t, filepath.Join(root, "change", "keep", "same.go"), same)
+	run := func(ctx context.Context, root string) *scriptedPlanner {
+		t.Helper()
+		gen := &scriptedPlanner{}
+		p, err := Build(Options{Sample: true, LogDir: t.TempDir(), Generator: gen, Markov: on(markov.UnitFile),
+			Env: func(k string) string { t.Fatalf("read %s", k); return "" }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.begin(root); err != nil {
+			t.Fatal(err)
+		}
+		defer p.trace.Close()
+		if _, err := p.plan(ctx, root, gen, runDefault); err != nil {
+			t.Fatal(err)
+		}
+		return gen
+	}
+	live := change.WithChangedOnly(context.Background(), nil)
+	gen := run(live, root)
+	if len(gen.prompts) < 2 {
+		t.Fatalf("%d Planner calls: the bounded path did not cut", len(gen.prompts))
+	}
+	for i, p := range gen.prompts {
+		if strings.Contains(p, "UNCHANGED-BOUNDED-MARKER") {
+			t.Fatalf("step %d carries the unchanged file", i+1)
+		}
+	}
+	quiet := t.TempDir()
+	writeFile(t, filepath.Join(quiet, "base", "keep", "same.go"), same)
+	writeFile(t, filepath.Join(quiet, "change", "keep", "same.go"), same)
+	if gen := run(live, quiet); len(gen.prompts) != 0 {
+		t.Fatalf("%d Planner calls for a change in which nothing differs", len(gen.prompts))
+	}
+}

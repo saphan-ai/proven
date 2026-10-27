@@ -64,6 +64,7 @@ var configKeys = []string{
 	"author_description",
 	"author_record",
 	"author_trailer_keys",
+	"author_models",
 	"raise_class",
 	"fixes",
 	"fix_attempts",
@@ -100,7 +101,11 @@ type fileSettings struct {
 	ReadDescription bool
 	Record          string
 	TrailerKeys     []string
-	RaiseClass      bool
+	// Declared is the author_models list: the models the repository's owner declares in settings
+	// (ADR-0011 point 1). It is the default source; no statement is parsed out of commit or
+	// pull-request text unless a trailer source is turned on.
+	Declared   []AuthorModel
+	RaiseClass bool
 	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
 	Fixes       bool
 	FixAttempts int
@@ -143,8 +148,9 @@ func classNames() []string {
 
 // defaultSettings is what Proven uses with no proven.yaml. Each value can be replaced by a named
 // key (ADR-0013): NVIDIA reviews by default (ADR-0008 point 3), security is doubled
-// (ADR-0009), backend is the fallback class (ADR-0014 point 4), and Assisted-by is the trailer key
-// (ADR-0011 point 1). The timeout is zero: no deadline unless the shell or the file sets one.
+// (ADR-0009), backend is the fallback class (ADR-0014 point 4), and the author model is read from
+// settings only: the trailer sources are off, and Assisted-by is the key they read when a
+// repository turns one on (ADR-0011 points 1 and 2). The timeout is zero: no deadline unless the shell or the file sets one.
 func defaultSettings() fileSettings {
 	return fileSettings{
 		DefaultReviewer: "NVIDIA",
@@ -162,8 +168,8 @@ func defaultSettings() fileSettings {
 		ClassOrder:      classNames(),
 		Fallback:        "backend",
 		Doubled:         map[string]bool{"security": true},
-		ReadCommits:     true,
-		ReadDescription: true,
+		ReadCommits:     false,
+		ReadDescription: false,
 		TrailerKeys:     []string{"Assisted-by"},
 		// ADR-0042: proposed fixes are on by default, with one try and one retry.
 		Fixes:       true,
@@ -428,6 +434,8 @@ func allowedText(key string) string {
 		return "a model name"
 	case "author_trailer_keys":
 		return "trailer keys, for example Assisted-by"
+	case "author_models":
+		return "agent:model entries, for example claude-code:claude-opus-5-5"
 	case "investigator_templates", "skeptic_templates":
 		return strings.Join(querytpl.Names(), ", ")
 	case "prose_suffixes":
@@ -535,6 +543,13 @@ func applyKey(cfg *fileSettings, key, val string) error {
 			return err
 		}
 		cfg.TrailerKeys = keys
+		return nil
+	case "author_models":
+		models, err := parseAuthorModels(val)
+		if err != nil {
+			return err
+		}
+		cfg.Declared = models
 		return nil
 	case "prose_suffixes":
 		sfx, err := parseProseSuffixes(val)
@@ -761,6 +776,28 @@ func parseClassTokens(field, value string) ([]string, error) {
 		seen[p] = struct{}{}
 	}
 	return parts, nil
+}
+
+// parseAuthorModels reads the author_models list: agent:model entries, each once (ADR-0011 point 1).
+func parseAuthorModels(value string) ([]AuthorModel, error) {
+	parts, err := splitCSV("author_models", value)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AuthorModel, 0, len(parts))
+	seen := map[string]bool{}
+	for _, p := range parts {
+		agent, model, ok := splitAgentModel(strings.TrimSpace(p))
+		if !ok {
+			return nil, configRefused("author_models", p, "not agent:model", "agent:model, for example claude-code:claude-opus-5-5")
+		}
+		if seen[agent+":"+model] {
+			return nil, configRefused("author_models", p, "duplicate entry", "each agent:model once")
+		}
+		seen[agent+":"+model] = true
+		out = append(out, AuthorModel{Agent: agent, Model: model, Source: "settings"})
+	}
+	return out, nil
 }
 
 // parseTrailerKeys reads the trailer keys that name an author model (ADR-0011 point 3). A trailing
