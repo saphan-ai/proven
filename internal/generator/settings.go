@@ -86,7 +86,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvBaseURL,
 			Default:     envdoc.Tick(defaultBaseURL),
-			Description: "Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or GLM's `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it",
+			Description: "Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it",
 		},
 		{
 			Name:        EnvNVIDIABaseURL,
@@ -121,7 +121,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvThinkingBudget,
 			Default:     "empty (nothing is sent)",
-			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call: for a model that always thinks, such as GLM-5.3 on Alibaba Cloud Model Studio, which refuses to turn thinking off. Empty sends nothing, so a provider that does not know the field never sees it",
+			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call. Empty sends nothing, so a provider that does not know the field never sees it",
 		},
 	}
 }
@@ -433,7 +433,7 @@ func parseRequire(raw string) (all, none bool, set map[string]bool, err error) {
 }
 
 // endpoint joins the API root with a method path such as "/chat/completions".
-// A base whose path ends in a version (/v1, or GLM's /api/paas/v4) is already the API root.
+// A base whose path ends in a version (/v1, or /api/paas/v4) is already the API root.
 func endpoint(base, method string) string {
 	b := strings.TrimRight(base, "/")
 	if u, err := url.Parse(b); err == nil && versioned(u.Path) {
