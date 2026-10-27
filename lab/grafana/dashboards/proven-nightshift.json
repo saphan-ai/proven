@@ -502,7 +502,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.reason}"
         },
         "overrides": []
       },
@@ -641,7 +642,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.series}"
         },
         "overrides": []
       },

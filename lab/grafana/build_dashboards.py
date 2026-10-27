@@ -40,6 +40,41 @@ LOKI = {"type": "loki", "uid": "${ds_loki}"}
 
 GREEN, RED, YELLOW, BLUE = "green", "red", "yellow", "blue"
 
+# Every raw value Proven emits on a label a dashboard shows, and the words a visitor reads instead (the owner's rule of
+# 27 Oct: no raw field or enum name reaches a screen). The values come from internal/telemetry/telemetry.go (reviewers,
+# drop reasons), internal/pipeline/pipeline.go (agents, reviewer verdicts, disagreement kinds) and the proof levels of the
+# output formats; lab/dashboards_words_test.go holds this table to those sources and to every dashboard.
+HUMAN = {
+    "proven_agent": {"planner": "Planner", "investigator": "Investigator", "prover": "Prover", "skeptic": "Skeptic",
+                     "fixer": "Fixer", "judge": "Judge", "writer": "Writer", "autofix": "Autofix"},
+    "proven_reviewer": {"default": "default reviewer", "special": "second reviewer", "shared": "both reviewers"},
+    "proven_proof_level": {"proved-by-tool": "Proved by a tool", "proved-by-test": "Proved by a test",
+                           "proved-by-data": "Proved by data",
+                           "agreed-by-two-models-not-proven": "Agreed by two models, not proven"},
+    "reason": {"no_evidence": "No evidence", "refuted": "Refuted by the Skeptic", "suppressed": "Already refuted earlier",
+               "other": "Another reason"},
+    "verdict": {"upheld": "upheld", "refuted": "refuted", "not_attempted": "not attempted"},
+    "kind": {"verdict": "Judged differently", "one_reviewer": "Named by one reviewer only"},
+}
+
+
+def human(expr, *labels):
+    """expr with each raw value of each label replaced by the words in HUMAN, in PromQL, so legends, bars and tooltips read
+    as words. A value not in the table is left as it is, and the words test fails on it."""
+    for label in labels:
+        for raw, words in HUMAN[label].items():
+            expr = 'label_replace(%s, "%s", "%s", "%s", "%s")' % (expr, label, words, label, raw)
+    return expr
+
+
+def value_words(*labels):
+    """The same table as Grafana value mappings, for a table column that shows a label's raw value."""
+    opts = {}
+    for label in labels:
+        for raw, words in HUMAN[label].items():
+            opts[raw] = {"text": words}
+    return [{"type": "value", "options": opts}]
+
 
 def demo_fixtures():
     """The fixtures of the demo pull requests, by the verdict the manifest gives them."""
@@ -128,7 +163,8 @@ def bars(pid, title, desc, expr, ds, label, reason, x, y, w, h, color=BLUE, step
         colour, thr = {"mode": "fixed", "fixedColor": color}, thresholds((None, color))
     return panel(
         pid, "bargauge", title, desc, x, y, w, h, [target(expr, ds, legend="{{%s}}" % label)],
-        fieldConfig={"defaults": {"unit": unit, "min": 0, "noValue": reason, "color": colour, "thresholds": thr}, "overrides": []},
+        fieldConfig={"defaults": {"unit": unit, "min": 0, "noValue": reason, "color": colour, "thresholds": thr,
+                                  "displayName": "${__field.labels.%s}" % label}, "overrides": []},
         options={"reduceOptions": {"calcs": ["lastNotNull"], "values": False}, "orientation": "horizontal",
                  "displayMode": "gradient", "valueMode": "color", "showUnfilled": True, "minVizHeight": 28,
                  "minVizWidth": 8, "namePlacement": "top", "sizing": "auto", "legend": {"showLegend": False}, "text": SIZE},
@@ -169,6 +205,8 @@ def spans_table(pid, title, desc, traceql, x, y, w, limit, select):
     empty cell. The panel is tall enough for all `limit` rows."""
     yes_no = [{"matcher": {"id": "byName", "options": n}, "properties": [{"id": "mappings", "value": YES_NO}]}
               for n in select.values() if n in ("Two reviewers", "Cut short")]
+    yes_no += [{"matcher": {"id": "byName", "options": n}, "properties": [{"id": "mappings", "value": value_words(label)}]}
+               for n, label in (("Agent", "proven_agent"), ("Reviewer", "proven_reviewer")) if n in select.values()]
     return panel(
         pid, "table", title, desc, x, y, w, table_h(limit),
         [{"refId": "A", "datasource": TEMPO, "queryType": "traceql", "query": traceql, "tableType": "spans", "limit": limit}],
@@ -224,7 +262,7 @@ def by_pr(expr):
 
 def proof_bars(pid, scope, x, y, w, h):
     return bars(pid, "Findings by level of proof", "How well each kept finding is proved: the strongest evidence it carries.",
-                "sum by (proven_proof_level) (last_over_time(proven_review_findings_total%s%s))" % (scope, RANGE), PROM,
+                human("sum by (proven_proof_level) (last_over_time(proven_review_findings_total%s%s))" % (scope, RANGE), "proven_proof_level"), PROM,
                 "proven_proof_level", "No finding kept: the reviews are still running, or every change was clean", x, y, w, h)
 
 
@@ -317,7 +355,7 @@ def one_review():
     verdicts = bars(
         5, "Skeptic verdicts, by reviewer",
         "How each reviewer's Skeptic judged each finding: refuted, upheld, or not attempted. Where the two differ, the reviewers disagree.",
-        'label_join(sum by (proven_reviewer, verdict) (last_over_time(proven_reviewer_verdicts_total{instance="$run"}%s)), "who", " · ", "proven_reviewer", "verdict")' % RANGE,
+        'label_join(%s, "who", " · ", "proven_reviewer", "verdict")' % human('sum by (proven_reviewer, verdict) (last_over_time(proven_reviewer_verdicts_total{instance="$run"}%s))' % RANGE, "proven_reviewer", "verdict"),
         PROM, "who", "No finding was kept, so the Skeptic had nothing to judge", 14, 5, 10, 8)
     return dashboard("proven-review", "Proven: one review, step by step",
                      "Pick a review at the top. See each agent in order, how long it took, and how the two reviewers judged each finding.", [
@@ -335,7 +373,7 @@ def one_review():
         verdicts,
         proof_bars(6, '{instance="$run"}', 14, 13, 10, 6),
         bars(7, "Where the two reviewers disagree", "Findings one reviewer named and the other did not, or that they judged differently.",
-             'sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance="$run"}%s))' % RANGE, PROM, "kind",
+             human('sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance="$run"}%s))' % RANGE, "kind"), PROM, "kind",
              "The two reviewers agree on this review", 0, 5 + table_h(14), 12, 6, color=YELLOW),
         text(8, "Each finding, with its evidence", "Where to read the evidence behind a finding.",
              "The evidence of each finding (the query that found it, or the test that fails on the change and passes before it) "
@@ -382,19 +420,20 @@ def evidence():
 # ---- 4. Models and trust ---------------------------------------------------------------------------------------------
 
 def models():
-    both = lambda m: 'label_join(sum by (proven_agent, proven_reviewer) (last_over_time(%s%s)), "who", " · ", "proven_agent", "proven_reviewer")' % (m, RANGE)
-    latency = ('label_join(sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum%s)) / '
-               'sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count%s)), '
-               '"who", " · ", "proven_agent", "proven_reviewer")' % (RANGE, RANGE))
+    both = lambda m: 'label_join(%s, "who", " · ", "proven_agent", "proven_reviewer")' % human(
+        "sum by (proven_agent, proven_reviewer) (last_over_time(%s%s))" % (m, RANGE), "proven_agent", "proven_reviewer")
+    latency = 'label_join(%s, "who", " · ", "proven_agent", "proven_reviewer")' % human(
+        "(sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum%s)) / "
+        "sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count%s)))" % (RANGE, RANGE),
+        "proven_agent", "proven_reviewer")
     # The model asked, and "asked → answered" when the provider names the model that answered. In sample mode no answering
     # model is named, so the bar carries the asked model alone.
     asked_answered = (
         'label_replace(label_join(sum by (gen_ai_request_model, gen_ai_response_model) '
         '(last_over_time(gen_ai_client_operation_duration_seconds_count%s)), "route", " → ", "gen_ai_request_model", "gen_ai_response_model"), '
         '"route", "$1", "route", "(.*) → ")' % RANGE)
-    refused = ('label_replace(label_replace(label_replace(sum by (reason) (last_over_time(proven_review_claims_dropped_total%s)), '
-               '"reason", "no evidence", "reason", "no_evidence"), "reason", "refuted by the Skeptic", "reason", "refuted"), '
-               '"reason", "already refuted earlier", "reason", "suppressed")' % RANGE)
+    asked_answered = 'label_replace(%s, "route", "model not recorded", "route", "")' % asked_answered
+    refused = human("sum by (reason) (last_over_time(proven_review_claims_dropped_total%s))" % RANGE, "reason")
     lat = bars(8, "Model latency (sample mode: recorded answers)",
                "Mean time of a model call. In sample mode the answers are recorded, so this is not a measure of any model; "
                "in a live lab it is the real latency of each agent's calls.",

@@ -637,7 +637,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range]))",
+          "expr": "label_replace(label_replace(label_replace(label_replace(sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])), \"proven_proof_level\", \"Proved by a tool\", \"proven_proof_level\", \"proved-by-tool\"), \"proven_proof_level\", \"Proved by a test\", \"proven_proof_level\", \"proved-by-test\"), \"proven_proof_level\", \"Proved by data\", \"proven_proof_level\", \"proved-by-data\"), \"proven_proof_level\", \"Agreed by two models, not proven\", \"proven_proof_level\", \"agreed-by-two-models-not-proven\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{proven_proof_level}}"
@@ -660,7 +660,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.proven_proof_level}"
         },
         "overrides": []
       },

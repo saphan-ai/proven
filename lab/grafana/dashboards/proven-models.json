@@ -331,7 +331,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(proven_model_calls_total[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
+          "expr": "label_join(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (proven_agent, proven_reviewer) (last_over_time(proven_model_calls_total[$__range])), \"proven_agent\", \"Planner\", \"proven_agent\", \"planner\"), \"proven_agent\", \"Investigator\", \"proven_agent\", \"investigator\"), \"proven_agent\", \"Prover\", \"proven_agent\", \"prover\"), \"proven_agent\", \"Skeptic\", \"proven_agent\", \"skeptic\"), \"proven_agent\", \"Fixer\", \"proven_agent\", \"fixer\"), \"proven_agent\", \"Judge\", \"proven_agent\", \"judge\"), \"proven_agent\", \"Writer\", \"proven_agent\", \"writer\"), \"proven_agent\", \"Autofix\", \"proven_agent\", \"autofix\"), \"proven_reviewer\", \"default reviewer\", \"proven_reviewer\", \"default\"), \"proven_reviewer\", \"second reviewer\", \"proven_reviewer\", \"special\"), \"proven_reviewer\", \"both reviewers\", \"proven_reviewer\", \"shared\"), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{who}}"
@@ -354,7 +354,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.who}"
         },
         "overrides": []
       },
@@ -405,7 +406,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_replace(label_join(sum by (gen_ai_request_model, gen_ai_response_model) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"route\", \" → \", \"gen_ai_request_model\", \"gen_ai_response_model\"), \"route\", \"$1\", \"route\", \"(.*) → \")",
+          "expr": "label_replace(label_replace(label_join(sum by (gen_ai_request_model, gen_ai_response_model) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"route\", \" → \", \"gen_ai_request_model\", \"gen_ai_response_model\"), \"route\", \"$1\", \"route\", \"(.*) → \"), \"route\", \"model not recorded\", \"route\", \"\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{route}}"
@@ -428,7 +429,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.route}"
         },
         "overrides": []
       },
@@ -502,7 +504,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.check}"
         },
         "overrides": []
       },
@@ -553,7 +556,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_replace(label_replace(label_replace(sum by (reason) (last_over_time(proven_review_claims_dropped_total[$__range])), \"reason\", \"no evidence\", \"reason\", \"no_evidence\"), \"reason\", \"refuted by the Skeptic\", \"reason\", \"refuted\"), \"reason\", \"already refuted earlier\", \"reason\", \"suppressed\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace(sum by (reason) (last_over_time(proven_review_claims_dropped_total[$__range])), \"reason\", \"No evidence\", \"reason\", \"no_evidence\"), \"reason\", \"Refuted by the Skeptic\", \"reason\", \"refuted\"), \"reason\", \"Already refuted earlier\", \"reason\", \"suppressed\"), \"reason\", \"Another reason\", \"reason\", \"other\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{reason}}"
@@ -576,7 +579,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.reason}"
         },
         "overrides": []
       },
@@ -627,7 +631,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
+          "expr": "label_join(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace((sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range]))), \"proven_agent\", \"Planner\", \"proven_agent\", \"planner\"), \"proven_agent\", \"Investigator\", \"proven_agent\", \"investigator\"), \"proven_agent\", \"Prover\", \"proven_agent\", \"prover\"), \"proven_agent\", \"Skeptic\", \"proven_agent\", \"skeptic\"), \"proven_agent\", \"Fixer\", \"proven_agent\", \"fixer\"), \"proven_agent\", \"Judge\", \"proven_agent\", \"judge\"), \"proven_agent\", \"Writer\", \"proven_agent\", \"writer\"), \"proven_agent\", \"Autofix\", \"proven_agent\", \"autofix\"), \"proven_reviewer\", \"default reviewer\", \"proven_reviewer\", \"default\"), \"proven_reviewer\", \"second reviewer\", \"proven_reviewer\", \"special\"), \"proven_reviewer\", \"both reviewers\", \"proven_reviewer\", \"shared\"), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{who}}"
@@ -650,7 +654,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.who}"
         },
         "overrides": []
       },
