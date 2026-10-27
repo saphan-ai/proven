@@ -65,7 +65,8 @@ fi
 ui_done "Proven's image is built"
 
 ui_begin 2 "Start Gitea, Grafana and the lab's Docker" "make logs SERVICE=gitea, or SERVICE=lgtm, or SERVICE=dind"
-compose up -d gitea dind lgtm
+# --remove-orphans: a container an earlier lab started for a service this one has no longer is removed, not warned about.
+compose up -d gitea dind lgtm --remove-orphans
 
 # Path C: Zetaris on this machine, when asked (make up ZETARIS=local). It needs the lab's network, so it starts here.
 # A platform that does not start is named and the lab goes on, as the documentation image does.
@@ -232,11 +233,6 @@ compose up -d --force-recreate page
 if [ "$docs_ready" -eq 1 ]; then
   compose up -d docs
 fi
-# Each pull request's report page: its review as a page set like a GitHub comment. A page that cannot be built is named, and
-# its Report link says it is not ready; make reports builds them again.
-if ! sh "$ROOT/lab/scripts/reports.sh"; then
-  echo "up: not every report page was built; the Report links say which (make reports builds them again)" >&2
-fi
 # The Nightshift dashboard's data: the public receipts of Proven's own calls, when the file is there. Without it the dashboard
 # says so; the lab does not wait on it.
 if ! sh "$ROOT/lab/scripts/nightshift-receipts.sh"; then
@@ -253,8 +249,14 @@ if [ "${PROVEN_LAB_WAIT:-yes}" = no ]; then
   ui_done "Not waiting for the reviews (PROVEN_LAB_WAIT=no); make demo-check waits for them"
 else
   sh "$ROOT/lab/scripts/demo-check.sh" || wait_status=$?
-  if [ "$wait_status" -eq 0 ]; then
-    ui_done "Proven reviewed every pull request"
+  # Each pull request's report page is the review Proven posted on it, so the pages are built once the reviews are in. A
+  # page not built keeps its Report link saying so; make reports builds them again and names which.
+  reports_status=0
+  sh "$ROOT/lab/scripts/reports.sh" >/dev/null 2>&1 || reports_status=$?
+  if [ "$wait_status" -eq 0 ] && [ "$reports_status" -eq 0 ]; then
+    ui_done "Proven reviewed every pull request, and each has its report page"
+  elif [ "$wait_status" -eq 0 ]; then
+    ui_done "Proven reviewed every pull request; not every report page is built yet (make reports)"
   else
     ui_fail "the lab is up, but not every review is there yet"
   fi

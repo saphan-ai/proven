@@ -1,13 +1,13 @@
 #!/bin/sh
-# Build the report page of every demo pull request: the review Proven writes with `proven scan --md`, set in the way
-# GitHub shows a Markdown comment, served at <the start page>/report/N.html (lab/page/nginx.conf). make up runs it after the
-# seed; make reports runs it again.
+# Build the report page of every demo pull request: the review Proven posted on it, set in the way GitHub shows a Markdown
+# comment, served at <the start page>/report/N.html (lab/page/nginx.conf). make up runs it once the reviews are in; make
+# reports runs it again.
 #
-# The review is Proven's sample review of that pull request's change: the same recorded answers the workflow's job uses in
-# sample mode, so the page says what the comment says. In a live lab the page says it is the sample review and that the live
-# review is the comment (lab/seed/report.sh). The run takes no network and no key: Proven's image, with no network, the
-# change's fixture, SAMPLE_MODE=true, and the settings the workflow gives its review (the one automated fix, the special
-# reviewer), so the page names the reviewers the comment names. Nothing here passes a credential: the lab's keys are not read.
+# The page is that pull request's own comment, read back from Gitea (lab/seed/report.sh comment): in sample mode and in a
+# live lab alike it says what the comment says, a live finding or a failed service included. No review is made here: a
+# comment that is not posted yet is waited for (LAB_REPORT_WAIT_SECONDS, 120 by default), then named, and its Report link
+# keeps saying the report is not ready. The read is anonymous (the demo repository is public): nothing here passes a
+# credential, and the lab's keys are not read.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
 need_docker
@@ -19,12 +19,9 @@ if [ ! -s "$rows" ]; then
   die "reports: the lab has stored no pull requests yet. NEXT — run make up."
 fi
 
-# The two Meterless features the lab passes to a review ride in sample mode too, so the page matches the comment.
-features=
-if [ -n "${PROVEN_MARKOVIAN:-}" ]; then
-  features="-e PROVEN_MARKOVIAN"
-fi
-
+wait_for=${LAB_REPORT_WAIT_SECONDS:-120}
+case $wait_for in '' | *[!0-9]*) die "reports: LAB_REPORT_WAIT_SECONDS is not a number of seconds" ;; esac
+deadline=$(($(date +%s) + wait_for))
 tab=$(printf '\t')
 done_count=0
 failed=0
@@ -32,15 +29,21 @@ failed=0
 while IFS="$tab" read -r num branch fixture verdict <&3; do
   [ -n "$num" ] || continue
   md=$(mktemp)
-  # $features is a fixed word or empty, never a value: the flag names a variable, it does not carry one.
-  # shellcheck disable=SC2086
-  if docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true \
-    -e SAMPLE_MODE=true -e FIXTURE="$fixture" -e SCOUT_INTENT="${PROVEN_LAB_SCOUT_INTENT:-}" -e SPECIAL_REVIEWER="${LAB_SPECIAL_REVIEWER:-}" $features \
-    --entrypoint sh "$PROVEN_IMAGE:latest" -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && echo autofix: on > /tmp/proven-run/proven.yaml && { [ -z "$SPECIAL_REVIEWER" ] || printf "special_reviewer: %s\n" "$SPECIAL_REVIEWER" >> /tmp/proven-run/proven.yaml; } && { [ -z "$SCOUT_INTENT" ] || printf "scout_intent: %s\n" "$SCOUT_INTENT" >> /tmp/proven-run/proven.yaml; } && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml && proven scan --md "$d"' \
-    </dev/null >"$md" 2>/dev/null &&
+  status=0
+  while :; do
+    status=0
+    compose run --rm --no-deps -T --entrypoint sh seed -c 'exec sh /usr/local/bin/report.sh comment "$1"' sh "$num" \
+      </dev/null >"$md" 2>/dev/null || status=$?
+    [ "$status" -eq 3 ] && [ "$(date +%s)" -lt "$deadline" ] || break
+    sleep 5
+  done
+  if [ "$status" -eq 0 ] &&
     compose run --rm --no-deps -T --entrypoint sh seed -c 'exec sh /usr/local/bin/report.sh render "$1"' sh "$num" <"$md" >/dev/null; then
-    echo "reports: #$num $branch: the report page is built"
+    echo "reports: #$num $branch: the report page is built from its comment"
     done_count=$((done_count + 1))
+  elif [ "$status" -eq 3 ]; then
+    echo "reports: #$num $branch: Proven has not posted its review yet; make reports builds the page once it has." >&2
+    failed=1
   else
     echo "reports: #$num $branch: the report page was not built. The pull request's review is the comment in Gitea." >&2
     failed=1

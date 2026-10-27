@@ -7,7 +7,7 @@
 
 ARG RUNTIME_IMAGE=alpine:3.23
 FROM ${RUNTIME_IMAGE}
-RUN apk add --no-cache ca-certificates curl \
+RUN apk add --no-cache ca-certificates curl jq \
  && adduser -D -u 65532 -h /work proven
 COPY seed.sh render.sh golive.sh report.sh md2html.awk nightshift-import.sh /usr/local/bin/
 # /page is the start page's volume. The page service, another user, reads it,

@@ -190,8 +190,8 @@ func TestReportPageNamesTheModeItWasMadeIn(t *testing.T) {
 	if p := renderReport(t, root, "render", goldenMD(t, "clean.md")); !strings.Contains(p, "Sample mode: recorded answers") {
 		t.Error("a sample lab's report does not say it is a sample")
 	}
-	if p := renderReport(t, root, "render", goldenMD(t, "clean.md"), "LAB_MODE=live via our gateway"); !strings.Contains(p, "the live review is the comment on the pull request in Gitea") {
-		t.Error("a live lab's report does not say the live review is the comment")
+	if p := renderReport(t, root, "render", goldenMD(t, "clean.md"), "LAB_MODE=live via our gateway"); !strings.Contains(p, "This lab reviews live. This is the review Proven posted on this pull request.") {
+		t.Error("a live lab's report does not say it is the live review posted on the pull request")
 	}
 }
 

@@ -2,6 +2,8 @@
 # One demo pull request's report page: the review Proven wrote with `proven scan --md`, set in the way GitHub shows a
 # Markdown comment (light and dark), written into the lab's page volume where the page's nginx serves it.
 #
+#   report.sh comment NUM              the review Proven posted on pull request NUM, as Markdown on standard output (exit 3
+#                                      while it is not posted): the page is that comment, never a review made apart from it
 #   report.sh render NUM < review.md   the page for pull request NUM, from the Markdown on standard input
 #   report.sh stub NUM                 the page that says the report is not ready yet (the seed writes one per pull request,
 #                                      so a Report link is never a dead link; `make reports` or make up replaces it)
@@ -34,12 +36,26 @@ fail() {
 mode=${1:-}
 num=${2:-}
 case $mode in
-  render | stub) ;;
-  *) fail "usage: report.sh render NUM < review.md, or report.sh stub NUM" ;;
+  comment | render | stub) ;;
+  *) fail "usage: report.sh comment NUM, report.sh render NUM < review.md, or report.sh stub NUM" ;;
 esac
 case $num in
   '' | *[!0-9]*) fail "the pull request number is not a number" ;;
 esac
+
+# The comment: the first one on the pull request that the lab's bot account wrote and whose body starts with Proven's marker
+# (lab/workflow/proven.yml posts it and edits it in place), with the marker line removed. The demo repository is public, so
+# the read carries no credential. jq decodes the JSON string, escapes included.
+if [ "$mode" = comment ]; then
+  url="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/issues/$num/comments?limit=50"
+  json=$(curl -fsS --max-time 20 "$url") || fail "the comments of pull request $num could not be read"
+  review=$(printf '%s' "$json" | jq -r --arg bot "$LAB_BOT_USER" \
+    'first(.[] | select(.user.login == $bot and (.body | startswith("<!-- proven-review"))) | .body) // empty') ||
+    fail "the comments of pull request $num are not the list Gitea returns"
+  [ -n "$review" ] || exit 3
+  printf '%s\n' "$review" | sed '1d'
+  exit 0
+fi
 
 # The branch and the verdict of pull request NUM are what the seed stored; the title is the list's.
 branch=
@@ -111,9 +127,9 @@ else
     footer='The review as Proven wrote it with <code>proven scan --md</code>.'
   fi
   if [ "${LAB_MODE:-sample}" = sample ]; then
-    note='  <div class="note">Sample mode: recorded answers, no model was called. This is the review Proven writes for this change in the lab'"'"'s sample set.</div>'
+    note='  <div class="note">Sample mode: recorded answers, no model was called. This is the review Proven posted on this pull request.</div>'
   else
-    note='  <div class="note">This lab reviews live. This page is the sample review of the same change (recorded answers); the live review is the comment on the pull request in Gitea.</div>'
+    note='  <div class="note">This lab reviews live. This is the review Proven posted on this pull request.</div>'
   fi
 fi
 
