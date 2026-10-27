@@ -731,6 +731,7 @@ func fill(d candidate.Draft) (Result, error) {
 		Partial: d.Partial, TracePath: d.TracePath,
 		// A guardrail that was off is named in the result, not only in the trace.
 		GuardrailStatement: d.GuardrailStatement,
+		Guardrail:          GuardrailCount(d.Guardrail),
 	}
 	for _, c := range d.Findings {
 		f := Finding{
