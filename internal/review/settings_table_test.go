@@ -141,13 +141,14 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	t.Run("author_commit_trailers", func(t *testing.T) {
 		dir, base, head := commitWithTrailer(t)
 		req := Request{Target: dir, BaselineCommit: base, HeadCommit: head}
+		// Off by default (owner, 2026-10-27: no author model is parsed out of AI attribution text).
 		def := decideOn(t, defaultSettings(), req)
-		if !strings.Contains(def.AuthorModelStatement, "author Ada:model-a family unknown from commit") {
+		if !strings.Contains(def.AuthorModelStatement, "author model not stated") || strings.Contains(def.AuthorModelStatement, "model-a") {
 			t.Fatal(def.AuthorModelStatement)
 		}
-		off := decideOn(t, mustParse(t, "author_commit_trailers: off\n"), req)
-		if !strings.Contains(off.AuthorModelStatement, "author model not stated") || strings.Contains(off.AuthorModelStatement, "model-a") {
-			t.Fatal(off.AuthorModelStatement)
+		on := decideOn(t, mustParse(t, "author_commit_trailers: on\n"), req)
+		if !strings.Contains(on.AuthorModelStatement, "author Ada:model-a family unknown from commit") {
+			t.Fatal(on.AuthorModelStatement)
 		}
 	})
 
@@ -155,12 +156,12 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 		dir := treeWith(t, "go.mod", "module example.com/x\n")
 		req := Request{Target: dir, Description: "Assisted-by: Claude:claude-3-opus\n"}
 		def := decideOn(t, defaultSettings(), req)
-		if !strings.Contains(def.AuthorModelStatement, "from description") {
+		if !strings.Contains(def.AuthorModelStatement, "author model not stated") || strings.Contains(def.AuthorModelStatement, "claude-3-opus") {
 			t.Fatal(def.AuthorModelStatement)
 		}
-		off := decideOn(t, mustParse(t, "author_description: off\n"), req)
-		if !strings.Contains(off.AuthorModelStatement, "author model not stated") || strings.Contains(off.AuthorModelStatement, "claude-3-opus") {
-			t.Fatal(off.AuthorModelStatement)
+		on := decideOn(t, mustParse(t, "author_description: on\n"), req)
+		if !strings.Contains(on.AuthorModelStatement, "from description") {
+			t.Fatal(on.AuthorModelStatement)
 		}
 	})
 
@@ -190,11 +191,11 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	t.Run("author_trailer_keys", func(t *testing.T) {
 		dir := treeWith(t, "go.mod", "module example.com/x\n")
 		req := Request{Target: dir, Description: "Assisted-by: Claude:claude-3-opus\nModel-of-record: Qwen:qwen2.5\n"}
-		def := decideOn(t, defaultSettings(), req)
+		def := decideOn(t, mustParse(t, "author_description: on\n"), req)
 		if !strings.Contains(def.AuthorModelStatement, "claude-3-opus") || strings.Contains(def.AuthorModelStatement, "qwen2.5") {
 			t.Fatal(def.AuthorModelStatement)
 		}
-		other := decideOn(t, mustParse(t, "author_trailer_keys: Model-of-record\n"), req)
+		other := decideOn(t, mustParse(t, "author_description: on\nauthor_trailer_keys: Model-of-record\n"), req)
 		if !strings.Contains(other.AuthorModelStatement, "qwen2.5") || strings.Contains(other.AuthorModelStatement, "claude-3-opus") {
 			t.Fatal(other.AuthorModelStatement)
 		}

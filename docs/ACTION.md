@@ -101,7 +101,7 @@ Proven's own workflow (`.github/workflows/proven.yml`) names every model in conf
 
 The names the review prints come from `proven.yaml` at the pull request's baseline: `default_reviewer: glm-5.3`, `special_reviewer: qwen3.8-max`, and a `families` list that adds `glm-*=Zhipu`. GLM-5.3 always reasons before it answers on this API (a request with `enable_thinking` false is refused), so one short call takes about 25 seconds; `PROVEN_GENERATOR_TIMEOUT: 300s` leaves room for a long one. Nemotron through Nightshift stays a supported choice: set the generator back to `nightshift` without a base URL, or to `nvidia`.
 
-The author model is read from the pull request's description: a line `Assisted-by: <agent>:<model>` (the `author_trailer_keys` setting). A pull request that does not declare one is reviewed with `author model not stated`.
+The author model is declared by the repository's owner in `proven.yaml` (`author_models: <agent>:<model>`); nothing in a pull request's description or commits is read for it unless the repository turns `author_description` or `author_commit_trailers` on. With no declaration the review says `author model not stated`.
 
 ## Before and after
 
