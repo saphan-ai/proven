@@ -186,7 +186,7 @@ func htmlEvidence(b *strings.Builder, e review.Evidence) {
 		if q == nil {
 			return
 		}
-		fmt.Fprintf(b, "<h4>Query</h4>\n<p>(%s, snapshot %s, form %s)</p>\n", htmlText(q.Engine), htmlText(q.Snapshot), htmlText(q.Form))
+		fmt.Fprintf(b, "<h4>Query</h4>\n<p>(%s)</p>\n", htmlText(querySource(q)))
 		b.WriteString("<pre>" + htmlPre(q.SQL) + "</pre>\n")
 		htmlRows(b, q.Columns, q.Rows)
 	case review.EvidenceTest:

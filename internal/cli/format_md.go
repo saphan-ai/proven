@@ -169,6 +169,32 @@ func classReasonIn(st inlineStyle, rule string) string {
 	}
 }
 
+// queryEngineNames are the evidence stores a query can run on, as a reader knows them.
+var queryEngineNames = map[string]string{
+	"zetaris":      "Zetaris",
+	"couchdb":      "CouchDB",
+	"local":        "the local evidence file",
+	"local-sample": "the bundled sample data",
+}
+
+// queryFormNames are the query languages, as a reader knows them.
+var queryFormNames = map[string]string{"sql": "SQL", "mango": "a Mango query"}
+
+// querySource says in words what a query ran on: its language, the store and the
+// snapshot. The owner's rule of 27 Oct: no raw adapter name or enum on a page a judge
+// reads; an unknown store or form keeps its own name.
+func querySource(q *review.QueryEvidence) string {
+	form, ok := queryFormNames[q.Form]
+	if !ok {
+		form = q.Form
+	}
+	engine, ok := queryEngineNames[q.Engine]
+	if !ok {
+		engine = q.Engine
+	}
+	return fmt.Sprintf("%s on %s, snapshot %s", form, engine, q.Snapshot)
+}
+
 // mdServiceNames are the outside services a review calls, as a reader knows them.
 var mdServiceNames = map[string]string{
 	"nightshift": "the model reviewer",
@@ -325,7 +351,7 @@ func mdEvidence(b *strings.Builder, e review.Evidence, lim *mdLimits) {
 		if q == nil {
 			return
 		}
-		fmt.Fprintf(b, "**Query** (%s, snapshot %s, form %s)\n\n", mdText(q.Engine), mdText(q.Snapshot), mdText(q.Form))
+		fmt.Fprintf(b, "**Query** (%s)\n\n", mdText(querySource(q)))
 		mdFence(b, "sql", mdCut(q.SQL, lim))
 		mdRows(b, q.Columns, q.Rows, lim)
 	case review.EvidenceTest:

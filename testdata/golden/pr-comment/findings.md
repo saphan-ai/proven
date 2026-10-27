@@ -11,7 +11,7 @@
 
 The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.
 
-**Query** (local-sample, snapshot sample-2026-10-22, form sql)
+**Query** (SQL on the bundled sample data, snapshot sample-2026-10-22)
 
 ```sql
 SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'
@@ -22,7 +22,7 @@ SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severi
 | GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1\.0.0 | 1\.2.4 |  | HIGH | 2026-01-15 |
 | GHSA-px-sample-0002 |  | Go | evil.example/leftpad | 2\.0.0 | 2\.1.0 |  | LOW | 2026-03-01 |
 
-**Query** (local-sample, snapshot sample-2026-10-22, form sql)
+**Query** (SQL on the bundled sample data, snapshot sample-2026-10-22)
 
 ```sql
 SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
@@ -38,7 +38,7 @@ SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WH
 
 The change requires evil.example/leftpad v1.2.3. The sample KEV view has CVE-2026-0001 for that advisory.
 
-**Query** (local-sample, snapshot sample-2026-10-22, form sql)
+**Query** (SQL on the bundled sample data, snapshot sample-2026-10-22)
 
 ```sql
 SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
@@ -48,7 +48,7 @@ SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evi
 | --- | --- | --- | --- | --- |
 | CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known |
 
-**Query** (local-sample, snapshot sample-2026-10-22, form sql)
+**Query** (SQL on the bundled sample data, snapshot sample-2026-10-22)
 
 ```sql
 SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
@@ -64,7 +64,7 @@ SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WH
 
 evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 &lt;= v1.2.3 &lt; fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 &lt; introduced 2.0.0. alias CVE-2026-0001 is on the KEV list Reachability: not measured.
 
-**Query** (local-sample, snapshot sample-2026-10-22, form sql)
+**Query** (SQL on the bundled sample data, snapshot sample-2026-10-22)
 
 ```sql
 SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'
@@ -75,7 +75,7 @@ SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severi
 | GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1\.0.0 | 1\.2.4 |  | HIGH | 2026-01-15 |
 | GHSA-px-sample-0002 |  | Go | evil.example/leftpad | 2\.0.0 | 2\.1.0 |  | LOW | 2026-03-01 |
 
-**Query** (local-sample, snapshot sample-2026-10-22, form sql)
+**Query** (SQL on the bundled sample data, snapshot sample-2026-10-22)
 
 ```sql
 SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
@@ -85,7 +85,7 @@ SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evi
 | --- | --- | --- | --- | --- |
 | CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known |
 
-**Query** (local-sample, snapshot sample-2026-10-22, form sql)
+**Query** (SQL on the bundled sample data, snapshot sample-2026-10-22)
 
 ```sql
 SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'

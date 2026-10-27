@@ -771,7 +771,8 @@ func TestMarkdownCarriesNoInternalNames(t *testing.T) {
 	}
 	body := stdout.String()
 	for _, raw := range []string{"known-exploited-dependency", "known-exploited-cve", "osv-affected-package",
-		"discount-applied-twice", "F2 —", "osv:evil.example", "role default", "role special", "rule ``", "| Rule |"} {
+		"discount-applied-twice", "F2 —", "osv:evil.example", "role default", "role special", "rule ``", "| Rule |",
+		"local-sample,", "form sql"} {
 		if strings.Contains(body, raw) {
 			t.Errorf("the comment shows the internal name %q\n%s", raw, body)
 		}

@@ -138,8 +138,8 @@ func TestHTMLCompletenessCheckBitesWhenTheMarkdownBoundIsPutBack(t *testing.T) {
 // TestHTMLCarriesTheIncompleteHeading proves a review whose model answered only
 // some calls is headed "Proven: incomplete" on the HTML page, not "clean" and not
 // "not reviewed", and that with no answered call it is "not reviewed". The mutated
-// field is Result.Models. Negative control: a page whose verdict is written
-// without verdictLine (the heading replaced) turns the check red.
+// field is Result.Models. Negative control (run on the writer, not in this test):
+// replacing the verdictLine call in format_html.go turns this test red.
 func TestHTMLCarriesTheIncompleteHeading(t *testing.T) {
 	partial := review.Result{Class: "backend", ClassRule: "fallback",
 		Models:         []review.ModelUse{{Agent: "planner", Model: "glm-5.3"}},
@@ -156,10 +156,6 @@ func TestHTMLCarriesTheIncompleteHeading(t *testing.T) {
 		if strings.Contains(string(body), bad) {
 			t.Errorf("a partly answered review says %q", bad)
 		}
-	}
-	unplugged := strings.Replace(string(body), "Proven: incomplete", "Proven: clean", 1)
-	if strings.Contains(unplugged, want) {
-		t.Fatal("negative control: the changed heading still passes")
 	}
 	partial.Models = nil
 	none, _ := render("html", partial)
@@ -187,9 +183,9 @@ func TestTwoStandardOutputFormatsAreRefusedWithHTML(t *testing.T) {
 }
 
 // TestHTMLFootCarriesTheGuardrailLine proves the foot of the HTML page ends with
-// the counted guardrail line, the same words as the text output, and that a page
-// without the foot (the footIn call removed from the writer) does not hold it.
-// The mutated field is the Result's Guardrail counts.
+// the counted guardrail line, the same words as the text output. The mutated field
+// is the Result's Guardrail counts. Negative control (run on the writer, not in this
+// test): removing the footIn call in format_html.go turns this test red.
 func TestHTMLFootCarriesTheGuardrailLine(t *testing.T) {
 	const want = "Guardrail: NVIDIA nvidia/test-guard-model (NVIDIA hosted API), checked 2 prompts and 1 answer, 1 blocked"
 	body, err := render("html", checkedResult(0))
@@ -200,9 +196,5 @@ func TestHTMLFootCarriesTheGuardrailLine(t *testing.T) {
 	foot := page[strings.Index(page, "<footer>"):]
 	if !strings.Contains(foot, want+"</footer>") {
 		t.Fatalf("the foot does not end with the guardrail line\n%s", foot)
-	}
-	unplugged := page[:strings.Index(page, "<footer>")]
-	if strings.Contains(unplugged, want) {
-		t.Fatal("negative control: a page without the foot still holds the line")
 	}
 }
