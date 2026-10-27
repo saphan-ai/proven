@@ -23,7 +23,7 @@ import (
 func mdVerdict(result review.Result) string {
 	if len(result.Findings) == 0 {
 		if down := mdModelsDown(result); len(down) > 0 {
-			return "**Proven: not reviewed** — the model reviewer did not answer (" + strings.Join(down, ", ") + "), so 0 findings proves nothing" + mdCountsTail(result)
+			return "**Proven: not reviewed** — " + strings.Join(down, " and ") + " did not answer, so 0 findings proves nothing" + mdCountsTail(result)
 		}
 		return "**Proven: clean** — 0 findings" + mdCountsTail(result)
 	}
@@ -74,9 +74,11 @@ func mdCountsTail(result review.Result) string {
 // not. The Result carries no list of the files or the commit range reviewed, so
 // none is printed; the foot names the models.
 func mdChecked(result review.Result) string {
-	class := mdCode(result.Class)
+	class := mdText(result.Class)
 	if class == "" {
-		class = "unknown"
+		class = "an unclassified"
+	} else {
+		class = "a " + class
 	}
 	var parts []string
 	if n := len(result.SkippedPaths); n > 0 {
@@ -88,7 +90,7 @@ func mdChecked(result review.Result) string {
 	} else {
 		names := make([]string, 0, len(result.FailedServices))
 		for _, failed := range result.FailedServices {
-			names = append(names, mdCode(failed.Service))
+			names = append(names, mdServiceName(failed.Service))
 		}
 		parts = append(parts, "these services did not answer: "+strings.Join(names, ", "))
 	}
@@ -96,8 +98,64 @@ func mdChecked(result review.Result) string {
 	if len(mdModelsDown(result)) > 0 {
 		closing = "No model read the change, so no finding could be raised; run the review again when the model answers."
 	}
-	return fmt.Sprintf("Checked as review class %s (rule %s); %s. %s",
-		class, mdCode(result.ClassRule), strings.Join(parts, "; "), closing)
+	return fmt.Sprintf("Checked as %s change%s; %s. %s",
+		class, mdClassReason(result.ClassRule), strings.Join(parts, "; "), closing)
+}
+
+// mdClassReason says in words why the review chose its class: a path rule names
+// its pattern, the fallback says no rule matched, and an empty rule says nothing.
+// The owner's rule of 27 Oct: no raw field name or value on a page a judge reads.
+func mdClassReason(rule string) string {
+	switch {
+	case rule == "":
+		return ""
+	case rule == "fallback":
+		return " (no path rule matched)"
+	case strings.HasPrefix(rule, "scout-intent"):
+		return " (raised by the plan Proven made for this change)"
+	default:
+		return " (path rule " + mdCode(mdShort(rule, mdMaxTitle)) + ")"
+	}
+}
+
+// mdServiceNames are the outside services a review calls, as a reader knows them.
+var mdServiceNames = map[string]string{
+	"nightshift": "the model reviewer",
+	"nvidia":     "the NVIDIA model",
+	"zetaris":    "the Zetaris dependency database",
+	"guardrail":  "the guardrail",
+	"prover":     "the Prover, which runs tests",
+	"query":      "the evidence store",
+	"local":      "the local evidence file",
+}
+
+// mdServiceName is a failed service as a reader knows it; an unknown one keeps its name.
+func mdServiceName(service string) string {
+	if name, ok := mdServiceNames[service]; ok {
+		return name
+	}
+	return mdCode(mdShort(service, mdMaxTitle))
+}
+
+// mdUnsetSetting is a reason that only names an empty setting, such as "ZETARIS_REST_URL is empty".
+var mdUnsetSetting = regexp.MustCompile(`^[A-Z][A-Z0-9_]* is empty$`)
+
+// mdServiceReason is why a service did not answer, in words: a setting left empty
+// says the service is not configured for this run instead of naming the variable.
+func mdServiceReason(reason string) string {
+	if mdUnsetSetting.MatchString(reason) {
+		return "not configured for this run"
+	}
+	return mdText(mdShort(reason, mdMaxNote))
+}
+
+// mdSeverity is a severity as a word with a capital: Error, Warning, Info.
+func mdSeverity(sev review.Severity) string {
+	word := strings.ToLower(string(sev))
+	if word == "" {
+		return ""
+	}
+	return strings.ToUpper(word[:1]) + word[1:]
 }
 
 // mdModelsDown names the model services that did not answer: the generator in
@@ -107,25 +165,38 @@ func mdModelsDown(result review.Result) []string {
 	var down []string
 	for _, failed := range result.FailedServices {
 		if failed.Service == generator.ModeNightshift || failed.Service == generator.ModeNVIDIA {
-			down = append(down, mdCode(failed.Service))
+			down = append(down, mdServiceName(failed.Service))
 		}
 	}
 	return down
 }
 
-// mdTable is the findings table: severity, finding, file:line, rule.
+// mdTable is the findings table: severity, finding, file:line. The rule id is a
+// name for machines; it stays in JSON and SARIF.
 func mdTable(b *strings.Builder, findings []review.Finding) {
-	b.WriteString("| Severity | Finding | Location | Rule |\n")
-	b.WriteString("| --- | --- | --- | --- |\n")
+	b.WriteString("| Severity | Finding | Location |\n")
+	b.WriteString("| --- | --- | --- |\n")
 	for _, f := range findings {
 		title := mdText(mdShort(f.Title, mdMaxTitle))
 		if f.Unresolved {
 			title += " (unresolved)"
 		}
-		fmt.Fprintf(b, "| %s | %s | %s | %s |\n",
-			mdText(string(f.Severity)), title, mdLocation(f.Location, true), mdCodeIn(f.RuleID, true))
+		fmt.Fprintf(b, "| %s | %s | %s |\n",
+			mdSeverity(f.Severity), title, mdLocation(f.Location, true))
 	}
 	b.WriteString("\n")
+}
+
+// mdPlace is file:line as plain text, for a heading.
+func mdPlace(l review.Location) string {
+	switch {
+	case l.StartLine <= 0:
+		return l.Path
+	case l.EndLine > l.StartLine:
+		return fmt.Sprintf("%s:%d-%d", l.Path, l.StartLine, l.EndLine)
+	default:
+		return fmt.Sprintf("%s:%d", l.Path, l.StartLine)
+	}
 }
 
 // mdShort bounds a raw value at max bytes and marks the cut with an ellipsis.
@@ -154,13 +225,10 @@ func mdLocation(l review.Location, cell bool) string {
 // one. What the level left out is announced in the block, with the count.
 func mdBlock(f review.Finding, lim mdLimits) string {
 	var b strings.Builder
-	name := f.ID
-	if name == "" {
-		name = f.RuleID
-	}
 	// The summary line is raw HTML until the blank line after it, so it takes
 	// HTML escaping only: Markdown inside it would print its own punctuation.
-	fmt.Fprintf(&b, "<details><summary>%s %s — %s</summary>\n\n", htmlText(string(f.Severity)), htmlText(mdShort(name, mdMaxTitle)), htmlText(mdShort(f.Title, mdMaxTitle)))
+	// It names the finding by its title and place; the internal id stays in JSON.
+	fmt.Fprintf(&b, "<details><summary>%s — %s — %s</summary>\n\n", htmlText(mdSeverity(f.Severity)), htmlText(mdShort(f.Title, mdMaxTitle)), htmlText(mdShort(mdPlace(f.Location), mdMaxTitle)))
 	if f.Message != "" {
 		message, cut := cutRaw(f.Message, mdMaxMessage)
 		lim.cutBytes += cut
@@ -318,6 +386,41 @@ func mdFixRuns(b *strings.Builder, runs []review.FixRun, lim *mdLimits) {
 // failed service (clean or not), a partial review, a guardrail that was off,
 // accepted findings and exceptions that expired. Each line is bounded, and a
 // long list of exceptions is cut with its count.
+// mdPeople are the author and reviewer lines, read from the structured fields so
+// a reader sees words, not the review's internal role names (ADR-0037 point 5).
+func mdPeople(result review.Result) []string {
+	var lines []string
+	if len(result.AuthorModels) == 0 {
+		lines = append(lines, "- Author model: unknown, the change does not declare it")
+	} else {
+		names := make([]string, 0, len(result.AuthorModels))
+		for _, a := range result.AuthorModels {
+			names = append(names, fmt.Sprintf("%s (%s)", mdCode(mdShort(a.Model, mdMaxTitle)), mdText(mdFamily(a.Family))))
+		}
+		lines = append(lines, "- Author model: "+strings.Join(names, ", "))
+	}
+	for _, r := range result.Reviewers {
+		role := "Reviewer"
+		if r.Role == review.RoleSpecial {
+			role = "Second reviewer, for " + mdText(result.Class) + " changes"
+		}
+		line := fmt.Sprintf("- %s: %s (%s)", role, mdCode(mdShort(r.Model, mdMaxTitle)), mdText(mdFamily(r.Family)))
+		if r.IsAuthorModel == "yes" {
+			line += ", the same family as the author"
+		}
+		lines = append(lines, line)
+	}
+	if result.SpecialReviewer == "" && result.Doubled {
+		lines = append(lines, "- Second reviewer: not configured")
+	}
+	return lines
+}
+
+// mdFamily is a model family without the word "family".
+func mdFamily(f string) string {
+	return strings.TrimPrefix(f, "family ")
+}
+
 func mdNotes(b *strings.Builder, result review.Result) {
 	var lines []string
 	statement := func(s string) {
@@ -327,12 +430,16 @@ func mdNotes(b *strings.Builder, result review.Result) {
 	}
 	statement(result.PolicyStatement)
 	statement(result.SettingsStatement)
-	statement(result.AuthorModelStatement)
-	for _, line := range result.ReviewerStatements {
-		statement(line)
+	if len(result.Reviewers) > 0 {
+		lines = append(lines, mdPeople(result)...)
+	} else {
+		statement(result.AuthorModelStatement)
+		for _, line := range result.ReviewerStatements {
+			statement(line)
+		}
 	}
 	for _, failed := range result.FailedServices {
-		lines = append(lines, fmt.Sprintf("- failed service %s: %s", mdCode(mdShort(failed.Service, mdMaxTitle)), mdText(mdShort(failed.Reason, mdMaxNote))))
+		lines = append(lines, fmt.Sprintf("- Did not answer: %s (%s)", mdServiceName(failed.Service), mdServiceReason(failed.Reason)))
 	}
 	if result.Partial {
 		lines = append(lines, "- review partial: the deadline was reached")

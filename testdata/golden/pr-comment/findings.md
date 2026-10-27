@@ -1,13 +1,13 @@
 **Proven: blocked** — 4 findings: 4 error, 0 warning, 0 info
 
-| Severity | Finding | Location | Rule |
-| --- | --- | --- | --- |
-| ERROR | Dependency leftpad v1.2.3 is on the known-exploited list | `go.mod:5` | `known-exploited-dependency` |
-| ERROR | CVE-2026-0001 for leftpad v1.2.3 is on the KEV list | `go.mod:5` | `known-exploited-cve` |
-| ERROR | Dependency evil.example/leftpad v1.2.3 is in an OSV affected range | `go.mod:5` | `osv-affected-package` |
-| ERROR | Discount is applied twice | `billing/discount.go:5` | `discount-applied-twice` |
+| Severity | Finding | Location |
+| --- | --- | --- |
+| Error | Dependency leftpad v1.2.3 is on the known-exploited list | `go.mod:5` |
+| Error | CVE-2026-0001 for leftpad v1.2.3 is on the KEV list | `go.mod:5` |
+| Error | Dependency evil.example/leftpad v1.2.3 is in an OSV affected range | `go.mod:5` |
+| Error | Discount is applied twice | `billing/discount.go:5` |
 
-<details><summary>ERROR F2 — Dependency leftpad v1.2.3 is on the known-exploited list</summary>
+<details><summary>Error — Dependency leftpad v1.2.3 is on the known-exploited list — go.mod:5</summary>
 
 The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.
 
@@ -34,7 +34,7 @@ SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WH
 
 </details>
 
-<details><summary>ERROR F4 — CVE-2026-0001 for leftpad v1.2.3 is on the KEV list</summary>
+<details><summary>Error — CVE-2026-0001 for leftpad v1.2.3 is on the KEV list — go.mod:5</summary>
 
 The change requires evil.example/leftpad v1.2.3. The sample KEV view has CVE-2026-0001 for that advisory.
 
@@ -60,7 +60,7 @@ SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WH
 
 </details>
 
-<details><summary>ERROR osv:evil.example/leftpad — Dependency evil.example/leftpad v1.2.3 is in an OSV affected range</summary>
+<details><summary>Error — Dependency evil.example/leftpad v1.2.3 is in an OSV affected range — go.mod:5</summary>
 
 evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 &lt;= v1.2.3 &lt; fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 &lt; introduced 2.0.0. alias CVE-2026-0001 is on the KEV list Reachability: not measured.
 
@@ -99,7 +99,7 @@ SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WH
 
 </details>
 
-<details><summary>ERROR F1 — Discount is applied twice</summary>
+<details><summary>Error — Discount is applied twice — billing/discount.go:5</summary>
 
 Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.
 
@@ -120,8 +120,8 @@ change: FAIL got 60 want 80
 
 </details>
 
-- author model not stated; default reviewer NVIDIA
-- reviewer NVIDIA; role default; family NVIDIA; author model not stated
-- special-review model: not configured
+- Author model: unknown, the change does not declare it
+- Reviewer: `NVIDIA` (NVIDIA)
+- Second reviewer: not configured
 
 <sub>reviewed by `NVIDIA` · guardrail checked every call</sub>

@@ -21,10 +21,16 @@ Some teams, ours among them, put no AI attribution in commits or pull requests a
 
 ## Decision
 
-1. **The default form is an `Assisted-by:` trailer**, the kernel's convention: `Assisted-by: <agent>:<model>`, one trailer per agent and model that wrote part of the change. Proven reads it from every commit of the pull request.
+1. **The default form is a declaration in settings**: the repository's owner names the author models in `proven.yaml`
+   (`author_models: <agent>:<model>`, one entry per agent and model that writes changes there). The review is
+   independent of each one's family. *(Amended 2026-10-27, the owner: an `Assisted-by:` line in a commit or a pull request
+   is AI attribution, which this project does not write and does not ask anyone to write, so the author model is never
+   parsed out of such text by default. Until then this point named the kernel's `Assisted-by: <agent>:<model>` trailer
+   as the default form.)*
 2. **Where proven looks is configurable**, in an order of precedence:
-   - commit trailers (default on);
-   - a line of the same form in the pull-request description (default on);
+   - the `author_models` declaration (default: none declared);
+   - commit trailers (default off; amended 2026-10-27, was on);
+   - a line of the same form in the pull-request description (default off; amended 2026-10-27, was on);
    - a record file in the repository, for teams that keep the model out of commits and pull requests (default off; the path pattern is set by the team).
 3. **Which trailer keys count is configurable.** By default `Assisted-by:`. A team may add `Co-authored-by:` lines that name a known coding agent, or its own key.
 4. **The family of a model comes from a configurable table**, for example `claude-*` → Anthropic, `gpt-*` / `codex-*` → OpenAI, `nemotron-*` → NVIDIA, `qwen*` → Alibaba. A model the table does not know is reported as "family unknown", never guessed.

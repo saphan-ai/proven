@@ -261,10 +261,11 @@ No environment variable sets these keys.
 | `class_order` | `security`, `backend`, `mobile`, `user interface`, `docs` | Highest risk first. The matching rule whose class is earliest in this list wins. | Every class exactly once. An order that leaves a class out is refused, and the refusal lists the classes. Docs may not rank above security (ADR-0053). |
 | `fallback_class` | `backend` | The class when no path rule matches. The rule name is `fallback`. | One of the five classes. |
 | `doubled_classes` | `security` | Classes that use the default reviewer and the special reviewer. | `off`, or a comma-separated list of classes. |
-| `author_commit_trailers` | `on` | Read author trailers from commits after the baseline. The baseline commit itself is not read. | `on` or `off`. |
-| `author_description` | `on` | Read author trailers from the pull-request description. | `on` or `off`. |
+| `author_models` | none | The author models of this repository's changes, declared by its owner. The review is independent of each one's family. With none declared, the review says `author model not stated`. | A comma-separated list of `agent:model`, each once, for example `claude-code:claude-opus-5-5`. |
+| `author_commit_trailers` | `off` | Read author trailers from commits after the baseline. Off by default: an author model is declared in `author_models`, not asked of a commit. The baseline commit itself is not read. | `on` or `off`. |
+| `author_description` | `off` | Read author trailers from the pull-request description. Off by default, as above. | `on` or `off`. |
 | `author_record` | `off` | Read author trailers from a file inside the review target. | `off`, or a relative path or pattern inside the target. An absolute path, a `..` segment, a symlink, and a path that resolves outside the target are refused before the file is read. |
-| `author_trailer_keys` | `Assisted-by` | Trailer keys that can name an author. The value must be `agent:model`. A recognised key with any other value is reported as `author statement unreadable: <line>`, not as "not stated". | A comma-separated list of keys, each once. |
+| `author_trailer_keys` | `Assisted-by` | Trailer keys that can name an author, read only where a trailer source is on. The value must be `agent:model`. A recognised key with any other value is reported as `author statement unreadable: <line>`, not as "not stated". | A comma-separated list of keys, each once. |
 | `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
 | `fixes` | `on` | Proposes a fix for a finding a test proved, and a fixed version for a dependency finding (ADR-0042). `off` proposes none, runs none of the three proof runs and names no version. | `on` or `off`. |
 | `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. With `autofix: on` this key is not read: the whole-change attempt has no retry (ADR-0050). |
@@ -315,11 +316,11 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
 | `LAB_BIND` | retired | No longer a setting. Every published port names `127.0.0.1` in `lab/compose.yaml` itself, so no value moves it. `make up` refuses a `LAB_BIND` that is set in the environment, an empty one included, and names it |
 | `GOLANG_IMAGE` | `golang:1.26.10` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
-| `RUNTIME_IMAGE` | `alpine:3.23` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
+| `RUNTIME_IMAGE` | `alpine:3.24` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
 | `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
-| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
+| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding, with a fix available or without one. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
 | `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |

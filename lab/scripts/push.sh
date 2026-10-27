@@ -104,9 +104,8 @@ scan_layout() {
     if ! docker scout cves "oci-dir://$work/$1" \
       --platform "$platform" \
       --only-severity "$SCOUT_REFUSE_SEVERITIES" \
-      --only-fixed \
       --exit-code; then
-      echo "scout: refusing $1 $platform: the scan failed, the platform is missing, or a $SCOUT_REFUSE_SEVERITIES finding has a fix" >&2
+      echo "scout: refusing $1 $platform: the scan failed, the platform is missing, or a $SCOUT_REFUSE_SEVERITIES finding was reported" >&2
       ok=1
     fi
   done
@@ -134,8 +133,17 @@ publish() {
   done
 }
 
+# :judging is the tag every image a judge's run pulls is referenced by during the judging
+# window (docs/JUDGING.md). It moves only when the owner asks for it (make push-judging), so
+# an ordinary push to latest never changes what judges run.
+judging_tag() {
+  if [ "${PUSH_JUDGING:-}" = yes ]; then
+    printf '%s:judging' "$1"
+  fi
+}
+
 proven_digest=$(layout_digest proven)
 seed_digest=$(layout_digest seed)
-publish proven "$name:latest" "$name:$version"
-publish seed "$seed_name:$SEED_IMAGE_TAG"
+publish proven "$name:latest" "$name:$version" $(judging_tag "$name")
+publish seed "$seed_name:$SEED_IMAGE_TAG" $(judging_tag "$seed_name")
 echo "push: published the scanned digests $proven_digest and $seed_digest."
