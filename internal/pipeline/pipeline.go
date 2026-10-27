@@ -517,6 +517,16 @@ func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
 // error stops the review.
 //
 // Splitting this function into its stages is known debt, planned after 6 Nov.
+// readContext marks a live review's context, so its Planner reads only the files that changed: a live review
+// exports the repository whole. A sample review is left unmarked, because its recorded planner answers are keyed by
+// the prompt over every file of its fixture.
+func readContext(ctx context.Context, sample bool) context.Context {
+	if sample {
+		return ctx
+	}
+	return change.WithChangedOnly(ctx)
+}
+
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
 	// The review's read policy rode the context from its runner; every git command and size bound below takes it from here.
 	rd := change.PolicyFrom(ctx)
@@ -528,6 +538,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
+	ctx = readContext(ctx, p.sample)
 	files, err := changedFiles(req, rd)
 	if err != nil {
 		return candidate.Draft{}, err

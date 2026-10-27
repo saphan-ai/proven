@@ -86,6 +86,8 @@ func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidat
 	if err != nil {
 		return nil, err
 	}
+	// A live review exports a real repository whole; its Planner is asked about the files that changed.
+	files = change.ChangedFor(ctx, files)
 	// An empty change has nothing to review; it is refused rather than reported clean.
 	if len(files) == 0 {
 		return nil, fmt.Errorf("planner: the change has no files")

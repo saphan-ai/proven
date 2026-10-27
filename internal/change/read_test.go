@@ -65,3 +65,24 @@ func TestReadReturnsARegularFile(t *testing.T) {
 		t.Fatalf("%#v", files)
 	}
 }
+
+// Changed drops a file whose two sides are equal and keeps an edit, an addition and a deletion, an empty added file
+// included; a change in which nothing differs is returned whole.
+func TestChangedKeepsOnlyFilesThatDiffer(t *testing.T) {
+	files := []File{
+		{Path: "same", Base: []byte("x"), Change: []byte("x")},
+		{Path: "edit", Base: []byte("x"), Change: []byte("y")},
+		{Path: "added-empty", Base: nil, Change: []byte{}},
+		{Path: "gone", Base: []byte("x"), Change: nil},
+	}
+	var got []string
+	for _, f := range Changed(files) {
+		got = append(got, f.Path)
+	}
+	if strings.Join(got, ",") != "edit,added-empty,gone" {
+		t.Fatalf("%v", got)
+	}
+	if same := files[:1]; len(Changed(same)) != 1 {
+		t.Fatal("a change with no differing file was emptied")
+	}
+}

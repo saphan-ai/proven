@@ -15,6 +15,8 @@
 package change
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -59,6 +61,41 @@ func (p Policy) Read(root string) ([]File, error) {
 		out = append(out, File{Path: n, Base: base[n], Change: chg[n]})
 	}
 	return out, nil
+}
+
+// Changed keeps the files whose two sides differ: an edited file, an added one and a deleted one. A file that
+// is the same on both sides is dropped, so a reader of a whole exported repository gets the change and not the
+// repository. A side that is missing is nil and a side that is an empty file is not, so adding or deleting an
+// empty file is kept. A change in which no file differs (a mode change only) is returned whole, so the reader
+// still has the files it was given rather than none.
+func Changed(files []File) []File {
+	out := make([]File, 0, len(files))
+	for _, f := range files {
+		if (f.Base == nil) != (f.Change == nil) || !bytes.Equal(f.Base, f.Change) {
+			out = append(out, f)
+		}
+	}
+	if len(out) == 0 {
+		return files
+	}
+	return out
+}
+
+type changedOnlyKey struct{}
+
+// WithChangedOnly marks a live review: its readers hand the Planner the files that changed (Changed). A sample
+// review carries no mark, because its recorded planner answers are keyed by the prompt over every file of its
+// fixture.
+func WithChangedOnly(ctx context.Context) context.Context {
+	return context.WithValue(ctx, changedOnlyKey{}, true)
+}
+
+// ChangedFor is Changed(files) in a context WithChangedOnly marked, and files as they are in any other.
+func ChangedFor(ctx context.Context, files []File) []File {
+	if on, _ := ctx.Value(changedOnlyKey{}).(bool); on {
+		return Changed(files)
+	}
+	return files
 }
 
 // walk reads every regular file under root into dst, keyed by its slash path

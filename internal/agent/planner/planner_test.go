@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/saphan-ai/proven/internal/agent/planner"
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -75,5 +76,52 @@ func discount(t *testing.T) string {
 			t.Fatal("module root not found")
 		}
 		dir = parent
+	}
+}
+
+// A live review exports a real repository whole, so its Planner is asked about the files that changed and never the rest:
+// an unchanged file's content does not reach the prompt, while an edited, an added and a deleted file do.
+// Mutated field: the unchanged file's two sides are equal.
+func TestThePlannerIsNotSentAnUnchangedFile(t *testing.T) {
+	root := t.TempDir()
+	write := func(side, name, body string) {
+		t.Helper()
+		p := filepath.Join(root, side, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("base", "same.go", "package same // UNCHANGED-MARKER\n")
+	write("change", "same.go", "package same // UNCHANGED-MARKER\n")
+	write("base", "edit.go", "package edit // EDIT-BEFORE\n")
+	write("change", "edit.go", "package edit // EDIT-AFTER\n")
+	write("change", "added.go", "package added // ADDED-MARKER\n")
+	write("base", "gone.go", "package gone // DELETED-MARKER\n")
+	// A sample review's recorded answers are keyed by the prompt over every file, so without the mark the
+	// unchanged file is still sent.
+	g := &script{replies: []string{"[]", "[]"}}
+	if _, err := planner.Plan(context.Background(), root, g); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains([]byte(g.prompts[0]), []byte("UNCHANGED-MARKER")) {
+		t.Error("an unmarked (sample) review lost the unchanged file")
+	}
+	if _, err := planner.Plan(change.WithChangedOnly(context.Background()), root, g); err != nil {
+		t.Fatal(err)
+	}
+	if len(g.prompts) != 2 {
+		t.Fatalf("calls %d", len(g.prompts))
+	}
+	p := g.prompts[1]
+	if bytes.Contains([]byte(p), []byte("UNCHANGED-MARKER")) {
+		t.Error("the unchanged file reached the prompt")
+	}
+	for _, m := range []string{"EDIT-AFTER", "ADDED-MARKER", "DELETED-MARKER"} {
+		if !bytes.Contains([]byte(p), []byte(m)) {
+			t.Errorf("%s is missing from the prompt", m)
+		}
 	}
 }
