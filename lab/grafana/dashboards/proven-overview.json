@@ -559,6 +559,67 @@
                 "value": 0
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Change"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "discount-clean": {
+                        "text": "Round the discount down to a whole cent"
+                      },
+                      "unknown-author": {
+                        "text": "Reword the draft note"
+                      },
+                      "discount": {
+                        "text": "Apply a discount (it is taken off twice)"
+                      },
+                      "malicious-package": {
+                        "text": "Add a padding helper from evil.example/drop"
+                      },
+                      "osv-go-module": {
+                        "text": "Bump the widget library"
+                      },
+                      "spdx-licence": {
+                        "text": "Add a copyleft helper"
+                      },
+                      "project-health": {
+                        "text": "Add a very young dependency"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Claims dropped"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "text": "0"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -675,8 +736,9 @@
         "orientation": "horizontal",
         "displayMode": "gradient",
         "valueMode": "color",
-        "showUnfilled": true,
-        "minVizHeight": 28,
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
@@ -685,7 +747,7 @@
         },
         "text": {
           "titleSize": 16,
-          "valueSize": 20
+          "valueSize": 16
         }
       }
     }

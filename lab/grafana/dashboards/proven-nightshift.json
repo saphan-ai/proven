@@ -517,8 +517,9 @@
         "orientation": "horizontal",
         "displayMode": "gradient",
         "valueMode": "color",
-        "showUnfilled": true,
-        "minVizHeight": 28,
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
@@ -527,7 +528,7 @@
         },
         "text": {
           "titleSize": 16,
-          "valueSize": 20
+          "valueSize": 16
         }
       }
     },
@@ -657,8 +658,9 @@
         "orientation": "horizontal",
         "displayMode": "gradient",
         "valueMode": "color",
-        "showUnfilled": true,
-        "minVizHeight": 28,
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
@@ -667,7 +669,7 @@
         },
         "text": {
           "titleSize": 16,
-          "valueSize": 20
+          "valueSize": 16
         }
       }
     }

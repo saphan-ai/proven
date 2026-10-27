@@ -330,6 +330,78 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Review class"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "security": {
+                        "text": "Security"
+                      },
+                      "backend": {
+                        "text": "Backend"
+                      },
+                      "mobile": {
+                        "text": "Mobile"
+                      },
+                      "user interface": {
+                        "text": "User interface"
+                      },
+                      "docs": {
+                        "text": "Documentation"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Review"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "pr1-discount-clean": {
+                        "text": "#1 Round the discount down to a whole cent"
+                      },
+                      "pr2-unknown-author": {
+                        "text": "#2 Reword the draft note"
+                      },
+                      "pr3-discount": {
+                        "text": "#3 Apply a discount (it is taken off twice)"
+                      },
+                      "pr4-malicious-package": {
+                        "text": "#4 Add a padding helper from evil.example/drop"
+                      },
+                      "pr5-osv-go-module": {
+                        "text": "#5 Bump the widget library"
+                      },
+                      "pr6-spdx-licence": {
+                        "text": "#6 Add a copyleft helper"
+                      },
+                      "pr7-project-health": {
+                        "text": "#7 Add a very young dependency"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
           }
         ]
       },

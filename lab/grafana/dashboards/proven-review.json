@@ -62,22 +62,52 @@
       },
       {
         "name": "run",
-        "label": "Review",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${ds_prom}"
-        },
-        "query": {
-          "query": "label_values(proven_agent_state, instance)",
-          "refId": "run"
-        },
-        "definition": "label_values(proven_agent_state, instance)",
-        "refresh": 2,
-        "sort": 2,
+        "label": "Pull request",
+        "type": "custom",
         "includeAll": false,
         "multi": false,
-        "current": {}
+        "query": "#1 Round the discount down to a whole cent : pr1-discount-clean,#2 Reword the draft note : pr2-unknown-author,#3 Apply a discount (it is taken off twice) : pr3-discount,#4 Add a padding helper from evil.example/drop : pr4-malicious-package,#5 Bump the widget library : pr5-osv-go-module,#6 Add a copyleft helper : pr6-spdx-licence,#7 Add a very young dependency : pr7-project-health",
+        "options": [
+          {
+            "text": "#1 Round the discount down to a whole cent",
+            "value": "pr1-discount-clean",
+            "selected": false
+          },
+          {
+            "text": "#2 Reword the draft note",
+            "value": "pr2-unknown-author",
+            "selected": false
+          },
+          {
+            "text": "#3 Apply a discount (it is taken off twice)",
+            "value": "pr3-discount",
+            "selected": false
+          },
+          {
+            "text": "#4 Add a padding helper from evil.example/drop",
+            "value": "pr4-malicious-package",
+            "selected": false
+          },
+          {
+            "text": "#5 Bump the widget library",
+            "value": "pr5-osv-go-module",
+            "selected": false
+          },
+          {
+            "text": "#6 Add a copyleft helper",
+            "value": "pr6-spdx-licence",
+            "selected": false
+          },
+          {
+            "text": "#7 Add a very young dependency",
+            "value": "pr7-project-health",
+            "selected": true
+          }
+        ],
+        "current": {
+          "text": "#7 Add a very young dependency",
+          "value": "pr7-project-health"
+        }
       }
     ]
   },
@@ -567,8 +597,9 @@
         "orientation": "horizontal",
         "displayMode": "gradient",
         "valueMode": "color",
-        "showUnfilled": true,
-        "minVizHeight": 28,
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
@@ -577,7 +608,7 @@
         },
         "text": {
           "titleSize": 16,
-          "valueSize": 20
+          "valueSize": 16
         }
       }
     },
@@ -642,8 +673,9 @@
         "orientation": "horizontal",
         "displayMode": "gradient",
         "valueMode": "color",
-        "showUnfilled": true,
-        "minVizHeight": 28,
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
@@ -652,7 +684,7 @@
         },
         "text": {
           "titleSize": 16,
-          "valueSize": 20
+          "valueSize": 16
         }
       }
     },
@@ -717,8 +749,9 @@
         "orientation": "horizontal",
         "displayMode": "gradient",
         "valueMode": "color",
-        "showUnfilled": true,
-        "minVizHeight": 28,
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "namePlacement": "top",
         "sizing": "auto",
@@ -727,7 +760,7 @@
         },
         "text": {
           "titleSize": 16,
-          "valueSize": 20
+          "valueSize": 16
         }
       }
     },

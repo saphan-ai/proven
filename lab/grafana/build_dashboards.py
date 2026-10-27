@@ -40,6 +40,21 @@ LOKI = {"type": "loki", "uid": "${ds_loki}"}
 
 GREEN, RED, YELLOW, BLUE = "green", "red", "yellow", "blue"
 
+
+def demo_rows():
+    """(number, fixture, title) of each demo pull request, in the order the seed opens them."""
+    out = []
+    with open(PRS, encoding="utf-8") as f:
+        for line in f:
+            if not line.strip() or line.startswith("#"):
+                continue
+            cols = line.rstrip("\n").split("\t")
+            out.append((len(out) + 1, cols[1], cols[4]))
+    return out
+
+
+ROWS = demo_rows()
+
 # Every raw value Proven emits on a label a dashboard shows, and the words a visitor reads instead (the owner's rule of
 # 27 Oct: no raw field or enum name reaches a screen). The values come from internal/telemetry/telemetry.go (reviewers,
 # drop reasons), internal/pipeline/pipeline.go (agents, reviewer verdicts, disagreement kinds) and the proof levels of the
@@ -55,7 +70,14 @@ HUMAN = {
                "other": "Another reason"},
     "verdict": {"upheld": "upheld", "refuted": "refuted", "not_attempted": "not attempted"},
     "kind": {"verdict": "Judged differently", "one_reviewer": "Named by one reviewer only"},
+    "proven_class": {"security": "Security", "backend": "Backend", "mobile": "Mobile", "user interface": "User interface",
+                     "docs": "Documentation"},
+    "change": {fx: title for _, fx, title in ROWS},
 }
+
+# A review's instance id ("pr7-project-health") as a visitor reads it: "#7 Add a very young dependency".
+REVIEW_TEXT = {"pr%d-%s" % (n, fx): "#%d %s" % (n, title) for n, fx, title in ROWS}
+REVIEW_WORDS = [{"type": "value", "options": {k: {"text": v} for k, v in REVIEW_TEXT.items()}}]
 
 
 def human(expr, *labels):
@@ -89,13 +111,14 @@ def demo_fixtures():
 
 
 CLEAN, DEFECT = demo_fixtures()
+
 N_PR = len(CLEAN) + len(DEFECT)
 # The review's instance id is "pr<number>-<fixture>" (the workflow sets it, lab/seed/seed.sh): one per pull request, so a
 # fixture name in the id is how a review is known for a clean or a defect pull request.
 ALL_RE = "pr[0-9]+-.+"
 CLEAN_RE = "pr[0-9]+-(" + "|".join(CLEAN) + ")"
 RANGE = "[$__range]"
-SIZE = {"titleSize": 16, "valueSize": 20}   # the labels and values of a bar: readable in five seconds on a video frame
+SIZE = {"titleSize": 16, "valueSize": 16}   # the labels and values of a bar: readable in five seconds on a video frame
 
 
 def thresholds(*steps):
@@ -166,7 +189,7 @@ def bars(pid, title, desc, expr, ds, label, reason, x, y, w, h, color=BLUE, step
         fieldConfig={"defaults": {"unit": unit, "min": 0, "noValue": reason, "color": colour, "thresholds": thr,
                                   "displayName": "${__field.labels.%s}" % label}, "overrides": []},
         options={"reduceOptions": {"calcs": ["lastNotNull"], "values": False}, "orientation": "horizontal",
-                 "displayMode": "gradient", "valueMode": "color", "showUnfilled": True, "minVizHeight": 28,
+                 "displayMode": "gradient", "valueMode": "color", "showUnfilled": False, "minVizHeight": 32, "maxVizHeight": 48,
                  "minVizWidth": 8, "namePlacement": "top", "sizing": "auto", "legend": {"showLegend": False}, "text": SIZE},
     )
 
@@ -206,7 +229,10 @@ def spans_table(pid, title, desc, traceql, x, y, w, limit, select):
     yes_no = [{"matcher": {"id": "byName", "options": n}, "properties": [{"id": "mappings", "value": YES_NO}]}
               for n in select.values() if n in ("Two reviewers", "Cut short")]
     yes_no += [{"matcher": {"id": "byName", "options": n}, "properties": [{"id": "mappings", "value": value_words(label)}]}
-               for n, label in (("Agent", "proven_agent"), ("Reviewer", "proven_reviewer")) if n in select.values()]
+               for n, label in (("Agent", "proven_agent"), ("Reviewer", "proven_reviewer"), ("Review class", "proven_class"))
+               if n in select.values()]
+    if "Review" in select.values():
+        yes_no.append({"matcher": {"id": "byName", "options": "Review"}, "properties": [{"id": "mappings", "value": REVIEW_WORDS}]})
     return panel(
         pid, "table", title, desc, x, y, w, table_h(limit),
         [{"refId": "A", "datasource": TEMPO, "queryType": "traceql", "query": traceql, "tableType": "spans", "limit": limit}],
@@ -299,7 +325,10 @@ def overview():
                                  {"type": "value", "options": {"0": {"text": "waiting", "color": YELLOW}, "1": {"text": "working", "color": BLUE},
                                                                "2": {"text": "finished", "color": GREEN}, "3": {"text": "failed", "color": RED}}}]},
                              {"id": "custom.cellOptions", "value": {"type": "color-text"}}]},
-                         {"matcher": {"id": "byName", "options": "Pull request"}, "properties": [{"id": "decimals", "value": 0}]}]},
+                         {"matcher": {"id": "byName", "options": "Pull request"}, "properties": [{"id": "decimals", "value": 0}]},
+                         {"matcher": {"id": "byName", "options": "Change"}, "properties": [{"id": "mappings", "value": value_words("change")}]},
+                         {"matcher": {"id": "byName", "options": "Claims dropped"}, "properties": [
+                             {"id": "mappings", "value": [{"type": "special", "options": {"match": "null+nan", "result": {"text": "0"}}}]}]}]},
         options={"showHeader": True, "cellHeight": "sm", "sortBy": [{"displayName": "Pull request", "desc": False}]},
         transformations=[
             {"id": "merge", "options": {}},
@@ -341,10 +370,12 @@ def overview():
 # ---- 2. One review ---------------------------------------------------------------------------------------------------
 
 def one_review():
-    var = {"name": "run", "label": "Review", "type": "query", "datasource": PROM,
-           "query": {"query": "label_values(proven_agent_state, instance)", "refId": "run"},
-           "definition": "label_values(proven_agent_state, instance)", "refresh": 2, "sort": 2, "includeAll": False, "multi": False,
-           "current": {}}
+    # A custom variable: its options are the demo pull requests, each shown by number and title, valued by its instance id.
+    var = {"name": "run", "label": "Pull request", "type": "custom", "includeAll": False, "multi": False,
+           "query": ",".join("%s : %s" % (v.replace(",", " "), k) for k, v in REVIEW_TEXT.items()),
+           "options": [{"text": v, "value": k, "selected": i == len(REVIEW_TEXT) - 1}
+                       for i, (k, v) in enumerate(REVIEW_TEXT.items())],
+           "current": {"text": list(REVIEW_TEXT.values())[-1], "value": list(REVIEW_TEXT.keys())[-1]}}
     spans = spans_table(
         4, "The agents, in order, and how long each took",
         "Each row is one agent of this review, from the trace. The bar is how long it ran. The two reviewers each run their own Planner and Skeptic. "
