@@ -85,10 +85,10 @@ Open any package, read any test, pick any merge, and tell us what you find.
 What Proven does not do yet, or does not do well, measured and dated. This list is updated with every push.
 
 - **Scout Intent: how well it sorts changes is measured; whether it improves reviews is not.** On a blind set of 46
-  changes frozen before the run (English, Polish and Thai, including disguised ones) it got about two thirds right;
-  the exact count is being re-checked after a review found a flaw in how we counted, so we do not quote a number until
-  it is confirmed. In some misses a security change was taken for a documentation change and got a lighter review than
-  it should have (26 October). It also asks for clarification more often than its own ceiling allows. Whether its plans
+  changes frozen before the run (English, Polish and Thai, including disguised ones) it got 26 of 46 right, and seven
+  of the frozen labels are disputed ([report](test/conformance/meterless/scout-intent/blind/v1/REPORT.md)). In some
+  misses a security change was taken for a documentation change and would have got a lighter review; a guard added on
+  26 October now runs those as security, and none of the six such misses runs a lighter plan any more. It also asks for clarification more often than its own ceiling allows. Whether its plans
   give the same findings for less work is not measured yet. Since ADR-0053 a change Scout called documentation or dependency that is not verified prose or a verified manifest runs in class security, doubled; a change Scout called feature, refactor or configuration, or an ambiguous one, still runs in the class its rules give it.
 - **Markovian: its effect on reviews is not measured yet.** It passes its conformance checks (8 of 8), but whether
   reviewing a large change in bounded steps finds as much as one whole review is still to be measured.
@@ -99,8 +99,17 @@ What Proven does not do yet, or does not do well, measured and dated. This list 
 - **H-MEM reads its whole state file** when it opens and rewrites it on every write. A size cap is being added; until
   then it is meant for one repository's memory, not a large organisation's.
 - **The corpus score was recorded while NVIDIA's API was failing** (HTTP 500 and timeouts on 26 October), so the NVIDIA
-  column shows mostly failed calls, every failure named. A second column on another model family (GLM-5.3) is recorded
-  once and labelled "run 1 only".
+  column shows mostly failed calls, every failure named. A second column on GLM-5.3 was tried on 27 October and stopped:
+  the model's reasoning made most calls run past 300 seconds, and the planner was sent unchanged files too. Both are
+  being fixed; until a run completes, there is no corpus score on GLM-5.3.
+- **Evidence first means some real bugs go unreported.** Proven reports a finding only with a failing test or a query
+  and its rows. A real concurrency bug, design flaw or business-logic error that it cannot prove during the review is
+  left out, not guessed at. This trades recall for precision, and the trade is not measured yet.
+- **One judging rule is a heuristic.** When a query's rows are read as refuting a finding (`QueryContradicts`), the
+  rule looks for related text and a denial word such as "false" or "clean" in a cell. A badly shaped row could refute a
+  valid finding. Typed, query-specific checks with adversarial tests are the planned fix.
+- **`proven verify` checks the record, not the run.** It proves that each verdict follows from the evidence recorded in
+  the signed pack; it does not re-run the tests, and it cannot show that a review found every defect.
 - **The lab's demo runs on sample data.** Live mode needs Zetaris and Meterless Nightshift, your own or ours through an
   authenticated gateway.
 - **The review spine is one long function** (`pipeline.review`, about 500 lines). Splitting it is accepted debt until
