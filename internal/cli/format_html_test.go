@@ -159,12 +159,16 @@ var htmlHostile = []string{
 
 // htmlHostileResult puts the whole attack in every field the HTML writer prints
 // from the change: title, message, path, query, rows, test output, tool output,
-// fix text, the opinion, the models, a failed service and an exception.
+// fix text (proved, a dependency raise and an unproved note), the opinion, the models,
+// a failed service, an accepted and an expired exception, and the policy and
+// settings statements.
 func htmlHostileResult() review.Result {
 	attack := strings.Join(htmlHostile, " ")
 	multi := strings.Join(htmlHostile, "\n")
 	return review.Result{
 		Class: attack, ClassRule: attack,
+		PolicyStatement: attack, SettingsStatement: attack,
+		Expired:        []review.ExpiredException{{ExceptionID: attack, Finding: attack, Expires: attack}},
 		ReviewerModels: []string{attack},
 		AuthorModels:   []review.AuthorModel{{Model: attack, Family: attack}},
 		Reviewers:      []review.ReviewerInfo{{Role: review.RoleDefault, Model: attack, Family: attack}},
@@ -172,6 +176,14 @@ func htmlHostileResult() review.Result {
 		Opinions:       []review.Opinion{{ID: "O1", Title: attack, Location: review.Location{Path: attack, StartLine: 2}}},
 		Accepted:       []review.AcceptedFinding{{ExceptionID: attack, Owner: attack, Expires: attack, Finding: review.Finding{Title: attack, Location: review.Location{Path: attack}}}},
 		Findings: []review.Finding{{
+			ID: "F2", RuleID: attack, Title: attack, Message: attack, Severity: review.SeverityWarning,
+			Location: review.Location{Path: attack},
+			Fix:      &review.Fix{Dependency: &review.DependencyFix{Package: attack, From: attack, To: attack}, Why: attack},
+		}, {
+			ID: "F3", RuleID: attack, Title: attack, Message: attack, Severity: review.SeverityInfo,
+			Location: review.Location{Path: attack},
+			Fix:      &review.Fix{Note: attack},
+		}, {
 			ID: "F1", RuleID: attack, Title: attack, Message: attack, Severity: review.SeverityError,
 			Location: review.Location{Path: attack, StartLine: 3},
 			Evidence: []review.Evidence{
@@ -255,8 +267,8 @@ func TestHTMLEscapesEveryValueFromTheChange(t *testing.T) {
 			t.Fatalf("the page does not show %q as text\n%s", want, body)
 		}
 	}
-	if n := strings.Count(string(body), `class="card`); n != 1 {
-		t.Fatalf("%d cards for one finding\n%s", n, body)
+	if n := strings.Count(string(body), `class="card`); n != 3 {
+		t.Fatalf("%d cards for three findings\n%s", n, body)
 	}
 }
 

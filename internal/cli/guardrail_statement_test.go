@@ -23,7 +23,7 @@ func checkedResult(unanswered int) review.Result {
 // Mutated fields: the counts of the Result's Guardrail.
 func TestGuardrailLineIsTheSameInTextAndMarkdown(t *testing.T) {
 	const want = "Guardrail: NVIDIA nvidia/test-guard-model (NVIDIA hosted API), checked 2 prompts and 1 answer, 1 blocked"
-	for _, format := range []string{"text", "md"} {
+	for _, format := range []string{"text", "md", "html"} {
 		out, err := render(format, checkedResult(0))
 		if err != nil {
 			t.Fatal(err)
@@ -34,7 +34,7 @@ func TestGuardrailLineIsTheSameInTextAndMarkdown(t *testing.T) {
 	}
 	// A check that could not be made is named, never folded into the counts.
 	const wantU = want + ", 3 not checked"
-	for _, format := range []string{"text", "md"} {
+	for _, format := range []string{"text", "md", "html"} {
 		out, err := render(format, checkedResult(3))
 		if err != nil {
 			t.Fatal(err)
@@ -51,7 +51,7 @@ func TestGuardrailLineIsTheSameInTextAndMarkdown(t *testing.T) {
 func TestEveryFormatSaysWhenTheGuardrailWasOff(t *testing.T) {
 	const want = "Guardrail: off for this review"
 	off := review.Result{Class: "backend", ClassRule: "fallback", GuardrailStatement: candidate.GuardrailOffStatement}
-	for _, format := range []string{"text", "md", "json", "sarif"} {
+	for _, format := range []string{"text", "md", "html", "json", "sarif"} {
 		out, err := render(format, off)
 		if err != nil {
 			t.Fatal(err)
@@ -97,7 +97,7 @@ func TestEveryFormatNamesNVIDIAForTheDefaultSelfHostedGuardrail(t *testing.T) {
 		Prompts: 2, Answers: 1, Backend: "server", Model: "nemotron-3.5-content-safety", Maker: "NVIDIA",
 	}}
 	const want = "Guardrail: NVIDIA nemotron-3.5-content-safety (self-hosted), checked 2 prompts and 1 answer, 0 blocked"
-	for _, format := range []string{"text", "md", "json", "sarif"} {
+	for _, format := range []string{"text", "md", "html", "json", "sarif"} {
 		out, err := render(format, self)
 		if err != nil {
 			t.Fatal(err)
@@ -108,7 +108,7 @@ func TestEveryFormatNamesNVIDIAForTheDefaultSelfHostedGuardrail(t *testing.T) {
 	}
 	other := self
 	other.Guardrail.Model, other.Guardrail.Maker = "acme-safety", ""
-	for _, format := range []string{"text", "md"} {
+	for _, format := range []string{"text", "md", "html"} {
 		out, _ := render(format, other)
 		if strings.Contains(string(out), "NVIDIA") {
 			t.Errorf("%s output names NVIDIA for a model the configuration does not say is NVIDIA's:\n%s", format, out)
