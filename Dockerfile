@@ -4,7 +4,7 @@
 # BuildKit warn that the base name is empty.
 
 ARG GOLANG_IMAGE=golang:1.26.10
-ARG RUNTIME_IMAGE=alpine:3.23
+ARG RUNTIME_IMAGE=alpine:3.24
 FROM ${GOLANG_IMAGE} AS build
 WORKDIR /src
 COPY . .
