@@ -51,9 +51,17 @@ func (r Result) GuardrailLine() string {
 	if c.Backend != "" {
 		who += " (" + c.Backend + ")"
 	}
-	line := fmt.Sprintf("Guardrail: %s, checked %d prompts and %d answers, %d blocked", who, c.Prompts, c.Answers, c.Blocked)
+	line := fmt.Sprintf("Guardrail: %s, checked %s and %s, %d blocked", who, counted(c.Prompts, "prompt"), counted(c.Answers, "answer"), c.Blocked)
 	if c.Unanswered > 0 {
 		line += fmt.Sprintf(", %d not checked", c.Unanswered)
 	}
 	return line
+}
+
+// counted is a count with its noun, singular for one: "1 answer", "13 answers".
+func counted(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }

@@ -73,7 +73,7 @@ Every output states what NVIDIA's guardrail (ADR-0005) did in this review, in th
 Guardrail: <model> (<backend>), checked <P> prompts and <A> answers, <B> blocked
 ```
 
-When a check could not be made (the guardrail did not answer), the line ends `, <U> not checked`; such a check is in neither `<P>` nor `<A>`. Two other lines stand in its place: `Guardrail: off for this review` when the guardrail was switched off, and `Guardrail: no model call to check` when it was on and no model call was made (a sample run). `<B>` counts the checks whose verdict was unsafe, each of which stopped its call.
+A count of one takes the singular (`1 prompt`, `1 answer`). When a check could not be made (the guardrail did not answer), the line ends `, <U> not checked`; such a check is in neither `<P>` nor `<A>`. Two other lines stand in its place: `Guardrail: off for this review` when the guardrail was switched off, and `Guardrail: no model call to check` when it was on and no model call was made (a sample run). `<B>` counts the checks whose verdict was unsafe, each of which stopped its call.
 
 - text: the line is in the footer, before the trace path.
 - Markdown: the line ends the foot, after the reviewing models (`<sub>reviewed by … · Guardrail: …</sub>`).

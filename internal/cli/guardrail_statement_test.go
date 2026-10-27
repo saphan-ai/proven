@@ -22,7 +22,7 @@ func checkedResult(unanswered int) review.Result {
 // that answered (ADR-0005).
 // Mutated fields: the counts of the Result's Guardrail.
 func TestGuardrailLineIsTheSameInTextAndMarkdown(t *testing.T) {
-	const want = "Guardrail: nvidia/test-guard-model (nvidia), checked 2 prompts and 1 answers, 1 blocked"
+	const want = "Guardrail: nvidia/test-guard-model (nvidia), checked 2 prompts and 1 answer, 1 blocked"
 	for _, format := range []string{"text", "md"} {
 		out, err := render(format, checkedResult(0))
 		if err != nil {
