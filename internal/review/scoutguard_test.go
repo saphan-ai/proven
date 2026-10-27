@@ -36,13 +36,35 @@ func TestScoutNeverLightensANonProseChange(t *testing.T) {
 	}
 }
 
+// TestScoutGuardKeepsSecurityWhenDocsRanksFirst checks that a class order cannot
+// turn unverified source under docs into an undoubled documentation review.
+func TestScoutGuardKeepsSecurityWhenDocsRanksFirst(t *testing.T) {
+	_, err := parseConfig([]byte("class_order: docs, security, backend, mobile, user interface\n"))
+	var ce *ConfigError
+	if !asConfigError(err, &ce) || ce.Field != "class_order" || !strings.Contains(ce.Reason, "ADR-0053") {
+		t.Fatalf("class order refusal = %v, want *ConfigError naming class_order and ADR-0053", err)
+	}
+	cfg, err := parseConfig([]byte("class_order: mobile, backend, security, docs, user interface\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rig := newRig()
+	target := trees(t, map[string][2]string{
+		"docs/source.go": {"package docs\n", "package docs\n\nvar Open = true\n"},
+	})
+	res := rig.review(t, cfg, target)
+	if res.Class != "security" || !res.Doubled || len(rig.spec.calls) == 0 {
+		t.Fatalf("class %s (%s) doubled %t, second reviewer calls %d", res.Class, res.ClassRule, res.Doubled, len(rig.spec.calls))
+	}
+}
+
 // TestScoutNeverLightensVendoredCode proves the dependency arm of the guard (ADR-0053 point 3): a change of
 // only vendored code is class security and doubled, and the second reviewer is called, not the lighter
 // dependency plan that omits the Prover. Mutated field: the vendored-path check of notManifestOnly.
 func TestScoutNeverLightensVendoredCode(t *testing.T) {
 	rig := newRig()
 	target := trees(t, map[string][2]string{
-		"vendor/example.com/lib/lib.go": {"package lib\n", "package lib\n\nvar Open = true\n"},
+		"vendor/example.com/lib/Pipfile": {"[packages]\n", "[packages]\nrequests = \"*\"\n"},
 	})
 	res := rig.review(t, planned(), target)
 	if res.Class != "security" || !res.Doubled || len(rig.spec.calls) == 0 {

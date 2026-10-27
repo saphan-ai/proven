@@ -47,6 +47,9 @@ func allocated(fn func()) uint64 {
 // visited) is the same as with no history at all. A lookup that builds the
 // whole history (the old shape) visits 20,000 and allocates megabytes.
 func TestProposalLookupsDoNotFollowHistory(t *testing.T) {
+	if raceBuild {
+		t.Skip("race instrumentation inflates allocation counts; the normal build measures the allocation budget")
+	}
 	small, _ := growthEnv(t, 0)
 	big, id := growthEnv(t, historyProposals)
 

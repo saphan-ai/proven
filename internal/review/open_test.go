@@ -19,6 +19,23 @@ import (
 	"github.com/saphan-ai/proven/internal/store"
 )
 
+// TestOpenRefusesInvalidHMemLimits checks the public configuration seam before a review runs.
+func TestOpenRefusesInvalidHMemLimits(t *testing.T) {
+	for _, tc := range []struct{ field, value string }{
+		{"PROVEN_HMEM_MAX_STATE_BYTES", "0"},
+		{"PROVEN_HMEM_MAX_STATE_BYTES", "2000000000000"},
+		{"PROVEN_HMEM_QUERY_TOKENS", "0"},
+	} {
+		t.Run(tc.field+"="+tc.value, func(t *testing.T) {
+			_, err := review.Open(review.Options{LogDir: t.TempDir(), Env: liveEnv("http://127.0.0.1:9", map[string]string{tc.field: tc.value})})
+			var cfg *review.ConfigError
+			if !errors.As(err, &cfg) || cfg.Field != tc.field {
+				t.Fatalf("Open refusal = %v, want *ConfigError for %s", err, tc.field)
+			}
+		})
+	}
+}
+
 // TestOpenSampleReviewKeepsF1AndF2 proves the sample review end to end through the seam: F1 is kept on a
 // test that fails on the change and passes on the base, F2 and F4 on query rows with their EPSS rows,
 // F3 is dropped for no evidence with its full trail (claim, evidence, refutation, verdict) in the trace,

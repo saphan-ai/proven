@@ -88,8 +88,8 @@ func TestEachPolicyKeyRefusesAWeakerValueAndAcceptsAnEqualOrStricterOne(t *testi
 		{"author_description off", "author_description: on\n", "author_description: off\n", "turns the reading of the description off", "author_description: on\n"},
 		{"raise_class off", "raise_class: on\n", "raise_class: off\n", "turns raise_class off", "raise_class: on\n"},
 		{"author_trailer_keys dropped", "author_trailer_keys: Assisted-by\n", "author_trailer_keys: Co-authored-by\n", "drops the key Assisted-by", "author_trailer_keys: co-authored-by, ASSISTED-BY\n"},
-		{"class_order changed", "class_order: security, backend, mobile, user interface, docs\n", "class_order: docs, security, backend, mobile, user interface\n", "fixes the order of the classes", "class_order: security, backend, mobile, user interface, docs\n"},
-		{"class_order under path_rules", "path_rules: go.mod=security\n", "class_order: docs, security, backend, mobile, user interface\n", "fixes the order of the classes", "path_rules: go.mod=security\n"},
+		{"class_order changed", "class_order: security, backend, mobile, user interface, docs\n", "class_order: security, docs, backend, mobile, user interface\n", "fixes the order of the classes", "class_order: security, backend, mobile, user interface, docs\n"},
+		{"class_order under path_rules", "path_rules: go.mod=security\n", "class_order: security, docs, backend, mobile, user interface\n", "fixes the order of the classes", "path_rules: go.mod=security\n"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
