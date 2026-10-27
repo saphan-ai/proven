@@ -174,7 +174,7 @@ render_workflow() {
     second=" \&\& { [ \$SAMPLE_MODE != true ] || echo special_reviewer: ${LAB_SPECIAL_REVIEWER} >> lab.yaml; }"
   fi
   # The delimiter is #: the spliced text carries "||", which would end a |-delimited expression.
-  sed "s#proven scan \"#echo autofix: on > lab.yaml${second} \&\& proven scan --config lab.yaml \"#" \
+  sed "s#proven scan --md #echo autofix: on > lab.yaml${second} \&\& proven scan --config lab.yaml --md #" \
     /tmp/proven.yml >/tmp/proven.two
   mv /tmp/proven.two /tmp/proven.yml
   # Path B: where the gateway serves Zetaris, and the organisation id it expects, are settings (ADR-0013).

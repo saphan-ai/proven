@@ -194,7 +194,7 @@ func TestTheWorkflowPicksTheFixtureByBranchAndSaysCleanWhenItKeepsNothing(t *tes
 	// The seed's sed writes the pattern with its quote escaped, so the two spellings are listed apart.
 	for _, p := range []struct{ inWorkflow, inSeed string }{
 		{"docker run --rm ", "docker run --rm "},
-		{`proven scan "`, `proven scan \"`},
+		{`proven scan --md `, `proven scan --md `},
 		{"GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0", "GATEWAY_ZETARIS_PATH: /zetaris/api/v1.0"},
 	} {
 		if strings.Count(wf, p.inWorkflow) != 1 {

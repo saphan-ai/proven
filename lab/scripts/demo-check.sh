@@ -64,7 +64,8 @@ while IFS="$tab" read -r branch fixture class verdict title says <&3; do
   if printf '%s' "$body" | grep -qF 'clean: Proven kept no finding'; then
     has_clean=1
   fi
-  if printf '%s' "$body" | grep -qF '\nfinding '; then
+  # A finding is a "finding " line of a text comment, or the blocked verdict of a Markdown one.
+  if printf '%s' "$body" | grep -qF -e '\nfinding ' -e 'Proven: blocked'; then
     has_finding=1
   fi
   case $verdict in

@@ -156,8 +156,13 @@ jobs:
               exit 1
               ;;
           esac
-          docker run --rm $live_env -e SAMPLE_MODE="$sample" -e FIXTURE="$fixture" -e SCOUT_INTENT="$PROVEN_LAB_SCOUT_INTENT" --entrypoint sh saphan/proven:judging -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && if [ -n "$SCOUT_INTENT" ]; then printf "scout_intent: %s\n" "$SCOUT_INTENT" > /tmp/proven-run/proven.yaml && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml; fi && proven scan "$d"' > review.txt
+          docker run --rm $live_env -e SAMPLE_MODE="$sample" -e FIXTURE="$fixture" -e SCOUT_INTENT="$PROVEN_LAB_SCOUT_INTENT" --entrypoint sh saphan/proven:judging -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && if [ -n "$SCOUT_INTENT" ]; then printf "scout_intent: %s\n" "$SCOUT_INTENT" > /tmp/proven-run/proven.yaml && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml; fi && proven scan --md --text-output /tmp/proven-run/review.txt "$d" > /tmp/proven-run/review.md && cat /tmp/proven-run/review.txt && echo "----- proven: markdown -----" && cat /tmp/proven-run/review.md' > review.all
+          # One review, two forms: the text the checks below read, and the Markdown the comment carries (the one a person
+          # reads, and the lab's report page renders).
+          sed '/^----- proven: markdown -----$/,$d' review.all > review.txt
+          sed '1,/^----- proven: markdown -----$/d' review.all > review.md
           grep -q '^review class' review.txt
+          grep -q 'Proven: ' review.md
 
       - name: Post the review on the pull request
         env:
@@ -191,18 +196,19 @@ jobs:
             # The first visible line says how the review was made: sample, or live and with what. The marker above
             # is an HTML comment and stays the first line of the body, which lab/scripts/e2e-parse.sh reads.
             cat mode.txt
+            printf '\n'
             # A review that keeps no finding says so in one line, so a clean change is not a silent one. The
             # lines of the review below it are what was checked and by whom; "failed services: none" means
             # every check ran.
             # No finding while a service failed is not clean: the check that failed may be the one that would have found it.
             if ! grep -q '^finding ' review.txt; then
               if grep -q '^failed service: ' review.txt; then
-                printf 'incomplete: Proven kept no finding, but a service failed (listed below), so this change was not fully reviewed.\n'
+                printf 'incomplete: Proven kept no finding, but a service failed (listed below), so this change was not fully reviewed.\n\n'
               else
-                printf 'clean: Proven kept no finding on this change. The reviewers, the checks and the failed services are listed below.\n'
+                printf 'clean: Proven kept no finding on this change. The reviewers, the checks and the failed services are listed below.\n\n'
               fi
             fi
-            cat review.txt
+            cat review.md
           } > comment.txt
           # The poster below writes the marker line itself, so it is given the comment without it.
           tail -n +2 comment.txt > body.txt

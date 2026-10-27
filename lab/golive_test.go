@@ -246,7 +246,7 @@ func runWorkflowReview(t *testing.T, env ...string) (mode, args, dockerEnv strin
 	if err := os.Mkdir(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	fake := "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$FAKE_DIR/docker.args\"\nenv > \"$FAKE_DIR/docker.env\"\nprintf 'review class: standard\\nfailed services: none\\n'\n"
+	fake := "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$FAKE_DIR/docker.args\"\nenv > \"$FAKE_DIR/docker.env\"\nprintf 'review class: standard\\nfailed services: none\\n----- proven: markdown -----\\n**Proven: clean**\\n'\n"
 	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(fake), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -356,17 +356,18 @@ func TestGoLiveTheCommentStartsWithTheMarkerThenHowItWasMade(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bin, "comment-http"), []byte(fakeCommentHTTP), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ mode, review, wantSecond, wantThird string }{
-		{"sample: no keys", "review class: standard\nfailed services: none\n", "sample: no keys", "clean: Proven kept no finding"},
-		{"live: NVIDIA via Nightshift, Zetaris on", "review class: standard\nfinding 1: x\n", "live: NVIDIA via Nightshift, Zetaris on", "review class: standard"},
+	// The comment carries the review's Markdown; the text form decides the clean or incomplete line above it.
+	for _, tc := range []struct{ mode, review, md, wantSecond, wantThird string }{
+		{"sample: no keys", "review class: standard\nfailed services: none\n", "**Proven: clean**\n", "sample: no keys", "clean: Proven kept no finding"},
+		{"live: NVIDIA via Nightshift, Zetaris on", "review class: standard\nfinding 1: x\n", "**Proven: blocked** — 1 finding\n", "live: NVIDIA via Nightshift, Zetaris on", "**Proven: blocked**"},
 		// No finding while the generator failed is not clean: the line says the review is incomplete.
-		{"live: NVIDIA direct, Zetaris off", "review class: standard\nfailed service: nvidia: http 500\n", "live: NVIDIA direct, Zetaris off", "incomplete: Proven kept no finding"},
+		{"live: NVIDIA direct, Zetaris off", "review class: standard\nfailed service: nvidia: http 500\n", "**Proven: clean**\n", "live: NVIDIA direct, Zetaris off", "incomplete: Proven kept no finding"},
 	} {
 		work := filepath.Join(tmp, strings.ReplaceAll(tc.mode, " ", "_"))
 		if err := os.Mkdir(work, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		for name, body := range map[string]string{"mode.txt": tc.mode + "\n", "review.txt": tc.review} {
+		for name, body := range map[string]string{"mode.txt": tc.mode + "\n", "review.txt": tc.review, "review.md": tc.md} {
 			if err := os.WriteFile(filepath.Join(work, name), []byte(body), 0o644); err != nil {
 				t.Fatal(err)
 			}
@@ -385,8 +386,9 @@ func TestGoLiveTheCommentStartsWithTheMarkerThenHowItWasMade(t *testing.T) {
 		if comment[1] != tc.wantSecond {
 			t.Errorf("the first visible line is %q, want %q", comment[1], tc.wantSecond)
 		}
-		if !strings.HasPrefix(comment[2], tc.wantThird) {
-			t.Errorf("the third line is %q, want it to start %q", comment[2], tc.wantThird)
+		// An empty line keeps the mode line its own paragraph when the comment is read as Markdown.
+		if comment[2] != "" || !strings.HasPrefix(comment[3], tc.wantThird) {
+			t.Errorf("the lines after the mode are %q, %q; want an empty line, then one starting %q", comment[2], comment[3], tc.wantThird)
 		}
 	}
 }

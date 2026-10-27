@@ -292,7 +292,12 @@ env -i PATH="$PATH" FAKE_DIR="$FAKE_DIR" $envs sh -c "$script"
 const richProven = `#!/bin/sh
 env | grep -E '^(PROVEN_MARKOVIAN|PROVEN_CONFIG|SCOUT_INTENT)=' > "$FAKE_DIR/proven.env"
 if [ -n "$PROVEN_CONFIG" ]; then cat "$PROVEN_CONFIG" > "$FAKE_DIR/proven.config"; fi
-printf 'review class: standard\nfailed services: none\n'
+# One review, two forms, as Proven writes them: the text to --text-output, the Markdown on standard output.
+txt=/dev/stdout
+prev=
+for a; do [ "$prev" = --text-output ] && txt=$a; prev=$a; done
+printf 'review class: standard\nfailed services: none\n' > "$txt"
+printf '**Proven: clean**\n'
 `
 
 // reviewSees runs the workflow's review step from the given text and returns what the review process saw: its
@@ -607,7 +612,7 @@ func runBothSteps(t *testing.T, wf, comments string) (reviewed, posted bool) {
 	needTool(t, "awk")
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "bin")
-	writeExec(t, bin, "docker", "#!/bin/sh\necho ran > \"$FAKE_DIR/docker.ran\"\nprintf 'review class: standard\\nfailed services: none\\n'\n")
+	writeExec(t, bin, "docker", "#!/bin/sh\necho ran > \"$FAKE_DIR/docker.ran\"\nprintf 'review class: standard\\nfailed services: none\\n----- proven: markdown -----\\n**Proven: clean**\\n'\n")
 	writeExec(t, bin, "wget", fakeWgetSeen)
 	writeExec(t, bin, "comment-http", fakeCommentHTTP)
 	work := filepath.Join(tmp, "work")
