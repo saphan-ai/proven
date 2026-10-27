@@ -11,15 +11,20 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
-// mdVerdict is the first line: blocked or clean, with the counts a reader
+// mdVerdict is the first line: blocked, clean, or not reviewed when the model
+// did not answer (mdModelsDown), with the counts a reader
 // decides by. "blocked" is any finding that counts (Result.Findings holds only
 // those: an accepted one is not in it). The result carries no count of dropped
 // claims, so none is printed; a claim only one model makes is not in the result.
 func mdVerdict(result review.Result) string {
 	if len(result.Findings) == 0 {
+		if down := mdModelsDown(result); len(down) > 0 {
+			return "**Proven: not reviewed** — the model reviewer did not answer (" + strings.Join(down, ", ") + "), so 0 findings proves nothing" + mdCountsTail(result)
+		}
 		return "**Proven: clean** — 0 findings" + mdCountsTail(result)
 	}
 	var errs, warns, infos int
@@ -87,8 +92,25 @@ func mdChecked(result review.Result) string {
 		}
 		parts = append(parts, "these services did not answer: "+strings.Join(names, ", "))
 	}
-	return fmt.Sprintf("Checked as review class %s (rule %s); %s. A finding needs proof to be reported, and none had it.",
-		class, mdCode(result.ClassRule), strings.Join(parts, "; "))
+	closing := "A finding needs proof to be reported, and none had it."
+	if len(mdModelsDown(result)) > 0 {
+		closing = "No model read the change, so no finding could be raised; run the review again when the model answers."
+	}
+	return fmt.Sprintf("Checked as review class %s (rule %s); %s. %s",
+		class, mdCode(result.ClassRule), strings.Join(parts, "; "), closing)
+}
+
+// mdModelsDown names the model services that did not answer: the generator in
+// either mode. With the model down no candidate is ever raised, so a result with
+// no findings is not a clean review, and the comment must not call it one.
+func mdModelsDown(result review.Result) []string {
+	var down []string
+	for _, failed := range result.FailedServices {
+		if failed.Service == generator.ModeNightshift || failed.Service == generator.ModeNVIDIA {
+			down = append(down, mdCode(failed.Service))
+		}
+	}
+	return down
 }
 
 // mdTable is the findings table: severity, finding, file:line, rule.
