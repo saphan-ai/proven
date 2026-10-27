@@ -21,8 +21,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      # The Action at main 2c117a6, which takes an API root ending in a version (GLM's endpoint).
-      - uses: saphan-ai/proven@2c117a6b478d7880b96f399a8ef0e240dc7b5c2d # main with the GLM base path
+      # The Action at main e5ea6e8: its image is saphan/proven:judging (docs/JUDGING.md).
+      - uses: saphan-ai/proven@e5ea6e8f45d2a80b1a5056ab840aed9013cdec20 # main, Action on :judging
         with:
           strict: false
           comment: true
@@ -38,6 +38,10 @@ jobs:
           # GLM-5.3 always thinks on this endpoint (enable_thinking=false is refused, HTTP 400), so
           # one call takes about 25 s on a short prompt; the limit leaves room for a long one.
           PROVEN_GENERATOR_TIMEOUT: 300s
+          # The Planner reads a long change in bounded steps, each one diff hunk with a little
+          # context, so no single call carries a whole large file (a two-file pull request was
+          # one 43,654-token prompt when the steps were whole files).
+          PROVEN_MARKOVIAN_STEP_UNIT: hunk
           METERLESS_RUNTIME_TOKEN: ${{ secrets.BAILIAN_TOKEN_PLAN_API_KEY }}
           # The security reviewer: another model family on the same endpoint, so a security change
           # is judged by two families (doubled_classes: security in proven.yaml).
@@ -47,3 +51,5 @@ jobs:
           # The guardrail stays NVIDIA's content-safety model on every prompt and answer.
           PROVEN_GUARDRAIL_MODE: nvidia
           PROVEN_GUARDRAIL_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # NVIDIA's hosted guardrail took 4 s on a long prompt and timed out at the 5 s default.
+          PROVEN_GUARDRAIL_TIMEOUT: 60s
