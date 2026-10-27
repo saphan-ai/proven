@@ -101,11 +101,6 @@ Proven's own workflow (`.github/workflows/proven.yml`) names every model in conf
 
 The names the review prints come from `proven.yaml` at the pull request's baseline: `default_reviewer: qwen3.8-flash`, `special_reviewer: deepseek-v4.1-flash`, and a `families` list that adds `deepseek-*=DeepSeek`. The Planner reads a change in hunk-sized steps (`PROVEN_MARKOVIAN_STEP_UNIT: hunk`).
 
-The model the workflow names is a request, not a guarantee: Nightshift routes each call of an identified application by
-that application's mode, and its signed receipt names the model that answered (on 27 October a request for
-`qwen3.8-flash` was answered by `nemotron-3-ultra`). The comment says which model answered each review, read from those
-receipts, and says so when it is not the reviewer named in `proven.yaml`.
-
 How the models were chosen, measured on 27 October 2026 on pull request #1 with hunk steps and a thinking budget of 512: `qwen3.8-flash` finished the whole review in about 2 minutes, `qwen3.8-max` in about 3.4, `deepseek-v4.1-flash` in about 17; GLM-5.3 did not finish (a planner step over the 300 s limit at budget 512 and at 256). The second reviewer is from another family than the first, so a security change is judged twice independently, and only security-class changes take the longer second review. Nemotron through Nightshift stays a supported choice: set the generator back to `nightshift` without a base URL, or to `nvidia`.
 
 The author model is declared by the repository's owner in `proven.yaml` (`author_models: <agent>:<model>`); nothing in a pull request's description or commits is read for it unless the repository turns `author_description` or `author_commit_trailers` on. With no declaration the review says `author model not stated`.
