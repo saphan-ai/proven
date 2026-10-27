@@ -21,8 +21,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      # The Action at main e5ea6e8: its image is saphan/proven:judging (docs/JUDGING.md).
-      - uses: saphan-ai/proven@e5ea6e8f45d2a80b1a5056ab840aed9013cdec20 # main, Action on :judging
+      # The Action at main 9d8e64d: its image is saphan/proven:judging (docs/JUDGING.md), and its comment poster
+      # doubles a backslash in the body (d9813d79), so a review with an escaped version is posted, not refused with 400.
+      - uses: saphan-ai/proven@9d8e64d1f8a3e3ab6b21cbe36ea0d65a6b50a4de # main, Action on :judging
         with:
           strict: false
           comment: true
