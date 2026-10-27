@@ -617,7 +617,7 @@ func mdText(s string) string {
 	runes := []rune(s)
 	var b strings.Builder
 	for i, r := range runes {
-		escape := strings.ContainsRune("\\`*[]#|~@", r)
+		escape := strings.ContainsRune("\\`*[]#~@", r)
 		switch r {
 		case '_':
 			escape = !(i > 0 && i+1 < len(runes) && isWordRune(runes[i-1]) && isWordRune(runes[i+1]))
