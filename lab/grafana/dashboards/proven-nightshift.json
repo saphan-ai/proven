@@ -1,0 +1,671 @@
+{
+  "uid": "proven-nightshift",
+  "title": "Proven: the model gateway, from Nightshift's signed receipts",
+  "description": "Every call Proven made through Meterless Nightshift: how many carry a signed receipt, to which model, how fast, and which failed and why. The receipts are replayed when the lab starts, so time here is when they were loaded. None are loaded until the public receipts file is put in place: make nightshift-receipts.",
+  "tags": [
+    "proven"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
+  "style": "light",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Proven dashboards",
+      "tags": [
+        "proven"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_loki",
+        "type": "datasource",
+        "query": "loki",
+        "hide": 2,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Model calls with a signed receipt that verifies",
+      "description": "Receipts whose Ed25519 signature verified under the pinned key, counted from the receipts loaded into this lab.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 9,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"true\"}[$__range])) or (sum(count_over_time({job=\"nightshift\"}[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: model calls carry a signed receipt that verifies",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 receipts loaded: make nightshift-receipts",
+                  "color": "blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 model call carries a signed receipt that verifies",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 48,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Calls made",
+      "description": "Public receipts of Proven's own calls, loaded into this lab: one per model call.",
+      "gridPos": {
+        "x": 9,
+        "y": 0,
+        "w": 5,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({job=\"nightshift\"}[$__range]))",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: in all",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Calls that failed",
+      "description": "Calls whose receipt says failed. The reasons are in the panel below. None is good.",
+      "gridPos": {
+        "x": 14,
+        "y": 0,
+        "w": 5,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({job=\"nightshift\", status=\"failed\"}[$__range])) or (sum(count_over_time({job=\"nightshift\"}[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: · failed",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Verification failures",
+      "description": "Receipts whose Ed25519 signature did not verify under the pinned key. None is good.",
+      "gridPos": {
+        "x": 19,
+        "y": 0,
+        "w": 5,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"false\"}[$__range])) or (sum(count_over_time({job=\"nightshift\"}[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: · bad",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Calls over time, by model and app",
+      "description": "Calls per minute, for each model that answered and each app that asked.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (model, app) (count_over_time({job=\"nightshift\"}[1m]))",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{model}} · {{app}}",
+          "interval": "1m",
+          "step": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No receipts loaded yet. To load the public ones: make nightshift-receipts (docs/LAB.md).",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "bargauge",
+      "title": "Why calls failed",
+      "description": "The reason on each failed receipt: the provider's deadline, an empty answer, a refused key, and the rest.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (reason) (count_over_time({job=\"nightshift\", status=\"failed\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No call failed (or no receipts are loaded)",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "displayName": "${__field.labels.reason}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Latency per call, median, by model",
+      "description": "Median time of an answered call, per model.",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "quantile_over_time(0.5, {job=\"nightshift\", status=\"ok\"} | json | unwrap latency_ms | __error__=\"\" [1m]) by (model)",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{model}}",
+          "interval": "1m",
+          "step": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "noValue": "No receipts loaded yet. To load the public ones: make nightshift-receipts (docs/LAB.md).",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "Tokens, by model",
+      "description": "Input and output tokens of the calls, per model.",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "label_replace(sum by (model) (sum_over_time({job=\"nightshift\"} | json | unwrap input_tokens | __error__=\"\" [$__range])), \"series\", \"$1 · tokens in\", \"model\", \"(.*)\") or label_replace(sum by (model) (sum_over_time({job=\"nightshift\"} | json | unwrap output_tokens | __error__=\"\" [$__range])), \"series\", \"$1 · tokens out\", \"model\", \"(.*)\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{series}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No receipts loaded: make nightshift-receipts",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.series}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,440 @@
+{
+  "uid": "proven-engines",
+  "title": "Proven: the four Meterless engines and what each did",
+  "description": "H-MEM, Scout Intent, Markovian and the World Model are on in this lab. What each one did is shown where Proven reports it.",
+  "tags": [
+    "proven"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
+  "style": "light",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Proven dashboards",
+      "tags": [
+        "proven"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_loki",
+        "type": "datasource",
+        "query": "loki",
+        "hide": 2,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "H-MEM: claims it kept out of the Judge's hands",
+      "description": "Claims H-MEM recognised as already refuted in an earlier review, so they never reached the Judge.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_review_claims_dropped_total{reason=\"suppressed\",instance=~\"pr[0-9]+-.+\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: claims suppressed as already refuted",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 claims suppressed: nothing was refuted earlier",
+                  "color": "blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 claim suppressed as already refuted",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 48,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "Scout Intent: not measured yet",
+      "description": "What would be shown here.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** Scout plans each review, light or full, and can be overridden by a guard. Missing:\n\n- plans, by light or full\n- guard overrides"
+      }
+    },
+    {
+      "id": 3,
+      "type": "text",
+      "title": "Markovian: not measured yet",
+      "description": "What would be shown here.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** Markovian reviews a large change in bounded steps. Missing:\n\n- steps taken\n\nSmall changes, like the demo's, take one step."
+      }
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "World Model: not measured yet",
+      "description": "What would be shown here.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** The World Model keeps claims, evidence and verdicts as a graph. Missing:\n\n- claims\n- evidence\n- verdicts recorded"
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "What each review ran as",
+      "description": "One row per review: its pull request, the review class Scout chose, whether a second reviewer ran, and whether the review was cut short.",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 12
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${ds_tempo}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${ds_tempo}"
+          },
+          "queryType": "traceql",
+          "query": "{ name = \"proven.review\" } | select(resource.service.instance.id, span.proven.class, span.proven.doubled, span.proven.partial, span.proven.findings)",
+          "tableType": "spans",
+          "limit": 10
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ns"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Two reviewers"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "true": {
+                        "text": "yes"
+                      },
+                      "false": {
+                        "text": "no"
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "text": "not recorded"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cut short"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "true": {
+                        "text": "yes"
+                      },
+                      "false": {
+                        "text": "no"
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "text": "not recorded"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Review class"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "security": {
+                        "text": "Security"
+                      },
+                      "backend": {
+                        "text": "Backend"
+                      },
+                      "mobile": {
+                        "text": "Mobile"
+                      },
+                      "user interface": {
+                        "text": "User interface"
+                      },
+                      "docs": {
+                        "text": "Documentation"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Review"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "pr1-discount-clean": {
+                        "text": "#1 Round the discount down to a whole cent"
+                      },
+                      "pr2-unknown-author": {
+                        "text": "#2 Reword the draft note"
+                      },
+                      "pr3-discount": {
+                        "text": "#3 Apply a discount (it is taken off twice)"
+                      },
+                      "pr4-malicious-package": {
+                        "text": "#4 Add a padding helper from evil.example/drop"
+                      },
+                      "pr5-osv-go-module": {
+                        "text": "#5 Bump the widget library"
+                      },
+                      "pr6-spdx-licence": {
+                        "text": "#6 Add a copyleft helper"
+                      },
+                      "pr7-project-health": {
+                        "text": "#7 Add a very young dependency"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Start time",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Start time",
+                "service.instance.id",
+                "proven.class",
+                "proven.doubled",
+                "proven.partial",
+                "proven.findings",
+                "Duration"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Start time": "Start time",
+              "service.instance.id": "Review",
+              "proven.class": "Review class",
+              "proven.doubled": "Two reviewers",
+              "proven.partial": "Cut short",
+              "proven.findings": "Findings kept",
+              "Duration": "Duration"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -418,7 +418,7 @@ func TestTheFixLoopCarriesOnlyWhatFailedAndWhy(t *testing.T) {
 // reviewFixtureWith reviews a sample fixture with the bounded-steps setting s; it is reviewFixture with Markov set.
 func reviewFixtureWith(t *testing.T, root string, spy *fixSpy, gen *fixPrompts, s markov.Settings) candidate.Draft {
 	t.Helper()
-	fx, err := fixture.Load(root)
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), root)
 	if err != nil {
 		t.Fatal(err)
 	}

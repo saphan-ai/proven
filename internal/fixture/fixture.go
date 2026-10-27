@@ -81,12 +81,9 @@ type file struct {
 	} `json:"guardrail"`
 }
 
-// Load reads fixture.json and checks the planner prompt still matches the trees.
-// A fixture whose trees changed after its answers were recorded is refused, so a
-// sample review never replays answers to a prompt it did not ask.
-func Load(root string) (*Fixture, error) { return LoadUnder(change.ProcessPolicy(), root) }
-
-// LoadUnder is Load reading the trees under the policy rd.
+// LoadUnder reads fixture.json and checks the planner prompt still matches the trees, reading the
+// trees under the policy rd. A fixture whose trees changed after its answers were recorded is
+// refused, so a sample review never replays answers to a prompt it did not ask.
 func LoadUnder(rd change.Policy, root string) (*Fixture, error) {
 	b, err := os.ReadFile(filepath.Join(root, "fixture.json"))
 	if err != nil {

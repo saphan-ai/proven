@@ -72,6 +72,14 @@ c2=$(mk 2 proven-bot "$good" 2026-10-24T04:31:03Z)
 review_for "[$c1,$c2]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the run's review after an unrelated one was refused" >&2; fail=1; }
 review_for "[$c2,$c1]" 3 "$sha" proven-bot >/dev/null || { echo "e2e-parse-check: FAIL: the run's review before an unrelated one was refused" >&2; fail=1; }
 
+# success_runs: two runs of one head commit, both succeeded; the second posted nothing. The older one's review counts.
+two='[{"id":12,"status":"success","target_url":"/p/d/actions/runs/19/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:01:05Z"},{"id":11,"status":"pending","target_url":"/p/d/actions/runs/19/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:01:01Z"},{"id":10,"status":"success","target_url":"/p/d/actions/runs/18/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:01:00Z"},{"id":9,"status":"pending","target_url":"/p/d/actions/runs/18/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:00:50Z"}]'
+expect "both runs of one head succeeded, newest first" "$(success_runs "$two" "$ctx" | tr '\n' ' ')" "19 18 "
+failed19='[{"id":12,"status":"failure","target_url":"/p/d/actions/runs/19/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:01:05Z"},{"id":10,"status":"success","target_url":"/p/d/actions/runs/18/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:01:00Z"}]'
+expect "a failed run is not a succeeded one" "$(success_runs "$failed19" "$ctx" | tr '\n' ' ')" "18 "
+expect "a pending run is not a succeeded one" "$(success_runs '[{"id":1,"status":"pending","target_url":"/p/d/actions/runs/5/jobs/0","context":"proven / review (pull_request)","created_at":"2026-10-26T05:00:50Z"}]' "$ctx")" ""
+expect "other context ignored in success_runs" "$(success_runs "$two" "other / job (push)")" ""
+
 # The poster that keeps one comment per pull request (find, then edit in place), and
 # the proof that the workflow's copy of it is the Action's: lab/scripts/post-comment-check.sh.
 sh "$here/post-comment-check.sh" || fail=1

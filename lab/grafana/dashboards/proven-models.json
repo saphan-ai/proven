@@ -1,0 +1,695 @@
+{
+  "uid": "proven-models",
+  "title": "Proven: which models answered, and what the guardrail checked",
+  "description": "Calls to models by agent and reviewer, which model answered, what the guardrail checked, and what Proven refused to keep.",
+  "tags": [
+    "proven"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
+  "style": "light",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Proven dashboards",
+      "tags": [
+        "proven"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_loki",
+        "type": "datasource",
+        "query": "loki",
+        "hide": 2,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Model calls answered",
+      "description": "Calls to a model that returned an answer, across all reviews.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_model_calls_total{outcome!=\"error\"}[$__range])) or (count(last_over_time(proven_model_calls_total[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: model calls answered",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 model calls yet",
+                  "color": "blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 model call answered",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 48,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Model calls that returned an error",
+      "description": "A model call that returned an error. In sample mode a call the recorded answers have no answer for is counted here (generator: no recorded response); the review goes on without it. In a live lab an error is a failed call to the model.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_model_calls_total{outcome=\"error\"}[$__range])) or (count(last_over_time(proven_model_calls_total[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: · check",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Guardrail checks that said unsafe",
+      "description": "Model answers or prompts the guardrail judged unsafe. None is good.",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_guardrail_unsafe_total[$__range])) or (count(last_over_time(proven_guardrail_checks_total[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: · bad",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none, good",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "bargauge",
+      "title": "Calls, by agent and reviewer",
+      "description": "Which agent made the calls, and for which reviewer. Planner and Skeptic run once per reviewer.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_join(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (proven_agent, proven_reviewer) (last_over_time(proven_model_calls_total[$__range])), \"proven_agent\", \"Planner\", \"proven_agent\", \"planner\"), \"proven_agent\", \"Investigator\", \"proven_agent\", \"investigator\"), \"proven_agent\", \"Prover\", \"proven_agent\", \"prover\"), \"proven_agent\", \"Skeptic\", \"proven_agent\", \"skeptic\"), \"proven_agent\", \"Fixer\", \"proven_agent\", \"fixer\"), \"proven_agent\", \"Judge\", \"proven_agent\", \"judge\"), \"proven_agent\", \"Writer\", \"proven_agent\", \"writer\"), \"proven_agent\", \"Autofix\", \"proven_agent\", \"autofix\"), \"proven_reviewer\", \"default reviewer\", \"proven_reviewer\", \"default\"), \"proven_reviewer\", \"second reviewer\", \"proven_reviewer\", \"special\"), \"proven_reviewer\", \"both reviewers\", \"proven_reviewer\", \"shared\"), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{who}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No model call yet",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.who}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Calls, by the model asked (and the one that answered)",
+      "description": "The model a call asked for. When the provider names the model that answered, the bar reads asked → answered; a fallback shows as two different names. Sample mode names no answering model.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_replace(label_replace(label_join(sum by (gen_ai_request_model, gen_ai_response_model) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"route\", \" → \", \"gen_ai_request_model\", \"gen_ai_response_model\"), \"route\", \"$1\", \"route\", \"(.*) → \"), \"route\", \"model not recorded\", \"route\", \"\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No model call yet",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.route}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "bargauge",
+      "title": "Guardrail checks, by side and verdict",
+      "description": "What the guardrail was asked to check (the prompt or the answer) and what it said.",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 8,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_join(sum by (side, verdict) (last_over_time(proven_guardrail_checks_total[$__range])), \"check\", \" · \", \"side\", \"verdict\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{check}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No guardrail check yet",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.check}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "What Proven refused to keep, by reason",
+      "description": "Claims the Judge dropped: not supported by a query or a test, refuted by the Skeptic, or already refuted in an earlier review.",
+      "gridPos": {
+        "x": 8,
+        "y": 13,
+        "w": 8,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(sum by (reason) (last_over_time(proven_review_claims_dropped_total[$__range])), \"reason\", \"No evidence\", \"reason\", \"no_evidence\"), \"reason\", \"Refuted by the Skeptic\", \"reason\", \"refuted\"), \"reason\", \"Already refuted earlier\", \"reason\", \"suppressed\"), \"reason\", \"Another reason\", \"reason\", \"other\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "Nothing was dropped yet",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.reason}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "Model latency (sample mode: recorded answers)",
+      "description": "Mean time of a model call. In sample mode the answers are recorded, so this is not a measure of any model; in a live lab it is the real latency of each agent's calls.",
+      "gridPos": {
+        "x": 16,
+        "y": 13,
+        "w": 8,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_join(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace((sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range]))), \"proven_agent\", \"Planner\", \"proven_agent\", \"planner\"), \"proven_agent\", \"Investigator\", \"proven_agent\", \"investigator\"), \"proven_agent\", \"Prover\", \"proven_agent\", \"prover\"), \"proven_agent\", \"Skeptic\", \"proven_agent\", \"skeptic\"), \"proven_agent\", \"Fixer\", \"proven_agent\", \"fixer\"), \"proven_agent\", \"Judge\", \"proven_agent\", \"judge\"), \"proven_agent\", \"Writer\", \"proven_agent\", \"writer\"), \"proven_agent\", \"Autofix\", \"proven_agent\", \"autofix\"), \"proven_reviewer\", \"default reviewer\", \"proven_reviewer\", \"default\"), \"proven_reviewer\", \"second reviewer\", \"proven_reviewer\", \"special\"), \"proven_reviewer\", \"both reviewers\", \"proven_reviewer\", \"shared\"), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{who}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "noValue": "No model call yet",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.who}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    }
+  ]
+}

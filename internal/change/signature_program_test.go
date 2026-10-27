@@ -62,10 +62,25 @@ func TestLocalMessagesStartNoSignatureProgram(t *testing.T) {
 	git(t, repo, "config", "log.showSignature", "true")
 	git(t, repo, "config", "gpg.program", gpg)
 
-	// Control: online git with a writable temp directory does start the program,
-	// so a pass below is not a program that cannot run.
-	ctl := exec.Command("git", "-C", repo, "log", "--format=%B", strings.TrimSpace(string(base))+".."+signed)
-	ctl.Env = append(os.Environ(), "TMPDIR="+t.TempDir())
+	// git writes the signature it hands to gpg.program into a temporary file, and GitCommand's
+	// minimal environment (PATH and HOME, ADR-0025) has no TMPDIR, so on a host whose /tmp is not
+	// writable git stops before it starts the program, with or without log.showSignature=false.
+	// The shim gives git a writable TMPDIR and changes nothing else: it forwards every argument, so
+	// the control and the measured call both run GitCommand's own argv and environment.
+	realGit, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shim := t.TempDir()
+	write(t, filepath.Join(shim, "git"), "#!/bin/sh\nTMPDIR='"+t.TempDir()+"' exec '"+realGit+"' \"$@\"\n")
+	if err := os.Chmod(filepath.Join(shim, "git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shim+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	// Control: online git, started by GitCommand itself, does start the program. A pass below is
+	// then not a git that could not run in that environment.
+	ctl := NewPolicy(false, DefaultLimits()).GitCommand("-C", repo, "log", "--format=%B", strings.TrimSpace(string(base))+".."+signed)
 	if out, err := ctl.CombinedOutput(); err != nil {
 		t.Fatalf("control log: %v %s", err, out)
 	}

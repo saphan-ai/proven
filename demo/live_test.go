@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,7 +38,7 @@ func TestShareFailsOnChangeAndPassesOnBase(t *testing.T) {
 
 func TestDemoFixtureLoads(t *testing.T) {
 	root := repoRoot(t)
-	if _, err := fixture.Load(filepath.Join(root, "demo", "live")); err != nil {
+	if _, err := fixture.LoadUnder(change.ProcessPolicy(), filepath.Join(root, "demo", "live")); err != nil {
 		t.Fatal(err)
 	}
 }

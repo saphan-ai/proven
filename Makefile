@@ -7,7 +7,7 @@ SHELL := /bin/sh
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export ROOT
 
-.PHONY: help build build-all image image-check seed-image scan push push-judging up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean
+.PHONY: help check-flow password demo-check reports try nightshift-receipts check-banner nightshift zetaris check-golive build build-all image image-check seed-image scan push up down status logs sample livecheck e2e trace e2e-failed-run check-e2e-parse check-lab-gates check-lab-secrets check-lab-password check-review-gates baseline-dependabot baseline-dependabot-manifests check-links zetaris-usl-parity clean push-judging
 
 help: ## Show every target, the version, and whether go and docker were found
 	@sh $(ROOT)/lab/scripts/help.sh
@@ -36,14 +36,32 @@ push: ## Build once for linux/amd64 and linux/arm64, scan every platform with Do
 push-judging: ## make push, and the same scanned digests also as :judging, the tag judges' runs pull (docs/JUDGING.md)
 	@PUSH_JUDGING=yes sh $(ROOT)/lab/scripts/push.sh
 
-up: ## Start the judges' lab
+up: ## Start the judges' lab. On a terminal it asks sample or live, and for a judge, ours or own; settings answer in advance (docs/LAB.md); with no terminal it is a sample lab
 	@sh $(ROOT)/lab/scripts/up.sh
 
 down: ## Stop the judges' lab
 	@sh $(ROOT)/lab/scripts/down.sh
 
-status: ## Show containers, health, the runner, the review, and the lab URL
+status: ## Show containers, health, the runner, the review on each pull request, and the lab login
 	@sh $(ROOT)/lab/scripts/status.sh
+
+password: ## Print the lab login: the start page, the Gitea user and password (on a terminal), the dashboard
+	@sh $(ROOT)/lab/scripts/password.sh
+
+demo-check: ## Require Proven's review on every demo pull request (a clean one says clean) and a trace per review
+	@sh $(ROOT)/lab/scripts/demo-check.sh
+
+reports: ## Build the report page of every demo pull request again: its review as a page set like a GitHub comment
+	@sh $(ROOT)/lab/scripts/reports.sh
+
+nightshift-receipts: ## Load the public Nightshift receipts (lab/nightshift/receipts.public.jsonl) into the lab's Loki, for the Nightshift dashboard
+	@sh $(ROOT)/lab/scripts/nightshift-receipts.sh
+
+try: ## Try one thing Proven does and see it print: SCENARIO=forged (a changed evidence pack is refused) or SCENARIO=prover (no network, no secret)
+	@sh $(ROOT)/lab/scripts/try.sh "$(SCENARIO)"
+
+check-banner: ## Check the closing banner offline: the exact lines, the password on a terminal, the path when redirected
+	@sh $(ROOT)/lab/scripts/banner-check.sh
 
 logs: ## Follow lab logs. SERVICE= selects one service
 	@sh $(ROOT)/lab/scripts/logs.sh
@@ -72,6 +90,12 @@ zetaris-usl-parity: ## Ask Zetaris the same requests with and without the semant
 check-lab-gates: ## Check offline, with a stub docker, that make up refuses the retired LAB_BIND and that make push publishes only digests that were all scanned
 	@sh $(ROOT)/lab/scripts/check-lab-gates.sh
 
+check-flow: ## Check offline the start-up flow of make up: each path by its settings with no terminal, the no-terminal default, the port check, where the credential goes, and the terminal after Ctrl-C
+	@cd $(ROOT) && go test -count=1 -run 'TestFlow' -v ./lab/
+
+check-lab-secrets: ## Live, on a Docker host after make up with a sentinel in each credential: no sentinel in compose config, inspect or process arguments; each is an Actions secret; the transfer file is gone
+	@sh $(ROOT)/lab/scripts/check-lab-secrets.sh
+
 check-lab-password: ## Check offline, with a stub docker, that the admin password is never printed to a redirected stdout, is kept in a 0600 file, and a supplied one is used and not printed
 	@sh $(ROOT)/lab/scripts/check-lab-password.sh
 
@@ -89,3 +113,12 @@ check-links: ## Check that every relative Markdown link and metadata.json path r
 
 clean: ## Remove the lab, its volumes, local images, ./bin and ./dist
 	@sh $(ROOT)/lab/scripts/clean.sh
+
+nightshift: ## Start Meterless Nightshift in a Tart VM (macOS on Apple silicon); on any other host say so and exit 0
+	@sh $(ROOT)/lab/scripts/nightshift.sh
+
+zetaris: ## Start Zetaris on this machine from your own bundle and register the evidence (same as make up ZETARIS=local, without the lab)
+	@ZETARIS=local sh $(ROOT)/lab/scripts/zetaris.sh
+
+check-golive: ## Check offline: lab/.env keys, the workflow's live/sample choice and the loopback bind of the start page
+	@sh $(ROOT)/lab/scripts/golive-check.sh

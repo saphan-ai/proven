@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"path/filepath"
 	"strings"
@@ -157,7 +158,7 @@ func reviewWithRefutingTestStores(t *testing.T, logDir, state string, stores Sto
 
 func refuteGenerator(t *testing.T, id string) generator.Generator {
 	t.Helper()
-	fx, err := fixture.Load(fixturePath(t))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), fixturePath(t))
 	if err != nil {
 		t.Fatal(err)
 	}

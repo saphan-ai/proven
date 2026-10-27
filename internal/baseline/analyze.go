@@ -118,13 +118,13 @@ type Options struct {
 // reads the dependencies and nothing else. It returns their paths, sorted.
 // Why a change from an empty base: the dependency check reads the packages a
 // change adds or raises, and a first commit of a project adds all of them.
-func Export(repo, rev, dir string) ([]string, error) {
+func Export(rd change.Policy, repo, rev, dir string) ([]string, error) {
 	scratch, err := os.MkdirTemp(dir, "export-")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(scratch) // the export is a copy; a failed removal leaves only scratch files
-	if _, err := change.ExportCommit(repo, rev, scratch); err != nil {
+	if _, err := rd.ExportCommit(repo, rev, scratch); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Join(dir, "base"), 0o755); err != nil {
@@ -175,8 +175,9 @@ func readsManifest(path string) bool {
 // it returned. A nil run is a manifest-only run: the manifests are read and no
 // advisory is asked for. A store that is down refuses the run, because a
 // missing answer is not "missed".
-func Analyze(ctx context.Context, tree string, manifests []string, ref Reference, run query.Runner, opt Options) (Findings, error) {
-	files, err := change.Read(tree)
+func Analyze(ctx context.Context, rd change.Policy, tree string, manifests []string, ref Reference, run query.Runner, opt Options) (Findings, error) {
+	ctx = change.WithPolicy(ctx, rd)
+	files, err := rd.Read(tree)
 	if err != nil {
 		return Findings{}, err
 	}

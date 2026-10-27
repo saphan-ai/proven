@@ -2,6 +2,7 @@ package generator
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -16,16 +17,18 @@ import (
 // token, which has none. ADR-0013: no value the generator runs with is
 // hardcoded; each comes from one of these settings or its named default.
 const (
-	EnvMode          = "PROVEN_GENERATOR_MODE"
-	EnvKey           = "PROVEN_GENERATOR_KEY"
-	EnvToken         = "METERLESS_RUNTIME_TOKEN"
-	EnvBaseURL       = "PROVEN_GENERATOR_BASE_URL"
-	EnvNVIDIABaseURL = "PROVEN_NVIDIA_BASE_URL"
-	EnvApp           = "PROVEN_GENERATOR_APP"
-	EnvModel         = "PROVEN_GENERATOR_MODEL"
-	EnvTimeout       = "PROVEN_GENERATOR_TIMEOUT"
-	EnvRequireNVIDIA = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
-	EnvSkepticModel  = "PROVEN_SKEPTIC_MODEL"
+	EnvMode             = "PROVEN_GENERATOR_MODE"
+	EnvKey              = "PROVEN_GENERATOR_KEY"
+	EnvToken            = "METERLESS_RUNTIME_TOKEN"
+	EnvBaseURL          = "PROVEN_GENERATOR_BASE_URL"
+	EnvNVIDIABaseURL    = "PROVEN_NVIDIA_BASE_URL"
+	EnvApp              = "PROVEN_GENERATOR_APP"
+	EnvModel            = "PROVEN_GENERATOR_MODEL"
+	EnvTimeout          = "PROVEN_GENERATOR_TIMEOUT"
+	EnvRequireNVIDIA    = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
+	EnvRequireRequested = "PROVEN_GENERATOR_REQUIRE_REQUESTED"
+	EnvSkepticModel     = "PROVEN_SKEPTIC_MODEL"
+	EnvThinkingBudget   = "PROVEN_GENERATOR_THINKING_BUDGET"
 )
 
 // DefaultSkepticModel is Nemotron through Nightshift (ADR-0006 point 5).
@@ -84,7 +87,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvBaseURL,
 			Default:     envdoc.Tick(defaultBaseURL),
-			Description: "Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or GLM's `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it",
+			Description: "Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it",
 		},
 		{
 			Name:        EnvNVIDIABaseURL,
@@ -112,9 +115,19 @@ func Environment() []envdoc.Setting {
 			Description: "which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name",
 		},
 		{
+			Name:        EnvRequireRequested,
+			Default:     envdoc.Tick("off"),
+			Description: "`on` or `off`. With `on`, in `nightshift` mode an answer whose signed receipt names a model other than the one asked for is refused by name as a failed service, so a review never ships another model's verdict; a request for `meterless/auto` lets the router choose and is not checked",
+		},
+		{
 			Name:        EnvSkepticModel,
 			Default:     envdoc.Tick(DefaultSkepticModel),
 			Description: "the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family",
+		},
+		{
+			Name:        EnvThinkingBudget,
+			Default:     "empty (nothing is sent)",
+			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call, the second reviewer's included. Empty sends nothing, so a provider that does not know the field never sees it",
 		},
 	}
 }
@@ -139,12 +152,16 @@ type Settings struct {
 	Token        string
 	Timeout      time.Duration
 	SkepticModel string
-	plain        bool
+	// ThinkingBudget is PROVEN_GENERATOR_THINKING_BUDGET; zero sends no thinking_budget field.
+	ThinkingBudget int
+	plain          bool
 	// Network is the air-gapped policy of ADR-0034. Nil means public.
-	Network       *network.Policy
-	requireAll    bool
-	requireNone   bool
-	requireNVIDIA map[string]bool
+	Network *network.Policy
+	// requireRequested is PROVEN_GENERATOR_REQUIRE_REQUESTED: refuse a receipt that names another model.
+	requireRequested bool
+	requireAll       bool
+	requireNone      bool
+	requireNVIDIA    map[string]bool
 }
 
 // ModelFor is the model field one agent sends. The skeptic uses SkepticModel.
@@ -268,6 +285,18 @@ func Load(env func(string) string) (Settings, error) {
 		}
 		timeout = d
 	}
+	budget, err := thinkingBudget(env)
+	if err != nil {
+		return Settings{}, err
+	}
+	requested := false
+	switch v := env(EnvRequireRequested); v {
+	case "", "off":
+	case "on":
+		requested = true
+	default:
+		return Settings{}, refuse(EnvRequireRequested, clip(v), "not on or off", "on, off, or empty")
+	}
 	req := env(EnvRequireNVIDIA)
 	if req == "" {
 		req = defaultRequire
@@ -283,8 +312,8 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	return Settings{
 		Mode: mode, BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
-		SkepticModel: skepticModel, Network: policy,
-		requireAll: all, requireNone: none, requireNVIDIA: set,
+		SkepticModel: skepticModel, Network: policy, ThinkingBudget: budget,
+		requireAll: all, requireNone: none, requireNVIDIA: set, requireRequested: requested,
 	}, nil
 }
 
@@ -303,6 +332,19 @@ func fromNetwork(err error) error {
 		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
 	}
 	return err
+}
+
+// thinkingBudget reads PROVEN_GENERATOR_THINKING_BUDGET: zero when it is empty, refused by name when it is not a count.
+func thinkingBudget(env func(string) string) (int, error) {
+	raw := env(EnvThinkingBudget)
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > 1000000 {
+		return 0, refuse(EnvThinkingBudget, clip(raw), "not a token count", "a whole number from 1 to 1000000, or empty")
+	}
+	return n, nil
 }
 
 // refuse builds the refusal for one setting with one allowed form.
@@ -416,7 +458,7 @@ func parseRequire(raw string) (all, none bool, set map[string]bool, err error) {
 }
 
 // endpoint joins the API root with a method path such as "/chat/completions".
-// A base whose path ends in a version (/v1, or GLM's /api/paas/v4) is already the API root.
+// A base whose path ends in a version (/v1, or /api/paas/v4) is already the API root.
 func endpoint(base, method string) string {
 	b := strings.TrimRight(base, "/")
 	if u, err := url.Parse(b); err == nil && versioned(u.Path) {

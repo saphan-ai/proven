@@ -23,28 +23,42 @@ func promNames(instrument string) []string {
 	return []string{base + "_total"}
 }
 
-// TestTheDashboardQueriesOnlyWhatProvenEmits holds lab/grafana/dashboards/proven-review.json to the
-// instruments in this package. A metric the dashboard asks for that no instrument makes is a panel that
-// stays empty for ever; a renamed instrument must change the dashboard in the same commit.
+// TestTheDashboardQueriesOnlyWhatProvenEmits holds the lab's dashboards (every file of lab/grafana/dashboards) to the
+// instruments in this package. A metric a dashboard asks for that no instrument makes is a panel that
+// stays empty for ever; a renamed instrument must change the dashboards in the same commit. Every instrument is
+// on at least one of them.
 func TestTheDashboardQueriesOnlyWhatProvenEmits(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "lab", "grafana", "dashboards", "proven-review.json"))
-	if err != nil {
-		t.Fatal(err)
+	files, err := filepath.Glob(filepath.Join("..", "..", "lab", "grafana", "dashboards", "*.json"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no dashboard found: %v", err)
+	}
+	type panel struct {
+		Title   string `json:"title"`
+		Targets []struct {
+			Expr string `json:"expr"`
+		} `json:"targets"`
 	}
 	var dash struct {
 		UID    string `json:"uid"`
-		Panels []struct {
-			Title   string `json:"title"`
-			Targets []struct {
-				Expr string `json:"expr"`
-			} `json:"targets"`
-		} `json:"panels"`
+		Panels []panel
 	}
-	if err := json.Unmarshal(raw, &dash); err != nil {
-		t.Fatalf("the dashboard is not JSON: %v", err)
-	}
-	if dash.UID == "" || len(dash.Panels) == 0 {
-		t.Fatalf("the dashboard has uid %q and %d panels", dash.UID, len(dash.Panels))
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var one struct {
+			UID    string  `json:"uid"`
+			Panels []panel `json:"panels"`
+		}
+		if err := json.Unmarshal(raw, &one); err != nil {
+			t.Fatalf("%s is not JSON: %v", f, err)
+		}
+		if one.UID == "" || len(one.Panels) == 0 {
+			t.Fatalf("%s has uid %q and %d panels", f, one.UID, len(one.Panels))
+		}
+		dash.UID = one.UID
+		dash.Panels = append(dash.Panels, one.Panels...)
 	}
 	known := map[string]bool{}
 	for _, m := range []string{MetricFindings, MetricDropped, MetricVerdicts, MetricDisagreements, MetricModelCalls,
@@ -58,8 +72,8 @@ func TestTheDashboardQueriesOnlyWhatProvenEmits(t *testing.T) {
 	for _, p := range dash.Panels {
 		for _, tg := range p.Targets {
 			for _, name := range ident.FindAllString(tg.Expr, -1) {
-				// proven_reviewer, proven_agent and proven_proof_level are labels, not metrics.
-				if name == "proven_reviewer" || name == "proven_agent" || name == "proven_proof_level" {
+				// proven_reviewer, proven_agent, proven_proof_level and the two gen_ai model names are labels, not metrics.
+				if name == "proven_reviewer" || name == "proven_agent" || name == "proven_proof_level" || name == "gen_ai_request_model" || name == "gen_ai_response_model" {
 					continue
 				}
 				used[name] = true

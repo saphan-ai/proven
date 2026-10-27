@@ -65,6 +65,7 @@ This folder holds two kinds of decision, and both are the owner's:
 | [0049](ADR-0049-scout-intent-plans-each-review.md) | Meterless's Scout Intent plans each review before a model runs; never lowers a configured rule; kept only if measured worth it | accepted, 2026-10-24 |
 | [0050](ADR-0050-one-automated-fix-attempt-proved-by-the-same-evidence.md) | after a review, one automated fix attempt for all proved findings, judged only by the same deterministic evidence; then fixed or rejected; Proven never commits to the author's branch | accepted, 2026-10-25 |
 | [0051](ADR-0051-a-judge-reaches-our-services-through-a-gateway-with-their-own-token.md) | a judge's lab reaches our Nightshift and our Zetaris through one gateway behind a Cloudflare tunnel and Access, with the judge's own expiring token; evidence by query template only; every call limited and logged | accepted, 2026-10-26 |
+| [0052](ADR-0052-the-lab-goes-live-three-ways.md) | the lab goes live three ways with no hand edit: one NVIDIA key, our services through the judges' gateway, or Zetaris and Nightshift on your own machine; keys of `lab/.env` become Actions secrets; the comment's first line says live or sample | accepted, 2026-10-26 |
 | [0053](ADR-0053-all-four-meterless-engines-are-on-by-default.md) | all four Meterless engines are on by default and each is switched off by its setting; the benefit of Markovian and Scout Intent stays unmeasured; Scout never lightens a change that is not verified prose | accepted, 2026-10-26 |
 
 **Rules for an ADR**

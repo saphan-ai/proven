@@ -40,8 +40,9 @@ const (
 	// defaultNVIDIAModel is the id third parties publish. NVIDIA's sample
 	// leaves the id blank, so PROVEN_GUARDRAIL_MODEL replaces it.
 	defaultNVIDIAModel = "nvidia/nemotron-3.5-content-safety"
-	// defaultTimeout sits above the measured warm range of 156–706 ms.
-	defaultTimeout = 5 * time.Second
+	// defaultTimeout sits above the warm range of a local server and leaves a hosted guardrail room for a slow check
+	// on a long review prompt.
+	defaultTimeout = 120 * time.Second
 )
 
 // Environment lists the guardrail settings in the order the page shows.

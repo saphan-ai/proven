@@ -1,0 +1,583 @@
+{
+  "uid": "proven-evidence",
+  "title": "Proven: the evidence behind each finding",
+  "description": "Where findings get their proof. What Proven does not yet report as a number is named in the two text panels.",
+  "tags": [
+    "proven"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
+  "style": "light",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Proven dashboards",
+      "tags": [
+        "proven"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_loki",
+        "type": "datasource",
+        "query": "loki",
+        "hide": 2,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Findings kept, with their evidence",
+      "description": "Findings kept across the latest review of each pull request. The Judge keeps a finding only when a query or a test supports it.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: findings kept, each with a query or a test as evidence",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 findings kept: nothing to prove",
+                  "color": "blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 finding kept, with a query or a test as evidence",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 48,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Claims dropped",
+      "description": "Claims the Judge dropped for any reason: no query or test supported them, the Skeptic refuted them, or they were already refuted earlier. This is Proven refusing to guess.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dropped",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none dropped",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Evidence agents that failed",
+      "description": "Investigator or Prover stages that ended failed. None is good: a failed one means evidence was not gathered.",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "count(last_over_time(proven_agent_state{proven_agent=~\"investigator|prover\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 3) or (count(last_over_time(proven_agent_state{instance=~\"pr[0-9]+-.+\"}[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: · bad",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none, good",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "text",
+      "title": "Zetaris queries: not measured yet",
+      "description": "What would be shown here, and the numbers that are missing.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** Proven asks Zetaris for each advisory check, but does not yet count it. Missing, so nothing is drawn here:\n\n- queries per table (OSV, KEV, EPSS)\n- rows returned\n- query duration\n- queries Zetaris refused"
+      }
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "Prover runs: not measured yet",
+      "description": "What would be shown here, and the numbers that are missing.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not emitted by Proven yet.** The Prover runs a test on the base and on the change, with the network off. Missing, so nothing is drawn here:\n\n- runs, with the outcome on the base and on the change\n- run duration\n- runs that had the network off"
+      }
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Findings by level of proof",
+      "description": "How well each kept finding is proved: the strongest evidence it carries.",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 6
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])), \"proven_proof_level\", \"Proved by a tool\", \"proven_proof_level\", \"proved-by-tool\"), \"proven_proof_level\", \"Proved by a test\", \"proven_proof_level\", \"proved-by-test\"), \"proven_proof_level\", \"Proved by data\", \"proven_proof_level\", \"proved-by-data\"), \"proven_proof_level\", \"Agreed by two models, not proven\", \"proven_proof_level\", \"agreed-by-two-models-not-proven\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{proven_proof_level}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No finding kept: the reviews are still running, or every change was clean",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.proven_proof_level}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Investigator and Prover runs, and how long each took",
+      "description": "Each row is one run of the Investigator (turns a risk into a query) or the Prover (asks for a test). The bar is how long it ran. In a sample-mode lab the agents answer from recorded answers and the Prover runs no test, so times of a few microseconds are the recorded answers, not real work. In a live lab they are real.",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 21
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${ds_tempo}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${ds_tempo}"
+          },
+          "queryType": "traceql",
+          "query": "{ span.proven.agent = \"investigator\" || span.proven.agent = \"prover\" } | select(span.proven.agent, span.proven.reviewer)",
+          "tableType": "spans",
+          "limit": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ns"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Agent"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "planner": {
+                        "text": "Planner"
+                      },
+                      "investigator": {
+                        "text": "Investigator"
+                      },
+                      "prover": {
+                        "text": "Prover"
+                      },
+                      "skeptic": {
+                        "text": "Skeptic"
+                      },
+                      "fixer": {
+                        "text": "Fixer"
+                      },
+                      "judge": {
+                        "text": "Judge"
+                      },
+                      "writer": {
+                        "text": "Writer"
+                      },
+                      "autofix": {
+                        "text": "Autofix"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reviewer"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "default": {
+                        "text": "default reviewer"
+                      },
+                      "special": {
+                        "text": "second reviewer"
+                      },
+                      "shared": {
+                        "text": "both reviewers"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Start time",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Start time",
+                "proven.agent",
+                "proven.reviewer",
+                "Duration"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Start time": "Start time",
+              "proven.agent": "Agent",
+              "proven.reviewer": "Reviewer",
+              "Duration": "Duration"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -45,6 +45,13 @@ RUN adduser -D -u 65532 -h /work proven \
 COPY --from=build /out/proven /usr/local/bin/proven
 COPY --from=build /out/livecheck /usr/local/bin/livecheck
 COPY --chown=proven:proven testdata/fixture/discount /opt/proven/fixture/discount
+# The sample sets of the lab's demo pull requests (lab/seed/prs.tsv). The lab's workflow picks one by branch name.
+COPY --chown=proven:proven testdata/fixture/discount-clean /opt/proven/fixture/discount-clean
+COPY --chown=proven:proven testdata/fixture/unknown-author /opt/proven/fixture/unknown-author
+COPY --chown=proven:proven testdata/fixture/malicious-package /opt/proven/fixture/malicious-package
+COPY --chown=proven:proven testdata/fixture/osv-go-module /opt/proven/fixture/osv-go-module
+COPY --chown=proven:proven testdata/fixture/spdx-licence /opt/proven/fixture/spdx-licence
+COPY --chown=proven:proven testdata/fixture/project-health /opt/proven/fixture/project-health
 USER proven
 WORKDIR /work
 ENTRYPOINT ["proven"]

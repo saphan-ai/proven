@@ -1,4 +1,4 @@
-**Proven: blocked** — 4 findings: 4 error, 0 warning, 0 info
+**Proven: blocked** — 4 findings: 4 errors, 0 warnings, 0 info
 
 | Severity | Finding | Location |
 | --- | --- | --- |

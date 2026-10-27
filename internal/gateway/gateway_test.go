@@ -317,6 +317,39 @@ func TestModelOutsideTheListIsRefused(t *testing.T) {
 	}
 }
 
+func TestModelBodyIsCheckedAsNightshiftReadsIt(t *testing.T) {
+	// The model allow-list read the body case-insensitively, last key winning, and forwarded the original bytes: a
+	// second "MODEL" key passed the check while Nightshift read the first. A field that could pick another model is
+	// refused too. Each body below reaches no upstream.
+	r := newRig(t)
+	judge := r.issue("judge-ada", 10, 100)
+	msgs := `"messages":[{"role":"user","content":"` + codeMarker + `"}]`
+	for name, body := range map[string]string{
+		"case variant":    `{"model":"evil/x","MODEL":"meterless/auto",` + msgs + `}`,
+		"repeated key":    `{"model":"evil/x","model":"meterless/auto",` + msgs + `}`,
+		"fallback models": `{"model":"meterless/auto","models":["evil/x"],` + msgs + `}`,
+		"provider route":  `{"model":"meterless/auto","provider":{"order":["x"]},` + msgs + `}`,
+		"trailing data":   `{"model":"meterless/auto",` + msgs + `}{"model":"evil/x"}`,
+	} {
+		rep := r.post(PathModel, judge, body)
+		if rep.status != 400 || refusedCode(t, rep) != CodeBadRequest {
+			t.Errorf("%s: %d %s", name, rep.status, rep.body)
+		}
+	}
+	if r.ns.count() != 0 {
+		t.Fatalf("a refused body reached the upstream %d times", r.ns.count())
+	}
+	// What is forwarded is the body that was checked: the allowed model, re-encoded, nothing else.
+	rep := r.post(PathModel, judge, `{"model":"meterless/auto","stream":true,"thinking_budget":512,`+msgs+`}`)
+	if rep.status != 200 || r.ns.count() != 1 {
+		t.Fatalf("an allowed body: %d %s", rep.status, rep.body)
+	}
+	var sent map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(r.ns.bodies[0]), &sent); err != nil || string(sent["model"]) != `"meterless/auto"` || string(sent["thinking_budget"]) != "512" || len(sent) != 4 {
+		t.Errorf("the forwarded body is not the checked one: %s", r.ns.bodies[0])
+	}
+}
+
 func TestUpstreamErrorBodyIsNotPassedOn(t *testing.T) {
 	r := newRig(t)
 	r.ns.status, r.ns.reply = 500, "boom "+nightshiftSecret

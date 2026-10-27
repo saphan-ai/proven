@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,7 +71,7 @@ func reviewFixture(t *testing.T, name string, spy *fixSpy, gen *fixerCounter, re
 // A nil adapter leaves the sample's own, which answers safe.
 func reviewFixtureGuarded(t *testing.T, name string, spy *fixSpy, gen *fixerCounter, req Request, redactor *redact.Redactor, rail guardrail.Adapter) candidate.Draft {
 	t.Helper()
-	fx, err := fixture.Load(filepath.Join(repoRoot(t), "testdata", "fixture", name))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), filepath.Join(repoRoot(t), "testdata", "fixture", name))
 	if err != nil {
 		t.Fatal(err)
 	}

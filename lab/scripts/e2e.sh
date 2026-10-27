@@ -22,7 +22,12 @@ here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 need_docker
 
 if ! service_running gitea; then
-  sh "$ROOT/lab/scripts/up.sh"
+  # No question at a terminal: this check is run by a script. A setting (in the environment or lab/.env) still decides the mode.
+  load_lab_env || exit 1
+  PROVEN_LAB_MODE=${PROVEN_LAB_MODE:-sample}
+  export PROVEN_LAB_MODE
+  # This check waits for its own pull request's review, so up.sh does not wait for the demo's.
+  PROVEN_LAB_WAIT=no sh "$ROOT/lab/scripts/up.sh"
 fi
 
 if ! service_running runner; then
@@ -48,8 +53,8 @@ fi
 deadline=$(($(date +%s) + E2E_WAIT_SECONDS))
 last="no workflow run has started for the pull request's head commit"
 while [ "$(date +%s)" -lt "$deadline" ]; do
-  pulls=$(gitea_curl "$base/pulls?state=open" 2>/dev/null || true)
-  num=$(printf '%s' "$pulls" | sed -n 's/.*"number":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+  # The pull request of $LAB_DEMO_HEAD, the branch e2e-failed-run breaks; the lab opens seven, so never "the first".
+  num=$(gitea_curl "$base/pulls/$LAB_DEMO_BASE/$LAB_DEMO_HEAD" 2>/dev/null | grep -o '"number":[0-9]*' | head -n 1 | cut -d: -f2 || true)
   sha=
   if [ -n "$num" ]; then
     pr=$(gitea_curl "$base/pulls/$num" 2>/dev/null || true)
@@ -73,12 +78,20 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
           ;;
         success)
           comments=$(gitea_curl "$base/issues/$num/comments" 2>/dev/null || true)
-          if notes=$(review_for "$comments" "$run_no" "$sha" "$LAB_BOT_USER"); then
-            echo "e2e: proven review is on the pull request (workflow run #$run_no succeeded; head commit $sha)"
-            printf '%s\n' "$comments"
-            exit 0
-          fi
-          last="workflow run #$run_no succeeded, but no proven review by $LAB_BOT_USER names run #$run_no and head commit $sha"
+          # The newest run's own review, or a review by another run of this same head commit that succeeded: a second
+          # run of one head posts nothing (lab/workflow/proven.yml), so the review is the first run's.
+          notes=
+          for review_run in $(success_runs "$statuses" "$context"); do
+            if run_notes=$(review_for "$comments" "$review_run" "$sha" "$LAB_BOT_USER"); then
+              echo "e2e: proven review is on the pull request (workflow run #$review_run succeeded; head commit $sha; the newest run is #$run_no)"
+              printf '%s\n' "$comments"
+              exit 0
+            fi
+            notes="$notes$run_notes
+"
+          done
+          last="workflow run #$run_no succeeded, but no proven review by $LAB_BOT_USER names a succeeded run and head commit $sha"
+          notes=$(printf '%s' "$notes" | sort -u | sed '/^$/d')
           if [ -n "$notes" ]; then
             last="$last ($(printf '%s' "$notes" | tr '\n' ';'))"
           fi

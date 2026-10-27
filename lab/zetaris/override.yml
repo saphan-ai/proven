@@ -1,0 +1,24 @@
+# Ours, never an edit of the sponsor's docker-compose.yml (hackathon/fleet/infra/zetaris/zetaris-local.md, step 5).
+# lab/scripts/zetaris.sh runs the judge's own bundle with this file on top, as its own compose project.
+#   - The console and the REST service are published on 127.0.0.1 only. JDBC stays where the sponsor's file binds it.
+#   - The REST service also joins the lab's network under ZETARIS_LAB_ALIAS, so the lab's reviews reach it by name.
+# The service names `ui` and `api` are the sponsor's. The images run as the sponsor built them: this file does not
+# set a user, because it cannot know which users those images allow (UNMEASURED, 2026-10-26).
+services:
+  ui:
+    ports: !override
+      - "127.0.0.1:${ZETARIS_UI_HOST_PORT}:3000"
+  api:
+    ports: !override
+      - "127.0.0.1:${ZETARIS_API_HOST_PORT}:${ZETARIS_API_PORT}"
+      - "127.0.0.1:8889:8889"
+    networks:
+      default: {}
+      lab:
+        aliases:
+          - ${ZETARIS_LAB_ALIAS}
+
+networks:
+  lab:
+    external: true
+    name: ${COMPOSE_PROJECT_NAME}_lab

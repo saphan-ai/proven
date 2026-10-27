@@ -3,6 +3,7 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"testing"
 
@@ -222,7 +223,7 @@ func reviewReported(t *testing.T, byAgent map[string]string) candidate.Draft {
 
 func loadDiscount(t *testing.T) *fixture.Fixture {
 	t.Helper()
-	fx, err := fixture.Load(fixturePath(t))
+	fx, err := fixture.LoadUnder(change.ProcessPolicy(), fixturePath(t))
 	if err != nil {
 		t.Fatal(err)
 	}

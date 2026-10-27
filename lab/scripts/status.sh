@@ -1,17 +1,10 @@
 #!/bin/sh
-# Containers, Gitea health, runner registration, the latest review on the pull request, the lab URL.
+# Containers, Gitea health, runner registration, the review on each demo pull request, and the lab's login.
 set -eu
 . "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/lib.sh"
+. "$ROOT/lab/scripts/banner.sh"
 need_docker
 
-lab_url="http://${LAB_HOST}:${GITEA_HTTP_PORT}/"
-echo "lab: $lab_url"
-if service_running lgtm; then
-  echo "dashboard: http://${LAB_HOST}:${LGTM_GRAFANA_PORT}/d/${LGTM_DASHBOARD_UID}"
-else
-  echo "dashboard: not running"
-fi
-echo
 echo "containers:"
 compose ps
 echo
@@ -32,22 +25,35 @@ else
   echo "runner: running, not registered"
 fi
 echo
-echo "pull request:"
+echo "pull requests:"
 base="http://${GITEA_INTERNAL_HOST}:${GITEA_CONTAINER_HTTP_PORT}/api/v1/repos/${LAB_ADMIN_USER}/${LAB_DEMO_REPO}"
 if service_running gitea; then
-  pulls=$(compose run --rm --no-deps -T --entrypoint curl seed -fsS --max-time 15 "$base/pulls?state=open" || true)
-  num=$(printf '%s' "$pulls" | sed -n 's/.*"number":\([0-9][0-9]*\).*/\1/p' | head -n 1)
-  if [ -z "$num" ]; then
-    echo "pull request: none open"
+  pulls=$(compose run --rm --no-deps -T --entrypoint curl seed -fsS --max-time 15 "$base/pulls?state=open&limit=50" || true)
+  nums=$(printf '%s' "$pulls" | grep -o '"number":[0-9]*' | cut -d: -f2 | sort -n || true)
+  if [ -z "$nums" ]; then
+    echo "pull requests: none open"
   else
-    echo "pull request: $num"
-    comments=$(compose run --rm --no-deps -T --entrypoint curl seed -fsS --max-time 15 "$base/issues/$num/comments" || true)
-    if printf '%s' "$comments" | grep -q 'proven-review'; then
-      echo "review: present"
-    else
-      echo "review: not on the pull request yet"
-    fi
+    for num in $nums; do
+      comments=$(compose run --rm --no-deps -T --entrypoint curl seed -fsS --max-time 15 "$base/issues/$num/comments" || true)
+      if printf '%s' "$comments" | grep -q 'proven-review'; then
+        echo "pull request $num: review present"
+      else
+        echo "pull request $num: review not on it yet"
+      fi
+    done
   fi
 else
-  echo "pull request: gitea is not running"
+  echo "pull requests: gitea is not running"
+fi
+
+# The login, in the form make up ends with.
+pass=
+if service_running gitea; then
+  pass=$(lab_read_password)
+fi
+echo
+if [ -n "$pass" ]; then
+  lab_banner "$pass"
+else
+  echo "login: the lab is not installed; run make up"
 fi

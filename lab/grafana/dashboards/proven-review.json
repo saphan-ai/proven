@@ -1,342 +1,774 @@
 {
   "uid": "proven-review",
-  "title": "Proven: a review as it happens",
-  "description": "The agents and the two reviewer models of a Proven review, the verdicts side by side, what was dropped, and how long the models took. Provisioned from lab/grafana/dashboards; ADR-0045.",
-  "tags": ["proven"],
+  "title": "Proven: one review, step by step",
+  "description": "Pick a review at the top. See each agent in order, how long it took, and how the two reviewers judged each finding.",
+  "tags": [
+    "proven"
+  ],
   "schemaVersion": 39,
   "version": 1,
   "editable": false,
   "graphTooltip": 1,
-  "refresh": "5s",
-  "time": { "from": "now-30m", "to": "now" },
-  "timepicker": { "refresh_intervals": ["2s", "5s", "10s", "30s", "1m"] },
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
+  "style": "light",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Proven dashboards",
+      "tags": [
+        "proven"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
   "templating": {
     "list": [
-      { "name": "ds_prom", "type": "datasource", "query": "prometheus", "hide": 2, "current": {} },
-      { "name": "ds_tempo", "type": "datasource", "query": "tempo", "hide": 2, "current": {} },
+      {
+        "name": "ds_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_tempo",
+        "type": "datasource",
+        "query": "tempo",
+        "hide": 2,
+        "current": {}
+      },
+      {
+        "name": "ds_loki",
+        "type": "datasource",
+        "query": "loki",
+        "hide": 2,
+        "current": {}
+      },
       {
         "name": "run",
-        "label": "Review",
-        "type": "query",
-        "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
-        "query": { "query": "label_values(proven_agent_state, instance)", "refId": "run" },
-        "definition": "label_values(proven_agent_state, instance)",
-        "refresh": 2,
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "current": { "selected": true, "text": "All", "value": "$__all" }
+        "label": "Pull request",
+        "type": "custom",
+        "includeAll": false,
+        "multi": false,
+        "query": "#1 Round the discount down to a whole cent : pr1-discount-clean,#2 Reword the draft note : pr2-unknown-author,#3 Apply a discount (it is taken off twice) : pr3-discount,#4 Add a padding helper from evil.example/drop : pr4-malicious-package,#5 Bump the widget library : pr5-osv-go-module,#6 Add a copyleft helper : pr6-spdx-licence,#7 Add a very young dependency : pr7-project-health",
+        "options": [
+          {
+            "text": "#1 Round the discount down to a whole cent",
+            "value": "pr1-discount-clean",
+            "selected": false
+          },
+          {
+            "text": "#2 Reword the draft note",
+            "value": "pr2-unknown-author",
+            "selected": false
+          },
+          {
+            "text": "#3 Apply a discount (it is taken off twice)",
+            "value": "pr3-discount",
+            "selected": false
+          },
+          {
+            "text": "#4 Add a padding helper from evil.example/drop",
+            "value": "pr4-malicious-package",
+            "selected": false
+          },
+          {
+            "text": "#5 Bump the widget library",
+            "value": "pr5-osv-go-module",
+            "selected": false
+          },
+          {
+            "text": "#6 Add a copyleft helper",
+            "value": "pr6-spdx-licence",
+            "selected": false
+          },
+          {
+            "text": "#7 Add a very young dependency",
+            "value": "pr7-project-health",
+            "selected": true
+          }
+        ],
+        "current": {
+          "text": "#7 Add a very young dependency",
+          "value": "pr7-project-health"
+        }
       }
     ]
   },
   "panels": [
     {
       "id": 1,
-      "type": "state-timeline",
-      "title": "The agents and the two reviewers",
-      "description": "One row per agent. The planner and the skeptic have one row per reviewer model: default and special. Waiting, working, done, failed. A reviewer that has its verdict while the other still works shows as done beside working.",
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 10 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
+      "type": "stat",
+      "title": "Findings this review kept",
+      "description": "Findings this review kept. None means a clean verdict.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "proven_agent_state{instance=~\"$run\"}",
-          "legendFormat": "{{proven_agent}} · {{proven_reviewer}}",
-          "interval": "1s"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=\"$run\"}[$__range]) == 2) * 0)",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "fillOpacity": 85, "lineWidth": 0 },
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#8a8f98", "value": null }] },
+          "unit": "suffix: findings kept · blocked",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
           "mappings": [
             {
               "type": "value",
               "options": {
-                "0": { "index": 0, "text": "waiting", "color": "#8a8f98" },
-                "1": { "index": 1, "text": "working", "color": "#3274d9" },
-                "2": { "index": 2, "text": "done", "color": "#37872d" },
-                "3": { "index": 3, "text": "failed", "color": "#c4162a" }
+                "0": {
+                  "text": "0 findings kept · clean",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "1 finding kept · blocked",
+                  "color": "red"
+                }
               }
             }
-          ]
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
       "options": {
-        "mergeValues": true,
-        "showValue": "auto",
-        "alignValue": "left",
-        "rowHeight": 0.8,
-        "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single" }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 48,
+          "titleSize": 15
+        }
       }
     },
     {
       "id": 2,
-      "type": "table",
-      "title": "Verdicts, side by side",
-      "description": "What each reviewer's skeptic said of each finding: refuted, upheld, or not attempted. One column per reviewer model.",
-      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 7 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
+      "type": "stat",
+      "title": "Claims the Judge dropped",
+      "description": "Claims dropped for being refuted, unproved, or already refuted in an earlier review.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (proven_reviewer, verdict) (last_over_time(proven_reviewer_verdicts_total{instance=~\"$run\"}[$__range]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_review_claims_dropped_total{instance=\"$run\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=\"$run\"}[$__range]) == 2) * 0)",
           "instant": true,
-          "format": "table"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "groupingToMatrix",
-          "options": { "columnField": "proven_reviewer", "rowField": "verdict", "valueField": "Value", "emptyValue": "zero" }
-        }
-      ],
-      "fieldConfig": { "defaults": { "decimals": 0 }, "overrides": [] },
-      "options": { "showHeader": true, "cellHeight": "md" }
-    },
-    {
-      "id": 3,
-      "type": "bargauge",
-      "title": "Where the reviewers disagree",
-      "description": "Findings on which the two reviewers differ: verdict (both ran it, they judged it differently) or one_reviewer (only one of them named it).",
-      "gridPos": { "x": 12, "y": 10, "w": 6, "h": 7 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=~\"$run\"}[$__range]))",
-          "legendFormat": "{{kind}}",
-          "instant": true
+          "range": false
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "suffix: dropped",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none dropped",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
           "decimals": 0,
-          "color": { "mode": "fixed", "fixedColor": "#ff9830" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#ff9830", "value": null }] }
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
       "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Model calls that failed",
+      "description": "Calls to a model that returned an error. In sample mode a call the recorded set has no answer for counts here too; the review goes on.",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(last_over_time(proven_model_calls_total{instance=\"$run\",outcome=\"error\"}[$__range])) or (count(last_over_time(proven_model_calls_total{instance=\"$run\"}[$__range])) * 0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: · check",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40,
+          "titleSize": 15
+        }
       }
     },
     {
       "id": 4,
-      "type": "bargauge",
-      "title": "Claims dropped",
-      "description": "Claims the Judge did not keep, by reason: no evidence, refuted by the skeptic, or suppressed by an earlier refutation.",
-      "gridPos": { "x": 18, "y": 10, "w": 6, "h": 7 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
+      "type": "table",
+      "title": "The agents, in order, and how long each took",
+      "description": "Each row is one agent of this review, from the trace. The bar is how long it ran. The two reviewers each run their own Planner and Skeptic. In a sample-mode lab the agents answer from recorded answers and the Prover runs no test, so times of a few microseconds are the recorded answers, not real work. In a live lab they are real.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 14,
+        "h": 15
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "tempo",
+        "uid": "${ds_tempo}"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (reason) (last_over_time(proven_review_claims_dropped_total{instance=~\"$run\"}[$__range]))",
-          "legendFormat": "{{reason}}",
-          "instant": true
+          "datasource": {
+            "type": "tempo",
+            "uid": "${ds_tempo}"
+          },
+          "queryType": "traceql",
+          "query": "{ resource.service.instance.id = \"$run\" && span.proven.agent != \"\" } | select(span.proven.agent, span.proven.reviewer, span.gen_ai.request.model)",
+          "tableType": "spans",
+          "limit": 14
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 0,
-          "color": { "mode": "fixed", "fixedColor": "#c4162a" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#c4162a", "value": null }] }
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ns"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Agent"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "planner": {
+                        "text": "Planner"
+                      },
+                      "investigator": {
+                        "text": "Investigator"
+                      },
+                      "prover": {
+                        "text": "Prover"
+                      },
+                      "skeptic": {
+                        "text": "Skeptic"
+                      },
+                      "fixer": {
+                        "text": "Fixer"
+                      },
+                      "judge": {
+                        "text": "Judge"
+                      },
+                      "writer": {
+                        "text": "Writer"
+                      },
+                      "autofix": {
+                        "text": "Autofix"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reviewer"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "default": {
+                        "text": "default reviewer"
+                      },
+                      "special": {
+                        "text": "second reviewer"
+                      },
+                      "shared": {
+                        "text": "both reviewers"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
-      }
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Start time",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Start time",
+                "proven.agent",
+                "proven.reviewer",
+                "gen_ai.request.model",
+                "Duration"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Start time": "Start time",
+              "proven.agent": "Agent",
+              "proven.reviewer": "Reviewer",
+              "gen_ai.request.model": "Model",
+              "Duration": "Duration"
+            }
+          }
+        }
+      ]
     },
     {
       "id": 5,
       "type": "bargauge",
-      "title": "Findings by level of proof",
-      "description": "What the review kept, by how far a reader may trust it (ADR-0044).",
-      "gridPos": { "x": 0, "y": 17, "w": 8, "h": 7 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
+      "title": "Skeptic verdicts, by reviewer",
+      "description": "How each reviewer's Skeptic judged each finding: refuted, upheld, or not attempted. Where the two differ, the reviewers disagree.",
+      "gridPos": {
+        "x": 14,
+        "y": 5,
+        "w": 10,
+        "h": 8
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=~\"$run\"}[$__range]))",
-          "legendFormat": "{{proven_proof_level}}",
-          "instant": true
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_join(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(sum by (proven_reviewer, verdict) (last_over_time(proven_reviewer_verdicts_total{instance=\"$run\"}[$__range])), \"proven_reviewer\", \"default reviewer\", \"proven_reviewer\", \"default\"), \"proven_reviewer\", \"second reviewer\", \"proven_reviewer\", \"special\"), \"proven_reviewer\", \"both reviewers\", \"proven_reviewer\", \"shared\"), \"verdict\", \"upheld\", \"verdict\", \"upheld\"), \"verdict\", \"refuted\", \"verdict\", \"refuted\"), \"verdict\", \"not attempted\", \"verdict\", \"not_attempted\"), \"who\", \" · \", \"proven_reviewer\", \"verdict\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{who}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 0,
-          "color": { "mode": "fixed", "fixedColor": "#37872d" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#37872d", "value": null }] }
+          "unit": "short",
+          "min": 0,
+          "noValue": "No finding was kept, so the Skeptic had nothing to judge",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.who}"
         },
         "overrides": []
       },
       "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
       }
     },
     {
       "id": 6,
       "type": "bargauge",
-      "title": "Model latency (mean per call)",
-      "description": "How long a call to a model took, by agent and reviewer (gen_ai.client.operation.duration).",
-      "gridPos": { "x": 8, "y": 17, "w": 8, "h": 7 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
+      "title": "Findings by level of proof",
+      "description": "How well each kept finding is proved: the strongest evidence it carries.",
+      "gridPos": {
+        "x": 14,
+        "y": 13,
+        "w": 10,
+        "h": 6
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum{instance=~\"$run\"}[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count{instance=~\"$run\"}[$__range]))",
-          "legendFormat": "{{proven_agent}} · {{proven_reviewer}}",
-          "instant": true
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range])), \"proven_proof_level\", \"Proved by a tool\", \"proven_proof_level\", \"proved-by-tool\"), \"proven_proof_level\", \"Proved by a test\", \"proven_proof_level\", \"proved-by-test\"), \"proven_proof_level\", \"Proved by data\", \"proven_proof_level\", \"proved-by-data\"), \"proven_proof_level\", \"Agreed by two models, not proven\", \"proven_proof_level\", \"agreed-by-two-models-not-proven\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{proven_proof_level}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
-          "decimals": 2,
-          "color": { "mode": "continuous-GrYlRd" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#37872d", "value": null }] }
+          "unit": "short",
+          "min": 0,
+          "noValue": "No finding kept: the reviews are still running, or every change was clean",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.proven_proof_level}"
         },
         "overrides": []
       },
       "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
       }
     },
     {
       "id": 7,
       "type": "bargauge",
-      "title": "Model calls",
-      "description": "Calls made to a model, by reviewer and outcome.",
-      "gridPos": { "x": 16, "y": 17, "w": 8, "h": 7 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
+      "title": "Where the two reviewers disagree",
+      "description": "Findings one reviewer named and the other did not, or that they judged differently.",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 6
+      },
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (proven_reviewer, outcome) (last_over_time(proven_model_calls_total{instance=~\"$run\"}[$__range]))",
-          "legendFormat": "{{proven_reviewer}} · {{outcome}}",
-          "instant": true
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "label_replace(label_replace(sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=\"$run\"}[$__range])), \"kind\", \"Judged differently\", \"kind\", \"verdict\"), \"kind\", \"Named by one reviewer only\", \"kind\", \"one_reviewer\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{kind}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 0,
-          "color": { "mode": "fixed", "fixedColor": "#3274d9" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#3274d9", "value": null }] }
+          "unit": "short",
+          "min": 0,
+          "noValue": "The two reviewers agree on this review",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "yellow"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__field.labels.kind}"
         },
         "overrides": []
       },
       "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "valueMode": "color",
+        "showUnfilled": false,
+        "minVizHeight": 32,
+        "maxVizHeight": 48,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "sizing": "manual",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 16
+        }
       }
     },
     {
       "id": 8,
-      "type": "bargauge",
-      "title": "Guardrail checks",
-      "description": "Every prompt and every answer is checked. A verdict of unsafe stops that step; refused means the guardrail could not answer.",
-      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 6 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (side, verdict) (last_over_time(proven_guardrail_checks_total{instance=~\"$run\"}[$__range]))",
-          "legendFormat": "{{side}} · {{verdict}}",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "color": { "mode": "fixed", "fixedColor": "#8ab8ff" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#8ab8ff", "value": null }] }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byRegexp", "options": ".*unsafe.*|.*refused.*" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#c4162a" } }]
-          }
-        ]
+      "type": "text",
+      "title": "Each finding, with its evidence",
+      "description": "Where to read the evidence behind a finding.",
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 6
       },
       "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "mode": "markdown",
+        "content": "The evidence of each finding (the query that found it, or the test that fails on the change and passes before it) is in the **Report** page of its pull request. Open the lab's start page and use the **Report** link in the table."
       }
-    },
-    {
-      "id": 9,
-      "type": "stat",
-      "title": "Unsafe verdicts",
-      "description": "Guardrail checks that returned unsafe.",
-      "gridPos": { "x": 12, "y": 24, "w": 4, "h": 6 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(last_over_time(proven_guardrail_unsafe_total{instance=~\"$run\"}[$__range])) or vector(0)",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "#37872d", "value": null }, { "color": "#c4162a", "value": 1 }] }
-        },
-        "overrides": []
-      },
-      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"], "values": false } }
-    },
-    {
-      "id": 10,
-      "type": "stat",
-      "title": "Reviews seen",
-      "description": "Reviews whose agents reported in this time range.",
-      "gridPos": { "x": 16, "y": 24, "w": 4, "h": 6 },
-      "datasource": { "type": "prometheus", "uid": "${ds_prom}" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "count(count by (instance) (last_over_time(proven_agent_state[$__range]))) or vector(0)",
-          "instant": true
-        }
-      ],
-      "fieldConfig": { "defaults": { "decimals": 0 }, "overrides": [] },
-      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"], "values": false } }
-    },
-    {
-      "id": 11,
-      "type": "table",
-      "title": "The spans: each agent, and each reviewer's model calls",
-      "description": "The trace of each review, from Tempo. One trace per review, one span per agent and per model call. Click a trace ID to open its waterfall: the two reviewers side by side.",
-      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 10 },
-      "datasource": { "type": "tempo", "uid": "${ds_tempo}" },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": { "type": "tempo", "uid": "${ds_tempo}" },
-          "queryType": "traceql",
-          "query": "{ span.proven.agent != \"\" } | select(span.proven.agent, span.proven.reviewer, span.gen_ai.request.model)",
-          "tableType": "spans",
-          "limit": 100
-        }
-      ],
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "options": { "showHeader": true, "cellHeight": "sm" }
     }
   ]
 }

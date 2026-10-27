@@ -26,13 +26,15 @@ In `local` mode every address in the tables below is checked when it loads, the 
 | `PROVEN_GENERATOR_MODE` | `nightshift` | `nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031) |
 | `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
 | `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode |
-| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or GLM's `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it |
 | `PROVEN_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031) |
 | `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/nemotron-3.5-super-vl-120b-a12b` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | the limit for one model call |
 | `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
+| `PROVEN_GENERATOR_REQUIRE_REQUESTED` | `off` | `on` or `off`. With `on`, in `nightshift` mode an answer whose signed receipt names a model other than the one asked for is refused by name as a failed service, so a review never ships another model's verdict; a request for `meterless/auto` lets the router choose and is not checked |
 | `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family |
+| `PROVEN_GENERATOR_THINKING_BUDGET` | empty (nothing is sent) | the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call, the second reviewer's included. Empty sends nothing, so a provider that does not know the field never sees it |
 
 Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these.
 
@@ -52,7 +54,7 @@ Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `ME
 | `PROVEN_GUARDRAIL_BASE_URL` | `http://127.0.0.1:8081` for `server`; `https://integrate.api.nvidia.com/v1` for `nvidia` | the guardrail's address |
 | `PROVEN_GUARDRAIL_MODEL` | `nemotron-3.5-content-safety` for `server`; `nvidia/nemotron-3.5-content-safety` for `nvidia` | the safety model. The hosted id is not yet confirmed by a live call |
 | `PROVEN_GUARDRAIL_KEY` | none | the guardrail's key. Secret: never printed. Empty is not off: every model call is refused |
-| `PROVEN_GUARDRAIL_TIMEOUT` | `5s` | the limit for one check |
+| `PROVEN_GUARDRAIL_TIMEOUT` | `120s` | the limit for one check |
 
 Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name. An empty key is not off: every model call is refused and the review names the guardrail.
 
@@ -322,7 +324,7 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
 | `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding, with a fix available or without one. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
-| `GITEA_HTTP_PORT` | `3000` | Host port for the Gitea web UI. The lab publishes three ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT` and `LGTM_OTLP_PORT` |
+| `GITEA_HTTP_PORT` | `3300` | Host port for the Gitea web UI. The lab publishes five ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT`, `LGTM_OTLP_PORT`, `LAB_PAGE_PORT` and `LAB_DOCS_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |
 | `GITEA_DISABLE_SSH` | `true` | `GITEA__server__DISABLE_SSH`. Turns Gitea SSH off |
 | `GITEA_START_SSH_SERVER` | `false` | `GITEA__server__START_SSH_SERVER`. Gitea's own SSH server stays off, so it does not bind port 22 |
@@ -334,11 +336,14 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `LGTM_IMAGE` | `grafana/otel-lgtm` | The dashboard's image: collector, Prometheus, Tempo, Loki and Grafana in one container (ADR-0045). It is not part of Proven's image |
 | `LGTM_VERSION` | `0.11.0` | That image's tag. Not pulled when it was written; the first `make up` is the check |
 | `LGTM_INTERNAL_HOST` | `lgtm` | Name of that service on the lab network. The workflow's `OTEL_EXPORTER_OTLP_ENDPOINT` is built from it |
-| `LGTM_GRAFANA_PORT` | `3001` | Host port for Grafana, and so for the dashboard |
+| `LGTM_GRAFANA_PORT` | `3301` | Host port for Grafana, and so for the dashboard |
 | `LGTM_GRAFANA_CONTAINER_PORT` | `3000` | Port Grafana listens on inside the lab network |
 | `LGTM_OTLP_PORT` | `4318` | Host port for the collector's OTLP/HTTP endpoint, so a review run on the host can be exported to the lab too: `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` |
 | `LGTM_OTLP_CONTAINER_PORT` | `4318` | Port the collector listens on inside the lab network |
-| `LGTM_DASHBOARD_UID` | `proven-review` | The dashboard's uid, from `lab/grafana/dashboards/proven-review.json`. `make up` prints the address built from it |
+| `LGTM_DASHBOARD_UID` | `proven-overview` | The uid of the dashboard the banner and the start page link to: the Overview, `lab/grafana/dashboards/proven-overview.json`. The other five dashboards are in the same directory. `make up` prints the address built from it |
+| `LGTM_LOKI_CONTAINER_PORT` | `3100` | The port Loki serves on inside the `lgtm` container, where the Nightshift receipts are loaded. Not published |
+| `DEMO_WAIT_SECONDS` | `1200` | The longest `make up` and `make demo-check` wait, in all, for Proven to review every demo pull request. `PROVEN_LAB_WAIT=no` skips the wait in `make up` |
+| `LAB_HELP_URL` | `https://github.com/saphan-ai/proven/blob/main/docs/WALKTHROUGH.md` | The help line of the ready block and the start page |
 | `LAB_OTEL_SERVICE_NAME` | `proven` | `OTEL_SERVICE_NAME` the lab's pull-request review is given |
 | `LAB_OTEL_METRIC_EXPORT_INTERVAL` | `1000` | `OTEL_METRIC_EXPORT_INTERVAL` it is given, in milliseconds. Short, so the dashboard moves while the review runs |
 | `LAB_SPECIAL_REVIEWER` | `qwen` | `special_reviewer` in the `proven.yaml` the lab's review runs with, so the dashboard has two reviewer models to show side by side (ADR-0009). Empty: one reviewer. The sample generator answers for both, so the findings do not change |
@@ -351,17 +356,39 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `RUNNER_NAME` | `proven-lab` | Name the runner registers with |
 | `RUNNER_LABEL` | `ubuntu-latest` | Label the lab's jobs use. The workflow file's `runs-on` matches this default |
 | `LAB_ADMIN_USER` | `proven` | Admin user. `make up` creates it when the account is missing, including on a volume that already holds the password |
-| `LAB_ADMIN_PASSWORD` | empty | The admin password the judge supplies. Read from the environment only; never put it in `lab/versions.env` or another committed file. Used on the first `make up`, which neither prints it nor writes it to a file on the host. It is never in the Compose environment: the seed reads it from a file in the lab's volume, so `docker compose config` does not show it. Empty: `make up` generates one, prints it once when stdout is a terminal, and otherwise writes it to `lab/.state/admin-password` at mode 0600 and prints the path. At least 8 characters and no line break, or `make up` refuses before any container starts. On an installed lab a different value is ignored with a notice |
+| `LAB_ADMIN_PASSWORD` | empty | The admin password the judge supplies. Read from the environment only; never put it in `lab/versions.env` or another committed file. Used on the first `make up`, which neither prints it (the closing block's Password line names the setting) nor writes it to a file on the host. It is never in the Compose environment: the seed reads it from a file in the lab's volume, so `docker compose config` does not show it. Empty: `make up` generates one; on a terminal its closing block shows it, and otherwise the first `make up` writes it to `lab/.state/admin-password` at mode 0600 and prints the path. At least 8 characters and no line break, or `make up` refuses before any container starts. On an installed lab a different value is ignored with a notice |
 | `LAB_STATE_DIR` | `lab/.state` | Directory of the admin password file. `make clean` removes the file and the directory when it is empty |
 | `LAB_ADMIN_EMAIL` | `proven@localhost` | That user's email |
 | `LAB_BOT_USER` | `proven-bot` | The account the workflow posts its review as. Not an admin; a collaborator on the demo repository. The seed makes it, keeps its generated password in the lab's state volume and stores its token only as the repository's `PROVEN_TOKEN` secret. `make e2e` accepts a review only from this account |
 | `LAB_BOT_EMAIL` | `proven-bot@lab.local` | That account's email |
 | `LAB_DEMO_REPO` | `discount` | Demo repository name |
 | `LAB_DEMO_BASE` | `main` | Base branch |
-| `LAB_DEMO_HEAD` | `change` | Branch the pull request comes from |
+| `LAB_DEMO_HEAD` | `demo-discount` | Branch of the first demo pull request, the logic-bug change. The others are listed in `lab/seed/prs.tsv`; each branch is named `demo-<fixture>` |
+| `LAB_PAGE_PORT` | `3302` | Port of the lab's start page on `127.0.0.1`. The page is the one address to hand out: `http://127.0.0.1:3302/lab`. No setting moves its address; a `LAB_PAGE_BIND` that is set to an address that is not loopback is refused by name before any container starts |
+| `LAB_PAGE_PATH` | `/lab` | Path the page is served at. It is also written in `lab/page/nginx.conf`; a test holds the two together |
+| `LAB_PAGE_IMAGE` | `nginxinc/nginx-unprivileged` | The page's web server. It runs as a user that is not root |
+| `LAB_PAGE_IMAGE_VERSION` | `1.27-alpine` | Its tag. Not pulled when this file was written; the first `make up` is the check |
+| `LAB_PAGE_CONTAINER_PORT` | `8080` | The port that image serves on |
+| `LAB_DOCS_PORT` | `3303` | Port of the documentation site on `127.0.0.1` |
+| `LAB_DOCS_CONTAINER_PORT` | `3000` | The port the documentation image serves on |
+| `PROVEN_LAB_MODE` | none (asked on a terminal; sample with no terminal) | `sample` or `live`: the answer to the first question of `make up`. A value outside the list is refused by name before any container ([The start-up flow](LAB.md#the-start-up-flow)) |
+| `PROVEN_LAB_JUDGE` | none | `yes` or `no`: are you a judge of the Open Agent Hackathon (live mode only) |
+| `PROVEN_LAB_BACKEND` | none | `ours` or `own`: our services through the judges' gateway, or your own setup (a judge only) |
+| `PROVEN_LAB_GATEWAY_AUTH` | `access` | `access` (Cloudflare Access e-mail sign-in with `cloudflared`) or `token` (the per-judge token), for `ours` |
+| `PROVEN_LAB_OWN_SETUP` | none | `yes` or `no`: run the automated setup (`make up ZETARIS=local`, then `make nightshift`) on the `own` path |
+| `PROVEN_LAB_USE_DETECTED` | none | `yes` or `no`: use the Zetaris and Nightshift that already answer on this machine, on the `own` path |
+| `DETECT_ZETARIS_URL` | `http://localhost:8888/api/v1.0` | Where the `own` path looks for a Zetaris already running (the organisers' guide's address) |
+| `DETECT_NIGHTSHIFT_URL` | `http://127.0.0.1:8088/v1/models` | Where it looks for a Nightshift already running |
+| `LAB_JOB_HOST_ALIAS` | Docker's name for the host (see `lab/versions.env`) | How the lab's review job names this machine when it uses a service found there |
+| `JUDGES_GATEWAY_CHECK_SECONDS` | `20` | Seconds the one check of the judges' gateway waits |
+| `JUDGES_GATEWAY_ACCESS_TOKEN` | none | The Cloudflare Access application token. The flow stores it as an Actions secret; you do not write it |
+| `METERLESS_BASE_URL`, `METERLESS_MODEL` | none | The organisers' guide's names, read in the lab as `PROVEN_GENERATOR_BASE_URL` and `PROVEN_GENERATOR_MODEL` when those are not set |
+| `DOCS_IMAGE` | `saphan/proven-docs` | Name of the documentation image `make up` builds from `docs-site/Dockerfile` |
+| `DOCS_IMAGE_TAG` | `1` | Its tag |
+| `NODE_IMAGE` | `node:22-alpine` | The Node image the documentation build uses |
 | `SEED_IMAGE` | `saphan/proven-lab-seed` | Name of the seed image we build. `make push` publishes `PROVEN_REGISTRY/SEED_IMAGE:SEED_IMAGE_TAG` as one manifest list |
 | `SEED_IMAGE_TAG` | `2` | Pin for that image. It is not tagged `latest` |
-| `E2E_WAIT_SECONDS` | `600` | How long `make e2e` waits for the review comment |
+| `E2E_WAIT_SECONDS` | `900` | How long `make e2e` waits for the review comment |
 | `E2E_POLL_SECONDS` | `5` | How often it asks Gitea |
 
-`make livecheck` reads these keys from `lab/.env` when the file exists, and ignores an empty value: `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY`, `ZETARIS_API_KEY`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`.
+`make up` also reads `lab/.env` and stores each non-empty setting of `LAB_LIVE_KEYS` as an Actions secret of the lab's demo repository ([LAB.md](LAB.md#go-live), ADR-0052). `make livecheck` reads these keys from `lab/.env` on the host, never from a container, when the file exists, and ignores an empty value: `METERLESS_RUNTIME_TOKEN`, `PROVEN_GUARDRAIL_KEY`, `ZETARIS_API_KEY`, `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`.
