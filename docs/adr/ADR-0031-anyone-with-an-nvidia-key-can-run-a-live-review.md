@@ -30,6 +30,10 @@ API keys for that API at no cost.
    `PROVEN_GENERATOR_KEY`, `PROVEN_GUARDRAIL_MODE=nvidia`, `PROVEN_GUARDRAIL_KEY`) the pull-request review runs on
    live models; Zetaris stays down unless its keys are given, and the review says so.
 6. **The docs say, per mode, which keys are needed and where to get them**: `docs/CONFIGURATION.md`, `docs/LAB.md`.
+7. **A reasoning model's thinking is bounded by a setting, never by a default** (the owner, 2026-10-27, moving the pull
+   request review to GLM-5.3). `PROVEN_GENERATOR_THINKING_BUDGET` sends `thinking_budget` on every call; empty sends no
+   such field. Measured 2026-10-27 on Alibaba Cloud Model Studio: GLM-5.3 refuses `enable_thinking: false` (HTTP 400) and
+   accepts a budget (256 tokens: 13-17 s on a short question; unbounded: 4-5 minutes per Planner step).
 
 ## Consequences
 
