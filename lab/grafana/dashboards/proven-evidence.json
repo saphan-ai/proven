@@ -86,7 +86,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0)",
           "instant": true,
           "range": false
         }
@@ -126,7 +126,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -171,7 +172,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0)",
           "instant": true,
           "range": false
         }
@@ -202,7 +203,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -247,7 +249,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "count(last_over_time(proven_agent_state{proven_agent=~\"investigator|prover\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 3) or vector(0)",
+          "expr": "count(last_over_time(proven_agent_state{proven_agent=~\"investigator|prover\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 3) or (count(last_over_time(proven_agent_state{instance=~\"pr[0-9]+-.+\"}[$__range])) * 0)",
           "instant": true,
           "range": false
         }
@@ -282,7 +284,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },

@@ -135,7 +135,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=\"$run\"}[$__range]) == 2) * 0)",
           "instant": true,
           "range": false
         }
@@ -179,7 +179,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -224,7 +225,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_review_claims_dropped_total{instance=\"$run\"}[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_review_claims_dropped_total{instance=\"$run\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=\"$run\"}[$__range]) == 2) * 0)",
           "instant": true,
           "range": false
         }
@@ -255,7 +256,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -300,7 +302,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_model_calls_total{instance=\"$run\",outcome=\"error\"}[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_model_calls_total{instance=\"$run\",outcome=\"error\"}[$__range])) or (count(last_over_time(proven_model_calls_total{instance=\"$run\"}[$__range])) * 0)",
           "instant": true,
           "range": false
         }
@@ -335,7 +337,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },

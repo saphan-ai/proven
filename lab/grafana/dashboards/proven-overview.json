@@ -86,7 +86,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "count(sum by (instance) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])) > 0) or vector(0)",
+          "expr": "count(sum by (instance) (last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-.+\"}[$__range])) > 0) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0)",
           "instant": true,
           "range": false
         }
@@ -125,7 +125,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -170,7 +171,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "count(max by (instance) (last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range])) == 2) or vector(0)",
+          "expr": "count(max by (instance) (last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range])) == 2) or (count(last_over_time(proven_agent_state{instance=~\"pr[0-9]+-.+\"}[$__range])) * 0)",
           "instant": true,
           "range": false
         }
@@ -209,7 +210,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -254,7 +256,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-(discount-clean|unknown-author)\"}[$__range])) or vector(0)",
+          "expr": "sum(last_over_time(proven_review_findings_total{instance=~\"pr[0-9]+-(discount-clean|unknown-author)\"}[$__range])) or (count(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-(discount-clean|unknown-author)\"}[$__range]) == 2) * 0)",
           "instant": true,
           "range": false
         }
@@ -289,7 +291,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -334,7 +337,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "count(last_over_time(proven_agent_state{instance=~\"pr[0-9]+-.+\"}[$__range]) == 3) or vector(0)",
+          "expr": "count(last_over_time(proven_agent_state{instance=~\"pr[0-9]+-.+\"}[$__range]) == 3) or (count(last_over_time(proven_agent_state{instance=~\"pr[0-9]+-.+\"}[$__range])) * 0)",
           "instant": true,
           "range": false
         }
@@ -369,7 +372,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "not measured yet: no review has reported"
         },
         "overrides": []
       },
@@ -452,7 +456,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\"))",
+          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or (count by (instance) (last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\"))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -617,7 +621,7 @@
                     "options": {
                       "match": "null+nan",
                       "result": {
-                        "text": "0"
+                        "text": "not measured yet"
                       }
                     }
                   }

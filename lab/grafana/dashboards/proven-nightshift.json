@@ -86,7 +86,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"true\"}[$__range])) or vector(0)",
+          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"true\"}[$__range])) or (sum(count_over_time({job=\"nightshift\"}[$__range])) * 0)",
           "instant": true,
           "range": false
         }
@@ -130,7 +130,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
         },
         "overrides": []
       },
@@ -175,7 +176,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum(count_over_time({job=\"nightshift\"}[$__range])) or vector(0)",
+          "expr": "sum(count_over_time({job=\"nightshift\"}[$__range]))",
           "instant": true,
           "range": false
         }
@@ -195,18 +196,9 @@
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "0 · none loaded",
-                  "color": "blue"
-                }
-              }
-            }
-          ],
-          "decimals": 0
+          "mappings": [],
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
         },
         "overrides": []
       },
@@ -251,7 +243,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum(count_over_time({job=\"nightshift\", status=\"failed\"}[$__range])) or vector(0)",
+          "expr": "sum(count_over_time({job=\"nightshift\", status=\"failed\"}[$__range])) or (sum(count_over_time({job=\"nightshift\"}[$__range])) * 0)",
           "instant": true,
           "range": false
         }
@@ -286,7 +278,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
         },
         "overrides": []
       },
@@ -331,7 +324,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"false\"}[$__range])) or vector(0)",
+          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"false\"}[$__range])) or (sum(count_over_time({job=\"nightshift\"}[$__range])) * 0)",
           "instant": true,
           "range": false
         }
@@ -366,7 +359,8 @@
               }
             }
           ],
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "none loaded: make nightshift-receipts"
         },
         "overrides": []
       },

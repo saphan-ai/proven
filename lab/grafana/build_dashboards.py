@@ -142,6 +142,11 @@ def target(expr, ds, legend=None, instant=True, ref="A", **extra):
     return t
 
 
+# What a stat says when its query has no answer, instead of a zero: the source has not reported to this lab.
+NOT_MEASURED = "not measured yet: no review has reported"
+NOT_LOADED = "none loaded: make nightshift-receipts"
+
+
 def panel(pid, ptype, title, desc, x, y, w, h, targets=None, **kw):
     p = {"id": pid, "type": ptype, "title": title, "description": desc,
          "gridPos": {"x": x, "y": y, "w": w, "h": h}, "transparent": False}
@@ -152,10 +157,10 @@ def panel(pid, ptype, title, desc, x, y, w, h, targets=None, **kw):
     return p
 
 
-def stat(pid, title, desc, expr, x, y, w, h, steps, word, zero=None, one=None, ds=PROM, size=40):
+def stat(pid, title, desc, expr, x, y, w, h, steps, word, zero=None, one=None, ds=PROM, size=40, absent=NOT_MEASURED):
     """A big number. word is what follows the number ("blocked", "finished"); zero is the words shown instead of a bare 0,
     in the colour of the base step (so "0 · clean" is green and "0 · none loaded" is blue); one is the sentence for exactly 1
-    where word is a plural."""
+    where word is a plural. absent is what the panel says when its query has no answer: no data is never a zero."""
     mappings = []
     if zero:
         mappings.append({"type": "value", "options": {"0": {"text": zero, "color": steps[0][1]}}})
@@ -164,16 +169,33 @@ def stat(pid, title, desc, expr, x, y, w, h, steps, word, zero=None, one=None, d
     return panel(
         pid, "stat", title, desc, x, y, w, h, [target(expr, ds)],
         fieldConfig={"defaults": {"unit": "suffix:" + word, "color": {"mode": "thresholds"}, "thresholds": thresholds(*steps),
-                                  "mappings": mappings, "decimals": 0}, "overrides": []},
+                                  "mappings": mappings, "decimals": 0, "noValue": absent}, "overrides": []},
         options={"reduceOptions": {"calcs": ["lastNotNull"], "values": False}, "colorMode": "value", "graphMode": "none",
                  "textMode": "value", "justifyMode": "center", "orientation": "auto",
                  "text": {"valueSize": size, "titleSize": 15}},
     )
 
 
-def headline(pid, title, desc, expr, steps, word, zero, one=None, ds=PROM, x=0, w=24):
+def headline(pid, title, desc, expr, steps, word, zero, one=None, ds=PROM, x=0, w=24, absent=NOT_MEASURED):
     """The sentence a dashboard opens with: a stat whose number and unit read as one line."""
-    return stat(pid, title, desc, expr, x, 0, w, 5, steps, word, zero=zero, one=one, ds=ds, size=48)
+    return stat(pid, title, desc, expr, x, 0, w, 5, steps, word, zero=zero, one=one, ds=ds, size=48, absent=absent)
+
+
+def measured(expr, presence):
+    """expr's answer, or a 0 only when presence answers: a series that exists once the source has reported (a review
+    finished, a model was called, a receipt was loaded). With neither, the query has no answer and the panel says absent:
+    a metric that never reached the lab must not read as a measured "none"."""
+    return "%s or (%s * 0)" % (expr, presence)
+
+
+def reviews_done(instance):
+    """The reviews whose last agent, the Writer, finished: the presence behind a count a finished review would have
+    emitted (a clean review emits no finding series, so its zero is measured only once it finished)."""
+    return 'count(last_over_time(proven_agent_state{proven_agent="writer",instance%s}%s) == 2)' % (instance, RANGE)
+
+
+def agents_seen(instance):
+    return 'count(last_over_time(proven_agent_state{instance%s}%s))' % (instance, RANGE)
 
 
 def bars(pid, title, desc, expr, ds, label, reason, x, y, w, h, color=BLUE, steps=None, unit="short"):
@@ -218,7 +240,7 @@ def table_h(rows):
 
 
 YES_NO = [{"type": "value", "options": {"true": {"text": "yes"}, "false": {"text": "no"}}},
-          {"type": "special", "options": {"match": "null+nan", "result": {"text": "no"}}}]
+          {"type": "special", "options": {"match": "null+nan", "result": {"text": "not recorded"}}}]
 
 
 def spans_table(pid, title, desc, traceql, x, y, w, limit, select):
@@ -309,7 +331,9 @@ def overview():
         0, 9, 16, table_h(N_PR + 1),
         [target(per_pr('last_over_time(proven_agent_state{proven_agent="writer",instance=~"%s"}%s)' % (ALL_RE, RANGE)), PROM, ref="A", format="table"),
          target(per_pr(findings), PROM, ref="B", format="table"),
-         target(per_pr("sum by (instance) (last_over_time(proven_review_claims_dropped_total%s%s))" % (sel, RANGE)), PROM, ref="C", format="table"),
+         target(per_pr("sum by (instance) (last_over_time(proven_review_claims_dropped_total%s%s)) or (count by (instance) "
+                       "(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"%s\"}%s) == 2) * 0)" % (sel, RANGE, ALL_RE, RANGE)),
+                PROM, ref="C", format="table"),
          target("clamp_max(%s, 1)" % per_pr(findings), PROM, ref="D", format="table")],
         fieldConfig={"defaults": {"custom": {"align": "left"}},
                      "overrides": [
@@ -326,7 +350,7 @@ def overview():
                          {"matcher": {"id": "byName", "options": "Change"}, "properties": [
                              {"id": "mappings", "value": value_words("change")}, {"id": "custom.width", "value": 340}]},
                          {"matcher": {"id": "byName", "options": "Claims dropped"}, "properties": [
-                             {"id": "mappings", "value": [{"type": "special", "options": {"match": "null+nan", "result": {"text": "0"}}}]}]}]},
+                             {"id": "mappings", "value": [{"type": "special", "options": {"match": "null+nan", "result": {"text": "not measured yet"}}}]}]}]},
         options={"showHeader": True, "cellHeight": "sm", "sortBy": [{"displayName": "Pull request", "desc": False}]},
         transformations=[
             {"id": "merge", "options": {}},
@@ -344,18 +368,20 @@ def overview():
         headline(1, "Pull requests blocked",
                  "Pull requests on which Proven kept at least one finding, out of the %d demo pull requests (%d broken, %d clean). "
                  "Every kept finding carries evidence." % (N_PR, n_def, n_clean),
-                 "count(%s > 0) or vector(0)" % findings,
+                 measured("count(%s > 0)" % findings, reviews_done('=~"%s"' % ALL_RE)),
                  [(None, BLUE), (1, YELLOW), (n_def, GREEN)], " of %d pull requests blocked" % N_PR, zero="0 of %d pull requests blocked" % N_PR),
         stat(2, "Reviews finished", "Pull requests whose review is done: its last agent, the Writer, finished.",
-             'count(%s == 2) or vector(0)' % by_pr('last_over_time(proven_agent_state{proven_agent="writer",instance=~"%s"}%s)' % (ALL_RE, RANGE)),
+             measured('count(%s == 2)' % by_pr('last_over_time(proven_agent_state{proven_agent="writer",instance=~"%s"}%s)' % (ALL_RE, RANGE)),
+                       agents_seen('=~"%s"' % ALL_RE)),
              0, 5, 8, 4, [(None, BLUE), (1, YELLOW), (N_PR, GREEN)], " of %d finished" % N_PR, zero="0 of %d finished" % N_PR),
         stat(3, "False alarms on the clean changes",
              "Findings Proven kept on the %d clean demo pull requests. None is good: a clean change must get a clean verdict." % n_clean,
-             "sum(last_over_time(proven_review_findings_total{instance=~\"%s\"}%s)) or vector(0)" % (CLEAN_RE, RANGE),
+             measured("sum(last_over_time(proven_review_findings_total{instance=~\"%s\"}%s))" % (CLEAN_RE, RANGE),
+                       reviews_done('=~"%s"' % CLEAN_RE)),
              8, 5, 8, 4, [(None, GREEN), (1, RED)], BAD, zero="0 · none, good"),
         stat(4, "Agents that failed",
              "Agent stages that ended failed in the latest review of any pull request. None is good: a failed agent means part of the review did not run.",
-             'count(last_over_time(proven_agent_state{instance=~"%s"}%s) == 3) or vector(0)' % (ALL_RE, RANGE),
+             measured('count(last_over_time(proven_agent_state{instance=~"%s"}%s) == 3)' % (ALL_RE, RANGE), agents_seen('=~"%s"' % ALL_RE)),
              16, 5, 8, 4, [(None, GREEN), (1, RED)], BAD, zero="0 · none, good"),
         text(7, "What the numbers count", "Every number on this page counts the same thing.",
              "Each number counts **pull requests**, using the **latest review** of each. %d demo pull requests: %d broken, %d clean. "
@@ -389,14 +415,15 @@ def one_review():
     return dashboard("proven-review", "Proven: one review, step by step",
                      "Pick a review at the top. See each agent in order, how long it took, and how the two reviewers judged each finding.", [
         headline(1, "Findings this review kept", "Findings this review kept. None means a clean verdict.",
-                 'sum(last_over_time(proven_review_findings_total{instance="$run"}%s)) or vector(0)' % RANGE,
+                 measured('sum(last_over_time(proven_review_findings_total{instance="$run"}%s))' % RANGE, reviews_done('="$run"')),
                  [(None, GREEN), (1, RED)], " findings kept · blocked", zero="0 findings kept · clean", one="1 finding kept · blocked", x=0, w=12),
         stat(2, "Claims the Judge dropped", "Claims dropped for being refuted, unproved, or already refuted in an earlier review.",
-             'sum(last_over_time(proven_review_claims_dropped_total{instance="$run"}%s)) or vector(0)' % RANGE,
+             measured('sum(last_over_time(proven_review_claims_dropped_total{instance="$run"}%s))' % RANGE, reviews_done('="$run"')),
              12, 0, 6, 5, [(None, BLUE)], " dropped", zero="0 · none dropped"),
         stat(3, "Model calls that failed",
              "Calls to a model that returned an error. In sample mode a call the recorded set has no answer for counts here too; the review goes on.",
-             'sum(last_over_time(proven_model_calls_total{instance="$run",outcome="error"}%s)) or vector(0)' % RANGE,
+             measured('sum(last_over_time(proven_model_calls_total{instance="$run",outcome="error"}%s))' % RANGE,
+                       'count(last_over_time(proven_model_calls_total{instance="$run"}%s))' % RANGE),
              18, 0, 6, 5, [(None, GREEN), (1, YELLOW)], " · check", zero="0 · none failed"),
         spans,
         verdicts,
@@ -418,16 +445,17 @@ def evidence():
                      "Where findings get their proof. What Proven does not yet report as a number is named in the two text panels.", [
         headline(1, "Findings kept, with their evidence",
                  "Findings kept across the latest review of each pull request. The Judge keeps a finding only when a query or a test supports it.",
-                 'sum(last_over_time(proven_review_findings_total{instance=~"%s"}%s)) or vector(0)' % (ALL_RE, RANGE),
+                 measured('sum(last_over_time(proven_review_findings_total{instance=~"%s"}%s))' % (ALL_RE, RANGE), reviews_done('=~"%s"' % ALL_RE)),
                  [(None, BLUE)], " findings kept, each with a query or a test as evidence", zero="0 findings kept: nothing to prove",
                  one="1 finding kept, with a query or a test as evidence", x=0, w=12),
         stat(2, "Claims dropped", "Claims the Judge dropped for any reason: no query or test supported them, the Skeptic refuted them, "
              "or they were already refuted earlier. This is Proven refusing to guess.",
-             'sum(last_over_time(proven_review_claims_dropped_total{instance=~"%s"}%s)) or vector(0)' % (ALL_RE, RANGE),
+             measured('sum(last_over_time(proven_review_claims_dropped_total{instance=~"%s"}%s))' % (ALL_RE, RANGE), reviews_done('=~"%s"' % ALL_RE)),
              12, 0, 6, 5, [(None, BLUE)], " dropped", zero="0 · none dropped"),
         stat(3, "Evidence agents that failed",
              "Investigator or Prover stages that ended failed. None is good: a failed one means evidence was not gathered.",
-             'count(last_over_time(proven_agent_state{proven_agent=~"investigator|prover",instance=~"%s"}%s) == 3) or vector(0)' % (ALL_RE, RANGE),
+             measured('count(last_over_time(proven_agent_state{proven_agent=~"investigator|prover",instance=~"%s"}%s) == 3)' % (ALL_RE, RANGE),
+                       agents_seen('=~"%s"' % ALL_RE)),
              18, 0, 6, 5, [(None, GREEN), (1, RED)], BAD, zero="0 · none, good"),
         text(7, "Zetaris queries: not measured yet",
              "What would be shown here, and the numbers that are missing.",
@@ -470,16 +498,16 @@ def models():
     return dashboard("proven-models", "Proven: which models answered, and what the guardrail checked",
                      "Calls to models by agent and reviewer, which model answered, what the guardrail checked, and what Proven refused to keep.", [
         headline(1, "Model calls answered", "Calls to a model that returned an answer, across all reviews.",
-                 'sum(last_over_time(proven_model_calls_total{outcome!="error"}%s)) or vector(0)' % RANGE,
+                 measured('sum(last_over_time(proven_model_calls_total{outcome!="error"}%s))' % RANGE, 'count(last_over_time(proven_model_calls_total%s))' % RANGE),
                  [(None, BLUE)], " model calls answered", zero="0 model calls yet", one="1 model call answered", x=0, w=12),
         stat(2, "Model calls that returned an error",
              "A model call that returned an error. In sample mode a call the recorded answers have no answer for is counted here "
              "(generator: no recorded response); the review goes on without it. In a live lab an error is a failed call to the model.",
-             'sum(last_over_time(proven_model_calls_total{outcome="error"}%s)) or vector(0)' % RANGE,
+             measured('sum(last_over_time(proven_model_calls_total{outcome="error"}%s))' % RANGE, 'count(last_over_time(proven_model_calls_total%s))' % RANGE),
              12, 0, 6, 5, [(None, GREEN), (1, YELLOW)], " · check", zero="0 · none failed"),
         stat(3, "Guardrail checks that said unsafe",
              "Model answers or prompts the guardrail judged unsafe. None is good.",
-             "sum(last_over_time(proven_guardrail_unsafe_total%s)) or vector(0)" % RANGE,
+             measured("sum(last_over_time(proven_guardrail_unsafe_total%s))" % RANGE, "count(last_over_time(proven_guardrail_checks_total%s))" % RANGE),
              18, 0, 6, 5, [(None, GREEN), (1, RED)], BAD, zero="0 · none, good"),
         bars(4, "Calls, by agent and reviewer", "Which agent made the calls, and for which reviewer. Planner and Skeptic run once per reviewer.",
              both("proven_model_calls_total"), PROM, "who", "No model call yet", 0, 5, 12, 8),
@@ -504,7 +532,8 @@ def engines():
                      "H-MEM, Scout Intent, Markovian and the World Model are on in this lab. What each one did is shown where Proven reports it.", [
         headline(1, "H-MEM: claims it kept out of the Judge's hands",
                  "Claims H-MEM recognised as already refuted in an earlier review, so they never reached the Judge.",
-                 'sum(last_over_time(proven_review_claims_dropped_total{reason="suppressed",instance=~"%s"}%s)) or vector(0)' % (ALL_RE, RANGE),
+                 measured('sum(last_over_time(proven_review_claims_dropped_total{reason="suppressed",instance=~"%s"}%s))' % (ALL_RE, RANGE),
+                           reviews_done('=~"%s"' % ALL_RE)),
                  [(None, BLUE)], " claims suppressed as already refuted", zero="0 claims suppressed: nothing was refuted earlier",
                  one="1 claim suppressed as already refuted", x=0, w=12),
         text(2, "Scout Intent: not measured yet", "What would be shown here.",
@@ -543,18 +572,18 @@ def nightshift():
                      "None are loaded until the public receipts file is put in place: make nightshift-receipts.", [
         headline(1, "Model calls with a signed receipt that verifies",
                  "Receipts whose Ed25519 signature verified under the pinned key, counted from the receipts loaded into this lab.",
-                 'sum(count_over_time({job="nightshift", verified="true"}%s)) or vector(0)' % RANGE,
+                 measured('sum(count_over_time({job="nightshift", verified="true"}%s))' % RANGE, "sum(count_over_time(%s%s))" % (NS, RANGE)),
                  [(None, BLUE), (1, GREEN)], " model calls carry a signed receipt that verifies",
-                 zero="0 receipts loaded: make nightshift-receipts", one="1 model call carries a signed receipt that verifies", ds=LOKI, x=0, w=9),
+                 zero="0 receipts loaded: make nightshift-receipts", one="1 model call carries a signed receipt that verifies", ds=LOKI, x=0, w=9, absent=NOT_LOADED),
         stat(2, "Calls made", "Public receipts of Proven's own calls, loaded into this lab: one per model call.",
-             "sum(count_over_time(%s%s)) or vector(0)" % (NS, RANGE), 9, 0, 5, 5, [(None, BLUE)], " in all", zero="0 · none loaded", ds=LOKI),
+             "sum(count_over_time(%s%s))" % (NS, RANGE), 9, 0, 5, 5, [(None, BLUE)], " in all", ds=LOKI, absent=NOT_LOADED),
         stat(3, "Calls that failed", "Calls whose receipt says failed. The reasons are in the panel below. None is good.",
-             'sum(count_over_time({job="nightshift", status="failed"}%s)) or vector(0)' % RANGE, 14, 0, 5, 5,
-             [(None, GREEN), (1, RED)], " · failed", zero="0 · none failed", ds=LOKI),
+             measured('sum(count_over_time({job="nightshift", status="failed"}%s))' % RANGE, "sum(count_over_time(%s%s))" % (NS, RANGE)), 14, 0, 5, 5,
+             [(None, GREEN), (1, RED)], " · failed", zero="0 · none failed", ds=LOKI, absent=NOT_LOADED),
         stat(4, "Verification failures",
              "Receipts whose Ed25519 signature did not verify under the pinned key. None is good.",
-             'sum(count_over_time({job="nightshift", verified="false"}%s)) or vector(0)' % RANGE, 19, 0, 5, 5,
-             [(None, GREEN), (1, RED)], " · bad", zero="0 · none failed", ds=LOKI),
+             measured('sum(count_over_time({job="nightshift", verified="false"}%s))' % RANGE, "sum(count_over_time(%s%s))" % (NS, RANGE)), 19, 0, 5, 5,
+             [(None, GREEN), (1, RED)], " · bad", zero="0 · none failed", ds=LOKI, absent=NOT_LOADED),
         series(5, "Calls over time, by model and app", "Calls per minute, for each model that answered and each app that asked.",
                [target("sum by (model, app) (count_over_time(%s[1m]))" % NS, LOKI, legend="{{model}} · {{app}}", instant=False, interval="1m", step="1m")],
                0, 5, 12, 8, NS_EMPTY),
