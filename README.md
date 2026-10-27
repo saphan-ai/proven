@@ -3,7 +3,7 @@
 **A code reviewer that has to show its evidence, built in public by one person and a fleet of AI coding agents.**
 
 > [!IMPORTANT]
-> **NOTICE: the reviews on this repository run on GLM-5.3, not on NVIDIA Nemotron, until NVIDIA's API is stable.**
+> **NOTICE: the reviewer is now GLM-5.3, not NVIDIA Nemotron. NVIDIA's safety model stays the guardrail.**
 >
 > Proven was built around Nemotron, and Nemotron through Meterless Nightshift remains supported. But since 25 October
 > NVIDIA's hosted API fails in windows: HTTP 500 "Failed to generate completions", and calls that never answer. We
@@ -14,8 +14,9 @@
 > **A reviewer must not be weaker than the developer it checks.** The code here is written by strong coding models; a
 > junior cannot judge a senior. A review that times out half-way is weaker than none, because it looks like a review.
 > So the pull-request reviews here use a strong model that answers: **GLM-5.3, called directly on QwenCloud, outside
-> Nightshift**, and every review comment names the model that answered. When NVIDIA's API is stable again, Nemotron
-> goes back in.
+> Nightshift**, and every review comment names the model that answered. This stays the default. Nemotron through
+> Nightshift remains a supported choice for anyone who wants it, and NVIDIA's safety model still checks every prompt and
+> answer.
 
 ## Quick start
 
