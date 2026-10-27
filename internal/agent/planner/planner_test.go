@@ -109,7 +109,7 @@ func TestThePlannerIsNotSentAnUnchangedFile(t *testing.T) {
 	if !bytes.Contains([]byte(g.prompts[0]), []byte("UNCHANGED-MARKER")) {
 		t.Error("an unmarked (sample) review lost the unchanged file")
 	}
-	if _, err := planner.Plan(change.WithChangedOnly(context.Background()), root, g); err != nil {
+	if _, err := planner.Plan(change.WithChangedOnly(context.Background(), nil), root, g); err != nil {
 		t.Fatal(err)
 	}
 	if len(g.prompts) != 2 {
@@ -123,5 +123,35 @@ func TestThePlannerIsNotSentAnUnchangedFile(t *testing.T) {
 		if !bytes.Contains([]byte(p), []byte(m)) {
 			t.Errorf("%s is missing from the prompt", m)
 		}
+	}
+}
+
+// A change of mode only reads the same bytes on both sides, so the Planner is sent the file git names and not the
+// rest of the exported repository; with nothing named and nothing different, the model is not called at all.
+// Mutated field: the paths git names as changed.
+func TestAModeOnlyChangeSendsOnlyTheFileGitNames(t *testing.T) {
+	root := t.TempDir()
+	for _, side := range []string{"base", "change"} {
+		for name, body := range map[string]string{"run.sh": "echo MODE-MARKER\n", "other.go": "package other // UNRELATED-MARKER\n"} {
+			p := filepath.Join(root, side, name)
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	g := &script{replies: []string{"[]"}}
+	if _, err := planner.Plan(change.WithChangedOnly(context.Background(), []string{"run.sh"}), root, g); err != nil {
+		t.Fatal(err)
+	}
+	if len(g.prompts) != 1 || !bytes.Contains([]byte(g.prompts[0]), []byte("MODE-MARKER")) || bytes.Contains([]byte(g.prompts[0]), []byte("UNRELATED-MARKER")) {
+		t.Fatalf("prompts %d; the prompt must carry run.sh and not other.go", len(g.prompts))
+	}
+	g = &script{}
+	risks, err := planner.Plan(change.WithChangedOnly(context.Background(), nil), root, g)
+	if err != nil || len(risks) != 0 || len(g.prompts) != 0 {
+		t.Fatalf("risks %v err %v calls %d; nothing changed, so no call", risks, err, len(g.prompts))
 	}
 }

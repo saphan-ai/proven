@@ -520,11 +520,20 @@ func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
 // readContext marks a live review's context, so its Planner reads only the files that changed: a live review
 // exports the repository whole. A sample review is left unmarked, because its recorded planner answers are keyed by
 // the prompt over every file of its fixture.
-func readContext(ctx context.Context, sample bool) context.Context {
+func readContext(ctx context.Context, sample bool, named []string) context.Context {
 	if sample {
 		return ctx
 	}
-	return change.WithChangedOnly(ctx)
+	return change.WithChangedOnly(ctx, named)
+}
+
+// gitNamed is the list git gave of the changed paths, nil when the trees were given prepared and the list is
+// every file of them: such a list names nothing as changed.
+func gitNamed(req Request, files []string) []string {
+	if req.BaselineCommit == "" {
+		return nil
+	}
+	return files
 }
 
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
@@ -538,11 +547,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
-	ctx = readContext(ctx, p.sample)
 	files, err := changedFiles(req, rd)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
+	ctx = readContext(ctx, p.sample, gitNamed(req, files))
 	selected, dropped, err := change.Select(files, req.Include, req.Exclude)
 	if err != nil {
 		return candidate.Draft{}, err

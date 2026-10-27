@@ -67,7 +67,8 @@ func TestReadReturnsARegularFile(t *testing.T) {
 }
 
 // Changed drops a file whose two sides are equal and keeps an edit, an addition and a deletion, an empty added file
-// included; a change in which nothing differs is returned whole.
+// included, and a file git names though its bytes are equal (a mode change). It never falls back to every file:
+// a change in which nothing differs and git names nothing leaves nothing. Mutated field: the file's two sides.
 func TestChangedKeepsOnlyFilesThatDiffer(t *testing.T) {
 	files := []File{
 		{Path: "same", Base: []byte("x"), Change: []byte("x")},
@@ -75,14 +76,24 @@ func TestChangedKeepsOnlyFilesThatDiffer(t *testing.T) {
 		{Path: "added-empty", Base: nil, Change: []byte{}},
 		{Path: "gone", Base: []byte("x"), Change: nil},
 	}
-	var got []string
-	for _, f := range Changed(files) {
-		got = append(got, f.Path)
+	paths := func(fs []File) string {
+		var got []string
+		for _, f := range fs {
+			got = append(got, f.Path)
+		}
+		return strings.Join(got, ",")
 	}
-	if strings.Join(got, ",") != "edit,added-empty,gone" {
+	if got := paths(Changed(files, nil)); got != "edit,added-empty,gone" {
 		t.Fatalf("%v", got)
 	}
-	if same := files[:1]; len(Changed(same)) != 1 {
-		t.Fatal("a change with no differing file was emptied")
+	same := []File{
+		{Path: "mode.sh", Base: []byte("x"), Change: []byte("x")},
+		{Path: "unrelated.go", Base: []byte("y"), Change: []byte("y")},
+	}
+	if got := paths(Changed(same, []string{"mode.sh"})); got != "mode.sh" {
+		t.Fatalf("a mode-only change kept %q, want only mode.sh", got)
+	}
+	if got := Changed(same, nil); len(got) != 0 {
+		t.Fatalf("a change with nothing changed kept %v", got)
 	}
 }

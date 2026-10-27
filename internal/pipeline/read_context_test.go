@@ -14,10 +14,21 @@ func TestOnlyALiveReviewReadsTheChangedFilesOnly(t *testing.T) {
 		{Path: "same", Base: []byte("x"), Change: []byte("x")},
 		{Path: "edit", Base: []byte("x"), Change: []byte("y")},
 	}
-	if got := change.ChangedFor(readContext(context.Background(), false), files); len(got) != 1 || got[0].Path != "edit" {
+	if got := change.ChangedFor(readContext(context.Background(), false, nil), files); len(got) != 1 || got[0].Path != "edit" {
 		t.Fatalf("live review read %v", got)
 	}
-	if got := change.ChangedFor(readContext(context.Background(), true), files); len(got) != 2 {
+	if got := change.ChangedFor(readContext(context.Background(), true, nil), files); len(got) != 2 {
 		t.Fatalf("sample review read %v", got)
+	}
+}
+
+// Only a review between two commits names its changed paths; prepared trees name none, because their list is
+// every file of them. Mutated field: the baseline commit.
+func TestOnlyACommitRangeNamesItsChangedPaths(t *testing.T) {
+	if got := gitNamed(Request{BaselineCommit: "abc"}, []string{"run.sh"}); len(got) != 1 {
+		t.Fatalf("%v", got)
+	}
+	if got := gitNamed(Request{}, []string{"run.sh"}); got != nil {
+		t.Fatalf("prepared trees named %v", got)
 	}
 }

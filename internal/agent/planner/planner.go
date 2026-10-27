@@ -86,11 +86,14 @@ func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidat
 	if err != nil {
 		return nil, err
 	}
-	// A live review exports a real repository whole; its Planner is asked about the files that changed.
-	files = change.ChangedFor(ctx, files)
 	// An empty change has nothing to review; it is refused rather than reported clean.
 	if len(files) == 0 {
 		return nil, fmt.Errorf("planner: the change has no files")
+	}
+	// A live review exports a real repository whole; its Planner is asked about the files that changed. When no
+	// byte and no path git names changed, there is nothing for the model to plan on, and no call is made.
+	if files = change.ChangedFor(ctx, files); len(files) == 0 {
+		return nil, nil
 	}
 	var rows []row
 	if err := answer.Read(ctx, gen, "planner", Prompt(files), riskSpec, &rows); err != nil {
