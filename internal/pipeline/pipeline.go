@@ -360,6 +360,11 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 		return candidate.Draft{}, err
 	}
 	defer p.trace.Close()
+	// The guardrail count is this review's alone: a Pipeline the caller reuses starts
+	// each review from zero (review codex r2, owed).
+	p.guardMu.Lock()
+	p.guardSeen = candidate.GuardrailCount{}
+	p.guardMu.Unlock()
 	// Fold only a review that ended without an error. This defer runs before
 	// the trace is closed, and reads what the review wrote.
 	defer func() {
