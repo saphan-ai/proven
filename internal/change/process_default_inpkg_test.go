@@ -12,10 +12,6 @@ import (
 	"testing"
 )
 
-// processState names this package's unexported process-wide state and its reader: what the
-// package-level functions read and a Policy method must not.
-var processState = []string{"offline", "limitsInUse", "processBounds"}
-
 // processOwners are the functions allowed to read the process-wide policy: the package-level
 // functions of processDefault themselves (each is the process default, or its setter, or a
 // wrapper over ProcessPolicy) and processBounds. Every other function of this package, every
@@ -27,7 +23,7 @@ func processOwner(fd *ast.FuncDecl) bool {
 // TestNoCodeInThisPackageReachesTheProcessGitPolicy is the census inside internal/change, which the
 // census over the module skips because the process default is defined here: no non-test function
 // of this package other than a processOwner names a function of processDefault or the process-wide
-// state, and only NewPolicy and ProcessPolicy build a Policy literal.
+// state, as a call or as a value, and only NewPolicy and ProcessPolicy build a Policy literal.
 func TestNoCodeInThisPackageReachesTheProcessGitPolicy(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -46,32 +42,7 @@ func TestNoCodeInThisPackageReachesTheProcessGitPolicy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		for _, decl := range f.Decls {
-			fd, ok := decl.(*ast.FuncDecl)
-			if !ok || fd.Body == nil || processOwner(fd) {
-				continue
-			}
-			ast.Inspect(fd.Body, func(n ast.Node) bool {
-				at := func(what string) {
-					found = append(found, filepath.Join("internal/change", name)+":"+strconv.Itoa(fset.Position(n.Pos()).Line)+": "+fd.Name.Name+" "+what)
-				}
-				switch x := n.(type) {
-				case *ast.CallExpr:
-					if id, ok := x.Fun.(*ast.Ident); ok && (slices.Contains(processDefault, id.Name) || id.Name == "processBounds") {
-						at("calls " + id.Name)
-					}
-				case *ast.SelectorExpr:
-					if id, ok := x.X.(*ast.Ident); ok && (id.Name == "offline" || id.Name == "limitsInUse") {
-						at("reads " + id.Name)
-					}
-				case *ast.CompositeLit:
-					if id, ok := x.Type.(*ast.Ident); ok && id.Name == "Policy" && fd.Name.Name != "NewPolicy" && fd.Name.Name != "ProcessPolicy" {
-						at("builds a Policy literal")
-					}
-				}
-				return true
-			})
-		}
+		found = append(found, censusFile(fset, f, name)...)
 	}
 	if seen < 5 {
 		t.Fatalf("the census read %d production files in internal/change; it is not seeing the package", seen)
@@ -79,4 +50,76 @@ func TestNoCodeInThisPackageReachesTheProcessGitPolicy(t *testing.T) {
 	if len(found) > 0 {
 		t.Fatalf("code in internal/change reaches the process-wide git policy (take the policy from the receiver):\n%s", strings.Join(found, "\n"))
 	}
+}
+
+// censusFile is the in-package census over one parsed file.
+func censusFile(fset *token.FileSet, f *ast.File, name string) []string {
+	var found []string
+	// inspect lists, in one scope, every name of the process default used as a call or as a
+	// value (an alias such as `run := GitCommand` included), every read of the process-wide
+	// state and every Policy literal. A name after a dot (`p.GitCommand`, a method or a field)
+	// is not the package-level function and is skipped.
+	inspect := func(scope string, root ast.Node, mayBuild bool) {
+		// skip holds the names that are not a package-level name: a method or field after a dot,
+		// and a key of a composite literal (`offline: offline` keys the Policy field).
+		skip := map[*ast.Ident]bool{}
+		state := map[*ast.Ident]bool{}
+		ast.Inspect(root, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.SelectorExpr:
+				skip[x.Sel] = true
+				// The process-wide state is an atomic value: it is reached only as x.Load,
+				// x.Swap or x.Store, so a state name counts only on the left of a dot. A
+				// parameter of the same name (NewPolicy's offline) is not the state.
+				if id, ok := x.X.(*ast.Ident); ok && (id.Name == "offline" || id.Name == "limitsInUse") {
+					state[id] = true
+				}
+			case *ast.KeyValueExpr:
+				if id, ok := x.Key.(*ast.Ident); ok {
+					skip[id] = true
+				}
+			}
+			return true
+		})
+		ast.Inspect(root, func(n ast.Node) bool {
+			at := func(what string) {
+				found = append(found, filepath.Join("internal/change", name)+":"+strconv.Itoa(fset.Position(n.Pos()).Line)+": "+scope+" "+what)
+			}
+			switch x := n.(type) {
+			case *ast.Ident:
+				if state[x] {
+					at("reads " + x.Name)
+				} else if !skip[x] && (slices.Contains(processDefault, x.Name) || x.Name == "processBounds") {
+					at("names " + x.Name)
+				}
+			case *ast.CompositeLit:
+				if id, ok := x.Type.(*ast.Ident); ok && id.Name == "Policy" && !mayBuild {
+					at("builds a Policy literal")
+				}
+			}
+			return true
+		})
+	}
+	for _, decl := range f.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Body == nil || processOwner(d) {
+				continue
+			}
+			inspect(d.Name.Name, d.Body, d.Name.Name == "NewPolicy" || d.Name.Name == "ProcessPolicy")
+		case *ast.GenDecl:
+			// A package-level declaration may hold an alias too (`var run = GitCommand`); the
+			// declarations of the state itself (`var offline atomic.Bool`) name it and are skipped.
+			for _, spec := range d.Specs {
+				vs, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for _, v := range vs.Values {
+					inspect("package-level value", v, false)
+				}
+			}
+		}
+	}
+	return found
 }
