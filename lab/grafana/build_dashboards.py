@@ -331,9 +331,8 @@ def overview():
         0, 9, 16, table_h(N_PR + 1),
         [target(per_pr('last_over_time(proven_agent_state{proven_agent="writer",instance=~"%s"}%s)' % (ALL_RE, RANGE)), PROM, ref="A", format="table"),
          target(per_pr(findings), PROM, ref="B", format="table"),
-         target(per_pr("sum by (instance) (last_over_time(proven_review_claims_dropped_total%s%s)) or (count by (instance) "
-                       "(last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"%s\"}%s) == 2) * 0)" % (sel, RANGE, ALL_RE, RANGE)),
-                PROM, ref="C", format="table"),
+         target(per_pr("sum by (instance) (last_over_time(proven_review_claims_dropped_total%s%s))" % (sel, RANGE)), PROM, ref="C",
+                format="table"),
          target("clamp_max(%s, 1)" % per_pr(findings), PROM, ref="D", format="table")],
         fieldConfig={"defaults": {"custom": {"align": "left"}},
                      "overrides": [
@@ -350,7 +349,7 @@ def overview():
                          {"matcher": {"id": "byName", "options": "Change"}, "properties": [
                              {"id": "mappings", "value": value_words("change")}, {"id": "custom.width", "value": 340}]},
                          {"matcher": {"id": "byName", "options": "Claims dropped"}, "properties": [
-                             {"id": "mappings", "value": [{"type": "special", "options": {"match": "null+nan", "result": {"text": "not measured yet"}}}]}]}]},
+                             {"id": "mappings", "value": [{"type": "special", "options": {"match": "null+nan", "result": {"text": "none recorded"}}}]}]}]},
         options={"showHeader": True, "cellHeight": "sm", "sortBy": [{"displayName": "Pull request", "desc": False}]},
         transformations=[
             {"id": "merge", "options": {}},

@@ -41,6 +41,13 @@ func absentProblems(t *testing.T, dashboards map[string][]byte) []string {
 					bad = append(bad, uid+" / "+p.Title+": a constant answers when the metric is absent")
 				}
 			}
+			if p.Type == "table" {
+				for _, tg := range p.Targets {
+					if strings.Contains(tg.Expr, "* 0)") {
+						bad = append(bad, uid+" / "+p.Title+": a table cell gets a substituted zero when its metric is absent")
+					}
+				}
+			}
 			if p.Type != "stat" {
 				continue
 			}
@@ -80,5 +87,28 @@ func TestNoAbsentMetricReadsAsAMeasuredZero(t *testing.T) {
 	}
 	if len(absentProblems(t, mutated)) == 0 {
 		t.Error("the control did not turn red: with absence answered by vector(0) no panel was named")
+	}
+	// The second control: a table cell answered by another series times zero (review r5). Mutated field: the overview's
+	// Claims dropped query.
+	raw := readDashboards(t)["proven-overview"]
+	var d map[string]any
+	if err := json.Unmarshal(raw, &d); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range d["panels"].([]any) {
+		pm := p.(map[string]any)
+		if pm["type"] != "table" {
+			continue
+		}
+		for _, tg := range pm["targets"].([]any) {
+			tm := tg.(map[string]any)
+			if e, _ := tm["expr"].(string); strings.Contains(e, "claims_dropped") {
+				tm["expr"] = "(" + e + ") or (count by (instance) (proven_agent_state) * 0)"
+			}
+		}
+	}
+	b, _ := json.Marshal(d)
+	if len(absentProblems(t, map[string][]byte{"proven-overview": b})) == 0 {
+		t.Error("the control did not turn red: a table zero substituted for an absent metric was not named")
 	}
 }

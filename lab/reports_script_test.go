@@ -6,6 +6,7 @@ package lab
 // every call. COMMENT_STATUS makes the comment call answer as Gitea would with no review posted yet (3).
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,11 +106,79 @@ func TestReportsWaitsForAReviewNotPostedYetAndNamesIt(t *testing.T) {
 	}
 }
 
-// commentCurl answers report.sh's one read, the pull request's comments, as Gitea does: JSON, with < and > escaped.
+// commentCurl answers report.sh's reads of the pull request's comments as Gitea does: JSON, with < and > escaped, one page
+// per call. COMMENTS_JSON is page 1; COMMENTS_JSON.N, when it exists, is page N; any other page is empty.
 const commentCurl = `#!/bin/sh
 echo "$*" >> "$FAKE_DIR/curl.calls"
-cat "$COMMENTS_JSON"
+for last; do :; done
+page=${last##*page=}
+if [ "$page" = 1 ]; then cat "$COMMENTS_JSON"; elif [ -f "$COMMENTS_JSON.$page" ]; then cat "$COMMENTS_JSON.$page"; else printf '[]'; fi
 `
+
+func TestReportCommentPagesPastFiftyOtherComments(t *testing.T) {
+	needTool(t, "jq")
+	dir := t.TempDir()
+	var others []string
+	for i := 0; i < 50; i++ {
+		others = append(others, fmt.Sprintf(`{"id":%d,"user":{"login":"proven"},"body":"a person's comment %d"}`, i+1, i))
+	}
+	cj := filepath.Join(dir, "comments.json")
+	if err := os.WriteFile(cj, []byte("["+strings.Join(others, ",")+"]"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(dir, "bin")
+	writeExec(t, bin, "curl", commentCurl)
+	run := func(tree string) (string, error) {
+		cmd := exec.Command("sh", filepath.Join(tree, "lab", "seed", "report.sh"), "comment", "3")
+		cmd.Env = []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "HOME=" + dir, "TMPDIR=" + dir, "FAKE_DIR=" + dir,
+			"COMMENTS_JSON=" + cj, "GITEA_INTERNAL_URL=http://gitea:3000", "LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount",
+			"LAB_BOT_USER=proven-bot", "STATE_DIR=" + dir, "PAGE_DIR=" + dir}
+		b, err := cmd.Output()
+		return string(b), err
+	}
+	// No marked comment anywhere: page 2 is short, so the review is not posted (exit 3).
+	if out, err := run(mustAbs(t, root)); out != "" || exitCode(err) != 3 {
+		t.Errorf("fifty other comments and no review: %q %v, want nothing and exit 3", out, err)
+	}
+	// The review is the first comment of page 2.
+	if err := os.WriteFile(cj+".2", []byte(`[{"id":51,"user":{"login":"proven-bot"},"body":"<!-- proven-review run=2 sha=c -->\n**Proven: clean**"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(mustAbs(t, root)); err != nil || out != "**Proven: clean**\n" {
+		t.Errorf("the review on page 2 was not found: %q %v", out, err)
+	}
+	// The control: the reader stops after page 1. Mutated field: the page step.
+	mut := copyLab(t)
+	copyInto(t, mut, "lab/seed", "lab/page")
+	mutate(t, mut, "lab/seed/report.sh", "    page=$((page + 1))\n", "    exit 3\n")
+	if out, _ := run(mut); out != "" {
+		t.Error("the control did not turn red: a reader of page 1 only still found the review on page 2")
+	}
+}
+
+func TestReportRefusesAReviewLongerThanItsBound(t *testing.T) {
+	// The bound is a setting so the test runs on a small one; the rule is the same at 1000000.
+	long := strings.Repeat("x", 1001)
+	if _, err := renderReportErr(t, root, long); err == nil {
+		t.Error("a review one byte past the bound was rendered, so part of it was dropped")
+	}
+	mut := copyLab(t)
+	copyInto(t, mut, "lab/seed", "lab/page")
+	mutate(t, mut, "lab/seed/report.sh", `[ "$(wc -c <"$body.md")" -le "$REPORT_MAX_BYTES" ] || fail`, `true || fail`)
+	if _, err := renderReportErr(t, mut, long); err != nil {
+		t.Errorf("the control did not turn red: with the check removed the long review still failed: %v", err)
+	}
+}
+
+func exitCode(err error) int {
+	if ee, ok := err.(*exec.ExitError); ok {
+		return ee.ExitCode()
+	}
+	if err == nil {
+		return 0
+	}
+	return -1
+}
 
 func TestReportCommentIsTheBotsMarkedCommentDecoded(t *testing.T) {
 	needTool(t, "jq")
@@ -157,4 +226,29 @@ func TestReportsNamesAPageThatWasNotBuiltAndFails(t *testing.T) {
 	if err == nil || !strings.Contains(out, "the report page was not built") {
 		t.Errorf("a refused page was not named, or the run did not fail: %v\n%s", err, out)
 	}
+}
+
+// renderReportErr is renderReport for a run that may fail: report.sh render on md, its error returned.
+func renderReportErr(t *testing.T, tree, md string) (string, error) {
+	t.Helper()
+	dir := t.TempDir()
+	state := filepath.Join(dir, "state")
+	page := filepath.Join(dir, "page")
+	for _, d := range []string{state, page} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(state, "prs.tsv"), []byte("3\tdemo-discount\tdiscount\tdefect\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sh", filepath.Join(tree, "lab", "seed", "report.sh"), "render", "3")
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "STATE_DIR=" + state, "PAGE_DIR=" + page,
+		"PRS_FILE=" + filepath.Join(tree, "lab", "seed", "prs.tsv"),
+		"REPORT_TEMPLATE=" + filepath.Join(tree, "lab", "page", "report.html.tmpl"),
+		"LAB_URL=http://127.0.0.1:3300/", "LAB_ADMIN_USER=proven", "LAB_DEMO_REPO=discount",
+		"LAB_PAGE_URL=http://127.0.0.1:3302/lab", "LAB_MODE=sample", "REPORT_MAX_BYTES=1000"}
+	cmd.Stdin = strings.NewReader(md)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }

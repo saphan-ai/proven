@@ -456,7 +456,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])) or (count by (instance) (last_over_time(proven_agent_state{proven_agent=\"writer\",instance=~\"pr[0-9]+-.+\"}[$__range]) == 2) * 0), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\"))",
+          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_claims_dropped_total{instance=~\"pr[0-9]+-.+\"}[$__range])), \"pr\", \"$1\", \"instance\", \"pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"pr[0-9]+-(.*)\"))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -621,7 +621,7 @@
                     "options": {
                       "match": "null+nan",
                       "result": {
-                        "text": "not measured yet"
+                        "text": "none recorded"
                       }
                     }
                   }

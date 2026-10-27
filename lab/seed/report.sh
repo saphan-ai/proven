@@ -26,7 +26,9 @@ PRS_FILE=${PRS_FILE:-/seed/prs.tsv}
 REPORT_TEMPLATE=${REPORT_TEMPLATE:-/seed/report.html.tmpl}
 TAB=$(printf '\t')
 # The most Markdown one report takes in: Proven bounds its comment far below this.
-REPORT_MAX_BYTES=1000000
+REPORT_MAX_BYTES=${REPORT_MAX_BYTES:-1000000}
+# The most pages of comments the reader walks (50 a page).
+REPORT_MAX_PAGES=${REPORT_MAX_PAGES:-20}
 
 fail() {
   echo "report: $1" >&2
@@ -47,12 +49,22 @@ esac
 # (lab/workflow/proven.yml posts it and edits it in place), with the marker line removed. The demo repository is public, so
 # the read carries no credential. jq decodes the JSON string, escapes included.
 if [ "$mode" = comment ]; then
-  url="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/issues/$num/comments?limit=50"
-  json=$(curl -fsS --max-time 20 "$url") || fail "the comments of pull request $num could not be read"
-  review=$(printf '%s' "$json" | jq -r --arg bot "$LAB_BOT_USER" \
-    'first(.[] | select(.user.login == $bot and (.body | startswith("<!-- proven-review"))) | .body) // empty') ||
-    fail "the comments of pull request $num are not the list Gitea returns"
-  [ -n "$review" ] || exit 3
+  # Page by page, 50 a page, until the review is found or a page comes back short: a review after fifty other comments is
+  # still found. REPORT_MAX_PAGES bounds the walk; a walk cut off there says so and is not "not posted".
+  page=1
+  review=
+  while :; do
+    url="$GITEA_INTERNAL_URL/api/v1/repos/$LAB_ADMIN_USER/$LAB_DEMO_REPO/issues/$num/comments?limit=50&page=$page"
+    json=$(curl -fsS --max-time 20 "$url") || fail "the comments of pull request $num could not be read"
+    review=$(printf '%s' "$json" | jq -r --arg bot "$LAB_BOT_USER" \
+      'first(.[] | select(.user.login == $bot and (.body | startswith("<!-- proven-review"))) | .body) // empty') ||
+      fail "the comments of pull request $num are not the list Gitea returns"
+    [ -z "$review" ] || break
+    count=$(printf '%s' "$json" | jq 'length') || fail "the comments of pull request $num are not the list Gitea returns"
+    [ "$count" -ge 50 ] || exit 3
+    [ "$page" -lt "$REPORT_MAX_PAGES" ] || fail "pull request $num has more than $((REPORT_MAX_PAGES * 50)) comments; the review was not among them"
+    page=$((page + 1))
+  done
   printf '%s\n' "$review" | sed '1d'
   exit 0
 fi
@@ -94,7 +106,9 @@ if [ "$mode" = stub ]; then
   footer='This page is a placeholder: no review is rendered here yet.'
   printf '<p>No report has been built for this pull request yet. The review is the comment on the pull request in Gitea.</p>\n' >"$body"
 else
-  head -c "$REPORT_MAX_BYTES" | tr -d '\r' >"$body.md"
+  # One byte past the bound is read so a longer review is refused, never cut short.
+  head -c "$((REPORT_MAX_BYTES + 1))" | tr -d '\r' >"$body.md"
+  [ "$(wc -c <"$body.md")" -le "$REPORT_MAX_BYTES" ] || fail "the review is longer than $REPORT_MAX_BYTES bytes; the page would not be all of it"
   [ -s "$body.md" ] || fail "no Markdown on standard input"
   # The verdict line, wherever the comment puts it: the lab's comment opens with how the review was made ("sample: no keys").
   first=$(grep -m 1 -E 'Proven: (blocked|clean)' "$body.md" || true)
