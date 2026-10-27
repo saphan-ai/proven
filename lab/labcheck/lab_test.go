@@ -113,8 +113,8 @@ func TestLabPublishesOnlyOnLoopback(t *testing.T) {
 	if !strings.Contains(compose, `"127.0.0.1:${GITEA_HTTP_PORT}:`) {
 		t.Error("the check found no published Gitea port: it would pass an empty file")
 	}
-	if n := strings.Count(compose, "ports:"); n != 2 {
-		t.Errorf("lab/compose.yaml has %d ports: blocks, want 2 (gitea, lgtm)", n)
+	if n := strings.Count(compose, "ports:"); n != 4 {
+		t.Errorf("lab/compose.yaml has %d ports: blocks, want 4 (gitea, lgtm, page, docs)", n)
 	}
 	// Negative controls: each mutates the one port line it names, and must turn red.
 	for name, mut := range map[string]string{
@@ -226,7 +226,7 @@ func checkSeedNotRoot(compose, scripts string) []string {
 
 func TestSeedRunsAsNonRoot(t *testing.T) {
 	compose := read(t, "lab/compose.yaml")
-	scripts := read(t, "lab/scripts/up.sh") + read(t, "lab/scripts/gitea-api.sh")
+	scripts := read(t, "lab/scripts/up.sh") + read(t, "lab/scripts/gitea-api.sh") + read(t, "lab/scripts/banner.sh")
 	if bad := checkSeedNotRoot(compose, scripts); len(bad) > 0 {
 		t.Errorf("the seed image is started as root: %v", bad)
 	}

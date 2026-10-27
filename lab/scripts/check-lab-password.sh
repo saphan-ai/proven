@@ -40,6 +40,14 @@ chmod +x "$work/bin/docker"
 real_docker=$(command -v docker 2>/dev/null || true)
 PATH=$work/bin:$PATH
 export PATH
+# A terminal must never be asked a question by this check: the mode is set, and the ports are ones nothing holds.
+PROVEN_LAB_MODE=sample
+GITEA_HTTP_PORT=53300
+LGTM_GRAFANA_PORT=53301
+LAB_PAGE_PORT=53302
+LAB_DOCS_PORT=53303
+LGTM_OTLP_PORT=54318
+export PROVEN_LAB_MODE GITEA_HTTP_PORT LGTM_GRAFANA_PORT LAB_PAGE_PORT LAB_DOCS_PORT LGTM_OTLP_PORT
 
 fail=0
 bad() {
@@ -141,6 +149,9 @@ unset LAB_ADMIN_PASSWORD STUB_PASSWORD LAB_BIND
 rm -rf "$LAB_STATE_DIR"
 run_up
 expect "generated, redirected: exit" "$rc" 0
+expect "generated, redirected: the flow starts a sample lab" "$(grep -c "^up: sample mode" "$work/out")" 1
+expect "generated, redirected: no question is printed" "$(grep -c "\[sample/live\]" "$work/out")" 0
+expect "generated, redirected: the ready banner ends the output" "$(tail -n 1 "$work/out" | cut -c1-17)" "Grafana dashboard"
 expect "generated, redirected: the file exists" "$([ -s "$file" ] && echo yes || echo no)" yes
 expect "generated, redirected: the file mode" "$(mode_of "$file")" "-rw-------"
 gen=$(cat "$file")

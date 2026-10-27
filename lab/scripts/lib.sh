@@ -102,6 +102,74 @@ remove_admin_password_file() {
   rmdir "$(dirname "$f")" 2>/dev/null || true
 }
 
+# lab_require_loopback NAME VALUE: the page carries the lab's password, so an address set for it must be loopback.
+# Anything else is refused by name, before a container starts. Exit 0 for 127.0.0.1, ::1, [::1] and localhost.
+# The page itself is published on 127.0.0.1 in lab/compose.yaml, like every port of the lab, whatever LAB_PAGE_BIND
+# says: a LAB_PAGE_BIND set to another address is refused by name, so nobody believes the page moved.
+lab_require_loopback() {
+  case $2 in
+    127.0.0.1 | ::1 | '[::1]' | localhost) return 0 ;;
+  esac
+  echo "refused: $1=$2 is not a loopback address. The start page carries the lab's password and is published on 127.0.0.1 only. NEXT — unset $1, or set it to 127.0.0.1." >&2
+  return 1
+}
+
+# load_lab_env: read lab/.env (when it exists) into the environment. A line is KEY=value with KEY made of letters,
+# digits and underscores; anything else is refused by line number, never by content, and an EMPTY value is left
+# unset. The file is read, never executed. A NON-EMPTY value already in the environment wins (a setting that
+# lab/versions.env defaults to empty, such as ZETARIS_COMPOSE_FILE, is filled from here).
+load_lab_env() {
+  read_lab_env_file || return 1
+  map_guide_names
+}
+
+# map_guide_names: the organisers' Participant Setup Guide names two settings that Proven spells another way. A judge's
+# .env from the guide holds METERLESS_BASE_URL and METERLESS_MODEL; the lab reads them as PROVEN_GENERATOR_BASE_URL and
+# PROVEN_GENERATOR_MODEL, unless the Proven name is set too (it wins). METERLESS_RUNTIME_TOKEN and the ZETARIS_* names
+# are the same in both and need no mapping.
+map_guide_names() {
+  if [ -z "${PROVEN_GENERATOR_BASE_URL:-}" ] && [ -n "${METERLESS_BASE_URL:-}" ]; then
+    PROVEN_GENERATOR_BASE_URL=$METERLESS_BASE_URL
+    export PROVEN_GENERATOR_BASE_URL
+  fi
+  if [ -z "${PROVEN_GENERATOR_MODEL:-}" ] && [ -n "${METERLESS_MODEL:-}" ]; then
+    PROVEN_GENERATOR_MODEL=$METERLESS_MODEL
+    export PROVEN_GENERATOR_MODEL
+  fi
+}
+
+read_lab_env_file() {
+  envfile=$ROOT/lab/.env
+  [ -f "$envfile" ] || return 0
+  n=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    case $line in
+      '' | \#*) continue ;;
+    esac
+    key=${line%%=*}
+    val=${line#*=}
+    case $key in
+      '' | *[!A-Za-z0-9_]*)
+        echo "lab/.env: refused line $n (a setting is NAME=value)" >&2
+        return 1
+        ;;
+    esac
+    # A setting of the lab, not a way to change what runs: these names would change the shell, the loader or docker.
+    case $key in
+      PATH | IFS | HOME | SHELL | ENV | BASH_ENV | CDPATH | ROOT | LD_* | DYLD_* | DOCKER_* | COMPOSE_*)
+        echo "lab/.env: refused line $n (that name is not a lab setting)" >&2
+        return 1
+        ;;
+    esac
+    [ -n "$val" ] || continue
+    eval "isset=\${$key:+x}"
+    if [ -z "$isset" ]; then
+      export "$key=$val"
+    fi
+  done <"$envfile"
+}
+
 compose() {
   case ${1-} in
     up | run | create | start) refuse_retired_bind ;;
@@ -184,6 +252,55 @@ Linux:
 
 Then run: make build
 EOF
+}
+
+# lab_write_secrets: the credentials named in LAB_SECRET_KEYS (lab/versions.env) reach the seed as ONE file of the
+# lab's state volume, /state/secrets, written over standard input at mode 0600 (the way the admin password is). They are
+# not an environment variable of any container, not in lab/compose.yaml, not an argument of any process: printf is a
+# builtin, so no process lists a value. A name that is empty or unset is left out, so the seed removes that secret.
+# The lines are NAME=value; a value holds no line break (flow_secret_ok, and the loader refuses one in lab/.env).
+lab_write_secrets() {
+  lws_dropped=
+  for lws_name in $LAB_SECRET_KEYS; do
+    eval "lws_val=\${$lws_name:-}"
+    case $lws_val in
+      *'
+'*) lws_dropped="${lws_dropped:+$lws_dropped, }$lws_name" ;;
+    esac
+  done
+  if [ -n "$lws_dropped" ]; then
+    echo "up: refused: $lws_dropped holds a line break. NEXT — put the value on one line in lab/.env." >&2
+    return 1
+  fi
+  {
+    for lws_name in $LAB_SECRET_KEYS; do
+      eval "lws_val=\${$lws_name:-}"
+      if [ -n "$lws_val" ]; then
+        printf '%s=%s\n' "$lws_name" "$lws_val"
+      fi
+    done
+  } | compose run --rm --no-deps -T --entrypoint sh seed -c 'umask 077 && cat > /state/secrets'
+}
+
+# lab_hand_secrets: lab_write_secrets, and when it fails the transfer file is removed before the failure is returned:
+# a writer that stopped after it opened /state/secrets would otherwise leave every credential on the volume.
+lab_hand_secrets() {
+  if ! lab_write_secrets; then
+    lab_remove_secrets || true
+    return 1
+  fi
+}
+
+# lab_remove_secrets: the transfer file is removed after the seed, whether it finished or failed. The seed removes it
+# too, on every exit path of its own; this is the second hand, for a seed that was killed.
+# It says so when the file is gone and says so, by name, when it is not: a removal that failed is never reported as done.
+lab_remove_secrets() {
+  if compose run --rm --no-deps -T --entrypoint sh seed -c 'rm -f /state/secrets && test ! -e /state/secrets' </dev/null >/dev/null 2>&1; then
+    echo "up: the credentials transfer file is removed."
+    return 0
+  fi
+  echo "up: the credentials transfer file /state/secrets in the lab's seed-state volume could NOT be removed. NEXT — run make clean, which deletes that volume, before anything else." >&2
+  return 1
 }
 
 service_running() {

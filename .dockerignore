@@ -8,6 +8,12 @@
 !cmd
 !internal
 !testdata/fixture/discount
+!testdata/fixture/discount-clean
+!testdata/fixture/unknown-author
+!testdata/fixture/malicious-package
+!testdata/fixture/osv-go-module
+!testdata/fixture/spdx-licence
+!testdata/fixture/project-health
 
 # Inside an allowed directory, still never send these.
 **/.env

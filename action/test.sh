@@ -373,5 +373,12 @@ localpost publiccurl GITHUB_API_URL=http://10.1.2.3/api/v1
 check "public mode: curl is run as before" 0 "$(grep -c -- "--noproxy" "$STUB/curl")"
 check "public mode: the comment is posted" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
 
+# pc_json: a backslash in the review (Markdown escapes a version as 1\.2.3) is doubled, so the
+# body is valid JSON on every awk. BusyBox awk turned gsub's "\\\\" into ONE backslash and the
+# lab's server refused the comment with 422.
+printf '1\\.2.3 "q"\tx\\\n' >"$tmp/pc-json.md"
+check "pc_json: backslash, quote and tab escaped" '{"body":"1\\.2.3 \"q\"\tx\\\n"}' \
+  "$(sh -c '. "$1"; pc_json "$2"' sh "$here/post-comment.sh" "$tmp/pc-json.md")"
+
 echo "passed $pass, failed $failed"
 [ "$failed" -eq 0 ]

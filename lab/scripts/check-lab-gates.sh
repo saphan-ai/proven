@@ -40,6 +40,14 @@ STUB
 chmod +x "$work/bin/docker" "$work/bin/skopeo" "$work/bin/git"
 PATH=$work/bin:$PATH
 export PATH
+# A terminal must never be asked a question by this check: the mode is set, and the ports are ones nothing holds.
+PROVEN_LAB_MODE=sample
+GITEA_HTTP_PORT=53300
+LGTM_GRAFANA_PORT=53301
+LAB_PAGE_PORT=53302
+LAB_DOCS_PORT=53303
+LGTM_OTLP_PORT=54318
+export PROVEN_LAB_MODE GITEA_HTTP_PORT LGTM_GRAFANA_PORT LAB_PAGE_PORT LAB_DOCS_PORT LGTM_OTLP_PORT
 
 fail=0
 expect() {

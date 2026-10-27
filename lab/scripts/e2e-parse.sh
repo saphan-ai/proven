@@ -45,6 +45,34 @@ newest_run() {
     }'
 }
 
+# success_runs STATUSES_JSON CONTEXT — the numbers of the runs, highest first, one per line, whose newest status among
+# the entries of CONTEXT is success. The statuses are those of one head commit, so these are the runs that finished
+# a review of it. Two runs for one head are possible (the workflow lets the second post nothing), and the review is
+# then the first one's.
+success_runs() {
+  printf '%s' "$1" | awk -v ctx="$2" '
+    function str(obj, key) {
+      if (match(obj, "\"" key "\":\"[^\"]*\"")) {
+        return substr(obj, RSTART + length(key) + 4, RLENGTH - length(key) - 5)
+      }
+      return ""
+    }
+    { buf = buf $0 }
+    END {
+      n = split(buf, parts, "\"status\":\"")
+      for (i = 2; i <= n; i++) {
+        p = parts[i]
+        st = substr(p, 1, index(p, "\"") - 1)
+        if (str(p, "context") != ctx) continue
+        url = str(p, "target_url")
+        if (!match(url, "/actions/runs/[0-9]+")) continue
+        r = substr(url, RSTART + 14, RLENGTH - 14) + 0
+        if (!(r in latest)) { latest[r] = st; order[++m] = r }
+      }
+      for (j = 1; j <= m; j++) if (latest[order[j]] == "success") print order[j]
+    }' | sort -rn
+}
+
 # review_for COMMENTS_JSON RUN SHA AUTHOR — exit 0 when a comment by AUTHOR
 # starts its body with `<!-- proven-review run=RUN sha=SHA -->`. The marker
 # names the run and the head commit, so no time is compared: two events in one

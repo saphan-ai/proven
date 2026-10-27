@@ -482,6 +482,18 @@ Agreed by two models, not proven
 failed services: none
 ```
 
+## The scenario: `testdata/fixture/discount-clean`
+
+The correct version of the change `discount` botches: `Discounted` is written with a named `off` and the discount is
+rounded down to a whole cent, and a second test says so. The Planner's recorded answer is an empty list, so no query
+runs and no test is run, and the review keeps no finding. The judges' lab reviews both and shows them side by side:
+[LAB.md](LAB.md#the-demo-pull-requests). A clean review prints no `finding` line; the lab's workflow adds one line
+above it that says so.
+
+```bash
+/tmp/proven scan --sample "$OLDPWD/testdata/fixture/discount-clean"
+```
+
 ## The scenario: `testdata/fixture/unknown-author`
 
 Sample mode does not read commit history on this command: the scan sets no baseline commit, and the fixture is two

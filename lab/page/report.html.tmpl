@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Proven report: @@TITLE@@</title>
+<!-- A template. lab/seed/report.sh fills every marked place and writes one page per demo pull request into the lab's page
+     volume. The page holds no script and no remote address, and nothing of the lab's settings: it is the review Proven wrote, set in the way
+     GitHub shows a Markdown comment. Light and dark follow the reader's system. -->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg:#ffffff; --canvas:#f6f8fa; --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --border-muted:#d1d9e0b3;
+    --link:#0969da; --code-bg:#818b981f;
+    --ok:#1a7f37; --ok-bg:#dafbe1; --ok-border:#4ac26b66;
+    --bad:#d1242f; --bad-bg:#ffebe9; --bad-border:#ff818266;
+    --warn:#9a6700; --warn-bg:#fff8c5; --warn-border:#d4a72c66;
+    --neutral:#59636e; --neutral-bg:#eaeef2;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0d1117; --canvas:#151b23; --fg:#f0f6fc; --muted:#9198a1; --border:#3d444d; --border-muted:#3d444db3;
+      --link:#4493f8; --code-bg:#656c7633;
+      --ok:#3fb950; --ok-bg:#2ea04326; --ok-border:#2ea04366;
+      --bad:#f85149; --bad-bg:#f8514926; --bad-border:#f8514966;
+      --warn:#d29922; --warn-bg:#bb800926; --warn-border:#bb800966;
+      --neutral:#9198a1; --neutral-bg:#656c7633;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 var(--sans); }
+  .top { background:var(--canvas); border-bottom:1px solid var(--border); }
+  .top .in, .wrap { max-width:1012px; margin:0 auto; padding:0 24px; }
+  .top .in { display:flex; align-items:center; gap:12px; height:56px; font-size:14px; color:var(--muted); }
+  .top b { color:var(--fg); }
+  a { color:var(--link); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .wrap { padding-top:24px; padding-bottom:56px; }
+  h1 { font-size:2rem; font-weight:400; line-height:1.25; margin:0 0 8px; }
+  h1 .num { color:var(--muted); font-weight:300; }
+  .meta { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0 0 24px; padding-bottom:16px; border-bottom:1px solid var(--border); color:var(--muted); font-size:14px; }
+  .badge { display:inline-flex; align-items:center; gap:6px; font-weight:600; font-size:14px; line-height:20px; padding:4px 12px; border-radius:2em; color:#fff; }
+  .badge.bad { background:#cf222e; }
+  .badge.ok { background:#1f883d; }
+  .badge.neutral { background:#6e7781; }
+  .note { margin:0 0 16px; padding:12px 16px; border:1px solid var(--warn-border); background:var(--warn-bg); color:var(--fg); border-radius:6px; font-size:14px; }
+  .comment { border:1px solid var(--border); border-radius:6px; }
+  .comment .head { display:flex; align-items:center; gap:8px; padding:8px 16px; background:var(--canvas); border-bottom:1px solid var(--border); border-radius:6px 6px 0 0; font-size:14px; color:var(--muted); }
+  .comment .head b { color:var(--fg); }
+  .avatar { width:20px; height:20px; border-radius:50%; background:var(--neutral-bg); color:var(--fg); display:inline-flex; align-items:center; justify-content:center; font:600 11px var(--sans); }
+  .label { font-size:12px; line-height:18px; padding:0 7px; border:1px solid var(--border); border-radius:2em; color:var(--muted); }
+  .markdown-body { padding:16px; font-size:16px; line-height:1.5; overflow-wrap:break-word; }
+  .markdown-body > :first-child { margin-top:0; }
+  .markdown-body > :last-child { margin-bottom:0; }
+  .markdown-body p, .markdown-body ul, .markdown-body details, .markdown-body pre, .markdown-body .table-wrap { margin:0 0 16px; }
+  .markdown-body ul { padding-left:2em; }
+  .markdown-body li + li { margin-top:.25em; }
+  .markdown-body code { font:85% var(--mono); background:var(--code-bg); border-radius:6px; padding:.2em .4em; }
+  .markdown-body pre { background:var(--canvas); border-radius:6px; padding:16px; overflow:auto; font:85%/1.45 var(--mono); }
+  .markdown-body pre code { background:transparent; padding:0; font-size:100%; white-space:pre; }
+  .markdown-body .table-wrap { overflow-x:auto; }
+  .markdown-body table { border-collapse:collapse; border-spacing:0; width:max-content; max-width:100%; }
+  .markdown-body th, .markdown-body td { padding:6px 13px; border:1px solid var(--border); text-align:left; vertical-align:top; }
+  .markdown-body th { font-weight:600; }
+  .markdown-body tr { background:var(--bg); border-top:1px solid var(--border-muted); }
+  .markdown-body tr:nth-child(2n) { background:var(--canvas); }
+  .markdown-body td.sev { font-weight:600; }
+  .markdown-body td.sev-error { color:var(--bad); }
+  .markdown-body td.sev-warning { color:var(--warn); }
+  .markdown-body td.sev-info { color:var(--link); }
+  .markdown-body details { border:1px solid var(--border); border-radius:6px; padding:0; }
+  .markdown-body details > summary { cursor:pointer; padding:8px 16px; font-weight:600; background:var(--canvas); border-radius:6px; list-style-position:inside; }
+  .markdown-body details[open] > summary { border-bottom:1px solid var(--border); border-radius:6px 6px 0 0; }
+  .markdown-body details > :not(summary) { margin-left:16px; margin-right:16px; }
+  .markdown-body details > summary + * { margin-top:16px; }
+  .markdown-body details > :last-child { margin-bottom:16px; }
+  .markdown-body .foot { color:var(--muted); font-size:12px; margin-top:16px; padding-top:12px; border-top:1px solid var(--border-muted); }
+  .how { margin-top:16px; border:1px solid var(--border); border-radius:6px; font-size:14px; }
+  .how > summary { cursor:pointer; padding:8px 16px; font-weight:600; background:var(--canvas); border-radius:6px; color:var(--muted); }
+  .how[open] > summary { border-bottom:1px solid var(--border); border-radius:6px 6px 0 0; }
+  .how ul { margin:0; padding:12px 16px 12px 36px; }
+  footer { margin-top:24px; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="top"><div class="in"><b>Proven</b><span>report for a demo pull request</span><span style="flex:1"></span><a href="@@LAB_PAGE_URL@@">&larr; the lab</a></div></div>
+<div class="wrap">
+  <h1>@@TITLE@@ <span class="num">#@@NUM@@</span></h1>
+  <div class="meta">
+    <span class="badge @@BADGE_CLASS@@">@@BADGE_TEXT@@</span>
+    <span>Demo pull request #@@NUM@@ in <a href="@@PR_URL@@">the lab's Gitea</a></span>
+  </div>
+@@NOTE@@
+  <div class="comment">
+    <div class="head"><span class="avatar">P</span><b>proven</b><span class="label">bot</span><span>reviewed this change</span></div>
+    <div class="markdown-body">
+@@BODY@@
+    </div>
+  </div>
+@@HOW@@
+  <footer>@@FOOTER@@</footer>
+</div>
+</body>
+</html>

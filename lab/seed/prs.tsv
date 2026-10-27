@@ -1,0 +1,13 @@
+# The lab's demo pull requests, one per line, tab separated: branch, fixture, class, verdict, title, what Proven should say.
+# fixture is a directory of testdata/fixture: the lab commits its base tree to main, and its change tree on the branch.
+# The workflow reads the fixture from the branch name (demo-<fixture>) and runs `proven scan --sample` on it, so the
+# review a pull request gets is the review the sample set records for that fixture. Nothing here is invented.
+# class is what the pull request demonstrates. Two defect pull requests may not share a class; a test holds that.
+# verdict is clean (Proven should report nothing) or defect (Proven should report with evidence).
+demo-discount-clean	discount-clean	clean-change	clean	Round the discount down to a whole cent	Clean. Nothing to report: the tests pass on the base and on the change, and no dependency changed.
+demo-unknown-author	unknown-author	clean-text	clean	Reword the draft note	Clean. Nothing to report: only a string changed, and no model is named as its author.
+demo-discount	discount	logic-bug	defect	Apply a discount (it is taken off twice)	A test that fails on the change and passes before it: 100 at 20 percent becomes 60, not 80. The new dependency is also on the known-exploited list.
+demo-malicious-package	malicious-package	malicious-package	defect	Add a padding helper from evil.example/drop	The new dependency has a malicious-package advisory: it was published to take credentials.
+demo-osv-go-module	osv-go-module	vulnerable-dependency	defect	Bump the widget library	The dependency version is inside an OSV affected range, with the advisory row as evidence.
+demo-spdx-licence	spdx-licence	licence	defect	Add a copyleft helper	The new dependency has a licence the project's policy does not allow.
+demo-project-health	project-health	project-health	defect	Add a very young dependency	The new dependency has no maintainers, by its project-health score.

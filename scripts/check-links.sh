@@ -13,6 +13,8 @@ broken=0
 # git ls-files: only files the repository tracks, so build output and local clutter are never checked.
 for md in $(git ls-files '*.md'); do
   dir=$(dirname "$md")
+  # A generated docs-site page is written as docs/ writes it (its links resolve from docs/, where the site's build resolves them).
+  case "$md" in docs-site/generated/*) dir=docs ;; esac
   # One target per line; the sed keeps only what sits between "](" and the next ")".
   grep -o '\]([^)]*)' "$md" 2>/dev/null | sed 's/^](//; s/)$//; s/[[:space:]].*$//' | while IFS= read -r target; do
     case "$target" in
