@@ -26,10 +26,12 @@ import {
 export const publicTextRules = [
   { kind: 'internal path', re: /\/Users\/[^\s/]+|\/home\/[^\s/]+|\/Volumes\/|\/var\/folders\/|[A-Za-z]:\\Users\\/ },
   { kind: 'internal path', re: /\bsaphan-studio\/|\bworktrees\/|\.provision\b|\.saphan\/|\.saphan-guardrail|\b_EXEC_(ORDER|STATUS)\b|\bbridge\/(governance|registry|development|correspondence)\b/ },
-  // a host name inside a private zone; an e-mail address in one is a placeholder account, not a machine
-  { kind: 'machine name', re: /(?<![@\w.-])[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*\.(local|internal|lan|corp|intranet|home\.arpa)\b/i },
+  // a host name inside a private zone; an e-mail address in one is a placeholder account, not a machine, and a name
+  // under a reserved documentation name (RFC 2606: .example, .test, .invalid) is an example, not a machine
+  { kind: 'machine name', re: /(?<![@\w.-])[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*\.(local|internal|lan|corp|intranet|home\.arpa)\b(?!\.(example|test|invalid)\b)/i },
   { kind: 'machine name', re: /\b[a-z0-9-]+\.[a-z0-9-]+\.ts\.net\b/i },
-  { kind: 'machine name', re: /\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/ },
+  // a private address; a range written as a prefix (10.0.0.0/8, RFC 1918) names the class, not a machine
+  { kind: 'machine name', re: /\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b(?!\/\d)/ },
   { kind: 'credential', re: /\bAKIA[0-9A-Z]{16}\b/ },
   { kind: 'credential', re: /\bgh[pousr]_[A-Za-z0-9]{30,}\b/ },
   { kind: 'credential', re: /\bnvapi-[A-Za-z0-9_-]{20,}/ },
