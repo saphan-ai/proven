@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: saphan-ai/proven@c2d8b1167ec0fa6704c03aa23e34b6914b323549 # main with the Action (W4)
+      - uses: saphan-ai/proven@be3e5bbfad4e22591a8f0d1c358bf32a2c038111 # main with the Markdown comment (W13)
         with:
           strict: false
           comment: true
