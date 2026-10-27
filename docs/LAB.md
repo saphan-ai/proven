@@ -92,7 +92,7 @@ A review is observable while it runs ([ADR-0045](adr/ADR-0045-a-review-is-observ
 
 The lab's pull-request review is told where to send its data, with the standard variables and nothing of Proven's own: the seeded workflow starts Proven on the lab network with `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` and `OTEL_METRIC_EXPORT_INTERVAL` set from `lab/versions.env`, and `OTEL_RESOURCE_ATTRIBUTES` naming the review: its instance id is `<unix time>-pr<number>-<fixture>`, so a dashboard knows a review by its pull request and change, and a clean change from a defect. The review runs with a second reviewer model (`LAB_SPECIAL_REVIEWER`), so there are two reviewers to show.
 
-Six dashboards, one style: dark, a title that says what you see, at most eight panels, a word beside every colour (green is good, red is bad, and the number always says what it counts), a sentence in each panel that can be empty, and a short description in each panel (the small `i` in its corner). The default time range is the last hour; the Nightshift dashboard shows six. Each has a row of links to the others at the top. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`.
+Six dashboards, one style: dark, a title that says what you see, at most eight panels, a word beside every colour (green is good, red is bad, blue is a count with no verdict, and a number reads `0 · none, good` or `3 · blocked`, never a bare colour), no empty box (a bar chart with no data says why in one row, and every bar is named), and a short description in each panel (the small `i` in its corner). A table that shows only the latest rows says so in its title, and is tall enough for them. Durations are in the unit their source returns. The default time range is the last hour on all six, and the bar charts step in minutes, because the lab reviews and the receipts all arrive within a quarter of an hour. Each has a row of links to the others at the top. Sign-in is not asked: the lab turns Grafana's anonymous access on, as an administrator, because the lab binds to `127.0.0.1`.
 
 | Dashboard | Address | What you see |
 |---|---|---|
@@ -101,7 +101,7 @@ Six dashboards, one style: dark, a title that says what you see, at most eight p
 | The evidence behind each finding | `/d/proven-evidence` | Findings by level of proof, claims dropped for no evidence, how long the Investigator and the Prover ran. Zetaris queries and Prover runs are **not measured yet**: two text panels name what is missing |
 | Which models answered, and what the guardrail checked | `/d/proven-models` | Model calls, calls with an error, unsafe guardrail checks; calls by agent and by the model asked and the model that answered; guardrail checks; what Proven refused to keep; model latency |
 | The four Meterless engines | `/d/proven-engines` | H-MEM's suppressed claims; what each review ran as (class, two reviewers, cut short). Scout Intent, Markovian and the World Model are **not measured yet**: text panels name what is missing |
-| The model gateway, from Nightshift's receipts | `/d/proven-nightshift` | Receipts loaded, calls that answered and failed, receipts that verified; calls over time by model and app; why calls failed; median latency; tokens ([the receipts](#the-nightshift-receipts)) |
+| The model gateway, from Nightshift's receipts | `/d/proven-nightshift` | Receipts loaded, calls that answered and failed, receipts that failed verification; calls over time by model and app; why calls failed; median latency; tokens ([the receipts](#the-nightshift-receipts)) |
 
 Three things on them that a reader should know:
 
@@ -116,7 +116,7 @@ The dashboards are JSON files in `lab/grafana/dashboards`, written by `python3 l
 ### Watch a review
 
 1. Run `make up`. It ends when every review is in, and prints the Overview's address.
-2. Open the Overview. It refreshes every 10 seconds. The table has one row per review, `clean` in green or the number of findings in red.
+2. Open the Overview. It refreshes every 10 seconds. The table has one row per review, a `Verdict` of `clean` (green) or `blocked` (red), and the findings kept.
 3. Open **One review** and pick a review. The agent table lists each agent in the order it ran, with a bar for how long it took.
 4. Start a review again: close and reopen a pull request in Gitea. The workflow runs on the runner (`make logs SERVICE=runner`). The new review appears in the Overview's table as it finishes.
 
@@ -124,7 +124,7 @@ The dashboards are JSON files in `lab/grafana/dashboards`, written by `python3 l
 
 Each demo pull request has a **Report** page: the review Proven writes with `proven scan --md`, set in the way GitHub shows a Markdown comment. A verdict badge on top (blocked, clean), the findings table, and each finding folded under its table row with its evidence, in light or dark to match the reader's system. The page has no script and no remote address, and carries no password, no token and no name of anything private (a test holds that). It is served by the start page's nginx at `/lab/report/<pull request number>.html`.
 
-`make up` builds the pages after the seed (`lab/scripts/reports.sh`; `make reports` builds them again): for each pull request it runs Proven's image with no network and no key, on that change's sample set, and the seed image turns the Markdown into the page (`lab/seed/report.sh`, `lab/seed/md2html.awk`). The seed writes a page that says the report is not ready for every pull request first, so a Report link is never dead. In a live lab the page says it is the sample review of the same change and that the live review is the comment in Gitea: the page is not a second live review, which would spend the lab's keys again.
+`make up` builds the pages after the seed (`lab/scripts/reports.sh`; `make reports` builds them again): for each pull request it runs Proven's image with no network and no key, on that change's sample set, and the seed image turns the Markdown into the page (`lab/seed/report.sh`, `lab/seed/md2html.awk`). The seed writes a placeholder for every pull request first, so a Report link is never dead: the placeholder says plainly that no report has been built and names `make reports`. The directory and its pages are world-readable whatever umask the seed runs under, because the start page's nginx is another user (a 700 directory once made every Report link a 403; a test holds it). In a live lab the page says it is the sample review of the same change and that the live review is the comment in Gitea: the page is not a second live review, which would spend the lab's keys again.
 
 The stylesheet is written for the page, in GitHub's light and dark colours. No third-party stylesheet is copied in. The Markdown the CLI writes is documented in [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md).
 
@@ -530,13 +530,13 @@ make e2e-failed-run
 Run each with `make up` on a terminal unless it says otherwise. Each step names what you see.
 
 1. **The plan.** Run `make up`, answer `sample`, then Enter at the next question. You see `[SAMPLE/live]` in the first question and Enter takes it. Before any Docker output you see `What will happen next:` and five numbered steps, `7 pull requests` in the third.
-2. **The step lines.** Between Docker's output you see `==> [1/5] Proven's image is built (NN s)`, then `[2/5]`, `[3/5]` and `[4/5]`, each in green with an empty line above and below it.
+2. **The step lines.** Between Docker's output you see `==> [1/5] Proven's image is built (NN s)`, then `[2/5]` to `[5/5]` (`The lab is ready`), each in green with an empty line above and below it.
 3. **The wait.** Step 4 prints a line for each pull request, `demo-check: [1/7] ... waiting for Proven's review`, then `defect, as the manifest says` or `clean, as the manifest says`. The ready block appears after the last one.
 4. **The ready block.** It ends on `>>>>>>>>  START HERE:  http://127.0.0.1:3302/lab  <<<<<<<<`, bold and green, with one empty line after it and nothing else.
 5. **No colour.** `NO_COLOR=1 make up` and `make up | cat` print the same words with no colour.
 6. **A failure.** Stop Docker, run `make up`: before any step line you see Docker's own refusal; stop it during step 2 instead and you see `==> [2/5] FAILED: Start Gitea, Grafana and the lab's Docker (after NN s). Read: make logs SERVICE=gitea, or SERVICE=lgtm, or SERVICE=dind` in red.
 7. **The start page.** Open START HERE. The table has a **Report** column. Open the report of `Apply a discount (it is taken off twice)`: a red **Blocked** badge, the findings table, and the findings folded; open one. Switch your system to light and dark: the page follows. Open the report of a clean change: a green **Clean** badge.
-8. **The dashboards.** Open the Overview. You see four numbers, each with a word: reviews finished, `5 of 5 flagged` (green), `0 false alarms` (green), `0 agents failed` (green). The table has seven rows. Use the links at the top to open the other five. Evidence and Meterless engines name what is missing in grey panels. Nightshift says no receipts are loaded until `lab/nightshift/receipts.public.jsonl` is there.
+8. **The dashboards.** Open the Overview. You see four numbers, each with a word: reviews finished, `5 of 5 flagged` (green), `0 false alarms` (green), `0 agents failed` (green). The table has seven rows, none hidden (it is sized for twelve). Use the links at the top to open the other five. Evidence and Meterless engines name what is missing in grey panels. Nightshift says no receipts are loaded until `lab/nightshift/receipts.public.jsonl` is there.
 9. **One review.** Open **One review**, pick the newest. Each agent is a row with a bar for its duration; both reviewers' verdicts are side by side.
 10. **Offline checks.** `go vet ./...`, `go test ./lab/...`, and `go test ./internal/telemetry/`.
 
