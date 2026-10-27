@@ -68,7 +68,7 @@ Settings come from the environment only. The script does not print a secret. A v
 | `PROVEN_GUARDRAIL_BASE_URL` | `http://127.0.0.1:8081` in server mode; `https://integrate.api.nvidia.com/v1` in nvidia mode |
 | `PROVEN_GUARDRAIL_MODEL` | `nemotron-3.5-content-safety` in server mode; `nvidia/nemotron-3.5-content-safety` in nvidia mode |
 | `PROVEN_GUARDRAIL_KEY` | none; required unless mode is `off`. Secret. |
-| `PROVEN_GUARDRAIL_TIMEOUT` | `30s` |
+| `PROVEN_GUARDRAIL_TIMEOUT` | `120s` |
 
 ### Zetaris
 

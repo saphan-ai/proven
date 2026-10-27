@@ -47,7 +47,7 @@ Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `ME
 | `PROVEN_GUARDRAIL_BASE_URL` | `http://127.0.0.1:8081` for `server`; `https://integrate.api.nvidia.com/v1` for `nvidia` | the guardrail's address |
 | `PROVEN_GUARDRAIL_MODEL` | `nemotron-3.5-content-safety` for `server`; `nvidia/nemotron-3.5-content-safety` for `nvidia` | the safety model. The hosted id is not yet confirmed by a live call |
 | `PROVEN_GUARDRAIL_KEY` | none | the guardrail's key. Secret: never printed. Empty is not off: every model call is refused |
-| `PROVEN_GUARDRAIL_TIMEOUT` | `30s` | the limit for one check |
+| `PROVEN_GUARDRAIL_TIMEOUT` | `120s` | the limit for one check |
 
 Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name. An empty key is not off: every model call is refused and the review names the guardrail.
 
