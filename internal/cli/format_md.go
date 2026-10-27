@@ -21,16 +21,23 @@ import (
 // those: an accepted one is not in it). The result carries no count of dropped
 // claims, so none is printed; a claim only one model makes is not in the result.
 func mdVerdict(result review.Result) string {
+	head, tail := verdictLine(result)
+	return "**" + head + "**" + tail
+}
+
+// verdictLine is mdVerdict as plain words in two parts, the verdict ("Proven:
+// blocked") and what follows it, so each writer marks the verdict its own way.
+func verdictLine(result review.Result) (head, tail string) {
 	if len(result.Findings) == 0 {
 		if down := mdModelsDown(result); len(down) > 0 {
 			// Some calls answered and later ones did not: the review is incomplete, not
 			// absent. Result.Models holds every model call that answered (ADR-0019).
 			if len(result.Models) > 0 {
-				return "**Proven: incomplete** — " + strings.Join(down, " and ") + " did not answer every call, so 0 findings proves nothing" + mdCountsTail(result)
+				return "Proven: incomplete", " — " + strings.Join(down, " and ") + " did not answer every call, so 0 findings proves nothing" + mdCountsTail(result)
 			}
-			return "**Proven: not reviewed** — " + strings.Join(down, " and ") + " did not answer, so 0 findings proves nothing" + mdCountsTail(result)
+			return "Proven: not reviewed", " — " + strings.Join(down, " and ") + " did not answer, so 0 findings proves nothing" + mdCountsTail(result)
 		}
-		return "**Proven: clean** — 0 findings" + mdCountsTail(result)
+		return "Proven: clean", " — 0 findings" + mdCountsTail(result)
 	}
 	var errs, warns, infos int
 	for _, f := range result.Findings {
@@ -43,11 +50,41 @@ func mdVerdict(result review.Result) string {
 			infos++
 		}
 	}
-	line := fmt.Sprintf("**Proven: blocked** — %d %s: %d %s, %d %s, %d info",
+	line := fmt.Sprintf(" — %d %s: %d %s, %d %s, %d info",
 		len(result.Findings), pluralWord(len(result.Findings), "finding", "findings"),
 		errs, pluralWord(errs, "error", "errors"), warns, pluralWord(warns, "warning", "warnings"), infos)
-	return line + mdCountsTail(result)
+	return "Proven: blocked", line + mdCountsTail(result)
 }
+
+// inlineStyle is how a writer marks a value from the change inside a sentence:
+// text for prose and code for a path, name or command. The sentences below are
+// written once and take the style, so the Markdown and HTML writers say the
+// same words and each escapes by its own rule.
+type inlineStyle struct {
+	text, code func(string) string
+	// unbounded lifts the Markdown comment's byte and list bounds (mdMaxMessage,
+	// mdMaxNote, mdMaxTitle, mdMaxNotes), which exist for the platform's size limit
+	// of a comment. A file a judge opens has no such limit and is never cut
+	// (ADR-0033 point 8).
+	unbounded bool
+}
+
+// cut shortens s to max bytes with an ellipsis when the style is bounded.
+func (st inlineStyle) cut(s string, max int) string {
+	if st.unbounded {
+		return s
+	}
+	return mdShort(s, max)
+}
+
+// capList reports whether the list stops before item i (counting from 0): a
+// bounded style stops at mdMaxNotes and says how many more there are.
+func (st inlineStyle) capList(i int) bool {
+	return !st.unbounded && i == mdMaxNotes
+}
+
+// mdStyle marks a value for Markdown.
+var mdStyle = inlineStyle{text: mdText, code: mdCode}
 
 // mdCountsTail adds the counts beyond the severities: findings left unresolved,
 // findings an exception accepts, and unproven opinions. Zero counts are left out.
@@ -79,8 +116,11 @@ func mdCountsTail(result review.Result) string {
 // did not copy, and whether every outside service answered, by name when one did
 // not. The Result carries no list of the files or the commit range reviewed, so
 // none is printed; the foot names the models.
-func mdChecked(result review.Result) string {
-	class := mdText(result.Class)
+func mdChecked(result review.Result) string { return checkedIn(mdStyle, result) }
+
+// checkedIn is mdChecked in a writer's own style.
+func checkedIn(st inlineStyle, result review.Result) string {
+	class := st.text(result.Class)
 	if class == "" {
 		class = "an unclassified"
 	} else {
@@ -96,7 +136,7 @@ func mdChecked(result review.Result) string {
 	} else {
 		names := make([]string, 0, len(result.FailedServices))
 		for _, failed := range result.FailedServices {
-			names = append(names, mdServiceName(failed.Service))
+			names = append(names, serviceNameIn(st, failed.Service))
 		}
 		parts = append(parts, "these services did not answer: "+strings.Join(names, ", "))
 	}
@@ -108,13 +148,16 @@ func mdChecked(result review.Result) string {
 		}
 	}
 	return fmt.Sprintf("Checked as %s change%s; %s. %s",
-		class, mdClassReason(result.ClassRule), strings.Join(parts, "; "), closing)
+		class, classReasonIn(st, result.ClassRule), strings.Join(parts, "; "), closing)
 }
 
 // mdClassReason says in words why the review chose its class: a path rule names
 // its pattern, the fallback says no rule matched, and an empty rule says nothing.
 // The owner's rule of 27 Oct: no raw field name or value on a page a judge reads.
-func mdClassReason(rule string) string {
+func mdClassReason(rule string) string { return classReasonIn(mdStyle, rule) }
+
+// classReasonIn is mdClassReason in a writer's own style.
+func classReasonIn(st inlineStyle, rule string) string {
 	switch {
 	case rule == "":
 		return ""
@@ -123,8 +166,38 @@ func mdClassReason(rule string) string {
 	case strings.HasPrefix(rule, "scout-intent"):
 		return " (raised by the plan Proven made for this change)"
 	default:
-		return " (path rule " + mdCode(mdShort(rule, mdMaxTitle)) + ")"
+		return " (path rule " + st.code(st.cut(rule, mdMaxTitle)) + ")"
 	}
+}
+
+// queryEngineNames are the evidence stores a query can run on, as a reader knows them.
+var queryEngineNames = map[string]string{
+	"zetaris":      "Zetaris",
+	"couchdb":      "CouchDB",
+	"local":        "the local evidence file",
+	"local-sample": "the bundled sample data",
+}
+
+// queryFormNames are the query languages, as a reader knows them.
+var queryFormNames = map[string]string{"sql": "SQL", "mango": "a Mango query"}
+
+// querySource says in words what a query ran on: its language, the store and the
+// snapshot. The owner's rule of 27 Oct: no raw adapter name or enum on a page a judge
+// reads; an unknown store or form keeps its own name.
+func querySource(q *review.QueryEvidence) string {
+	form, ok := queryFormNames[q.Form]
+	if !ok {
+		form = q.Form
+	}
+	return fmt.Sprintf("%s on %s, snapshot %s", form, queryEngineName(q.Engine), q.Snapshot)
+}
+
+// queryEngineName is an evidence store as a reader knows it; an unknown one keeps its name.
+func queryEngineName(engine string) string {
+	if name, ok := queryEngineNames[engine]; ok {
+		return name
+	}
+	return engine
 }
 
 // mdServiceNames are the outside services a review calls, as a reader knows them.
@@ -139,11 +212,14 @@ var mdServiceNames = map[string]string{
 }
 
 // mdServiceName is a failed service as a reader knows it; an unknown one keeps its name.
-func mdServiceName(service string) string {
+func mdServiceName(service string) string { return serviceNameIn(mdStyle, service) }
+
+// serviceNameIn is mdServiceName in a writer's own style.
+func serviceNameIn(st inlineStyle, service string) string {
 	if name, ok := mdServiceNames[service]; ok {
 		return name
 	}
-	return mdCode(mdShort(service, mdMaxTitle))
+	return st.code(st.cut(service, mdMaxTitle))
 }
 
 // mdUnsetSetting is a reason that only names an empty setting, such as "ZETARIS_REST_URL is empty".
@@ -151,11 +227,14 @@ var mdUnsetSetting = regexp.MustCompile(`^[A-Z][A-Z0-9_]* is empty$`)
 
 // mdServiceReason is why a service did not answer, in words: a setting left empty
 // says the service is not configured for this run instead of naming the variable.
-func mdServiceReason(reason string) string {
+func mdServiceReason(reason string) string { return serviceReasonIn(mdStyle, reason) }
+
+// serviceReasonIn is mdServiceReason in a writer's own style.
+func serviceReasonIn(st inlineStyle, reason string) string {
 	if mdUnsetSetting.MatchString(reason) {
 		return "not configured for this run"
 	}
-	return mdText(mdShort(reason, mdMaxNote))
+	return st.text(st.cut(reason, mdMaxNote))
 }
 
 // mdSeverity is a severity as a word with a capital: Error, Warning, Info.
@@ -277,7 +356,7 @@ func mdEvidence(b *strings.Builder, e review.Evidence, lim *mdLimits) {
 		if q == nil {
 			return
 		}
-		fmt.Fprintf(b, "**Query** (%s, snapshot %s, form %s)\n\n", mdText(q.Engine), mdText(q.Snapshot), mdText(q.Form))
+		fmt.Fprintf(b, "**Query** (%s)\n\n", mdText(querySource(q)))
 		mdFence(b, "sql", mdCut(q.SQL, lim))
 		mdRows(b, q.Columns, q.Rows, lim)
 	case review.EvidenceTest:
@@ -346,22 +425,32 @@ func mdFix(b *strings.Builder, fix *review.Fix, lim *mdLimits) {
 	if fix == nil {
 		return
 	}
-	switch {
-	case fix.Dependency != nil:
-		d := fix.Dependency
-		fmt.Fprintf(b, "**Fix** (named from the advisory table, no test ran): raise %s %s to %s. %s\n\n",
-			mdCode(d.Package), mdCode(d.From), mdCode(d.To), mdText(mdShort(oneLine(fix.Why), mdMaxMessage)))
-	case fix.Proved:
-		fmt.Fprintf(b, "**Fix** (proved after %d %s; a suggestion for you to apply, Proven changes nothing): %s %s\n\n",
-			fix.Attempts, attemptWord(fix.Attempts), mdText(mdShort(oneLine(fix.What), mdMaxMessage)), mdText(mdShort(oneLine(fix.Why), mdMaxMessage)))
+	b.WriteString("**Fix**" + fixInline(mdStyle, fix) + "\n\n")
+	if fix.Dependency != nil {
+		return
+	}
+	if fix.Proved {
 		for _, edit := range fix.Edits {
 			fmt.Fprintf(b, "Edit %s:\n\n", mdCode(edit.Path))
 			mdFence(b, "diff", mdCut(mdDiff(edit), lim))
 		}
-		mdFixRuns(b, fix.Runs, lim)
+	}
+	mdFixRuns(b, fix.Runs, lim)
+}
+
+// fixInline is what a fix says about itself, after the word "Fix": a named
+// dependency raise, a proved suggestion, or a fix that was not proved.
+func fixInline(st inlineStyle, fix *review.Fix) string {
+	switch {
+	case fix.Dependency != nil:
+		d := fix.Dependency
+		return fmt.Sprintf(" (named from the advisory table, no test ran): raise %s %s to %s. %s",
+			st.code(d.Package), st.code(d.From), st.code(d.To), st.text(st.cut(oneLine(fix.Why), mdMaxMessage)))
+	case fix.Proved:
+		return fmt.Sprintf(" (proved after %d %s; a suggestion for you to apply, Proven changes nothing): %s %s",
+			fix.Attempts, attemptWord(fix.Attempts), st.text(st.cut(oneLine(fix.What), mdMaxMessage)), st.text(st.cut(oneLine(fix.Why), mdMaxMessage)))
 	default:
-		b.WriteString("**Fix** not proved: " + mdText(mdShort(oneLine(fix.Note), mdMaxMessage)) + "\n\n")
-		mdFixRuns(b, fix.Runs, lim)
+		return " not proved: " + st.text(st.cut(oneLine(fix.Note), mdMaxMessage))
 	}
 }
 
@@ -397,23 +486,27 @@ func mdFixRuns(b *strings.Builder, runs []review.FixRun, lim *mdLimits) {
 // long list of exceptions is cut with its count.
 // mdPeople are the author and reviewer lines, read from the structured fields so
 // a reader sees words, not the review's internal role names (ADR-0037 point 5).
-func mdPeople(result review.Result) []string {
+func mdPeople(result review.Result) []string { return peopleIn(mdStyle, result) }
+
+// peopleIn is mdPeople in a writer's own style, one sentence a line, each
+// starting "- " as a Markdown list item does.
+func peopleIn(st inlineStyle, result review.Result) []string {
 	var lines []string
 	if len(result.AuthorModels) == 0 {
 		lines = append(lines, "- Author model: unknown, the change does not declare it")
 	} else {
 		names := make([]string, 0, len(result.AuthorModels))
 		for _, a := range result.AuthorModels {
-			names = append(names, fmt.Sprintf("%s (%s)", mdCode(mdShort(a.Model, mdMaxTitle)), mdText(mdFamily(a.Family))))
+			names = append(names, fmt.Sprintf("%s (%s)", st.code(st.cut(a.Model, mdMaxTitle)), st.text(mdFamily(a.Family))))
 		}
 		lines = append(lines, "- Author model: "+strings.Join(names, ", "))
 	}
 	for _, r := range result.Reviewers {
 		role := "Reviewer"
 		if r.Role == review.RoleSpecial {
-			role = "Second reviewer, for " + mdText(result.Class) + " changes"
+			role = "Second reviewer, for " + st.text(result.Class) + " changes"
 		}
-		line := fmt.Sprintf("- %s: %s (%s)", role, mdCode(mdShort(r.Model, mdMaxTitle)), mdText(mdFamily(r.Family)))
+		line := fmt.Sprintf("- %s: %s (%s)", role, st.code(st.cut(r.Model, mdMaxTitle)), st.text(mdFamily(r.Family)))
 		if r.IsAuthorModel == "yes" {
 			line += ", the same family as the author"
 		}
@@ -493,45 +586,7 @@ func mdFamily(f string) string {
 }
 
 func mdNotes(b *strings.Builder, result review.Result) {
-	var lines []string
-	statement := func(s string) {
-		if s != "" {
-			lines = append(lines, "- "+mdText(mdShort(oneLine(s), mdMaxNote)))
-		}
-	}
-	statement(result.PolicyStatement)
-	statement(result.SettingsStatement)
-	if len(result.Reviewers) > 0 {
-		lines = append(lines, mdPeople(result)...)
-	} else {
-		statement(result.AuthorModelStatement)
-		for _, line := range result.ReviewerStatements {
-			statement(line)
-		}
-	}
-	for _, failed := range result.FailedServices {
-		lines = append(lines, fmt.Sprintf("- Did not answer: %s (%s)", mdServiceName(failed.Service), mdServiceReason(failed.Reason)))
-	}
-	if result.Partial {
-		lines = append(lines, "- review partial: the deadline was reached")
-	}
-	for i, a := range result.Accepted {
-		if i == mdMaxNotes {
-			lines = append(lines, fmt.Sprintf("- %d more accepted by exception, not listed", len(result.Accepted)-i))
-			break
-		}
-		lines = append(lines, fmt.Sprintf("- accepted by exception %s (owner %s, expires %s): %s %s",
-			mdCode(a.ExceptionID), mdText(mdShort(a.Owner, mdMaxTitle)), mdText(mdShort(a.Expires, mdMaxTitle)),
-			mdText(mdShort(a.Finding.Title, mdMaxTitle)), mdLocation(a.Finding.Location, false)))
-	}
-	for i, e := range result.Expired {
-		if i == mdMaxNotes {
-			lines = append(lines, fmt.Sprintf("- %d more exceptions expired, not listed", len(result.Expired)-i))
-			break
-		}
-		lines = append(lines, fmt.Sprintf("- exception %s expired on %s: finding %s counts again",
-			mdCode(e.ExceptionID), mdText(mdShort(e.Expires, mdMaxTitle)), mdText(mdShort(e.Finding, mdMaxTitle))))
-	}
+	lines := notesIn(mdStyle, result)
 	if len(lines) == 0 {
 		return
 	}
@@ -539,10 +594,58 @@ func mdNotes(b *strings.Builder, result review.Result) {
 	b.WriteString("\n\n")
 }
 
+// notesIn is the notes of mdNotes in a writer's own style, one line each,
+// each starting "- " as a Markdown list item does.
+func notesIn(st inlineStyle, result review.Result) []string {
+	var lines []string
+	statement := func(s string) {
+		if s != "" {
+			lines = append(lines, "- "+st.text(st.cut(oneLine(s), mdMaxNote)))
+		}
+	}
+	statement(result.PolicyStatement)
+	statement(result.SettingsStatement)
+	if len(result.Reviewers) > 0 {
+		lines = append(lines, peopleIn(st, result)...)
+	} else {
+		statement(result.AuthorModelStatement)
+		for _, line := range result.ReviewerStatements {
+			statement(line)
+		}
+	}
+	for _, failed := range result.FailedServices {
+		lines = append(lines, fmt.Sprintf("- Did not answer: %s (%s)", serviceNameIn(st, failed.Service), serviceReasonIn(st, failed.Reason)))
+	}
+	if result.Partial {
+		lines = append(lines, "- review partial: the deadline was reached")
+	}
+	for i, a := range result.Accepted {
+		if st.capList(i) {
+			lines = append(lines, fmt.Sprintf("- %d more accepted by exception, not listed", len(result.Accepted)-i))
+			break
+		}
+		lines = append(lines, fmt.Sprintf("- accepted by exception %s (owner %s, expires %s): %s %s",
+			st.code(a.ExceptionID), st.text(st.cut(a.Owner, mdMaxTitle)), st.text(st.cut(a.Expires, mdMaxTitle)),
+			st.text(st.cut(a.Finding.Title, mdMaxTitle)), st.code(mdPlace(a.Finding.Location))))
+	}
+	for i, e := range result.Expired {
+		if st.capList(i) {
+			lines = append(lines, fmt.Sprintf("- %d more exceptions expired, not listed", len(result.Expired)-i))
+			break
+		}
+		lines = append(lines, fmt.Sprintf("- exception %s expired on %s: finding %s counts again",
+			st.code(e.ExceptionID), st.text(st.cut(e.Expires, mdMaxTitle)), st.text(st.cut(e.Finding, mdMaxTitle))))
+	}
+	return lines
+}
+
 // mdFoot is the one line at the bottom: the reviewing models and the guardrail
 // line, the same words the text output prints (review.Result.GuardrailLine),
 // built from the checks the pipeline counted.
-func mdFoot(result review.Result) string {
+func mdFoot(result review.Result) string { return "<sub>" + footIn(mdStyle, result) + "</sub>" }
+
+// footIn is the foot's words in a writer's own style, without the <sub> mark.
+func footIn(st inlineStyle, result review.Result) string {
 	models := result.ReviewerModels
 	if len(models) == 0 {
 		for _, r := range result.Reviewers {
@@ -553,11 +656,11 @@ func mdFoot(result review.Result) string {
 	if len(models) > 0 {
 		escaped := make([]string, 0, len(models))
 		for _, m := range models {
-			escaped = append(escaped, mdCode(mdShort(m, mdMaxTitle)))
+			escaped = append(escaped, st.code(st.cut(m, mdMaxTitle)))
 		}
 		names = "reviewed by " + strings.Join(escaped, " and ")
 	}
-	return "<sub>" + names + " · " + mdText(result.GuardrailLine()) + "</sub>"
+	return names + " · " + st.text(result.GuardrailLine())
 }
 
 // pluralWord picks the singular for one and the plural for any other number.
@@ -668,7 +771,12 @@ func htmlEntities(s string) string {
 // is put where each of those starts: after '@' and '#', after the ':' of "://",
 // and before the '.' of "www.". The text reads the same and no longer matches.
 func htmlText(s string) string {
-	runes := []rune(visible(strings.Join(strings.Fields(s), " ")))
+	return htmlRunes([]rune(visible(strings.Join(strings.Fields(s), " "))))
+}
+
+// htmlRunes escapes runes that are already folded and made visible, by the rule
+// of htmlText. The HTML writer also calls it for a value that keeps its lines.
+func htmlRunes(runes []rune) string {
 	var b strings.Builder
 	for i, r := range runes {
 		switch {

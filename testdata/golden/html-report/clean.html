@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proven review</title>
+<style>
+body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #1b1f24; background: #f6f8fa; }
+main { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+h1 { font-size: 1.6rem; margin: 0 0 1rem; }
+h2 { font-size: 1.2rem; margin: 0 0 .5rem; }
+h3 { font-size: 1rem; margin: 1rem 0 .25rem; }
+h4 { font-size: .95rem; margin: 1rem 0 .25rem; }
+code, pre { font: .9rem/1.4 ui-monospace, Menlo, Consolas, monospace; }
+pre { background: #eaeef2; padding: .75rem; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 4px; }
+.verdict { font-size: 1.1rem; padding: .75rem 1rem; border-left: 6px solid #6e7781; background: #fff; border-radius: 4px; }
+.verdict.blocked { border-color: #cf222e; }
+.verdict.clean { border-color: #1a7f37; }
+.verdict.not-reviewed { border-color: #9a6700; }
+table { border-collapse: collapse; background: #fff; }
+th, td { border: 1px solid #d0d7de; padding: .3rem .6rem; text-align: left; vertical-align: top; }
+.summary { width: 100%; margin: 1rem 0; }
+.summary td code { overflow-wrap: anywhere; word-break: break-all; }
+.rows { overflow-x: auto; }
+.card { background: #fff; border: 1px solid #d0d7de; border-left: 6px solid #0969da; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
+.card.error { border-left-color: #cf222e; }
+.card.warning { border-left-color: #bf8700; }
+.severity { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; margin-right: .4rem; }
+.place { margin: 0 0 .5rem; }
+summary { cursor: pointer; font-weight: 600; }
+.opinions { margin: 1.5rem 0; }
+.notes { color: #424a53; }
+footer { margin-top: 2rem; font-size: .85rem; color: #57606a; }
+@media (prefers-color-scheme: dark) {
+body { color: #e6edf3; background: #0d1117; }
+.verdict, table, .card { background: #161b22; border-color: #30363d; }
+th, td { border-color: #30363d; }
+pre { background: #21262d; }
+.notes, footer { color: #8b949e; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Proven review</h1>
+<p class="verdict clean"><strong>Proven: clean</strong> — 0 findings</p>
+<p>Checked as a docs change (no path rule matched); every service answered. A finding needs proof to be reported, and none had it.</p>
+<section class="opinions">
+<h2>Agreed by two models, not proven</h2>
+<p>No claim was agreed by two models without proof.</p>
+<p>A claim only one model makes is not kept.</p>
+</section>
+<ul class="notes">
+<li>Author model: unknown, the change does not declare it</li>
+<li>Reviewer: <code>m1</code> (acme)</li>
+</ul>
+<footer>reviewed by <code>m1</code> · Guardrail: no model call to check</footer>
+</main>
+</body>
+</html>

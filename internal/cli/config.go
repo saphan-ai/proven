@@ -72,6 +72,7 @@ type config struct {
 	jsonOutput      string
 	sarifOutput     string
 	mdOutput        string
+	htmlOutput      string
 	output          string
 	errorOnFindings bool
 	baseline        string
@@ -176,11 +177,11 @@ func (m *multiFlag) Set(v string) error {
 
 // holders is every flag of one parse, before the variables and defaults are applied.
 type holders struct {
-	text, asJSON, sarif, md             boolPresence
+	text, asJSON, sarif, md, html       boolPresence
 	errorOn, noError                    boolPresence
 	sample, quiet, verbose, help, ver   boolPresence
 	textOutput, jsonOutput, sarifOutput setString
-	mdOutput                            setString
+	mdOutput, htmlOutput                setString
 	baseline, configPath, severity      setString
 	timeout, output, evidencePack       setString
 	include, exclude                    multiFlag
@@ -196,6 +197,8 @@ func knownFlagNames() []string {
 		"--evidence-pack",
 		"--exclude",
 		"--help",
+		"--html",
+		"--html-output",
 		"--include",
 		"--json",
 		"--json-output",
@@ -228,6 +231,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	h.asJSON.name = "--json"
 	h.sarif.name = "--sarif"
 	h.md.name = "--md"
+	h.html.name = "--html"
 	h.errorOn.name = "--error"
 	h.noError.name = "--no-error"
 	h.sample.name = "--sample"
@@ -242,10 +246,12 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	fs.Var(&h.asJSON, "json", "json on standard output")
 	fs.Var(&h.sarif, "sarif", "sarif on standard output")
 	fs.Var(&h.md, "md", "markdown on standard output")
+	fs.Var(&h.html, "html", "one self-contained html file on standard output")
 	fs.Var(&h.textOutput, "text-output", "also write text to this file")
 	fs.Var(&h.jsonOutput, "json-output", "also write json to this file")
 	fs.Var(&h.sarifOutput, "sarif-output", "also write sarif to this file")
 	fs.Var(&h.mdOutput, "md-output", "also write markdown to this file")
+	fs.Var(&h.htmlOutput, "html-output", "also write the html report to this file")
 	fs.Var(&h.output, "output", "write the chosen format to this file")
 	fs.Var(&h.output, "o", "write the chosen format to this file")
 	fs.Var(&h.errorOn, "error", "exit 1 when findings are reported")
@@ -268,7 +274,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 // refusedBoolFlag names the boolean flag whose value the parse refused, if any.
 func refusedBoolFlag(h *holders) (string, string, bool) {
 	flags := []*boolPresence{
-		&h.text, &h.asJSON, &h.sarif, &h.md, &h.errorOn, &h.noError,
+		&h.text, &h.asJSON, &h.sarif, &h.md, &h.html, &h.errorOn, &h.noError,
 		&h.sample, &h.quiet, &h.verbose, &h.help, &h.ver,
 	}
 	for _, b := range flags {
@@ -284,7 +290,7 @@ func refusedBoolFlag(h *holders) (string, string, bool) {
 // which arrange needs to keep a value from being read as the command.
 func isValueFlag(name string) bool {
 	switch name {
-	case "text-output", "json-output", "sarif-output", "md-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout", "evidence-pack":
+	case "text-output", "json-output", "sarif-output", "md-output", "html-output", "output", "o", "baseline-commit", "config", "include", "exclude", "severity", "timeout", "evidence-pack":
 		return true
 	default:
 		return false
@@ -402,6 +408,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.jsonOutput = h.jsonOutput.v
 	cfg.sarifOutput = h.sarifOutput.v
 	cfg.mdOutput = h.mdOutput.v
+	cfg.htmlOutput = h.htmlOutput.v
 	cfg.evidencePack = h.evidencePack.v
 	if h.output.set {
 		cfg.output = h.output.v
@@ -471,6 +478,7 @@ func outputFiles(cfg config) []struct{ flag, path string } {
 		{"--json-output", cfg.jsonOutput},
 		{"--sarif-output", cfg.sarifOutput},
 		{"--md-output", cfg.mdOutput},
+		{"--html-output", cfg.htmlOutput},
 	}
 }
 
@@ -544,6 +552,7 @@ func refuseSymlinkOutputs(cfg config) error {
 		{"--json-output", cfg.jsonOutput},
 		{"--sarif-output", cfg.sarifOutput},
 		{"--md-output", cfg.mdOutput},
+		{"--html-output", cfg.htmlOutput},
 	}
 	for _, n := range named {
 		if n.path == "" {
@@ -823,8 +832,11 @@ func refuseExclusive(h *holders) error {
 	if h.md.set {
 		formats++
 	}
+	if h.html.set {
+		formats++
+	}
 	if formats > 1 {
-		return &cliError{code: exitFatal, msg: "choose one of --text, --json, --sarif, --md"}
+		return &cliError{code: exitFatal, msg: "choose one of --text, --json, --sarif, --md, --html"}
 	}
 	if h.errorOn.set && h.noError.set {
 		return &cliError{code: exitFatal, msg: "choose one of --error, --no-error"}
@@ -850,6 +862,9 @@ func resolveFormat(getenv func(string) string, h *holders) (string, error) {
 	if h.md.set && h.md.v {
 		return "md", nil
 	}
+	if h.html.set && h.html.v {
+		return "html", nil
+	}
 	if v := getenv("PROVEN_OUTPUT_FORMAT"); v != "" {
 		return parseFormat(v)
 	}
@@ -858,10 +873,10 @@ func resolveFormat(getenv func(string) string, h *holders) (string, error) {
 
 func parseFormat(v string) (string, error) {
 	switch strings.ToLower(v) {
-	case "text", "json", "sarif", "md":
+	case "text", "json", "sarif", "md", "html":
 		return strings.ToLower(v), nil
 	default:
-		return "", refuse("PROVEN_OUTPUT_FORMAT", v, "output format is not one of the allowed values", []string{"text", "json", "sarif", "md"})
+		return "", refuse("PROVEN_OUTPUT_FORMAT", v, "output format is not one of the allowed values", []string{"text", "json", "sarif", "md", "html"})
 	}
 }
 

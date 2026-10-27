@@ -28,9 +28,9 @@ with a head SHA. A base that cannot be resolved is exit 2: Proven could
 not review.
 
 flags:
-  --text, --json, --sarif, --md
+  --text, --json, --sarif, --md, --html
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-  --text-output, --json-output, --sarif-output, --md-output
+  --text-output, --json-output, --sarif-output, --md-output, --html-output
         also write that format to a file
   -o, --output
         write the chosen format to a file instead of standard output (PROVEN_OUTPUT)
@@ -89,9 +89,9 @@ with a head SHA. A base that cannot be resolved is exit 2: Proven could
 not review.
 
 flags:
-  --text, --json, --sarif, --md
+  --text, --json, --sarif, --md, --html
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-  --text-output, --json-output, --sarif-output, --md-output
+  --text-output, --json-output, --sarif-output, --md-output, --html-output
         also write that format to a file
   -o, --output
         write the chosen format to a file instead of standard output (PROVEN_OUTPUT)
@@ -150,9 +150,9 @@ with a head SHA. A base that cannot be resolved is exit 2: Proven could
 not review.
 
 flags:
-  --text, --json, --sarif, --md
+  --text, --json, --sarif, --md, --html
         format on standard output (PROVEN_OUTPUT_FORMAT, default text).
-  --text-output, --json-output, --sarif-output, --md-output
+  --text-output, --json-output, --sarif-output, --md-output, --html-output
         also write that format to a file
   -o, --output
         write the chosen format to a file instead of standard output (PROVEN_OUTPUT)
