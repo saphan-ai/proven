@@ -393,7 +393,7 @@ func notProse(cfg fileSettings, req Request, changed []scout.ChangedFile) string
 	var facts map[string]change.Facts
 	if req.BaselineCommit != "" {
 		var err error
-		if facts, err = change.FactsBetween(req.Target, req.BaselineCommit, req.HeadCommit); err != nil {
+		if facts, err = req.read.FactsBetween(req.Target, req.BaselineCommit, req.HeadCommit); err != nil {
 			return "the files' modes could not be read (" + err.Error() + ")"
 		}
 	} else {
@@ -451,7 +451,7 @@ func classified(d scout.Decision) string {
 func changedStatus(req Request) ([]scout.ChangedFile, error) {
 	var out []scout.ChangedFile
 	if req.BaselineCommit != "" {
-		sts, err := change.StatusBetween(req.Target, req.BaselineCommit, req.HeadCommit)
+		sts, err := req.read.StatusBetween(req.Target, req.BaselineCommit, req.HeadCommit)
 		if err != nil {
 			return nil, err
 		}
@@ -460,7 +460,7 @@ func changedStatus(req Request) ([]scout.ChangedFile, error) {
 		}
 		return out, nil
 	}
-	files, err := change.Read(req.Target)
+	files, err := req.read.Read(req.Target)
 	if err != nil {
 		return nil, err
 	}

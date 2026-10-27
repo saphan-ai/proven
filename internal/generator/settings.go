@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -135,10 +136,12 @@ type Settings struct {
 	App     string
 	Model   string
 	// Token is the Nightshift runtime token or, in nvidia mode, the NVIDIA key.
-	Token         string
-	Timeout       time.Duration
-	SkepticModel  string
-	plain         bool
+	Token        string
+	Timeout      time.Duration
+	SkepticModel string
+	plain        bool
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network       *network.Policy
 	requireAll    bool
 	requireNone   bool
 	requireNVIDIA map[string]bool
@@ -221,6 +224,21 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	// ADR-0034: in the air-gapped mode a hosted address is refused here, by name.
+	// The hosted generator mode is refused by name even when its address is local,
+	// the same way the guardrail's nvidia mode is.
+	policy, err := network.Load(env)
+	if err != nil {
+		return Settings{}, fromNetwork(err)
+	}
+	if mode == ModeNVIDIA {
+		if err := policy.Refuse(EnvMode, mode, "the hosted generator is outside the organisation's network"); err != nil {
+			return Settings{}, fromNetwork(err)
+		}
+	}
+	if err := policy.CheckURL(baseEnv, base); err != nil {
+		return Settings{}, fromNetwork(err)
+	}
 	app := env(EnvApp)
 	if app == "" {
 		app = defaultApp
@@ -265,8 +283,8 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	return Settings{
 		Mode: mode, BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
-		SkepticModel: skepticModel,
-		requireAll:   all, requireNone: none, requireNVIDIA: set,
+		SkepticModel: skepticModel, Network: policy,
+		requireAll: all, requireNone: none, requireNVIDIA: set,
 	}, nil
 }
 
@@ -276,6 +294,15 @@ func (s Settings) serviceName() string {
 		return "nvidia"
 	}
 	return "nightshift"
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError,
+// so the shell reports it like any other refused setting. Any other error passes through.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+	}
+	return err
 }
 
 // refuse builds the refusal for one setting with one allowed form.

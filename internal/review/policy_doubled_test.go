@@ -1,6 +1,7 @@
 package review
 
 import (
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,7 +22,7 @@ func TestDoubledPathsStayDoubled(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p, err := loadPolicy(writeFile(t, "policy.yaml", c.policy))
+			p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", c.policy))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -65,7 +66,7 @@ func TestADoubledPathIsRefusedByName(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p, err := loadPolicy(writeFile(t, "policy.yaml", c.policy))
+			p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", c.policy))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -86,7 +87,7 @@ func TestADoubledPathIsRefusedByName(t *testing.T) {
 // TestAStricterClassStaysFreeWhenItIsDoubled: a repository may raise a path above a doubled class when
 // it doubles the higher class too, and may copy the policy's own settings.
 func TestAStricterClassStaysFreeWhenItIsDoubled(t *testing.T) {
-	p, err := loadPolicy(writeFile(t, "policy.yaml", "fallback_class: backend\ndoubled_classes: backend\n"))
+	p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", "fallback_class: backend\ndoubled_classes: backend\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func TestNoCombinationOfSettingsUndoublesAPath(t *testing.T) {
 			if polBody == "" {
 				continue
 			}
-			p, err := loadPolicy(writeFile(t, "policy.yaml", polBody))
+			p, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", polBody))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -173,11 +174,11 @@ func TestAPolicyInTheRepositoryOfASubdirectoryTargetIsRefused(t *testing.T) {
 	if err := os.WriteFile(policyPath, []byte("fallback_class: security\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, err := loadPolicy(policyPath)
+	p, err := loadPolicy(change.ProcessPolicy(), policyPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := p.refuseInside(target); err == nil {
+	if err := p.refuseInside(change.ProcessPolicy(), target); err == nil {
 		t.Fatal("a policy in the same git repository as the target was not refused")
 	}
 	// A link into the repository from outside is the same file.
@@ -185,19 +186,19 @@ func TestAPolicyInTheRepositoryOfASubdirectoryTargetIsRefused(t *testing.T) {
 	if err := os.Symlink(policyPath, link); err != nil {
 		t.Fatal(err)
 	}
-	linked, err := loadPolicy(link)
+	linked, err := loadPolicy(change.ProcessPolicy(), link)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := linked.refuseInside(target); err == nil {
+	if err := linked.refuseInside(change.ProcessPolicy(), target); err == nil {
 		t.Fatal("a link to a policy in the git repository of the target was not refused")
 	}
 	// A policy beside the repository, not in it, is accepted.
-	outside, err := loadPolicy(writeFile(t, "policy.yaml", "fallback_class: security\n"))
+	outside, err := loadPolicy(change.ProcessPolicy(), writeFile(t, "policy.yaml", "fallback_class: security\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := outside.refuseInside(target); err != nil {
+	if err := outside.refuseInside(change.ProcessPolicy(), target); err != nil {
 		t.Fatalf("a policy outside the repository was refused: %v", err)
 	}
 }

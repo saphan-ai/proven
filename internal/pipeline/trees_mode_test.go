@@ -3,6 +3,7 @@
 package pipeline
 
 import (
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,7 +47,7 @@ func TestMaterializedTreesAreNotGroupWritableUnderAPermissiveUmask(t *testing.T)
 	old := syscall.Umask(0o002)
 	defer syscall.Umask(old)
 	p := &Pipeline{workDir: t.TempDir()}
-	fx, _, remove, err := p.materialize(Request{Target: repo, BaselineCommit: commit, HeadCommit: commit})
+	fx, _, remove, err := p.materialize(Request{Target: repo, BaselineCommit: commit, HeadCommit: commit}, change.ProcessPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

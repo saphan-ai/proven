@@ -259,13 +259,11 @@ type Recorder struct {
 
 // NewRecorder builds the recorder on validated settings. A nil client gets one
 // with the settings' timeout and no redirects, so the credential goes only to
-// the configured address; a test may pass its own.
+// the configured address, and in the air-gapped mode it refuses to dial outside
+// the network or to use a proxy (ADR-0034); a test may pass its own.
 func NewRecorder(cfg RecordsSettings, client *http.Client) *Recorder {
 	if client == nil {
-		client = &http.Client{
-			Timeout:       cfg.Timeout,
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		}
+		client = cfg.Network.NewClient(cfg.Timeout)
 	}
 	return &Recorder{cfg: cfg, client: client}
 }

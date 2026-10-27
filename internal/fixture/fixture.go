@@ -84,7 +84,10 @@ type file struct {
 // Load reads fixture.json and checks the planner prompt still matches the trees.
 // A fixture whose trees changed after its answers were recorded is refused, so a
 // sample review never replays answers to a prompt it did not ask.
-func Load(root string) (*Fixture, error) {
+func Load(root string) (*Fixture, error) { return LoadUnder(change.ProcessPolicy(), root) }
+
+// LoadUnder is Load reading the trees under the policy rd.
+func LoadUnder(rd change.Policy, root string) (*Fixture, error) {
 	b, err := os.ReadFile(filepath.Join(root, "fixture.json"))
 	if err != nil {
 		return nil, err
@@ -98,7 +101,7 @@ func Load(root string) (*Fixture, error) {
 	if f.Snapshot == "" {
 		return nil, fmt.Errorf("fixture: snapshot is empty")
 	}
-	files, err := change.Read(root)
+	files, err := rd.Read(root)
 	if err != nil {
 		return nil, err
 	}

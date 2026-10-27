@@ -76,7 +76,7 @@ func EnvironmentPolicy() []envdoc.Setting {
 
 // loadPolicy reads the policy file at path. A missing, unreadable, over-bound or malformed file is a
 // *ConfigError naming the setting and the file.
-func loadPolicy(path string) (*policy, error) {
+func loadPolicy(rd change.Policy, path string) (*policy, error) {
 	allowed := []string{"a path to an existing file outside the repository under review"}
 	st, err := os.Stat(path)
 	if err != nil {
@@ -90,7 +90,7 @@ func loadPolicy(path string) (*policy, error) {
 		return nil, &ConfigError{Field: EnvPolicy, Value: path, Reason: "path is a directory", Allowed: allowed}
 	}
 	// ADR-0013: the policy is read no further than the configuration bound, as proven.yaml is.
-	b, err := change.ReadBounded(path, change.Bounds().Config, "the organisation policy "+filepath.Base(path), change.EnvMaxConfigBytes)
+	b, err := change.ReadBounded(path, rd.Bounds().Config, "the organisation policy "+filepath.Base(path), change.EnvMaxConfigBytes)
 	if err != nil {
 		return nil, &ConfigError{Field: EnvPolicy, Value: path, Reason: err.Error(), Allowed: allowed}
 	}
@@ -477,7 +477,7 @@ func (p *policy) refuse(key, local, why string) *ConfigError {
 // review could edit it, so a change would carry its own policy (ADR-0036 point 1). The repository is the
 // target and, when the target lies in a git working tree, that whole tree from its top level: a target may
 // be one directory of a larger repository. Links are resolved on both sides before they are compared.
-func (p *policy) refuseInside(target string) error {
+func (p *policy) refuseInside(rd change.Policy, target string) error {
 	if p == nil {
 		return nil
 	}
@@ -487,7 +487,7 @@ func (p *policy) refuseInside(target string) error {
 		return err
 	}
 	roots = append(roots, root)
-	top, in, err := change.TopLevel(root)
+	top, in, err := rd.TopLevel(root)
 	if err != nil {
 		return err
 	}

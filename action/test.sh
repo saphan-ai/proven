@@ -298,5 +298,80 @@ check "summary: no pull request, the notice says so" 1 "$(grep -c 'the summary c
 rdrun sumoff INPUT_COMMENT=false INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_API_URL=http://api.example/api/v1 GITHUB_REPOSITORY=o/r GITHUB_EVENT_PATH="$tmp/event.json" COMMENT_HTTP="$tmp/http.sh" STUB="$tmp/sumoff.stub"
 check "comment=false: no summary is posted" 0 "$(test -e "$tmp/sumoff.stub/log" && echo 1 || echo 0)"
 
+# PROVEN_NETWORK=local (ADR-0034): the API address the summary is posted to is judged by the
+# same rule as every other address, before the scan runs, by Proven's own reading of the mode
+# (`proven check-address` prints it). An outside address, or a name the HTTP client would
+# resolve with its own resolver, is refused by name: exit 7, nothing scanned, nothing posted.
+# An allowed one is posted to with curl only, with no configuration file and no proxy.
+# A stub curl on PATH records its arguments and answers like the forge.
+mkdir -p "$tmp/fakebin"
+cat >"$tmp/fakebin/curl" <<'EOF2'
+#!/bin/sh
+printf '%s\n' "$*" >>"$STUB/curl"
+case "$*" in
+  *" GET "*comments*) printf '[]' ;;
+  *" POST "* | *" PATCH "*) printf '{"id":77}' ;;
+  *) printf '{}' ;;
+esac
+EOF2
+chmod +x "$tmp/fakebin/curl"
+localpost() { # NAME, then VAR=value...: a comment run on pull request 7 with the stub curl
+  name=$1
+  shift
+  STUB=$tmp/$name.stub
+  mkdir -p "$STUB"
+  : >"$STUB/curl"
+  rdrun "$name" INPUT_COMMENT=true INPUT_GITHUB_TOKEN=tok-1 INPUT_STRICT=false GITHUB_REPOSITORY=o/r \
+    GITHUB_EVENT_PATH="$tmp/event.json" GITHUB_RUN_NUMBER=5 PROVEN_COMMENT_ACCOUNT=proven-bot \
+    PATH="$tmp/fakebin:$PATH" STUB="$STUB" "$@"
+}
+localrefused() { # NAME: exit 7, the refusal names GITHUB_API_URL, nothing posted or scanned
+  check "$1: exit 7" 7 "$rc"
+  check "$1: names GITHUB_API_URL" 1 "$(grep -c GITHUB_API_URL "$tmp/$1/stderr")"
+  check "$1: nothing posted, nothing scanned" "0 0" "$(wc -l <"$STUB/curl" | tr -d ' ') $(test -e "$ws/proven-results.json" && echo 1 || echo 0)"
+}
+# Mutated field: GITHUB_API_URL (outside, then a name).
+localpost localoutside PROVEN_NETWORK=local GITHUB_API_URL=https://203.0.113.7/api/v3
+localrefused localoutside
+localpost localname PROVEN_NETWORK=local GITHUB_API_URL=https://ghe.example/api/v3
+localrefused localname
+# Mutated field: PROVEN_NETWORK (local; local with a trailing carriage return; unset).
+localpost localallowed PROVEN_NETWORK=local GITHUB_API_URL=http://10.1.2.3/api/v1 HTTPS_PROXY=http://203.0.113.9:3128
+check "local, private address: exit 0" 0 "$rc"
+check "local, private address: one comment-writing call" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
+check "local: every curl call has no configuration file and no proxy" "$(wc -l <"$STUB/curl" | tr -d ' ')" "$(grep -c "^-q --noproxy \* " "$STUB/curl")"
+cr=$(printf '\r')
+localpost localcr "PROVEN_NETWORK=local$cr" GITHUB_API_URL=http://10.1.2.3/api/v1
+check "local with a carriage return: the comment is posted" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
+check "local with a carriage return: curl has no proxy either" "$(wc -l <"$STUB/curl" | tr -d ' ')" "$(grep -c "^-q --noproxy \* " "$STUB/curl")"
+# Local mode with no curl in the image: the comment is not posted, the step says so, and
+# neither wget nor an install is tried (apk add would reach a package mirror). PATH is a
+# directory of links to every program on this host's PATH except curl, wget and apk, with
+# stubs for wget and apk that record any call. Mutated field: PATH (curl absent).
+mkdir -p "$tmp/nocurl"
+oldifs=$IFS
+IFS=:
+for d in $PATH; do
+  IFS=$oldifs
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    b=${f##*/}
+    case "$b" in curl | wget | apk) continue ;; esac
+    [ -e "$tmp/nocurl/$b" ] || ln -s "$f" "$tmp/nocurl/$b" 2>/dev/null || true
+  done
+done
+IFS=$oldifs
+for b in wget apk; do
+  printf '#!/bin/sh\nprintf "%%s %%s\\n" %s "$*" >>"$STUB/other"\nexit 1\n' "$b" >"$tmp/nocurl/$b"
+  chmod +x "$tmp/nocurl/$b"
+done
+localpost localnocurl PROVEN_NETWORK=local GITHUB_API_URL=http://10.1.2.3/api/v1 PATH="$tmp/nocurl"
+check "local, no curl: the post fails the step (2)" 2 "$rc"
+check "local, no curl: the step says curl is needed" 1 "$(grep -c 'with curl only' "$tmp/localnocurl/stderr")"
+check "local, no curl: neither wget nor apk is run" 0 "$(test -s "$STUB/other" && echo 1 || echo 0)"
+localpost publiccurl GITHUB_API_URL=http://10.1.2.3/api/v1
+check "public mode: curl is run as before" 0 "$(grep -c -- "--noproxy" "$STUB/curl")"
+check "public mode: the comment is posted" 1 "$(grep -c -e ' POST ' -e ' PATCH ' "$STUB/curl")"
+
 echo "passed $pass, failed $failed"
 [ "$failed" -eq 0 ]

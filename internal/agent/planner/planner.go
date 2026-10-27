@@ -82,7 +82,7 @@ type row struct {
 
 // Plan asks the generator for the risks in root's base and change trees.
 func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidate.Risk, error) {
-	files, err := change.Read(root)
+	files, err := change.PolicyFrom(ctx).Read(root)
 	if err != nil {
 		return nil, err
 	}

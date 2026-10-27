@@ -13,11 +13,14 @@ package review
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/saphan-ai/proven/internal/agent/judge"
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/store"
 	"github.com/saphan-ai/proven/internal/telemetry"
@@ -61,6 +64,9 @@ type Options struct {
 	gen generator.Generator
 	// liveStore, when set, replaces the evidence store. A review leaves it unset.
 	liveStore store.Store
+	// dial, when set, opens every connection the live adapters make in the air-gapped mode, after the
+	// address is allowed. A review leaves it unset. Tests set it to record each dial without a socket.
+	dial network.DialFunc
 	// testRun, when set, replaces the container runner. A review leaves it unset,
 	// so a test does not start a container.
 	testRun testrun.Adapter
@@ -71,6 +77,9 @@ type Options struct {
 	// and of the viewer check. A review leaves it unset. Tests set it to a
 	// recorded CouchDB, so no test dials one.
 	recordsClient *http.Client
+	// startLog, when set, receives the start line of local mode (the runtime's
+	// absolute path and version). A review leaves it unset and the line goes to stderr.
+	startLog io.Writer
 }
 
 // Request is one review request.
@@ -82,6 +91,10 @@ type Request struct {
 	Exclude        []string
 	MinSeverity    Severity // the shell filters the output by it
 	Description    string   // pull-request description; empty means the request carries none
+
+	// read is how this review reads the repository: its git policy and size bounds. The runner sets
+	// it from the policy fixed at Open, so no later Open in the process can change it (ADR-0034).
+	read change.Policy
 }
 
 // Severity is INFO, WARNING or ERROR (SARIF note, warning, error).

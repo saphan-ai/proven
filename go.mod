@@ -3,6 +3,7 @@ module github.com/saphan-ai/proven
 go 1.26.0
 
 require (
+	github.com/BurntSushi/toml v1.5.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.47.0

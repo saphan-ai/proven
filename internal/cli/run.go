@@ -15,7 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saphan-ai/proven/internal/childenv"
+	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/review"
 )
 
@@ -33,6 +34,10 @@ type opener func(review.Options) (review.Reviewer, error)
 func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, open opener) int {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
+	}
+	// check-address judges one address for a program the action runs, and runs no review (ADR-0034).
+	if len(args) > 0 && args[0] == "check-address" {
+		return runCheckAddress(args[1:], getenv, stdout, stderr)
 	}
 	// verify checks a pack and runs no review (ADR-0035 point 3).
 	if len(args) > 0 && args[0] == "verify" {
@@ -644,6 +649,11 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	if cfg.command != "ci" {
 		return nil
 	}
+	// The merge base is read before review.Open loads the mode, so git is told here.
+	// A wrong network setting is not judged here: Open refuses it by name. Until
+	// then git runs offline, so a setting that does not load cannot open a remote.
+	pol, err := network.Load(getenv)
+	git := change.NewPolicy(err != nil || pol.Local(), change.DefaultLimits())
 	var ev pullRequestEvent
 	have := false
 	if path := getenv("GITHUB_EVENT_PATH"); path != "" {
@@ -691,7 +701,7 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	}
 	// Exit 2, not 7. ADR-0020 §2 reserves 7 for a configuration refused at load.
 	// A base git cannot resolve means Proven could not review.
-	base, err := gitMergeBase(cfg.target, cfg.baseline, cfg.head)
+	base, err := gitMergeBase(git, cfg.target, cfg.baseline, cfg.head)
 	if err != nil {
 		return &cliError{code: exitFatal, msg: fmt.Sprintf("ci: cannot resolve the merge base of %s and %s: %s", cfg.baseline, cfg.head, err.Error())}
 	}
@@ -701,12 +711,10 @@ func applyCI(cfg *config, getenv func(string) string) error {
 
 // gitMergeBase asks git for the fork point of base and head in repo and
 // returns git's own sentence when it cannot answer.
-func gitMergeBase(repo, base, head string) (string, error) {
-	cmd := exec.Command("git", "-C", repo, "merge-base", base, head)
-	// Property: no key reaches a subprocess. An inherited environment would
-	// hand git, and any hook or alias it runs, every key Proven holds; git
-	// needs PATH and HOME only (ADR-0025).
-	cmd.Env = childenv.Minimal()
+func gitMergeBase(git change.Policy, repo, base, head string) (string, error) {
+	// Property: no key reaches a subprocess (ADR-0025). GitCommand builds the
+	// minimal environment and, in local mode, a git that cannot fetch.
+	cmd := git.GitCommand("-C", repo, "merge-base", base, head)
 	out, err := cmd.Output()
 	if err != nil {
 		detail := err.Error()

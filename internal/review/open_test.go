@@ -145,7 +145,7 @@ func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 			// pull-request review is a sample review and the dashboard shows it. They name no key of
 			// Proven's, and a review with none of them set exports nothing.
 			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-			if !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
+			if k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 				t.Fatalf("sample mode read %s", k)
 			}
 			return ""
@@ -193,7 +193,7 @@ func TestSampleReviewWithRecordsReadsExactlyTheDocumentedSet(t *testing.T) {
 		"GITHUB_REF",
 		"PROVEN_COUCHDB_PASSWORD", "PROVEN_COUCHDB_PREFIX", "PROVEN_COUCHDB_RECORDS", "PROVEN_COUCHDB_RECORDS_PASSWORD",
 		"PROVEN_COUCHDB_RECORDS_USER", "PROVEN_COUCHDB_ROW_LIMIT", "PROVEN_COUCHDB_TIMEOUT", "PROVEN_COUCHDB_URL",
-		"PROVEN_COUCHDB_USER", "PROVEN_EVIDENCE_LINK_BASE_URL",
+		"PROVEN_COUCHDB_USER", "PROVEN_EVIDENCE_LINK_BASE_URL", "PROVEN_NETWORK", "PROVEN_NETWORK_ALLOW",
 	}
 	want = append(want, engineSwitches...)
 	sort.Strings(want)

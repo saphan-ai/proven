@@ -46,6 +46,13 @@ var exemptBanned = map[string]map[string]string{
 	"internal/gateway/access.go": {
 		"net/http": "fetches the Access team's public signing keys to verify an assertion; it calls that one address and sends no secret (ADR-0051)",
 	},
+	"internal/network/network.go": {
+		"net":      "the air-gapped dial check reads each address and opens the connection it allows",
+		"net/http": "the air-gapped policy builds the HTTP client whose dialer refuses an address off the network",
+	},
+	"internal/change/offline.go": {
+		"os/exec": "the air-gapped mode builds each git command with the switches that stop it fetching from a remote",
+	},
 	"internal/guardrail/live.go": {
 		"net/http": "the live guardrail calls the content-safety endpoint",
 	},

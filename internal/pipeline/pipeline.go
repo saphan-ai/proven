@@ -80,6 +80,9 @@ type Options struct {
 	// ProverIdle, when set, is named on the review as the Prover being off.
 	// The review runs no test code in that case.
 	ProverIdle string
+	// RuntimeNote, when set, is the start line of local mode (the container
+	// runtime's absolute path and version). It is written to the trace once per review.
+	RuntimeNote string
 	// LiveStore, when set, is the evidence store a live review queries.
 	// Sample mode does not use it. The seam passes a template request; the
 	// store runs the form of its own language (ADR-0047).
@@ -141,6 +144,7 @@ type Pipeline struct {
 	sample       bool
 	testRun      testrun.Adapter
 	proverIdle   string
+	runtimeNote  string
 	gen          generator.Generator
 	special      generator.Generator
 	liveStore    store.Store
@@ -221,7 +225,7 @@ func Build(opts Options) (*Pipeline, error) {
 	// the trace, the state and the work area must stay outside it, so Review
 	// opens them (see begin) after it has compared them with the target.
 	p := &Pipeline{
-		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle,
+		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, runtimeNote: opts.RuntimeNote,
 		gen: opts.Generator, special: opts.Special, liveStore: opts.LiveStore, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, osvIDView: opts.OSVIDView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
@@ -514,15 +518,17 @@ func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
 //
 // Splitting this function into its stages is known debt, planned after 6 Nov.
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
+	// The review's read policy rode the context from its runner; every git command and size bound below takes it from here.
+	rd := change.PolicyFrom(ctx)
 	// A git repository with neither a baseline commit nor prepared trees has
 	// nothing for the agents to read. Say what to pass, rather than failing
 	// later as a missing fixture file.
 	if !p.sample {
-		if err := p.refuseBareRepository(req); err != nil {
+		if err := p.refuseBareRepository(req, rd); err != nil {
 			return candidate.Draft{}, err
 		}
 	}
-	files, err := changedFiles(req)
+	files, err := changedFiles(req, rd)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -551,6 +557,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	leftOut := func(part string) error {
 		return p.trace.Append(trace.Event{Kind: "plan", Agent: "scout-intent", Text: part + " is not in the plan"})
 	}
+	if p.runtimeNote != "" {
+		if err := p.trace.Append(trace.Event{
+			FindingID: "runtime",
+			Kind:      "runtime",
+			Agent:     "pipeline",
+			Text:      p.runtimeNote,
+		}); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	allow := make(map[string]struct{}, len(selected))
 	for _, f := range selected {
 		allow[f] = struct{}{}
@@ -567,7 +583,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// Sample mode loads fixture.json and checks it. Live mode does not: an
 	// ordinary repository has no fixture file. The trees the Planner and the
 	// Prover read are fx.Root either way.
-	fx, skipped, cleanup, err := p.loadTarget(req)
+	fx, skipped, cleanup, err := p.loadTarget(req, rd)
 	if err != nil {
 		return candidate.Draft{}, err
 	}
@@ -1823,11 +1839,11 @@ func (g recording) record(m candidate.ModelUse) error {
 
 // changedFiles lists the files of the change: from git when a baseline commit
 // is named, otherwise from the fixture's two trees.
-func changedFiles(req Request) ([]string, error) {
+func changedFiles(req Request, rd change.Policy) ([]string, error) {
 	if req.BaselineCommit != "" {
-		return change.Between(req.Target, req.BaselineCommit, req.HeadCommit)
+		return rd.Between(req.Target, req.BaselineCommit, req.HeadCommit)
 	}
-	files, err := change.Read(req.Target)
+	files, err := rd.Read(req.Target)
 	if err != nil {
 		return nil, err
 	}

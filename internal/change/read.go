@@ -31,13 +31,13 @@ type File struct {
 
 // Read walks base/ and change/ under root. Paths are slash-separated and sorted.
 // A symlink in either tree is refused, and the error names it.
-func Read(root string) ([]File, error) {
+func (p Policy) Read(root string) ([]File, error) {
 	base := map[string][]byte{}
 	chg := map[string][]byte{}
-	if err := walk(filepath.Join(root, "base"), base); err != nil {
+	if err := p.walk(filepath.Join(root, "base"), base); err != nil {
 		return nil, err
 	}
-	if err := walk(filepath.Join(root, "change"), chg); err != nil {
+	if err := p.walk(filepath.Join(root, "change"), chg); err != nil {
 		return nil, err
 	}
 	names := map[string]struct{}{}
@@ -63,7 +63,7 @@ func Read(root string) ([]File, error) {
 
 // walk reads every regular file under root into dst, keyed by its slash path
 // relative to root.
-func walk(root string, dst map[string][]byte) error {
+func (p Policy) walk(root string, dst map[string][]byte) error {
 	var total int64
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -85,13 +85,13 @@ func walk(root string, dst map[string][]byte) error {
 		// refused by name before it is read, and so are trees that together
 		// exceed the archive bound. The read itself stops at the bound, so a
 		// file that grows after Stat is not read whole.
-		b, err := ReadBounded(path, Bounds().File, "the file "+filepath.ToSlash(rel), EnvMaxFileBytes)
+		b, err := ReadBounded(path, p.Bounds().File, "the file "+filepath.ToSlash(rel), EnvMaxFileBytes)
 		if err != nil {
 			return err
 		}
 		total += int64(len(b))
-		if total > Bounds().Archive {
-			return OverBound("the files under "+filepath.Base(root), Bounds().Archive, EnvMaxArchiveBytes)
+		if total > p.Bounds().Archive {
+			return OverBound("the files under "+filepath.Base(root), p.Bounds().Archive, EnvMaxArchiveBytes)
 		}
 		dst[filepath.ToSlash(rel)] = b
 		return nil

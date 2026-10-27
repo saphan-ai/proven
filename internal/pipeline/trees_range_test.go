@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,7 +27,7 @@ func TestBaselineCommitDecidesTheTreesNotTheRepositoryDirectories(t *testing.T) 
 	head := strings.TrimSpace(rangeGit(t, repo, "rev-parse", "HEAD"))
 
 	p := &Pipeline{workDir: t.TempDir()}
-	fx, _, cleanup, err := p.loadLiveTarget(Request{Target: repo, BaselineCommit: baseline, HeadCommit: head})
+	fx, _, cleanup, err := p.loadLiveTarget(Request{Target: repo, BaselineCommit: baseline, HeadCommit: head}, change.ProcessPolicy())
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -51,7 +52,7 @@ func TestPreparedTreesAreReadWhenNoBaselineIsGiven(t *testing.T) {
 	rangeWrite(t, filepath.Join(root, "base", "a.txt"), "a\n")
 	rangeWrite(t, filepath.Join(root, "change", "a.txt"), "b\n")
 	p := &Pipeline{workDir: t.TempDir()}
-	fx, _, _, err := p.loadLiveTarget(Request{Target: root})
+	fx, _, _, err := p.loadLiveTarget(Request{Target: root}, change.ProcessPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

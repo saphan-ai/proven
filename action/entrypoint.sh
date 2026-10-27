@@ -115,6 +115,22 @@ unset INPUT_GITHUB_TOKEN GITHUB_TOKEN ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQ
 # The runner also passes each input as INPUT_<NAME> with its hyphen kept, a name sh cannot unset.
 scrub="env -u INPUT_GITHUB-TOKEN"
 
+# The summary comment is posted to GITHUB_API_URL (post-comment.sh), on GitHub and on
+# Gitea alike. With PROVEN_NETWORK=local that address is judged by the same rule as every
+# other, before anything runs (ADR-0034): Proven refuses it by name when it is outside the
+# organisation's network, or when it is a name the HTTP client would resolve with its own
+# resolver, and the step stops with its exit code. The mode is Proven's reading of
+# PROVEN_NETWORK (the last word check-address prints), not this script's; anything but an
+# explicit public reading takes the local steps of post-comment.sh (curl only, no proxy,
+# no configuration file, nothing installed).
+pc_local=
+if [ "$comment" = true ] && [ -n "${GITHUB_API_URL:-}" ]; then
+  forge_rc=0
+  forge_said=$($scrub "$proven" check-address GITHUB_API_URL "$GITHUB_API_URL") || forge_rc=$?
+  [ "$forge_rc" -eq 0 ] || exit "$forge_rc"
+  [ "${forge_said##*: }" = public ] || pc_local=1
+fi
+
 # The runner owns the checkout and this container runs as root, so git would
 # refuse it as "dubious ownership" when Proven reads the pull request's base.
 git config --global --add safe.directory "$workspace" 2>/dev/null || true
@@ -152,6 +168,7 @@ fi
 # event; a run that is not a pull request has none to post on.
 if [ "$comment" = true ] && [ -f "$scratch/proven-comment.md" ]; then
   . "$here/post-comment.sh"
+  PC_LOCAL=$pc_local
   event=${GITHUB_EVENT_PATH:-}
   pr=
   head=

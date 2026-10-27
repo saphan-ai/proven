@@ -712,7 +712,7 @@ func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
 		// ADR-0045: the OTEL_* variables are the one family sample mode reads besides ADR-0020 §1's.
 		// They name no secret of Proven's; with none set, a review exports nothing.
 		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-		if !KnownCLIEnv(k) && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
+		if !KnownCLIEnv(k) && k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 			t.Errorf("sample mode read %s, which ADR-0020 §1 does not name", k)
 		}
 		return ""

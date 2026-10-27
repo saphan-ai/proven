@@ -31,12 +31,12 @@ var errTruncatedRaw = errors.New("git: a raw diff entry without its path")
 // head means the working tree. A rename's facts are keyed under both its old and its new path. Modes come
 // from git's own raw diff; the shebang is read from the file's content on both sides, as the executable
 // bit is (at baseline unless the file is new, at head unless it is gone, and from disk for the working tree).
-func FactsBetween(target, baseline, head string) (map[string]Facts, error) {
-	if err := ensureCommit(target, baseline, "baseline"); err != nil {
+func (p Policy) FactsBetween(target, baseline, head string) (map[string]Facts, error) {
+	if err := p.ensureCommit(target, baseline, "baseline"); err != nil {
 		return nil, err
 	}
 	if head != "" {
-		if err := ensureCommit(target, head, "head"); err != nil {
+		if err := p.ensureCommit(target, head, "head"); err != nil {
 			return nil, err
 		}
 	}
@@ -44,7 +44,7 @@ func FactsBetween(target, baseline, head string) (map[string]Facts, error) {
 	if head != "" {
 		args = append(args, head)
 	}
-	fields, err := gitZ(args)
+	fields, err := p.gitZ(args)
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +77,11 @@ func FactsBetween(target, baseline, head string) (map[string]Facts, error) {
 		// header is still a script change, and a model must review it. Each side that exists is read: the
 		// baseline unless the file is new, the head unless the file is gone (a rename has both paths).
 		if f.Unverified == "" && letter != "A" {
-			f.Shebang, f.Unverified = gitShebang(target, baseline, paths[0])
+			f.Shebang, f.Unverified = p.gitShebang(target, baseline, paths[0])
 		}
 		if f.Unverified == "" && letter != "D" {
 			var sb bool
-			sb, f.Unverified = gitShebang(target, head, paths[len(paths)-1])
+			sb, f.Unverified = p.gitShebang(target, head, paths[len(paths)-1])
 			f.Shebang = f.Shebang || sb
 		}
 		for _, p := range paths {
@@ -91,11 +91,11 @@ func FactsBetween(target, baseline, head string) (map[string]Facts, error) {
 	}
 	if head == "" {
 		// An untracked file is part of the change and has no raw entry: stat it on disk.
-		extra, err := gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
+		extra, err := p.gitZ([]string{"-C", target, "ls-files", "--others", "--exclude-standard", "--full-name", "-z"})
 		if err != nil {
 			return nil, err
 		}
-		extra, err = underTarget(target, extra)
+		extra, err = p.underTarget(target, extra)
 		if err != nil {
 			return nil, err
 		}
@@ -167,14 +167,14 @@ func diskFacts(path string) Facts {
 
 // gitShebang reports whether the file at rev:name starts with "#!". An empty rev reads the working tree.
 // A file that cannot be read is reported as unverified, never as free of a shebang.
-func gitShebang(target, rev, name string) (bool, string) {
+func (p Policy) gitShebang(target, rev, name string) (bool, string) {
 	if rev == "" {
 		df := diskFacts(filepath.Join(target, filepath.FromSlash(name)))
 		return df.Shebang, df.Unverified
 	}
 	// "./" makes the path relative to target, as --relative made the listed names.
-	cmd := gitCommand("-C", target, "cat-file", "blob", rev+":./"+name)
-	b, err := outputBounded(cmd, Bounds().File, "the file "+name, EnvMaxFileBytes)
+	cmd := p.GitCommand("-C", target, "cat-file", "blob", rev+":./"+name)
+	b, err := p.outputBounded(cmd, p.Bounds().File, "the file "+name, EnvMaxFileBytes)
 	if err != nil {
 		return false, "cannot be read at " + rev + ": " + err.Error()
 	}
