@@ -196,6 +196,16 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	// The use is recorded before the check, so a refused answer still names its model in the trace.
 	l.last = use
 	l.has = true
+	// PROVEN_GENERATOR_REQUIRE_REQUESTED: a router that answers with another model than the one asked for has not
+	// reviewed with the model the review names, so its answer is refused. A request for meterless/auto names no model.
+	if l.cfg.requireRequested && use.Requested != autoModel {
+		if !use.FromReceipt {
+			return "", l.down("answer carries no receipt, refused: the answering model cannot be shown to be " + use.Requested)
+		}
+		if use.Model != use.Requested {
+			return "", l.down("answered by " + use.Model + ", refused: " + use.Requested + " was asked for")
+		}
+	}
 	if !l.cfg.requiresNVIDIA(agent) {
 		return text, nil
 	}
@@ -375,3 +385,6 @@ func httpReason(code int) string {
 	}
 	return "http " + strconv.Itoa(code)
 }
+
+// autoModel is the routing request that lets Nightshift choose the model, so there is no model to compare with.
+const autoModel = "meterless/auto"
