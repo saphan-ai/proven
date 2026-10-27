@@ -571,9 +571,8 @@ func TestLiveRefusesTheHostedAliasInAReceipt(t *testing.T) {
 	}
 }
 
-// PROVEN_GENERATOR_THINKING_BUDGET is sent as thinking_budget on every call, so a model that always thinks (GLM-5.3 on
-// Model Studio refuses enable_thinking false) answers inside the call limit; unset sends no such field, so other
-// providers see the body they saw before. A value that is not a count is refused by name.
+// PROVEN_GENERATOR_THINKING_BUDGET is sent as thinking_budget on every call, so a model that thinks before it answers
+// stays inside the call limit; unset sends no such field, so other providers see the body they saw before. A value that is not a count is refused by name.
 // Mutated field: PROVEN_GENERATOR_THINKING_BUDGET.
 func TestLiveSendsTheThinkingBudgetOnlyWhenSet(t *testing.T) {
 	sse := streamFixture(t)
