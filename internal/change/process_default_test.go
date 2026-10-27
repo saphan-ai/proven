@@ -110,8 +110,8 @@ func reaches(t *testing.T, path, rel string) []string {
 				out = append(out, line()+id.Name+"."+x.Sel.Name)
 			}
 		case *ast.CompositeLit:
-			// The zero Policy is the public mode (policy.go): building one is choosing a policy no
-			// review chose. A production caller builds its policy with NewPolicy.
+			// A Policy built outside NewPolicy is one no review chose. The zero Policy is the closed
+			// one (policy.go), so this is not a hole; a production caller builds its policy with NewPolicy.
 			if isPolicy(x.Type) {
 				out = append(out, line()+"a change.Policy literal")
 			}

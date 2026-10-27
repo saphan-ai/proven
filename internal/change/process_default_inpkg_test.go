@@ -95,6 +95,18 @@ func censusFile(fset *token.FileSet, f *ast.File, name string) []string {
 				if id, ok := x.Type.(*ast.Ident); ok && id.Name == "Policy" && !mayBuild {
 					at("builds a Policy literal")
 				}
+			case *ast.AssignStmt:
+				// A write to a Policy field turns a policy no caller asked public mode for into
+				// another one, as surely as a literal does; only the constructors may set them.
+				for _, lhs := range x.Lhs {
+					if field := policyField(lhs); field != "" && !mayBuild {
+						at("writes Policy." + field)
+					}
+				}
+			case *ast.IncDecStmt:
+				if field := policyField(x.X); field != "" && !mayBuild {
+					at("writes Policy." + field)
+				}
 			}
 			return true
 		})
@@ -122,4 +134,16 @@ func censusFile(fset *token.FileSet, f *ast.File, name string) []string {
 		}
 	}
 	return found
+}
+
+// policyField is the name of the Policy field e writes to (`x.public`, `x.limits`), or "".
+func policyField(e ast.Expr) string {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	if sel.Sel.Name == "public" || sel.Sel.Name == "limits" {
+		return sel.Sel.Name
+	}
+	return ""
 }
