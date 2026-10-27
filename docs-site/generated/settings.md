@@ -164,6 +164,15 @@ A repository's `proven.yaml` may make a policy setting stricter, never weaker, a
 
 The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`.
 
+## H-MEM: the memory store
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_HMEM_MAX_STATE_BYTES` | `67108864` | the largest H-MEM `state.json` that opens; above it the store refuses by name and reads nothing more (`ErrStateTooLarge`). A positive number of bytes, at most 1 TiB (1099511627776); a larger value is refused. Sample mode uses the default and does not read this variable |
+| `PROVEN_HMEM_QUERY_TOKENS` | `8` | how many leading query tokens count when H-MEM scores a query; a positive integer up to 1024. Sample mode uses the default and does not read this variable |
+
+H-MEM reads its whole state file at open and scans every record on each query, so it is built for a small store; see the scale section of `docs/ARCHITECTURE.md`. A state file over the cap is refused by name with its size and the cap. Sample mode reads none of these.
+
 ## The trace
 
 | Environment variable | Default | What it changes |
