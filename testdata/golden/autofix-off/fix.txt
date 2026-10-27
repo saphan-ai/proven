@@ -37,3 +37,4 @@ finding F2 ERROR Shipping is always free
 Agreed by two models, not proven
   none: one reviewer; a claim only one model makes stays dropped
 failed services: none
+Guardrail: model not named (sample), checked 10 prompts and 10 answers, 0 blocked

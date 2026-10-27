@@ -17,6 +17,7 @@ import (
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/markov"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
@@ -68,6 +69,9 @@ const boundedAfter = "ADR-0053 (superseding the \"off until measured\" clause of
 // storesAfter follows the stores table. It is not a setting.
 const storesAfter = "ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches."
 
+// networkAfter follows the network table. It is not a setting.
+const networkAfter = "In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds."
+
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
 // beside PROVEN_OSV_TABLE. PROVEN_EVIDENCE_VIEW is declared in livecheck.
@@ -79,6 +83,11 @@ func Catalog() []envdoc.Section {
 	evidenceRows := append(store.Environment(), query.Environment()...)
 	evidenceRows = append(append(append(evidenceRows, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
 	return []envdoc.Section{
+		{
+			Heading: "The network mode: air-gapped",
+			Rows:    network.Environment(),
+			After:   networkAfter,
+		},
 		{
 			Heading: "The model generator: Meterless Nightshift or NVIDIA's hosted API",
 			Rows:    generator.Environment(),

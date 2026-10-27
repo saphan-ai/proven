@@ -147,7 +147,7 @@ ensure_actions_unit() {
 # github.api_url is built from ROOT_URL, so the seeded copy posts to the
 # address the lab network serves instead.
 render_workflow() {
-  sed "s|saphan/proven:latest|${PROVEN_IMAGE}:latest|g; s|runs-on: ubuntu-latest|runs-on: ${RUNNER_LABEL}|; s|\${{ github.api_url }}|${GITEA_INTERNAL_URL}/api/v1|" \
+  sed "s|saphan/proven:judging|${PROVEN_IMAGE}:latest|g; s|runs-on: ubuntu-latest|runs-on: ${RUNNER_LABEL}|; s|\${{ github.api_url }}|${GITEA_INTERNAL_URL}/api/v1|" \
     /workflow/proven.yml >/tmp/proven.yml
   # ADR-0045: the review in the lab is exported to the lab's collector. The job's `docker run` starts
   # Proven on the inner daemon, whose default network cannot resolve the lab's service names, so the

@@ -43,19 +43,21 @@ func DefaultLimits() Limits {
 // DefaultLimits. A review sets it once, when its settings are loaded.
 var limitsInUse atomic.Pointer[Limits]
 
-// Bounds returns the limits in use now.
-func Bounds() Limits {
+// processBounds is the process-wide limits: the ones UseLimits set, else the defaults.
+func processBounds() Limits {
 	if l := limitsInUse.Load(); l != nil {
 		return *l
 	}
 	return DefaultLimits()
 }
 
-// UseLimits makes l the limits every reader of this package applies and returns
-// the ones it replaced, so a caller can restore them. A field that is zero or
-// below keeps its default, so a partly filled Limits is never an unbounded one.
-func UseLimits(l Limits) (previous Limits) {
-	previous = Bounds()
+// Bounds returns the process-wide limits in use now. A review does not read
+// them: it holds its own Policy and asks Policy.Bounds.
+func Bounds() Limits { return processBounds() }
+
+// fillLimits gives a field that is zero or below its default, so a partly
+// filled Limits is never an unbounded one.
+func fillLimits(l Limits) Limits {
 	d := DefaultLimits()
 	if l.Archive <= 0 {
 		l.Archive = d.Archive
@@ -69,6 +71,15 @@ func UseLimits(l Limits) (previous Limits) {
 	if l.Record <= 0 {
 		l.Record = d.Record
 	}
+	return l
+}
+
+// UseLimits makes l the process-wide limits, for the package-level readers, and
+// returns the ones it replaced, so a caller can restore them. A review does not
+// use it: its limits are in its Policy, fixed when it is opened.
+func UseLimits(l Limits) (previous Limits) {
+	previous = processBounds()
+	l = fillLimits(l)
 	limitsInUse.Store(&l)
 	return previous
 }

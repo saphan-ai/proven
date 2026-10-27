@@ -129,3 +129,10 @@ test('the deploy route and DOCS_HOST name the same host (negative control: eithe
   const config = JSON.parse(text.replace(/^\s*\/\/.*$/gm, ''));
   assert.equal(config.routes[0].pattern, config.vars.DOCS_HOST);
 });
+
+test('a reserved example name and a private range pass the public-text guard; the machine they stand for fails', () => {
+  const ok = checkPublicText([{ slug: 'x', text: 'for example `nightshift.corp.example`, or the range `10.0.0.0/8`' }]);
+  assert.deepEqual(ok, []);
+  const bad = checkPublicText([{ slug: 'x', text: 'the build host `nightshift.corp` at `10.0.0.7`' }]);
+  assert.equal(bad.length, 2);
+});

@@ -21,12 +21,36 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: saphan-ai/proven@c2d8b1167ec0fa6704c03aa23e34b6914b323549 # main with the Action (W4)
+      # The Action at main e5ea6e8: its image is saphan/proven:judging (docs/JUDGING.md).
+      - uses: saphan-ai/proven@e5ea6e8f45d2a80b1a5056ab840aed9013cdec20 # main, Action on :judging
         with:
           strict: false
           comment: true
         env:
-          PROVEN_GENERATOR_MODE: nvidia
-          PROVEN_GENERATOR_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # The reviewer: qwen3.8-flash on Alibaba Cloud Model Studio, called directly, outside
+          # Nightshift (owner, 27 Oct, by measurement: the fastest model that finished a whole
+          # review of pull request #1, in about 2 minutes). It is an OpenAI-compatible API, so the
+          # generator's nightshift mode reaches it by its base URL.
+          PROVEN_GENERATOR_MODE: nightshift
+          PROVEN_GENERATOR_BASE_URL: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+          PROVEN_GENERATOR_MODEL: qwen3.8-flash
+          PROVEN_SKEPTIC_MODEL: qwen3.8-flash
+          PROVEN_GENERATOR_REQUIRE_NVIDIA: none
+          # Every model on this endpoint reasons before it answers; the budget bounds that
+          # reasoning per call (without it a Prover call ran to the limit).
+          PROVEN_GENERATOR_THINKING_BUDGET: "512"
+          PROVEN_GENERATOR_TIMEOUT: 300s
+          # The Planner reads a long change in bounded steps, each one diff hunk with a little
+          # context, so no single call carries a whole large file (a two-file pull request was
+          # one 43,654-token prompt when the steps were whole files).
+          PROVEN_MARKOVIAN_STEP_UNIT: hunk
+          METERLESS_RUNTIME_TOKEN: ${{ secrets.BAILIAN_TOKEN_PLAN_API_KEY }}
+          # The security reviewer: another model family on the same endpoint, so a security change
+          # is judged by two families (doubled_classes: security in proven.yaml). It finished
+          # pull request #1 in about 17 minutes, which only security-class changes pay.
+          PROVEN_SECOND_REVIEWER_BASE_URL: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+          PROVEN_SECOND_REVIEWER_MODEL: deepseek-v4.1-flash
+          PROVEN_SECOND_REVIEWER_KEY: ${{ secrets.BAILIAN_TOKEN_PLAN_API_KEY }}
+          # The guardrail stays NVIDIA's content-safety model on every prompt and answer.
           PROVEN_GUARDRAIL_MODE: nvidia
           PROVEN_GUARDRAIL_KEY: ${{ secrets.NVIDIA_API_KEY }}

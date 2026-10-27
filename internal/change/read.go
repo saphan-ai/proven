@@ -15,6 +15,8 @@
 package change
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -31,13 +33,13 @@ type File struct {
 
 // Read walks base/ and change/ under root. Paths are slash-separated and sorted.
 // A symlink in either tree is refused, and the error names it.
-func Read(root string) ([]File, error) {
+func (p Policy) Read(root string) ([]File, error) {
 	base := map[string][]byte{}
 	chg := map[string][]byte{}
-	if err := walk(filepath.Join(root, "base"), base); err != nil {
+	if err := p.walk(filepath.Join(root, "base"), base); err != nil {
 		return nil, err
 	}
-	if err := walk(filepath.Join(root, "change"), chg); err != nil {
+	if err := p.walk(filepath.Join(root, "change"), chg); err != nil {
 		return nil, err
 	}
 	names := map[string]struct{}{}
@@ -61,9 +63,48 @@ func Read(root string) ([]File, error) {
 	return out, nil
 }
 
+// Changed keeps the files whose two sides differ (an edited file, an added one and a deleted one) and the files
+// git names as changed (paths), which covers a change of mode only, whose two sides read the same bytes. Every
+// other file is dropped, so a reader of a whole exported repository gets the change and never the repository,
+// however few bytes differ. A side that is missing is nil and a side that is an empty file is not, so adding or
+// deleting an empty file is kept. The result may be empty: a change no byte and no path of git names.
+func Changed(files []File, paths []string) []File {
+	named := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		named[p] = true
+	}
+	out := make([]File, 0, len(files))
+	for _, f := range files {
+		if named[f.Path] || (f.Base == nil) != (f.Change == nil) || !bytes.Equal(f.Base, f.Change) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+type changedOnlyKey struct{}
+
+// changedOnly is a live review's mark: the paths git names as changed, nil when the trees were given prepared.
+type changedOnly struct{ paths []string }
+
+// WithChangedOnly marks a live review: its readers hand the Planner only what changed (Changed), with paths the
+// files git names between the baseline and the head. A sample review carries no mark, because its recorded
+// planner answers are keyed by the prompt over every file of its fixture.
+func WithChangedOnly(ctx context.Context, paths []string) context.Context {
+	return context.WithValue(ctx, changedOnlyKey{}, changedOnly{paths: paths})
+}
+
+// ChangedFor is Changed(files, paths) in a context WithChangedOnly marked, and files as they are in any other.
+func ChangedFor(ctx context.Context, files []File) []File {
+	if m, ok := ctx.Value(changedOnlyKey{}).(changedOnly); ok {
+		return Changed(files, m.paths)
+	}
+	return files
+}
+
 // walk reads every regular file under root into dst, keyed by its slash path
 // relative to root.
-func walk(root string, dst map[string][]byte) error {
+func (p Policy) walk(root string, dst map[string][]byte) error {
 	var total int64
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -85,13 +126,13 @@ func walk(root string, dst map[string][]byte) error {
 		// refused by name before it is read, and so are trees that together
 		// exceed the archive bound. The read itself stops at the bound, so a
 		// file that grows after Stat is not read whole.
-		b, err := ReadBounded(path, Bounds().File, "the file "+filepath.ToSlash(rel), EnvMaxFileBytes)
+		b, err := ReadBounded(path, p.Bounds().File, "the file "+filepath.ToSlash(rel), EnvMaxFileBytes)
 		if err != nil {
 			return err
 		}
 		total += int64(len(b))
-		if total > Bounds().Archive {
-			return OverBound("the files under "+filepath.Base(root), Bounds().Archive, EnvMaxArchiveBytes)
+		if total > p.Bounds().Archive {
+			return OverBound("the files under "+filepath.Base(root), p.Bounds().Archive, EnvMaxArchiveBytes)
 		}
 		dst[filepath.ToSlash(rel)] = b
 		return nil

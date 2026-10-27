@@ -1,0 +1,34 @@
+package pipeline
+
+import (
+	"context"
+	"testing"
+
+	"github.com/saphan-ai/proven/internal/change"
+)
+
+// A live review hands its Planner only the files that changed, and a sample review every file of its fixture, whose
+// recorded answers are keyed by that prompt. Mutated field: the review's sample flag.
+func TestOnlyALiveReviewReadsTheChangedFilesOnly(t *testing.T) {
+	files := []change.File{
+		{Path: "same", Base: []byte("x"), Change: []byte("x")},
+		{Path: "edit", Base: []byte("x"), Change: []byte("y")},
+	}
+	if got := change.ChangedFor(readContext(context.Background(), false, nil), files); len(got) != 1 || got[0].Path != "edit" {
+		t.Fatalf("live review read %v", got)
+	}
+	if got := change.ChangedFor(readContext(context.Background(), true, nil), files); len(got) != 2 {
+		t.Fatalf("sample review read %v", got)
+	}
+}
+
+// Only a review between two commits names its changed paths; prepared trees name none, because their list is
+// every file of them. Mutated field: the baseline commit.
+func TestOnlyACommitRangeNamesItsChangedPaths(t *testing.T) {
+	if got := gitNamed(Request{BaselineCommit: "abc"}, []string{"run.sh"}); len(got) != 1 {
+		t.Fatalf("%v", got)
+	}
+	if got := gitNamed(Request{}, []string{"run.sh"}); got != nil {
+		t.Fatalf("prepared trees named %v", got)
+	}
+}

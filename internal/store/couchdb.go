@@ -38,12 +38,10 @@ type CouchDB struct {
 // with the settings' timeout and no redirects; a test may pass its own.
 func NewCouchDB(cfg CouchSettings, client *http.Client) *CouchDB {
 	if client == nil {
-		client = &http.Client{
-			Timeout: cfg.Timeout,
-			// ADR-0013: a redirect would carry the Basic credential to
-			// whatever address answered. The first answer is the answer.
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		}
+		// ADR-0013: a redirect would carry the Basic credential to whatever
+		// address answered, so the client follows none. ADR-0034: in the
+		// air-gapped mode the same client refuses to dial or to use a proxy.
+		client = cfg.Network.NewClient(cfg.Timeout)
 	}
 	return &CouchDB{cfg: cfg, client: client, now: time.Now}
 }

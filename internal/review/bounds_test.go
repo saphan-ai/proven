@@ -1,6 +1,7 @@
 package review
 
 import (
+	"github.com/saphan-ai/proven/internal/change"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,7 +44,7 @@ func TestAuthorRecordOverTheRecordBoundIsRefused(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(target, "author.txt"), []byte(strings.Repeat("x", 2<<20)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := readRecord(target, "author.txt")
+	_, err := readRecord(change.ProcessPolicy(), target, "author.txt")
 	if err == nil {
 		t.Fatal("an author record over the bound was read whole")
 	}
@@ -58,7 +59,7 @@ func TestAuthorRecordWithinTheRecordBoundIsRead(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(target, "author.txt"), []byte("Assisted-by: a model\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := readRecord(target, "author.txt"); err != nil {
+	if _, err := readRecord(change.ProcessPolicy(), target, "author.txt"); err != nil {
 		t.Fatal(err)
 	}
 }

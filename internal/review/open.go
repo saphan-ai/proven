@@ -21,6 +21,7 @@ import (
 	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/limit"
 	"github.com/saphan-ai/proven/internal/markov"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/osv"
 	"github.com/saphan-ai/proven/internal/pipeline"
 	"github.com/saphan-ai/proven/internal/query"
@@ -50,7 +51,7 @@ func open(opts Options) (Reviewer, error) {
 	// ADR-0013: the size bounds on every read of the repository under review are
 	// settings. They are loaded first, so the explicit configuration below is read
 	// under them too. A wrong value stops Open before any review and is never
-	// replaced by the default. Sample mode reads no setting, so it puts the defaults back: the bounds
+	// replaced by the default. Sample mode reads no size setting, so it puts the defaults back: the bounds
 	// are process state, and a sample review must not run under an earlier review's bounds.
 	reads := change.DefaultLimits()
 	if !opts.Sample {
@@ -60,7 +61,16 @@ func open(opts Options) (Reviewer, error) {
 		}
 		reads = loaded
 	}
-	change.UseLimits(reads)
+	// ADR-0034: in the air-gapped mode git cannot fetch, not even the objects of a partial clone. A
+	// sample review still runs git (proven.yaml at the baseline, the commit log), so the mode is
+	// loaded in sample mode too, and a wrong PROVEN_NETWORK is refused here by name.
+	netPol, nerr := network.Load(opts.Env)
+	if nerr != nil {
+		return nil, networkConfig(nerr)
+	}
+	// The git policy and the size bounds are this review's own, fixed here. They are not process state: another
+	// review opened in this process, at the same time or later, cannot change them (ADR-0034).
+	rd := change.NewPolicy(netPol.Local(), reads)
 	// ADR-0013: H-MEM's state cap and query-token limit are settings too. Sample mode reads
 	// none and uses the defaults.
 	var memLimits hmem.Limits
@@ -75,7 +85,7 @@ func open(opts Options) (Reviewer, error) {
 	// malformed. Whether it lies inside the repository is known only when a review names its target.
 	var pol *policy
 	if opts.PolicyPath != "" {
-		loaded, err := loadPolicy(opts.PolicyPath)
+		loaded, err := loadPolicy(rd, opts.PolicyPath)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +96,7 @@ func open(opts Options) (Reviewer, error) {
 	// An explicit --config is read once, here. Without one, each Review reads proven.yaml from the
 	// change's baseline (see runner.Review).
 	if opts.ConfigPath != "" {
-		loaded, err := loadConfigFileUnder(opts.ConfigPath, pol)
+		loaded, err := loadConfigFileUnder(rd, opts.ConfigPath, pol)
 		if err != nil {
 			return nil, err
 		}
@@ -124,6 +134,7 @@ func open(opts Options) (Reviewer, error) {
 		} else {
 			// ADR-0006: the Skeptic runs on a model of another family than the finder's; that model is a setting.
 			popts.SkepticModel = settings.SkepticModel
+			settings.Network = settings.Network.WithDial(opts.dial)
 			popts.Generator = generator.NewLive(settings, nil)
 		}
 		if opts.gen != nil {
@@ -139,6 +150,7 @@ func open(opts Options) (Reviewer, error) {
 			return nil, toConfigError(serr)
 		}
 		if connected {
+			sec.Network = sec.Network.WithDial(opts.dial)
 			popts.Special = generator.NewSecond(sec, nil)
 			secondModel = sec.Model
 		}
@@ -158,6 +170,7 @@ func open(opts Options) (Reviewer, error) {
 			// so and the trace records one "no guardrail" line.
 			popts.GuardOff = true
 		} else {
+			gs.Network = gs.Network.WithDial(opts.dial)
 			rail, nerr := guardrail.New(gs, nil)
 			if nerr != nil {
 				return nil, nerr
@@ -190,6 +203,7 @@ func open(opts Options) (Reviewer, error) {
 			} else if cerr != nil {
 				return nil, toConfigError(cerr)
 			} else {
+				cfg.Network = cfg.Network.WithDial(opts.dial)
 				popts.LiveStore = store.NewCouchDB(cfg, nil)
 			}
 		} else {
@@ -200,6 +214,7 @@ func open(opts Options) (Reviewer, error) {
 			} else if zerr != nil {
 				return nil, toConfigError(zerr)
 			} else {
+				zset.Network = zset.Network.WithDial(opts.dial)
 				popts.LiveStore = store.NewZetaris(zset)
 			}
 		}
@@ -239,12 +254,22 @@ func open(opts Options) (Reviewer, error) {
 			if err != nil {
 				d, ok := service.As(err)
 				if !ok {
-					return nil, err
+					return nil, testrunConfig(err)
 				}
 				popts.TestRun = testrun.Off{Reason: d.Reason}
 				popts.ProverIdle = d.Reason
 			} else {
 				popts.TestRun = box
+				if box.Local() {
+					// ADR-0034: the operator sees exactly which program runs.
+					line := box.Describe(context.Background())
+					popts.RuntimeNote = line
+					out := opts.startLog
+					if out == nil {
+						out = os.Stderr
+					}
+					fmt.Fprintln(out, "proven: "+line)
+				}
 			}
 		}
 		// ADR-0043: the govulncheck database and the tool time limit are settings.
@@ -309,7 +334,7 @@ func open(opts Options) (Reviewer, error) {
 	}
 	tel := opts.tel
 	if tel == nil {
-		set, terr := telemetry.Setup(context.Background(), opts.Env)
+		set, terr := telemetry.SetupWithDial(context.Background(), opts.Env, opts.dial)
 		if terr != nil {
 			return nil, toConfigError(terr)
 		}
@@ -320,7 +345,7 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec, read: rd}, nil
 }
 
 // openRecorder loads the records settings and the link base address. It returns a nil recorder
@@ -522,7 +547,12 @@ type runner struct {
 	records *recorder
 	pol     *policy          // the organisation policy, or nil (ADR-0036)
 	now     func() time.Time // the review's clock; nil in a runner built by a test means time.Now
+	read    change.Policy    // how this review reads the repository, fixed at Open; the zero value is public mode
 }
+
+// ReadPolicy is the policy this review was opened with: the git policy and the size limits every read of
+// the review takes, which no other review in the process can change (ADR-0034).
+func (r *runner) ReadPolicy() change.Policy { return r.read }
 
 // Review runs one review under one trace, then pushes the telemetry out. The trace and the numbers
 // only observe: what the review decides is what review returns.
@@ -558,6 +588,9 @@ func (r *runner) Review(ctx context.Context, req Request) (Result, error) {
 
 // review runs one review: settings, deadline, class, the six agents, then the decision lines.
 func (r *runner) review(ctx context.Context, req Request) (Result, error) {
+	// Every git command and size bound of this review comes from the policy fixed at Open, never from process state.
+	req.read = r.read
+	ctx = change.WithPolicy(ctx, r.read)
 	// ADR-0047: before anything reads or writes, the local evidence file must
 	// be outside the tree under review.
 	if err := checkLocalFile(r.localFile, req.Target); err != nil {
@@ -565,7 +598,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	}
 	// A policy inside the repository under review is refused before anything else is read: the change
 	// could have edited it.
-	if err := r.pol.refuseInside(req.Target); err != nil {
+	if err := r.pol.refuseInside(r.read, req.Target); err != nil {
 		return Result{}, err
 	}
 	cfg := r.cfg
@@ -575,9 +608,9 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		var loaded fileSettings
 		var err error
 		if req.BaselineCommit != "" {
-			loaded, err = loadSettingsAtBaselineUnder(req.Target, req.BaselineCommit, r.pol)
+			loaded, err = loadSettingsAtBaselineUnder(r.read, req.Target, req.BaselineCommit, r.pol)
 		} else {
-			loaded, err = loadSettingsInTargetUnder(req.Target, r.pol)
+			loaded, err = loadSettingsInTargetUnder(r.read, req.Target, r.pol)
 		}
 		if err != nil {
 			return Result{}, err
@@ -607,7 +640,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	if cfg.ScoutIntent {
 		// ADR-0053: the plan reads the change first, so a target with nothing to read is refused here, by the
 		// sentence that says what to pass, and not by the plan's own failed read.
-		if cerr := r.p.CheckTarget(pipeline.Request{Target: req.Target, BaselineCommit: req.BaselineCommit, HeadCommit: req.HeadCommit}); cerr != nil {
+		if cerr := r.p.CheckTarget(pipeline.Request{Target: req.Target, BaselineCommit: req.BaselineCommit, HeadCommit: req.HeadCommit}, r.read); cerr != nil {
 			return Result{}, cerr
 		}
 		files, ferr := changedPaths(req)
@@ -698,6 +731,7 @@ func fill(d candidate.Draft) (Result, error) {
 		Partial: d.Partial, TracePath: d.TracePath,
 		// A guardrail that was off is named in the result, not only in the trace.
 		GuardrailStatement: d.GuardrailStatement,
+		Guardrail:          GuardrailCount(d.Guardrail),
 	}
 	for _, c := range d.Findings {
 		f := Finding{
@@ -882,6 +916,17 @@ func queryConfig(err error) error {
 		return &ConfigError{
 			Field: cfg.Field, Value: cfg.Value, Reason: cfg.Reason,
 			Allowed: append([]string(nil), cfg.Allowed...),
+		}
+	}
+	return err
+}
+
+// networkConfig turns a refused PROVEN_NETWORK setting into the seam's *ConfigError.
+func networkConfig(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{
+			Field: ne.Field, Value: ne.Value, Reason: ne.Reason,
+			Allowed: append([]string(nil), ne.Allowed...),
 		}
 	}
 	return err

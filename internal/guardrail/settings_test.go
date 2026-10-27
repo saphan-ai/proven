@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/guardrail"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -25,12 +26,14 @@ func TestLoadUsesServerDefaults(t *testing.T) {
 	if s.Mode != guardrail.ModeServer || s.BaseURL != "http://127.0.0.1:8081" || s.Model != "nemotron-3.5-content-safety" {
 		t.Fatalf("%#v", s)
 	}
-	if s.Timeout != 5*time.Second || s.Key != "token-0001" {
+	if s.Timeout != 120*time.Second || s.Key != "token-0001" {
 		t.Fatalf("%#v", s)
 	}
 	for k := range seen {
 		switch k {
 		case guardrail.EnvMode, guardrail.EnvBaseURL, guardrail.EnvModel, guardrail.EnvKey, guardrail.EnvTimeout:
+		// ADR-0034: the air-gapped mode is read by every loader that holds an address.
+		case network.EnvNetwork, network.EnvAllow:
 		default:
 			t.Fatalf("Load read %s", k)
 		}

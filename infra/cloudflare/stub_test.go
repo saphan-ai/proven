@@ -36,13 +36,13 @@ type stub struct {
 	srv *httptest.Server
 	mu  sync.Mutex
 
-	n         int
-	reqs      []logged
-	fail      map[string]int // "METHOD /path-suffix" -> Cloudflare error code to answer
-	delay     time.Duration
+	n     int
+	reqs  []logged
+	fail  map[string]int // "METHOD /path-suffix" -> Cloudflare error code to answer
+	delay time.Duration
 	// dnsFirst, when set, is listed first on every DNS listing, whatever its name: the API is not bound to list the
 	// asked-for record first, and the scripts must read the record they selected, never the first one.
-	dnsFirst obj
+	dnsFirst  obj
 	connected map[string]bool // tunnel id -> has live connections
 
 	Zones     []obj

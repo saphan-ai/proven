@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -40,8 +41,26 @@ func Load(env func(string) string) (ContainerConfig, error) {
 		env = func(string) string { return "" }
 	}
 	cfg := DefaultContainerConfig()
+	// A wrong PROVEN_NETWORK is refused before a container starts. The image is
+	// never pulled: --pull never is on every run, so there is no PullNever switch.
+	policy, perr := network.Load(env)
+	if perr != nil {
+		if ne, ok := network.As(perr); ok {
+			return ContainerConfig{}, &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+		}
+		return ContainerConfig{}, perr
+	}
+	cfg.local = policy.Local()
+	// The daemon the runtime talks to is a connection the HTTP dial check never sees.
+	if derr := checkDaemon(policy, env); derr != nil {
+		return ContainerConfig{}, derr
+	}
 	if raw := env(EnvRuntime); raw != "" {
 		cfg.Runtime = raw
+	}
+	// Each runtime finds its daemon its own way. One Proven cannot judge is refused.
+	if rerr := checkRuntime(policy, env, cfg.Runtime); rerr != nil {
+		return ContainerConfig{}, rerr
 	}
 	if raw := env(EnvImage); raw != "" {
 		cfg.Image = raw

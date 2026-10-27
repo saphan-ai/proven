@@ -85,7 +85,7 @@ A live review calls an OpenAI-compatible endpoint. Sample mode does not, and it 
 | variable | default | meaning |
 |---|---|---|
 | `METERLESS_RUNTIME_TOKEN` | none; required when sample mode is off | Bearer token |
-| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Origin. A path is empty or `/v1`. The call is `POST {base}/v1/chat/completions` with `stream: true` |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Origin, or an API root. A path is empty or ends in a version (`/v1`, `/api/paas/v4`). The call is `POST {base}/v1/chat/completions` with `stream: true`, or `POST {base}/chat/completions` when the path ends in a version |
 | `PROVEN_GENERATOR_APP` | `proven` | `meterless-app` header. `meterless-scope` is `user` |
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` | Model field on the request. The endpoint may route elsewhere. The review records the model the stream names |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | Bound on one attempt. An empty answer is tried once more, then named as a failure |

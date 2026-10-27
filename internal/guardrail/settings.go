@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -39,8 +40,9 @@ const (
 	// defaultNVIDIAModel is the id third parties publish. NVIDIA's sample
 	// leaves the id blank, so PROVEN_GUARDRAIL_MODEL replaces it.
 	defaultNVIDIAModel = "nvidia/nemotron-3.5-content-safety"
-	// defaultTimeout sits above the measured warm range of 156–706 ms.
-	defaultTimeout = 5 * time.Second
+	// defaultTimeout sits above the warm range of a local server and leaves a hosted guardrail room for a slow check
+	// on a long review prompt.
+	defaultTimeout = 120 * time.Second
 )
 
 // Environment lists the guardrail settings in the order the page shows.
@@ -90,6 +92,8 @@ type Settings struct {
 	Model   string
 	Key     string
 	Timeout time.Duration
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network *network.Policy
 }
 
 // Load reads the guardrail settings. A wrong value is refused.
@@ -107,6 +111,16 @@ func Load(env func(string) string) (Settings, error) {
 	default:
 		return Settings{}, refuse(EnvMode, clip(mode), "not a guardrail mode", "server, nvidia, or off")
 	}
+	// ADR-0034: the air-gapped mode refuses NVIDIA's hosted API by name.
+	policy, perr := network.Load(env)
+	if perr != nil {
+		return Settings{}, fromNetwork(perr)
+	}
+	if mode == ModeNVIDIA {
+		if err := policy.Refuse(EnvMode, mode, "the hosted guardrail is outside the organisation's network"); err != nil {
+			return Settings{}, fromNetwork(err)
+		}
+	}
 	timeout := defaultTimeout
 	if raw := env(EnvTimeout); raw != "" {
 		d, err := time.ParseDuration(raw)
@@ -119,8 +133,12 @@ func Load(env func(string) string) (Settings, error) {
 	// caught before it is switched back on; the key is then dropped, not kept.
 	if mode == ModeOff {
 		if raw := env(EnvBaseURL); raw != "" {
-			if _, err := checkBase(raw); err != nil {
+			checked, err := checkBase(raw)
+			if err != nil {
 				return Settings{}, err
+			}
+			if err := policy.CheckURL(EnvBaseURL, checked); err != nil {
+				return Settings{}, fromNetwork(err)
 			}
 		}
 		if raw := env(EnvModel); raw != "" {
@@ -150,6 +168,9 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	if err := policy.CheckURL(EnvBaseURL, base); err != nil {
+		return Settings{}, fromNetwork(err)
+	}
 	model := env(EnvModel)
 	if model == "" {
 		if mode == ModeNVIDIA {
@@ -165,7 +186,16 @@ func Load(env func(string) string) (Settings, error) {
 	if err := checkKey(key); err != nil {
 		return Settings{}, err
 	}
-	return Settings{Mode: mode, BaseURL: base, Model: model, Key: key, Timeout: timeout}, nil
+	return Settings{Mode: mode, BaseURL: base, Model: model, Key: key, Timeout: timeout, Network: policy}, nil
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError,
+// so the shell reports it like any other refused setting. Any other error passes through.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+	}
+	return err
 }
 
 // refuse builds the refusal for one setting with one allowed form.
@@ -251,4 +281,15 @@ func modelName(s string) bool {
 		return false
 	}
 	return true
+}
+
+// Maker names the maker of the guardrail model a check used, from the configuration
+// alone: "NVIDIA" for NVIDIA's hosted API, and for the NVIDIA content-safety models
+// Proven ships as its defaults (served by NVIDIA or by the operator's own server).
+// Any other model gets no maker: a name is never inferred from an arbitrary model id.
+func Maker(backend, model string) string {
+	if backend == ModeNVIDIA || model == defaultNVIDIAModel || model == defaultServerModel {
+		return "NVIDIA"
+	}
+	return ""
 }

@@ -6,7 +6,7 @@
 # The review is a SAMPLE review unless the repository holds a key (docs/LAB.md, "Go live"): `make up` stores each
 # non-empty key of lab/.env as an Actions secret, and then the job runs a LIVE review. The first visible line of the
 # comment says which: "sample: no keys" or "live: <generator>, Zetaris on|off".
-# proven-image: saphan/proven:latest
+# proven-image: saphan/proven:judging
 
 name: proven
 
@@ -155,7 +155,7 @@ jobs:
               exit 1
               ;;
           esac
-          docker run --rm $live_env -e SAMPLE_MODE="$sample" -e FIXTURE="$fixture" -e SCOUT_INTENT="$PROVEN_LAB_SCOUT_INTENT" --entrypoint sh saphan/proven:latest -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && if [ -n "$SCOUT_INTENT" ]; then printf "scout_intent: %s\n" "$SCOUT_INTENT" > /tmp/proven-run/proven.yaml && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml; fi && proven scan "$d"' > review.txt
+          docker run --rm $live_env -e SAMPLE_MODE="$sample" -e FIXTURE="$fixture" -e SCOUT_INTENT="$PROVEN_LAB_SCOUT_INTENT" --entrypoint sh saphan/proven:judging -c 'mkdir -p /tmp/proven-run && cd /tmp/proven-run && d="/opt/proven/fixture/$FIXTURE" && { [ -d "$d" ] || d=/opt/proven/fixture/discount; } && if [ -n "$SCOUT_INTENT" ]; then printf "scout_intent: %s\n" "$SCOUT_INTENT" > /tmp/proven-run/proven.yaml && export PROVEN_CONFIG=/tmp/proven-run/proven.yaml; fi && proven scan "$d"' > review.txt
           grep -q '^review class' review.txt
 
       - name: Post the review on the pull request
@@ -262,7 +262,16 @@ jobs:
           # wget (the lab job image, Alpine docker:cli) has no --method. Without either, curl is
           # installed from Alpine's packages inside this job's own container, and the choice falls
           # back to BusyBox wget only when that fails; then GET and POST work and PATCH is refused.
+          #
+          # With PC_LOCAL set (PROVEN_NETWORK=local, ADR-0034) the only client is curl, run with
+          # -q (no .curlrc) and --noproxy '*' (no proxy, whatever the environment says), so the
+          # judged API address is its only route. Nothing is installed: `apk add` reaches Alpine's
+          # package mirrors, a host no setting names. Without curl the comment is not posted.
           pc_pick_client() {
+            if [ -n "${PC_LOCAL:-}" ]; then
+              if command -v curl >/dev/null 2>&1; then PC_CLIENT=curl; else PC_CLIENT=none; fi
+              return 0
+            fi
             if command -v curl >/dev/null 2>&1; then PC_CLIENT=curl; return 0; fi
             if wget --help 2>&1 | grep -q -- '--method'; then PC_CLIENT=gnuwget; return 0; fi
             if command -v apk >/dev/null 2>&1 && apk add --no-cache curl >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
@@ -272,18 +281,29 @@ jobs:
             PC_CLIENT=busybox
           }
 
+          # pc_curl ARGS... — curl, with no configuration file and no proxy when PC_LOCAL is set.
+          pc_curl() {
+            if [ -n "${PC_LOCAL:-}" ]; then curl -q --noproxy '*' "$@"; else curl "$@"; fi
+          }
+
           # pc_http METHOD URL [BODY_FILE] — print the response; a non-2xx answer is a failure.
           pc_http() {
-            if [ -n "${COMMENT_HTTP:-}" ]; then "$COMMENT_HTTP" "$@"; return; fi
+            # COMMENT_HTTP is the offline checks' stub client; in local mode it is ignored, so the
+            # judged address is reached by curl as above and by nothing else.
+            if [ -n "${COMMENT_HTTP:-}" ] && [ -z "${PC_LOCAL:-}" ]; then "$COMMENT_HTTP" "$@"; return; fi
             [ -n "${PC_CLIENT:-}" ] || pc_pick_client
             auth="Authorization: token $PC_TOKEN"
             case "$PC_CLIENT" in
               curl)
                 if [ -n "${3:-}" ]; then
-                  curl -fsS -X "$1" -H "$auth" -H "Content-Type: application/json" -H "Accept: application/json" --data-binary "@$3" "$2"
+                  pc_curl -fsS -X "$1" -H "$auth" -H "Content-Type: application/json" -H "Accept: application/json" --data-binary "@$3" "$2"
                 else
-                  curl -fsS -X "$1" -H "$auth" -H "Accept: application/json" "$2"
+                  pc_curl -fsS -X "$1" -H "$auth" -H "Accept: application/json" "$2"
                 fi
+                ;;
+              none)
+                echo "proven: PROVEN_NETWORK=local posts the summary comment with curl only, and this image has none; install curl in the job image" >&2
+                return 1
                 ;;
               gnuwget)
                 if [ -n "${3:-}" ]; then

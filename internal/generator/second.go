@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -51,13 +52,18 @@ type SecondSettings struct {
 	Key     string
 	Model   string
 	Timeout time.Duration
+	// ThinkingBudget is the generator's own PROVEN_GENERATOR_THINKING_BUDGET; zero sends nothing.
+	ThinkingBudget int
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network *network.Policy
 }
 
 // LoadSecond reads the second reviewer's settings. The bool is false when no key is set: the
 // reviewer is not connected, which is the default and not a refusal. A wrong value is refused even
 // then, so a typo in the address is found before the key is added. A key without an address or
-// without a model is refused, because there is nothing to call. The timeout is the generator's own
-// PROVEN_GENERATOR_TIMEOUT, so one setting bounds every model call.
+// without a model is refused, because there is nothing to call. The timeout and the thinking budget are
+// the generator's own PROVEN_GENERATOR_TIMEOUT and PROVEN_GENERATOR_THINKING_BUDGET, so one setting bounds
+// every model call.
 func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -78,6 +84,17 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 			return SecondSettings{}, false, err
 		}
 	}
+	// ADR-0034: in the air-gapped mode a second reviewer's address off the organisation's network is
+	// refused here, by name, even without a key, so a hosted address cannot wait there to be switched on.
+	policy, err := network.Load(env)
+	if err != nil {
+		return SecondSettings{}, false, fromNetwork(err)
+	}
+	if base != "" {
+		if err := policy.CheckURL(EnvSecondBaseURL, base); err != nil {
+			return SecondSettings{}, false, fromNetwork(err)
+		}
+	}
 	model := env(EnvSecondModel)
 	if model == "" {
 		if connected {
@@ -94,10 +111,14 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 		}
 		timeout = d
 	}
+	budget, err := thinkingBudget(env)
+	if err != nil {
+		return SecondSettings{}, false, err
+	}
 	if !connected {
 		return SecondSettings{}, false, nil
 	}
-	return SecondSettings{BaseURL: base, Key: key, Model: model, Timeout: timeout}, true, nil
+	return SecondSettings{BaseURL: base, Key: key, Model: model, Timeout: timeout, ThinkingBudget: budget, Network: policy}, true, nil
 }
 
 // Second is the generator of the second reviewer: any OpenAI-compatible chat API, behind the same

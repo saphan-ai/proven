@@ -289,7 +289,7 @@ func TestMarkdownEscapesEveryValueFromTheChange(t *testing.T) {
 		t.Fatalf("the comment is not safe:\n%s\n--- body\n%s", strings.Join(bad, "\n"), body)
 	}
 	// The findings table keeps its shape: header, rule and one row for the one
-	// finding, so the attack added no row; four cells each, so it closed no cell.
+	// finding, so the attack added no row; three cells each, so it closed no cell.
 	// (unsafeMarkdown holds every other table, the query rows, to one width.)
 	table, _, _ := strings.Cut(string(body), "<details>")
 	rows := 0
@@ -298,8 +298,8 @@ func TestMarkdownEscapesEveryValueFromTheChange(t *testing.T) {
 			continue
 		}
 		rows++
-		if cells := tableCells(line); cells != 4 {
-			t.Fatalf("table line has %d cells, want 4: %s", cells, line)
+		if cells := tableCells(line); cells != 3 {
+			t.Fatalf("table line has %d cells, want 3: %s", cells, line)
 		}
 	}
 	if rows != 3 {
@@ -540,14 +540,14 @@ func TestMarkdownStatesWhatWasChecked(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, want := range []string{"policy: org.yaml", "the change edits proven.yaml", "author model not stated",
-			"reviewer model-a: family x", "failed service `zetaris`: ZETARIS_REST_URL is empty"} {
+			"reviewer model-a: family x", "Did not answer: the Zetaris dependency database (not configured for this run)"} {
 			if !strings.Contains(string(body), want) {
 				t.Errorf("%s: the comment does not say %q\n%s", name, want, body)
 			}
 		}
 	}
 	clean, _ := render("md", statements)
-	for _, want := range []string{"review class `standard` (rule `fallback`)", "1 tracked path was skipped", "these services did not answer: `zetaris`"} {
+	for _, want := range []string{"Checked as a standard change (no path rule matched)", "1 tracked path was skipped", "these services did not answer: the Zetaris dependency database"} {
 		if !strings.Contains(string(clean), want) {
 			t.Errorf("the clean sentence does not say %q\n%s", want, clean)
 		}
@@ -726,5 +726,82 @@ func TestMarkdownLeastProofCountsTheColumnsItLeavesOut(t *testing.T) {
 		if !regexp.MustCompile(`_cut: \d+ more rows? and [1-9]\d* bytes? not shown`).MatchString(text) {
 			t.Errorf("cols=%d: the shortened cells are not counted in bytes\n%.1500s", tc.cols, text)
 		}
+	}
+}
+
+// TestMarkdownDoesNotCallAReviewCleanWhenNoModelAnswered proves that a run with
+// no findings whose model reviewer did not answer (either generator mode) is
+// headed "not reviewed", names the model, and never says "clean": with the model
+// down no candidate is raised, so 0 findings proves nothing. A run where only
+// another service failed stays clean. The mutated field is FailedServices.
+func TestMarkdownDoesNotCallAReviewCleanWhenNoModelAnswered(t *testing.T) {
+	for _, svc := range []string{"nvidia", "nightshift"} {
+		body, err := render("md", review.Result{Class: "backend", ClassRule: "fallback",
+			FailedServices: []review.ServiceFailure{{Service: "zetaris", Reason: "ZETARIS_REST_URL is empty"}, {Service: svc, Reason: "timeout"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(body)
+		if strings.Contains(text, "Proven: clean") || strings.Contains(text, "none had it") {
+			t.Errorf("%s down: the comment calls the run clean\n%s", svc, text)
+		}
+		if !strings.Contains(text, "**Proven: not reviewed** — "+mdServiceNames[svc]+" did not answer") {
+			t.Errorf("%s down: the heading does not say the run was not reviewed\n%s", svc, text)
+		}
+	}
+	other, _ := render("md", review.Result{Class: "backend", ClassRule: "fallback",
+		FailedServices: []review.ServiceFailure{{Service: "zetaris", Reason: "ZETARIS_REST_URL is empty"}}})
+	if !strings.Contains(string(other), "**Proven: clean**") {
+		t.Errorf("only zetaris down: the run is no longer called clean\n%s", other)
+	}
+}
+
+// TestMarkdownCarriesNoInternalNames proves the comment a judge reads names
+// findings, reviewers and services in words: no rule id, no internal finding id,
+// no review role name and no empty rule (the owner's rule of 27 Oct). The input is
+// the sample run on the discount fixture; the rule ids and ids stay in JSON and
+// SARIF. The mutated fields are the table's rule column and the details heading.
+func TestMarkdownCarriesNoInternalNames(t *testing.T) {
+	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
+	t.Chdir(t.TempDir())
+	env := envOf(map[string]string{"PROVEN_LOG_DIR": t.TempDir()})
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"scan", "--sample", "--md", target}, env, &stdout, &stderr, nil); code != exitOK {
+		t.Fatalf("exit %d\nstderr: %s", code, stderr.String())
+	}
+	body := stdout.String()
+	for _, raw := range []string{"known-exploited-dependency", "known-exploited-cve", "osv-affected-package",
+		"discount-applied-twice", "F2 —", "osv:evil.example", "role default", "role special", "rule ``", "| Rule |"} {
+		if strings.Contains(body, raw) {
+			t.Errorf("the comment shows the internal name %q\n%s", raw, body)
+		}
+	}
+}
+
+// TestMarkdownCallsAReviewIncompleteWhenTheModelAnsweredOnlySomeCalls proves that
+// a run whose model answered some calls and then timed out is headed "incomplete",
+// never "clean" and never "not reviewed" (no model read nothing, it read part).
+// The mutated field is Result.Models.
+func TestMarkdownCallsAReviewIncompleteWhenTheModelAnsweredOnlySomeCalls(t *testing.T) {
+	partial := review.Result{Class: "backend", ClassRule: "fallback",
+		Models:         []review.ModelUse{{Agent: "planner", Model: "glm-5.3"}},
+		FailedServices: []review.ServiceFailure{{Service: "nightshift", Reason: "timeout"}}}
+	body, err := render("md", partial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, bad := range []string{"Proven: clean", "Proven: not reviewed", "No model read the change"} {
+		if strings.Contains(text, bad) {
+			t.Errorf("a partly answered review says %q\n%s", bad, text)
+		}
+	}
+	if !strings.Contains(text, "**Proven: incomplete** — the model reviewer did not answer every call") {
+		t.Errorf("the heading does not say the review is incomplete\n%s", text)
+	}
+	partial.Models = nil
+	none, _ := render("md", partial)
+	if !strings.Contains(string(none), "**Proven: not reviewed**") {
+		t.Errorf("with no model call answered the heading is not 'not reviewed'\n%s", none)
 	}
 }

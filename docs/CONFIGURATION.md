@@ -10,6 +10,15 @@ The shell's own flags (`proven scan …`) are documented by the shell's track. S
 settings below except `proven.yaml`'s `timeout` and the switches of the four Meterless engines (`PROVEN_MARKOVIAN` and its three tuning variables, `PROVEN_HMEM`, `PROVEN_WORLD_MODEL`; ADR-0053): see [SAMPLE_MODE.md](SAMPLE_MODE.md).
 
 <!-- generated: settings -->
+## The network mode: air-gapped
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_NETWORK` | `public` | `public` or `local`. `local` is the air-gapped mode: a setting that names an address outside the organisation's network is refused at load, and every connection to such an address is refused when it is made |
+| `PROVEN_NETWORK_ALLOW` | none | in `local` mode, host names that count as inside the network, comma-separated, for example `nightshift.corp.example`. A host name is never resolved to be judged: it is allowed by this list or it is refused. A listed name is resolved only through a name server inside the network, and an answer outside it is refused |
+
+In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds.
+
 ## The model generator: Meterless Nightshift or NVIDIA's hosted API
 
 | Environment variable | Default | What it changes |
@@ -17,13 +26,14 @@ settings below except `proven.yaml`'s `timeout` and the switches of the four Met
 | `PROVEN_GENERATOR_MODE` | `nightshift` | `nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031) |
 | `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
 | `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode |
-| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it |
+| `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it |
 | `PROVEN_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031) |
 | `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/nemotron-3.5-super-vl-120b-a12b` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | the limit for one model call |
 | `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
 | `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family |
+| `PROVEN_GENERATOR_THINKING_BUDGET` | empty (nothing is sent) | the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call, the second reviewer's included. Empty sends nothing, so a provider that does not know the field never sees it |
 
 Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these.
 
@@ -43,7 +53,7 @@ Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `ME
 | `PROVEN_GUARDRAIL_BASE_URL` | `http://127.0.0.1:8081` for `server`; `https://integrate.api.nvidia.com/v1` for `nvidia` | the guardrail's address |
 | `PROVEN_GUARDRAIL_MODEL` | `nemotron-3.5-content-safety` for `server`; `nvidia/nemotron-3.5-content-safety` for `nvidia` | the safety model. The hosted id is not yet confirmed by a live call |
 | `PROVEN_GUARDRAIL_KEY` | none | the guardrail's key. Secret: never printed. Empty is not off: every model call is refused |
-| `PROVEN_GUARDRAIL_TIMEOUT` | `5s` | the limit for one check |
+| `PROVEN_GUARDRAIL_TIMEOUT` | `120s` | the limit for one check |
 
 Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name. An empty key is not off: every model call is refused and the review names the guardrail.
 
@@ -53,7 +63,7 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 |---|---|---|
 | `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable |
 | `PROVEN_EVIDENCE_FILE` | none (required when the store is `local`) | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
-| `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it |
+| `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it. In `PROVEN_NETWORK=local` an address outside the organisation's network is refused at load, and the store's client refuses to dial one |
 | `PROVEN_COUCHDB_PREFIX` | `proven_` | the start of every database name. One database holds one registered table, named the prefix, then the table name in lower case with `.` written as `-`. A lower-case letter, then at most 31 lower-case letters, digits or `_` |
 | `PROVEN_COUCHDB_USER` | none (required when the store is `couchdb`) | the CouchDB user Proven reads as. One line of printable ASCII with no `:`. Empty: CouchDB is down and the review names it |
 | `PROVEN_COUCHDB_PASSWORD` | none (required when the store is `couchdb`) | that user's password. Secret: never printed. Empty: CouchDB is down and the review names it |
@@ -131,9 +141,9 @@ ADR-0053: both stores are on by default, each switched off by its own variable. 
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | none (telemetry is off) | the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | none | the full URL the trace is sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the trace and, set alone, turns the trace on |
-| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | none | the full URL the metrics are sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the metrics and, set alone, turns the metrics on |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | none (telemetry is off) | the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too. In `PROVEN_NETWORK=local` a host outside the organisation's network is refused at load, in sample mode as well, and both exporters refuse to dial one |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | none | the full URL the trace is sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the trace and, set alone, turns the trace on. In `PROVEN_NETWORK=local` the same network rule applies |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | none | the full URL the metrics are sent to. It wins over `OTEL_EXPORTER_OTLP_ENDPOINT` for the metrics and, set alone, turns the metrics on. In `PROVEN_NETWORK=local` the same network rule applies |
 | `OTEL_SDK_DISABLED` | none | `true` turns telemetry off even when an endpoint is set |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | the OTLP transport. Only `http/protobuf` is built in; any other value is refused by name. `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` and `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` are read the same way |
 | `OTEL_SERVICE_NAME` | `proven` | the service name a backend shows |
@@ -249,13 +259,14 @@ No environment variable sets these keys.
 | `special_reviewer` | empty | The second reviewer for a doubled class. Empty prints `special-review model: not configured`. | A model name, or empty. |
 | `families` | `claude-*=Anthropic`, `gpt-*=OpenAI`, `codex-*=OpenAI`, `nemotron-*=NVIDIA`, `qwen*=Alibaba`, `NVIDIA=NVIDIA` | Maps a model name to a family. A model that matches nothing is `family unknown`. The same family as the author prints `yes`; a different known family prints `no`. | Comma-separated `pattern=name`. Any non-empty name is a family. An empty or malformed entry is refused. A bad pattern is refused. |
 | `path_rules` | the list under Default path rules | Maps a path pattern to a review class. The first matching rule of the highest class wins. A pattern with no slash also matches the base name, so `go.mod` matches a nested module. | Comma-separated `pattern=class`. A class is one of `security`, `backend`, `mobile`, `user interface`, `docs`. Patterns use `*` and `**`. |
-| `class_order` | `security`, `backend`, `mobile`, `user interface`, `docs` | Highest risk first. The matching rule whose class is earliest in this list wins. | Every class exactly once. An order that leaves a class out is refused, and the refusal lists the classes. |
+| `class_order` | `security`, `backend`, `mobile`, `user interface`, `docs` | Highest risk first. The matching rule whose class is earliest in this list wins. | Every class exactly once. An order that leaves a class out is refused, and the refusal lists the classes. Docs may not rank above security (ADR-0053). |
 | `fallback_class` | `backend` | The class when no path rule matches. The rule name is `fallback`. | One of the five classes. |
 | `doubled_classes` | `security` | Classes that use the default reviewer and the special reviewer. | `off`, or a comma-separated list of classes. |
-| `author_commit_trailers` | `on` | Read author trailers from commits after the baseline. The baseline commit itself is not read. | `on` or `off`. |
-| `author_description` | `on` | Read author trailers from the pull-request description. | `on` or `off`. |
+| `author_models` | none | The author models of this repository's changes, declared by its owner. The review is independent of each one's family. With none declared, the review says `author model not stated`. | A comma-separated list of `agent:model`, each once, for example `claude-code:claude-opus-5-5`. |
+| `author_commit_trailers` | `off` | Read author trailers from commits after the baseline. Off by default: an author model is declared in `author_models`, not asked of a commit. The baseline commit itself is not read. | `on` or `off`. |
+| `author_description` | `off` | Read author trailers from the pull-request description. Off by default, as above. | `on` or `off`. |
 | `author_record` | `off` | Read author trailers from a file inside the review target. | `off`, or a relative path or pattern inside the target. An absolute path, a `..` segment, a symlink, and a path that resolves outside the target are refused before the file is read. |
-| `author_trailer_keys` | `Assisted-by` | Trailer keys that can name an author. The value must be `agent:model`. A recognised key with any other value is reported as `author statement unreadable: <line>`, not as "not stated". | A comma-separated list of keys, each once. |
+| `author_trailer_keys` | `Assisted-by` | Trailer keys that can name an author, read only where a trailer source is on. The value must be `agent:model`. A recognised key with any other value is reported as `author statement unreadable: <line>`, not as "not stated". | A comma-separated list of keys, each once. |
 | `raise_class` | `off` | Accepted and stored. It does not change the class. | `on` or `off`. |
 | `fixes` | `on` | Proposes a fix for a finding a test proved, and a fixed version for a dependency finding (ADR-0042). `off` proposes none, runs none of the three proof runs and names no version. | `on` or `off`. |
 | `fix_attempts` | `2` | The most attempts at one fix: the first try and, up to this number, a retry by the same model with the failure of the last try in hand. A fix that is not proved after the last attempt is reported as not proved, with no patch. | A whole number from `1` to `5`. With `autofix: on` this key is not read: the whole-change attempt has no retry (ADR-0050). |
@@ -306,11 +317,11 @@ With nothing set, it reports every service `not ready` with the reason and exits
 | `COMPOSE_PROJECT_NAME` | `proven-lab` | Compose project name |
 | `LAB_BIND` | retired | No longer a setting. Every published port names `127.0.0.1` in `lab/compose.yaml` itself, so no value moves it. `make up` refuses a `LAB_BIND` that is set in the environment, an empty one included, and names it |
 | `GOLANG_IMAGE` | `golang:1.26.10` | Image used when `make build` has no usable Go, and for Proven's image build. Proven's Dockerfile repeats this as the `ARG` default; `make` still passes this setting, and that value wins |
-| `RUNTIME_IMAGE` | `alpine:3.23` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
+| `RUNTIME_IMAGE` | `alpine:3.24` | Base of Proven's image and of the seed image. Both Dockerfiles repeat this as the `ARG` default so a build with no `--build-arg` has a real base; `make` still passes this setting, and that value wins |
 | `PROVEN_REGISTRY` | `docker.io` | Registry `make push` pushes to |
 | `PROVEN_IMAGE` | `saphan/proven` | Image name, without the registry. Tagged `latest` and the `git describe` value. Each tag is one manifest list of `PUSH_PLATFORMS` |
 | `PUSH_PLATFORMS` | `linux/amd64,linux/arm64` | Platforms `make push` puts in each tag. `make image` does not use this: a local engine cannot load a manifest list |
-| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding with a fix available. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
+| `SCOUT_REFUSE_SEVERITIES` | `critical,high` | Severities that make `make scan` and `make push` refuse when Docker Scout reports a finding, with a fix available or without one. Both also refuse when the `docker scout` plugin is missing or a scan cannot run. `make push` scans, by digest, every platform of the build it then publishes, and makes the final tags from those digests only when all are green |
 | `GITEA_VERSION` | `1.22.6` | Gitea image tag |
 | `GITEA_HTTP_PORT` | `3300` | Host port for the Gitea web UI. The lab publishes five ports in all, each on `127.0.0.1`: this one, `LGTM_GRAFANA_PORT`, `LGTM_OTLP_PORT`, `LAB_PAGE_PORT` and `LAB_DOCS_PORT` |
 | `GITEA_SSH_PORT` | `2222` | Kept. Not published. The lab does not serve SSH |

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/saphan-ai/proven/internal/change"
 )
 
 // TestGitMergeBaseChildCarriesNoKeyFromProven proves the property that no key
@@ -19,7 +21,7 @@ func TestGitMergeBaseChildCarriesNoKeyFromProven(t *testing.T) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("PROVEN_GENERATOR_KEY", "marker-9f3a1c")
-	if _, err := gitMergeBase(t.TempDir(), "main", "HEAD"); err != nil {
+	if _, err := gitMergeBase(change.ProcessPolicy(), t.TempDir(), "main", "HEAD"); err != nil {
 		t.Fatal(err)
 	}
 	env, err := os.ReadFile(dump)

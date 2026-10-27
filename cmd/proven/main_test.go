@@ -302,7 +302,7 @@ func shellEnv(t *testing.T) func(string) string {
 	return func(k string) string {
 		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
 		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
-		if _, ok := allowed[k]; !ok && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
+		if _, ok := allowed[k]; !ok && k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 			t.Fatalf("unexpected environment key %s", k)
 		}
 		return ""

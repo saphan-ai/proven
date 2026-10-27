@@ -64,6 +64,7 @@ var configKeys = []string{
 	"author_description",
 	"author_record",
 	"author_trailer_keys",
+	"author_models",
 	"raise_class",
 	"fixes",
 	"fix_attempts",
@@ -100,7 +101,11 @@ type fileSettings struct {
 	ReadDescription bool
 	Record          string
 	TrailerKeys     []string
-	RaiseClass      bool
+	// Declared is the author_models list: the models the repository's owner declares in settings
+	// (ADR-0011 point 1). It is the default source; no statement is parsed out of commit or
+	// pull-request text unless a trailer source is turned on.
+	Declared   []AuthorModel
+	RaiseClass bool
 	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
 	Fixes       bool
 	FixAttempts int
@@ -143,8 +148,9 @@ func classNames() []string {
 
 // defaultSettings is what Proven uses with no proven.yaml. Each value can be replaced by a named
 // key (ADR-0013): NVIDIA reviews by default (ADR-0008 point 3), security is doubled
-// (ADR-0009), backend is the fallback class (ADR-0014 point 4), and Assisted-by is the trailer key
-// (ADR-0011 point 1). The timeout is zero: no deadline unless the shell or the file sets one.
+// (ADR-0009), backend is the fallback class (ADR-0014 point 4), and the author model is read from
+// settings only: the trailer sources are off, and Assisted-by is the key they read when a
+// repository turns one on (ADR-0011 points 1 and 2). The timeout is zero: no deadline unless the shell or the file sets one.
 func defaultSettings() fileSettings {
 	return fileSettings{
 		DefaultReviewer: "NVIDIA",
@@ -162,8 +168,8 @@ func defaultSettings() fileSettings {
 		ClassOrder:      classNames(),
 		Fallback:        "backend",
 		Doubled:         map[string]bool{"security": true},
-		ReadCommits:     true,
-		ReadDescription: true,
+		ReadCommits:     false,
+		ReadDescription: false,
 		TrailerKeys:     []string{"Assisted-by"},
 		// ADR-0042: proposed fixes are on by default, with one try and one retry.
 		Fixes:       true,
@@ -221,11 +227,11 @@ func defaultPathRules() []pathRule {
 
 // loadConfigFile reads an explicit configuration path. A missing path is refused.
 func loadConfigFile(path string) (fileSettings, error) {
-	return loadConfigFileUnder(path, nil)
+	return loadConfigFileUnder(change.ProcessPolicy(), path, nil)
 }
 
 // loadConfigFileUnder is loadConfigFile under an organisation policy; nil means none.
-func loadConfigFileUnder(path string, pol *policy) (fileSettings, error) {
+func loadConfigFileUnder(rd change.Policy, path string, pol *policy) (fileSettings, error) {
 	st, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -246,7 +252,7 @@ func loadConfigFileUnder(path string, pol *policy) (fileSettings, error) {
 		}
 	}
 	// ADR-0013: the file is read no further than the configuration bound.
-	b, err := change.ReadBounded(path, change.Bounds().Config, "the configuration file "+filepath.Base(path), change.EnvMaxConfigBytes)
+	b, err := change.ReadBounded(path, rd.Bounds().Config, "the configuration file "+filepath.Base(path), change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, &ConfigError{
 			Field: "ConfigPath", Value: path, Reason: err.Error(),
@@ -260,13 +266,13 @@ func loadConfigFileUnder(path string, pol *policy) (fileSettings, error) {
 // The change's copy is not consulted. A change must not choose how strictly
 // it is reviewed. A baseline with no proven.yaml is the defaults.
 func loadSettingsAtBaseline(target, baseline string) (fileSettings, error) {
-	return loadSettingsAtBaselineUnder(target, baseline, nil)
+	return loadSettingsAtBaselineUnder(change.ProcessPolicy(), target, baseline, nil)
 }
 
 // loadSettingsAtBaselineUnder is loadSettingsAtBaseline under an organisation policy; nil means none.
 // A baseline with no proven.yaml is the policy's settings, or the defaults with no policy.
-func loadSettingsAtBaselineUnder(target, baseline string, pol *policy) (fileSettings, error) {
-	b, ok, err := change.Blob(target, baseline, "proven.yaml")
+func loadSettingsAtBaselineUnder(rd change.Policy, target, baseline string, pol *policy) (fileSettings, error) {
+	b, ok, err := rd.Blob(target, baseline, "proven.yaml")
 	if err != nil {
 		return fileSettings{}, err
 	}
@@ -274,7 +280,7 @@ func loadSettingsAtBaselineUnder(target, baseline string, pol *policy) (fileSett
 		return pol.base(), nil
 	}
 	// Blob is bounded by the file limit; proven.yaml has a smaller bound of its own.
-	if bound := change.Bounds().Config; int64(len(b)) > bound {
+	if bound := rd.Bounds().Config; int64(len(b)) > bound {
 		return fileSettings{}, change.OverBound("proven.yaml", bound, change.EnvMaxConfigBytes)
 	}
 	return pol.parseLocal(b)
@@ -283,11 +289,11 @@ func loadSettingsAtBaselineUnder(target, baseline string, pol *policy) (fileSett
 // loadSettingsInTarget reads proven.yaml in the review target when Open was
 // given no path and the request has no baseline commit. A missing file is the defaults.
 func loadSettingsInTarget(target string) (fileSettings, error) {
-	return loadSettingsInTargetUnder(target, nil)
+	return loadSettingsInTargetUnder(change.ProcessPolicy(), target, nil)
 }
 
 // loadSettingsInTargetUnder is loadSettingsInTarget under an organisation policy; nil means none.
-func loadSettingsInTargetUnder(target string, pol *policy) (fileSettings, error) {
+func loadSettingsInTargetUnder(rd change.Policy, target string, pol *policy) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
 	// ADR-0013, ADR-0025: the target's copy is repository content, so a link is refused by name
 	// before it is opened. Stat and ReadFile would follow it to a file outside the checkout, and
@@ -312,7 +318,7 @@ func loadSettingsInTargetUnder(target string, pol *policy) (fileSettings, error)
 		}
 	}
 	// ADR-0013: the target's copy is repository content, so it is bounded.
-	b, err := change.ReadBounded(path, change.Bounds().Config, "proven.yaml", change.EnvMaxConfigBytes)
+	b, err := change.ReadBounded(path, rd.Bounds().Config, "proven.yaml", change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, err
 	}
@@ -441,6 +447,8 @@ func allowedText(key string) string {
 		return "a model name"
 	case "author_trailer_keys":
 		return "trailer keys, for example Assisted-by"
+	case "author_models":
+		return "agent:model entries, for example claude-code:claude-opus-5-5"
 	case "investigator_templates", "skeptic_templates":
 		return strings.Join(querytpl.Names(), ", ")
 	case "prose_suffixes":
@@ -548,6 +556,13 @@ func applyKey(cfg *fileSettings, key, val string) error {
 			return err
 		}
 		cfg.TrailerKeys = keys
+		return nil
+	case "author_models":
+		models, err := parseAuthorModels(val)
+		if err != nil {
+			return err
+		}
+		cfg.Declared = models
 		return nil
 	case "prose_suffixes":
 		sfx, err := parseProseSuffixes(val)
@@ -747,6 +762,13 @@ func parseClassOrder(value string) ([]string, error) {
 			Allowed: classNames(),
 		}
 	}
+	if classRank(parts, classDocs) < classRank(parts, classSecurity) {
+		return nil, &ConfigError{
+			Field: "class_order", Value: value,
+			Reason:  "docs may not rank above security (ADR-0053)",
+			Allowed: classNames(),
+		}
+	}
 	return parts, nil
 }
 
@@ -767,6 +789,28 @@ func parseClassTokens(field, value string) ([]string, error) {
 		seen[p] = struct{}{}
 	}
 	return parts, nil
+}
+
+// parseAuthorModels reads the author_models list: agent:model entries, each once (ADR-0011 point 1).
+func parseAuthorModels(value string) ([]AuthorModel, error) {
+	parts, err := splitCSV("author_models", value)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AuthorModel, 0, len(parts))
+	seen := map[string]bool{}
+	for _, p := range parts {
+		agent, model, ok := splitAgentModel(strings.TrimSpace(p))
+		if !ok {
+			return nil, configRefused("author_models", p, "not agent:model", "agent:model, for example claude-code:claude-opus-5-5")
+		}
+		if seen[agent+":"+model] {
+			return nil, configRefused("author_models", p, "duplicate entry", "each agent:model once")
+		}
+		seen[agent+":"+model] = true
+		out = append(out, AuthorModel{Agent: agent, Model: model, Source: "settings"})
+	}
+	return out, nil
 }
 
 // parseTrailerKeys reads the trailer keys that name an author model (ADR-0011 point 3). A trailing

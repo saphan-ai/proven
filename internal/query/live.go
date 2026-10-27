@@ -44,12 +44,8 @@ type Live struct {
 func NewLive(cfg Settings, client *http.Client) *Live {
 	liveBuilt.Add(1)
 	if client == nil {
-		client = &http.Client{
-			Timeout: cfg.Timeout,
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		// ADR-0034: in the air-gapped mode this client also refuses, at dial time, any address off the network.
+		client = cfg.Network.NewClient(cfg.Timeout)
 	}
 	return &Live{cfg: cfg, client: client, now: time.Now, newID: newRequestID}
 }

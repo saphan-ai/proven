@@ -14,6 +14,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/evidence"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/review"
 	"github.com/saphan-ai/proven/internal/settingspage"
@@ -59,7 +60,7 @@ func writePack(cfg config, getenv func(string) string, key ed25519.PrivateKey, r
 	in := evidence.Input{
 		Result:   result,
 		Trace:    readFrom(result.TracePath, traceStart),
-		Commits:  resolveCommits(cfg),
+		Commits:  resolveCommits(cfg, getenv),
 		Settings: packSettings(cfg, getenv, redactor),
 		Redactor: redactor,
 		Key:      key,
@@ -75,13 +76,16 @@ func writePack(cfg config, getenv func(string) string, key ed25519.PrivateKey, r
 // resolveCommits names the commits the review was asked about, and what git
 // resolves each name to. A name git cannot resolve stays as given with an
 // empty resolution; an empty head is the working tree and resolves to nothing.
-func resolveCommits(cfg config) evidence.Commits {
+func resolveCommits(cfg config, getenv func(string) string) evidence.Commits {
+	// Same rule as `proven ci`: local mode, or a mode that does not load, runs git that cannot fetch.
+	pol, err := network.Load(getenv)
+	git := change.NewPolicy(err != nil || pol.Local(), change.DefaultLimits())
 	return evidence.Commits{
 		Target:           cfg.target,
 		Baseline:         cfg.baseline,
-		BaselineResolved: change.ResolveCommit(cfg.target, cfg.baseline),
+		BaselineResolved: git.ResolveCommit(cfg.target, cfg.baseline),
 		Head:             cfg.head,
-		HeadResolved:     change.ResolveCommit(cfg.target, cfg.head),
+		HeadResolved:     git.ResolveCommit(cfg.target, cfg.head),
 	}
 }
 

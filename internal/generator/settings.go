@@ -2,11 +2,13 @@ package generator
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/envdoc"
+	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/service"
 )
 
@@ -15,16 +17,17 @@ import (
 // token, which has none. ADR-0013: no value the generator runs with is
 // hardcoded; each comes from one of these settings or its named default.
 const (
-	EnvMode          = "PROVEN_GENERATOR_MODE"
-	EnvKey           = "PROVEN_GENERATOR_KEY"
-	EnvToken         = "METERLESS_RUNTIME_TOKEN"
-	EnvBaseURL       = "PROVEN_GENERATOR_BASE_URL"
-	EnvNVIDIABaseURL = "PROVEN_NVIDIA_BASE_URL"
-	EnvApp           = "PROVEN_GENERATOR_APP"
-	EnvModel         = "PROVEN_GENERATOR_MODEL"
-	EnvTimeout       = "PROVEN_GENERATOR_TIMEOUT"
-	EnvRequireNVIDIA = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
-	EnvSkepticModel  = "PROVEN_SKEPTIC_MODEL"
+	EnvMode           = "PROVEN_GENERATOR_MODE"
+	EnvKey            = "PROVEN_GENERATOR_KEY"
+	EnvToken          = "METERLESS_RUNTIME_TOKEN"
+	EnvBaseURL        = "PROVEN_GENERATOR_BASE_URL"
+	EnvNVIDIABaseURL  = "PROVEN_NVIDIA_BASE_URL"
+	EnvApp            = "PROVEN_GENERATOR_APP"
+	EnvModel          = "PROVEN_GENERATOR_MODEL"
+	EnvTimeout        = "PROVEN_GENERATOR_TIMEOUT"
+	EnvRequireNVIDIA  = "PROVEN_GENERATOR_REQUIRE_NVIDIA"
+	EnvSkepticModel   = "PROVEN_SKEPTIC_MODEL"
+	EnvThinkingBudget = "PROVEN_GENERATOR_THINKING_BUDGET"
 )
 
 // DefaultSkepticModel is Nemotron through Nightshift (ADR-0006 point 5).
@@ -83,7 +86,7 @@ func Environment() []envdoc.Setting {
 		{
 			Name:        EnvBaseURL,
 			Default:     envdoc.Tick(defaultBaseURL),
-			Description: "Nightshift's address. Read in `nightshift` mode only; `nvidia` mode never reads it",
+			Description: "Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it",
 		},
 		{
 			Name:        EnvNVIDIABaseURL,
@@ -115,6 +118,11 @@ func Environment() []envdoc.Setting {
 			Default:     envdoc.Tick(DefaultSkepticModel),
 			Description: "the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family",
 		},
+		{
+			Name:        EnvThinkingBudget,
+			Default:     "empty (nothing is sent)",
+			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call, the second reviewer's included. Empty sends nothing, so a provider that does not know the field never sees it",
+		},
 	}
 }
 
@@ -135,10 +143,14 @@ type Settings struct {
 	App     string
 	Model   string
 	// Token is the Nightshift runtime token or, in nvidia mode, the NVIDIA key.
-	Token         string
-	Timeout       time.Duration
-	SkepticModel  string
-	plain         bool
+	Token        string
+	Timeout      time.Duration
+	SkepticModel string
+	// ThinkingBudget is PROVEN_GENERATOR_THINKING_BUDGET; zero sends no thinking_budget field.
+	ThinkingBudget int
+	plain          bool
+	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	Network       *network.Policy
 	requireAll    bool
 	requireNone   bool
 	requireNVIDIA map[string]bool
@@ -221,6 +233,21 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	// ADR-0034: in the air-gapped mode a hosted address is refused here, by name.
+	// The hosted generator mode is refused by name even when its address is local,
+	// the same way the guardrail's nvidia mode is.
+	policy, err := network.Load(env)
+	if err != nil {
+		return Settings{}, fromNetwork(err)
+	}
+	if mode == ModeNVIDIA {
+		if err := policy.Refuse(EnvMode, mode, "the hosted generator is outside the organisation's network"); err != nil {
+			return Settings{}, fromNetwork(err)
+		}
+	}
+	if err := policy.CheckURL(baseEnv, base); err != nil {
+		return Settings{}, fromNetwork(err)
+	}
 	app := env(EnvApp)
 	if app == "" {
 		app = defaultApp
@@ -250,6 +277,10 @@ func Load(env func(string) string) (Settings, error) {
 		}
 		timeout = d
 	}
+	budget, err := thinkingBudget(env)
+	if err != nil {
+		return Settings{}, err
+	}
 	req := env(EnvRequireNVIDIA)
 	if req == "" {
 		req = defaultRequire
@@ -265,8 +296,8 @@ func Load(env func(string) string) (Settings, error) {
 	}
 	return Settings{
 		Mode: mode, BaseURL: base, App: app, Model: model, Token: token, Timeout: timeout,
-		SkepticModel: skepticModel,
-		requireAll:   all, requireNone: none, requireNVIDIA: set,
+		SkepticModel: skepticModel, Network: policy, ThinkingBudget: budget,
+		requireAll: all, requireNone: none, requireNVIDIA: set,
 	}, nil
 }
 
@@ -276,6 +307,28 @@ func (s Settings) serviceName() string {
 		return "nvidia"
 	}
 	return "nightshift"
+}
+
+// fromNetwork maps a refused network setting onto this package's ConfigError,
+// so the shell reports it like any other refused setting. Any other error passes through.
+func fromNetwork(err error) error {
+	if ne, ok := network.As(err); ok {
+		return &ConfigError{Field: ne.Field, Value: ne.Value, Reason: ne.Reason, Allowed: ne.Allowed}
+	}
+	return err
+}
+
+// thinkingBudget reads PROVEN_GENERATOR_THINKING_BUDGET: zero when it is empty, refused by name when it is not a count.
+func thinkingBudget(env func(string) string) (int, error) {
+	raw := env(EnvThinkingBudget)
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > 1000000 {
+		return 0, refuse(EnvThinkingBudget, clip(raw), "not a token count", "a whole number from 1 to 1000000, or empty")
+	}
+	return n, nil
 }
 
 // refuse builds the refusal for one setting with one allowed form.
@@ -289,9 +342,9 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 // refusal. httpsOnly is set for the NVIDIA key's address: a key must not travel
 // over plain http.
 func checkBase(field, raw string, httpsOnly bool) (string, error) {
-	allowed := "an absolute http or https URL with no user info, query or fragment, and a path of empty or /v1"
+	allowed := "an absolute http or https URL with no user info, query or fragment, and a path that is empty or ends in a version such as /v1 or /api/paas/v4"
 	if httpsOnly {
-		allowed = "an absolute https URL with no user info, query or fragment, and a path of empty or /v1"
+		allowed = "an absolute https URL with no user info, query or fragment, and a path that is empty or ends in a version such as /v1 or /api/paas/v4"
 	}
 	if len(raw) > 2048 || strings.ContainsAny(raw, " \t\r\n") {
 		return "", refuse(field, clip(raw), "not a base URL", allowed)
@@ -307,8 +360,8 @@ func checkBase(field, raw string, httpsOnly bool) (string, error) {
 		return "", refuse(field, clip(raw), "not a base URL", allowed)
 	}
 	path := strings.TrimRight(u.Path, "/")
-	if path != "" && path != "/v1" {
-		return "", refuse(field, clip(raw), "the path is not empty or /v1", allowed)
+	if path != "" && !versioned(path) {
+		return "", refuse(field, clip(raw), "the path is not empty and does not end in a version", allowed)
 	}
 	u.Path = path
 	return strings.TrimRight(u.String(), "/"), nil
@@ -389,13 +442,27 @@ func parseRequire(raw string) (all, none bool, set map[string]bool, err error) {
 }
 
 // endpoint joins the API root with a method path such as "/chat/completions".
-// A base whose path is /v1 is already the API root.
+// A base whose path ends in a version (/v1, or /api/paas/v4) is already the API root.
 func endpoint(base, method string) string {
 	b := strings.TrimRight(base, "/")
-	if strings.HasSuffix(b, "/v1") {
+	if u, err := url.Parse(b); err == nil && versioned(u.Path) {
 		return b + method
 	}
 	return b + "/v1" + method
+}
+
+// versioned reports whether path's last segment is an API version: v and one or more digits.
+func versioned(path string) bool {
+	last := path[strings.LastIndex(path, "/")+1:]
+	if len(last) < 2 || last[0] != 'v' {
+		return false
+	}
+	for _, r := range last[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // checkBaseFor checks the address in the setting named field, so the second reviewer's address
