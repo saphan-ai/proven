@@ -97,3 +97,40 @@ func TestChangedKeepsOnlyFilesThatDiffer(t *testing.T) {
 		t.Fatalf("a change with nothing changed kept %v", got)
 	}
 }
+
+// An empty file read through Read keeps a non-nil side and a missing one stays nil, so Changed keeps the addition
+// and the deletion of an empty file and drops an empty file that is on both sides. Closes O2 of the W65 review.
+// Mutated field: the side a file is missing from.
+func TestReadKeepsAnEmptyFileApartFromAMissingOne(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{"base/gone", "change/added", "base/both", "change/both"} {
+		p := filepath.Join(root, f)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := Read(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sides := map[string][2]bool{}
+	for _, f := range files {
+		sides[f.Path] = [2]bool{f.Base != nil, f.Change != nil}
+	}
+	want := map[string][2]bool{"added": {false, true}, "gone": {true, false}, "both": {true, true}}
+	for path, w := range want {
+		if sides[path] != w {
+			t.Errorf("%s: base present %v, change present %v; want %v", path, sides[path][0], sides[path][1], w)
+		}
+	}
+	var kept []string
+	for _, f := range Changed(files, nil) {
+		kept = append(kept, f.Path)
+	}
+	if strings.Join(kept, ",") != "added,gone" {
+		t.Fatalf("Changed kept %v, want added and gone", kept)
+	}
+}
