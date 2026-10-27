@@ -89,8 +89,14 @@ func TestReportPageSetsTheReviewLikeAGitHubComment(t *testing.T) {
 	if strings.Contains(page, "<details open") {
 		t.Error("a finding is open: the details must be folded")
 	}
-	if strings.Count(page, "<details>") != strings.Count(page, "</details>") || strings.Count(page, "<details>") != 4 {
-		t.Errorf("details blocks: %d opened, %d closed, want 4 and 4", strings.Count(page, "<details>"), strings.Count(page, "</details>"))
+	// Four findings, each folded, and the page's own folded "How this was answered" block (its tag carries a class).
+	if strings.Count(page, "<details>") != 4 || strings.Count(page, "</details>") != 5 || strings.Count(page, `<details class="how">`) != 1 {
+		t.Errorf("details blocks: %d opened, %d closed, want 4 findings and one how block", strings.Count(page, "<details>"), strings.Count(page, "</details>"))
+	}
+	for _, w := range []string{"How this was answered", "Planner, Investigator, Prover, Skeptic, Judge, Writer", "<b>Queries run:</b> 7, on snapshot sample-2026-10-22"} {
+		if !strings.Contains(page, w) {
+			t.Errorf("the how block lacks %q", w)
+		}
 	}
 	if strings.Count(page, "<table>") != strings.Count(page, "</table>") {
 		t.Error("a table is not closed")

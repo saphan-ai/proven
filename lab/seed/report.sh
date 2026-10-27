@@ -69,6 +69,7 @@ trap 'rm -f "$stage" "$body" "$body.md"' EXIT INT TERM
 
 badge_class=neutral
 badge_text="Report"
+how=
 note=
 footer='The review as Proven wrote it with <code>proven scan --md</code>. Open a block to read its evidence.'
 if [ "$mode" = stub ]; then
@@ -91,6 +92,19 @@ else
       ;;
   esac
   awk -f "$here/md2html.awk" "$body.md" >"$body"
+  # The folded "How this was answered" block: what the review's own text says about how it was made, read from that text and
+  # nothing typed. The agents are Proven's fixed pipeline (AGENTS.md); the queries are the Query blocks the review shows.
+  queries=$(grep -c '^\*\*Query\*\*' "$body.md" || true)
+  snapshots=$(grep '^\*\*Query\*\*' "$body.md" | sed -n 's/.*snapshot \([A-Za-z0-9._-]*\).*/\1/p' | sort -u | paste -s -d, - | sed 's/,/, /g')
+  models=$(sed -n 's/.*reviewed by `\([^`]*\)`.*/\1/p' "$body.md" | head -n 1)
+  how="  <details class=\"how\"><summary>How this was answered</summary><ul>"
+  how="$how<li><b>Agents, in order:</b> Planner, Investigator, Prover, Skeptic, Judge, Writer.</li>"
+  how="$how<li><b>Queries run:</b> $queries"
+  [ -z "$snapshots" ] || how="$how, on snapshot $(printf '%s' "$snapshots" | html_escape)"
+  how="$how.</li>"
+  [ -z "$models" ] || how="$how<li><b>Reviewer model:</b> $(printf '%s' "$models" | html_escape).</li>"
+  how="$how<li><b>Receipts:</b> a live review gets a signed Nightshift receipt for each model call; they are listed on the Nightshift dashboard. A sample review calls no model, so it has none.</li>"
+  how="$how</ul></details>"
   rm -f "$body.md"
   # A page with no block to open does not tell the reader to open one.
   if ! grep -q '<details' "$body"; then
@@ -113,6 +127,7 @@ R_TITLE=$(printf '%s' "$title" | html_escape) \
   R_PR_URL="${LAB_URL%/}/${LAB_ADMIN_USER:-proven}/${LAB_DEMO_REPO:-discount}/pulls/$num" \
   R_LAB_PAGE_URL=${LAB_PAGE_URL:-/lab} \
   R_NOTE=$note \
+  R_HOW=$how \
   R_FOOTER=$footer \
   awk -v bodyfile="$body" '
     function fill(s, key, val,    out, i, tag) {
@@ -134,6 +149,7 @@ R_TITLE=$(printf '%s' "$title" | html_escape) \
       s = fill(s, "PR_URL", ENVIRON["R_PR_URL"])
       s = fill(s, "LAB_PAGE_URL", ENVIRON["R_LAB_PAGE_URL"])
       s = fill(s, "NOTE", ENVIRON["R_NOTE"])
+      s = fill(s, "HOW", ENVIRON["R_HOW"])
       s = fill(s, "FOOTER", ENVIRON["R_FOOTER"])
       print s
     }
