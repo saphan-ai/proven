@@ -54,3 +54,8 @@ jobs:
           # The guardrail stays NVIDIA's content-safety model on every prompt and answer.
           PROVEN_GUARDRAIL_MODE: nvidia
           PROVEN_GUARDRAIL_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # Live evidence: the review's queries go to our Zetaris; where it is, its key and the organisation id are
+          # repository secrets.
+          ZETARIS_REST_URL: ${{ secrets.ZETARIS_REST_URL }}
+          ZETARIS_API_KEY: ${{ secrets.ZETARIS_API_KEY }}
+          ZETARIS_ORG_ID: ${{ secrets.ZETARIS_ORG_ID }}
