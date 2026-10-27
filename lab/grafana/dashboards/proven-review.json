@@ -112,7 +112,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: findings kept",
+          "unit": "suffix: · blocked",
           "color": {
             "mode": "thresholds"
           },
@@ -129,8 +129,17 @@
               }
             ]
           },
-          "noValue": "0 findings kept: clean",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · clean",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -148,7 +157,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -183,7 +192,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: claims dropped",
+          "unit": "suffix: dropped",
           "color": {
             "mode": "thresholds"
           },
@@ -196,8 +205,17 @@
               }
             ]
           },
-          "noValue": "0 claims dropped",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none dropped",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -215,7 +233,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -250,7 +268,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: calls failed",
+          "unit": "suffix: · check",
           "color": {
             "mode": "thresholds"
           },
@@ -267,8 +285,17 @@
               }
             ]
           },
-          "noValue": "0 calls failed",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -286,7 +313,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -294,13 +321,13 @@
     {
       "id": 4,
       "type": "table",
-      "title": "The agents, in the order they ran, and how long each took",
+      "title": "The agents, in order, and how long each took (the latest 16)",
       "description": "Each row is one agent of this review, from the trace. The bar is how long it ran. The two reviewers each run their own Planner and Skeptic.",
       "gridPos": {
         "x": 0,
         "y": 5,
         "w": 14,
-        "h": 10
+        "h": 16
       },
       "transparent": false,
       "datasource": {
@@ -317,12 +344,11 @@
           "queryType": "traceql",
           "query": "{ resource.service.instance.id = \"$run\" && span.proven.agent != \"\" } | select(span.proven.agent, span.proven.reviewer, span.gen_ai.request.model)",
           "tableType": "spans",
-          "limit": 100
+          "limit": 16
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "No agent spans for this review yet.",
           "custom": {
             "align": "left",
             "cellOptions": {
@@ -339,7 +365,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "ms"
+                "value": "ns"
               },
               {
                 "id": "custom.cellOptions",
@@ -365,7 +391,7 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "md",
+        "cellHeight": "sm",
         "sortBy": [
           {
             "displayName": "Start time",
@@ -400,13 +426,13 @@
     {
       "id": 5,
       "type": "table",
-      "title": "The Skeptic's verdicts, both reviewers side by side",
-      "description": "How each reviewer's Skeptic judged each finding: refuted, upheld, or not attempted. Where the two columns differ, the reviewers disagree.",
+      "title": "Skeptic verdicts, by reviewer (empty: no finding)",
+      "description": "How each reviewer's Skeptic judged each finding: refuted, upheld, or not attempted. Where the two columns differ, the reviewers disagree. The table is empty when this review kept no finding for the Skeptic to judge.",
       "gridPos": {
         "x": 14,
         "y": 5,
         "w": 10,
-        "h": 10
+        "h": 8
       },
       "transparent": false,
       "datasource": {
@@ -428,7 +454,6 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "No verdict: this review kept no finding for the Skeptic to judge.",
           "custom": {
             "align": "left"
           }
@@ -437,7 +462,7 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "md"
+        "cellHeight": "sm"
       },
       "transformations": [
         {
@@ -463,12 +488,12 @@
       "id": 6,
       "type": "bargauge",
       "title": "Findings by level of proof",
-      "description": "The strongest evidence each finding of this review carries.",
+      "description": "How well each kept finding is proved: the strongest evidence it carries.",
       "gridPos": {
-        "x": 0,
-        "y": 15,
-        "w": 8,
-        "h": 7
+        "x": 14,
+        "y": 13,
+        "w": 10,
+        "h": 8
       },
       "transparent": false,
       "datasource": {
@@ -482,7 +507,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range]))",
+          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total{instance=\"$run\"}[$__range])) or on() label_replace(vector(0), \"proven_proof_level\", \"No finding kept: the reviews are still running, or every change was clean\", \"\", \"\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{proven_proof_level}}"
@@ -492,6 +517,7 @@
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.proven_proof_level}",
           "color": {
             "mode": "fixed",
             "fixedColor": "green"
@@ -505,7 +531,6 @@
               }
             ]
           },
-          "noValue": "No finding in this review.",
           "decimals": 0
         },
         "overrides": []
@@ -523,7 +548,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -536,9 +561,9 @@
       "title": "Where the two reviewers disagree",
       "description": "Findings one reviewer named and the other did not, or that they judged differently.",
       "gridPos": {
-        "x": 8,
-        "y": 15,
-        "w": 8,
+        "x": 0,
+        "y": 21,
+        "w": 12,
         "h": 7
       },
       "transparent": false,
@@ -553,7 +578,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=\"$run\"}[$__range]))",
+          "expr": "sum by (kind) (last_over_time(proven_reviewer_disagreements_total{instance=\"$run\"}[$__range])) or on() label_replace(vector(0), \"kind\", \"No disagreement: the two reviewers agree on this review\", \"\", \"\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{kind}}"
@@ -563,6 +588,7 @@
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.kind}",
           "color": {
             "mode": "fixed",
             "fixedColor": "yellow"
@@ -576,7 +602,6 @@
               }
             ]
           },
-          "noValue": "The reviewers do not disagree on anything in this review.",
           "decimals": 0
         },
         "overrides": []
@@ -594,7 +619,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -607,9 +632,9 @@
       "title": "Each finding, with its evidence",
       "description": "Where to read the evidence behind a finding.",
       "gridPos": {
-        "x": 16,
-        "y": 15,
-        "w": 8,
+        "x": 12,
+        "y": 21,
+        "w": 12,
         "h": 7
       },
       "options": {

@@ -93,7 +93,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: model calls",
+          "unit": "suffix: in total",
           "color": {
             "mode": "thresholds"
           },
@@ -106,8 +106,17 @@
               }
             ]
           },
-          "noValue": "0 model calls",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none yet",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -125,7 +134,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -160,7 +169,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: calls with an error",
+          "unit": "suffix: · check",
           "color": {
             "mode": "thresholds"
           },
@@ -177,8 +186,17 @@
               }
             ]
           },
-          "noValue": "0 calls with an error",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -196,7 +214,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -231,7 +249,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: unsafe",
+          "unit": "suffix: · bad",
           "color": {
             "mode": "thresholds"
           },
@@ -248,8 +266,17 @@
               }
             ]
           },
-          "noValue": "0 unsafe",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none, good",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -267,7 +294,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -295,16 +322,17 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_agent, proven_reviewer) (last_over_time(proven_model_calls_total[$__range]))",
+          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(proven_model_calls_total[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\") or on() label_replace(vector(0), \"who\", \"No model call yet\", \"\", \"\")",
           "instant": true,
           "range": false,
-          "legendFormat": "{{proven_agent}} · {{proven_reviewer}}"
+          "legendFormat": "{{who}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.who}",
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
@@ -318,7 +346,6 @@
               }
             ]
           },
-          "noValue": "No model call yet.",
           "decimals": 0
         },
         "overrides": []
@@ -336,7 +363,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -346,7 +373,7 @@
     {
       "id": 5,
       "type": "bargauge",
-      "title": "Calls, by the model asked and the model that answered",
+      "title": "Calls, by the model asked and the one that answered",
       "description": "The model a call asked for, and the model the provider says answered it. When a fallback answers, the two differ (NVIDIA first, then the fallback model). Sample mode names no answering model.",
       "gridPos": {
         "x": 12,
@@ -366,16 +393,17 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (gen_ai_request_model, gen_ai_response_model) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range]))",
+          "expr": "label_join(label_replace(sum by (gen_ai_request_model, gen_ai_response_model) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"gen_ai_response_model\", \"model not named\", \"gen_ai_response_model\", \"^$\"), \"route\", \" → \", \"gen_ai_request_model\", \"gen_ai_response_model\") or on() label_replace(vector(0), \"route\", \"No model call yet\", \"\", \"\")",
           "instant": true,
           "range": false,
-          "legendFormat": "{{gen_ai_request_model}} → {{gen_ai_response_model}}"
+          "legendFormat": "{{route}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.route}",
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
@@ -389,7 +417,6 @@
               }
             ]
           },
-          "noValue": "No model call yet.",
           "decimals": 0
         },
         "overrides": []
@@ -407,7 +434,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -437,16 +464,17 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (side, verdict) (last_over_time(proven_guardrail_checks_total[$__range]))",
+          "expr": "label_join(sum by (side, verdict) (last_over_time(proven_guardrail_checks_total[$__range])), \"check\", \" · \", \"side\", \"verdict\") or on() label_replace(vector(0), \"check\", \"No guardrail check yet\", \"\", \"\")",
           "instant": true,
           "range": false,
-          "legendFormat": "{{side}} · {{verdict}}"
+          "legendFormat": "{{check}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.check}",
           "color": {
             "mode": "fixed",
             "fixedColor": "green"
@@ -460,7 +488,6 @@
               }
             ]
           },
-          "noValue": "No guardrail check yet.",
           "decimals": 0
         },
         "overrides": []
@@ -478,7 +505,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -508,7 +535,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (reason) (last_over_time(proven_review_claims_dropped_total[$__range]))",
+          "expr": "sum by (reason) (last_over_time(proven_review_claims_dropped_total[$__range])) or on() label_replace(vector(0), \"reason\", \"Nothing was dropped yet\", \"\", \"\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{reason}}"
@@ -518,6 +545,7 @@
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.reason}",
           "color": {
             "mode": "fixed",
             "fixedColor": "yellow"
@@ -531,7 +559,6 @@
               }
             ]
           },
-          "noValue": "Nothing was dropped yet.",
           "decimals": 0
         },
         "overrides": []
@@ -549,7 +576,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -559,7 +586,7 @@
     {
       "id": 8,
       "type": "bargauge",
-      "title": "Model latency, mean per call (sample mode: recorded answers, not real model latency)",
+      "title": "Model latency (sample: recorded answers)",
       "description": "Mean time of a model call. In sample mode the answers are recorded, so this is not a measure of any model; in a live lab it is the real latency of each agent's calls.",
       "gridPos": {
         "x": 16,
@@ -579,16 +606,17 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range]))",
+          "expr": "label_join(sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_sum[$__range])) / sum by (proven_agent, proven_reviewer) (last_over_time(gen_ai_client_operation_duration_seconds_count[$__range])), \"who\", \" · \", \"proven_agent\", \"proven_reviewer\") or on() label_replace(vector(0), \"who\", \"No model call yet\", \"\", \"\")",
           "instant": true,
           "range": false,
-          "legendFormat": "{{proven_agent}} · {{proven_reviewer}}"
+          "legendFormat": "{{who}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "min": 0,
+          "displayName": "${__field.labels.who}",
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
@@ -602,8 +630,7 @@
               }
             ]
           },
-          "noValue": "No model call yet.",
-          "decimals": 0
+          "decimals": 3
         },
         "overrides": []
       },
@@ -620,7 +647,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false

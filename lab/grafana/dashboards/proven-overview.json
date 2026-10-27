@@ -93,7 +93,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: reviews finished",
+          "unit": "suffix: finished",
           "color": {
             "mode": "thresholds"
           },
@@ -101,7 +101,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "yellow",
+                "color": "blue",
                 "value": null
               },
               {
@@ -110,8 +110,17 @@
               }
             ]
           },
-          "noValue": "0 reviews finished",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none yet",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -129,7 +138,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -172,7 +181,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "blue",
                 "value": null
               },
               {
@@ -185,7 +194,6 @@
               }
             ]
           },
-          "noValue": "0 of 5 flagged",
           "mappings": [],
           "decimals": 0
         },
@@ -204,7 +212,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -239,7 +247,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: false alarms",
+          "unit": "suffix: · bad",
           "color": {
             "mode": "thresholds"
           },
@@ -256,8 +264,17 @@
               }
             ]
           },
-          "noValue": "0 false alarms",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none, good",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -275,7 +292,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -310,7 +327,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: agents failed",
+          "unit": "suffix: · bad",
           "color": {
             "mode": "thresholds"
           },
@@ -327,8 +344,17 @@
               }
             ]
           },
-          "noValue": "0 agents failed",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none, good",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -346,7 +372,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -355,12 +381,12 @@
       "id": 5,
       "type": "table",
       "title": "Every review: how it ended, findings kept, claims dropped",
-      "description": "One row per review. A review that kept no finding is clean; one that kept a finding is blocked. The change column names the demo change the review ran on.",
+      "description": "One row per demo pull request, newest run of each. Verdict: clean when no finding was kept, blocked when one was. The table holds twelve rows; scroll inside it for more.",
       "gridPos": {
         "x": 0,
         "y": 5,
         "w": 16,
-        "h": 10
+        "h": 13
       },
       "transparent": false,
       "datasource": {
@@ -374,7 +400,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "max by (instance) (last_over_time(proven_agent_state{proven_agent=\"writer\"}[$__range]))",
+          "expr": "max by (pr, change) (label_replace(label_replace(last_over_time(proven_agent_state{proven_agent=\"writer\"}[$__range]), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\"))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -385,7 +411,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (instance) (last_over_time(proven_review_findings_total[$__range]))",
+          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_findings_total[$__range])), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\"))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -396,7 +422,18 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (instance) (last_over_time(proven_review_claims_dropped_total[$__range]))",
+          "expr": "max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_claims_dropped_total[$__range])), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\"))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "clamp_max(max by (pr, change) (label_replace(label_replace(sum by (instance) (last_over_time(proven_review_findings_total[$__range])), \"pr\", \"$1\", \"instance\", \"[0-9]+-pr([0-9]+)-.*\"), \"change\", \"$1\", \"instance\", \"[0-9]+-pr[0-9]+-(.*)\")), 1)",
           "instant": true,
           "range": false,
           "format": "table"
@@ -404,7 +441,6 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "0",
           "custom": {
             "align": "left"
           }
@@ -413,7 +449,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Findings"
+              "options": "Verdict"
             },
             "properties": [
               {
@@ -425,15 +461,9 @@
                       "0": {
                         "text": "clean",
                         "color": "green"
-                      }
-                    }
-                  },
-                  {
-                    "type": "range",
-                    "options": {
-                      "from": 1,
-                      "to": 1000,
-                      "result": {
+                      },
+                      "1": {
+                        "text": "blocked",
                         "color": "red"
                       }
                     }
@@ -487,61 +517,68 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pull request"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
           }
         ]
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "md",
+        "cellHeight": "sm",
         "sortBy": [
           {
-            "displayName": "Review",
-            "desc": true
+            "displayName": "Pull request",
+            "desc": false
           }
         ]
       },
       "transformations": [
         {
-          "id": "joinByField",
-          "options": {
-            "byField": "instance",
-            "mode": "outer"
-          }
+          "id": "merge",
+          "options": {}
         },
         {
-          "id": "extractFields",
+          "id": "convertFieldType",
           "options": {
-            "source": "instance",
-            "format": "regexp",
-            "regExp": "(?<review>[0-9]+)-pr(?<pr>[0-9]+)-(?<change>.+)",
-            "keepTime": false,
-            "replace": false
+            "conversions": [
+              {
+                "targetField": "pr",
+                "destinationType": "number"
+              }
+            ]
           }
         },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "instance": true,
-              "review": true
+              "Time": true
             },
             "indexByName": {
               "pr": 0,
               "change": 1,
-              "Value #A": 2,
+              "Value #D": 2,
               "Value #B": 3,
-              "Value #C": 4
+              "Value #C": 4,
+              "Value #A": 5
             },
             "renameByName": {
               "pr": "Pull request",
               "change": "Change",
-              "Value #A": "State",
+              "Value #D": "Verdict",
               "Value #B": "Findings",
-              "Value #C": "Claims dropped"
+              "Value #C": "Claims dropped",
+              "Value #A": "State"
             }
           }
         }
@@ -556,7 +593,7 @@
         "x": 16,
         "y": 5,
         "w": 8,
-        "h": 10
+        "h": 13
       },
       "transparent": false,
       "datasource": {
@@ -570,7 +607,7 @@
             "type": "prometheus",
             "uid": "${ds_prom}"
           },
-          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total[$__range]))",
+          "expr": "sum by (proven_proof_level) (last_over_time(proven_review_findings_total[$__range])) or on() label_replace(vector(0), \"proven_proof_level\", \"No finding kept: the reviews are still running, or every change was clean\", \"\", \"\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{proven_proof_level}}"
@@ -580,6 +617,7 @@
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.proven_proof_level}",
           "color": {
             "mode": "fixed",
             "fixedColor": "green"
@@ -593,7 +631,6 @@
               }
             ]
           },
-          "noValue": "No finding yet: the reviews are still running, or every change was clean.",
           "decimals": 0
         },
         "overrides": []
@@ -611,7 +648,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -622,12 +659,12 @@
       "id": 7,
       "type": "timeseries",
       "title": "Reviews started over time",
-      "description": "Reviews that began in each ten-minute step.",
+      "description": "Reviews that began in each two-minute step.",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 18,
         "w": 12,
-        "h": 7
+        "h": 8
       },
       "transparent": false,
       "datasource": {
@@ -645,7 +682,7 @@
           "instant": false,
           "range": true,
           "legendFormat": "reviews",
-          "interval": "10m"
+          "interval": "2m"
         }
       ],
       "fieldConfig": {
@@ -685,11 +722,11 @@
     {
       "id": 8,
       "type": "table",
-      "title": "Reviews that had a failed service",
-      "description": "A review whose outside service (the guardrail, a model, Zetaris) did not answer. None is good.",
+      "title": "Reviews with a failed service (the latest 5)",
+      "description": "A review whose outside service (the guardrail, a model, Zetaris) did not answer. None is good: the table is empty then.",
       "gridPos": {
         "x": 12,
-        "y": 15,
+        "y": 18,
         "w": 12,
         "h": 7
       },
@@ -708,12 +745,11 @@
           "queryType": "traceql",
           "query": "{ name = \"proven.review\" && span.proven.failed_services > 0 } | select(span.proven.failed_services, span.proven.class)",
           "tableType": "spans",
-          "limit": 100
+          "limit": 5
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "No review had a failed service.",
           "custom": {
             "align": "left",
             "cellOptions": {
@@ -730,7 +766,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "ms"
+                "value": "ns"
               },
               {
                 "id": "custom.cellOptions",
@@ -756,7 +792,7 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "md",
+        "cellHeight": "sm",
         "sortBy": [
           {
             "displayName": "Start time",

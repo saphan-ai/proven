@@ -93,7 +93,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: claims suppressed",
+          "unit": "suffix: suppressed",
           "color": {
             "mode": "thresholds"
           },
@@ -106,8 +106,17 @@
               }
             ]
           },
-          "noValue": "0 claims suppressed",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none suppressed",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -125,7 +134,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -181,13 +190,13 @@
     {
       "id": 5,
       "type": "table",
-      "title": "What each review ran as",
+      "title": "What each review ran as (the latest 10)",
       "description": "One row per review: the review class Scout chose, whether a second reviewer ran, and whether the review was cut short.",
       "gridPos": {
         "x": 0,
         "y": 6,
         "w": 24,
-        "h": 10
+        "h": 11
       },
       "transparent": false,
       "datasource": {
@@ -204,12 +213,11 @@
           "queryType": "traceql",
           "query": "{ name = \"proven.review\" } | select(span.proven.class, span.proven.doubled, span.proven.partial, span.proven.findings)",
           "tableType": "spans",
-          "limit": 100
+          "limit": 10
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "No review has run yet.",
           "custom": {
             "align": "left",
             "cellOptions": {
@@ -226,7 +234,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "ms"
+                "value": "ns"
               },
               {
                 "id": "custom.cellOptions",
@@ -247,12 +255,78 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Two reviewers"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "true": {
+                        "text": "yes"
+                      },
+                      "false": {
+                        "text": "no"
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "text": "no"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cut short"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "true": {
+                        "text": "yes"
+                      },
+                      "false": {
+                        "text": "no"
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "text": "no"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "md",
+        "cellHeight": "sm",
         "sortBy": [
           {
             "displayName": "Start time",

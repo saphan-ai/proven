@@ -1,7 +1,7 @@
 {
   "uid": "proven-nightshift",
   "title": "Proven: the model gateway, from Nightshift's signed receipts",
-  "description": "Every call Proven made through Meterless Nightshift: how many, to which model, how fast, and which failed and why. The receipts are replayed when the lab starts, so time here is when they were loaded.",
+  "description": "Every call Proven made through Meterless Nightshift: how many, to which model, how fast, and which failed and why. The receipts are replayed when the lab starts, so time here is when they were loaded. None are loaded until the public receipts file is put in place: make nightshift-receipts.",
   "tags": [
     "proven"
   ],
@@ -11,7 +11,7 @@
   "graphTooltip": 1,
   "refresh": "10s",
   "time": {
-    "from": "now-6h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {
@@ -93,7 +93,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: receipts",
+          "unit": "suffix: loaded",
           "color": {
             "mode": "thresholds"
           },
@@ -101,17 +101,22 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "yellow",
-                "value": null
-              },
-              {
                 "color": "blue",
-                "value": 1
+                "value": null
               }
             ]
           },
-          "noValue": "0 receipts: none loaded",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none loaded",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -129,7 +134,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -164,7 +169,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: ok",
+          "unit": "suffix: answered",
           "color": {
             "mode": "thresholds"
           },
@@ -172,7 +177,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "yellow",
+                "color": "blue",
                 "value": null
               },
               {
@@ -181,8 +186,17 @@
               }
             ]
           },
-          "noValue": "0 ok",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none yet",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -200,7 +214,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -235,7 +249,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: failed",
+          "unit": "suffix: · failed",
           "color": {
             "mode": "thresholds"
           },
@@ -252,8 +266,17 @@
               }
             ]
           },
-          "noValue": "0 failed",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -271,7 +294,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -279,8 +302,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Receipts whose signature verified",
-      "description": "Receipts whose Ed25519 signature verified under the pinned key. All of them is good.",
+      "title": "Receipts that failed verification",
+      "description": "Receipts whose Ed25519 signature did not verify under the pinned key. None is good.",
       "gridPos": {
         "x": 18,
         "y": 0,
@@ -299,14 +322,14 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"true\"}[$__range])) or vector(0)",
+          "expr": "sum(count_over_time({job=\"nightshift\", verified=\"false\"}[$__range])) or vector(0)",
           "instant": true,
           "range": false
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: verified",
+          "unit": "suffix: · bad",
           "color": {
             "mode": "thresholds"
           },
@@ -314,17 +337,26 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
               },
               {
-                "color": "green",
+                "color": "red",
                 "value": 1
               }
             ]
           },
-          "noValue": "0 verified",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0 · none failed",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "decimals": 0
         },
         "overrides": []
@@ -342,7 +374,7 @@
         "justifyMode": "center",
         "orientation": "auto",
         "text": {
-          "valueSize": 46,
+          "valueSize": 40,
           "titleSize": 15
         }
       }
@@ -351,7 +383,7 @@
       "id": 5,
       "type": "timeseries",
       "title": "Calls over time, by model and app",
-      "description": "Calls per step, for each model that answered and each app that asked.",
+      "description": "Calls per minute, for each model that answered and each app that asked.",
       "gridPos": {
         "x": 0,
         "y": 5,
@@ -370,17 +402,19 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum by (model, app) (count_over_time({job=\"nightshift\"}[$__interval]))",
+          "expr": "sum by (model, app) (count_over_time({job=\"nightshift\"}[1m]))",
           "instant": false,
           "range": true,
-          "legendFormat": "{{model}} · {{app}}"
+          "legendFormat": "{{model}} · {{app}}",
+          "interval": "1m",
+          "step": "1m"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "min": 0,
-          "noValue": "No receipts loaded. The lab loads the public receipts of Proven's own calls from lab/nightshift/receipts.public.jsonl (make nightshift-receipts).",
+          "noValue": "No receipts loaded yet. To load the public ones: make nightshift-receipts (docs/LAB.md).",
           "color": {
             "mode": "palette-classic"
           },
@@ -433,7 +467,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum by (reason) (count_over_time({job=\"nightshift\", status=\"failed\"}[$__range]))",
+          "expr": "sum by (reason) (count_over_time({job=\"nightshift\", status=\"failed\"}[$__range])) or on() label_replace(vector(0), \"reason\", \"No call failed (or no receipts are loaded)\", \"\", \"\")",
           "instant": true,
           "range": false,
           "legendFormat": "{{reason}}"
@@ -443,20 +477,23 @@
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.reason}",
           "color": {
-            "mode": "fixed",
-            "fixedColor": "red"
+            "mode": "thresholds"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
               }
             ]
           },
-          "noValue": "No call failed.",
           "decimals": 0
         },
         "overrides": []
@@ -474,7 +511,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false
@@ -504,17 +541,19 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "quantile_over_time(0.5, {job=\"nightshift\", status=\"ok\"} | json | unwrap latency_ms | __error__=\"\" [$__interval]) by (model)",
+          "expr": "quantile_over_time(0.5, {job=\"nightshift\", status=\"ok\"} | json | unwrap latency_ms | __error__=\"\" [1m]) by (model)",
           "instant": false,
           "range": true,
-          "legendFormat": "{{model}}"
+          "legendFormat": "{{model}}",
+          "interval": "1m",
+          "step": "1m"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
           "min": 0,
-          "noValue": "No receipts loaded. The lab loads the public receipts of Proven's own calls from lab/nightshift/receipts.public.jsonl (make nightshift-receipts).",
+          "noValue": "No receipts loaded yet. To load the public ones: make nightshift-receipts (docs/LAB.md).",
           "color": {
             "mode": "palette-classic"
           },
@@ -567,27 +606,17 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "sum by (model) (sum_over_time({job=\"nightshift\"} | json | unwrap input_tokens | __error__=\"\" [$__range]))",
+          "expr": "label_replace(sum by (model) (sum_over_time({job=\"nightshift\"} | json | unwrap input_tokens | __error__=\"\" [$__range])), \"series\", \"$1 · tokens in\", \"model\", \"(.*)\") or label_replace(sum by (model) (sum_over_time({job=\"nightshift\"} | json | unwrap output_tokens | __error__=\"\" [$__range])), \"series\", \"$1 · tokens out\", \"model\", \"(.*)\") or on() label_replace(vector(0), \"series\", \"No receipts loaded: make nightshift-receipts\", \"\", \"\")",
           "instant": true,
           "range": false,
-          "legendFormat": "{{model}} in"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "loki",
-            "uid": "${ds_loki}"
-          },
-          "expr": "sum by (model) (sum_over_time({job=\"nightshift\"} | json | unwrap output_tokens | __error__=\"\" [$__range]))",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{model}} out"
+          "legendFormat": "{{series}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "min": 0,
+          "displayName": "${__field.labels.series}",
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
@@ -601,7 +630,6 @@
               }
             ]
           },
-          "noValue": "No receipts loaded. The lab loads the public receipts of Proven's own calls from lab/nightshift/receipts.public.jsonl (make nightshift-receipts).",
           "decimals": 0
         },
         "overrides": []
@@ -619,7 +647,7 @@
         "showUnfilled": true,
         "minVizHeight": 16,
         "minVizWidth": 8,
-        "namePlacement": "left",
+        "namePlacement": "top",
         "sizing": "auto",
         "legend": {
           "showLegend": false

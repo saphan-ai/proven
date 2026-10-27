@@ -67,6 +67,8 @@ func emittedPromMetrics() map[string]bool {
 var emittedLabels = map[string]bool{
 	"proven_agent": true, "proven_reviewer": true, "proven_proof_level": true, "verdict": true, "kind": true, "reason": true,
 	"outcome": true, "side": true, "gen_ai_request_model": true, "gen_ai_response_model": true, "instance": true, "job": true,
+	// Made inside the query by label_replace and label_join: the pull request and the change cut out of the instance id.
+	"pr": true, "change": true, "who": true, "route": true, "check": true,
 }
 
 // importerLabels and importerFields are what lab/seed/nightshift-import.sh writes: the stream labels, and the fields of the

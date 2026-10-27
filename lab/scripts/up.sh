@@ -266,6 +266,10 @@ shown=$pass
 if [ -n "${LAB_ADMIN_PASSWORD:-}" ] && [ "$LAB_ADMIN_PASSWORD" = "$pass" ]; then
   shown="the value of LAB_ADMIN_PASSWORD"
 fi
-echo
+
+# The fifth status line has one empty line after it (ui_done), which is the one empty line before the banner: nothing else
+# is printed between them.
+ui_begin 5 "Show you where to start" "make status"
+ui_done "The lab is ready"
 lab_banner "$shown"
 exit "$wait_status"

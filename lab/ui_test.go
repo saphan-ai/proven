@@ -137,8 +137,8 @@ func TestUpPrintsOneGreenLineAfterEachPhaseWithAnEmptyLineOnEachSide(t *testing.
 		t.Fatalf("up failed: %v\n%s", r.err, r.out)
 	}
 	got := stepLine.FindAllStringSubmatch(r.out, -1)
-	if len(got) != 4 {
-		t.Fatalf("want four step lines, got %d:\n%s", len(got), r.out)
+	if len(got) != 5 {
+		t.Fatalf("want five step lines, got %d:\n%s", len(got), r.out)
 	}
 	for i, m := range got {
 		if m[1] != string(rune('1'+i)) {
@@ -148,10 +148,14 @@ func TestUpPrintsOneGreenLineAfterEachPhaseWithAnEmptyLineOnEachSide(t *testing.
 			t.Errorf("the step line is not set off by an empty line before and after: %q", m[0])
 		}
 	}
-	for _, w := range []string{"Proven's image is built", "Gitea, Grafana and the lab's Docker are up", "The demo repository and its 7 pull requests are created", "Proven reviewed every pull request"} {
+	for _, w := range []string{"Proven's image is built", "Gitea, Grafana and the lab's Docker are up", "The demo repository and its 7 pull requests are created", "Proven reviewed every pull request", "The lab is ready"} {
 		if !strings.Contains(r.out, w) {
 			t.Errorf("no step line says %q", w)
 		}
+	}
+	// One empty line, no more, between the last step line and the banner (the owner asked for one before and one after the line).
+	if !strings.Contains(r.out, "==> [5/5] The lab is ready (0 s)\n\n####") {
+		t.Errorf("the fifth step line is not followed by exactly one empty line and the banner:\n%q", tail(r.out, 400))
 	}
 	if strings.Contains(r.out, "\x1b") {
 		t.Errorf("a control character was printed with no terminal:\n%q", r.out)
