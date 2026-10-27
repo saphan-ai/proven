@@ -805,3 +805,38 @@ func TestMarkdownCallsAReviewIncompleteWhenTheModelAnsweredOnlySomeCalls(t *test
 		t.Errorf("with no model call answered the heading is not 'not reviewed'\n%s", none)
 	}
 }
+
+// TestMarkdownNamesTheModelThatAnswered: a router answered the review's calls with another model than the reviewer the
+// review names (Nightshift, 27 Oct: qwen3.8-flash asked, nemotron-3-ultra answered). The comment says which model
+// answered, from the receipts, and that it is not the reviewer named. The mutated field is the routed model.
+func TestMarkdownNamesTheModelThatAnswered(t *testing.T) {
+	base := review.Result{
+		Class: "standard", ClassRule: "fallback",
+		Reviewers: []review.ReviewerInfo{{Role: review.RoleDefault, Model: "qwen3.8-flash", Family: "Alibaba"}},
+	}
+	swapped := base
+	swapped.Models = []review.ModelUse{
+		{Agent: "planner", Model: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", FromReceipt: true},
+		{Agent: "judge", Model: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", FromReceipt: true},
+		{Agent: "writer", Model: "unknown"},
+	}
+	body, err := render("md", swapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "- Answered by, from the provider's receipts: `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` (2 calls), not named by the provider (1 call); not the reviewer named above"
+	if !strings.Contains(string(body), want) {
+		t.Errorf("the comment does not say which model answered:\n%s", body)
+	}
+	// The control: the router answered with the reviewer named; the line names it and does not say "not the reviewer".
+	same := base
+	same.Models = []review.ModelUse{{Agent: "planner", Model: "openrouter/qwen/qwen3.8-flash", FromReceipt: true}}
+	body, _ = render("md", same)
+	if !strings.Contains(string(body), "`openrouter/qwen/qwen3.8-flash` (1 call)") || strings.Contains(string(body), "not the reviewer named above") {
+		t.Errorf("a matching answer was not named plainly:\n%s", body)
+	}
+	// No model call (sample mode): no line.
+	if body, _ := render("md", base); strings.Contains(string(body), "Answered by") {
+		t.Errorf("a review with no model call names an answering model:\n%s", body)
+	}
+}
