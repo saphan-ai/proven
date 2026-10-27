@@ -30,6 +30,11 @@ func mdVerdict(result review.Result) string {
 func verdictLine(result review.Result) (head, tail string) {
 	if len(result.Findings) == 0 {
 		if down := mdModelsDown(result); len(down) > 0 {
+			// Some calls answered and later ones did not: the review is incomplete, not
+			// absent. Result.Models holds every model call that answered (ADR-0019).
+			if len(result.Models) > 0 {
+				return "Proven: incomplete", " — " + strings.Join(down, " and ") + " did not answer every call, so 0 findings proves nothing" + mdCountsTail(result)
+			}
 			return "Proven: not reviewed", " — " + strings.Join(down, " and ") + " did not answer, so 0 findings proves nothing" + mdCountsTail(result)
 		}
 		return "Proven: clean", " — 0 findings" + mdCountsTail(result)
@@ -118,6 +123,9 @@ func checkedIn(st inlineStyle, result review.Result) string {
 	closing := "A finding needs proof to be reported, and none had it."
 	if len(mdModelsDown(result)) > 0 {
 		closing = "No model read the change, so no finding could be raised; run the review again when the model answers."
+		if len(result.Models) > 0 {
+			closing = "The model answered some calls and not others, so the review stopped before it could raise a finding; run it again when the model answers."
+		}
 	}
 	return fmt.Sprintf("Checked as %s change%s; %s. %s",
 		class, classReasonIn(st, result.ClassRule), strings.Join(parts, "; "), closing)
