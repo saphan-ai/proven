@@ -56,3 +56,7 @@ The model gateway, read from Nightshift's signed receipts. In a sample lab no re
 
 The lab runs Proven's published container image. Its Docker Scout result, software bill of materials and build provenance
 are on [Docker Hub](https://hub.docker.com/r/saphan/proven/tags).
+
+The tag the judges pull, for both architectures: no critical, high, medium or low vulnerability, one left unrated.
+
+[![Docker Hub: the judging tag of saphan/proven for amd64 and arm64, with no critical, high, medium or low vulnerability](images/tour/docker-scout.png)](images/tour/docker-scout.png)
