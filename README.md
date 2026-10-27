@@ -299,6 +299,10 @@ Each day, what lands moves from this list to the day's summary.
 - **More sources, first part**: CVSS severity scores and licences ([ADR-0039](docs/adr/ADR-0039-more-evidence-sources.md)).
 - **More languages, first part**: PHP, Rust, Kotlin, and Java projects built with Gradle.
 - **Worked, tested adapter examples** for extending Proven, and the documentation site, built.
+- **Air-gapped mode** (landed 27 October): with `PROVEN_NETWORK=local`, Proven refuses any address outside your own
+  network, once when it reads its settings and again when it dials. Models, safety model, evidence and telemetry all
+  run on your machines; a name not on your allow list is refused before any DNS query
+  ([AIR_GAPPED.md](docs/AIR_GAPPED.md), [ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
 
 **Still in the plan:**
 
@@ -311,7 +315,6 @@ Each day, what lands moves from this list to the day's summary.
 - **A readable comment on the pull request**, in GitHub and in Gitea, with a plain-language summary first and the automated fix as suggested changes.
 - **Your own data**: plug in an internal list of banned packages, how critical each service is, or who owns the code, and Proven judges a change against what your organisation knows ([ADR-0046](docs/adr/ADR-0046-a-data-source-is-one-adapter.md)).
 - **More languages**: C# and Ruby, and Java projects built with Maven, through the same small adapter ([ADR-0038](docs/adr/ADR-0038-a-language-is-one-small-adapter.md)).
-- **An air-gapped installation**, where no code leaves your network ([ADR-0034](docs/adr/ADR-0034-proven-runs-air-gapped.md)).
 - **Accepted risks shown in every output**, on top of the organisation policy.
 - **NVIDIA's model in every review of the fleet's work**, beside OpenAI's and Anthropic's, now that its first review is in.
 - **A measurement on 21 real review disputes**: how often Proven is right compared with a single model.

@@ -13,8 +13,9 @@ page or the decision that holds the detail. Where something is still being built
 - **A model's answer is untrusted input.** Every prompt and every answer goes through a guardrail, on by default
   ([ADR-0005](adr/ADR-0005-guardrail-on-by-default.md)), and every query Proven sends to your data is built from a
   fixed template, never written by a model ([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)).
-- **Air-gapped mode**, where nothing leaves your network ([ADR-0034](adr/ADR-0034-proven-runs-air-gapped.md)):
-  *being built, in its final review rounds.*
+- **Air-gapped mode**, where nothing leaves your network: set `PROVEN_NETWORK=local` and Proven refuses any address
+  outside your network, when it reads its settings and again when it dials ([AIR_GAPPED.md](AIR_GAPPED.md),
+  [ADR-0034](adr/ADR-0034-proven-runs-air-gapped.md)).
 
 ## Every finding can be checked, later, by someone else
 
