@@ -777,3 +777,31 @@ func TestMarkdownCarriesNoInternalNames(t *testing.T) {
 		}
 	}
 }
+
+// TestMarkdownCallsAReviewIncompleteWhenTheModelAnsweredOnlySomeCalls proves that
+// a run whose model answered some calls and then timed out is headed "incomplete",
+// never "clean" and never "not reviewed" (no model read nothing, it read part).
+// The mutated field is Result.Models.
+func TestMarkdownCallsAReviewIncompleteWhenTheModelAnsweredOnlySomeCalls(t *testing.T) {
+	partial := review.Result{Class: "backend", ClassRule: "fallback",
+		Models:         []review.ModelUse{{Agent: "planner", Model: "glm-5.3"}},
+		FailedServices: []review.ServiceFailure{{Service: "nightshift", Reason: "timeout"}}}
+	body, err := render("md", partial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, bad := range []string{"Proven: clean", "Proven: not reviewed", "No model read the change"} {
+		if strings.Contains(text, bad) {
+			t.Errorf("a partly answered review says %q\n%s", bad, text)
+		}
+	}
+	if !strings.Contains(text, "**Proven: incomplete** — the model reviewer did not answer every call") {
+		t.Errorf("the heading does not say the review is incomplete\n%s", text)
+	}
+	partial.Models = nil
+	none, _ := render("md", partial)
+	if !strings.Contains(string(none), "**Proven: not reviewed**") {
+		t.Errorf("with no model call answered the heading is not 'not reviewed'\n%s", none)
+	}
+}
