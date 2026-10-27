@@ -511,12 +511,6 @@ func redactRows(rd *redact.Redactor, rows [][]string) [][]string {
 	return out
 }
 
-// review is the body of Review. Every agent step follows one pattern: an error
-// from a service that is down is noted and the review goes on without it; a
-// context that has ended returns the partial draft through cut; any other
-// error stops the review.
-//
-// Splitting this function into its stages is known debt, planned after 6 Nov.
 // readContext marks a live review's context, so its Planner reads only the files that changed: a live review
 // exports the repository whole. A sample review is left unmarked, because its recorded planner answers are keyed by
 // the prompt over every file of its fixture.
@@ -536,6 +530,12 @@ func gitNamed(req Request, files []string) []string {
 	return files
 }
 
+// review is the body of Review. Every agent step follows one pattern: an error
+// from a service that is down is noted and the review goes on without it; a
+// context that has ended returns the partial draft through cut; any other
+// error stops the review.
+//
+// Splitting this function into its stages is known debt, planned after 6 Nov.
 func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
 	// The review's read policy rode the context from its runner; every git command and size bound below takes it from here.
 	rd := change.PolicyFrom(ctx)
