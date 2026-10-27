@@ -21,12 +21,29 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: saphan-ai/proven@be3e5bbfad4e22591a8f0d1c358bf32a2c038111 # main with the Markdown comment (W13)
+      # The Action at main 2c117a6, which takes an API root ending in a version (GLM's endpoint).
+      - uses: saphan-ai/proven@2c117a6b478d7880b96f399a8ef0e240dc7b5c2d # main with the GLM base path
         with:
           strict: false
           comment: true
         env:
-          PROVEN_GENERATOR_MODE: nvidia
-          PROVEN_GENERATOR_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # The reviewer: GLM-5.3 on Alibaba Cloud Model Studio (QwenCloud), called directly,
+          # outside Nightshift (owner, 27 Oct: GLM-5.3 is the default reviewer). It is an
+          # OpenAI-compatible API, so the generator's nightshift mode reaches it by its base URL.
+          PROVEN_GENERATOR_MODE: nightshift
+          PROVEN_GENERATOR_BASE_URL: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+          PROVEN_GENERATOR_MODEL: glm-5.3
+          PROVEN_SKEPTIC_MODEL: glm-5.3
+          PROVEN_GENERATOR_REQUIRE_NVIDIA: none
+          # GLM-5.3 always thinks on this endpoint (enable_thinking=false is refused, HTTP 400), so
+          # one call takes about 25 s on a short prompt; the limit leaves room for a long one.
+          PROVEN_GENERATOR_TIMEOUT: 300s
+          METERLESS_RUNTIME_TOKEN: ${{ secrets.BAILIAN_TOKEN_PLAN_API_KEY }}
+          # The security reviewer: another model family on the same endpoint, so a security change
+          # is judged by two families (doubled_classes: security in proven.yaml).
+          PROVEN_SECOND_REVIEWER_BASE_URL: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+          PROVEN_SECOND_REVIEWER_MODEL: qwen3.8-max
+          PROVEN_SECOND_REVIEWER_KEY: ${{ secrets.BAILIAN_TOKEN_PLAN_API_KEY }}
+          # The guardrail stays NVIDIA's content-safety model on every prompt and answer.
           PROVEN_GUARDRAIL_MODE: nvidia
           PROVEN_GUARDRAIL_KEY: ${{ secrets.NVIDIA_API_KEY }}
