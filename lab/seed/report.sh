@@ -11,6 +11,9 @@
 # the seed: number, branch, fixture, verdict), PRS_FILE (the list, for the title), REPORT_TEMPLATE, PAGE_DIR, LAB_URL,
 # LAB_ADMIN_USER, LAB_DEMO_REPO, LAB_PAGE_URL and LAB_MODE.
 set -eu
+# The page directory is read by the page's nginx, a different user from this one. Whatever umask the seed runs under, the
+# directory and its pages are world-readable: a 700 directory made every Report link a 403.
+umask 022
 
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 . "$here/render.sh"
@@ -59,6 +62,7 @@ done <"$PRS_FILE"
 
 stage_dir="$PAGE_DIR/reports"
 mkdir -p "$stage_dir"
+chmod 755 "$stage_dir"
 stage="$stage_dir/.$num.html.new"
 body=$(mktemp "$stage_dir/.body.XXXXXX")
 trap 'rm -f "$stage" "$body" "$body.md"' EXIT INT TERM
@@ -66,10 +70,12 @@ trap 'rm -f "$stage" "$body" "$body.md"' EXIT INT TERM
 badge_class=neutral
 badge_text="Report"
 note=
+footer='The review as Proven wrote it with <code>proven scan --md</code>. Open a block to read its evidence.'
 if [ "$mode" = stub ]; then
-  badge_text="Report not ready"
-  note='  <div class="note">Proven is still preparing the report for this pull request. Reload in a minute, or run <code>make reports</code>.</div>'
-  printf '<p>The report for this pull request is written once the lab has built it. Until then the review is the comment on the pull request in Gitea.</p>\n' >"$body"
+  badge_text="Report not built"
+  note='  <div class="note">This report has not been built. Run <code>make reports</code>, then reload. Until then the review is the comment on the pull request in Gitea.</div>'
+  footer='This page is a placeholder: no review is rendered here yet.'
+  printf '<p>No report has been built for this pull request yet. The review is the comment on the pull request in Gitea.</p>\n' >"$body"
 else
   head -c "$REPORT_MAX_BYTES" | tr -d '\r' >"$body.md"
   [ -s "$body.md" ] || fail "no Markdown on standard input"
@@ -103,6 +109,7 @@ R_TITLE=$(printf '%s' "$title" | html_escape) \
   R_PR_URL="${LAB_URL%/}/${LAB_ADMIN_USER:-proven}/${LAB_DEMO_REPO:-discount}/pulls/$num" \
   R_LAB_PAGE_URL=${LAB_PAGE_URL:-/lab} \
   R_NOTE=$note \
+  R_FOOTER=$footer \
   awk -v bodyfile="$body" '
     function fill(s, key, val,    out, i, tag) {
       tag = "@@" key "@@"
@@ -123,6 +130,7 @@ R_TITLE=$(printf '%s' "$title" | html_escape) \
       s = fill(s, "PR_URL", ENVIRON["R_PR_URL"])
       s = fill(s, "LAB_PAGE_URL", ENVIRON["R_LAB_PAGE_URL"])
       s = fill(s, "NOTE", ENVIRON["R_NOTE"])
+      s = fill(s, "FOOTER", ENVIRON["R_FOOTER"])
       print s
     }
   ' "$REPORT_TEMPLATE" >"$stage"

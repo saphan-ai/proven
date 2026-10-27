@@ -171,9 +171,9 @@ func TestReportPageWritesNoTagTheReviewDidNotMean(t *testing.T) {
 	}
 }
 
-func TestReportStubSaysTheReportIsNotReadyAndNamesTheCommand(t *testing.T) {
+func TestReportStubSaysTheReportIsNotBuiltAndNamesTheCommand(t *testing.T) {
 	page := renderReport(t, root, "stub", "")
-	for _, w := range []string{"Report not ready", "make reports", "the comment on the pull request in Gitea"} {
+	for _, w := range []string{"Report not built", "make reports", "the comment on the pull request in Gitea"} {
 		if !strings.Contains(page, w) {
 			t.Errorf("the stub lacks %q", w)
 		}
