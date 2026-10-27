@@ -26,7 +26,9 @@ var processDefault = []string{
 }
 
 // TestNoProductionCodeReachesTheProcessGitPolicy is the census of the process-wide git policy:
-// no non-test Go file outside this package may name a function of processDefault. A production
+// no non-test Go file outside this package may name a function of processDefault, or build the zero
+// Policy (a literal, or a variable with no value). The code inside this package has its own census,
+// TestNoCodeInThisPackageReachesTheProcessGitPolicy. A production
 // caller holds a Policy (NewPolicy, or the one a review put in its context) and calls its method.
 // Tests may use the process default; they are the callers it exists for.
 func TestNoProductionCodeReachesTheProcessGitPolicy(t *testing.T) {
@@ -91,13 +93,32 @@ func reaches(t *testing.T, path, rel string) []string {
 		}
 		local[name] = true
 	}
-	ast.Inspect(f, func(n ast.Node) bool {
-		sel, ok := n.(*ast.SelectorExpr)
+	// isPolicy reports whether e names this package's Policy type.
+	isPolicy := func(e ast.Expr) bool {
+		sel, ok := e.(*ast.SelectorExpr)
 		if !ok {
-			return true
+			return false
 		}
-		if id, ok := sel.X.(*ast.Ident); ok && local[id.Name] && slices.Contains(processDefault, sel.Sel.Name) {
-			out = append(out, rel+":"+strconv.Itoa(fset.Position(sel.Pos()).Line)+": "+id.Name+"."+sel.Sel.Name)
+		id, ok := sel.X.(*ast.Ident)
+		return ok && local[id.Name] && sel.Sel.Name == "Policy"
+	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		line := func() string { return rel + ":" + strconv.Itoa(fset.Position(n.Pos()).Line) + ": " }
+		switch x := n.(type) {
+		case *ast.SelectorExpr:
+			if id, ok := x.X.(*ast.Ident); ok && local[id.Name] && slices.Contains(processDefault, x.Sel.Name) {
+				out = append(out, line()+id.Name+"."+x.Sel.Name)
+			}
+		case *ast.CompositeLit:
+			// The zero Policy is the public mode (policy.go): building one is choosing a policy no
+			// review chose. A production caller builds its policy with NewPolicy.
+			if isPolicy(x.Type) {
+				out = append(out, line()+"a change.Policy literal")
+			}
+		case *ast.ValueSpec:
+			if x.Type != nil && isPolicy(x.Type) && len(x.Values) == 0 {
+				out = append(out, line()+"a change.Policy variable with no value")
+			}
 		}
 		return true
 	})
