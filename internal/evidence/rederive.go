@@ -38,7 +38,7 @@ func checkOutcomes(files map[string][]byte, redactionMoved []string, rep *Report
 	if id, same := firstQueryDifference(gotQueries, queries(res)); !same {
 		return refuse(CheckOutcome, QueriesName, "the queries recorded for finding %s are not the ones findings.json holds", Visible(id))
 	}
-	unbound, err := findingsWithoutBound(files[FindingsName])
+	unbound, err := findingsWithoutBound(files[FindingsName], files[QueriesName])
 	if err != nil {
 		return refuse(CheckFormat, FindingsName, "not readable: %v", err)
 	}
@@ -177,8 +177,12 @@ func withBound(f review.Finding, unbound map[int]bool, v bool) review.Finding {
 }
 
 // findingsWithoutBound reports, per finding in file order, the evidence indexes of the queries
-// whose Bound field is absent from findings.json, as opposed to recorded false.
-func findingsWithoutBound(findings []byte) ([]map[int]bool, error) {
+// whose Bound is recorded nowhere: absent from findings.json and absent from queries.json. A
+// query whose queries.json entry carries "bound" has it recorded, whatever findings.json holds
+// (the two decode to the same value, or the cross-file check has refused the pack). Only a pack
+// written before bound existed lacks the key in both files. The queries are matched by position,
+// which is how queries.json lists them: the finding order, then the evidence order.
+func findingsWithoutBound(findings, queries []byte) ([]map[int]bool, error) {
 	var raw struct {
 		Findings []struct {
 			Evidence []struct {
@@ -190,10 +194,20 @@ func findingsWithoutBound(findings []byte) ([]map[int]bool, error) {
 	if err := json.Unmarshal(findings, &raw); err != nil {
 		return nil, err
 	}
+	var recorded []struct{ Bound *bool }
+	if err := json.Unmarshal(queries, &recorded); err != nil {
+		return nil, err
+	}
 	out := make([]map[int]bool, len(raw.Findings))
+	n := 0
 	for i, f := range raw.Findings {
 		for j, e := range f.Evidence {
-			if e.Query != nil && e.Query.Bound == nil {
+			if e.Query == nil {
+				continue
+			}
+			inQueries := n < len(recorded) && recorded[n].Bound != nil
+			n++
+			if e.Query.Bound == nil && !inQueries {
 				if out[i] == nil {
 					out[i] = map[int]bool{}
 				}
