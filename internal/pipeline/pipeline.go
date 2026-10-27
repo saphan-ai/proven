@@ -1747,7 +1747,10 @@ func (p *Pipeline) countGuard(side string, v guardrail.Verdict, refused string) 
 		c.Model = v.Model
 	}
 	switch {
-	case refused != "":
+	// A check that was not made carries a Down code on every error path (guardrail.Wrap
+	// sets it from the error), even when the refusal's text is empty, so the count keys
+	// on Down and never on the text (review claude r3 C1).
+	case v.Down != "" || refused != "":
 		c.Unanswered++
 		return
 	case side == "prompt":

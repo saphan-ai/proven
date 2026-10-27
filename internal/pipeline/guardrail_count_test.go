@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
@@ -79,5 +80,46 @@ func TestDraftWithTheGuardrailOffCountsNothing(t *testing.T) {
 	}
 	if d.GuardrailStatement == "" {
 		t.Fatal("a review with the guardrail off does not say so")
+	}
+}
+
+// downRail never gives a verdict; err is what each check returns.
+type downRail struct {
+	err   error
+	asked int
+}
+
+func (r *downRail) Identity() (string, string) { return "nvidia", "nvidia/probe-guard" }
+
+func (r *downRail) Check(context.Context, string, string) (guardrail.Verdict, error) {
+	r.asked++
+	return guardrail.Verdict{}, r.err
+}
+
+// Property: a check the guardrail could not make is counted as not checked, never as
+// a checked (safe) prompt, whatever its refusal says, an empty reason included
+// (review claude r3 C1). Mutated line for the negative control: the Down test in
+// countGuard; keyed on the refusal text again, the empty-reason cases are red.
+func TestDraftCountsADownGuardrailAsNotChecked(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"named-reason", guardrail.Refuse("unreachable")},
+		{"empty-reason", guardrail.Refuse("")},
+		{"foreign-empty-error", errors.New("")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rail := &downRail{err: tc.err}
+			d, _ := reviewWithRail(t, loadFixture(t), rail, false)
+			g := d.Guardrail
+			t.Logf("asked=%d count=%+v", rail.asked, g)
+			if rail.asked == 0 {
+				t.Fatal("the rail was never asked")
+			}
+			if g.Prompts != 0 || g.Answers != 0 || g.Unanswered != rail.asked {
+				t.Errorf("a down check was counted as made: asked %d, count %+v", rail.asked, g)
+			}
+		})
 	}
 }
