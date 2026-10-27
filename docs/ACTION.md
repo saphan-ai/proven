@@ -89,6 +89,20 @@ The image reference is `ARG PROVEN_IMAGE` in `action/Dockerfile`, and it reads `
 
 `include`, `exclude` and the rest are tested at their mapping with a stand-in for `proven`, because the sample fixture's four findings are all `ERROR` and one fixture cannot show a flag whose effect it does not exercise. The sample reviewer reads `fixture.json` in the target, so `sample-mode: true` needs those files in the target (the fixture is at `testdata/fixture/discount`).
 
+### The models this repository's workflow uses
+
+Proven's own workflow (`.github/workflows/proven.yml`) names every model in configuration; no model id is written in code.
+
+| Role | Model | How it is set |
+|---|---|---|
+| Reviewer (every class) | GLM-5.3 on Alibaba Cloud Model Studio, called directly, outside Nightshift | `PROVEN_GENERATOR_MODE: nightshift` with `PROVEN_GENERATOR_BASE_URL` set to the Model Studio API root, `PROVEN_GENERATOR_MODEL` and `PROVEN_SKEPTIC_MODEL` set to `glm-5.3`, `PROVEN_GENERATOR_REQUIRE_NVIDIA: none`, the key in the `BAILIAN_TOKEN_PLAN_API_KEY` secret passed as `METERLESS_RUNTIME_TOKEN` |
+| Second reviewer (security class) | `qwen3.8-max`, another family on the same API | `PROVEN_SECOND_REVIEWER_BASE_URL`, `PROVEN_SECOND_REVIEWER_MODEL`, `PROVEN_SECOND_REVIEWER_KEY`; `doubled_classes: security` in `proven.yaml` |
+| Guardrail (every prompt and answer) | NVIDIA's content-safety model | `PROVEN_GUARDRAIL_MODE: nvidia`, the key in the `NVIDIA_API_KEY` secret |
+
+The names the review prints come from `proven.yaml` at the pull request's baseline: `default_reviewer: glm-5.3`, `special_reviewer: qwen3.8-max`, and a `families` list that adds `glm-*=Zhipu`. GLM-5.3 always reasons before it answers on this API (a request with `enable_thinking` false is refused), so one short call takes about 25 seconds; `PROVEN_GENERATOR_TIMEOUT: 300s` leaves room for a long one. Nemotron through Nightshift stays a supported choice: set the generator back to `nightshift` without a base URL, or to `nvidia`.
+
+The author model is read from the pull request's description: a line `Assisted-by: <agent>:<model>` (the `author_trailer_keys` setting). A pull request that does not declare one is reviewed with `author model not stated`.
+
 ## Before and after
 
 Both workflows are real shapes of the tools' documented jobs. `<full commit SHA>` stands for the 40-character SHA of the action named, which is the form GitHub recommends; it is not filled in here because this page was written without a network. The `fetch-depth: 0` line is in both "before" workflows: both tools, like Proven, need history to review only what a pull request changed.
