@@ -61,6 +61,25 @@ func verdictLine(result review.Result) (head, tail string) {
 // same words and each escapes by its own rule.
 type inlineStyle struct {
 	text, code func(string) string
+	// unbounded lifts the Markdown comment's byte and list bounds (mdMaxMessage,
+	// mdMaxNote, mdMaxTitle, mdMaxNotes), which exist for the platform's size limit
+	// of a comment. A file a judge opens has no such limit and is never cut
+	// (ADR-0033 point 8).
+	unbounded bool
+}
+
+// cut shortens s to max bytes with an ellipsis when the style is bounded.
+func (st inlineStyle) cut(s string, max int) string {
+	if st.unbounded {
+		return s
+	}
+	return mdShort(s, max)
+}
+
+// capList reports whether the list stops before item i (counting from 0): a
+// bounded style stops at mdMaxNotes and says how many more there are.
+func (st inlineStyle) capList(i int) bool {
+	return !st.unbounded && i == mdMaxNotes
 }
 
 // mdStyle marks a value for Markdown.
@@ -146,7 +165,7 @@ func classReasonIn(st inlineStyle, rule string) string {
 	case strings.HasPrefix(rule, "scout-intent"):
 		return " (raised by the plan Proven made for this change)"
 	default:
-		return " (path rule " + st.code(mdShort(rule, mdMaxTitle)) + ")"
+		return " (path rule " + st.code(st.cut(rule, mdMaxTitle)) + ")"
 	}
 }
 
@@ -169,7 +188,7 @@ func serviceNameIn(st inlineStyle, service string) string {
 	if name, ok := mdServiceNames[service]; ok {
 		return name
 	}
-	return st.code(mdShort(service, mdMaxTitle))
+	return st.code(st.cut(service, mdMaxTitle))
 }
 
 // mdUnsetSetting is a reason that only names an empty setting, such as "ZETARIS_REST_URL is empty".
@@ -184,7 +203,7 @@ func serviceReasonIn(st inlineStyle, reason string) string {
 	if mdUnsetSetting.MatchString(reason) {
 		return "not configured for this run"
 	}
-	return st.text(mdShort(reason, mdMaxNote))
+	return st.text(st.cut(reason, mdMaxNote))
 }
 
 // mdSeverity is a severity as a word with a capital: Error, Warning, Info.
@@ -395,12 +414,12 @@ func fixSentence(st inlineStyle, fix *review.Fix) string {
 	case fix.Dependency != nil:
 		d := fix.Dependency
 		return fmt.Sprintf(" (named from the advisory table, no test ran): raise %s %s to %s. %s",
-			st.code(d.Package), st.code(d.From), st.code(d.To), st.text(mdShort(oneLine(fix.Why), mdMaxMessage)))
+			st.code(d.Package), st.code(d.From), st.code(d.To), st.text(st.cut(oneLine(fix.Why), mdMaxMessage)))
 	case fix.Proved:
 		return fmt.Sprintf(" (proved after %d %s; a suggestion for you to apply, Proven changes nothing): %s %s",
-			fix.Attempts, attemptWord(fix.Attempts), st.text(mdShort(oneLine(fix.What), mdMaxMessage)), st.text(mdShort(oneLine(fix.Why), mdMaxMessage)))
+			fix.Attempts, attemptWord(fix.Attempts), st.text(st.cut(oneLine(fix.What), mdMaxMessage)), st.text(st.cut(oneLine(fix.Why), mdMaxMessage)))
 	default:
-		return " not proved: " + st.text(mdShort(oneLine(fix.Note), mdMaxMessage))
+		return " not proved: " + st.text(st.cut(oneLine(fix.Note), mdMaxMessage))
 	}
 }
 
@@ -447,7 +466,7 @@ func peopleIn(st inlineStyle, result review.Result) []string {
 	} else {
 		names := make([]string, 0, len(result.AuthorModels))
 		for _, a := range result.AuthorModels {
-			names = append(names, fmt.Sprintf("%s (%s)", st.code(mdShort(a.Model, mdMaxTitle)), st.text(mdFamily(a.Family))))
+			names = append(names, fmt.Sprintf("%s (%s)", st.code(st.cut(a.Model, mdMaxTitle)), st.text(mdFamily(a.Family))))
 		}
 		lines = append(lines, "- Author model: "+strings.Join(names, ", "))
 	}
@@ -456,7 +475,7 @@ func peopleIn(st inlineStyle, result review.Result) []string {
 		if r.Role == review.RoleSpecial {
 			role = "Second reviewer, for " + st.text(result.Class) + " changes"
 		}
-		line := fmt.Sprintf("- %s: %s (%s)", role, st.code(mdShort(r.Model, mdMaxTitle)), st.text(mdFamily(r.Family)))
+		line := fmt.Sprintf("- %s: %s (%s)", role, st.code(st.cut(r.Model, mdMaxTitle)), st.text(mdFamily(r.Family)))
 		if r.IsAuthorModel == "yes" {
 			line += ", the same family as the author"
 		}
@@ -488,7 +507,7 @@ func notesIn(st inlineStyle, result review.Result) []string {
 	var lines []string
 	statement := func(s string) {
 		if s != "" {
-			lines = append(lines, "- "+st.text(mdShort(oneLine(s), mdMaxNote)))
+			lines = append(lines, "- "+st.text(st.cut(oneLine(s), mdMaxNote)))
 		}
 	}
 	statement(result.PolicyStatement)
@@ -508,21 +527,21 @@ func notesIn(st inlineStyle, result review.Result) []string {
 		lines = append(lines, "- review partial: the deadline was reached")
 	}
 	for i, a := range result.Accepted {
-		if i == mdMaxNotes {
+		if st.capList(i) {
 			lines = append(lines, fmt.Sprintf("- %d more accepted by exception, not listed", len(result.Accepted)-i))
 			break
 		}
 		lines = append(lines, fmt.Sprintf("- accepted by exception %s (owner %s, expires %s): %s %s",
-			st.code(a.ExceptionID), st.text(mdShort(a.Owner, mdMaxTitle)), st.text(mdShort(a.Expires, mdMaxTitle)),
-			st.text(mdShort(a.Finding.Title, mdMaxTitle)), st.code(mdPlace(a.Finding.Location))))
+			st.code(a.ExceptionID), st.text(st.cut(a.Owner, mdMaxTitle)), st.text(st.cut(a.Expires, mdMaxTitle)),
+			st.text(st.cut(a.Finding.Title, mdMaxTitle)), st.code(mdPlace(a.Finding.Location))))
 	}
 	for i, e := range result.Expired {
-		if i == mdMaxNotes {
+		if st.capList(i) {
 			lines = append(lines, fmt.Sprintf("- %d more exceptions expired, not listed", len(result.Expired)-i))
 			break
 		}
 		lines = append(lines, fmt.Sprintf("- exception %s expired on %s: finding %s counts again",
-			st.code(e.ExceptionID), st.text(mdShort(e.Expires, mdMaxTitle)), st.text(mdShort(e.Finding, mdMaxTitle))))
+			st.code(e.ExceptionID), st.text(st.cut(e.Expires, mdMaxTitle)), st.text(st.cut(e.Finding, mdMaxTitle))))
 	}
 	return lines
 }
@@ -544,7 +563,7 @@ func footIn(st inlineStyle, result review.Result) string {
 	if len(models) > 0 {
 		escaped := make([]string, 0, len(models))
 		for _, m := range models {
-			escaped = append(escaped, st.code(mdShort(m, mdMaxTitle)))
+			escaped = append(escaped, st.code(st.cut(m, mdMaxTitle)))
 		}
 		names = "reviewed by " + strings.Join(escaped, " and ")
 	}

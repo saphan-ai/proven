@@ -15,7 +15,7 @@ import (
 // htmlStyle marks a value from the change for HTML text. The sentences shared
 // with the Markdown writer (verdictLine, checkedIn, fixSentence, notesIn, footIn)
 // take it, so both writers say the same words.
-var htmlStyle = inlineStyle{text: htmlText, code: htmlCode}
+var htmlStyle = inlineStyle{text: htmlText, code: htmlCode, unbounded: true}
 
 // htmlFormatter writes the review as the page a judge opens in a browser.
 type htmlFormatter struct{}
@@ -72,7 +72,9 @@ func htmlVerdict(b *strings.Builder, result review.Result) {
 		class = "not-reviewed"
 	}
 	head, tail := verdictLine(result)
-	fmt.Fprintf(b, "<p class=\"verdict %s\"><strong>%s</strong>%s</p>\n", class, htmlText(head), htmlText(tail))
+	// htmlText folds the leading space of the tail away, so the space between the
+	// verdict and its dash is written here.
+	fmt.Fprintf(b, "<p class=\"verdict %s\"><strong>%s</strong> %s</p>\n", class, htmlText(head), htmlText(tail))
 }
 
 // htmlSummary is the table of findings: severity, finding, file:line. The
