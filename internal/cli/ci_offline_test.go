@@ -40,7 +40,7 @@ func runCI(t *testing.T, env map[string]string) int {
 // read made before review.Open loads the mode, so ci tells git itself. With PROVEN_NETWORK=local the
 // merge-base call carries protocol.allow=never and GIT_NO_LAZY_FETCH=1; with the mode unset it carries
 // neither, so the switches come from the mode and nothing else.
-// Mutated field: the UseOffline call of applyCI (a no-op leaves both switches off).
+// Mutated field: the offline policy applyCI builds for the merge base (a public one leaves both switches off).
 func TestCIGitCannotFetchInLocalMode(t *testing.T) { ciGitSwitchesFollowTheMode(t) }
 
 // TestCIGitCannotFetchInLocalModeWithPaddedWC is the same proof on a host whose wc pads its count
