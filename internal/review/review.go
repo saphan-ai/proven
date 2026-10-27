@@ -316,7 +316,7 @@ type AuthorModel struct {
 	Agent  string // the part before the first colon
 	Model  string // the part after the first colon
 	Family string // a configured family, or "family unknown"
-	Source string // "commit", "description" or "record"
+	Source string // "settings", "commit", "description" or "record"
 }
 
 // Finding is one reported problem with its evidence.
