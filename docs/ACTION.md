@@ -95,8 +95,8 @@ Proven's own workflow (`.github/workflows/proven.yml`) names every model in conf
 
 | Role | Model | How it is set |
 |---|---|---|
-| Reviewer (every class) | `qwen3.8-flash` on Alibaba Cloud Model Studio, called directly, outside Nightshift | `PROVEN_GENERATOR_MODE: nightshift` with `PROVEN_GENERATOR_BASE_URL` set to the Model Studio API root, `PROVEN_GENERATOR_MODEL` and `PROVEN_SKEPTIC_MODEL` set to `qwen3.8-flash`, `PROVEN_GENERATOR_THINKING_BUDGET: "512"`, `PROVEN_GENERATOR_REQUIRE_NVIDIA: none`, the key in the `BAILIAN_TOKEN_PLAN_API_KEY` secret passed as `METERLESS_RUNTIME_TOKEN` |
-| Second reviewer (security class) | `deepseek-v4.1-flash`, another family on the same API | `PROVEN_SECOND_REVIEWER_BASE_URL`, `PROVEN_SECOND_REVIEWER_MODEL`, `PROVEN_SECOND_REVIEWER_KEY`; `doubled_classes: security` in `proven.yaml` |
+| Reviewer (every class) | `qwen3.8-flash`, called through Meterless Nightshift (ADR-0019), which signs a receipt for each call | `PROVEN_GENERATOR_MODE: nightshift`, `PROVEN_GENERATOR_BASE_URL` and `METERLESS_RUNTIME_TOKEN` from the repository secrets of the same names, `PROVEN_GENERATOR_MODEL` and `PROVEN_SKEPTIC_MODEL` set to Nightshift's id `openrouter/qwen/qwen3.8-flash`, `PROVEN_GENERATOR_THINKING_BUDGET: "512"`, `PROVEN_GENERATOR_REQUIRE_NVIDIA: none` |
+| Second reviewer (security class) | `deepseek-v4.1-flash`, another family, through Nightshift too | `PROVEN_SECOND_REVIEWER_BASE_URL` and `PROVEN_SECOND_REVIEWER_KEY` from the same two secrets, `PROVEN_SECOND_REVIEWER_MODEL: openrouter/deepseek/deepseek-v4.1-flash`; `doubled_classes: security` in `proven.yaml` |
 | Guardrail (every prompt and answer) | NVIDIA's content-safety model | `PROVEN_GUARDRAIL_MODE: nvidia`, the key in the `NVIDIA_API_KEY` secret |
 
 The names the review prints come from `proven.yaml` at the pull request's baseline: `default_reviewer: qwen3.8-flash`, `special_reviewer: deepseek-v4.1-flash`, and a `families` list that adds `deepseek-*=DeepSeek`. The Planner reads a change in hunk-sized steps (`PROVEN_MARKOVIAN_STEP_UNIT: hunk`).
