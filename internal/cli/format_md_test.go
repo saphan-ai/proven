@@ -728,3 +728,30 @@ func TestMarkdownLeastProofCountsTheColumnsItLeavesOut(t *testing.T) {
 		}
 	}
 }
+
+// TestMarkdownDoesNotCallAReviewCleanWhenNoModelAnswered proves that a run with
+// no findings whose model reviewer did not answer (either generator mode) is
+// headed "not reviewed", names the model, and never says "clean": with the model
+// down no candidate is raised, so 0 findings proves nothing. A run where only
+// another service failed stays clean. The mutated field is FailedServices.
+func TestMarkdownDoesNotCallAReviewCleanWhenNoModelAnswered(t *testing.T) {
+	for _, svc := range []string{"nvidia", "nightshift"} {
+		body, err := render("md", review.Result{Class: "backend", ClassRule: "fallback",
+			FailedServices: []review.ServiceFailure{{Service: "zetaris", Reason: "ZETARIS_REST_URL is empty"}, {Service: svc, Reason: "timeout"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(body)
+		if strings.Contains(text, "Proven: clean") || strings.Contains(text, "none had it") {
+			t.Errorf("%s down: the comment calls the run clean\n%s", svc, text)
+		}
+		if !strings.Contains(text, "**Proven: not reviewed** — the model reviewer did not answer (`"+svc+"`)") {
+			t.Errorf("%s down: the heading does not say the run was not reviewed\n%s", svc, text)
+		}
+	}
+	other, _ := render("md", review.Result{Class: "backend", ClassRule: "fallback",
+		FailedServices: []review.ServiceFailure{{Service: "zetaris", Reason: "ZETARIS_REST_URL is empty"}}})
+	if !strings.Contains(string(other), "**Proven: clean**") {
+		t.Errorf("only zetaris down: the run is no longer called clean\n%s", other)
+	}
+}
