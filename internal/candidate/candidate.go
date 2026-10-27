@@ -377,10 +377,12 @@ type Draft struct {
 // place every check passes through and never typed by hand.
 // Prompts and Answers are the checks that got a verdict, Blocked the ones whose
 // verdict was unsafe, and Unanswered the checks the guardrail could not make.
-// Backend and Model name the guardrail that answered, or failed to.
+// Backend and Model name the guardrail that answered, or failed to. Maker is
+// "NVIDIA" when the configuration says the model is NVIDIA's (guardrail.Maker),
+// and empty otherwise: it is never guessed from an arbitrary model id.
 type GuardrailCount struct {
 	Prompts, Answers, Blocked, Unanswered int
-	Backend, Model                        string
+	Backend, Model, Maker                 string
 }
 
 // GuardrailOffStatement is the sentence a review carries when its guardrail

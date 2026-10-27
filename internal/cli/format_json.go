@@ -61,6 +61,7 @@ type jsonGuardrail struct {
 	Unanswered int    `json:"unanswered"`
 	Backend    string `json:"backend"`
 	Model      string `json:"model"`
+	Maker      string `json:"maker"`
 }
 
 // guardrailFrom is the guardrail object the JSON document and the SARIF run share.
@@ -69,7 +70,7 @@ func guardrailFrom(result review.Result) jsonGuardrail {
 	return jsonGuardrail{
 		State: result.GuardrailState(), Line: result.GuardrailLine(),
 		Prompts: c.Prompts, Answers: c.Answers, Blocked: c.Blocked, Unanswered: c.Unanswered,
-		Backend: c.Backend, Model: c.Model,
+		Backend: c.Backend, Model: c.Model, Maker: c.Maker,
 	}
 }
 

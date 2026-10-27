@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 )
 
@@ -121,5 +122,36 @@ func TestDraftCountsADownGuardrailAsNotChecked(t *testing.T) {
 				t.Errorf("a down check was counted as made: asked %d, count %+v", rail.asked, g)
 			}
 		})
+	}
+}
+
+// Property: a review's guardrail count is that review's alone, because a Pipeline
+// runs one review: a second Review on it is refused (its trace is closed), so no
+// count can carry over (review codex r2/r4, owed). The reset at the start of Review
+// is kept as a second line of defence. Mutated condition for the negative control:
+// a Pipeline that ran a second review would make this test red, and the reset would
+// then be the line that keeps the counts apart.
+func TestAPipelineRunsOneReviewSoItsCountIsThatReviews(t *testing.T) {
+	fx := loadFixture(t)
+	inner, err := generator.NewSample(fx.Answers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := Build(Options{
+		Sample: true, LogDir: t.TempDir(), Generator: inner, Guardrail: &scriptedRail{safeChecks: 1000},
+		Env: func(k string) string { t.Fatalf("sample mode read %s", k); return "" },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := p.Review(context.Background(), Request{Target: fx.Root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Guardrail.Prompts == 0 {
+		t.Fatal("the first review counted no prompt")
+	}
+	if _, err := p.Review(context.Background(), Request{Target: fx.Root}); err == nil {
+		t.Fatal("a second review ran on the same Pipeline; its guardrail count must then be shown to start from zero")
 	}
 }

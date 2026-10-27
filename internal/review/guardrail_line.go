@@ -8,7 +8,7 @@ import "fmt"
 // name the guardrail that answered. It has the fields of candidate.GuardrailCount.
 type GuardrailCount struct {
 	Prompts, Answers, Blocked, Unanswered int
-	Backend, Model                        string
+	Backend, Model, Maker                 string
 }
 
 // The states of a review's guardrail, as JSON and SARIF name them.
@@ -48,8 +48,13 @@ func (r Result) GuardrailLine() string {
 	if who == "" {
 		who = "model not named"
 	}
-	if c.Backend != "" {
-		who += " (" + c.Backend + ")"
+	// The maker is named only when the configuration says it (guardrail.Maker): the
+	// owner asked for NVIDIA's part to be shown, and a name is never guessed.
+	if c.Maker != "" {
+		who = c.Maker + " " + who
+	}
+	if where := guardrailWhere(c.Backend); where != "" {
+		who += " (" + where + ")"
 	}
 	line := fmt.Sprintf("Guardrail: %s, checked %s and %s, %d blocked", who, counted(c.Prompts, "prompt"), counted(c.Answers, "answer"), c.Blocked)
 	if c.Unanswered > 0 {
@@ -64,4 +69,16 @@ func counted(n int, noun string) string {
 		return fmt.Sprintf("1 %s", noun)
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// guardrailWhere says where the guardrail ran, in words: NVIDIA's hosted API, or a
+// model server the operator runs. Another backend keeps its own name.
+func guardrailWhere(backend string) string {
+	switch backend {
+	case "nvidia":
+		return "NVIDIA hosted API"
+	case "server":
+		return "self-hosted"
+	}
+	return backend
 }

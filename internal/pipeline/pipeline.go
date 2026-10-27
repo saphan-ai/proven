@@ -1751,6 +1751,7 @@ func (p *Pipeline) countGuard(side string, v guardrail.Verdict, refused string) 
 	if v.Model != "" {
 		c.Model = v.Model
 	}
+	c.Maker = guardrail.Maker(c.Backend, c.Model)
 	switch {
 	// A check that was not made carries a Down code on every error path (guardrail.Wrap
 	// sets it from the error), even when the refusal's text is empty, so the count keys

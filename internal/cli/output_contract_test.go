@@ -54,7 +54,7 @@ func contractResult(t *testing.T) review.Result {
 		TracePath:            writeTrace(t, "family sentence text"),
 		Models:               []review.ModelUse{{Agent: "judge", Route: "route-x", Model: "model-y", ReceiptID: "receipt-z", FromReceipt: true}},
 		FailedServices:       []review.ServiceFailure{{Service: "nightshift", Reason: "timeout"}},
-		Guardrail:            review.GuardrailCount{Prompts: 5, Answers: 6, Blocked: 3, Unanswered: 2, Backend: "guard-backend", Model: "guard-model"},
+		Guardrail:            review.GuardrailCount{Prompts: 5, Answers: 6, Blocked: 3, Unanswered: 2, Backend: "guard-backend", Model: "guard-model", Maker: "guard-maker"},
 		// The counts are not a recount of the findings below. A writer that
 		// counted the findings itself, instead of copying ProofCounts, would
 		// write 0, 1, 0, 1 and turn the contract red.
@@ -114,8 +114,8 @@ func wantEvidence() []any {
 func wantGuardrail() map[string]any {
 	return map[string]any{
 		"state": "checked", "prompts": float64(5), "answers": float64(6), "blocked": float64(3), "unanswered": float64(2),
-		"backend": "guard-backend", "model": "guard-model",
-		"line": "Guardrail: guard-model (guard-backend), checked 5 prompts and 6 answers, 3 blocked, 2 not checked",
+		"backend": "guard-backend", "model": "guard-model", "maker": "guard-maker",
+		"line": "Guardrail: guard-maker guard-model (guard-backend), checked 5 prompts and 6 answers, 3 blocked, 2 not checked",
 	}
 }
 

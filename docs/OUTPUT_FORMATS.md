@@ -70,14 +70,14 @@ Each result's `properties` also carries `proof_level`, and the run's `properties
 Every output states what NVIDIA's guardrail (ADR-0005) did in this review, in the same words (the reviewer lines name the reviewing models; this line names the guardrail). The counts are measured at the one place every check passes through, the guardrail callback of the pipeline, and a doubled review adds both runs' checks:
 
 ```
-Guardrail: <model> (<backend>), checked <P> prompts and <A> answers, <B> blocked
+Guardrail: [<maker> ]<model> (<where>), checked <P> prompts and <A> answers, <B> blocked
 ```
 
-A count of one takes the singular (`1 prompt`, `1 answer`). When a check could not be made (the guardrail did not answer), the line ends `, <U> not checked`; such a check is in neither `<P>` nor `<A>`. Two other lines stand in its place: `Guardrail: off for this review` when the guardrail was switched off, and `Guardrail: no model call to check` when it was on and no model call was made (a sample run). `<B>` counts the checks whose verdict was unsafe, each of which stopped its call.
+`<maker>` is `NVIDIA` when the configuration says the model is NVIDIA's: NVIDIA's hosted API, or one of the NVIDIA content-safety models Proven ships as its defaults, on NVIDIA's API or the operator's own server. It is left out for any other model; a maker is never guessed from a model id. `<where>` is `NVIDIA hosted API`, `self-hosted` for the operator's model server, or the backend's own name. A count of one takes the singular (`1 prompt`, `1 answer`). When a check could not be made (the guardrail did not answer), the line ends `, <U> not checked`; such a check is in neither `<P>` nor `<A>`. Two other lines stand in its place: `Guardrail: off for this review` when the guardrail was switched off, and `Guardrail: no model call to check` when it was on and no model call was made (a sample run). `<B>` counts the checks whose verdict was unsafe, each of which stopped its call.
 
 - text: the line is in the footer, before the trace path.
 - Markdown: the line ends the foot, after the reviewing models (`<sub>reviewed by … · Guardrail: …</sub>`).
-- JSON: the `guardrail` object has `state` (`checked`, `off` or `no_call`), `line` (the words above), `prompts`, `answers`, `blocked`, `unanswered`, `backend` and `model`.
+- JSON: the `guardrail` object has `state` (`checked`, `off` or `no_call`), `line` (the words above), `prompts`, `answers`, `blocked`, `unanswered`, `backend`, `model` and `maker`.
 - SARIF: the run's `properties` carries the same `guardrail` object.
 
 Properties: `TestGuardrailLineIsTheSameInTextAndMarkdown`, `TestEveryFormatSaysWhenTheGuardrailWasOff`, `TestGuardrailLineSaysWhenThereWasNoModelCall`, `TestDraftCountsTheGuardrailChecksItMade`, `TestDraftWithTheGuardrailOffCountsNothing`. This repository has no HTML report: the line is in the formats above.
