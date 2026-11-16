@@ -11,7 +11,7 @@ The Dockerfile first applies available stable Alpine updates, then installs sele
 | `RUNTIME_IMAGE` | `alpine:3.24` |
 | `ALPINE_SECURITY_REPOSITORY` | `https://dl-cdn.alpinelinux.org/alpine/edge/main` |
 | `GIT_PACKAGE_VERSION` | `2.56.1-r0` |
-| `MUSL_PACKAGE_VERSION` | `1.2.6-r6` |
+| `MUSL_PACKAGE_VERSION` | `1.2.6-r6` for both `musl` and `musl-utils` |
 
 The tag limits selection of the newer branch to the requested packages and necessary dependencies. This is a curated overlay, not a wholesale distribution upgrade. Package signatures remain enforced. Missing pinned versions or version mismatches fail the build; there is no fallback to older base packages. The runtime dependency set is recorded in the SBOM and must be tested and scanned for each architecture.
 

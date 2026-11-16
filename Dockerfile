@@ -37,9 +37,10 @@ RUN set -eu; \
     esac; \
     apk upgrade --no-cache; \
     printf '%s\n' "@security ${ALPINE_SECURITY_REPOSITORY}" >> /etc/apk/repositories; \
-    apk add --no-cache ca-certificates "git@security=${GIT_PACKAGE_VERSION}" "musl@security=${MUSL_PACKAGE_VERSION}"; \
+    apk add --no-cache ca-certificates "git@security=${GIT_PACKAGE_VERSION}" "musl@security=${MUSL_PACKAGE_VERSION}" "musl-utils@security=${MUSL_PACKAGE_VERSION}"; \
     test "$(apk info -v | sed -n 's/^git-\([0-9].*\)$/\1/p')" = "${GIT_PACKAGE_VERSION}"; \
     test "$(apk info -v | sed -n 's/^musl-\([0-9].*\)$/\1/p')" = "${MUSL_PACKAGE_VERSION}"; \
+    test "$(apk info -v | sed -n 's/^musl-utils-\([0-9].*\)$/\1/p')" = "${MUSL_PACKAGE_VERSION}"; \
     git --version; \
     wget -q -O /tmp/docker.tgz "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
     echo "${sum}  /tmp/docker.tgz" | sha256sum -c -; \
