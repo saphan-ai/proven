@@ -16,6 +16,6 @@ type Adapter interface {
     Adapter runs one SQL statement. Live, the local file and Sample implement
     it. A store that speaks SQL calls Query with the sql form it built. An empty
     API key does not build a live client: Absent names Zetaris down and does not
-    dial (ADR-0013 point 4a).
+    dial .
 
 ```

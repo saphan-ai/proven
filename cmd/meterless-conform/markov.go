@@ -9,7 +9,7 @@ import (
 	"github.com/saphan-ai/proven/internal/markov"
 )
 
-// markovOp runs one Markovian operation (ADR-0048 point 3). The runner's generator is a TypeScript function, so
+// markovOp runs one Markovian operation . The runner's generator is a TypeScript function, so
 // the shim cannot hand it to Go: it asks "start" for the first prompt, calls the generator, and hands the answer
 // to "feed" with the machine the last answer carried, until the run is done. Every decision of the loop is the
 // Go machine's; the shim only carries text both ways.

@@ -11,7 +11,7 @@ import (
 
 // TestRunCommandPassesTheWordsAndNamesATimeout proves a tool command is the
 // words after the image, with no shell, and that a side past its limit is a
-// timeout result rather than a pass (ADR-0040).
+// timeout result rather than a pass .
 func TestRunCommandPassesTheWordsAndNamesATimeout(t *testing.T) {
 	dir := t.TempDir()
 	cfg := DefaultContainerConfig()
@@ -65,7 +65,7 @@ func TestWithTimeoutRefusesZero(t *testing.T) {
 }
 
 // TestRunCommandDoesNotMountASymlink proves a checkout that is a symbolic
-// link is not a mount source (ADR-0025).
+// link is not a mount source .
 func TestRunCommandDoesNotMountASymlink(t *testing.T) {
 	dir := t.TempDir()
 	link := filepath.Join(t.TempDir(), "link")

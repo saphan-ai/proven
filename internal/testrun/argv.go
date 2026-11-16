@@ -24,7 +24,7 @@ var segmentPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
 
 // RefuseTest reports why a named test must not run, or "" when Proven can build
 // its command. A model names a test by its file and its name and nothing else
-// that is executed (ADR-0025): the command comes from TestArgv, never from text
+// that is executed : the command comes from TestArgv, never from text
 // a model wrote. It does not look at any checkout and starts nothing.
 func RefuseTest(testPath, name string) string {
 	if !namePattern.MatchString(name) {
@@ -55,7 +55,7 @@ func refusePackage(testPath string) string {
 }
 
 // TestArgv is the command that runs one Go test: the words after the image of
-// the container run line, with no shell between them (ADR-0025). It is a fixed
+// the container run line, with no shell between them . It is a fixed
 // template — go test -run '^<name>$' ./<package> — filled from a name and a
 // path that RefuseTest accepted. A non-empty reason means there is no command.
 func TestArgv(testPath, name string) ([]string, string) {
@@ -66,7 +66,7 @@ func TestArgv(testPath, name string) ([]string, string) {
 	if dir := path.Dir(filepath.ToSlash(testPath)); dir != "." {
 		pkg = "./" + dir
 	}
-	// ADR-0042: -json makes the output carry a pass event per test, which is how a
+	// -json makes the output carry a pass event per test, which is how a
 	// run shows the test ran; an exit code alone cannot show that.
 	return []string{"go", "test", jsonFlag, "-run", "^" + name + "$", pkg}, ""
 }

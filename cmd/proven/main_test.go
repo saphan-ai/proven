@@ -263,7 +263,7 @@ func assertDiscountText(t *testing.T, body string) {
 	if strings.Contains(body, "finding F3") {
 		t.Fatalf("F3 was printed\n%s", body)
 	}
-	// ADR-0032: F2's query evidence is the osv-by-package template, built by
+	// F2's query evidence is the osv-by-package template, built by
 	// Proven, so it carries the OSV rows of the package and no free-text query.
 	f2 := body[strings.Index(body, "finding F2"):strings.Index(body, "finding F4")]
 	for _, want := range []string{
@@ -287,6 +287,7 @@ func shellEnv(t *testing.T) func(string) string {
 		"PROVEN_OUTPUT":           {},
 		"PROVEN_OUTPUT_FORMAT":    {},
 		"PROVEN_ERROR":            {},
+		"PROVEN_REQUIRE_COMPLETE": {},
 		"PROVEN_BASELINE_COMMIT":  {},
 		"SEMGREP_BASELINE_COMMIT": {},
 		"SEMGREP_BASELINE_REF":    {},
@@ -300,8 +301,8 @@ func shellEnv(t *testing.T) func(string) string {
 		"SAMPLE_MODE":             {},
 	}
 	return func(k string) string {
-		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
-		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+		// the OTEL_* family is the one sample mode reads besides the shell's own keys.
+		// the evidence-record database and link base are read in sample mode too.
 		if _, ok := allowed[k]; !ok && k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 			t.Fatalf("unexpected environment key %s", k)
 		}
@@ -328,8 +329,8 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-// engineSwitch reports whether k is a switch of one of the four Meterless engines. ADR-0053: sample mode reads
-// them, because the lab's pull-request review is a sample review and its engines are on by default.
+// engineSwitch reports whether k is a switch of one of the four Meterless engines. sample mode reads
+// them, because a recorded review is a sample review and its engines are on by default.
 func engineSwitch(k string) bool {
 	return strings.HasPrefix(k, "PROVEN_MARKOVIAN") || k == "PROVEN_HMEM" || k == "PROVEN_WORLD_MODEL"
 }

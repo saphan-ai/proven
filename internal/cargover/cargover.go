@@ -1,5 +1,5 @@
 // Package cargover compares Cargo versions for the crates.io dependency check
-// (ADR-0038).
+// .
 //
 // A Cargo version is a semantic version: MAJOR.MINOR.PATCH, an optional
 // pre-release, and optional build metadata. Build metadata does not change

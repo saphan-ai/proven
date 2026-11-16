@@ -61,9 +61,17 @@ environment only:
   PROVEN_POLICY
         a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
+data import <dataset.json>
+  Load administrator-prepared tables into SQLite or PostgreSQL. See docs/DATABASES.md.
+
+completion policy:
+  PROVEN_REQUIRE_COMPLETE=true fails a partial review or failed service with exit 3.
+  Default: true in ci, false in scan. Findings policy is independent.
+
 exit codes:
   0  review done; no findings, or findings without --error
   1  review done; findings, with --error (the default in ci)
+  3  required review incomplete (PROVEN_REQUIRE_COMPLETE=true)
   2  fatal error: proven could not review
   7  the configuration was refused when it loaded
 ```
@@ -122,9 +130,17 @@ environment only:
   PROVEN_POLICY
         a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
+data import <dataset.json>
+  Load administrator-prepared tables into SQLite or PostgreSQL. See docs/DATABASES.md.
+
+completion policy:
+  PROVEN_REQUIRE_COMPLETE=true fails a partial review or failed service with exit 3.
+  Default: true in ci, false in scan. Findings policy is independent.
+
 exit codes:
   0  review done; no findings, or findings without --error
   1  review done; findings, with --error (the default in ci)
+  3  required review incomplete (PROVEN_REQUIRE_COMPLETE=true)
   2  fatal error: proven could not review
   7  the configuration was refused when it loaded
 ```
@@ -183,9 +199,17 @@ environment only:
   PROVEN_POLICY
         a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
+data import <dataset.json>
+  Load administrator-prepared tables into SQLite or PostgreSQL. See docs/DATABASES.md.
+
+completion policy:
+  PROVEN_REQUIRE_COMPLETE=true fails a partial review or failed service with exit 3.
+  Default: true in ci, false in scan. Findings policy is independent.
+
 exit codes:
   0  review done; no findings, or findings without --error
   1  review done; findings, with --error (the default in ci)
+  3  required review incomplete (PROVEN_REQUIRE_COMPLETE=true)
   2  fatal error: proven could not review
   7  the configuration was refused when it loaded
 ```

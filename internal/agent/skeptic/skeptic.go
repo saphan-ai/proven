@@ -1,12 +1,12 @@
 // Package skeptic makes one refutation attempt per finding.
 //
 // The Skeptic gets each finding and makes one attempt to
-// refute it (ADR-0006). It runs on another model family than the finder,
+// refute it . It runs on another model family than the finder,
 // through PROVEN_SKEPTIC_MODEL. It only proposes: a refuting test goes to the
 // Prover's runner, a refuting query to the Investigator's engine, and the
 // Judge decides on what they return. It never drops a finding itself.
 //
-// A refuting query is a query template and its values, never SQL (ADR-0032):
+// A refuting query is a query template and its values, never SQL :
 // Proven checks each value and builds the SQL itself.
 package skeptic
 
@@ -24,7 +24,7 @@ import (
 // refuteSpec is the JSON the skeptic asks a model to return.
 // A test or a query is a proposal. The prover or the investigator runs it.
 // The model's refuted flag does not drop the finding. The templates the task
-// lists are the Skeptic's scope (ADR-0013), not the whole registry.
+// lists are the Skeptic's scope , not the whole registry.
 func refuteSpec(scope querytpl.Scope) answer.Spec {
 	return answer.Spec{
 		Task: "Make one attempt to refute this finding. A refuting query is one of these templates with the values of its parameters: " +
@@ -80,7 +80,7 @@ func Attempt(ctx context.Context, c candidate.Candidate, gen generator.Generator
 		TestName:  got.Name,
 		Query:     querytpl.Request{Template: strings.TrimSpace(got.Template), Params: got.Params},
 	}
-	// ADR-0032: a refuting query is a template and values. An answer that
+	// a refuting query is a template and values. An answer that
 	// carries SQL text, an unknown template or a value outside its format
 	// proposes no query; the reason says which, and the finding is judged on
 	// the rest of the attempt. The test part of the answer is left alone.
@@ -93,7 +93,7 @@ func Attempt(ctx context.Context, c candidate.Candidate, gen generator.Generator
 			c.Refutation.Reason = "refused: " + err.Error()
 		}
 	}
-	// ADR-0025: an answer that carries a command proposes no test. The model
+	// an answer that carries a command proposes no test. The model
 	// names a test by file and name only, and Proven builds the command, so a
 	// test that arrives beside a command text is not run.
 	if strings.TrimSpace(got.Command) != "" {

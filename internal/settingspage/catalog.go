@@ -1,7 +1,7 @@
 // Package settingspage lists the environment settings the configuration
 // page is generated from. Each row is declared beside the constant it names.
 //
-// It is the one list ADR-0013 asks for. cmd/settings-doc renders the page's
+// It is the one list  asks for. cmd/settings-doc renders the page's
 // tables from it, and the test in this package fails when the page and the
 // code disagree.
 package settingspage
@@ -15,7 +15,6 @@ import (
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/hmem"
 	"github.com/saphan-ai/proven/internal/limit"
-	"github.com/saphan-ai/proven/internal/livecheck"
 	"github.com/saphan-ai/proven/internal/markov"
 	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/osv"
@@ -37,7 +36,7 @@ const policyAfter = "A repository's `proven.yaml` may make a policy setting stri
 // guardrailAfter is the sentence that follows the guardrail table. It is
 // not a setting. It stays inside the generated block so the one marker pair
 // still covers every environment table.
-const guardrailAfter = "Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name. An empty key is not off: every model call is refused and the review names the guardrail."
+const guardrailAfter = "When enabled, the safety service checks every prompt and answer. An unsafe response or unavailable check stops that model step. A self-hosted service may use no key; hosted NVIDIA mode requires one."
 
 // containerAfter follows the container table. It is not a setting.
 const containerAfter = "Each test runs with no network and no secret (ADR-0025). With no container runtime the Prover is off, and the review says so. Sample mode reads none of these."
@@ -51,37 +50,37 @@ const readsAfter = "A read over its bound is refused by name before the review g
 // telemetryAfter follows the telemetry table. It is not a setting.
 const telemetryAfter = "Telemetry is off unless an endpoint is set. It only observes: once a review has started it never changes what the review decides, and a collector that cannot be reached never fails a review (the export is bounded at 5 seconds, and the failure goes to stderr). The one refusal is at the start: a malformed `OTEL_*` setting stops `Open` by name, like any other setting. No secret is put in an attribute, an event or a span status: the same redactor that cleans the trace file cleans the span events and the text of every failed review and failed agent, so a status carries the redactor's marker where a configured secret stood. The headers, timeout and certificates of the exporter are the SDK's own variables (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_CERTIFICATE`), read from the process environment. Sample mode reads the `OTEL_*` variables and no other."
 
-// generatorAfter says, per mode, which keys the generator needs and where to get them (ADR-0031 point 6).
-const generatorAfter = "Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these."
+// generatorAfter says, per mode, which keys the generator needs and where to get them .
+const generatorAfter = "Without model configuration, deterministic analysis runs alone. The openai adapter uses your endpoint and optional API key; command uses an operator-configured local CLI. Explicit nightshift and nvidia adapters retain their provider-specific settings. Sample mode uses recorded answers."
 
 // evidenceAfter follows the evidence table. It is not a setting.
-const evidenceAfter = "The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md)."
+const evidenceAfter = "A clean installation selects SQLite. PostgreSQL, CouchDB, local fixture files and Zetaris are optional stores. Query templates and source definitions are independent of the backend. Explicit legacy Zetaris configuration retains its selection during migration. Sample mode uses local fixtures; optional evidence records and telemetry keep their own settings."
 
 // packAfter follows the evidence-pack table. It is not a setting.
 const packAfter = "The pack holds source excerpts and query rows, so keep it where the review itself may be read. The private key is never written into it (ADR-0035). See `docs/EVIDENCE_PACK.md`."
 
 // hmemAfter follows the H-MEM table. It is not a setting.
-const hmemAfter = "H-MEM reads its whole state file at open and scans every record on each query, so it is built for a small store; see the scale section of `docs/ARCHITECTURE.md`. A state file over the cap is refused by name with its size and the cap. Sample mode reads none of these."
+const hmemAfter = "H-MEM is bounded by the configured state-size and query limits. It is intended for a small repository store. A state file above its limit is refused. Sample mode uses the defaults."
 
 // boundedAfter follows the bounded-steps table. It is not a setting.
-const boundedAfter = "ADR-0053 (superseding the \"off until measured\" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way."
+const boundedAfter = "Bounded steps are on by default and can be disabled with PROVEN_MARKOVIAN=off. Their effect on review quality is unmeasured. Each trace records whether the bounded planner ran and the size of its steps and carried state. Sample mode reads the same switches."
 
 // storesAfter follows the stores table. It is not a setting.
-const storesAfter = "ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches."
+const storesAfter = "Both local stores are on by default and have independent off switches. A disabled store is not opened, read or written. Their effect on review quality is unmeasured. Sample mode reads the same switches."
 
 // networkAfter follows the network table. It is not a setting.
-const networkAfter = "In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds."
+const networkAfter = "In local mode, every configured network destination must pass the policy. Hosted NVIDIA modes and the external CLI model transport are refused. Runner images are not pulled. See AIR_GAPPED.md."
 
 // Catalog is the environment sections of docs/CONFIGURATION.md, in page order.
 // PROVEN_EPSS_VIEW is declared in epss. PROVEN_KEV_VIEW is declared in osv,
-// beside PROVEN_OSV_TABLE. PROVEN_EVIDENCE_VIEW is declared in livecheck.
+// beside PROVEN_OSV_TABLE.
 // PROVEN_ADAPTER_TIMEOUT is declared in limit.
 // PROVEN_EVIDENCE_STORE and PROVEN_EVIDENCE_FILE are declared in store.
 // The evidence table joins the store choice, the Zetaris adapter, OSV, EPSS
-// and livecheck.
+// settings.
 func Catalog() []envdoc.Section {
 	evidenceRows := append(store.Environment(), query.Environment()...)
-	evidenceRows = append(append(append(evidenceRows, osv.Environment()...), epss.Environment()...), livecheck.Environment()...)
+	evidenceRows = append(append(evidenceRows, osv.Environment()...), epss.Environment()...)
 	return []envdoc.Section{
 		{
 			Heading: "The network mode: air-gapped",
@@ -89,7 +88,7 @@ func Catalog() []envdoc.Section {
 			After:   networkAfter,
 		},
 		{
-			Heading: "The model generator: Meterless Nightshift or NVIDIA's hosted API",
+			Heading: "Model transports",
 			Rows:    generator.Environment(),
 			After:   generatorAfter,
 		},
@@ -98,12 +97,12 @@ func Catalog() []envdoc.Section {
 			Rows:    generator.SecondEnvironment(),
 		},
 		{
-			Heading: "The guardrail: NVIDIA Nemotron content safety",
+			Heading: "Optional model safety service",
 			Rows:    guardrail.Environment(),
 			After:   guardrailAfter,
 		},
 		{
-			Heading: "Evidence: the store, and Zetaris over REST",
+			Heading: "Evidence stores and source settings",
 			Rows:    evidenceRows,
 			After:   evidenceAfter,
 		},

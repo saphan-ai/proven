@@ -1,8 +1,8 @@
 #!/bin/sh
-# The GitHub Action's entry point (ADR-0020 §3). action.yml passes every input as
+# The GitHub Action's entry point. action.yml passes every input as
 # INPUT_<NAME> with hyphens as underscores; this maps each to a Proven flag, runs
 # `proven scan`, writes the JSON and SARIF files into the workspace and every output
-# to $GITHUB_OUTPUT. The exit code is Proven's (ADR-0020 §2): `strict` decides whether
+# to $GITHUB_OUTPUT. The exit code is Proven's: `strict` decides whether
 # findings fail the step. PROVEN_BIN names the binary (default: proven on PATH).
 set -eu
 
@@ -42,6 +42,10 @@ comment=${INPUT_COMMENT:-false}
 bool strict "$strict"
 bool sample-mode "$sample"
 bool comment "$comment"
+require_complete=${INPUT_REQUIRE_COMPLETE:-true}
+bool require-complete "$require_complete"
+PROVEN_REQUIRE_COMPLETE=$require_complete
+export PROVEN_REQUIRE_COMPLETE
 case "$output_format" in
   json/sarif | json | sarif | text) ;;
   *) fail "input output-format is '$output_format'; it takes json/sarif, json, sarif or text." ;;
@@ -117,7 +121,7 @@ scrub="env -u INPUT_GITHUB-TOKEN"
 
 # The summary comment is posted to GITHUB_API_URL (post-comment.sh), on GitHub and on
 # Gitea alike. With PROVEN_NETWORK=local that address is judged by the same rule as every
-# other, before anything runs (ADR-0034): Proven refuses it by name when it is outside the
+# other, before anything runs Proven refuses it by name when it is outside the
 # organisation's network, or when it is a name the HTTP client would resolve with its own
 # resolver, and the step stops with its exit code. The mode is Proven's reading of
 # PROVEN_NETWORK (the last word check-address prints), not this script's; anything but an
@@ -161,8 +165,8 @@ fi
   echo "unresolved-count=$unresolved"
 } >>"$GITHUB_OUTPUT"
 
-# comment: the Action writes ONE comment per pull request (the owner's order of
-# 2026-10-25): the summary, edited in place on every run (post-comment.sh). It writes
+# The Action writes one summary comment per pull request, edited in place on every
+# run (post-comment.sh). It writes
 # no line comments. A review that could not run wrote no Markdown, and there is nothing
 # to post then. The reviewing run, the head commit and the pull request come from the
 # event; a run that is not a pull request has none to post on.

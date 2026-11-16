@@ -7,7 +7,7 @@ import (
 )
 
 // TestLinkedTreesAreNotAPreparedPair proves a base or change entry that is a symbolic link does not
-// count as a prepared tree (ADR-0025). Mutated field: only the type of change, a link to a directory.
+// count as a prepared tree . Mutated field: only the type of change, a link to a directory.
 func TestLinkedTreesAreNotAPreparedPair(t *testing.T) {
 	target := t.TempDir()
 	if err := os.Mkdir(filepath.Join(target, "base"), 0o700); err != nil {

@@ -25,7 +25,7 @@ func TestSampleReviewReportsTheOSVRange(t *testing.T) {
 		t.Fatalf("%#v", c.Risk)
 	}
 	// Sample mode starts no container, so the Go finding is not measured and
-	// is never called unreached (ADR-0043).
+	// is never called unreached .
 	if c.Ecosystem != "Go" || c.ReachLabel != candidate.ReachNotMeasured || c.CallPath != "" {
 		t.Fatalf("reach %#v", c)
 	}

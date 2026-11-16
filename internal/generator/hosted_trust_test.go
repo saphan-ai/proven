@@ -12,7 +12,7 @@ import (
 )
 
 // These tests cover what nvidia mode trusts and where it sends the key
-// (ADR-0031 point 3). Every answer is served through the client's transport, so
+// . Every answer is served through the client's transport, so
 // no port is opened.
 
 // Proves nvidia mode refuses a base that is not https, by the name of its own

@@ -91,7 +91,7 @@ func missingFrom(body string, markers []string) []string {
 // TestHTMLCarriesTheFullFixNotesAndExceptionLists proves the HTML page is never
 // cut: a fix explanation past mdMaxMessage, a note past mdMaxNote, a title past
 // mdMaxTitle and more than mdMaxNotes accepted and expired exceptions all appear
-// whole (ADR-0033 point 8), and says no "more, not listed". The Markdown comment
+// whole , and says no "more, not listed". The Markdown comment
 // keeps its bounds for the platform's size limit, which is the same result read
 // by the other writer. The mutated fields are the lengths and counts above.
 func TestHTMLCarriesTheFullFixNotesAndExceptionLists(t *testing.T) {
@@ -202,7 +202,7 @@ func TestHTMLFootCarriesTheGuardrailLine(t *testing.T) {
 
 // TestHTMLNamesTheEvidenceStoreInWords proves the HTML page of the sample run names
 // the evidence store and the query language in words ("SQL on the bundled sample
-// data"), never the adapter's id or the form's enum (the owner's rule of 27 Oct).
+// data"), never the adapter's id or the form's enum (the presentation contract).
 // Mutated line for the negative control: the store name in the How we know sentence.
 func TestHTMLNamesTheEvidenceStoreInWords(t *testing.T) {
 	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")

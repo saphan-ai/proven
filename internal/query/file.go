@@ -16,9 +16,9 @@ import (
 )
 
 // File is the local evidence store: one file of tables and no server
-// (ADR-0047). The file is the CREATE TABLE and INSERT text the sample
+// . The file is the CREATE TABLE and INSERT text the sample
 // engine already loads, so the SQL dialect is the one sample mode uses.
-// Nothing in this type dials a network (ADR-0034).
+// Nothing in this type dials a network .
 // Engine is the name a result carries. Sample mode passes "local-sample"
 // so an existing sample review still reads that way; a configured store
 // passes "local".
@@ -124,7 +124,7 @@ func (f *File) Register(name string, cols []string, rows [][]string) error {
 // The form is sql. A fixture store leaves Snapshot empty; a configured
 // store stamps the clock.
 func (f *File) Query(ctx context.Context, sql string) (Result, error) {
-	// ADR-0001, point 3: every adapter call is bounded, the local one too.
+	// , point 3: every adapter call is bounded, the local one too.
 	ctx, cancel := limit.Bound(ctx)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
@@ -137,7 +137,7 @@ func (f *File) Query(ctx context.Context, sql string) (Result, error) {
 	defer f.mu.Unlock()
 	cols, rows, err := f.db.Query(sql)
 	if err != nil {
-		// ADR-0047: in the configured local store a missing table is a down
+		// in the configured local store a missing table is a down
 		// source, as it is on Zetaris, so a review names it and goes on. The
 		// sample engine keeps the plain error its fixtures expect.
 		var missing *NoTableError
@@ -163,7 +163,7 @@ func (f *File) Query(ctx context.Context, sql string) (Result, error) {
 // tableSQL renders one table as the statements LoadSQL accepts.
 // Cells are quoted and a single quote inside a cell is doubled, because
 // this is stored data, not a value a model supplied. A model value still
-// goes through querytpl and is refused rather than escaped (ADR-0032).
+// goes through querytpl and is refused rather than escaped .
 func tableSQL(name string, cols []string, rows [][]string) (string, error) {
 	if !querytpl.ValidRelation(name) {
 		return "", fmt.Errorf("query: table name is not a plain name")

@@ -38,7 +38,7 @@ func requireJudged(t *testing.T, d candidate.Draft) {
 	}
 }
 
-// TestStoresAreOnByDefault proves ADR-0053 for H-MEM and the World Model: with the zero StoreSettings both
+// TestStoresAreOnByDefault proves  for H-MEM and the World Model: with the zero StoreSettings both
 // stores are opened and written, and the second review of the same change is told by H-MEM that F1 was
 // refuted. Mutated field: none; this is the default the switches below turn off.
 func TestStoresAreOnByDefault(t *testing.T) {
@@ -54,7 +54,7 @@ func TestStoresAreOnByDefault(t *testing.T) {
 	}
 }
 
-// TestHMemOffNeitherOpensReadsNorWrites proves the H-MEM switch (ADR-0053) on every path of the pipeline:
+// TestHMemOffNeitherOpensReadsNorWrites proves the H-MEM switch  on every path of the pipeline:
 // begin does not open the store (no directory), the Judge's read suppresses nothing on the second review,
 // and the fold writes no refutation. The World Model stays on and folds. Mutated field: HMemOff only.
 func TestHMemOffNeitherOpensReadsNorWrites(t *testing.T) {
@@ -82,7 +82,7 @@ func TestHMemOffNeitherOpensReadsNorWrites(t *testing.T) {
 	}
 }
 
-// TestWorldOffNeitherOpensNorFolds proves the World Model switch (ADR-0053): begin does not open it (no
+// TestWorldOffNeitherOpensNorFolds proves the World Model switch : begin does not open it (no
 // directory, no audit log), and with no fold the trace teaches H-MEM nothing, so the second review is not
 // told F1 was refuted. H-MEM stays on and is opened. Mutated field: WorldOff only.
 func TestWorldOffNeitherOpensNorFolds(t *testing.T) {

@@ -54,7 +54,6 @@ case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P07 in `PROVENANCE.md`).
 - later round: pair P08, reviewing the repair, found more of the same one level deeper (the foreign-content input above).
 - reviewer families, as recorded, in both pairs: `gpt-5.6-sol` (through Codex) and `glm-5.2` (through Qwen Code).
 - the original code was Python tooling over HTML; it is not published. Resolution status: the first round was settled

@@ -24,9 +24,9 @@ const EngineCouchDB = "couchdb"
 const maxAnswer = 8 << 20
 
 // CouchDB is the evidence store that runs a Mango selector over CouchDB's
-// HTTP API (ADR-0047). One registered table is one database. A query is the
+// HTTP API . One registered table is one database. A query is the
 // Mango form of a template, built by querytpl from validated values; no text
-// a model wrote is sent (ADR-0032). The HTTP client does not follow
+// a model wrote is sent . The HTTP client does not follow
 // redirects, so the credential cannot be sent to another address.
 type CouchDB struct {
 	cfg    CouchSettings
@@ -38,8 +38,8 @@ type CouchDB struct {
 // with the settings' timeout and no redirects; a test may pass its own.
 func NewCouchDB(cfg CouchSettings, client *http.Client) *CouchDB {
 	if client == nil {
-		// ADR-0013: a redirect would carry the Basic credential to whatever
-		// address answered, so the client follows none. ADR-0034: in the
+		// a redirect would carry the Basic credential to whatever
+		// address answered, so the client follows none. in the
 		// air-gapped mode the same client refuses to dial or to use a proxy.
 		client = cfg.Network.NewClient(cfg.Timeout)
 	}
@@ -121,9 +121,9 @@ type findResponse struct {
 }
 
 // Run builds the mango form and sends it to the table's database.
-// The sql form is not read: CouchDB speaks Mango (ADR-0047). A database that
+// The sql form is not read: CouchDB speaks Mango . A database that
 // does not exist is a down store named couchdb, never an empty answer: an
-// empty answer would read as "the source holds no such row" (ADR-0002).
+// empty answer would read as "the source holds no such row" .
 func (c *CouchDB) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (Evidence, error) {
 	if c == nil || c.client == nil {
 		return Evidence{}, fmt.Errorf("store: no couchdb store")
@@ -135,7 +135,7 @@ func (c *CouchDB) Run(ctx context.Context, req querytpl.Request, rel querytpl.Re
 	if err := ctx.Err(); err != nil {
 		return Evidence{}, err
 	}
-	// ADR-0046: a template a source adapter registered has no Mango form, so
+	// a template a source adapter registered has no Mango form, so
 	// this store names itself down for it instead of asking an empty database.
 	if forms.Find.Table == "" {
 		return Evidence{}, couchFailed("no mango form for " + req.Template)
@@ -157,7 +157,7 @@ func (c *CouchDB) Run(ctx context.Context, req querytpl.Request, rel querytpl.Re
 	switch status {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		// ADR-0047: the same named down store as a missing table on the
+		// the same named down store as a missing table on the
 		// local store, so the review degrades and names couchdb.
 		return Evidence{}, couchFailed("no table " + forms.Find.Table)
 	default:

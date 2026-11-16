@@ -1,10 +1,12 @@
 // Package investigator turns a risk into a query and runs it.
 //
 // The Investigator gets each risk from the Planner and asks the model to pick
-// one query template and give its values (ADR-0032). The model never writes
+// one query template and give its values . The model never writes
 // a query: Proven checks each value against its format and passes the request
 // to the evidence seam. The store builds the form of its own language
-// (ADR-0047) over the evidence tables (ADR-0002, ADR-0004). A query and the
+//
+//	over the evidence tables . A query and the
+//
 // rows it returned are evidence the Judge can keep; the form and the text
 // that ran are kept with them so any reader can run the query again.
 package investigator
@@ -27,7 +29,7 @@ import (
 // The task lists the templates of the role's scope and tells the model not to
 // read an absent row as "not exploited": a missing KEV row only means the data
 // does not say. The model is told to give no SQL. The list is the scope's, not
-// the whole registry (ADR-0013), so the model is not offered a template the
+// the whole registry , so the model is not offered a template the
 // scope would refuse.
 func querySpec(scope querytpl.Scope) answer.Spec {
 	// The example names kev-by-cve only when the scope allows it; otherwise it
@@ -65,7 +67,7 @@ type row struct {
 }
 
 // request is the template request in a model's answer. An answer that carries
-// SQL text is refused (ADR-0032 point 1), whatever else it holds.
+// SQL text is refused , whatever else it holds.
 func (r row) request() (querytpl.Request, error) {
 	if strings.TrimSpace(r.SQL) != "" {
 		return querytpl.Request{}, &querytpl.Refusal{Reason: querytpl.ReasonModelSQL}
@@ -76,7 +78,7 @@ func (r row) request() (querytpl.Request, error) {
 // Execute runs a request the skeptic named. It does not ask a model. A
 // request that fails its format, or that names a template outside scope, is a
 // *querytpl.Refusal and no query is run. scope is the Skeptic's evidence scope
-// (ADR-0013). The store builds the form it speaks (ADR-0047); this function does not.
+// . The store builds the form it speaks ; this function does not.
 func Execute(ctx context.Context, q query.Runner, req querytpl.Request, rel querytpl.Relations, scope querytpl.Scope) (query.Result, error) {
 	// The scope is checked before the engine is looked at, so a template the
 	// role may not ask is refused the same way whether or not a store is up,
@@ -113,7 +115,7 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	if req.Empty() {
 		return c, nil
 	}
-	// ADR-0013: a template outside the Investigator's scope is refused before
+	// a template outside the Investigator's scope is refused before
 	// any store is asked, and the finding goes on without query evidence. The
 	// model was told only of the scope, so this is a model that named another.
 	if err := scope.Check(querytpl.RoleInvestigator, req); err != nil {
@@ -134,7 +136,7 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 		}
 		return c, &service.Down{Service: "query", Reason: "no query engine"}
 	}
-	// ADR-0032, ADR-0047: the seam checks the request and the store builds
+	// , the seam checks the request and the store builds
 	// the form it speaks. A refusal is the finding having no query evidence,
 	// named in the trace; the Judge decides as it does for any finding
 	// without evidence.
@@ -147,7 +149,7 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 		}
 		return c, err
 	}
-	// ADR-0002: a query with no rows proves nothing, so it adds no evidence.
+	// a query with no rows proves nothing, so it adds no evidence.
 	if len(res.Rows) == 0 {
 		return c, nil
 	}
@@ -157,7 +159,7 @@ func Investigate(ctx context.Context, c candidate.Candidate, snapshot string, ge
 	if res.Snapshot != "" {
 		snap = res.Snapshot
 	}
-	// ADR-0046: the adapter that owns the template decides whether these rows
+	// the adapter that owns the template decides whether these rows
 	// are evidence. The built-in rules keep any row; an organisation's rule may
 	// keep fewer or none.
 	if owner, _, found := source.Lookup(strings.TrimSpace(req.Template)); found {

@@ -7,7 +7,7 @@ import (
 
 // builtins is the fixed list querytpl registers. added is every adapter
 // registered afterwards, which is how a test or an organisation extends
-// the list without editing the built-ins (ADR-0046).
+// the list without editing the built-ins .
 var (
 	mu       sync.Mutex
 	builtins []Adapter

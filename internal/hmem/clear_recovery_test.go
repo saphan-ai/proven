@@ -11,7 +11,7 @@ import (
 // TestFailedClearLeavesRecordsAndProposalsAsTheyWere proves the reviewer's
 // first reproduction: a state-file write that fails inside Clear, after the
 // proposals were voided, must leave every record and every pending proposal as
-// it was, in this process and after a reopen (ADR-0018 point 3: no half-applied
+// it was, in this process and after a reopen (no half-applied
 // change). Clear is one transition across proposal and record state.
 func TestFailedClearLeavesRecordsAndProposalsAsTheyWere(t *testing.T) {
 	dir, logs := t.TempDir(), t.TempDir()

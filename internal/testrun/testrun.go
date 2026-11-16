@@ -1,18 +1,18 @@
 // Package testrun asks whether a test fails on the change and passes on the base.
 //
-// It is the Prover's evidence source for tests (ADR-0002): a finding is proven
+// It is the Prover's evidence source for tests : a finding is proven
 // when a test that names it fails on the change and passes on the base. The
 // Prover asks through the Adapter interface. Container
-// runs the test in a container with no network and no secret (ADR-0025);
+// runs the test in a container with no network and no secret ;
 // Sample replays outcomes recorded in a fixture and runs no code; Off and Live
 // report the Prover off, so a review without a container runtime never runs
-// the change's code on the host (ADR-0025 point 6). RunCommand runs a command
-// Proven built, such as a tool's argv (ADR-0040), in that same container.
+// the change's code on the host . RunCommand runs a command
+// Proven built, such as a tool's argv , in that same container.
 //
-// The same adapters also prove a proposed fix (ADR-0042): FixRunner runs the
+// The same adapters also prove a proposed fix : FixRunner runs the
 // proving test on the base, on the change and on the change with a patch applied,
 // then the package's other tests, and records every run with its command and exit code.
-// The whole-change attempt (ADR-0050) uses the same runs for each test-proved finding, and
+// The whole-change attempt  uses the same runs for each test-proved finding, and
 // StagePatchedRoot and StagePatched give it patched copies to run the other kinds of evidence on.
 package testrun
 

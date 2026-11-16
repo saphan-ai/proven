@@ -8,7 +8,7 @@ import (
 )
 
 // Response is one recorded answer, keyed by agent and prompt.
-// ADR-0001: the sample generator is the adapter a judge runs without our keys;
+// the sample generator is the adapter a judge runs without our keys;
 // it runs the same agent logic as a live run.
 type Response struct {
 	Agent    string

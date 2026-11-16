@@ -1,4 +1,4 @@
-// Package telemetry makes a review observable through OpenTelemetry (ADR-0045).
+// Package telemetry makes a review observable through OpenTelemetry .
 //
 // One review is one trace. Each agent, and each model call inside it, is a
 // span; each line of the trace file rides along as a span event. Counters and
@@ -30,8 +30,7 @@ import (
 // scope is the instrumentation scope every span and instrument is made under.
 const scope = "github.com/saphan-ai/proven"
 
-// The instruments' names. The lab's dashboard queries them (as Prometheus spells them), and a test
-// holds the dashboard to this list.
+// Stable instrument names for user-configured monitoring backends.
 const (
 	MetricFindings      = "proven.review.findings"
 	MetricDropped       = "proven.review.claims.dropped"
@@ -62,7 +61,7 @@ const (
 )
 
 // SetRedactor sets the redactor every error text passes through before it becomes a span status. The
-// pipeline sets it to the one the trace file uses (ADR-0005, ADR-0045 point 2); until it is set nothing is
+// pipeline sets it to the one the trace file uses ; until it is set nothing is
 // replaced. A nil *T ignores it.
 func (t *T) SetRedactor(r *redact.Redactor) {
 	if t == nil {

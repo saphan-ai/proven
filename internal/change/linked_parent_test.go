@@ -8,7 +8,7 @@ import (
 )
 
 // Property: a tracked file whose parent directory has been replaced by a symbolic link in the
-// working tree is not copied from behind the link; it is left out and named as skipped (ADR-0025).
+// working tree is not copied from behind the link; it is left out and named as skipped .
 func TestExportWorktreeDoesNotCopyThroughALinkedParent(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init")

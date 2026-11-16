@@ -121,7 +121,7 @@ and in `go.mod`:
 
 **What comes out, and why:**
 
-| Finding | Verdict | Level of proof (ADR-0044) | Evidence |
+| Finding | Verdict | Level of proof | Evidence |
 |---|---|---|---|
 | F1 Discount is applied twice | reported | proved by a test | a test: `TestDiscounted` fails on the change and passes on the base |
 | F2 leftpad v1.2.3 is known-exploited | reported | proved by data | a query and its rows in `px_osvfile.px_osv_pkg` |
@@ -131,7 +131,7 @@ and in `go.mod`:
 
 Totals by level on this scan: 1 proved by a test, 0 proved by a tool, 3 proved by data, 0 agreed by two models and not proven.
 
-F3 is the point of the scenario: a plausible risk with no evidence never reaches the review. This scan has one reviewer, so the section "Agreed by two models, not proven" is empty and says why. An agreed opinion needs both reviewers to name it at the same place, and it is not a finding and not one of these totals (ADR-0041).
+F3 is the point of the scenario: a plausible risk with no evidence never reaches the review. This scan has one reviewer, so the section "Agreed by two models, not proven" is empty and says why. An agreed opinion needs both reviewers to name it at the same place, and it is not a finding and not one of these totals.
 
 ## Read the trace
 
@@ -168,7 +168,7 @@ Run the same command a second time in the same directory: the findings are the s
    a new line, field or file record of the prompt itself. A query's rows count as evidence only when Proven ties them
    to a package or an advisory the change is affected by; a recorded query for anything else keeps its rows on the
    finding as context and the finding is dropped for lack of evidence.
-   A fixture that shows a fix (ADR-0042) adds two things. The Fixer's recorded answers (`responses`, agent `fixer`)
+   A fixture that shows a fix adds two things. The Fixer's recorded answers (`responses`, agent `fixer`)
    are a patch as a list of edits, `{"what":"…","why":"…","edits":[{"path":"…","old":"…","new":"…"}]}`; a retry's
    prompt carries the failed attempt's record, so its recorded prompt is regenerated from a run. And `recorded_fixes`
    lists the runs of each attempt (`finding_id`, `attempt` from 1, and `runs`, each with `label`, `command`, `result`,
@@ -276,7 +276,7 @@ failed services: none
 trace: /tmp/proven-run/logs/trace.jsonl
 ```
 
-The last four lines are the dependency fix (ADR-0042 point 5): the smallest fixed version, taken from the advisory rows
+The last four lines are the dependency fix: the smallest fixed version, taken from the advisory rows
 the query returned, with the row that shows it. Proven compares versions in Go, never in SQL, and no model names the
 version. When no row names a fixed version (an advisory with only a last-affected bound), the review says so instead of
 guessing the next version.
@@ -337,7 +337,7 @@ change: FAIL got 0 want 500
   fix run package on change+patch: go test -json ./shipping exit=1 failed
 ```
 
-A run counts as passed only when its output shows the named test ran and passed (ADR-0042). Every proof run is
+A run counts as passed only when its output shows the named test ran and passed. Every proof run is
 `go test -json`, and a run that exits 0 without a pass event for the test is recorded as not run. The sample applies the
 same rule to a recorded run: its output must hold a `--- PASS:` line for the test, and a package run an `ok` line too.
 
@@ -348,7 +348,7 @@ in `proven.yaml` change this ([CONFIGURATION.md](CONFIGURATION.md)): `fixes: off
 ## The scenarios: `testdata/fixture/autofix-fixed` and `testdata/fixture/autofix-rejected`
 
 Both are the `fix` change (F1: the discount is taken off twice; F2: shipping is always free) with the whole-change
-attempt of ADR-0050 recorded. Neither prints the attempt in the review text: the attempt is on the `Result`, and the
+attempt of  recorded. Neither prints the attempt in the review text: the attempt is on the `Result`, and the
 review comment that shows it is the shell's. Turn it on with a `proven.yaml` that holds `autofix: on`, then read the
 trace, where each verdict and each re-run is a line of `kind autofix`:
 
@@ -486,9 +486,7 @@ failed services: none
 
 The correct version of the change `discount` botches: `Discounted` is written with a named `off` and the discount is
 rounded down to a whole cent, and a second test says so. The Planner's recorded answer is an empty list, so no query
-runs and no test is run, and the review keeps no finding. The judges' lab reviews both and shows them side by side:
-[LAB.md](LAB.md#the-demo-pull-requests). A clean review prints no `finding` line; the lab's workflow adds one line
-above it that says so.
+runs and no test is run, and the review keeps no finding. A clean review prints no `finding` line.
 
 ```bash
 /tmp/proven scan --sample "$OLDPWD/testdata/fixture/discount-clean"

@@ -8,7 +8,7 @@ import "testing"
 func TestTextReadingsGiveTheTwoEndsOfWhatRedactionHides(t *testing.T) {
 	f := Finding{
 		ID: "F1", RuleID: "r", Title: "t", Message: "a message",
-		Evidence:   []Evidence{testEv(true, true)},
+		Evidence:   []Evidence{{Kind: EvidenceQuery, Query: &QueryEvidence{Bound: true, Rows: [][]string{{"subject", "true"}}}}},
 		Refutation: &Refutation{TestCannotRun: true, QueryRows: [][]string{{"zzzz", "no"}}},
 	}
 	unrelated, related := TextReadings(f)

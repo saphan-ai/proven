@@ -1,6 +1,6 @@
 .DS_Store
 
-# Secrets stay local: keys come from the environment only (ADR-0001, ADR-0013).
+# Secrets stay local: keys come from the environment only.
 # .env.example, with placeholder values only, is the one env file that is committed.
 .env
 .env.*
@@ -9,5 +9,5 @@
 /bin/
 /dist/
 
-# The lab's state directory: the admin password file when stdout was not a terminal.
-/lab/.state/
+/test/conformance/meterless/SCORECARD*.txt
+/test/conformance/meterless/scout-intent/blind/v1/REPORT.md

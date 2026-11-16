@@ -1,9 +1,9 @@
 // Package autofix makes the one automated fix attempt of a review and judges it by the same evidence.
 //
-// ADR-0050: after the review has its proved findings, the generator gets all of them at once, each
+// after the review has its proved findings, the generator gets all of them at once, each
 // with the evidence that proved it, and writes one patch for the whole change. The patch is judged
 // by no model. Proven runs each finding's own evidence again on the patched change, in the places
-// where the change's code may run (ADR-0025): a finding proved by a test closes when that test
+// where the change's code may run : a finding proved by a test closes when that test
 // passes and the package's other tests still pass; a finding proved by data closes when the same
 // query no longer returns the row; a finding proved by a tool closes when the same tool run no
 // longer reports it. Then nothing else may have broken: every package a patched file belongs to is
@@ -30,7 +30,7 @@ import (
 )
 
 // Agent is the name the generator is asked under, so a recorded sample answer and a trace line
-// name the whole-change attempt apart from the Fixer's single-finding suggestions (ADR-0042).
+// name the whole-change attempt apart from the Fixer's single-finding suggestions .
 const Agent = "autofix"
 
 // maxFileBytes bounds the text of each finding's file in the prompt, and maxOutputBytes bounds each
@@ -43,7 +43,7 @@ const (
 )
 
 // spec is the JSON the attempt asks the generator for. It asks for edits and never for a
-// command: Proven builds every command that runs here (ADR-0050 point 5, ADR-0025).
+// command: Proven builds every command that runs here .
 var spec = answer.Spec{
 	Task: "Write one patch for the whole change that closes every finding in the data. " +
 		"Each finding carries the evidence that proved it: a failing test and its output, a query and its rows, or a tool and its report. " +
@@ -68,14 +68,14 @@ type Reading struct {
 }
 
 // DataRerun runs a data-proved finding's own query again on the change with the patch applied
-// (ADR-0050 point 2). The implementation builds the query from the template request Proven already
+// . The implementation builds the query from the template request Proven already
 // holds; it never takes a query from the generator.
 type DataRerun interface {
 	Rerun(ctx context.Context, edits []testrun.Edit, c candidate.Candidate, q *candidate.QueryEvidence) (Reading, error)
 }
 
 // ToolRerun runs a tool-proved finding's own tool again on the change with the patch applied, in
-// the container with no network and no secret (ADR-0050 points 2 and 5).
+// the container with no network and no secret .
 type ToolRerun interface {
 	Rerun(ctx context.Context, edits []testrun.Edit, c candidate.Candidate, t *candidate.ToolEvidence) (Reading, error)
 }
@@ -87,12 +87,12 @@ type Judges struct {
 	Data DataRerun
 	Tool ToolRerun
 	// Breakage runs every package the patch touched on the patched change. A nil one means the
-	// attempt cannot show nothing broke, and the verdict is "rejected" (ADR-0050 point 3).
+	// attempt cannot show nothing broke, and the verdict is "rejected" .
 	Breakage testrun.BreakageRunner
 }
 
 // Options are the checkouts the attempt runs on and its limits. Timeout is the time limit of the
-// whole attempt, the generator's call and every re-run (ADR-0050 point 6); zero is no limit.
+// whole attempt, the generator's call and every re-run ; zero is no limit.
 // MaxWrittenBytes is the size limit of a patch; zero is the test runner's default.
 type Options struct {
 	BaseDir         string
@@ -124,7 +124,7 @@ type proof struct {
 }
 
 // ProvedFindings returns the findings the attempt is about: kept findings with at least one piece
-// of deterministic proof (ADR-0050 point 2). A dropped finding, and a finding that is only an
+// of deterministic proof . A dropped finding, and a finding that is only an
 // opinion, are not part of the attempt.
 func ProvedFindings(cands []candidate.Candidate) []candidate.Candidate {
 	var out []candidate.Candidate
@@ -138,7 +138,7 @@ func ProvedFindings(cands []candidate.Candidate) []candidate.Candidate {
 
 // proofsOf lists the evidence of c that proves it, in the order the Judge keeps it:
 // a test that fails on the change and passes on the base, a query whose rows Proven bound to the
-// change, a tool result the change introduced (ADR-0002, ADR-0040).
+// change, a tool result the change introduced .
 func proofsOf(c candidate.Candidate) []proof {
 	var out []proof
 	for _, e := range c.Evidence {
@@ -159,7 +159,8 @@ func proofsOf(c candidate.Candidate) []proof {
 // that recorded no answer and so made no claim. A generator that did not answer returns the error,
 // and no verdict, because an attempt that was never made is not a rejected one. A patch that is
 // refused, that does not follow the schema, or that leaves a finding open is a "rejected" verdict.
-// ADR-0050 points 1 to 3.
+//
+//	points 1 to 3.
 func Attempt(ctx context.Context, cands []candidate.Candidate, gen generator.Generator, j Judges, opts Options) (*candidate.Autofix, error) {
 	proved := ProvedFindings(cands)
 	if len(proved) == 0 {
@@ -192,7 +193,7 @@ func Attempt(ctx context.Context, cands []candidate.Candidate, gen generator.Gen
 		edits[i] = testrun.Edit{Path: e.Path, Old: e.Old, New: e.New}
 		a.Edits = append(a.Edits, candidate.FixEdit{Path: e.Path, Old: e.Old, New: e.New})
 	}
-	// ADR-0050 point 5: the answer is a patch and nothing else. A command in it refuses the patch whole.
+	// the answer is a patch and nothing else. A command in it refuses the patch whole.
 	if strings.TrimSpace(got.Command) != "" {
 		return rejected(proved, a, "the patch was refused: "+testrun.ReasonModelCommand), nil
 	}
@@ -215,7 +216,7 @@ func Attempt(ctx context.Context, cands []candidate.Candidate, gen generator.Gen
 		}
 		a.Findings = append(a.Findings, f)
 	}
-	// ADR-0050 point 3: "nothing else broke" is its own condition. It is asked only of a patch whose
+	// "nothing else broke" is its own condition. It is asked only of a patch whose
 	// findings all closed, since any open finding already makes the verdict "rejected".
 	if allClosed(a.Findings) {
 		b, err := judgeBreakage(ctx, edits, j.Breakage, opts)
@@ -271,7 +272,7 @@ func kindOf(c candidate.Candidate) string {
 }
 
 // verdictOf is the whole attempt's verdict from the findings' closures and the breakage run
-// (ADR-0050 point 3). It is the only place a verdict is decided, and it reads nothing but the
+// . It is the only place a verdict is decided, and it reads nothing but the
 // closures: a patch is "fixed" because every finding's evidence ran again and closed and every
 // package the patch touched still passed, never because it was written confidently. No finding,
 // or no breakage run, is never "fixed".
@@ -293,7 +294,7 @@ func allClosed(findings []candidate.AutofixFinding) bool {
 }
 
 // judgeBreakage runs every package the patch touched on the patched change and closes only when
-// each run ended passed (ADR-0050 point 3). A run that did not happen, a refused request and a
+// each run ended passed . A run that did not happen, a refused request and a
 // missing runner leave it open with the reason: a package that was not run is not a package that
 // did not break. An error that is not the context ending leaves it open too.
 func judgeBreakage(ctx context.Context, edits []testrun.Edit, run testrun.BreakageRunner, opts Options) (candidate.AutofixProof, error) {
@@ -334,7 +335,7 @@ func judgeBreakage(ctx context.Context, edits []testrun.Edit, run testrun.Breaka
 }
 
 // judgeFinding runs every proof of c again on the patched change. The finding closes only when
-// every one of its proofs closed and it has at least one (ADR-0050 point 2).
+// every one of its proofs closed and it has at least one .
 func judgeFinding(ctx context.Context, c candidate.Candidate, edits []testrun.Edit, j Judges, opts Options) (candidate.AutofixFinding, error) {
 	f := candidate.AutofixFinding{ID: c.ID, Closed: true}
 	for _, p := range proofsOf(c) {
@@ -362,7 +363,7 @@ func judgeFinding(ctx context.Context, c candidate.Candidate, edits []testrun.Ed
 	return f, nil
 }
 
-// judgeTest runs a test-proved finding's test and its package again (ADR-0050 point 2). An error
+// judgeTest runs a test-proved finding's test and its package again . An error
 // that is not the context ending leaves the finding open, with the reason: a Prover that is off
 // cannot show the test passes, and the verdict must not say it does.
 func judgeTest(ctx context.Context, c candidate.Candidate, t *candidate.TestEvidence, edits []testrun.Edit, run testrun.FixRunner, opts Options) (candidate.AutofixProof, error) {
@@ -398,7 +399,7 @@ func judgeTest(ctx context.Context, c candidate.Candidate, t *candidate.TestEvid
 	return p, nil
 }
 
-// judgeData runs a data-proved finding's own query again on the patched change (ADR-0050 point 2).
+// judgeData runs a data-proved finding's own query again on the patched change .
 func judgeData(ctx context.Context, c candidate.Candidate, q *candidate.QueryEvidence, edits []testrun.Edit, rerun DataRerun) (candidate.AutofixProof, error) {
 	p := candidate.AutofixProof{Kind: candidate.AutofixData}
 	if rerun == nil {
@@ -416,7 +417,7 @@ func judgeData(ctx context.Context, c candidate.Candidate, q *candidate.QueryEvi
 	return fromReading(p, r, "the same query on the patched change still returns the row"), nil
 }
 
-// judgeTool runs a tool-proved finding's own tool again on the patched change (ADR-0050 point 2).
+// judgeTool runs a tool-proved finding's own tool again on the patched change .
 func judgeTool(ctx context.Context, c candidate.Candidate, t *candidate.ToolEvidence, edits []testrun.Edit, rerun ToolRerun) (candidate.AutofixProof, error) {
 	p := candidate.AutofixProof{Kind: candidate.AutofixTool}
 	if rerun == nil {
@@ -454,7 +455,7 @@ func fromReading(p candidate.AutofixProof, r Reading, still string) candidate.Au
 
 // Prompt asks for one patch for every proved finding. Everything the change and the evidence wrote
 // enters the prompt as data, through answer.Encode, so no byte of it can start an instruction
-// (ADR-0050 point 1).
+// .
 func Prompt(proved []candidate.Candidate, changeDir string) string {
 	type proofView struct {
 		Kind    string            `json:"kind"`

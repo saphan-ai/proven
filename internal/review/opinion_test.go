@@ -6,7 +6,7 @@ import (
 )
 
 // riskPlaced is one planner risk at a path and a line range, with the reviewer's own message.
-// The message is the reason the opinion must carry word for word (ADR-0041).
+// The message is the reason the opinion must carry word for word .
 func riskPlaced(id, title, message, path string, start, end int) riskRow {
 	return riskRow{
 		ID: id, RuleID: id, Title: title, Message: message, Severity: "WARNING",
@@ -14,7 +14,7 @@ func riskPlaced(id, title, message, path string, start, end int) riskRow {
 	}
 }
 
-// TestAgreedOpinionIsShownApartAndNotCounted proves the recorded scenario of ADR-0041.
+// TestAgreedOpinionIsShownApartAndNotCounted proves the recorded scenario of .
 // Both reviewers name one claim at overlapping lines of the same file, and nothing proves it:
 // it is an opinion, with both messages word for word, and it is not a finding.
 // A claim only the default reviewer names, and one only the special reviewer names, stay dropped.

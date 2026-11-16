@@ -1,11 +1,11 @@
 package review
 
-// This file reads proven.yaml, the reviewer's own settings (ADR-0013): the timeout, the two reviewer
-// models (ADR-0009, ADR-0010), the family table and author sources (ADR-0011), and the class rules
-// (ADR-0014), the two settings of proposed fixes: whether they are made and how many attempts one
-// gets (ADR-0042), the three settings of the one whole-change fix attempt: whether it is made, which
-// generator writes its patch and how long it may take (ADR-0050), the query templates the Investigator and the Skeptic may each ask (ADR-0013),
-// and Scout Intent's switch and its plan for each kind of change (ADR-0049).
+// This file reads proven.yaml, the reviewer's own settings : the timeout, the two reviewer
+// models , the family table and author sources , and the class rules
+// , the two settings of proposed fixes: whether they are made and how many attempts one
+// gets , the three settings of the one whole-change fix attempt: whether it is made, which
+// generator writes its patch and how long it may take , the query templates the Investigator and the Skeptic may each ask ,
+// and Scout Intent's switch and its plan for each kind of change .
 // Every key is closed: an unknown key or value is refused with the values allowed.
 
 import (
@@ -27,7 +27,7 @@ const configKeyTimeout = "timeout"
 // allowedTimeout is the value list a refused timeout names.
 const allowedTimeout = "a Go duration of zero or greater, for example 30s, 5m or 0s"
 
-// The bounds of fix_attempts (ADR-0042 point 6). The default is two: one try and one retry with the
+// The bounds of fix_attempts . The default is two: one try and one retry with the
 // failure in hand. The upper bound keeps a setting from turning a retry into an open loop of model calls.
 const (
 	defaultFixAttempts = 2
@@ -37,12 +37,12 @@ const (
 // allowedFixAttempts is the value list a refused fix_attempts names.
 const allowedFixAttempts = "a whole number from 1 to 5"
 
-// The settings of the whole-change fix attempt (ADR-0050 point 6). It is off unless a setting turns it
-// on, and the judges' lab turns it on; the generator is the review's own unless the second one is named;
+// The settings of the whole-change fix attempt . It is off unless a setting turns it
+// on, and enabled by explicit configuration; the generator is the review's own unless the second one is named;
 // and the attempt has a time limit that is never zero, because an attempt that may run for ever is not one.
 const (
 	// The generator names of autofix_generator: the review's own generator (NVIDIA's Nemotron by
-	// default, ADR-0019) or the second reviewer's (ADR-0037).
+	// default, ) or the second reviewer's .
 	autofixGeneratorDefault = "default"
 	autofixGeneratorSpecial = "special"
 	defaultAutofixTimeout   = 10 * time.Minute
@@ -95,67 +95,67 @@ type fileSettings struct {
 	Fallback        string
 	Doubled         map[string]bool
 	// DoubledSet is true when proven.yaml named doubled_classes. With a second reviewer connected,
-	// an unset list means every class is doubled, and a set one narrows it (ADR-0037 point 3).
+	// an unset list means every class is doubled, and a set one narrows it .
 	DoubledSet      bool
 	ReadCommits     bool
 	ReadDescription bool
 	Record          string
 	TrailerKeys     []string
 	// Declared is the author_models list: the models the repository's owner declares in settings
-	// (ADR-0011 point 1). It is the default source; no statement is parsed out of commit or
+	// . It is the default source; no statement is parsed out of commit or
 	// pull-request text unless a trailer source is turned on.
 	Declared   []AuthorModel
 	RaiseClass bool
-	// Fixes turns proposed fixes on or off (ADR-0042). FixAttempts is the most attempts at one fix.
+	// Fixes turns proposed fixes on or off . FixAttempts is the most attempts at one fix.
 	Fixes       bool
 	FixAttempts int
 	// Autofix turns the one whole-change fix attempt on or off, AutofixGenerator names the generator
-	// that writes its patch and AutofixTimeout is the time limit of the attempt (ADR-0050 point 6).
+	// that writes its patch and AutofixTimeout is the time limit of the attempt .
 	Autofix          bool
 	AutofixGenerator string
 	AutofixTimeout   time.Duration
 	// InvestigatorScope and SkepticScope are the query templates each of the two roles that can ask a
-	// store may ask (ADR-0013). Nil is every template: an unset key narrows nothing.
+	// store may ask . Nil is every template: an unset key narrows nothing.
 	InvestigatorScope querytpl.Scope
 	SkepticScope      querytpl.Scope
-	// ScoutIntent switches the review plan on (ADR-0049); it is on by default (ADR-0053). Off, every review runs the full plan.
+	// ScoutIntent switches the review plan on ; it is on by default . Off, every review runs the full plan.
 	ScoutIntent bool
-	// Plans is the plan for each kind of change, keyed by the kind's registry id (ADR-0049 point 2).
+	// Plans is the plan for each kind of change, keyed by the kind's registry id .
 	Plans map[string]planSetting
 	// ProseSuffixes is the closed list of file suffixes that count as prose never built or executed
-	// (ADR-0049). A review plans as documentation-only, and runs no model, only when every changed file
+	// . A review plans as documentation-only, and runs no model, only when every changed file
 	// has one of these suffixes and is not executable.
 	ProseSuffixes []string
 }
 
-// familyRule maps a model-name pattern to a family, one row of the families table (ADR-0011 point 4).
+// familyRule maps a model-name pattern to a family, one row of the families table .
 type familyRule struct {
 	Pattern string
 	Family  string
 }
 
-// pathRule maps a changed-path pattern to a review class (ADR-0014 point 2).
+// pathRule maps a changed-path pattern to a review class .
 type pathRule struct {
 	Pattern string
 	Class   string
 }
 
-// classNames is the closed list of review classes (ADR-0014 point 7), in the default order of risk,
+// classNames is the closed list of review classes , in the default order of risk,
 // highest first. It is a function, not a variable, so no caller can change the shared list.
 func classNames() []string {
 	return []string{"security", "backend", "mobile", "user interface", "docs"}
 }
 
 // defaultSettings is what Proven uses with no proven.yaml. Each value can be replaced by a named
-// key (ADR-0013): NVIDIA reviews by default (ADR-0008 point 3), security is doubled
-// (ADR-0009), backend is the fallback class (ADR-0014 point 4), and the author model is read from
+// key : NVIDIA reviews by default , security is doubled
+// , backend is the fallback class , and the author model is read from
 // settings only: the trailer sources are off, and Assisted-by is the key they read when a
-// repository turns one on (ADR-0011 points 1 and 2). The timeout is zero: no deadline unless the shell or the file sets one.
+// repository turns one on . The timeout is zero: no deadline unless the shell or the file sets one.
 func defaultSettings() fileSettings {
 	return fileSettings{
 		DefaultReviewer: "NVIDIA",
 		// NVIDIA is an exact name because the default reviewer is the word NVIDIA,
-		// and the ADR-0011 globs (nemotron-*) do not match that word.
+		// and the  globs (nemotron-*) do not match that word.
 		Families: []familyRule{
 			{"claude-*", "Anthropic"},
 			{"gpt-*", "OpenAI"},
@@ -171,23 +171,23 @@ func defaultSettings() fileSettings {
 		ReadCommits:     false,
 		ReadDescription: false,
 		TrailerKeys:     []string{"Assisted-by"},
-		// ADR-0042: proposed fixes are on by default, with one try and one retry.
+		// proposed fixes are on by default, with one try and one retry.
 		Fixes:       true,
 		FixAttempts: defaultFixAttempts,
-		// ADR-0050 point 6: the whole-change attempt is off until measured. The judges' lab turns it on.
+		// the whole-change attempt is off until measured. Enable it explicitly.
 		Autofix:          false,
 		AutofixGenerator: autofixGeneratorDefault,
 		AutofixTimeout:   defaultAutofixTimeout,
-		// ADR-0053: Scout Intent is on by default; its benefit is not measured yet. scout_intent: off switches it off.
+		// Scout Intent is on by default; its benefit is not measured yet. scout_intent: off switches it off.
 		ScoutIntent: true,
 		Plans:       defaultPlans(),
-		// ADR-0049: only plain prose may skip the model. Anything else, an unknown suffix included, is
+		// only plain prose may skip the model. Anything else, an unknown suffix included, is
 		// not known to be inert, and a file that is built or executed must be reviewed.
 		ProseSuffixes: []string{".md", ".markdown", ".rst", ".txt", ".adoc"},
 	}
 }
 
-// defaultPathRules ships ADR-0014's examples. Dependency manifests are the
+// defaultPathRules ships 's examples. Dependency manifests are the
 // lockfiles and module files a change commonly touches. A pattern with no
 // slash also matches the base name, so go.mod matches a nested module.
 func defaultPathRules() []pathRule {
@@ -247,7 +247,7 @@ func loadConfigFileUnder(rd change.Policy, path string, pol *policy) (fileSettin
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	// ADR-0013: the file is read no further than the configuration bound.
+	// the file is read no further than the configuration bound.
 	b, err := change.ReadBounded(path, rd.Bounds().Config, "the configuration file "+filepath.Base(path), change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, &ConfigError{
@@ -282,7 +282,7 @@ func loadSettingsAtBaselineUnder(rd change.Policy, target, baseline string, pol 
 // is the defaults.
 func loadSettingsInTargetUnder(rd change.Policy, target string, pol *policy) (fileSettings, error) {
 	path := filepath.Join(target, "proven.yaml")
-	// ADR-0013, ADR-0025: the target's copy is repository content, so a link is refused by name
+	// , the target's copy is repository content, so a link is refused by name
 	// before it is opened. Stat and ReadFile would follow it to a file outside the checkout, and
 	// the refusal never quotes what the link points at.
 	st, err := os.Lstat(path)
@@ -304,7 +304,7 @@ func loadSettingsInTargetUnder(rd change.Policy, target string, pol *policy) (fi
 			Allowed: []string{"a path to an existing file"},
 		}
 	}
-	// ADR-0013: the target's copy is repository content, so it is bounded.
+	// the target's copy is repository content, so it is bounded.
 	b, err := change.ReadBounded(path, rd.Bounds().Config, "proven.yaml", change.EnvMaxConfigBytes)
 	if err != nil {
 		return fileSettings{}, err
@@ -322,7 +322,7 @@ func parseConfig(b []byte) (fileSettings, error) {
 }
 
 // keyHook lets a reader of the same flat format take keys of its own (the organisation policy's
-// exceptions, ADR-0036). It reports whether it took the key; a key it does not take is read as a
+// exceptions, ). It reports whether it took the key; a key it does not take is read as a
 // proven.yaml key.
 type keyHook func(key, val string) (bool, error)
 
@@ -373,7 +373,7 @@ func parseConfigOver(b []byte, base fileSettings, hook keyHook) (fileSettings, m
 			}
 		}
 		if !taken && !knownKey(key) {
-			// An exception is not a repository's to write: it lives in the organisation policy file only (ADR-0036).
+			// An exception is not a repository's to write: it lives in the organisation policy file only .
 			if strings.HasPrefix(key, exceptionPrefix) {
 				return fileSettings{}, nil, configRefused(key, val, "exceptions live in the organisation policy file only", "a key from: "+strings.Join(configKeys, ", "))
 			}
@@ -407,7 +407,7 @@ func knownKey(key string) bool {
 	return false
 }
 
-// allowedText is the allowed-values text a refusal of key names (ADR-0013).
+// allowedText is the allowed-values text a refusal of key names .
 func allowedText(key string) string {
 	switch key {
 	case configKeyTimeout:
@@ -462,7 +462,7 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		cfg.Timeout = d
 		return nil
 	case "default_reviewer":
-		// Every review uses the default reviewer (ADR-0009 point 2), so it may not be empty.
+		// Every review uses the default reviewer , so it may not be empty.
 		if val == "" {
 			return configRefused(key, val, "missing value", "a model name, for example NVIDIA")
 		}
@@ -563,7 +563,7 @@ func applyKey(cfg *fileSettings, key, val string) error {
 		if err != nil {
 			return err
 		}
-		// ADR-0014 point 9: the setting is checked and kept, but no model raises a class yet.
+		// the setting is checked and kept, but no model raises a class yet.
 		cfg.RaiseClass = on
 		return nil
 	case "fixes":
@@ -636,7 +636,7 @@ func applyKey(cfg *fileSettings, key, val string) error {
 	}
 }
 
-// parseTemplateScope reads the templates one role may ask (ADR-0013). A name that is not on the
+// parseTemplateScope reads the templates one role may ask . A name that is not on the
 // list, a name twice and an empty list are refused on load by name, with the list as the allowed
 // values, so a misspelt name never silently narrows a role to nothing it can use.
 func parseTemplateScope(field, value string) (querytpl.Scope, error) {
@@ -677,7 +677,7 @@ func parseFamilies(value string) ([]familyRule, error) {
 	return out, nil
 }
 
-// parsePathRules reads "pattern=class, ...". ADR-0014 point 7: a rule that names a class not on
+// parsePathRules reads "pattern=class, ...". a rule that names a class not on
 // the closed list is refused when the file is loaded.
 func parsePathRules(value string) ([]pathRule, error) {
 	pairs, err := parsePairs("path_rules", value)
@@ -725,7 +725,7 @@ func parsePairs(field, value string) ([][2]string, error) {
 	return out, nil
 }
 
-// parseClassOrder reads the order of risk, highest first. ADR-0014 point 7: an order that leaves a
+// parseClassOrder reads the order of risk, highest first. an order that leaves a
 // class out is refused, and the refusal names the classes it left out.
 func parseClassOrder(value string) ([]string, error) {
 	parts, err := parseClassTokens("class_order", value)
@@ -778,7 +778,7 @@ func parseClassTokens(field, value string) ([]string, error) {
 	return parts, nil
 }
 
-// parseAuthorModels reads the author_models list: agent:model entries, each once (ADR-0011 point 1).
+// parseAuthorModels reads the author_models list: agent:model entries, each once .
 func parseAuthorModels(value string) ([]AuthorModel, error) {
 	parts, err := splitCSV("author_models", value)
 	if err != nil {
@@ -800,7 +800,7 @@ func parseAuthorModels(value string) ([]AuthorModel, error) {
 	return out, nil
 }
 
-// parseTrailerKeys reads the trailer keys that name an author model (ADR-0011 point 3). A trailing
+// parseTrailerKeys reads the trailer keys that name an author model . A trailing
 // colon is dropped, so "Assisted-by:" and "Assisted-by" are the same key; keys compare without case.
 func parseTrailerKeys(value string) ([]string, error) {
 	parts, err := splitCSV("author_trailer_keys", value)

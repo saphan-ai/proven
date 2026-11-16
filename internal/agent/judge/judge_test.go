@@ -29,7 +29,7 @@ func TestKeepsATestThatFailsOnTheChange(t *testing.T) {
 	}
 }
 
-// A tool result on the change and not on the base keeps the finding (ADR-0040).
+// A tool result on the change and not on the base keeps the finding .
 func TestKeepsAToolResultTheBaseDidNotHave(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{
 		Risk: candidate.Risk{ID: "R1"},
@@ -43,7 +43,7 @@ func TestKeepsAToolResultTheBaseDidNotHave(t *testing.T) {
 	}
 }
 
-// A tool result that is also on the base is not evidence of the change (ADR-0040).
+// A tool result that is also on the base is not evidence of the change .
 // Mutated field: ToolEvidence.PresentOnBase.
 func TestDropsAToolResultTheBaseAlreadyHad(t *testing.T) {
 	got := judge.Decide(candidate.Candidate{

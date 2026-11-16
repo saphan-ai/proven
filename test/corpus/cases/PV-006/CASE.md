@@ -50,7 +50,6 @@ written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P10 in `PROVENANCE.md`).
 - reviewer families, as recorded: `claude-opus-5` (through Claude Code) and `gpt-5.6-sol` (through Codex).
 - the original code was Go; it is not published. Resolution status: settled by a ruling of the orchestrating agent
   after three defeated rounds, and by the next round, which replaced the enumerated controls.

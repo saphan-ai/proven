@@ -48,7 +48,6 @@ written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P38 in `PROVENANCE.md`).
 - reviewer families, as recorded: `gpt-5.6-sol` (through Codex) and `glm-5.2` (through Qwen Code).
 - the original code was a Go table validator; it is not published. Resolution status: settled by a ruling of the
   orchestrating agent and a repair round that closed every hole.

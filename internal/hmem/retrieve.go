@@ -8,7 +8,7 @@ import (
 )
 
 // The defaults and constants of the H-MEM hybrid ranking. They are part of the
-// Meterless specification the store is built to (ADR-0018), not settings.
+// Meterless specification the store is built to , not settings.
 // recencyDays is the decay constant of the recency term.
 const (
 	dayMS            = 24 * 60 * 60 * 1000
@@ -51,7 +51,7 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 	defer s.mu.Unlock()
 	qEmb := Embed(query)
 	qTokens := Tokenize(query)
-	// Only the first QueryTokens query tokens count (default eight, ADR-0013),
+	// Only the first QueryTokens query tokens count (default eight, ),
 	// so a long query cannot drown the keyword and tag terms.
 	if n := s.limits.QueryTokens; len(qTokens) > n {
 		qTokens = qTokens[:n]
@@ -121,7 +121,7 @@ func (s *Store) Query(query string, topN int, threshold float64) (QueryResult, e
 // Score is the final ranking value for one record. It does not touch the store.
 // It applies the same query trimming as Query, so a test can check one score by hand.
 // queryTokens is the store's query-token limit (Limits.QueryTokens); zero or
-// less means DefaultQueryTokens, as it does for a store (ADR-0013).
+// less means DefaultQueryTokens, as it does for a store .
 func Score(rec Record, query string, now int64, queryTokens int) float64 {
 	if queryTokens <= 0 {
 		queryTokens = DefaultQueryTokens

@@ -23,7 +23,7 @@ const recordsService = "couchdb"
 const envGitHubRef = "GITHUB_REF"
 
 // recorder writes one review's records. It is nil when PROVEN_COUCHDB_RECORDS
-// is unset, and a nil recorder writes nothing (ADR-0013).
+// is unset, and a nil recorder writes nothing .
 type recorder struct {
 	// writer writes the records. Its account is the writing one.
 	writer *store.Recorder

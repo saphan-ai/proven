@@ -3,9 +3,9 @@
 // The Judge is the last step before the Writer. It reads each candidate's
 // evidence and the Skeptic's refutation and decides with no model: a test that
 // fails on the change and passes on the base, a query whose rows name the
-// finding (ADR-0002), or a tool that reports a result on the change and not
-// on the base (ADR-0040). A disagreement is settled by evidence, never by a vote
-// (ADR-0006 point 3).
+// finding , or a tool that reports a result on the change and not
+// on the base . A disagreement is settled by evidence, never by a vote
+// .
 package judge
 
 import (
@@ -22,7 +22,7 @@ import (
 // reads a confidence.
 func Decide(c candidate.Candidate) candidate.Candidate {
 	// A refutation backed by evidence wins over the finding's own evidence
-	// (ADR-0006 point 4), so it is checked first.
+	// , so it is checked first.
 	if why := refuteWhy(c); why != "" {
 		c.Dropped = true
 		c.Unresolved = false
@@ -49,7 +49,7 @@ func Decide(c candidate.Candidate) candidate.Candidate {
 	}
 	c.Dropped = true
 	c.Unresolved = false
-	// ADR-0002 point 2: a finding with no evidence is dropped, not softened.
+	// a finding with no evidence is dropped, not softened.
 	c.DropReason = "dropped: no evidence"
 	return c
 }
@@ -61,7 +61,7 @@ func Evidenced(c candidate.Candidate) bool {
 
 // counts reports whether the candidate has evidence of its own: a test with
 // both outcomes right, query rows Proven bound to the change, or a tool result
-// the base did not already have (ADR-0040).
+// the base did not already have .
 func counts(c candidate.Candidate) bool {
 	for _, e := range c.Evidence {
 		if EvidenceCounts(e) {
@@ -98,7 +98,7 @@ func unsettled(c candidate.Candidate) bool {
 
 // Refutes reports whether the candidate's refutation carries evidence: a
 // refuting test found and passing on the change, or query rows that contradict
-// the finding. The Skeptic's own word is not evidence (ADR-0006 point 4).
+// the finding. The Skeptic's own word is not evidence .
 func Refutes(c candidate.Candidate) bool {
 	return refuteWhy(c) != ""
 }
@@ -127,10 +127,16 @@ func refuteWhy(c candidate.Candidate) string {
 // QueryContradicts reports whether rows are about the finding and deny it.
 // A row that does not mention the finding does not contradict it.
 func QueryContradicts(c candidate.Candidate, rows [][]string) bool {
-	if !queryRelates(c, rows) {
-		return false
+	// Text in a data row cannot invalidate an independently observed test or tool result.
+	for _, e := range c.Evidence {
+		if EvidenceCounts(e) && (e.Kind == candidate.KindTest || e.Kind == candidate.KindTool) {
+			return false
+		}
 	}
 	for _, row := range rows {
+		if !queryRelates(c, [][]string{row}) {
+			continue
+		}
 		for _, cell := range row {
 			if denial(cell) {
 				return true

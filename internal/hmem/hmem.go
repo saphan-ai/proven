@@ -2,12 +2,12 @@
 // (sleep.go), conflict resolution (conflict.go), the trust ledger (ledger.go)
 // and dreaming with approval (dream.go). None of them calls a model.
 //
-// It is the reviewer's memory across pull requests (ADR-0003 point 1), built
-// to the Meterless H-MEM specification (ADR-0018 point 1). In a review it
+// It is the reviewer's memory across pull requests , built
+// to the Meterless H-MEM specification . In a review it
 // keeps the Skeptic's refutations: when the Skeptic refutes a finding that
 // has evidence, the world package stores it here, and the next review of the
 // same change matches it so the refuted finding does not come back
-// (ADR-0006 point 4, ADR-0018 point 6). The store is a JSON file outside the
+// . The store is a JSON file outside the
 // repository, with an append-only audit log in the run's logs directory.
 // A failed audit or persist leaves the in-memory records and the id sequence
 // as they were, so memory and the state file agree.
@@ -154,7 +154,7 @@ type Options struct {
 	RepoRoot string
 	Clock    func() time.Time
 	// Limits bounds the state read and the query tokens. A zero field means
-	// the default (ADR-0013).
+	// the default .
 	Limits Limits
 }
 
@@ -382,7 +382,7 @@ func validate(rec Record) error {
 }
 
 // SetGenerator stores the model interface. RememberRefutation, Add and Query do not call it.
-// ADR-0018: every model call goes through an injected generator, never inside the engine.
+// every model call goes through an injected generator, never inside the engine.
 func (s *Store) SetGenerator(g generator.Generator) { s.gen = g }
 
 // Generator is the model interface this store was given.
@@ -569,7 +569,7 @@ func (s *Store) MatchRefutation(changeKey, ruleID, path, title string) (Record, 
 // unless it finished (approved with its dream_approved line, or rejected). A
 // void proposal is refused by Approve by name.
 //
-// Clear is one transition (ADR-0018 point 3: no half-applied change), and its
+// Clear is one transition , and its
 // only commit point is the state.json write: before it nothing durable has
 // changed, after it records and proposals are both gone, so no crash can leave
 // void proposals beside live records. The clear audit line comes after the
@@ -751,7 +751,7 @@ func (s *Store) persist() error {
 	return writeAtomic(filepath.Join(s.dir, "state.json"), b)
 }
 
-// audit appends one line to hmem.jsonl and syncs it (ADR-0018 point 3:
+// audit appends one line to hmem.jsonl and syncs it (
 // audit is append-only JSONL in the run's logs).
 func (s *Store) audit(action, id, actor string) error {
 	return s.auditWith(action, id, actor, nil)

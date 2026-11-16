@@ -8,7 +8,7 @@ import (
 
 // Absent is a query adapter that does not dial.
 // Query names Zetaris down, so a review has no query evidence from it and
-// still names the service (ADR-0013 point 4a).
+// still names the service .
 type Absent struct {
 	Reason string
 }

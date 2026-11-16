@@ -72,7 +72,7 @@ func decodeSARIF(t *testing.T, body []byte) sarifDoc {
 	return doc
 }
 
-// TestSARIFLevelFollowsSeverity proves the severity mapping of ADR-0020 §1,
+// TestSARIFLevelFollowsSeverity proves the severity mapping of  §1,
 // result by result: INFO→note, WARNING→warning, ERROR→error, and a severity
 // the writer does not know→note. The level is read back by each result's
 // ruleId, so swapping the WARNING and ERROR arms of sarifLevel turns the

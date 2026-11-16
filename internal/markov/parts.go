@@ -32,7 +32,7 @@ const hunkContext = 3
 // the review still reads the whole change of that file, in one step, rather than running a diff without bound.
 const maxDiffCells = 4_000_000
 
-// Split cuts a change into parts (ADR-0048 point 1). With UnitFile every file is a part, in the change's order, so a
+// Split cuts a change into parts . With UnitFile every file is a part, in the change's order, so a
 // step sees exactly what the whole review would see of that file. With UnitHunk every changed region of a text file
 // is a part; a file with no line changed has no part, and a file that is not valid UTF-8 stays one whole-file part,
 // because its lines cannot be compared as text.

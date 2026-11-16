@@ -18,20 +18,21 @@ import (
 // math.MaxInt64 / time.Second is 9223372036; the next second overflows the conversion.
 const maxTimeoutSec = int64(math.MaxInt64 / time.Second)
 
-// The exit codes of ADR-0020 §2, Semgrep's own, so a pipeline that branches
+// The exit codes of  §2, Semgrep's own, so a pipeline that branches
 // on them needs no change.
 const (
-	exitOK       = 0 // reviewed; no findings, or findings without --error
-	exitFindings = 1 // reviewed; findings, with --error
-	exitFatal    = 2 // Proven could not review
-	exitConfig   = 7 // a setting was refused when it loaded
+	exitOK         = 0 // reviewed; no findings, or findings without --error
+	exitFindings   = 1 // reviewed; findings, with --error
+	exitFatal      = 2 // Proven could not review
+	exitIncomplete = 3 // a required review did not complete
+	exitConfig     = 7 // a setting was refused when it loaded
 )
 
-// KnownCLIEnv reports whether name is an environment variable ADR-0020 §1
+// KnownCLIEnv reports whether name is an environment variable  §1
 // documents for the command line. The table names PROVEN_OUTPUT_FORMAT,
 // PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT, SEMGREP_BASELINE_COMMIT,
 // SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE, PROVEN_EXCLUDE,
-// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and ADR-0036's PROVEN_POLICY.
+// PROVEN_SEVERITY, PROVEN_TIMEOUT and SAMPLE_MODE, and 's PROVEN_POLICY.
 // PROVEN_LOG_DIR is the trace directory; sample mode reads it too. That
 // section's ci paragraph names GITHUB_EVENT_PATH, GITHUB_BASE_REF and
 // GITHUB_SHA. GITHUB_WORKSPACE is not in the section. Adapter secrets are not
@@ -44,6 +45,7 @@ func KnownCLIEnv(name string) bool {
 		"PROVEN_BASELINE_COMMIT",
 		"PROVEN_CONFIG",
 		"PROVEN_ERROR",
+		"PROVEN_REQUIRE_COMPLETE",
 		"PROVEN_EXCLUDE",
 		"PROVEN_INCLUDE",
 		"PROVEN_LOG_DIR",
@@ -75,6 +77,7 @@ type config struct {
 	htmlOutput      string
 	output          string
 	errorOnFindings bool
+	requireComplete bool
 	baseline        string
 	configPath      string
 	policyPath      string
@@ -220,7 +223,7 @@ func knownFlagNames() []string {
 	}
 }
 
-// defineFlags builds the flag set of ADR-0020 §1. Its output is discarded
+// defineFlags builds the flag set of  §1. Its output is discarded
 // and its usage silenced: every refusal is written by resolve, with the
 // allowed values, never by the flag package.
 func defineFlags() (*flag.FlagSet, *holders) {
@@ -343,7 +346,7 @@ func flagToken(arg string) (string, bool) {
 
 // resolve turns the arguments and the environment into one config, flag
 // over variable over default, and refuses a value outside its allowed set
-// with the allowed list (ADR-0013). Nothing here reads a secret or opens a
+// with the allowed list . Nothing here reads a secret or opens a
 // connection: it only decides what the run will ask for.
 func resolve(args []string, getenv func(string) string, exists func(string) bool) (config, error) {
 	if getenv == nil {
@@ -358,7 +361,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		if strings.Contains(err.Error(), "not defined") {
 			return config{}, &cliError{code: exitFatal, msg: err.Error() + "\nknown flags: " + strings.Join(knownFlagNames(), ", ")}
 		}
-		// ADR-0020 §2: a value that is not true or false is a configuration
+		//  §2: a value that is not true or false is a configuration
 		// refused at load, the same whether it came from the flag or the variable.
 		if name, value, ok := refusedBoolFlag(h); ok {
 			return config{}, refuse(name, value, "value must be true or false", []string{"true", "false"})
@@ -423,13 +426,21 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		return config{}, err
 	}
 	cfg.errorOnFindings = errorOn
+	cfg.requireComplete = cmd == "ci"
+	if raw := getenv("PROVEN_REQUIRE_COMPLETE"); raw != "" {
+		value, err := parseBoolSetting("PROVEN_REQUIRE_COMPLETE", raw)
+		if err != nil {
+			return config{}, err
+		}
+		cfg.requireComplete = value
+	}
 	cfg.baseline = resolveBaseline(getenv, h)
 	configPath, err := resolveConfig(cfg.target, getenv, exists, h)
 	if err != nil {
 		return config{}, err
 	}
 	cfg.configPath = configPath
-	// ADR-0036: the organisation policy is named by a variable only; the reviewer reads and checks it.
+	// the organisation policy is named by a variable only; the reviewer reads and checks it.
 	cfg.policyPath = strings.TrimSpace(getenv("PROVEN_POLICY"))
 	if h.include.set {
 		cfg.include = append([]string{}, h.include.v...)
@@ -468,7 +479,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 
 // outputFiles lists every file a run writes by a flag, the signed evidence pack
 // among them: a report that replaced the pack would leave the audit nothing to
-// verify while the run exited 0 (ADR-0035). The pack is first, so a collision
+// verify while the run exited 0 . The pack is first, so a collision
 // is named as one with the pack.
 func outputFiles(cfg config) []struct{ flag, path string } {
 	return []struct{ flag, path string }{
@@ -483,8 +494,8 @@ func outputFiles(cfg config) []struct{ flag, path string } {
 }
 
 // refuseCollidingOutputs refuses two outputs that are one file, at load
-// (ADR-0013). The files are written one after another, so the last write would
-// silently replace the others and the run would still exit 0 (ADR-0020 §1).
+// . The files are written one after another, so the last write would
+// silently replace the others and the run would still exit 0 .
 //
 // What counts as one file: the same path after the filesystem's own resolution
 // of the raw spelling, links before ".." (outputIdentity), or two existing files for which os.SameFile is true (a
@@ -673,7 +684,7 @@ func regularFileInfo(w io.Writer) os.FileInfo {
 }
 
 // refuseStdoutOnAnOutput refuses an output file that is the file standard
-// output is already redirected onto (ADR-0013), at load, before the review
+// output is already redirected onto , at load, before the review
 // runs. The shell creates the redirect target before Proven starts, so an
 // output that is that file exists under some spelling and os.Stat, which
 // follows links, finds it; os.SameFile then compares the two. A terminal or a
@@ -898,7 +909,7 @@ func resolveError(cmd string, getenv func(string) string, h *holders) (bool, err
 
 // resolveBaseline reads the baseline commit. Semgrep's two variables are
 // read after Proven's own, so a pipeline that already sets them keeps
-// working unchanged (ADR-0016).
+// working unchanged .
 func resolveBaseline(getenv func(string) string, h *holders) string {
 	switch {
 	case h.baseline.set:
@@ -1005,7 +1016,7 @@ func refuseTimeoutBound(field, v string) error {
 }
 
 // resolveSample decides sample mode: the sample reviewer, with no network
-// and no keys (ADR-0001). SAMPLE_MODE set to the empty string counts as unset.
+// and no keys . SAMPLE_MODE set to the empty string counts as unset.
 func resolveSample(getenv func(string) string, h *holders) (bool, error) {
 	if h.sample.set {
 		return h.sample.v, nil

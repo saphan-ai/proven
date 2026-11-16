@@ -66,8 +66,8 @@ type Proposal struct {
 
 // dreamLog is the file proposals live in, beside the audit log. Each line is
 // the whole proposal at one moment, so the newest line per id is its state and
-// nothing is rewritten (ADR-0018 point 3: writes are append-only JSONL). No
-// model is called: ADR-0018 point 2, and the specification's dreaming is
+// nothing is rewritten . No
+// model is called:  point 2, and the specification's dreaming is
 // deterministic clustering of what the store holds.
 func (s *Store) dreamLog() string {
 	return filepath.Join(filepath.Dir(s.auditPath), "dreams.jsonl")
@@ -309,7 +309,7 @@ func relatedness(a, b Record) float64 {
 // Dream looks at the store and returns new proposals: insights from clusters of
 // related records, domain suggestions for uncategorized records, and
 // invariants from preference and correction records. It creates no record and
-// changes no record: only Approve does (the approval boundary, ADR-0018 point 2).
+// changes no record: only Approve does (the approval boundary,  point 2).
 //
 // When a domain proposal can arise: only for a stored record whose domain is
 // "general" while classifyDomain now returns something else. Add stores the

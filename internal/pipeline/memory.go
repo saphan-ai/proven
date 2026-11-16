@@ -92,10 +92,10 @@ func (p *Pipeline) begin(target string) error {
 	}
 	tw.SetRedactor(p.redactor)
 	if p.tel != nil {
-		// ADR-0045: every line of the trace file also rides along as a span event.
+		// every line of the trace file also rides along as a span event.
 		tw.SetObserver(p.tel.Observe)
 	}
-	// ADR-0053: a store switched off is not opened, so it creates no directory and writes no file.
+	// a store switched off is not opened, so it creates no directory and writes no file.
 	var mem *hmem.Store
 	if !p.stores.HMemOff {
 		mem, err = hmem.Open(hmem.Options{
@@ -125,7 +125,7 @@ func (p *Pipeline) begin(target string) error {
 // World Model, which records each landed refutation in H-MEM.
 // A second pass over the same file changes nothing.
 func (p *Pipeline) fold() error {
-	// ADR-0053: with the World Model switched off there is no fold, so H-MEM learns nothing from the trace either.
+	// with the World Model switched off there is no fold, so H-MEM learns nothing from the trace either.
 	if p.world == nil {
 		return nil
 	}

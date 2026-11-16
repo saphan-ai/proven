@@ -24,7 +24,7 @@ import (
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
-// These are the integration tests the owner made the condition of ADR-0048's engine landing without a separate
+// These are the integration tests the owner made the condition of 's engine landing without a separate
 // test author: inside a whole review, with a scripted generator and no network, a change above the threshold is
 // read one part per step with only the carried state between steps, a claim waiting for evidence is carried until
 // the part that settles it, a change at or below the threshold is one whole step, and the fix loop's next attempt
@@ -153,7 +153,7 @@ func stepAnswer(prompt string) string {
 	switch {
 	case isLastStep(prompt):
 		// No part is left to supply evidence, so a model that is done leaves nothing open (the terminal check of
-		// ADR-0048 stops a review that ends with an open claim).
+		//  stops a review that ends with an open claim).
 	case strings.Contains(prompt, unique(3)):
 		ans["awaiting_evidence"] = []string{sinkClaim}
 	case strings.Contains(prompt, unique(20)) && carried:
@@ -306,7 +306,7 @@ func TestASmallChangeIsOneWholeStep(t *testing.T) {
 	}
 }
 
-// TestTheThresholdIsStrictlyAbove proves the edge of ADR-0048 point 1: a change exactly at the threshold is whole,
+// TestTheThresholdIsStrictlyAbove proves the edge of a change exactly at the threshold is whole,
 // one token less of threshold cuts it.
 func TestTheThresholdIsStrictlyAbove(t *testing.T) {
 	root := boundedFixture(t, 3)
@@ -327,7 +327,7 @@ func TestTheThresholdIsStrictlyAbove(t *testing.T) {
 }
 
 // TestWithTheSwitchOffTheReviewIsWholeAndTheTraceSaysSo proves the unplug (law #41, acceptance 5): the same 24-file
-// change with the engine off is one whole Planner prompt, as before ADR-0048, and the trace names that bounded
+// change with the engine off is one whole Planner prompt, as before , and the trace names that bounded
 // steps did not run and why.
 func TestWithTheSwitchOffTheReviewIsWholeAndTheTraceSaysSo(t *testing.T) {
 	d, gen, events := boundedReview(t, boundedFixture(t, 24), markov.Settings{})
@@ -387,7 +387,7 @@ func (f *fixPrompts) Complete(ctx context.Context, agent, prompt string) (string
 	return f.fixerCounter.Complete(ctx, agent, prompt)
 }
 
-// TestTheFixLoopCarriesOnlyWhatFailedAndWhy proves acceptance 3(d), ADR-0048 point 2: in the fix scenario F2's
+// TestTheFixLoopCarriesOnlyWhatFailedAndWhy proves acceptance 3(d), in the fix scenario F2's
 // first attempt fails; with the engine on, the second attempt's prompt carries that failure and its reason in the
 // carried state and nothing the first attempt proposed (neither what it changed nor its edits). With the engine
 // off the second prompt carries the first attempt whole, and this test fails.

@@ -13,6 +13,9 @@ import (
 // the count of a named finding (rep.Rederived++ for a moved finding makes the two counts equal).
 func TestMovedFindingIsNotCounted(t *testing.T) {
 	in, pub := forgeryInput(t)
+	in.Result.Findings[3].Evidence = []review.Evidence{{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{Bound: true, Rows: [][]string{{"subject", "true"}}}}}
+	in.Result.Findings[3].ProofLevel = review.ProvedByData
+	in.Result.ProofCounts = review.CountProofs(in.Result.Findings)
 	in.Result.Findings[3].Refutation = &review.Refutation{TestCannotRun: true, QueryRows: [][]string{{"zzzz", "no"}}}
 	pack, err := Build(in)
 	if err != nil {

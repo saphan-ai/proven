@@ -16,7 +16,7 @@ func settingFrom(key, value string) func(string) string {
 // PROVEN_TEST_PIDS and PROVEN_TEST_TMP_SIZE are read, and that the values
 // that would lift a bound (root in the uid or the gid, no process limit, no
 // scratch size, or one above the upper bound) are refused by variable name
-// (ADR-0025, ADR-0013). Mutated field: each variable in turn; ignoring one, or
+// . Mutated field: each variable in turn; ignoring one, or
 // its uid or upper-bound guard, turns its "read" or "refused" case red.
 func TestLoadHardeningSettingsAreReadAndRefused(t *testing.T) {
 	cfg, err := Load(settingFrom(EnvUser, "1000:1000"))

@@ -12,7 +12,7 @@ import (
 )
 
 // exportRaw writes the tracked files of rev in target into dst, each as the blob
-// git stores. It is ExportCommit for local mode (ADR-0034). git archive converts
+// git stores. It is ExportCommit for local mode . git archive converts
 // each file on the way out: it runs the filter driver that .gitattributes names
 // and the user's git configuration defines, and a driver is a program Proven did
 // not choose (git-lfs is one, and its smudge connects over HTTPS). Reading the

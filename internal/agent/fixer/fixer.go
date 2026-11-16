@@ -1,14 +1,14 @@
 // Package fixer proposes a fix for a finding that a test proved, and proves the fix with the same test.
 //
-// ADR-0042: the Fixer asks the model for a patch to the change. The test-run adapter runs the
+// the Fixer asks the model for a patch to the change. The test-run adapter runs the
 // proving test on the base, on the change and on the change with the patch applied, and the other
 // tests of the package on the patched change. Only that record, never the model's word, makes a fix
 // "proved". A patch that fails is tried again by the same model with the failure in hand, up to the
 // number of attempts the settings name; after that the review says the fix is not proved and shows
 // no patch. The patch is applied to a scratch copy and is a suggestion: nothing here writes to the change.
-// With the whole-change attempt on (ADR-0050) this loop is not run; the attempt keeps the rule that judges
+// With the whole-change attempt on  this loop is not run; the attempt keeps the rule that judges
 // a test-proved finding, through Judge, and has no retry.
-// With the bounded-steps engine on (ADR-0048 point 2), a new attempt carries only what failed and why, as the
+// With the bounded-steps engine on , a new attempt carries only what failed and why, as the
 // engine's bounded state, instead of every earlier attempt whole.
 package fixer
 
@@ -25,7 +25,7 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
-// DefaultAttempts is the number of attempts when the settings name none (ADR-0013).
+// DefaultAttempts is the number of attempts when the settings name none .
 // The first try counts: two attempts is one try and one retry with the failure in hand.
 const DefaultAttempts = 2
 
@@ -38,7 +38,7 @@ const (
 )
 
 // fixSpec is the JSON the Fixer asks a model to return. It asks for edits and never
-// for a command: Proven builds the commands that run the tests (ADR-0025).
+// for a command: Proven builds the commands that run the tests .
 var fixSpec = answer.Spec{
 	Task: "Write a fix for the change: edits to its files that make the failing test pass again " +
 		"without breaking any other test of the package. " +
@@ -55,7 +55,7 @@ type Options struct {
 	BaseDir   string
 	ChangeDir string
 	Attempts  int
-	// Carry is the bounded-steps engine's carried-state bound, in estimated tokens (ADR-0048 point 2). Zero shows
+	// Carry is the bounded-steps engine's carried-state bound, in estimated tokens . Zero shows
 	// each new attempt every earlier attempt whole, as before; above zero, a new attempt carries only what failed
 	// and why, within that bound, and nothing an earlier attempt proposed.
 	Carry int
@@ -91,7 +91,7 @@ type Attempt struct {
 
 // Prompt asks for a patch for one finding. file is the text of the finding's file in the
 // change, or "" when it could not be read. previous holds the failed attempts so far; each
-// one is shown so the model sees what was tried and why it failed (ADR-0042 point 6).
+// one is shown so the model sees what was tried and why it failed .
 func Prompt(c candidate.Candidate, test *candidate.TestEvidence, file string, previous []Attempt) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "id: %s\ntitle: %s\nmessage: %s\nlocation: %s:%d-%d\n", c.ID, c.Title, c.Message, c.Path, c.StartLine, c.EndLine)
@@ -112,7 +112,7 @@ func Prompt(c candidate.Candidate, test *candidate.TestEvidence, file string, pr
 	return answer.Instruct(fixSpec, b.String())
 }
 
-// CarriedPrompt asks for a patch with the earlier attempts carried as the engine's state (ADR-0048 point 2): the
+// CarriedPrompt asks for a patch with the earlier attempts carried as the engine's state : the
 // finding, the test and the file as in Prompt, then only what failed and why, bounded to carry estimated tokens.
 // What an earlier attempt changed, and its edits, are not carried: the model starts each attempt from the change.
 func CarriedPrompt(c candidate.Candidate, test *candidate.TestEvidence, file string, previous []Attempt, attempts, carry int) string {
@@ -138,7 +138,7 @@ func CarriedPrompt(c candidate.Candidate, test *candidate.TestEvidence, file str
 }
 
 // Propose asks for a patch for every kind of finding the Fixer can fix: a finding proved by a
-// test gets a patch that is proved by that test (ADR-0042 point 2). A finding with no such test
+// test gets a patch that is proved by that test . A finding with no such test
 // is returned as it was, and so is a finding when the generator has no answer to give in sample
 // mode. The returned candidate is the best result even when err is non-nil, so a service that
 // went down after a failed attempt does not hide the attempt.
@@ -159,7 +159,7 @@ func Propose(ctx context.Context, c candidate.Candidate, gen generator.Generator
 	for n := 1; n <= attempts; n++ {
 		var got row
 		prompt := Prompt(c, test, file, tried)
-		// ADR-0048 point 2: with the engine on, a new attempt carries the failures only, through the same engine.
+		// with the engine on, a new attempt carries the failures only, through the same engine.
 		if opts.Carry > 0 {
 			prompt = CarriedPrompt(c, test, file, tried, attempts, opts.Carry)
 		}
@@ -196,7 +196,7 @@ func Propose(ctx context.Context, c candidate.Candidate, gen generator.Generator
 			return c, nil
 		}
 		tried = append(tried, a.Attempt)
-		// ADR-0042 point 2: a problem that did not show again on this run cannot be fixed by
+		// a problem that did not show again on this run cannot be fixed by
 		// another patch, so the review says so at once instead of spending the attempts.
 		if a.Premise {
 			break
@@ -207,7 +207,7 @@ func Propose(ctx context.Context, c candidate.Candidate, gen generator.Generator
 }
 
 // provingTest returns the test that proved the finding, or nil when none did.
-// Only a test that fails on the change and passes on the base is a proof (ADR-0002).
+// Only a test that fails on the change and passes on the base is a proof .
 func provingTest(c candidate.Candidate) *candidate.TestEvidence {
 	for _, e := range c.Evidence {
 		if e.Kind == candidate.KindTest && e.Test != nil && e.Test.FailsOnChange && e.Test.PassesOnBase {
@@ -226,13 +226,13 @@ type result struct {
 
 // prove runs one patch through the test runner and judges the record.
 // The judgement lives here and not in the runner, so a runner can only report what ran
-// and never decide that a fix is proved (ADR-0042 point 2).
+// and never decide that a fix is proved .
 func prove(ctx context.Context, got row, c candidate.Candidate, test *candidate.TestEvidence, run testrun.FixRunner, opts Options, n int) result {
 	a := Attempt{What: clip(got.What, maxProseBytes)}
 	for _, e := range got.Edits {
 		a.Edits = append(a.Edits, candidate.FixEdit{Path: e.Path, Old: e.Old, New: e.New})
 	}
-	// ADR-0025: the answer is a patch and nothing else. A command in it is refused whole.
+	// the answer is a patch and nothing else. A command in it is refused whole.
 	if strings.TrimSpace(got.Command) != "" {
 		a.Reason = "the patch was refused: " + testrun.ReasonModelCommand
 		return result{Attempt: a}
@@ -261,8 +261,8 @@ func prove(ctx context.Context, got row, c candidate.Candidate, test *candidate.
 	return result{Attempt: a, ok: ok}
 }
 
-// Judge decides the runs of one patched change by the rule of ADR-0042 points 2 and 3, which
-// the whole-change attempt keeps for a finding proved by a test (ADR-0050 point 2): the proving
+// Judge decides the runs of one patched change by the rule of  points 2 and 3, which
+// the whole-change attempt keeps for a finding proved by a test : the proving
 // test passes on the patched change and the package's other tests still pass. It returns the
 // reason the runs do not prove the fix, or "" when they do. No model is consulted.
 func Judge(runs []candidate.FixRun) (ok bool, reason string) {
@@ -273,7 +273,7 @@ func Judge(runs []candidate.FixRun) (ok bool, reason string) {
 
 // judge decides a record. The fix is proved only when the proving test passes on the base,
 // fails on the change and passes on the patched change, and the package's other tests pass on
-// the patched change (ADR-0042 points 2 and 3). It fills the reason and the failing run otherwise.
+// the patched change . It fills the reason and the failing run otherwise.
 func judge(a *Attempt) bool {
 	by := map[string]*candidate.FixRun{}
 	for i := range a.Runs {
@@ -305,7 +305,7 @@ func judge(a *Attempt) bool {
 	return true
 }
 
-// notProved builds the record of a fix that was not proved (ADR-0042 point 3): no patch is
+// notProved builds the record of a fix that was not proved : no patch is
 // kept, because the review does not show a patch as a fix unless it was proved. The last
 // attempt's runs stay, so a reader can see what failed. why, when given, replaces the last reason.
 func notProved(tried []Attempt, attempts int, why string) *candidate.Fix {

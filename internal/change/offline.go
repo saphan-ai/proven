@@ -10,7 +10,7 @@ import (
 	"github.com/saphan-ai/proven/internal/childenv"
 )
 
-// offline is set when PROVEN_NETWORK=local: git must not reach a remote (ADR-0034).
+// offline is set when PROVEN_NETWORK=local: git must not reach a remote .
 var offline atomic.Bool
 
 // transports are the git transports a configuration file can allow by name. The
@@ -26,7 +26,7 @@ func UseOffline(on bool) (previous bool) {
 }
 
 // GitCommand builds a git command under this policy. The environment is the minimal one of
-// ADR-0025: PATH and HOME, never Proven's own, so a key cannot reach git.
+// PATH and HOME, never Proven's own, so a key cannot reach git.
 // Offline, it also cannot fetch: GIT_NO_LAZY_FETCH stops the fetch of an
 // object a partial clone left out, protocol.allow=never and one
 // protocol.<name>.allow=never per transport refuse every transport if a fetch
@@ -110,7 +110,7 @@ func ignoreSubmodules(args []string) []string {
 // refuseInfoAttributes refuses a clone whose .git/info/attributes sets any
 // attribute. git reads that file whatever the switches above say, and a line in
 // it can name a filter driver, a program the clone's configuration chooses and
-// Proven does not judge (ADR-0034). A file that is absent, or holds only blank
+// Proven does not judge . A file that is absent, or holds only blank
 // lines and comments, sets nothing and is not refused.
 func (p Policy) refuseInfoAttributes(dir string) error {
 	out, err := p.GitCommand("-C", dir, "rev-parse", "--path-format=absolute", "--git-path", "info/attributes").Output()

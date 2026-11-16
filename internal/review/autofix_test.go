@@ -43,7 +43,7 @@ func autofixFinding(t *testing.T, a *Autofix, id string) AutofixFinding {
 	return AutofixFinding{}
 }
 
-// TestAutofixScenarioEndsFixedAutomatically proves ADR-0050 points 1 to 3 end to end in sample mode: one
+// TestAutofixScenarioEndsFixedAutomatically proves  points 1 to 3 end to end in sample mode: one
 // patch for both proved findings, each judged by its own test run again on the patched change and the tests
 // of its package, ends "fixed automatically, waiting for a person" with the patch as a diff to suggest.
 func TestAutofixScenarioEndsFixedAutomatically(t *testing.T) {
@@ -78,7 +78,7 @@ func TestAutofixScenarioEndsFixedAutomatically(t *testing.T) {
 	if a.What == "" || a.Why == "" {
 		t.Fatalf("the explanation was lost: %#v", a)
 	}
-	// ADR-0050 point 4: the patch is a suggestion. Proven wrote nothing to the reviewed trees.
+	// the patch is a suggestion. Proven wrote nothing to the reviewed trees.
 	for _, side := range []string{"base", "change"} {
 		b, err := os.ReadFile(filepath.Join(moduleRoot(t), "testdata", "fixture", "autofix-fixed", side, "billing", "discount.go"))
 		if err != nil || (side == "change" && !strings.Contains(string(b), "- cents*percent/100\n")) {
@@ -87,7 +87,7 @@ func TestAutofixScenarioEndsFixedAutomatically(t *testing.T) {
 	}
 }
 
-// TestAutofixScenarioEndsRejected proves ADR-0050 point 3 end to end: the same two findings, but the patch
+// TestAutofixScenarioEndsRejected proves  point 3 end to end: the same two findings, but the patch
 // returns 500 for every order, so F2's own test passes again and the tests of its package break. F1 closes,
 // F2 stays open with the failing run and its exit code, and the verdict is "rejected", not a suggestion.
 func TestAutofixScenarioEndsRejected(t *testing.T) {
@@ -113,7 +113,7 @@ func TestAutofixScenarioEndsRejected(t *testing.T) {
 	}
 }
 
-// TestAutofixOffMakesNoAttempt proves ADR-0050 point 6: with no setting the review makes no attempt, even
+// TestAutofixOffMakesNoAttempt proves with no setting the review makes no attempt, even
 // on a change that has proved findings and a recorded answer for the attempt, and the findings are the same
 // as with it on.
 func TestAutofixOffMakesNoAttempt(t *testing.T) {
@@ -125,7 +125,7 @@ func TestAutofixOffMakesNoAttempt(t *testing.T) {
 	if len(on.Findings) != len(off.Findings) || len(off.Findings) != 2 {
 		t.Fatalf("findings: on %d off %d", len(on.Findings), len(off.Findings))
 	}
-	// With the attempt on, it is the one loop: the per-finding suggestions of ADR-0042 are not made.
+	// With the attempt on, it is the one loop: the per-finding suggestions of  are not made.
 	for _, f := range on.Findings {
 		if f.Fix != nil {
 			t.Fatalf("%s carries a per-finding fix beside the whole-change attempt", f.ID)
@@ -142,7 +142,7 @@ func TestAutofixWithNoProvedFindingMakesNoAttempt(t *testing.T) {
 	}
 }
 
-// TestAutofixSettings proves ADR-0050 point 6: autofix is off by default, takes on or off; the generator is
+// TestAutofixSettings proves autofix is off by default, takes on or off; the generator is
 // the review's own unless the second one is named; the time limit is a duration above zero. Each bad value is
 // refused by its key with the allowed values.
 func TestAutofixSettings(t *testing.T) {
@@ -178,7 +178,7 @@ func TestAutofixSettingsAreDocumented(t *testing.T) {
 	}
 }
 
-// TestASecondGeneratorThatIsNotConnectedIsNamedNotGuessed proves ADR-0050 point 6: naming the second
+// TestASecondGeneratorThatIsNotConnectedIsNamedNotGuessed proves naming the second
 // reviewer's generator for the patch with none connected makes no attempt and names the service as failed,
 // rather than falling back to the review's own generator without saying so.
 func TestASecondGeneratorThatIsNotConnectedIsNamedNotGuessed(t *testing.T) {

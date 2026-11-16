@@ -7,7 +7,7 @@ import (
 )
 
 // TestCheckAddressJudgesTheForgeByTheNetworkMode proves the command the action asks before reviewdog posts
-// (ADR-0034): in local mode an address outside the organisation's network, or a name that reviewdog would
+// : in local mode an address outside the organisation's network, or a name that reviewdog would
 // resolve with its own resolver, is refused with exit 7 and names the setting; loopback, private and the
 // allow list pass; in public mode every address passes.
 // Mutated field: Policy.CheckProgramAddress (return nil and every refusal row turns red).

@@ -27,7 +27,7 @@ func selectList(sql string) []string {
 
 // TestBuildFormsFillsBothForms proves every template carries the sql text
 // Build returns and a mango form whose fields are the columns of that sql
-// text, in the same order (ADR-0047). The mutated field is the field list of
+// text, in the same order . The mutated field is the field list of
 // one template: reordering it makes the comparison fail.
 func TestBuildFormsFillsBothForms(t *testing.T) {
 	for _, req := range formRequests {
@@ -80,7 +80,7 @@ func TestMangoSelectorHoldsTheValuesTheSQLFormMatches(t *testing.T) {
 
 // TestBuildFormsRefusesWhatBuildRefuses proves a refused request fills no
 // form, and a value that is outside its format reaches neither language
-// (ADR-0032, ADR-0047). The mutated fields are the template name, a CVE id
+// . The mutated fields are the template name, a CVE id
 // that carries a quote and a brace, and a relation name that is not plain.
 func TestBuildFormsRefusesWhatBuildRefuses(t *testing.T) {
 	forms, err := BuildForms(Request{Template: "not-a-template"}, Relations{})

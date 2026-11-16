@@ -16,7 +16,7 @@ import (
 
 // TestLocalMissingTableIsADownSource proves a query on an empty local store
 // is a named down source and not a plain error, so a review degrades and
-// names `local` instead of ending (ADR-0047, ADR-0005). The mutated field is
+// names `local` instead of ending . The mutated field is
 // the table: the store holds none. Negative control: removing the down
 // conversion in the file's query makes service.As fail.
 func TestLocalMissingTableIsADownSource(t *testing.T) {
@@ -39,7 +39,7 @@ func TestLocalMissingTableIsADownSource(t *testing.T) {
 
 // TestStoresAgreeOnAMissingTable proves a table the source never registered is
 // a named down source on every store, never an empty answer and never an
-// error that ends the review (ADR-0047). Zetaris is a recorded server that
+// error that ends the review . Zetaris is a recorded server that
 // answers 404 for the missing view, and the down source is named zetaris.
 // CouchDB is a recorded server with no database, and the reason starts with
 // "no table", as it does on the local store. Every template in the catalogue

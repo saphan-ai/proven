@@ -7,7 +7,7 @@ import (
 )
 
 // Within reports whether file resolves to a place inside dir, with links
-// resolved on both sides. ADR-0047: the local file never lives in the tree
+// resolved on both sides. the local file never lives in the tree
 // under review, so a link from outside into the tree is caught as well as a
 // plain path. The file need not exist yet: the deepest existing parent is
 // resolved and the rest is appended.

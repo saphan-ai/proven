@@ -3,7 +3,7 @@ package guardrail
 import "context"
 
 // Absent is a guardrail that refuses every check and does not dial.
-// ADR-0005 point 5: an empty key is not mode off. Wrap writes one trace line
+// an empty key is not mode off. Wrap writes one trace line
 // per refused call, so each model call that was attempted is in the trace.
 type Absent struct {
 	Reason string

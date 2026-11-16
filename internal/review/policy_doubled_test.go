@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// The tests of the third round of ADR-0036: a repository cannot weaken the policy in any combination,
+// The tests of the third round of a repository cannot weaken the policy in any combination,
 // doubled review included; a policy file is refused anywhere in the repository under review; the two
 // default reads of proven.yaml and the case of no file are guarded.
 

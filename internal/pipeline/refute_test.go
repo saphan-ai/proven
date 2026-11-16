@@ -14,7 +14,7 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
-// ADR-0006: a refuting test the Skeptic proposes that passes on the change drops
+// a refuting test the Skeptic proposes that passes on the change drops
 // the finding, and the trace says why. Other findings are not touched.
 func TestRefutationThatPassesOnTheChangeDropsTheFinding(t *testing.T) {
 	body := `{"refuted":true,"reason":"the test passes","path":"billing/discount_test.go","name":"TestRefute","sql":""}`
@@ -37,7 +37,7 @@ func TestRefutationThatPassesOnTheChangeDropsTheFinding(t *testing.T) {
 	}
 }
 
-// ADR-0006: a refutation with no test and no query is only an opinion, so the
+// a refutation with no test and no query is only an opinion, so the
 // finding is kept.
 func TestRefutationWithNoEvidenceLeavesTheFinding(t *testing.T) {
 	body := `{"refuted":true,"reason":"the model disagrees","path":"","name":"","command":"","sql":""}`
@@ -54,7 +54,8 @@ func TestRefutationWithNoEvidenceLeavesTheFinding(t *testing.T) {
 	}
 }
 
-// ADR-0032 points 1 and 2: a Skeptic answer that carries SQL text, or a
+//	points 1 and 2: a Skeptic answer that carries SQL text, or a
+//
 // template value outside its format, runs no query, and the trace says so with
 // the named reason and not with the model's text. The finding stays, since a
 // refusal is no refutation. Mutated field: the query part of the answer.
@@ -85,7 +86,7 @@ func TestRefutingQueryThatIsNotATemplateIsRefused(t *testing.T) {
 	}
 }
 
-// ADR-0032 point 3: a Skeptic answer with a good template and values runs the
+// a Skeptic answer with a good template and values runs the
 // query Proven builds from it, and the review goes on. Mutated field: the
 // query part of the answer.
 func TestRefutingQueryFromATemplateRuns(t *testing.T) {
@@ -117,7 +118,7 @@ func TestRefutingTestThatCannotRunIsUnresolved(t *testing.T) {
 	}
 }
 
-// ADR-0006: when the Skeptic and the finder are of the same model family, the
+// when the Skeptic and the finder are of the same model family, the
 // trace says so by name, and the review still runs.
 func TestSameFamilyIsStatedByName(t *testing.T) {
 	model := generator.DefaultSkepticModel

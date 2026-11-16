@@ -13,7 +13,7 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// These tests answer the review of ADR-0048's last step: a claim still awaiting evidence when no part is left can
+// These tests answer the review of 's last step: a claim still awaiting evidence when no part is left can
 // never be settled, so the bounded review must not return it as a clean success.
 
 // lastClaim is the claim the scripted model leaves open at the last file.
@@ -66,7 +66,7 @@ func reviewTwoFiles(t *testing.T, gen *terminalPlanner) (error, *terminalPlanner
 	return rerr, gen, texts
 }
 
-// TestAClaimStillOpenAfterTheLastStepStopsTheReviewByName proves the property of ADR-0048's last step: when the
+// TestAClaimStillOpenAfterTheLastStepStopsTheReviewByName proves the property of 's last step: when the
 // final answer holds a claim awaiting evidence and no part is left, the review ends with *markov.OpenClaimsError,
 // the error says the review is incomplete and why, and the trace says so too. Before the fix this ended with no
 // error and no risks. Unplug control: with the terminal check removed from planner.PlanBounded, the review ends

@@ -15,7 +15,9 @@ import (
 // Environment variables of the live Zetaris adapter. The set is closed.
 // An empty row limit or timeout means the default. The URL, the key and the
 // organisation id have no default.
-// ADR-0013 and ADR-0015, point 3: every value of the adapter is a setting,
+//
+//	and , point 3: every value of the adapter is a setting,
+//
 // validated when it loads. The key comes from the environment only.
 const (
 	EnvRESTURL  = "ZETARIS_REST_URL"
@@ -79,18 +81,18 @@ type Settings struct {
 	OrgID    string
 	RowLimit int
 	Timeout  time.Duration
-	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	// Network is the air-gapped policy of . Nil means public.
 	Network *network.Policy
 }
 
 // Load reads the live Zetaris settings. A wrong value is refused before a review runs.
-// ADR-0013: a value that is set wrongly is refused by name. Only an empty
+// a value that is set wrongly is refused by name. Only an empty
 // optional value takes its default.
 func Load(env func(string) string) (Settings, error) {
 	if env == nil {
 		env = func(string) string { return "" }
 	}
-	// ADR-0013 point 4a: an empty URL, key or organisation id means Zetaris is
+	//  point 4a: an empty URL, key or organisation id means Zetaris is
 	// down, not that the review is refused. A value that is set but wrong is
 	// still refused. The first empty one is named after every set value has
 	// been checked, so a bad value is never hidden behind an empty one.
@@ -108,7 +110,7 @@ func Load(env func(string) string) (Settings, error) {
 		if err != nil {
 			return Settings{}, err
 		}
-		// ADR-0034: in the air-gapped mode a hosted address is refused here, by name.
+		// in the air-gapped mode a hosted address is refused here, by name.
 		if err := policy.CheckURL(EnvRESTURL, base); err != nil {
 			return Settings{}, fromNetwork(err)
 		}
@@ -122,14 +124,14 @@ func Load(env func(string) string) (Settings, error) {
 	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 || service.TooShortSecret(key) {
 		return Settings{}, refuse(EnvAPIKey, "", "the live query adapter needs an API key", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
-	// ADR-0023, point 6: the organisation id is the numeric id Zetaris issues.
+	// , point 6: the organisation id is the numeric id Zetaris issues.
 	org := strings.TrimSpace(env(EnvOrgID))
 	if org == "" {
 		if missing == "" {
 			missing = EnvOrgID
 		}
 	} else if !orgID(org) {
-		// ADR-0013 point 4: the id identifies Proven's account, so a refusal names the variable and
+		// the id identifies Proven's account, so a refusal names the variable and
 		// the rule and says the value is withheld, as it does for the key.
 		return Settings{}, refuse(EnvOrgID, "", "not an organisation id; the value is not printed", "a non-empty string of digits, at most 18 characters")
 	}
@@ -151,7 +153,7 @@ func Load(env func(string) string) (Settings, error) {
 		}
 		timeout = d
 	}
-	// ADR-0013 point 4a: an empty key means Zetaris is down. The review goes
+	//  point 4a: an empty key means Zetaris is down. The review goes
 	// on and names it. The reason names the variable and not the value.
 	if missing == "" && strings.TrimSpace(key) == "" {
 		missing = EnvAPIKey

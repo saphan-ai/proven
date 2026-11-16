@@ -1,5 +1,5 @@
 // Package composerver compares a subset of Composer versions for the
-// Packagist dependency check (ADR-0038).
+// Packagist dependency check .
 //
 // The subset is a numbered version, not a constraint and not a branch name.
 // One to four numeric components compare, and a missing component equals

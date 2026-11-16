@@ -231,7 +231,7 @@ func (s *Store) SleepExecute(plan *SleepPreview) (SleepReport, error) {
 	// Every change is made in memory and its ledger line collected; commit then
 	// writes the state file once and the lines in one write, so a failure undoes
 	// the whole cycle and the ledger never holds a line for a change the state
-	// file does not (ADR-0018 point 3: no half-applied change). The backup file
+	// file does not . The backup file
 	// written above stays on a failed cycle: it is a snapshot, not state.
 	var entries []auditEntry
 	rep := SleepReport{BackupID: backupID, ActionLog: []string{"backup " + backupID + " created"}}

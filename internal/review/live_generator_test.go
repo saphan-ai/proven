@@ -139,7 +139,7 @@ func TestAdapterTimeoutIsRefusedOnOpen(t *testing.T) {
 }
 
 // TestLiveReviewCarriesTheRoutedModel proves that a live review reports the model and receipt the
-// provider's stream named (ADR-0019), not the model it asked for.
+// provider's stream named , not the model it asked for.
 func TestLiveReviewCarriesTheRoutedModel(t *testing.T) {
 	// An empty PATH finds no container runtime, so the Prover is off and only the generator is measured.
 	t.Setenv("PATH", t.TempDir())

@@ -9,7 +9,7 @@ import (
 )
 
 // TestUnknownFormatHasNoWriter proves a format outside text, json and sarif
-// still refuses. ADR-0020 §1 names those three. The mutated field is the
+// still refuses.  §1 names those three. The mutated field is the
 // format name: "xml" must fail, and the error must name it.
 func TestUnknownFormatHasNoWriter(t *testing.T) {
 	if _, err := FormatterFor("xml"); err == nil || !strings.Contains(err.Error(), "xml") {

@@ -6,7 +6,7 @@ import (
 )
 
 // ByID returns the adapter that produces a tool's evidence, by the name the evidence carries.
-// Only a tool whose evidence is a result the change introduced has one here (ADR-0040):
+// Only a tool whose evidence is a result the change introduced has one here :
 // govulncheck labels findings and is not evidence of its own. The second result is false for
 // any other name, and a caller must then say the tool cannot be run again, never guess a command.
 func ByID(id string) (Adapter, bool) {
@@ -16,7 +16,7 @@ func ByID(id string) (Adapter, bool) {
 	return nil, false
 }
 
-// Rerunning is one run of a tool's command in one checkout (ADR-0050 point 2). Answered is false
+// Rerunning is one run of a tool's command in one checkout . Answered is false
 // when the tool did not answer, and Reason then names why; Present is true when the output
 // still carries the result. Command is the command Proven built, never one a model wrote.
 type Rerunning struct {

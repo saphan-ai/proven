@@ -37,7 +37,7 @@ names() { # section file: the keys one indent under a top-level section
   ' "$2" | sort | tr '\n' ' '
 }
 check "action.yml inputs" \
-  "baseline-commit comment config exclude github-token include output-format sample-mode severity strict target timeout " \
+  "baseline-commit comment config exclude github-token include output-format require-complete sample-mode severity strict target timeout " \
   "$(names inputs "$root/action.yml")"
 check "action.yml outputs" \
   "findings-count json-file results-file sarif-file unresolved-count " \

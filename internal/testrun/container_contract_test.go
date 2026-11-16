@@ -44,7 +44,7 @@ func TestDial(t *testing.T) {
 // contractW1bDialModule is the module file the dial test needs to run with go test.
 const contractW1bDialModule = "module dial\n\ngo 1.22\n"
 
-// TestRunLineTurnsTheNetworkOff proves the run line turns the network off (ADR-0025 point 2).
+// TestRunLineTurnsTheNetworkOff proves the run line turns the network off .
 func TestRunLineTurnsTheNetworkOff(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
@@ -57,7 +57,7 @@ func TestRunLineTurnsTheNetworkOff(t *testing.T) {
 
 // TestNoProvenEnvironmentReachesTheContainer proves no environment variable of Proven reaches the
 // container, even when one holds a secret; only the two fixed non-secret
-// values pass (ADR-0025 point 3).
+// values pass .
 func TestNoProvenEnvironmentReachesTheContainer(t *testing.T) {
 	t.Setenv("METERLESS_RUNTIME_TOKEN", contractW1bSecret)
 	runtime := contractW1bRuntime(t, "exit 0\n")
@@ -73,7 +73,7 @@ func TestNoProvenEnvironmentReachesTheContainer(t *testing.T) {
 }
 
 // TestContainerMountsOnlyTheOneCheckout proves the container mounts the one checkout and no other
-// host path (ADR-0025 point 4).
+// host path .
 func TestContainerMountsOnlyTheOneCheckout(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	dir := t.TempDir()
@@ -89,7 +89,7 @@ func TestContainerMountsOnlyTheOneCheckout(t *testing.T) {
 }
 
 // TestContainerRemovedOnExitWithCPUAndMemoryLimits proves the container is removed on exit and carries the
-// configured CPU and memory limits (ADR-0025 point 5).
+// configured CPU and memory limits .
 func TestContainerRemovedOnExitWithCPUAndMemoryLimits(t *testing.T) {
 	runtime := contractW1bRuntime(t, "exit 0\n")
 	cfg := testrun.DefaultContainerConfig()
@@ -114,7 +114,7 @@ func TestContainerRemovedOnExitWithCPUAndMemoryLimits(t *testing.T) {
 }
 
 // TestMissingRuntimeTurnsTheProverOff proves a missing runtime turns the Prover off and runs
-// nothing on the host (ADR-0025 point 6).
+// nothing on the host .
 func TestMissingRuntimeTurnsTheProverOff(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
 	runtime := contractW1bRuntime(t, "echo ran > "+contractW1bShQuote(t, marker)+"\nexit 0\n")
@@ -185,7 +185,7 @@ func TestHungRuntimeIsNotProof(t *testing.T) {
 }
 
 // TestEmptyImageAndZeroTimeLimitAreRefused proves an empty image and a zero time limit are refused
-// by name, and the defaults carry both (ADR-0013).
+// by name, and the defaults carry both .
 func TestEmptyImageAndZeroTimeLimitAreRefused(t *testing.T) {
 	noImage := testrun.DefaultContainerConfig()
 	noImage.Image = ""
@@ -351,7 +351,7 @@ func contractW1bExitForCheckouts(t *testing.T, base, change string) string {
 		"  exit 1\n" +
 		"fi\n" +
 		"if [ \"$hit_base\" -eq 1 ]; then\n" +
-		// A pass needs the test's pass event, not only exit code 0 (ADR-0042).
+		// A pass needs the test's pass event, not only exit code 0 .
 		"  printf '%s\\n' '{\"Action\":\"pass\",\"Package\":\"p\",\"Test\":\"TestProved\"}'\n" +
 		"  exit 0\n" +
 		"fi\n" +
@@ -424,7 +424,7 @@ func contractW1bNetworkNone(argv []string) bool {
 // contractW1bEnvLeak returns the first argv element that passes environment
 // to the container or carries the planted secret.
 func contractW1bEnvLeak(argv []string) string {
-	// The two fixed values of ADR-0025 are the only environment the container
+	// The two fixed values of  are the only environment the container
 	// may receive; any other -e value is a leak.
 	fixed := map[string]bool{"HOME=/tmp": true, "GOCACHE=/tmp/go-build": true}
 	for i, arg := range argv {
@@ -517,7 +517,7 @@ func contractW1bOtherHostPaths(argv []string, allowed, runtime string) []string 
 	}
 	for i, arg := range argv {
 		// The value of --tmpfs names a path inside the container, where a
-		// memory-backed scratch is made; it is not a host path (ADR-0025).
+		// memory-backed scratch is made; it is not a host path .
 		// An -e value is a variable for the container, not a host path.
 		if i > 0 && (argv[i-1] == "--tmpfs" || argv[i-1] == "-e") {
 			continue

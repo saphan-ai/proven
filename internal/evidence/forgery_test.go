@@ -1,6 +1,6 @@
 package evidence
 
-// The forgery bench (ADR-0035). It takes a sample pack, changes one value at a time, and counts
+// The forgery bench . It takes a sample pack, changes one value at a time, and counts
 // what Verify refuses.
 //
 //	(a) the archive is left as it is: every change must be refused by the hash or the signature check;

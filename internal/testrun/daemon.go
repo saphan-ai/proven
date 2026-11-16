@@ -28,7 +28,7 @@ const (
 const maxDaemonFile = 1 << 20
 
 // checkDaemon refuses, in local mode, a daemon address that is not a local socket
-// or a host on the organisation's network (ADR-0034). The address comes from
+// or a host on the organisation's network . The address comes from
 // DOCKER_HOST, CONTAINER_HOST, or the docker context in force. The dial check of
 // the HTTP clients never sees this connection, so the load check is the guard.
 func checkDaemon(policy *network.Policy, env func(string) string) error {

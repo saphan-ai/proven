@@ -54,7 +54,7 @@ func run(label, result string, code int, output string) testrun.FixRun {
 	return testrun.FixRun{Label: label, Command: cmd, Result: result, ExitCode: code, Output: output}
 }
 
-// good is the record of a proved fix: every run ends the way ADR-0042 point 2 asks.
+// good is the record of a proved fix: every run ends the way  point 2 asks.
 func good() testrun.FixOutcome {
 	return testrun.FixOutcome{Runs: []testrun.FixRun{
 		run(testrun.RunBase, testrun.ResultPassed, 0, "ok"),
@@ -89,7 +89,7 @@ func finding() candidate.Candidate {
 	}
 }
 
-// TestAProvedPatchIsShownAsAFix proves ADR-0042 point 2: when every run ends the way the
+// TestAProvedPatchIsShownAsAFix proves when every run ends the way the
 // proof asks, the fix is proved, keeps its edits and its runs, and the runner got the
 // proving test's own path, name and the edits the model wrote.
 func TestAProvedPatchIsShownAsAFix(t *testing.T) {
@@ -115,7 +115,7 @@ func TestAProvedPatchIsShownAsAFix(t *testing.T) {
 	}
 }
 
-// TestAFailedPatchIsRetriedWithTheFailureInHand proves ADR-0042 point 6: the second prompt
+// TestAFailedPatchIsRetriedWithTheFailureInHand proves the second prompt
 // carries the first patch and the output of the run that failed, and a second patch that
 // proves the fix is shown with two attempts.
 func TestAFailedPatchIsRetriedWithTheFailureInHand(t *testing.T) {
@@ -141,7 +141,7 @@ func TestAFailedPatchIsRetriedWithTheFailureInHand(t *testing.T) {
 	}
 }
 
-// TestAPatchThatNeverPassesIsNotShownAsAFix proves ADR-0042 points 3 and 6: after the attempts the
+// TestAPatchThatNeverPassesIsNotShownAsAFix proves  points 3 and 6: after the attempts the
 // settings allow, the review says the fix is not proved and keeps no patch, and the last
 // attempt's runs stay as the record of what failed.
 func TestAPatchThatNeverPassesIsNotShownAsAFix(t *testing.T) {
@@ -162,7 +162,7 @@ func TestAPatchThatNeverPassesIsNotShownAsAFix(t *testing.T) {
 	}
 }
 
-// TestAPatchThatBreaksAnotherTestIsNotShownAsAFix proves ADR-0042 point 3 and the negative control
+// TestAPatchThatBreaksAnotherTestIsNotShownAsAFix proves  point 3 and the negative control
 // of law #27: the only difference between the proved and the unproved record is the Result of
 // the package run, and that one field turns the fix from proved to not proved.
 func TestAPatchThatBreaksAnotherTestIsNotShownAsAFix(t *testing.T) {
@@ -228,7 +228,7 @@ func TestAProblemThatDoesNotShowAgainIsNotRetried(t *testing.T) {
 	}
 }
 
-// TestTheAttemptsSettingBoundsTheModelCalls proves ADR-0042 point 6: the number of attempts is the
+// TestTheAttemptsSettingBoundsTheModelCalls proves the number of attempts is the
 // setting's, and zero means the default of two.
 func TestTheAttemptsSettingBoundsTheModelCalls(t *testing.T) {
 	still := withRun(good(), run(testrun.RunPatched, testrun.ResultFailed, 1, "FAIL"))
@@ -267,7 +267,7 @@ func TestAFindingWithoutAProvingTestGetsNoFix(t *testing.T) {
 	}
 }
 
-// TestAnAnswerWithACommandIsRefusedWhole proves ADR-0025 holds for a fix: a model's command is never
+// TestAnAnswerWithACommandIsRefusedWhole proves  holds for a fix: a model's command is never
 // handed to the runner, and the attempt counts as failed with the refusal as its reason.
 func TestAnAnswerWithACommandIsRefusedWhole(t *testing.T) {
 	m := &scriptedModel{replies: []string{`{"what":"x","why":"y","command":"rm -rf /","edits":[{"path":"billing/price.go","old":"a","new":"b"}]}`}}
@@ -323,7 +323,7 @@ func TestADownRunnerIsReturnedAndLeavesTheFindingAsItWas(t *testing.T) {
 	}
 }
 
-// TestARunThatShowedNoPassIsNotAProvedFix proves the property of ADR-0042 that a fix is shown as
+// TestARunThatShowedNoPassIsNotAProvedFix proves the property of  that a fix is shown as
 // proved only when the proving test ran and passed on every run, end to end through the
 // sample runner: runs recorded as passed (exit code 0) whose output has no pass line do not
 // prove the fix. The mutated field is the output of the recorded runs, and nothing else.

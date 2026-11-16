@@ -53,7 +53,7 @@ func TestNilQueryIsANamedRefusal(t *testing.T) {
 	}
 }
 
-// TestInvestigatorRunsTheQueryProvenBuilds proves ADR-0032 point 3: the model
+// TestInvestigatorRunsTheQueryProvenBuilds proves the model
 // gives a template and a value, and the SQL that runs, and is kept as the
 // evidence, is the text Proven built from them with the review's view name.
 func TestInvestigatorRunsTheQueryProvenBuilds(t *testing.T) {
@@ -73,7 +73,7 @@ func TestInvestigatorRunsTheQueryProvenBuilds(t *testing.T) {
 	}
 }
 
-// TestInvestigatorSendsNothingForAnAnswerThatIsNotATemplate proves ADR-0032
+// TestInvestigatorSendsNothingForAnAnswerThatIsNotATemplate proves
 // points 1 and 2: an answer that carries SQL text, a template that is not on
 // the list, and a value outside its format each send no query, add no
 // evidence, and leave a QueryNote that names the reason and does not repeat

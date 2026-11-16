@@ -7,7 +7,7 @@ import "github.com/saphan-ai/proven/internal/source"
 var builtinErr error
 
 func init() {
-	// ADR-0046: the registry lives in source, and the query text lives here,
+	// the registry lives in source, and the query text lives here,
 	// next to the literal check. source cannot import this package, because
 	// Catalogue reads the registry. The registration therefore happens here.
 	builtinErr = source.SetBuiltins([]source.Adapter{
@@ -21,7 +21,7 @@ func init() {
 	})
 }
 
-// osvAdapter is the OSV source (ADR-0046). It owns both OSV templates.
+// osvAdapter is the OSV source . It owns both OSV templates.
 // The package table is the load's table. The advisory template reads the
 // id view, which is a relation name, not a second source.
 type osvAdapter struct{}
@@ -73,14 +73,14 @@ func (osvAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	// package. They are not yet a finding: the dependency check compares
 	// the change's version, and a version outside every range is a trace
 	// line. This rule does not see the version, so that check does not
-	// use the rule as its finding decision (ADR-0046).
+	// use the rule as its finding decision .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}
 	return copyEvidence(in), true
 }
 
-// kevAdapter is the CISA known-exploited source (ADR-0046).
+// kevAdapter is the CISA known-exploited source .
 type kevAdapter struct{}
 
 func (kevAdapter) ID() string { return "kev" }
@@ -110,14 +110,14 @@ func (kevAdapter) Templates() []source.Spec {
 
 func (kevAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	// A row means the CVE is on the known-exploited list. No row means it
-	// is not on the list, and a missing row is not evidence (ADR-0046).
+	// is not on the list, and a missing row is not evidence .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}
 	return copyEvidence(in), true
 }
 
-// epssAdapter is the FIRST EPSS source (ADR-0046).
+// epssAdapter is the FIRST EPSS source .
 type epssAdapter struct{}
 
 func (epssAdapter) ID() string { return "epss" }
@@ -148,7 +148,7 @@ func (epssAdapter) Templates() []source.Spec {
 func (epssAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	// A row is a score, and the score is evidence. No row means the view
 	// has no score. A missing score says nothing about the CVE, so it is
-	// not evidence (ADR-0046).
+	// not evidence .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}

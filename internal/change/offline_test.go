@@ -27,7 +27,7 @@ func partialClone(t *testing.T) string {
 	return clone
 }
 
-// TestOfflineGitNamesAMissingObjectInsteadOfFetching proves ADR-0034 for git: in a partial clone the
+// TestOfflineGitNamesAMissingObjectInsteadOfFetching proves  for git: in a partial clone the
 // blob of f.txt is on the origin only. Online, git fetches it. Offline, the read fails by name and
 // the setting that caused it, and the blob is still not in the clone afterwards.
 // Mutated field: the guard of GitCommand; with it removed the offline read returns "hello".
@@ -80,7 +80,7 @@ func TestOfflineGitCommandCarriesBothSwitches(t *testing.T) {
 	}
 }
 
-// TestOfflineGitRefusesATransportTheRepositoryConfigAllows proves ADR-0034 for git when a configuration
+// TestOfflineGitRefusesATransportTheRepositoryConfigAllows proves  for git when a configuration
 // file Proven does not own (the repository's .git/config or the user's ~/.gitconfig, which git reads
 // through HOME) sets a per-protocol policy. protocol.<name>.allow wins over protocol.allow, so
 // "-c protocol.allow=never" alone does not close that transport. Every offline git command also

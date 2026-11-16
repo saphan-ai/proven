@@ -1,7 +1,7 @@
 # The organisation policy
 
 One file sets the floor for every repository's `proven.yaml`, and a known risk is accepted only by an exception with an
-owner and an expiry date ([ADR-0036](adr/ADR-0036-an-organisation-policy-and-exceptions-that-expire.md)).
+owner and an expiry date.
 
 ## The setting
 

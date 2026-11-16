@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// The tests of ADR-0036 through the command line: PROVEN_POLICY names the policy, an accepted finding is
+// The tests of  through the command line: PROVEN_POLICY names the policy, an accepted finding is
 // printed with its owner and does not make --error fail, an expired exception counts again and is
 // named, and a weaker proven.yaml exits 7.
 

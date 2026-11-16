@@ -48,8 +48,6 @@ pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P21 in `PROVENANCE.md`); a
-  later round of the same work is pair P25.
 - reviewer families, as recorded: P21 — `claude-opus-5` (through Claude Code) and `gpt-5.6-sol` (through Codex); P25 —
   `claude-opus-5` (through Claude Code) and `glm-5.2` (through Qwen Code).
 - the original code was Go; it is not published. Resolution status: P21 was settled by the next round, which carried

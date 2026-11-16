@@ -7,8 +7,8 @@ import (
 	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
-// The switches of the two stores (ADR-0053). Both stores are on by default; each is switched off by setting
-// its variable to off. Sample mode reads them too, because the lab's pull-request review is a sample review.
+// The switches of the two stores . Both stores are on by default; each is switched off by setting
+// its variable to off. Sample mode reads them too, because a recorded review is a sample review.
 const (
 	// EnvHMem turns H-MEM, the store of refuted findings, on or off.
 	EnvHMem = "PROVEN_HMEM"
@@ -17,7 +17,7 @@ const (
 )
 
 // StoreSettings is the loaded switches of the two stores. The fields say "off" so that the zero value is
-// what the default is: both on (ADR-0053). A zero value that meant off is how Markovian ended up off in
+// what the default is: both on . A zero value that meant off is how Markovian ended up off in
 // sample mode.
 type StoreSettings struct {
 	// HMemOff set means the review neither opens, reads nor writes H-MEM. A refuted finding from an earlier
@@ -28,7 +28,7 @@ type StoreSettings struct {
 }
 
 // StoreConfigError is a refused store switch. It names the field, the value and what is allowed; a value is
-// never replaced by the default (ADR-0013).
+// never replaced by the default .
 type StoreConfigError struct {
 	Field   string
 	Value   string

@@ -43,7 +43,6 @@ tools are chosen when the case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a build-window reviewer disagreement, 2026-10-23/24, described by the master; no source text is quoted.
 - reviewer families: not recorded in this file.
 - the original code is not published. Resolution status: not recorded here.
 

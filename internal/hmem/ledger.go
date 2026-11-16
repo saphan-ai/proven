@@ -12,7 +12,7 @@ type LedgerState struct {
 }
 
 // LedgerEntry is one line of the trust ledger. The ledger is the store's audit
-// JSONL: append-only, one line per change (ADR-0018 point 3).
+// JSONL: append-only, one line per change .
 type LedgerEntry struct {
 	MemoryID      string         `json:"memoryId"`
 	Action        string         `json:"action"`

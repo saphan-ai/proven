@@ -28,11 +28,11 @@ const DefaultTable = querytpl.DefaultOSVTable
 
 // ConfigError names a refused OSV setting and the values that are allowed.
 // The sentence is one line: which setting was refused, why, and what is
-// allowed (ADR-0013, point 4a).
+// allowed .
 type ConfigError = service.ConfigError
 
 // LoadTable reads EnvTable. An empty value is DefaultTable.
-// ADR-0013: the table name is a setting with a documented default. A value
+// the table name is a setting with a documented default. A value
 // that is set and wrong refuses the run; it never falls back to the default.
 func LoadTable(env func(string) string) (string, error) {
 	if env == nil {
@@ -55,7 +55,7 @@ func LoadTable(env func(string) string) (string, error) {
 // ValidTable reports whether name can be placed in a FROM clause.
 // One identifier, or schema.table. Nothing else.
 // The name goes into the SQL unquoted, so this check is what keeps a setting
-// from carrying SQL of its own. ADR-0032: the one rule lives in querytpl,
+// from carrying SQL of its own. the one rule lives in querytpl,
 // which builds the query.
 func ValidTable(name string) bool {
 	return querytpl.ValidRelation(name)
@@ -66,12 +66,12 @@ func Environment() []envdoc.Setting {
 	return []envdoc.Setting{
 		{Name: EnvTable, Default: envdoc.Tick(DefaultTable), Description: "the OSV package table the dependency check queries; see [OSV_TABLE.md](OSV_TABLE.md). Sample mode uses the default and does not read this variable"},
 		{Name: EnvKEVView, Default: envdoc.Tick(KEVView), Description: "the KEV view an advisory's CVE alias is looked up in. Sample mode uses the default and does not read this variable"},
-		{Name: EnvIDView, Default: envdoc.Tick(IDView), Description: "the OSV advisory-id view the `osv-by-advisory` template reads; see [ZETARIS_USL.md](ZETARIS_USL.md). Sample mode uses the default and does not read this variable"},
+		{Name: EnvIDView, Default: envdoc.Tick(IDView), Description: "the OSV advisory-id view the `osv-by-advisory` template reads; see [DATABASES.md](DATABASES.md). Sample mode uses the default and does not read this variable"},
 	}
 }
 
 // LoadIDView reads EnvIDView. An empty value is IDView.
-// ADR-0013: a value that is set and wrong refuses the run; it never falls
+// a value that is set and wrong refuses the run; it never falls
 // back to the default.
 func LoadIDView(env func(string) string) (string, error) {
 	if env == nil {
@@ -92,7 +92,7 @@ func LoadIDView(env func(string) string) (string, error) {
 }
 
 // LoadView reads EnvKEVView. An empty value is KEVView.
-// ADR-0013: the view name is a setting with a documented default. A value
+// the view name is a setting with a documented default. A value
 // that is set and wrong refuses the run; it never falls back to the default.
 func LoadView(env func(string) string) (string, error) {
 	if env == nil {

@@ -11,7 +11,7 @@
 // The Planner reads the files this package returns and names the risks; the
 // pipeline uses the file list to decide what the review covers; the review
 // shell reads proven.yaml at the baseline with Blob and the commit messages
-// with Messages, where a change names its model (ADR-0011).
+// with Messages, where a change names its model .
 package change
 
 import (

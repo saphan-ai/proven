@@ -24,7 +24,7 @@ var podmanSystemConfs = []string{
 }
 
 // checkRuntime refuses, in local mode, a runtime whose daemon address Proven
-// cannot judge (ADR-0034). The runtime is any command, and each one finds its
+// cannot judge . The runtime is any command, and each one finds its
 // daemon its own way. docker is judged by DOCKER_HOST, CONTAINER_HOST and the
 // docker context (checkDaemon). podman is judged by the remote services of its
 // containers.conf files and its connections file under HOME. A command named

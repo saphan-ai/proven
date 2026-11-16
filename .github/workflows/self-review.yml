@@ -1,0 +1,99 @@
+name: Proven self-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proven-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PROVEN_IMAGE: ${{ vars.PROVEN_REVIEW_IMAGE }}
+    steps:
+      # The executable and automation come from the trusted base, not the PR.
+      - name: Check out reviewer tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: reviewer
+          persist-credentials: false
+      - name: Check out the exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Load the published reviewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          image = os.environ['PROVEN_IMAGE']
+          if not re.fullmatch(r'(docker\.io/)?saphan/proven@sha256:[0-9a-f]{64}', image):
+              raise SystemExit('Set PROVEN_REVIEW_IMAGE to a published saphan/proven image digest')
+          PY
+          docker pull "$PROVEN_IMAGE"
+          container=$(docker create "$PROVEN_IMAGE")
+          trap 'docker rm "$container" >/dev/null 2>&1 || true' EXIT
+          docker cp "$container:/usr/local/bin/proven" "$RUNNER_TEMP/proven"
+          chmod +x "$RUNNER_TEMP/proven"
+          "$RUNNER_TEMP/proven" --version
+          docker image inspect "$PROVEN_IMAGE" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+      - name: Prepare the offline test runtime
+        run: docker build -f reviewer/Dockerfile.runner -t proven-review-tests:local reviewer
+      - name: Review the change
+        id: proven
+        shell: bash
+        env:
+          PROVEN_BIN: ${{ runner.temp }}/proven
+          PROVEN_LOG_DIR: ${{ runner.temp }}/proven-run/logs
+          PROVEN_EVIDENCE_STORE: sqlite
+          PROVEN_EVIDENCE_FILE: ${{ runner.temp }}/proven-evidence.sqlite
+          PROVEN_TEST_IMAGE: proven-review-tests:local
+          PROVEN_TEST_TIMEOUT: 120s
+          PROVEN_GENERATOR_MODE: openai
+          PROVEN_GENERATOR_BASE_URL: https://integrate.api.nvidia.com/v1
+          PROVEN_GENERATOR_MODEL: nvidia/nemotron-3.5-super-vl-120b-a12b
+          PROVEN_SKEPTIC_MODEL: nvidia/nemotron-3.5-super-vl-120b-a12b
+          PROVEN_GENERATOR_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          PROVEN_GENERATOR_TIMEOUT: 180s
+          PROVEN_GENERATOR_THINKING_BUDGET: '512'
+          PROVEN_ADAPTER_TIMEOUT: 190s
+          PROVEN_GUARDRAIL_MODE: 'off'
+          INPUT_TARGET: target
+          INPUT_OUTPUT_FORMAT: json/sarif
+          INPUT_BASELINE_COMMIT: ${{ github.event.pull_request.base.sha }}
+          INPUT_STRICT: 'true'
+          INPUT_REQUIRE_COMPLETE: 'true'
+          INPUT_TIMEOUT: '1500'
+          INPUT_COMMENT: 'true'
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$PROVEN_GENERATOR_KEY" || { echo 'NVIDIA_API_KEY is missing'; exit 2; }
+          /bin/sh reviewer/action/entrypoint.sh
+      - name: Retain review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proven-review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            proven-results.json
+            proven-results.sarif
+            ${{ runner.temp }}/proven-run/logs/trace.jsonl

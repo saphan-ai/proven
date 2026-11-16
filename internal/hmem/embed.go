@@ -4,7 +4,7 @@ import "math"
 
 // DIM is the width of the deterministic local embedding.
 // It is a stand-in for a model embedding. No network call builds it, so the
-// store works in sample mode with no credentials (ADR-0018) and the same
+// store works in sample mode with no credentials  and the same
 // text always ranks the same.
 const DIM = 64
 

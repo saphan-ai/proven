@@ -3,9 +3,9 @@
 // The Planner is the first agent of the review. It reads each changed file's
 // base and change, asks the model for candidate risks, and hands them on to
 // the Investigator and the Prover. A risk it names is not a finding: only
-// evidence makes one (ADR-0002). A change above the bounded-steps threshold is
+// evidence makes one . A change above the bounded-steps threshold is
 // read one file or hunk per step instead, with only a small carried state
-// between steps (PlanBounded, ADR-0048).
+// between steps (PlanBounded, ).
 package planner
 
 import (
@@ -105,7 +105,7 @@ func Plan(ctx context.Context, root string, gen generator.Generator) ([]candidat
 		// Later steps and the trace key every finding on its id, so a missing or
 		// repeated id is refused rather than merged. The error names the position and
 		// not the id, because the id is model text and an error must carry none
-		// (ADR-0005, ADR-0013 point 4).
+		// .
 		if r.ID == "" {
 			return nil, fmt.Errorf("planner: risk %d has no id", i+1)
 		}

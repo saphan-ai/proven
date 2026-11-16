@@ -6,7 +6,7 @@ import (
 )
 
 // A run counts as passed only when the output shows the test ran and passed, and
-// not merely because the process ended with exit code 0 (ADR-0042). Code in the
+// not merely because the process ended with exit code 0 . Code in the
 // package can end the process early with exit 0 before any test starts, so an
 // exit code alone cannot say that the named test ran. Every proof run is built
 // by TestArgv or PackageArgv with -json, and the pass events that go test prints

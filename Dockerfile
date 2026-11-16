@@ -1,15 +1,11 @@
 # Proven's image: a static binary, git, and the container client, on Alpine.
-# The defaults match GOLANG_IMAGE and RUNTIME_IMAGE in lab/versions.env.
-# make passes the settings, and those values win. An empty default makes
-# BuildKit warn that the base name is empty.
 
 ARG GOLANG_IMAGE=golang:1.26.10
 ARG RUNTIME_IMAGE=alpine:3.24
 FROM ${GOLANG_IMAGE} AS build
 WORKDIR /src
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/proven ./cmd/proven \
- && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/livecheck ./cmd/livecheck
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/proven ./cmd/proven
 
 FROM ${RUNTIME_IMAGE}
 ARG CREATED=unset
@@ -43,15 +39,7 @@ RUN adduser -D -u 65532 -h /work proven \
  && mkdir -p /opt/proven/fixture \
  && chown -R proven:proven /work /opt/proven
 COPY --from=build /out/proven /usr/local/bin/proven
-COPY --from=build /out/livecheck /usr/local/bin/livecheck
 COPY --chown=proven:proven testdata/fixture/discount /opt/proven/fixture/discount
-# The sample sets of the lab's demo pull requests (lab/seed/prs.tsv). The lab's workflow picks one by branch name.
-COPY --chown=proven:proven testdata/fixture/discount-clean /opt/proven/fixture/discount-clean
-COPY --chown=proven:proven testdata/fixture/unknown-author /opt/proven/fixture/unknown-author
-COPY --chown=proven:proven testdata/fixture/malicious-package /opt/proven/fixture/malicious-package
-COPY --chown=proven:proven testdata/fixture/osv-go-module /opt/proven/fixture/osv-go-module
-COPY --chown=proven:proven testdata/fixture/spdx-licence /opt/proven/fixture/spdx-licence
-COPY --chown=proven:proven testdata/fixture/project-health /opt/proven/fixture/project-health
 USER proven
 WORKDIR /work
 ENTRYPOINT ["proven"]

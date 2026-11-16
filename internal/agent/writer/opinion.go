@@ -10,7 +10,7 @@ const (
 )
 
 // agreedOpinions lifts claims both reviewers reported, at the same place, that
-// the Judge dropped because nothing proved them (ADR-0041). A claim only one
+// the Judge dropped because nothing proved them . A claim only one
 // reviewer reported stays dropped. A claim the Judge kept is a finding and is
 // not lifted. The order is the order of the default reviewer's claims.
 func agreedOpinions(cands []candidate.Candidate) []candidate.Opinion {
@@ -59,7 +59,7 @@ func agreedOpinions(cands []candidate.Candidate) []candidate.Opinion {
 	return out
 }
 
-// samePlace reports whether a and b are the same place (ADR-0041).
+// samePlace reports whether a and b are the same place .
 // The place is the path and the line range. The ranges overlap when they share
 // a line: the later start is at or before the earlier end, and both ends are
 // inclusive, so lines 4-8 and 6-10 share 6-8, and lines 1-4 and 5-9 share none.

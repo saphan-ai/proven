@@ -1,7 +1,8 @@
 // Package redact removes the values of Proven's configured secrets from text
 // before that text is written or printed.
 //
-// ADR-0005 and ADR-0013 point 4: no key reaches the trace, the result, a
+//	and no key reaches the trace, the result, a
+//
 // refusal reason or an error message. A service can echo a value it was sent,
 // in a routed model, a receipt id or a safety category, so the settings
 // loaders never print a secret and every writer that carries a service's text
@@ -25,12 +26,12 @@ import (
 )
 
 // Names lists every variable whose value Proven redacts: the keys it sends (the
-// generator's two, the second reviewer's (ADR-0037), the guardrail's, Zetaris's and the CouchDB store's two passwords), and the
+// generator's two, the second reviewer's , the guardrail's, Zetaris's and the CouchDB store's two passwords), and the
 // organisation id it identifies itself with. The generator's NVIDIA key is here so a hosted
-// answer that echoes it never reaches the trace (ADR-0031 point 3). The organisation id is
+// answer that echoes it never reaches the trace . The organisation id is
 // an identifier, not a credential: an id shorter than service.MinSecretBytes is NOT redacted
 // (FromEnv leaves it out), so a short id can appear in a trace.
-var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID, store.EnvCouchPassword, store.EnvRecordsPassword}
+var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID, store.EnvCouchPassword, store.EnvRecordsPassword, store.EnvPostgresURL}
 
 // Redactor replaces configured values in text. The zero value and a nil
 // *Redactor leave text unchanged.
@@ -71,7 +72,7 @@ func New(values map[string]string) *Redactor {
 		if seen[v] {
 			continue
 		}
-		// ADR-0005: an error that quotes a value with %q, or a JSON line that carries it, writes
+		// an error that quotes a value with %q, or a JSON line that carries it, writes
 		// it escaped, so each escaped spelling is a needle of its own under the same marker.
 		for _, form := range spellings(v) {
 			if seen[form] {

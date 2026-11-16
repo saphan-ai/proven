@@ -158,7 +158,7 @@ func witnessChild(raw string) int {
 	}
 	step("probe-public", probeErr)
 
-	// The CouchDB store and the OTLP exporters (ADR-0034). Each is built the way Open builds it, with
+	// The CouchDB store and the OTLP exporters . Each is built the way Open builds it, with
 	// the policy, and each connects to its loopback service; the service closes at once, so an error is
 	// expected and the witness's record of the connect is the proof.
 	couchEnv := map[string]string{
@@ -322,7 +322,7 @@ func fakeRuntime(t *testing.T) string {
 	return dir
 }
 
-// TestAirGappedWitnessSeesEveryConnection proves ADR-0034 with a witness that stands under the whole
+// TestAirGappedWitnessSeesEveryConnection proves  with a witness that stands under the whole
 // process: a seccomp filter on the connect syscall, inherited by git and the container runtime. A live
 // review in PROVEN_NETWORK=local, with real loopback services, completes; every connect it made, its own
 // and its subprocesses', went to an address the test allows; a public address asked for by hand and a

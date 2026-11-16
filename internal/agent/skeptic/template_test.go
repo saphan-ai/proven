@@ -9,7 +9,7 @@ import (
 	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
-// TestRefutingQueryIsATemplateAndValues proves ADR-0032 point 1 for the
+// TestRefutingQueryIsATemplateAndValues proves  point 1 for the
 // Skeptic: a good template and values are kept as the refuting query, and the
 // prompt names every template and asks for no SQL.
 func TestRefutingQueryIsATemplateAndValues(t *testing.T) {
@@ -35,7 +35,7 @@ func TestRefutingQueryIsATemplateAndValues(t *testing.T) {
 	}
 }
 
-// TestAnswerThatIsNotATemplateProposesNoQuery proves ADR-0032 points 1 and 2:
+// TestAnswerThatIsNotATemplateProposesNoQuery proves  points 1 and 2:
 // an answer that carries SQL text, a template that is not on the list and a
 // value outside its format each propose no query, and the reason names the
 // refusal without repeating the model's text. The test part of the answer is

@@ -6,7 +6,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 )
 
-// TestEvidenceTextNamesTheInvestigatorsRefusal proves ADR-0032 point 2 reaches
+// TestEvidenceTextNamesTheInvestigatorsRefusal proves  point 2 reaches
 // the trace: a finding whose query was refused says so in its evidence line,
 // alone or beside the Prover's note, and a finding with neither still says
 // "none". The mutated field is the candidate's QueryNote.

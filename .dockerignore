@@ -1,27 +1,19 @@
 # Allow-list: the build context carries only what the Dockerfile copies and
-# builds. Everything else (the repository's history, agent and fleet files,
-# documents, local state, secrets) is not sent to the builder.
+# builds. History, documentation, local state and secrets are not sent to the builder.
 *
 
 !go.mod
 !go.sum
 !cmd
 !internal
+!action
 !testdata/fixture/discount
-!testdata/fixture/discount-clean
-!testdata/fixture/unknown-author
-!testdata/fixture/malicious-package
-!testdata/fixture/osv-go-module
-!testdata/fixture/spdx-licence
-!testdata/fixture/project-health
 
 # Inside an allowed directory, still never send these.
 **/.env
 **/.env.*
 **/.DS_Store
-# The documentation site (docs-site/Dockerfile) builds from the repository root:
-# docs/, assets/ and README.md are its input, so they are not ignored. Its own
-# build output stays out of the context.
+# Keep generated documentation and dependency directories out of product builds.
 **/node_modules
 **/.next
 docs-site/content

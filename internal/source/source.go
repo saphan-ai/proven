@@ -1,12 +1,12 @@
-// Package source is the data-source adapter (ADR-0046).
+// Package source is the data-source adapter .
 //
 // A source declares how it loads, the query templates the Investigator may
 // pick, and the rule that turns returned rows into finding evidence or
 // nothing. OSV, KEV and EPSS are the first three. Malicious packages, project
-// health, CVSS and SPDX licences are the four of ADR-0039, registered the
+// health, CVSS and SPDX licences are the four of , registered the
 // same way. An organisation adds its own beside them. The adapter names
-// no store (ADR-0047). The configured evidence store runs whatever form the
-// template carries, and a model never writes the query (ADR-0032).
+// no store . The configured evidence store runs whatever form the
+// template carries, and a model never writes the query .
 //
 // The built-in adapters are registered by internal/querytpl, which holds
 // their query text. Importing that package fills this registry. This
@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-// Load is how a source is loaded into the evidence store (ADR-0046).
+// Load is how a source is loaded into the evidence store .
 type Load struct {
 	// Origin is where the data comes from.
 	Origin string
@@ -35,7 +35,7 @@ type Load struct {
 
 // Template is one question a source answers.
 // querytpl.Template is this type, so the catalogue and the adapter name
-// one struct (ADR-0046).
+// one struct .
 type Template struct {
 	// Name is the template's stable name, for example "osv-by-package".
 	Name string
@@ -62,7 +62,7 @@ type Param struct {
 // a query: it matches the parameter's format, and holds no quote, no
 // backslash, no control byte and no byte outside printable ASCII. The floor
 // does not depend on the adapter's pattern, so a loose pattern cannot admit
-// a byte that ends a string literal (ADR-0032 point 3).
+// a byte that ends a string literal .
 func CheckValue(p Param, value string) bool {
 	if p.Match == nil || !p.Match.MatchString(value) {
 		return false
@@ -124,14 +124,14 @@ func identifier(s string) bool {
 }
 
 // Spec is one template and the builder that writes its query.
-// The builder is the only place that query's text is written (ADR-0032, ADR-0046).
+// The builder is the only place that query's text is written .
 type Spec struct {
 	// Template is the question. It is a querytpl.Template.
 	Template Template
 	// Build writes the query.
 	// params are the template's parameter values; Proven has already held each
 	// one to its Param.Match and to the byte floor, so none is escaped here.
-	// rel carries the review's table and view names (ADR-0013). An
+	// rel carries the review's table and view names . An
 	// organisation's adapter may ignore rel and use Load.Table when the table
 	// name is the adapter's own; Register has checked it is a plain name.
 	// A refusal the builder returns reaches the review as a query note.
@@ -154,7 +154,7 @@ type Rel struct {
 }
 
 // Evidence is the query and the rows a rule keeps.
-// The finding's evidence is that query and those rows (ADR-0002). The Judge
+// The finding's evidence is that query and those rows . The Judge
 // decides whether to keep the finding.
 type Evidence struct {
 	// SQL is the query that returned the rows.
@@ -171,7 +171,7 @@ type Evidence struct {
 	Rows [][]string
 }
 
-// Adapter is one data source (ADR-0046).
+// Adapter is one data source .
 // It declares how the source loads, the templates the Investigator may pick,
 // and the rule that turns returned rows into finding evidence or nothing.
 type Adapter interface {
@@ -181,7 +181,7 @@ type Adapter interface {
 	// table it is registered as, and the snapshot date of that load.
 	Load() Load
 	// Templates is this source's questions, each with the builder that
-	// writes its query. A model never writes that query (ADR-0032).
+	// writes its query. A model never writes that query .
 	Templates() []Spec
 	// Rule returns finding evidence when the rows mean a finding, and ok
 	// false when they mean nothing. The evidence is the query and the rows.

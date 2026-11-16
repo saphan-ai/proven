@@ -19,7 +19,7 @@ import (
 // rev is checked as a commit before git sees it, the way Between checks its
 // revisions: a value that is not a commit, including one that begins with a
 // dash, is refused by name and never reaches the archive command as an
-// argument. Each file and the whole archive are bounded (ADR-0013).
+// argument. Each file and the whole archive are bounded .
 func (p Policy) ExportCommit(target, rev, dst string) ([]string, error) {
 	if err := p.ensureCommit(target, rev, "exported"); err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func (p Policy) ExportCommit(target, rev, dst string) ([]string, error) {
 		return nil, err
 	}
 	// In local mode no filter driver may run, and git archive runs the one the
-	// attributes name; the blobs are read as stored instead (ADR-0034).
+	// attributes name; the blobs are read as stored instead .
 	if !p.public {
 		return p.exportRaw(target, rev, dst)
 	}
@@ -70,7 +70,7 @@ func (p Policy) ExportWorktree(target, dst string) ([]string, error) {
 		}
 		src := filepath.Join(target, filepath.FromSlash(clean))
 		out := filepath.Join(dst, filepath.FromSlash(clean))
-		// ADR-0025: a tracked path whose parent directory is a link in the working tree
+		// a tracked path whose parent directory is a link in the working tree
 		// would be read from wherever the link points, so it is left out like a tracked link.
 		linked, err := behindALink(target, clean)
 		if err != nil {

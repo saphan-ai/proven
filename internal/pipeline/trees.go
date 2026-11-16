@@ -59,7 +59,7 @@ func (p *Pipeline) loadLiveTarget(req Request, rd change.Policy) (*fixture.Fixtu
 }
 
 // CheckTarget refuses a live review whose target has nothing for the agents to read, with the sentence that
-// says what to pass. ADR-0053: Scout Intent is on by default and reads the change before the pipeline runs, so
+// says what to pass. Scout Intent is on by default and reads the change before the pipeline runs, so
 // the caller asks this first; otherwise the plan's own failed read would be the error a user sees. Sample mode
 // reads a fixture and is never refused here. rd is the review's read policy, fixed at Open.
 func (p *Pipeline) CheckTarget(req Request, rd change.Policy) error {
@@ -88,7 +88,7 @@ func (p *Pipeline) refuseBareRepository(req Request, rd change.Policy) error {
 // hasPreparedTrees reports whether target already holds the two trees the
 // agents read. The demo is this shape, and live mode leaves it unchanged.
 func hasPreparedTrees(target string) bool {
-	// ADR-0025: Lstat, so a base or change that is a link is not a prepared tree. Stat would follow
+	// Lstat, so a base or change that is a link is not a prepared tree. Stat would follow
 	// it, and the agents and the Prover would then read whatever it names.
 	base, err1 := os.Lstat(filepath.Join(target, "base"))
 	chg, err2 := os.Lstat(filepath.Join(target, "change"))
@@ -123,7 +123,7 @@ func (p *Pipeline) materialize(req Request, rd change.Policy) (*fixture.Fixture,
 		return nil, nil, nil, err
 	}
 	// The trees are mounted read-only into a container whose user is not their
-	// owner, so others must be able to read them (ADR-0025).
+	// owner, so others must be able to read them .
 	if err := testrun.MakeReadable(dir); err != nil {
 		remove()
 		return nil, nil, nil, err

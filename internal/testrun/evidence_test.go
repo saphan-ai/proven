@@ -34,7 +34,7 @@ func passedRun(argv []string) string {
 	return b.String()
 }
 
-// TestARunPassesOnlyWhenItsOutputShowsTheTestPassed proves the property of ADR-0042
+// TestARunPassesOnlyWhenItsOutputShowsTheTestPassed proves the property of
 // that a run is "passed" when the named test ran and passed, and not when the
 // process only ended with exit code 0. The mutated field is the output of a run
 // that exits 0: the same exit code is a pass with a pass event and is not one without.
@@ -73,7 +73,7 @@ func TestARunPassesOnlyWhenItsOutputShowsTheTestPassed(t *testing.T) {
 // TestAnEarlyExitWithCodeZeroIsNotAPassInTheProofRuns proves, through the container
 // runner, that a patch which makes the package end the process with exit code 0 before
 // any test starts is not shown as passing: the change+patch run and the package run
-// have no pass event, so they do not count as passed (ADR-0042, the proof is the test).
+// have no pass event, so they do not count as passed .
 func TestAnEarlyExitWithCodeZeroIsNotAPassInTheProofRuns(t *testing.T) {
 	base, change := fixTrees(t)
 	c := mustContainer(t, DefaultContainerConfig())

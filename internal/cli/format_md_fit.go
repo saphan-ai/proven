@@ -1,5 +1,5 @@
 // This file keeps the Markdown comment under the platforms' size limit without
-// dropping the proof of a finding (ADR-0020 §1, docs/OUTPUT_FORMATS.md).
+// dropping the proof of a finding .
 
 package cli
 
@@ -43,7 +43,7 @@ type markdownFormatter struct{}
 // then the statements a reader must not miss, then the one-line foot.
 //
 // The comment never starts with the poster's marker line; the poster
-// (lab/workflow/proven.yml, action/entrypoint.sh) puts it in front, because
+// (action/entrypoint.sh) puts it in front, because
 // only it knows the run number and the head commit.
 func (markdownFormatter) Write(w io.Writer, result review.Result) error {
 	_, err := io.WriteString(w, mdFit(result))

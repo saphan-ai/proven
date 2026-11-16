@@ -45,7 +45,7 @@ func TestNoTrailerSaysAuthorModelNotStated(t *testing.T) {
 }
 
 // TestDescriptionNamesTheAuthorModel proves that the pull-request description is read for author models
-// (ADR-0011 point 2), and that each reviewer line says whether it shares each author's family.
+// , and that each reviewer line says whether it shares each author's family.
 func TestDescriptionNamesTheAuthorModel(t *testing.T) {
 	rev := openWith(t, "author_description: on\n")
 	res, err := rev.Review(context.Background(), review.Request{
@@ -110,7 +110,7 @@ func TestDescriptionOffIgnoresThePullRequest(t *testing.T) {
 	}
 }
 
-// TestRecordFileOffByDefault proves that the record file is not read by default (ADR-0011 point 2), and
+// TestRecordFileOffByDefault proves that the record file is not read by default , and
 // is read once author_record names it.
 func TestRecordFileOffByDefault(t *testing.T) {
 	dir := copyFixtureTree(t)
@@ -139,7 +139,7 @@ func TestRecordFileOffByDefault(t *testing.T) {
 	}
 }
 
-// TestCommitTrailerUsesTheConfiguredKey proves that only the configured trailer keys count (ADR-0011
+// TestCommitTrailerUsesTheConfiguredKey proves that only the configured trailer keys count (
 // point 3): a custom trailer is ignored by default and read once configured. It also proves that a
 // baseline review classes only the paths the commits touched.
 func TestCommitTrailerUsesTheConfiguredKey(t *testing.T) {
@@ -382,7 +382,7 @@ func openWith(t *testing.T, yaml string) review.Reviewer {
 }
 
 // The author model is declared in settings and no line of a pull request's text is read for it by
-// default (owner, 2026-10-27: an Assisted-by line is AI attribution and is not asked for). A declared
+// default (an Assisted-by line is AI attribution and is not asked for). A declared
 // model is used and named as coming from settings. Mutated field: author_models.
 func TestTheAuthorModelIsDeclaredInSettingsNotReadFromThePullRequest(t *testing.T) {
 	desc := "Assisted-by: Claude:claude-3-opus\n"

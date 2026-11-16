@@ -52,7 +52,7 @@ func measure(t *testing.T, cfg fileSettings, target string, withAdvisory bool) m
 	return m
 }
 
-// TestPlanMeasurement is ADR-0049 point 5's measurement on scripted scenarios: for each, the model calls
+// TestPlanMeasurement is  point 5's measurement on scripted scenarios: for each, the model calls
 // and the wall time of one review with the plan and without it, and whether any finding the full plan
 // keeps is lost by the plan. The generator is scripted, so the call counts are exact and the times are
 // Proven's own overhead with an instant model, never a live model's latency. It fails if a plan loses a

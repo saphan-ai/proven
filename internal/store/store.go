@@ -1,17 +1,6 @@
-// Package store is the evidence-store adapter (ADR-0047).
-//
-// One interface, three stores. Zetaris sends a SELECT over its REST API, as
-// it does today. The local store is one file and no server, and it runs the
-// same SQL on the engine sample mode already uses, so it works with no
-// network (ADR-0034). CouchDB runs a Mango selector over its HTTP API, one
-// database for each registered table. PROVEN_EVIDENCE_STORE chooses the
-// store. The default is zetaris. Sample mode does not read the setting; it
-// opens the fixture file as the local store.
-//
-// A source registers a table, then runs a query Proven built from a template
-// (ADR-0032, ADR-0046). The result is the columns, the rows, the snapshot
-// date, and the form that ran: sql for Zetaris and the local store, mango for
-// CouchDB. Rows come back in the column order of the sql form on every store.
+// Package store provides evidence adapters. SQLite is the standalone default;
+// PostgreSQL, CouchDB, local fixture files and Zetaris use the same template seam.
+// A store registers source tables and returns rows with their source identity.
 package store
 
 import (
@@ -20,7 +9,7 @@ import (
 	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
-// Store registers a source table and runs a template query (ADR-0047).
+// Store registers a source table and runs a template query .
 // Register loads the table into whichever store is configured. Run builds
 // the form that store speaks and returns the columns, the rows and the
 // snapshot date. The evidence names the form that ran.

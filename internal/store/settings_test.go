@@ -14,7 +14,7 @@ import (
 // field is the variable: empty, then couchdb, then a word that is not a store.
 func TestLoadDefaultsToZetaris(t *testing.T) {
 	got, err := Load(func(string) string { return "" })
-	if err != nil || got.Name != NameZetaris || got.File != "" {
+	if err != nil || got.Name != NameSQLite || got.File == "" {
 		t.Fatalf("%#v %v", got, err)
 	}
 	got, err = Load(func(k string) string {
@@ -29,11 +29,11 @@ func TestLoadDefaultsToZetaris(t *testing.T) {
 	var cfg *ConfigError
 	_, err = Load(func(k string) string {
 		if k == EnvStore {
-			return "postgres"
+			return "unsupported"
 		}
 		return ""
 	})
-	if err == nil || !asConfig(err, &cfg) || cfg.Field != EnvStore || cfg.Value != "postgres" {
+	if err == nil || !asConfig(err, &cfg) || cfg.Field != EnvStore || cfg.Value != "unsupported" {
 		t.Fatal(err)
 	}
 	if !strings.Contains(err.Error(), "couchdb") {
@@ -48,7 +48,7 @@ func couchEnv(m map[string]string) func(string) string {
 
 // TestLoadCouchReadsTheSettings proves a full set loads with its defaults for
 // the optional ones, and a trailing slash on the address is dropped
-// (ADR-0013). The mutated fields are the optional ones, left empty.
+// . The mutated fields are the optional ones, left empty.
 func TestLoadCouchReadsTheSettings(t *testing.T) {
 	got, err := LoadCouch(couchEnv(map[string]string{
 		EnvCouchURL: "http://couch.example:5984/", EnvCouchUser: "reader", EnvCouchPassword: "a-long-password",
@@ -65,7 +65,7 @@ func TestLoadCouchReadsTheSettings(t *testing.T) {
 // TestLoadCouchEmptyIsADownStoreAndWrongIsRefused proves an empty address,
 // user or password is a down store named couchdb with the variable's name,
 // and a value that is set wrongly is refused by name without printing a
-// secret (ADR-0013 points 4 and 4a). The mutated field is each variable in
+// secret . The mutated field is each variable in
 // turn; a bad address is checked before an empty password, so it is never
 // hidden behind one.
 func TestLoadCouchEmptyIsADownStoreAndWrongIsRefused(t *testing.T) {
@@ -109,7 +109,7 @@ func TestLoadCouchEmptyIsADownStoreAndWrongIsRefused(t *testing.T) {
 		t.Fatalf("user info in the address: %v", err)
 	}
 	// Property: a refused address never carries the user info it was given
-	// (ADR-0013). The mutated field is PROVEN_COUCHDB_URL.
+	// . The mutated field is PROVEN_COUCHDB_URL.
 	if strings.Contains(err.Error(), "u:p") || strings.Contains(err.Error(), "p@") || strings.Contains(cfg.Value, "p@") {
 		t.Fatalf("the refusal printed the user info: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestLoadCouchEmptyIsADownStoreAndWrongIsRefused(t *testing.T) {
 }
 
 // TestEnvironmentListsEveryCouchSetting proves the settings page rows hold
-// each CouchDB variable and mark only the password secret (ADR-0013). The
+// each CouchDB variable and mark only the password secret . The
 // mutated field is the Secret flag.
 func TestEnvironmentListsEveryCouchSetting(t *testing.T) {
 	secret := map[string]bool{}
@@ -149,7 +149,7 @@ func TestEnvironmentListsEveryCouchSetting(t *testing.T) {
 // is PROVEN_EVIDENCE_FILE; negative control: restoring a default turns the
 // empty case red.
 func TestLoadLocalReadsTheFileAndRefusesABrokenPath(t *testing.T) {
-	// ADR-0047: there is no default file; empty and blank are refused by name.
+	// there is no default file; empty and blank are refused by name.
 	for _, blank := range []string{"", "  "} {
 		_, err := Load(func(k string) string {
 			switch k {
@@ -194,6 +194,9 @@ func TestLoadLocalReadsTheFileAndRefusesABrokenPath(t *testing.T) {
 	}
 	// A zetaris review does not read a broken file path. Mutated field: the store name.
 	got, err = Load(func(k string) string {
+		if k == EnvStore {
+			return NameZetaris
+		}
 		if k == EnvFile {
 			return "evidence.sql\n"
 		}

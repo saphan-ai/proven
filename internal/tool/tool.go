@@ -1,14 +1,14 @@
 // Package tool runs a deterministic tool on the base and the change and
-// turns a difference into evidence (ADR-0040).
+// turns a difference into evidence .
 //
 // A tool plugs in through Adapter: which files it applies to, the command
 // Proven builds, and how one side's output is read. Sample replays a recorded
 // outcome and starts no container. Runner runs the command in the Prover's
-// container, with no network and no secret (ADR-0025), under the time limit
-// from PROVEN_TOOL_TIMEOUT (ADR-0013). A tool that cannot run is named.
+// container, with no network and no secret , under the time limit
+// from PROVEN_TOOL_TIMEOUT . A tool that cannot run is named.
 // The race detector is the first tool. govulncheck is the second:
-// it labels Go dependency findings with reachability (ADR-0043). Rerun runs one
-// tool again on a patched copy of the change, for the whole-change attempt (ADR-0050).
+// it labels Go dependency findings with reachability . Rerun runs one
+// tool again on a patched copy of the change, for the whole-change attempt .
 package tool
 
 import (
@@ -19,7 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
-// Adapter is one deterministic tool (ADR-0040).
+// Adapter is one deterministic tool .
 // The runner compares the two sides. The adapter does not.
 type Adapter interface {
 	// ID is the tool's stable name, for example "go-race".
@@ -29,7 +29,7 @@ type Adapter interface {
 	Version() string
 	// Applies reports whether the tool looks at these changed paths.
 	Applies(paths []string) bool
-	// Argv is the command Proven runs, with no shell (ADR-0025).
+	// Argv is the command Proven runs, with no shell .
 	// A non-empty reason means there is no command and nothing is started.
 	Argv(paths []string) (argv []string, reason string)
 	// Read classifies one side's output. It is called only after that side ran.
@@ -51,7 +51,7 @@ type Request struct {
 
 // Outcome is the comparison. Proves is true only when the tool answered and
 // the change shows a result the base does not. A tool that did not answer
-// has Answered false and a Reason that names it (ADR-0040).
+// has Answered false and a Reason that names it .
 type Outcome struct {
 	Tool            string
 	Version         string
@@ -66,7 +66,7 @@ type Outcome struct {
 }
 
 // Proves reports whether this outcome is evidence of the change.
-// A result the base already had is the base, not the change (ADR-0040).
+// A result the base already had is the base, not the change .
 func (o Outcome) Proves() bool {
 	return Introduced(o.Answered, o.PresentOnChange, o.PresentOnBase)
 }
@@ -129,7 +129,7 @@ type Side struct {
 }
 
 // Host runs the command in one checkout.
-// The live host is the Prover's container (ADR-0025). A test supplies a fake.
+// The live host is the Prover's container . A test supplies a fake.
 type Host interface {
 	Run(ctx context.Context, dir string, argv []string) (Side, error)
 }
@@ -219,7 +219,7 @@ func (r *Runner) Run(ctx context.Context, req Request) (Outcome, error) {
 
 // unrunReason says why a side is not an answer, or "" when the command ran.
 // A timeout is not an answer even when the output already contains a result:
-// a run past its limit is not proof (ADR-0040).
+// a run past its limit is not proof .
 func unrunReason(side Side) string {
 	switch side.Status {
 	case testrun.CommandPass, testrun.CommandFail, "":

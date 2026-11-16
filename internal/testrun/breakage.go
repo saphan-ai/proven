@@ -12,7 +12,7 @@ import (
 )
 
 // RunBreakage is the label prefix of the runs that show a patch broke nothing it touched
-// (ADR-0050 point 3): one run for each package a patched file belongs to.
+// : one run for each package a patched file belongs to.
 const RunBreakage = "breakage"
 
 // BreakageRequest asks for the runs that show a patch broke nothing in the places it touched.
@@ -118,7 +118,7 @@ func unresolvable(root, target string) string {
 func breakageLabel(argv []string) string { return RunBreakage + " " + argv[len(argv)-1] }
 
 // RunBreakage runs, in the container, every package the patch touched on a scratch copy of the
-// change with the patch applied (ADR-0050 point 3). The review's own trees are never written.
+// change with the patch applied . The review's own trees are never written.
 // A run that does not end passed is a run that did not show nothing broke: the caller reads
 // every Result.
 func (c *Container) RunBreakage(ctx context.Context, req BreakageRequest) (BreakageOutcome, error) {

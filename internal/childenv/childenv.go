@@ -1,7 +1,7 @@
 // Package childenv builds the environment of every process Proven starts: the
 // container runtime and git. The environment is explicit and minimal, never
 // Proven's own, so no key Proven holds can reach a child process or the
-// output a child prints (ADR-0025, ADR-0005).
+// output a child prints .
 package childenv
 
 import "os"

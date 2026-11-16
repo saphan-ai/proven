@@ -30,7 +30,7 @@ func skepticAsksForEPSS() candidate.Candidate {
 	return c
 }
 
-// TestSkepticRequestOutsideItsScopeAsksNoStore proves ADR-0013's evidence
+// TestSkepticRequestOutsideItsScopeAsksNoStore proves 's evidence
 // scope for the Skeptic: a template the Skeptic's scope leaves out is refused
 // with a named reason, the store is never asked, the proposal is cleared, and
 // the refutation run returns no error, so the review goes on. With the nil
@@ -96,7 +96,7 @@ func reviewScoped(t *testing.T, body string, skeptic querytpl.Scope) candidate.D
 	return d
 }
 
-// TestSkepticIsNarrowerThanTheInvestigator is the sample scenario of ADR-0013's
+// TestSkepticIsNarrowerThanTheInvestigator is the sample scenario of 's
 // evidence scope: the Investigator may ask every template and the Skeptic one.
 // A Skeptic that asks for another template is refused by
 // name in the trace and the finding stays; a Skeptic that asks for its own

@@ -15,13 +15,14 @@ import (
 )
 
 // Formatter writes one review result in one format.
-// text, JSON, SARIF, Markdown and HTML each have a writer in this build (ADR-0020 §1).
+// text, JSON, SARIF, Markdown and HTML each have a writer in this build .
 type Formatter interface {
 	Write(w io.Writer, result review.Result) error
 }
 
 // FormatterFor returns the writer for format, one of text, json, sarif, md or html.
-// ADR-0020 §1: the same five names are the standard-output format and the --*-output files.
+//
+//	§1: the same five names are the standard-output format and the --*-output files.
 func FormatterFor(format string) (Formatter, error) {
 	switch format {
 	case "text":
@@ -94,7 +95,7 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			return err
 		}
 	}
-	// ADR-0041: the opinion section is its own block, after the findings, so a
+	// the opinion section is its own block, after the findings, so a
 	// line that starts with "finding " is never an opinion.
 	if err := writeOpinions(w, result); err != nil {
 		return err
@@ -174,7 +175,7 @@ func familySentence(path string) string {
 	return ""
 }
 
-// writeOpinions prints the section "Agreed by two models, not proven" (ADR-0041).
+// writeOpinions prints the section "Agreed by two models, not proven" .
 // The section is always there. With one reviewer it says why it is empty: a
 // claim only one model makes stays dropped. Each opinion prints both reviewers'
 // reasons as they wrote them. The lines are indented, so they are not findings.
@@ -250,7 +251,7 @@ func writeFinding(w io.Writer, finding review.Finding) error {
 	return writeFix(w, finding.Fix)
 }
 
-// writeFix prints the fix under a finding (ADR-0042). A proved patch shows its edits, its
+// writeFix prints the fix under a finding . A proved patch shows its edits, its
 // explanation and the commands of its proof; a patch that was not proved shows only that the
 // attempt failed and why, never the patch. A dependency fix shows the version and the advisory row.
 // Every fix says it is a suggestion: a person applies it, Proven writes nothing to the change.
@@ -336,7 +337,7 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// writeAccepted prints a finding an exception of the organisation policy accepts (ADR-0036): where it
+// writeAccepted prints a finding an exception of the organisation policy accepts : where it
 // is and which rule found it, then the exception's reason, owner and expiry. It is shown, never hidden,
 // and it is not counted: it is not in result.Findings.
 func writeAccepted(w io.Writer, accepted review.AcceptedFinding) error {
@@ -384,7 +385,7 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 			return nil
 		}
 		query := evidence.Query
-		// ADR-0047: the line names the form that ran. The SQL line below is
+		// the line names the form that ran. The SQL line below is
 		// that form's text. Existing readers match the engine and the snapshot
 		// as a prefix of this line.
 		if _, err := fmt.Fprintf(w, "  evidence query %s snapshot=%s form=%s\n", visible(query.Engine), visible(query.Snapshot), visible(query.Form)); err != nil {
@@ -405,7 +406,7 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 		if evidence.Tool == nil {
 			return nil
 		}
-		// ADR-0040: the reader sees the tool, the command and both sides.
+		// the reader sees the tool, the command and both sides.
 		// The bools say whether the result was new; the outputs are the difference.
 		tool := evidence.Tool
 		if _, err := fmt.Fprintf(w, "  evidence tool %s version=%s present_on_change=%t present_on_base=%t\n", tool.Tool, tool.Version, tool.PresentOnChange, tool.PresentOnBase); err != nil {
@@ -431,7 +432,7 @@ func writeEvidence(w io.Writer, evidence review.Evidence) error {
 const continuationPrefix = "    | "
 
 // visible returns s with every byte that could act on a terminal shown as a
-// visible escape. The byte contract, which ADR-0027 asks to be written once:
+// visible escape. The byte contract, which  asks to be written once:
 //
 //   - C0 (U+0000 to U+001F), tab and newline included, DEL (U+007F) and C1
 //     (U+0080 to U+009F) are shown as \xNN of the code point, e.g. \x1b, \x09.

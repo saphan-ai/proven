@@ -8,7 +8,7 @@ import (
 )
 
 // compareFor is the version order of one ecosystem. It is the adapter's
-// Compare (ADR-0038), so a language added to Readers is ordered here too.
+// Compare , so a language added to Readers is ordered here too.
 // It is nil when no adapter compares that ecosystem.
 func compareFor(ecosystem string) func(a, b string) (int, bool) {
 	r, ok := manifest.ByEcosystem(ecosystem)
@@ -20,7 +20,7 @@ func compareFor(ecosystem string) func(a, b string) (int, bool) {
 
 // SmallestFix names the smallest version of the package that leaves the affected range of
 // every advisory row the table returned, with the row whose fixed version it is
-// (ADR-0042 point 5). It reads only rows the osv-by-package template returned (ADR-0032),
+// . It reads only rows the osv-by-package template returned ,
 // and it compares in Go, never in SQL and never by a model.
 //
 // A candidate version is the fixed bound of some row. It is chosen when it is above the
@@ -78,7 +78,7 @@ func SmallestFix(hit manifest.Hit, rows []Row) *candidate.DependencyFix {
 }
 
 // dependencyFix is the Fix of a dependency finding: the version SmallestFix names with its
-// reason, or a note saying no row names a way out (ADR-0042 point 5).
+// reason, or a note saying no row names a way out .
 func dependencyFix(hit manifest.Hit, rows []Row) *candidate.Fix {
 	dep := SmallestFix(hit, rows)
 	if dep == nil {

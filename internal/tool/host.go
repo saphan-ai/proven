@@ -8,7 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
-// ContainerHost runs a tool command in the Prover's container (ADR-0025, ADR-0040).
+// ContainerHost runs a tool command in the Prover's container .
 // Timeout is the tool's own limit, from PROVEN_TOOL_TIMEOUT. It is applied to
 // a copy of Box, so the test runner's limit is left as it was.
 type ContainerHost struct {

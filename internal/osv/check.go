@@ -3,18 +3,18 @@
 // through the evidence seam once per package, and compares the version in
 // Go, not in the query. It runs with no model. The seam takes the
 // osv-by-package request, and the store builds the form it speaks
-// (ADR-0032, ADR-0046, ADR-0047). A matching range
+// . A matching range
 // is a candidate whose evidence is the query and the rows it returned
-// (ADR-0002), and the Judge keeps or drops it like any other finding. A version outside every range is
+// , and the Judge keeps or drops it like any other finding. A version outside every range is
 // a trace line, never a finding. The candidate also carries the smallest fixed version that leaves
-// every returned range, with the advisory row that shows it (ADR-0042 point 5, fix.go), and the
-// ecosystem, so a later step can label reachability. This package does not run govulncheck (ADR-0043).
+// every returned range, with the advisory row that shows it , and the
+// ecosystem, so a later step can label reachability. This package does not run govulncheck .
 //
 // The package also defines the OSV table itself: its columns, the setting
-// that names it (PROVEN_OSV_TABLE, ADR-0013), the setting that names the
+// that names it (PROVEN_OSV_TABLE, ), the setting that names the
 // KEV view (PROVEN_KEV_VIEW), and the converter behind cmd/osv-to-csv that
 // flattens OSV advisories into its rows. OSV by package cannot be a Zetaris
-// REST table (ADR-0023), so the table is a file an administrator puts in
+// REST table , so the table is a file an administrator puts in
 // Zetaris's storage. docs/OSV_TABLE.md is the contract.
 package osv
 
@@ -38,7 +38,7 @@ import (
 const RuleID = "osv-affected-package"
 
 // KEVView is the known-exploited view used when PROVEN_KEV_VIEW is empty.
-// The name is a setting (ADR-0013): a review loads it and Check reads it
+// The name is a setting : a review loads it and Check reads it
 // from the context. Sample mode does not set the context, so this default
 // is what a sample review queries, and the variable is not read.
 const KEVView = querytpl.DefaultKEVView
@@ -65,7 +65,7 @@ func KEVViewOf(ctx context.Context) string {
 // LoadedKEVView is the view on ctx, or KEVView when the context carries none.
 // The name is pasted into the SQL, so a value that is not a view is refused
 // here as well as at load. The pipeline reads it too, so the Investigator's
-// and the Skeptic's queries are built from the same setting (ADR-0032).
+// and the Skeptic's queries are built from the same setting .
 func LoadedKEVView(ctx context.Context) (string, error) {
 	view := KEVViewOf(ctx)
 	if view == "" {
@@ -129,7 +129,7 @@ type Facts struct {
 	packages map[string]bool
 	ids      map[string]bool
 	// raised is every package the change added or raised, whether or not an
-	// OSV range matched. The ADR-0039 templates bind to it. packages stays
+	// OSV range matched. The  templates bind to it. packages stays
 	// the affected set, so a raised package does not become an OSV hit.
 	raised map[string]bool
 }
@@ -178,7 +178,7 @@ func (f Facts) Binds(req querytpl.Request) bool {
 
 // noteRaised records a package the change added or raised, under the
 // ecosystem's normalised name, the same key Binds reads. Check calls it for
-// every hit, including one with no OSV row, so the ADR-0039 templates can
+// every hit, including one with no OSV row, so the  templates can
 // bind. It does not mark the package affected.
 func (f *Facts) noteRaised(ecosystem, pkg string) {
 	if f.raised == nil {
@@ -222,7 +222,7 @@ func Check(ctx context.Context, q query.Runner, root, table, snapshot string) (O
 	if err != nil {
 		return Outcome{}, err
 	}
-	// ADR-0038: the languages live in the adapter list. Collect pairs a
+	// the languages live in the adapter list. Collect pairs a
 	// manifest with its lock file, so a package both name is queried once,
 	// at the lock file's version.
 	hits, notes, err := manifest.Collect(files, manifest.Readers())
@@ -278,7 +278,7 @@ func Check(ctx context.Context, q query.Runner, root, table, snapshot string) (O
 // every row. It returns a candidate when at least one row matches, and
 // otherwise a trace note that says why.
 func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit manifest.Hit, facts *Facts, match *Match) (*candidate.Candidate, string, error) {
-	// ADR-0032, ADR-0046, ADR-0047: the seam takes the osv-by-package
+	// , , the seam takes the osv-by-package
 	// request. The store builds the form. A package name outside its
 	// ecosystem's format has no query: the check says so in a trace note
 	// and goes on to the next package, as it does for a package with no
@@ -312,7 +312,7 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 	// No row is not proof that the package is safe. The note says the query
 	// returned nothing and names the form with the text, so a reader can run
 	// it again. CouchDB's text is Mango JSON; a line that always says SQL
-	// would tell the reader to run that JSON as SQL (ADR-0047).
+	// would tell the reader to run that JSON as SQL .
 	if len(rows) == 0 {
 		note := fmt.Sprintf("%s %s: no affected row; the query returned no rows; %s", hit.Package, hit.Version, queryText(res.Form, res.SQL))
 		// A version that could not be compared at all is a second reason,
@@ -362,21 +362,21 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 			StartLine: hit.Line,
 			EndLine:   hit.Line,
 		},
-		// The pipeline reads the ecosystem when it labels reachability (ADR-0043).
+		// The pipeline reads the ecosystem when it labels reachability .
 		// This check does not run govulncheck.
 		Ecosystem: hit.Ecosystem,
 	}
-	// ADR-0002: the evidence is the query and every row it returned, the rows
+	// the evidence is the query and every row it returned, the rows
 	// that missed included, so a reader can redo the comparison.
 	c.Evidence = append(c.Evidence, queryEvidence(res, snapshot))
-	// ADR-0042 point 5: the fix is the smallest version that leaves the affected range,
+	// the fix is the smallest version that leaves the affected range,
 	// named with the advisory row that shows it. No test proves a version bump, so the
 	// fix is never marked proved.
 	c.Fix = dependencyFix(hit, rows)
-	// ADR-0004: a CVE alias of a matching advisory is also looked up in CISA
+	// a CVE alias of a matching advisory is also looked up in CISA
 	// KEV, once per id. A missing KEV row does not drop the finding; the
 	// message only says so.
-	// ADR-0013: the view is a setting. The pipeline call does not take it,
+	// the view is a setting. The pipeline call does not take it,
 	// so the loaded name rides the context. Empty means KEVView.
 	view, verr := LoadedKEVView(ctx)
 	if verr != nil {
@@ -390,7 +390,7 @@ func oneModule(ctx context.Context, q query.Runner, table, snapshot string, hit 
 				continue
 			}
 			seen[id] = struct{}{}
-			// ADR-0046, ADR-0047: the KEV adapter owns kev-by-cve. The seam
+			// , the KEV adapter owns kev-by-cve. The seam
 			// passes the request; the store builds the form.
 			kres, kerr := q.Run(ctx, querytpl.Request{
 				Template: querytpl.KEVByCVE,
@@ -455,7 +455,7 @@ func missNote(hit manifest.Hit, form, sqlText string, missed []compared) string 
 }
 
 // queryText is the query as a trace line names it: the form, then the text.
-// form is "sql" or "mango". The text on CouchDB is Mango JSON (ADR-0047).
+// form is "sql" or "mango". The text on CouchDB is Mango JSON .
 func queryText(form, text string) string {
 	return fmt.Sprintf("query (%s): %s", form, text)
 }

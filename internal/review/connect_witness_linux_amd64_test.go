@@ -14,7 +14,7 @@ import (
 	"unsafe"
 )
 
-// The process-wide witness of ADR-0034: a seccomp filter with user notification on the connect syscall.
+// The process-wide witness of a seccomp filter with user notification on the connect syscall.
 // connect is where every outbound connection of a process ends, whatever opened it: the HTTP clients,
 // a Transport built by hand, a resolver sending a DNS query, and, because a filter is inherited across
 // fork and exec, git and the container runtime that Proven starts. The witness records each target and

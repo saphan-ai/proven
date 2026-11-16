@@ -27,7 +27,7 @@ const (
 // An HTTP status is not listed: downCode names it "http-<code>".
 var downCodes = map[string]string{
 	"not configured": DownNotConfigured,
-	// ADR-0005 point 5: an empty key is down, not off. Load names it this way.
+	// an empty key is down, not off. Load names it this way.
 	EnvKey + " is empty":  DownNoKey,
 	"off":                 DownOff,
 	"bad verdict":         DownBadVerdict,

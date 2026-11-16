@@ -20,7 +20,7 @@ func secondEnv(values map[string]string) func(string) string {
 	return func(k string) string { return values[k] }
 }
 
-// TestNoKeyMeansNoSecondReviewer proves ADR-0037 point 1: with no key the second reviewer is not
+// TestNoKeyMeansNoSecondReviewer proves with no key the second reviewer is not
 // connected and nothing is refused, so a user who connects nothing gets one review as before.
 // Mutated field: the key, which is empty.
 func TestNoKeyMeansNoSecondReviewer(t *testing.T) {
@@ -45,7 +45,7 @@ func TestKeyConnectsTheSecondReviewer(t *testing.T) {
 	}
 }
 
-// TestAWrongSecondReviewerValueIsRefusedByName proves ADR-0037 point 2: a wrong value is refused
+// TestAWrongSecondReviewerValueIsRefusedByName proves a wrong value is refused
 // under its own variable name, with the allowed form, and the refusal never carries the key.
 // Each row mutates exactly one field and leaves the others valid.
 func TestAWrongSecondReviewerValueIsRefusedByName(t *testing.T) {

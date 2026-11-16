@@ -1,82 +1,31 @@
 # Adapters
 
-An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)); a tool adapter turns a deterministic tool's run into evidence ([ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md)); a source adapter loads a table and turns a query's rows into evidence ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). An output format writes the review result. Each has one worked example below.
+An adapter is how Proven grows without changing its core. A language adapter reads one ecosystem's files and versions; a tool adapter turns a deterministic tool's run into evidence; a source adapter loads a table and turns a query's rows into evidence. An output format writes the review result. Each has one worked example below.
 
 ## Adding a model provider
 
-### The interface
-
-The generator is the one model interface: the model-calling agents (Planner,
-Investigator, Prover, Fixer and Skeptic) send their prompts through a
-Generator; the Judge and the Writer call no model. It is in
-`internal/generator/generator.go`:
+Model-calling agents use `internal/generator.Generator`:
 
 ```go
-// Generator answers one prompt for one agent.
 type Generator interface {
-	Complete(ctx context.Context, agent, prompt string) (string, error)
+    Complete(ctx context.Context, agent, prompt string) (string, error)
 }
 ```
 
-`Complete` answers one prompt for one agent: `ctx` cancels the call,
-`agent` names the agent asking, and `prompt` is the whole prompt. It returns
-the answer or a named failure of the provider in use. The package comment
-names the existing implementations: `Live` (Meterless Nightshift, or NVIDIA's
-hosted API in nvidia mode), `Sample` (recorded responses, no network),
-`Absent` (the service is down, named) and `Second` (any OpenAI-compatible
-API, the second reviewer).
+The Judge and Writer make no model call. The neutral live adapter speaks streaming chat completions; the command adapter sends the prompt to an operator-configured CLI. A sample adapter replays recorded answers. Legacy Nightshift and NVIDIA adapters remain explicit options. See [configuration](CONFIGURATION.md).
 
-### The settings that select an implementation
+Keep transport errors, cancellation and response bounds inside the adapter. Record requested and reported model identity separately. A generic provider needs no sponsor header or receipt. The optional `Reported` interface supplies call metadata when the transport has it.
 
-`PROVEN_GENERATOR_MODE` chooses (`internal/generator/settings.go`):
-`nightshift`, the default, calls Meterless Nightshift and reads the answering
-model from its receipt (ADR-0019, ADR-0031); `nvidia` calls NVIDIA's hosted
-API directly and reads it from the response's `model` field (ADR-0031). The
-rest of `PROVEN_GENERATOR_*` — key, base URL, model, timeout and the NVIDIA
-require list — is read and validated by `Load` in the same file; an empty
-token or key is not a refused configuration: it names the service down
-(`Absent`) and the review goes on (ADR-0013 point 4a).
+[examples/generator](../examples/generator) implements a small fixed-response provider and tests the interface without network or credentials.
 
-### How sample mode treats it
+## Reusing review logic
 
-Sample mode (`internal/generator/sample.go`, ADR-0001) answers from recorded
-responses and opens no network. It does not read `PROVEN_GENERATOR_MODE` or
-any secret: `NewSample` indexes recorded responses by agent and prompt, and
-`Complete` returns the recorded answer or `generator.Missing` for an agent
-and prompt the fixture has not recorded. Sample mode is what a judge runs
-without live keys and what tests run.
-
-### Worked example: a fixed table
-
-[`examples/generator`](../examples/generator) is a small adapter inside this
-module. `Table` answers Complete from a fixed table keyed by agent name:
-
-```go
-var _ generator.Generator = Table{}
-```
-
-The assignment fails the build when `internal/generator.Generator` changes.
-`NewTable` builds the table from rows and refuses a duplicate agent.
-`Complete` returns the agent's answer, or `ErrUnknownAgent` when the agent is
-not in the table. It starts no network, reads no secret and no environment
-variable.
-
-The test checks one answer and one refusal: a known agent answers, and an
-unknown agent returns `ErrUnknownAgent`
-([`examples/generator/table_test.go`](../examples/generator/table_test.go)).
-
-```text
-go test -count=1 ./examples/generator
-```
-
-`go test ./...` from the repository root runs the same test. No separate job
-is required.
-
+`internal/report` holds result types, proof levels and outcome re-derivation without application wiring. `internal/agent/judge` applies deterministic rules to `internal/candidate` values. `internal/evidence` uses report types directly. These packages and their tests can be taken into another reviewer without initializing Proven's CLI, configuration, database or model transport.
 
 ## Adding a language
 
 
-One language is one adapter ([ADR-0038](adr/ADR-0038-a-language-is-one-small-adapter.md)). The adapter finds the language's files, lists the packages a change adds or raises, names the ecosystem as OSV names it, and compares two versions by that ecosystem's rules. OSV ranges, the known-exploited list, EPSS and the review are shared. A new language does not change them.
+One language is one adapter. The adapter finds the language's files, lists the packages a change adds or raises, names the ecosystem as OSV names it, and compares two versions by that ecosystem's rules. OSV ranges, the known-exploited list, EPSS and the review are shared. A new language does not change them.
 
 The type is `Adapter` in `internal/manifest`. It is the same type as `Reader`. The dependency check runs `Readers()`. A version lands in a range through `InRangeEcosystem`, which calls the adapter's `Compare` and `Explain`.
 
@@ -152,9 +101,9 @@ You do not add a new query, a new range rule, or a new place in the report. `InR
 
 ### A tool is a third kind of evidence
 
-[ADR-0040](adr/ADR-0040-a-tool-run-is-evidence.md). A finding can be proved by a test, by a query, or by a tool. A tool proves a finding when it reports a result on the change and does not report that result on the base. The evidence records the tool, its version, the exact command, and the output that differs.
+. A finding can be proved by a test, by a query, or by a tool. A tool proves a finding when it reports a result on the change and does not report that result on the base. The evidence records the tool, its version, the exact command, and the output that differs.
 
-The proof level is `proved-by-tool`. It sits between a test and a query ([ADR-0044](adr/ADR-0044-every-finding-names-its-level-of-proof.md)).
+The proof level is `proved-by-tool`. It sits between a test and a query.
 
 A result the base already had is not evidence. A tool that does not answer is named, and it is not counted as a clean run. A run past its time limit is that kind of miss.
 
@@ -171,13 +120,13 @@ The runner lives in `internal/tool`. The sample implementation replays a recorde
 
 ### The container
 
-The command is the tail of the Prover's run line ([ADR-0025](adr/ADR-0025-the-prover-runs-the-change-with-no-network-and-no-secret.md)): no network, no secret, a read-only checkout, a CPU limit and a memory limit. The same argv builder builds that line for a test and for a tool. A checkout that is a symbolic link is not mounted.
+The command is the tail of the Prover's run line: no network, no secret, a read-only checkout, a CPU limit and a memory limit. The same argv builder builds that line for a test and for a tool. A checkout that is a symbolic link is not mounted.
 
 A real run needs a container runtime on the host. One test starts that run, and it is skipped unless `PROVEN_TEST_DOCKER` is `1`. The other tests check the run line and replay recorded output.
 
 ### The time limit
 
-`PROVEN_TOOL_TIMEOUT` is the limit for one side, the base or the change. Empty means `120s`. A value that is set and is not a Go duration greater than zero is refused before a run, and it is not replaced by the default ([ADR-0013](adr/ADR-0013-no-hardcoded-settings.md)). Sample mode does not read the variable.
+`PROVEN_TOOL_TIMEOUT` is the limit for one side, the base or the change. Empty means `120s`. A value that is set and is not a Go duration greater than zero is refused before a run, and it is not replaced by the default. Sample mode does not read the variable.
 
 The limit is the tool's own. It does not change the limit of a test run. A side that passes the limit is named `timeout` and is not evidence, even when its output already contains a result.
 
@@ -204,7 +153,7 @@ Two recordings are the controls:
 
 ### govulncheck
 
-The second tool is govulncheck ([ADR-0043](adr/ADR-0043-a-vulnerable-dependency-is-checked-for-reachability.md)). Its id is `govulncheck`. It applies to a changed Go file, `go.mod` or `go.sum`. Its command is:
+The second tool is govulncheck. Its id is `govulncheck`. It applies to a changed Go file, `go.mod` or `go.sum`. Its command is:
 
 ```text
 govulncheck -json -db file:///checkout/<database> ./...
@@ -244,14 +193,14 @@ go test -count=1 ./examples/tool
 
 ## Adding a source
 
-A source adapter feeds the evidence store and plugs into the decision ([ADR-0046](adr/ADR-0046-a-data-source-is-one-adapter.md)). It declares four things.
+A source adapter feeds the evidence store and plugs into the decision. It declares four things.
 
-1. **How it loads.** Where the data comes from, how often it is refreshed, the table name it is registered as, and the snapshot date of that load. The adapter does not name a store ([ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md)). `PROVEN_EVIDENCE_STORE` runs the query.
-2. **Its query templates.** Each one is a template the Investigator may pick, plus the builder that writes the query. Each parameter carries a format as a pattern; `Register` refuses a parameter with none. A model never writes the query ([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)). `Catalogue` and `Build` in `internal/querytpl` read the registry, so the template is written in one place.
+1. **How it loads.** Where the data comes from, how often it is refreshed, the table name it is registered as, and the snapshot date of that load. The adapter does not name a store. `PROVEN_EVIDENCE_STORE` runs the query.
+2. **Its query templates.** Each one is a template the Investigator may pick, plus the builder that writes the query. Each parameter carries a format as a pattern; `Register` refuses a parameter with none. A model never writes the query. `Catalogue` and `Build` in `internal/querytpl` read the registry, so the template is written in one place.
 3. **Its rule.** What a returned row means. Rows that mean a finding become evidence: the query and those rows. Rows that mean nothing are not evidence. The Judge decides, as it does for any other finding. On the Investigator's path the rule of the adapter that owns the template decides whether the rows become evidence.
 4. **A sample table and a test.** The test adds the adapter by registering it.
 
-The type is `Adapter` in `internal/source`. The built-in adapters are OSV, KEV, EPSS, then the four of [ADR-0039](adr/ADR-0039-more-evidence-sources.md): malicious packages (`mal`), project health (`scorecard`), CVSS (`cvss`) and SPDX licences (`spdx`), in that order. OSV owns `osv-by-package` and `osv-by-advisory`. KEV owns `kev-by-cve`. EPSS owns `epss-by-cve`. `mal` owns `mal-by-package`. `scorecard` owns `scorecard-by-package`. `cvss` owns `cvss-by-cve`. `spdx` owns `spdx-by-package`. Their query text stays in `internal/querytpl`, beside the check that refuses a value outside its format. `internal/source` does not import `internal/querytpl`. The catalogue reads the registry, so the import goes the other way.
+The type is `Adapter` in `internal/source`. The built-in adapters are OSV, KEV, EPSS, then the four of : malicious packages (`mal`), project health (`scorecard`), CVSS (`cvss`) and SPDX licences (`spdx`), in that order. OSV owns `osv-by-package` and `osv-by-advisory`. KEV owns `kev-by-cve`. EPSS owns `epss-by-cve`. `mal` owns `mal-by-package`. `scorecard` owns `scorecard-by-package`. `cvss` owns `cvss-by-cve`. `spdx` owns `spdx-by-package`. Their query text stays in `internal/querytpl`, beside the check that refuses a value outside its format. `internal/source` does not import `internal/querytpl`. The catalogue reads the registry, so the import goes the other way.
 
 None of these is loaded by this program. An administrator puts the table where the store can read it. A finding cites the date the store stamps on the read. The load's own snapshot date is empty, because this program did not load the table.
 
@@ -281,13 +230,13 @@ The test `TestAddedSourceShowsItsTemplateItsQueryAndItsRule` registers this adap
 
 ## The evidence store
 
-[ADR-0047](adr/ADR-0047-the-evidence-store-is-an-adapter.md). A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it: `zetaris` (the default), `local` or `couchdb`. `local` is one file and no server, and it opens no network. The file of the local store is `PROVEN_EVIDENCE_FILE`. It is required when the store is `local`: an empty value is refused by name, because a default would sit in the repository under review. A path that resolves inside that repository, links included, is refused by name too. A table the file does not hold is a down source named `local`, as a missing view on Zetaris is a down source named `zetaris`, and a missing database on CouchDB is a down source named `couchdb`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
+. A review's queries run on one store. `PROVEN_EVIDENCE_STORE` chooses it: `zetaris` (the default), `local` or `couchdb`. `local` is one file and no server, and it opens no network. The file of the local store is `PROVEN_EVIDENCE_FILE`. It is required when the store is `local`: an empty value is refused by name, because a default would sit in the repository under review. A path that resolves inside that repository, links included, is refused by name too. A table the file does not hold is a down source named `local`, as a missing view on Zetaris is a down source named `zetaris`, and a missing database on CouchDB is a down source named `couchdb`. Sample mode does not read either variable: it opens the fixture's tables file as that same local store.
 
 `couchdb` runs a Mango selector over CouchDB's HTTP API. One registered table is one database. Its name is `PROVEN_COUCHDB_PREFIX` (default `proven_`), then the table name in lower case with `.` written as `-`, so `px_evidence.px_kev_vulns` is `proven_px_evidence-px_kev_vulns`. The address is `PROVEN_COUCHDB_URL`; the user and password are `PROVEN_COUCHDB_USER` and `PROVEN_COUCHDB_PASSWORD`, sent as HTTP Basic. The password is a secret: it is read from the environment only, a refusal never prints it, and the redactor removes it from the trace and the result. A value that is set wrongly is refused by name. An empty address, user or password is a down store named `couchdb`, and the review goes on without it. The client does not follow redirects, so the credential goes to the configured address and nowhere else. Rows come back in the column order of the `sql` form, though CouchDB returns the fields of a document in no fixed order. Each cell is text.
 
 A source registers a table on the configured store, then runs a query Proven built from a template. Zetaris keeps the rule that Proven's key only reads: registering a table there is the administrator's act, and Proven records the name and sends no statement. The local store writes the table into its file. The CouchDB store creates the table's database and writes one document for each row; registering the same table twice is refused.
 
-A template has one form for each query language: `sql` for Zetaris and the local store, and `mango` for CouchDB. Both are built from the same validated values (ADR-0032), by the same checks, so a value one form refuses the other refuses. A `mango` form is one JSON object: the table, a selector with one equality for each parameter, and the fields in column order. The evidence of a query names the form that ran, with the text of that form and the rows it returned.
+A template has one form for each query language: `sql` for Zetaris and the local store, and `mango` for CouchDB. Both are built from the same validated values, by the same checks, so a value one form refuses the other refuses. A `mango` form is one JSON object: the table, a selector with one equality for each parameter, and the fields in column order. The evidence of a query names the form that ran, with the text of that form and the rows it returned.
 
 The review's query seam passes a template request and the relation names. The configured store builds the form of its own language and runs it: `sql` on Zetaris and the local store, `mango` on CouchDB. The evidence names that form, the text that ran and the rows. A template a source adapter registered has the sql form only, so CouchDB names itself down for that template (`no mango form`) instead of sending SQL. Sample mode does not read the store setting: it opens the fixture file and runs the sql form.
 
@@ -295,13 +244,13 @@ One scenario runs on every store that is built. The columns, the rows and the sn
 
 ### Evidence records and their viewer
 
-The tables above are the evidence a review reads. A review's own result is written back to CouchDB when `PROVEN_COUCHDB_RECORDS` names a database on the server `PROVEN_COUCHDB_URL` names (ADR-0013). Unset, nothing is written. Set, each finding becomes one document: the pull request and commit, the finding's id, rule, severity and place, its proof level, the CVE ids and package names its rows hold, and its evidence as it ran. A query keeps the form that ran, its text and its rows. A test keeps its command and whether it fails on the change and passes on the base. A tool keeps its command and both outputs. A second review of the same commit adds records; it never overwrites the first, so the records are a history.
+The tables above are the evidence a review reads. A review's own result is written back to CouchDB when `PROVEN_COUCHDB_RECORDS` names a database on the server `PROVEN_COUCHDB_URL` names. Unset, nothing is written. Set, each finding becomes one document: the pull request and commit, the finding's id, rule, severity and place, its proof level, the CVE ids and package names its rows hold, and its evidence as it ran. A query keeps the form that ran, its text and its rows. A test keeps its command and whether it fails on the change and passes on the base. A tool keeps its command and both outputs. A second review of the same commit adds records; it never overwrites the first, so the records are a history.
 
 The records are written with their own account, `PROVEN_COUCHDB_RECORDS_USER` and `PROVEN_COUCHDB_RECORDS_PASSWORD`. That account must be a different user from `PROVEN_COUCHDB_USER`; the loader refuses the same name. In CouchDB a member of a database's security document reads every document and also writes every document that is not a design document, so membership alone does not make an account read-only. The administrator therefore adds the read-only account as a member of the records database and the writing account as a database admin (the `admins` of its `_security` document), and grants the writing account admin rights on the records database only. The design document carries a `validate_doc_update` function that refuses every write unless the account is a server admin or a database admin, by name or by role, so the read-only account is refused a write even though it is a member. Creating the accounts and setting `_security` is the administrator's act: this program does neither.
 
 The first write also stores one design document named `evidence`. It holds four views, whose keys start with the fields a reader narrows by: `by_review` (pull request, commit, finding, run), `by_finding` (finding id), `by_cve_package` (CVE, package) and `by_proof_level`. A record with a CVE and no package, or the reverse, is keyed with an empty text on the missing side. The same document carries the viewer as an attachment, `viewer.html`. CouchDB serves it itself at `/<database>/_design/evidence/viewer.html`; there is no other server. The page is one static file of HTML and JavaScript. It loads nothing from outside, and it makes only `GET` requests with the account the reader opened it with, so a read-only account is enough and holds no write right. It lists a review's findings (`?pr=<number>&commit=<sha>`) and shows one record (`?doc=<id>`): the query in the form that ran, its rows as a table, and the test command with its base and change result. Every value it shows goes through one escaping function, so a record that carries markup is shown as text. The design document is written again only when its views or its page change.
 
-`PROVEN_EVIDENCE_LINK_BASE_URL` is the address a reader reaches CouchDB at. With it and the records setting both set, each stored finding carries `EvidenceRecordURL`, the address of its record in the viewer page: the base, the database, `_design/evidence/viewer.html`, and `?doc=` with the document id. The JSON output carries it as `findings[].evidence_record_url` (docs/OUTPUT_FORMATS.md), for a renderer such as a pull request comment to read; no renderer in this repository reads it yet. Unset, the field is empty. A finding whose record was not stored has no link either, and when the read-only account is configured, the review fetches the page as that account first and shows no link for a page it is not served. A CouchDB failure is a failed service named `couchdb`, and the review goes on. The link never goes through `/_utils`, the admin console, which can edit and delete. In the lab the base address is the lab's own CouchDB. Sample mode reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's sample review can write its records. The read-only account is read because the review checks the viewer page as that account before it shows a link; when it is not configured the link is shown and a failed service named `couchdb` says it was not checked.
+`PROVEN_EVIDENCE_LINK_BASE_URL` is the address a reader reaches CouchDB at. With it and the records setting both set, each stored finding carries `EvidenceRecordURL`, the address of its record in the viewer page: the base, the database, `_design/evidence/viewer.html`, and `?doc=` with the document id. The JSON output carries it as `findings[].evidence_record_url` (docs/OUTPUT_FORMATS.md), for a renderer such as a pull request comment to read; no renderer in this repository reads it yet. Unset, the field is empty. A finding whose record was not stored has no link either, and when the read-only account is configured, the review fetches the page as that account first and shows no link for a page it is not served. A CouchDB failure is a failed service named `couchdb`, and the review goes on. The link never goes through `/_utils`, the admin console, which can edit and delete. Sample mode reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so a recorded review can write its records. The read-only account is read because the review checks the viewer page as that account before it shows a link; when it is not configured the link is shown and a failed service named `couchdb` says it was not checked.
 
 The page sends only GET requests, but it does not choose the account: the browser sends whatever credential it holds for that address. A reader logged into CouchDB's own admin page as an administrator opens the viewer as that administrator, so give readers the read-only account.
 
@@ -309,7 +258,7 @@ The tests play CouchDB as a recorded server that checks each request's account: 
 
 ## Adding an output format
 
-A formatter writes one review result, for a person or for another program. text, JSON and SARIF are the three formats in this build ([ADR-0020](adr/ADR-0020-proven-command-line-and-action-interface.md)). The bytes of JSON and SARIF are the contract in [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md). A new format is another writer. It does not change the review.
+A formatter writes one review result, for a person or for another program. text, JSON and SARIF are the three formats in this build. The bytes of JSON and SARIF are the contract in [OUTPUT_FORMATS.md](OUTPUT_FORMATS.md). A new format is another writer. It does not change the review.
 
 ### The interface
 
@@ -375,8 +324,7 @@ go test -count=1 ./examples/formatter
 ### The interface
 
 A guardrail checks a prompt and an answer before a review uses them. An unsafe
-verdict stops the step; a guardrail that cannot answer refuses the step by name
-(ADR-0005). The interface is `Adapter` in `internal/guardrail/guardrail.go:49`:
+verdict stops the step; a guardrail that cannot answer refuses the step by name. The interface is `Adapter` in `internal/guardrail/guardrail.go:49`:
 
 ```go
 type Adapter interface {
@@ -400,12 +348,11 @@ that can name itself also implements `Identity`
 `PROVEN_GUARDRAIL_BASE_URL`, `PROVEN_GUARDRAIL_MODEL`, `PROVEN_GUARDRAIL_KEY`
 and `PROVEN_GUARDRAIL_TIMEOUT` are read and validated by `Load` in
 `internal/guardrail/settings.go`; a wrong value is refused before any check
-runs. An empty key is not off: every check is refused and nothing dials
-(ADR-0005 point 5).
+runs. An empty key is not off: every check is refused and nothing dials.
 
 ### How sample mode treats it
 
-Sample mode (`--sample` / `SAMPLE_MODE=true`, ADR-0001) reads no guardrail
+Sample mode (`--sample` / `SAMPLE_MODE=true`, ) reads no guardrail
 setting: the pipeline falls back to `guardrail.Safe{}`
 (`internal/pipeline/pipeline.go`), which answers safe for every prompt and
 answer and opens no network. A fixture may record verdicts instead, through
@@ -468,7 +415,7 @@ these settings.
 
 ### How sample mode treats it
 
-Sample mode is every adapter's sample implementation (ADR-0001): `Open` with
+Sample mode is every adapter's sample implementation: `Open` with
 `Sample` true reads no live setting, and the pipeline runs the recorded
 adapters instead, so a sample review opens no network.
 
@@ -498,7 +445,7 @@ go test -count=1 ./examples/reviewer
 ## Adding a test run
 
 A test run proves a finding: a test that fails on the change and passes on
-the base (ADR-0002). It is also how a proposed fix is proved (ADR-0042). Two
+the base. It is also how a proposed fix is proved. Two
 interfaces:
 
 `Adapter` in `internal/testrun/testrun.go:50`:
@@ -574,4 +521,3 @@ is not found (`examples/testrun/testrun_test.go`).
 ```text
 go test -count=1 ./examples/testrun
 ```
-

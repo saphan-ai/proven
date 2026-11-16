@@ -12,7 +12,7 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// These tests cover nvidia mode (ADR-0031). The hosted API is answered by a
+// These tests cover nvidia mode . The hosted API is answered by a
 // recorded response served through the client's transport, so no port is
 // opened and no real key or network is involved.
 
@@ -149,7 +149,7 @@ func TestNVIDIARefusesAnAnswerThatNamesNoModelWhereRequired(t *testing.T) {
 }
 
 // Proves the Skeptic is sent its own model, another family than the finder's
-// (ADR-0006), in nvidia mode too.
+// , in nvidia mode too.
 func TestNVIDIASendsTheSkepticItsOwnModel(t *testing.T) {
 	var models []string
 	live := hostedAt(t, func(r *http.Request) *http.Response {
@@ -223,7 +223,7 @@ func TestNVIDIANamesARejectedKeyAndARateLimit(t *testing.T) {
 }
 
 // Proves an empty key is the hosted API down and named, not a refusal and not
-// a call (ADR-0013 point 4a), and that the Nightshift token does not stand in
+// a call , and that the Nightshift token does not stand in
 // for it. Mutated field: PROVEN_GENERATOR_KEY, empty.
 func TestNVIDIAEmptyKeyIsDownAndNamed(t *testing.T) {
 	_, err := generator.Load(func(k string) string {
@@ -241,9 +241,9 @@ func TestNVIDIAEmptyKeyIsDownAndNamed(t *testing.T) {
 }
 
 // Proves a wrong mode is refused by name with the allowed values, and that no
-// mode set means Nightshift, as before (ADR-0031 point 2).
+// mode set means Nightshift, as before .
 func TestLoadRefusesAWrongModeAndDefaultsToNightshift(t *testing.T) {
-	_, err := generator.Load(envWith(generator.EnvMode, "openai"))
+	_, err := generator.Load(envWith(generator.EnvMode, "unknown-mode"))
 	ce := configErr(t, err)
 	if ce.Field != generator.EnvMode || !strings.Contains(err.Error(), "nightshift") || !strings.Contains(err.Error(), "nvidia") {
 		t.Fatalf("err %v", err)
@@ -257,9 +257,9 @@ func TestLoadRefusesAWrongModeAndDefaultsToNightshift(t *testing.T) {
 }
 
 // Proves nvidia mode sends the key only to NVIDIA's hosted address: a base set
-// for Nightshift (the variable the lab page tells a Nightshift user to set) is
+// for Nightshift (the variable the provider guide tells a Nightshift user to set) is
 // not read in nvidia mode, so the key and the request never go there
-// (ADR-0031 point 3). Mutated field: PROVEN_GENERATOR_BASE_URL, set to a router.
+// . Mutated field: PROVEN_GENERATOR_BASE_URL, set to a router.
 func TestNVIDIAModeIgnoresTheNightshiftBase(t *testing.T) {
 	var host string
 	live := hostedAt(t, func(r *http.Request) *http.Response {

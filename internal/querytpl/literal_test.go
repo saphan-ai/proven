@@ -63,7 +63,9 @@ func lastLiteral(sql string) string {
 }
 
 // TestEveryBuiltLiteralIsOneLiteralInEitherDialect proves the property of
-// ADR-0032 for every template: the value that enters a query becomes exactly
+//
+//	for every template: the value that enters a query becomes exactly
+//
 // one string literal holding exactly that value, whether the engine reads a
 // backslash as an escape or as a plain byte, or the value is refused. The
 // mutated field is the value: each spelling that once reached a query is tried

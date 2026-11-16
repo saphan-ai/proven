@@ -11,7 +11,7 @@ import (
 )
 
 // sqlOnly is a source added through the adapter interface whose template has
-// the sql form only, as every registered template does today (ADR-0046).
+// the sql form only, as every registered template does today .
 type sqlOnly struct{}
 
 func (sqlOnly) ID() string { return "sql-only" }

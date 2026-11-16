@@ -1,6 +1,6 @@
 package scout
 
-// This file is Proven's change registry (ADR-0049 point 1): the six kinds of change, as a registry
+// This file is Proven's change registry : the six kinds of change, as a registry
 // Scout scores like any other, and the one call a review makes to classify its changed files.
 
 import (
@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-// The six kinds of change ADR-0049 point 1 names, as the registry's intent ids.
+// The six kinds of change  point 1 names, as the registry's intent ids.
 const (
 	KindDependency = "change.dependency"
 	KindRefactor   = "change.refactor"
@@ -18,7 +18,7 @@ const (
 	KindConfig     = "change.config"
 )
 
-// Kinds lists the six kinds in ADR-0049's order.
+// Kinds lists the six kinds in 's order.
 func Kinds() []string {
 	return []string{KindDependency, KindRefactor, KindFeature, KindSecurity, KindDocs, KindConfig}
 }
@@ -31,11 +31,11 @@ var changesJSON []byte
 func ChangesJSON() []byte { return append([]byte(nil), changesJSON...) }
 
 // ChangeRegistry returns the change registry with security added: each pattern a review's own
-// configuration files under the security class (ADR-0014) becomes a security signal too, so Scout
+// configuration files under the security class  becomes a security signal too, so Scout
 // never calls a file ordinary that the team's rules call sensitive. A pattern already present is not
 // added twice. A pattern the dependency kind also names is still added to security: when the team's rules
 // call a manifest sensitive, that signal outranks the dependency pattern, so the change is planned as
-// security-sensitive and keeps its full review (ADR-0049 point 3).
+// security-sensitive and keeps its full review .
 func ChangeRegistry(security []string) (*Registry, error) {
 	reg, err := ParseRegistry(changesJSON)
 	if err != nil {

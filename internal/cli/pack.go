@@ -22,8 +22,8 @@ import (
 
 // loadPackKey reads the signing key a run with --evidence-pack needs. It runs
 // before the review, so a missing key costs nothing; the refusal is exit 7,
-// a setting refused at load (ADR-0020 §2). The refusal names the setting and
-// the path, never the key (ADR-0035 point 2).
+// a setting refused at load . The refusal names the setting and
+// the path, never the key .
 func loadPackKey(getenv func(string) string) (ed25519.PrivateKey, error) {
 	key, err := evidence.LoadPrivateKey(evidence.EnvPackKey, getenv(evidence.EnvPackKey))
 	if err != nil {
@@ -54,7 +54,7 @@ func readFrom(path string, offset int64) []byte {
 }
 
 // writePack makes the signed evidence pack of one review and writes it to
-// cfg.evidencePack (ADR-0035 points 1 and 2).
+// cfg.evidencePack .
 func writePack(cfg config, getenv func(string) string, key ed25519.PrivateKey, result review.Result, traceStart int64) error {
 	redactor := redact.FromEnv(getenv)
 	in := evidence.Input{

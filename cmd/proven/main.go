@@ -13,7 +13,7 @@ import (
 )
 
 // main passes the real arguments, environment and streams to cli.Run and
-// exits with the code it returns (ADR-0020 §2). The nil opener means the
+// exits with the code it returns . The nil opener means the
 // reviewer comes from review.Open, as in every production run.
 func main() {
 	os.Exit(cli.Run(os.Args[1:], os.Getenv, os.Stdout, os.Stderr, nil))

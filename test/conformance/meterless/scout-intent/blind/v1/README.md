@@ -7,7 +7,7 @@
 - Written on 26 October 2026 by an executor leg.
 - Written **blind**. The author did not open, read or search the Scout Intent
   code, its harness, the review plan code or any scorecard, and did not run
-  Scout Intent. The cases come from the public contract in ADR-0049 and from
+  Scout Intent. The cases come from the public contract in  and from
   the author's own judgement of each change.
 - The set is frozen on commit. Scout Intent is run on it once, in a later
   change. Every miss is reported as it is. No case is edited to fit the

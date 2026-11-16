@@ -13,7 +13,7 @@ type Block struct {
 	Remaining string
 	Decisions []string
 	Context   []string
-	// Pinned items are rendered after Context and are never cut and never dropped by Fit. ADR-0048: a claim that
+	// Pinned items are rendered after Context and are never cut and never dropped by Fit. a claim that
 	// awaits evidence is carried whole, because a claim cut short can no longer name the evidence it needs.
 	Pinned []string
 }
@@ -100,7 +100,7 @@ const (
 	labelAwaiting    = "awaiting evidence: "
 )
 
-// ReviewState is the review's carried state (ADR-0048 point 1): what is already established, what is suspected,
+// ReviewState is the review's carried state : what is already established, what is suspected,
 // and which claims wait for evidence from a part not yet read.
 type ReviewState struct {
 	Established []string `json:"established"`
@@ -110,7 +110,7 @@ type ReviewState struct {
 
 // Block maps the review's state onto the spec's shape for the step about to run: COMPLETED and REMAINING count the
 // parts; what is established is a DECISION; what is suspected is CONTEXT; what awaits evidence is PINNED, so the
-// bound neither cuts nor drops it (ADR-0048).
+// bound neither cuts nor drops it .
 func (r ReviewState) Block(step, steps int) Block {
 	b := Block{
 		Completed: completedText(step-1, "part"),
@@ -128,7 +128,7 @@ func (r ReviewState) Block(step, steps int) Block {
 	return b
 }
 
-// CarryFullError says the bound could not hold every claim that still awaits evidence (ADR-0048). It is returned
+// CarryFullError says the bound could not hold every claim that still awaits evidence . It is returned
 // instead of dropping the claim: a claim lost from the carried state can never meet its evidence, and a review that
 // goes on without it looks complete when it is not. The caller can run the whole review instead.
 type CarryFullError struct {
@@ -144,7 +144,7 @@ func (e *CarryFullError) Error() string {
 		e.Step, e.Held, e.Open, e.Budget, EnvCarry, EnvSwitch, EnvCarry)
 }
 
-// OpenClaimsError says the last bounded step ended with claims still awaiting evidence (ADR-0048). No part is left
+// OpenClaimsError says the last bounded step ended with claims still awaiting evidence . No part is left
 // to supply that evidence, so the claims can never become risks; returning the risks found so far as a clean
 // success would hide that. It is a sibling of CarryFullError: the review is incomplete, it says so by name, and the
 // caller can run the whole review instead. It carries counts only, never the model's claim text.
@@ -161,7 +161,7 @@ func (e *OpenClaimsError) Error() string {
 }
 
 // Carry fits the state's block for the step about to run into budget estimated tokens and returns how many items the
-// bound cut. ADR-0048: the bound may cut what is established or only suspected, never a claim awaiting evidence,
+// bound cut. the bound may cut what is established or only suspected, never a claim awaiting evidence,
 // which is carried whole (pinned). When the block with every cuttable item gone still exceeds the budget, Carry
 // returns *CarryFullError before any claim is handed on cut, and the caller stops the review. afterStep is the step
 // that produced the state, for the error.
@@ -209,7 +209,7 @@ type FixFailure struct {
 	Run string
 }
 
-// FixBlock maps the fix loop's failures onto the spec's shape (ADR-0048 point 2): the earlier failures are
+// FixBlock maps the fix loop's failures onto the spec's shape : the earlier failures are
 // DECISIONS, the latest one and its failing run are CONTEXT, so the bound drops the oldest first. Nothing an
 // attempt proposed is carried, only what failed and why.
 func FixBlock(failures []FixFailure, attempts int) Block {

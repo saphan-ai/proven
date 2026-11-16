@@ -11,8 +11,8 @@ import (
 	"github.com/saphan-ai/proven/internal/change"
 )
 
-// TestLinkedConfigIsRefusedByName proves a proven.yaml that is a symbolic link is refused (ADR-0013,
-// ADR-0025): the refusal names the file and never carries what the link points at. Mutated field:
+// TestLinkedConfigIsRefusedByName proves a proven.yaml that is a symbolic link is refused (,
+// ): the refusal names the file and never carries what the link points at. Mutated field:
 // only the file type; the linked file is a valid configuration.
 func TestLinkedConfigIsRefusedByName(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "elsewhere.yaml")
@@ -45,7 +45,7 @@ func TestRegularConfigInTheTargetIsStillRead(t *testing.T) {
 }
 
 // TestBaselineConfigOverTheConfigBoundIsRefused proves the proven.yaml read from the baseline commit
-// has the configuration bound, which is smaller than the file bound a blob has (ADR-0013). Mutated
+// has the configuration bound, which is smaller than the file bound a blob has . Mutated
 // field: only the size; the file is under the file bound.
 func TestBaselineConfigOverTheConfigBoundIsRefused(t *testing.T) {
 	dir := t.TempDir()
@@ -64,7 +64,7 @@ func TestBaselineConfigOverTheConfigBoundIsRefused(t *testing.T) {
 }
 
 // TestAuthorRecordIsBoundedAsASum proves the record bound covers every file the setting names
-// together: each file is under the bound and their sum is over it (ADR-0013).
+// together: each file is under the bound and their sum is over it .
 func TestAuthorRecordIsBoundedAsASum(t *testing.T) {
 	target := t.TempDir()
 	half := strings.Repeat("x", 600<<10)
@@ -88,7 +88,7 @@ func TestAuthorRecordIsBoundedAsASum(t *testing.T) {
 // TestOpenAppliesTheSizeSettings proves Open reads the size bounds from its environment into the review's
 // own policy, refuses a wrong value without replacing it by the default, and that a sample-mode review
 // reads under the defaults. The bounds belong to the review: a review opened later, with other settings,
-// does not change them (ADR-0013).
+// does not change them .
 func TestOpenAppliesTheSizeSettings(t *testing.T) {
 	env := func(m map[string]string) func(string) string {
 		return func(k string) string { return m[k] }

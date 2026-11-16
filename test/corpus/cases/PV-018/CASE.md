@@ -42,7 +42,6 @@ pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P37 in `PROVENANCE.md`).
 - reviewer families, as recorded: `claude-opus-5` (through Claude Code) and `glm-5.2` (through Qwen Code).
 - the original code was a Go validator, reviewed inside a larger catch-up merge; it is not published. Resolution status:
   settled by a ruling of the orchestrating agent; later repair rounds took the same class further.

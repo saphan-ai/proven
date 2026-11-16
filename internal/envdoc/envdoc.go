@@ -1,7 +1,8 @@
 // Package envdoc turns setting declarations into the environment tables
 // of docs/CONFIGURATION.md.
 //
-// ADR-0013 asks for every setting and its default in one place. Each package
+//	asks for every setting and its default in one place. Each package
+//
 // declares its settings in Go, beside the constants that name them;
 // cmd/settings-doc renders them into the page, and a test in settingspage
 // fails when the page drifts from the code. No agent of the review uses this

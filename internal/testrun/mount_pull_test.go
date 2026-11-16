@@ -11,7 +11,7 @@ import (
 )
 
 // TestRunLineNeverPullsTheImage proves the run line carries --pull never, so an absent image is not
-// fetched at test time (ADR-0025).
+// fetched at test time .
 func TestRunLineNeverPullsTheImage(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
 	assertPair(t, c.Argv(t.TempDir(), goTest), "--pull", "never")
@@ -40,7 +40,7 @@ func TestAbsentImageIsTheProverDownAndNamesThePull(t *testing.T) {
 }
 
 // TestLinkedCheckoutIsNotMounted proves a checkout directory that is a symbolic link is refused as a
-// mount source and no container is started (ADR-0025). Mutated field: only the type of ChangeDir.
+// mount source and no container is started . Mutated field: only the type of ChangeDir.
 func TestLinkedCheckoutIsNotMounted(t *testing.T) {
 	real := t.TempDir()
 	link := filepath.Join(t.TempDir(), "change")

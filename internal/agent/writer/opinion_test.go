@@ -6,7 +6,7 @@ import (
 	"github.com/saphan-ai/proven/internal/candidate"
 )
 
-// TestSamePlaceIsThePathAndAnOverlappingRange proves the place rule of ADR-0041.
+// TestSamePlaceIsThePathAndAnOverlappingRange proves the place rule of .
 // Lines 4-8 and 6-10 share 6-8. Lines that only meet at a boundary do share that
 // line. Lines 1-4 and 5-9 share none. A different path, a missing line, or an
 // empty path is not the same place. The rule id is not the place.

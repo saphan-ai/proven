@@ -1,6 +1,6 @@
 // Package limit bounds one adapter call so a review cannot hang on it.
 //
-// The bound is the setting PROVEN_ADAPTER_TIMEOUT (ADR-0013). Empty means
+// The bound is the setting PROVEN_ADAPTER_TIMEOUT . Empty means
 // Adapter. A wrong value is refused when a live review loads its settings,
 // and it is never replaced by the default. Sample mode does not read the
 // variable: Bound then uses Adapter.
@@ -32,11 +32,11 @@ const (
 const Adapter = 5 * time.Second
 
 // ConfigError names a refused adapter-bound setting and the values that are
-// allowed (ADR-0013).
+// allowed .
 type ConfigError = service.ConfigError
 
 // Load reads EnvAdapter. An empty value is Adapter.
-// ADR-0013: a value that is set and is not a duration greater than zero is
+// a value that is set and is not a duration greater than zero is
 // refused. It is never replaced by the default.
 func Load(env func(string) string) (time.Duration, error) {
 	if env == nil {

@@ -8,7 +8,7 @@ import (
 // remote, and the size bounds of its reads. It is a value fixed when the review
 // is opened, and every git command and every read of that review takes it from
 // there, so another review opened in the same process, at the same time or
-// later, cannot change it (ADR-0034). The zero Policy is the closed one: offline,
+// later, cannot change it . The zero Policy is the closed one: offline,
 // with the default bounds. Public mode has to be asked for, with NewPolicy or the
 // process default, so a Policy built any other way (a literal, new, a variable
 // with no value) can never reach a remote.

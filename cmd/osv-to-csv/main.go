@@ -1,7 +1,7 @@
 // Command osv-to-csv reads one OSV JSON advisory per file and writes the flat range CSV.
 //
 // It builds the OSV package table that the review's dependency check
-// queries. OSV by package cannot be a Zetaris REST table (ADR-0023), so an
+// queries. OSV by package cannot be a Zetaris REST table , so an
 // administrator runs this on a directory of OSV advisories and puts the
 // CSV in Zetaris's storage. The columns are described in docs/OSV_TABLE.md.
 //

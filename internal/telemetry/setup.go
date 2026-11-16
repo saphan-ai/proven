@@ -1,6 +1,6 @@
 package telemetry
 
-// This file reads the standard OTEL_* variables (ADR-0045 point 2, ADR-0013)
+// This file reads the standard OTEL_* variables
 // and builds the OTLP exporters. Proven adds no setting of its own: where
 // OpenTelemetry names one, that name is the one used.
 
@@ -52,7 +52,7 @@ const protocolHTTP = "http/protobuf"
 type ConfigError = service.ConfigError
 
 // Environment lists the OTEL_* variables Proven reads, for docs/CONFIGURATION.md. Each is the
-// OpenTelemetry specification's own; Proven adds no setting of its own (ADR-0045 point 2).
+// OpenTelemetry specification's own; Proven adds no setting of its own .
 func Environment() []envdoc.Setting {
 	return []envdoc.Setting{
 		{Name: EnvEndpoint, Default: "none (telemetry is off)", Description: "the base URL of an OTLP/HTTP collector, for example `http://127.0.0.1:4318`. Setting it turns telemetry on; the trace goes to `<url>/v1/traces` and the metrics to `<url>/v1/metrics`. Sample mode reads this variable too. In `PROVEN_NETWORK=local` a host outside the organisation's network is refused at load, in sample mode as well, and both exporters refuse to dial one"},
@@ -61,7 +61,7 @@ func Environment() []envdoc.Setting {
 		{Name: EnvDisabled, Default: "none", Description: "`true` turns telemetry off even when an endpoint is set"},
 		{Name: EnvProtocol, Default: envdoc.Tick(protocolHTTP), Description: "the OTLP transport. Only `" + protocolHTTP + "` is built in; any other value is refused by name. `" + EnvTracesProtocol + "` and `" + EnvMetricsProtocol + "` are read the same way"},
 		{Name: EnvServiceName, Default: envdoc.Tick(DefaultServiceName), Description: "the service name a backend shows"},
-		{Name: EnvMetricInterval, Default: "`60000`", Description: "how often the metrics are pushed, in milliseconds. The lab sets it low so a dashboard moves while a review runs"},
+		{Name: EnvMetricInterval, Default: "`60000`", Description: "how often metrics are exported, in milliseconds"},
 	}
 }
 
@@ -72,7 +72,7 @@ func Setup(ctx context.Context, env func(string) string) (*T, error) {
 	return SetupWithDial(ctx, env, nil)
 }
 
-// SetupWithDial is Setup with a seam: in the air-gapped mode (ADR-0034) dial
+// SetupWithDial is Setup with a seam: in the air-gapped mode  dial
 // opens each allowed connection of both exporters, so a test can record every
 // dial. Nil dials for real. It has no effect in public mode.
 func SetupWithDial(ctx context.Context, env func(string) string, dial network.DialFunc) (*T, error) {
@@ -93,7 +93,7 @@ func SetupWithDial(ctx context.Context, env func(string) string, dial network.Di
 	if traceURL == "" && metricURL == "" {
 		return nil, nil
 	}
-	// ADR-0034: in the air-gapped mode an endpoint outside the organisation's
+	// in the air-gapped mode an endpoint outside the organisation's
 	// network is refused here, by name, and both exporters dial through the
 	// policy client, which refuses an outside address and any proxy.
 	policy, err := network.Load(env)

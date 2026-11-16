@@ -88,7 +88,7 @@ func assertDiscountText(t *testing.T, body string) {
 		"evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true",
 		"finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list",
 		"evidence query local-sample snapshot=sample-2026-10-22",
-		// ADR-0032: F2's query evidence comes from the osv-by-package template.
+		// F2's query evidence comes from the osv-by-package template.
 		"row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15",
 		"failed services: none",
 		"Agreed by two models, not proven",
@@ -685,7 +685,7 @@ func TestInvalidVariableAloneExits7(t *testing.T) {
 }
 
 // TestSampleModeReadsNoAdapterSecret proves a --sample run does not read an
-// adapter secret. The getenv answers the variables ADR-0020 §1 documents
+// adapter secret. The getenv answers the variables  §1 documents
 // (KnownCLIEnv) and holds a decoy for each secret this test chose:
 // METERLESS_RUNTIME_TOKEN, ZETARIS_API_KEY, ZETARIS_ORG_ID (named in that
 // section) and PROVEN_GUARDRAIL_KEY (the guardrail adapter's secret).
@@ -709,9 +709,9 @@ func TestSampleModeReadsNoAdapterSecret(t *testing.T) {
 				return "decoy"
 			}
 		}
-		// ADR-0045: the OTEL_* variables are the one family sample mode reads besides ADR-0020 §1's.
+		// the OTEL_* variables are the one family sample mode reads besides  §1's.
 		// They name no secret of Proven's; with none set, a review exports nothing.
-		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+		// the evidence-record database and link base are read in sample mode too.
 		if !KnownCLIEnv(k) && k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 			t.Errorf("sample mode read %s, which ADR-0020 §1 does not name", k)
 		}
@@ -1036,8 +1036,8 @@ func dropFixtureGitEnv(entry string) bool {
 	return false
 }
 
-// engineSwitch reports whether k is a switch of one of the four Meterless engines. ADR-0053: sample mode reads
-// them, because the lab's pull-request review is a sample review and its engines are on by default.
+// engineSwitch reports whether k is a switch of one of the four Meterless engines. sample mode reads
+// them, because a recorded review is a sample review and its engines are on by default.
 func engineSwitch(k string) bool {
 	return strings.HasPrefix(k, "PROVEN_MARKOVIAN") || k == "PROVEN_HMEM" || k == "PROVEN_WORLD_MODEL"
 }

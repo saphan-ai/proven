@@ -8,8 +8,8 @@ import (
 	"github.com/saphan-ai/proven/internal/markov"
 )
 
-// TestOpenRefusesABadBoundedStepsSettingByName proves the bounded-steps settings are validated on load (ADR-0013,
-// ADR-0048): a live Open with each setting at a value it does not allow is refused before any review, naming the
+// TestOpenRefusesABadBoundedStepsSettingByName proves the bounded-steps settings are validated on load (,
+// ): a live Open with each setting at a value it does not allow is refused before any review, naming the
 // variable and the allowed values; the same Open with allowed values succeeds. Mutated field: one variable at a time.
 func TestOpenRefusesABadBoundedStepsSettingByName(t *testing.T) {
 	good := map[string]string{markov.EnvSwitch: "on", markov.EnvThreshold: "12000", markov.EnvUnit: "hunk", markov.EnvCarry: "512"}

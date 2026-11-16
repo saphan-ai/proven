@@ -175,7 +175,7 @@ func planLines(t *testing.T, path string) []string {
 	return out
 }
 
-// docsOnly, dependencyOnly and sensitive are the three changes whose plans ADR-0049 point 2 names.
+// docsOnly, dependencyOnly and sensitive are the three changes whose plans  point 2 names.
 func docsOnly(t *testing.T) string {
 	return trees(t, map[string][2]string{
 		"README.md":       {"# Old\n", "# New\n"},
@@ -196,7 +196,7 @@ func sensitive(t *testing.T) string {
 	})
 }
 
-// TestPlanDocsOnlyRunsNoModel proves ADR-0049 point 2: a documentation-only change runs no model call,
+// TestPlanDocsOnlyRunsNoModel proves a documentation-only change runs no model call,
 // on either reviewer, and still states its class. With the engine removed (-scout-off) the full plan
 // runs and the planner is called, so this test fails.
 func TestPlanDocsOnlyRunsNoModel(t *testing.T) {
@@ -225,7 +225,7 @@ func manifestsNotSecurity(cfg fileSettings) fileSettings {
 	return cfg
 }
 
-// TestPlanDependencyOnlySkipsTheProver proves ADR-0049 point 2: a dependency-only change whose rules do
+// TestPlanDependencyOnlySkipsTheProver proves a dependency-only change whose rules do
 // not call the manifest security runs the dependency evidence (the OSV table is queried for the package
 // the change adds) and no Prover call, in the class its rules chose. With the engine removed the full
 // plan runs the Prover, so this test fails.
@@ -253,7 +253,7 @@ func TestPlanDependencyOnlySkipsTheProver(t *testing.T) {
 	}
 }
 
-// TestPlanSecurityFlooredManifestRunsTheProver proves ADR-0049 point 3's execution obligation: the
+// TestPlanSecurityFlooredManifestRunsTheProver proves  point 3's execution obligation: the
 // configured rules file go.mod and go.sum under security, so a dependency-only change runs the Prover
 // (asserted by the agents that ran and the test runs asked for, not by the trace's class name), the
 // dependency evidence, and the second reviewer. Unplug control: removing the security signal that
@@ -302,7 +302,7 @@ func TestPlanSecurityFloorKeepsEveryAgentWhateverThePlan(t *testing.T) {
 	}
 }
 
-// TestPlanSecuritySensitiveIsDoubled proves ADR-0049 point 2: a change to session code, which no
+// TestPlanSecuritySensitiveIsDoubled proves a change to session code, which no
 // configured rule names, is planned as security-sensitive and doubled, so the second reviewer runs.
 // With the engine removed the rules give it the fallback class, undoubled, so this test fails.
 func TestPlanSecuritySensitiveIsDoubled(t *testing.T) {
@@ -316,7 +316,7 @@ func TestPlanSecuritySensitiveIsDoubled(t *testing.T) {
 	}
 }
 
-// TestPlanNeverLowersTheConfiguredClass proves ADR-0049 point 3: a documentation change that the
+// TestPlanNeverLowersTheConfiguredClass proves a documentation change that the
 // configured rules review as backend keeps class backend and its full plan, though Scout plans it as
 // documentation. It holds with the engine on and with it removed.
 func TestPlanNeverLowersTheConfiguredClass(t *testing.T) {
@@ -397,7 +397,7 @@ func TestPlanTraceNamesClassSignalsAndPlan(t *testing.T) {
 }
 
 // TestScoutIntentCanBeSwitchedOnExplicitly proves a file can still say scout_intent: on, as it could when
-// the default was off. The default itself is pinned by TestMeterlessEnginesAreOnByDefault (ADR-0053).
+// the default was off. The default itself is pinned by TestMeterlessEnginesAreOnByDefault .
 func TestScoutIntentCanBeSwitchedOnExplicitly(t *testing.T) {
 	cfg, err := parseConfig([]byte("scout_intent: on\n"))
 	if err != nil || !cfg.ScoutIntent {
@@ -434,8 +434,8 @@ func TestPlanSettingsAreCheckedOnLoad(t *testing.T) {
 }
 
 // TestFloorTakesThePolicyWhenItIsHigher proves the one floor function takes a policy minimum when one
-// is given and it outranks the configured class, and keeps the configured class otherwise (ADR-0049
-// point 3, with ADR-0036's policy fed in when it lands).
+// is given and it outranks the configured class, and keeps the configured class otherwise (
+// point 3, with 's policy fed in when it lands).
 func TestFloorTakesThePolicyWhenItIsHigher(t *testing.T) {
 	cfg := defaultSettings()
 	files := []string{"internal/x/run.go"}

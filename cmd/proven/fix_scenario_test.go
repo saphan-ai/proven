@@ -21,8 +21,8 @@ func scanWith(t *testing.T, name string, extra ...string) (string, []byte) {
 	args := append([]string{"scan", "--sample"}, extra...)
 	args = append(args, filepath.Join(root, "testdata", "fixture", name))
 	code := cli.Run(args, func(k string) string {
-		// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
-		// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+		// the OTEL_* family is the one sample mode reads besides the shell's own keys.
+		// the evidence-record database and link base are read in sample mode too.
 		if cli.KnownCLIEnv(k) || (k == "PROVEN_NETWORK" || k == "PROVEN_NETWORK_ALLOW") || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink || engineSwitch(k) {
 			return ""
 		}
@@ -44,7 +44,7 @@ func scanWith(t *testing.T, name string, extra ...string) (string, []byte) {
 	return body, trace
 }
 
-// TestFixScenarioShowsOneProvedFixAndOneFailedAttempt proves ADR-0042 end to end in sample mode: F1's
+// TestFixScenarioShowsOneProvedFixAndOneFailedAttempt proves  end to end in sample mode: F1's
 // patch is shown as a fix with its explanation and the commands of its proof; F2's first patch fails the
 // proving test, its retry fixes that test and breaks a neighbour, so the review says the fix is not
 // proved after two attempts and shows neither patch.
@@ -73,7 +73,7 @@ func TestFixScenarioShowsOneProvedFixAndOneFailedAttempt(t *testing.T) {
 	if !strings.Contains(f2, "fix not proved after 2 attempts: the patch breaks another test of the package") {
 		t.Fatalf("F2 does not say the attempt failed\n%s", f2)
 	}
-	// ADR-0042 point 3: a patch that was not proved is not shown as a fix.
+	// a patch that was not proved is not shown as a fix.
 	for _, hidden := range []string{"fix edit", "return 50", "return 500", "fix proved"} {
 		if strings.Contains(f2, hidden) {
 			t.Fatalf("F2 shows %q although its fix was not proved\n%s", hidden, f2)
@@ -90,7 +90,7 @@ func TestFixScenarioShowsOneProvedFixAndOneFailedAttempt(t *testing.T) {
 	}
 }
 
-// TestFixesOffProposesNoFix proves the setting that turns proposed fixes off (ADR-0042): the same
+// TestFixesOffProposesNoFix proves the setting that turns proposed fixes off : the same
 // scenario with `fixes: off` prints the findings and no fix line of any kind.
 func TestFixesOffProposesNoFix(t *testing.T) {
 	cfg := filepath.Join(t.TempDir(), "proven.yaml")
@@ -119,7 +119,7 @@ func TestOneAttemptSettingEndsTheFailedFixAtOnce(t *testing.T) {
 	}
 }
 
-// TestADependencyFindingNamesTheSmallestFixedVersion proves ADR-0042 point 5 end to end: the OSV
+// TestADependencyFindingNamesTheSmallestFixedVersion proves  point 5 end to end: the OSV
 // scenario's finding names the fixed version of the advisory row that holds the version in use,
 // shows that row, and says no test ran.
 func TestADependencyFindingNamesTheSmallestFixedVersion(t *testing.T) {

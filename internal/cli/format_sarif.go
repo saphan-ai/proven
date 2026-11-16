@@ -1,4 +1,4 @@
-// This file writes one review result as a SARIF 2.1.0 log (ADR-0020 §1).
+// This file writes one review result as a SARIF 2.1.0 log .
 // Where each field sits is the contract in docs/OUTPUT_FORMATS.md.
 
 package cli
@@ -165,7 +165,7 @@ func sarifRuleID(finding review.Finding) string {
 	return finding.ID
 }
 
-// sarifLevel maps the review's severity onto SARIF (ADR-0020 §1):
+// sarifLevel maps the review's severity onto SARIF :
 // INFO is note, WARNING is warning, ERROR is error.
 // An unnamed severity is a note, the same rank the text filter gives INFO,
 // so a finding is never dropped for a name this writer does not know.

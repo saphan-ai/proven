@@ -23,7 +23,7 @@ func podmanHome(t *testing.T, uri string) string {
 	return home
 }
 
-// TestLocalRefusesAPodmanRemoteServiceThatIsPublic proves ADR-0034 for a runtime other than docker. The
+// TestLocalRefusesAPodmanRemoteServiceThatIsPublic proves  for a runtime other than docker. The
 // runtime is any command (PROVEN_TEST_RUNTIME), and podman, which the air-gapped page names, finds a
 // remote service in its own configuration under HOME (containers.conf: [engine] remote and
 // service_destinations), not in DOCKER_HOST or a docker context. HOME reaches the runtime process.

@@ -32,7 +32,7 @@ func (g *callCount) Complete(ctx context.Context, agent, prompt string) (string,
 	return text, err
 }
 
-// ADR-0005: a live pipeline with the guardrail on and no guardrail adapter is
+// a live pipeline with the guardrail on and no guardrail adapter is
 // refused at Build.
 func TestLivePipelineWithoutAGuardrailIsRefused(t *testing.T) {
 	_, err := Build(Options{LogDir: t.TempDir()})
@@ -41,7 +41,7 @@ func TestLivePipelineWithoutAGuardrailIsRefused(t *testing.T) {
 	}
 }
 
-// ADR-0005: a prompt the guardrail marks unsafe never reaches the model, and the
+// a prompt the guardrail marks unsafe never reaches the model, and the
 // review names the step and the categories.
 func TestUnsafePromptStopsTheStepAndNamesCategories(t *testing.T) {
 	fx := loadFixture(t)
@@ -74,7 +74,7 @@ func TestUnsafePromptStopsTheStepAndNamesCategories(t *testing.T) {
 	assertGuardrail(t, d, "unsafe: Criminal Planning/Confessions, Other", "Criminal Planning/Confessions", "Other")
 }
 
-// ADR-0005: an answer the guardrail marks unsafe is not used, is not stored in
+// an answer the guardrail marks unsafe is not used, is not stored in
 // the trace, and the review names its categories.
 func TestUnsafeAnswerIsNotUsed(t *testing.T) {
 	fx := loadFixture(t)

@@ -79,7 +79,7 @@ func ledgerCount(t *testing.T, s *hmem.Store, id, action string) int {
 }
 
 // TestClearAgreesWithItsAuditAtEveryWritePoint proves the property that the
-// audit and the state never disagree about a Clear (ADR-0018 point 3: no
+// audit and the state never disagree about a Clear (no
 // half-applied change). Every one- and two-write failure of a Clear is
 // injected, then the store is reopened. The state is either untouched (records
 // live, no clear line, the proposal still pending) or cleared (no records, the

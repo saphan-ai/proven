@@ -49,7 +49,7 @@ func assertGolden(t *testing.T, name, got string) {
 // TestMarkdownGoldenRunWithFindings proves the comment of a run with findings:
 // the verdict line, the table, a <details> block per finding with its test and
 // its query rows, and the foot. The input is the real sample run on the
-// discount fixture, so the golden is what the lab's pull request shows.
+// discount fixture, so the golden is what a recorded review shows.
 // The property fails when any part of that layout moves.
 func TestMarkdownGoldenRunWithFindings(t *testing.T) {
 	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "discount")
@@ -133,7 +133,7 @@ func hostileResult() review.Result {
 }
 
 // unsafeMarkdown reports every way the body breaks the rules the writer
-// promises (docs/OUTPUT_FORMATS.md, ADR-0027), one line each. It reads the body
+// promises (docs/OUTPUT_FORMATS.md, ), one line each. It reads the body
 // as a Markdown renderer would: fences first, then code spans, then the rest.
 // It is a separate reader from the writer, so a writer that skips one escape
 // cannot also skip the check.
@@ -756,9 +756,9 @@ func TestMarkdownDoesNotCallAReviewCleanWhenNoModelAnswered(t *testing.T) {
 	}
 }
 
-// TestMarkdownCarriesNoInternalNames proves the comment a judge reads names
+// TestMarkdownCarriesNoInternalNames proves the comment a reader reads names
 // findings, reviewers and services in words: no rule id, no internal finding id,
-// no review role name and no empty rule (the owner's rule of 27 Oct). The input is
+// no review role name and no empty rule (the presentation contract). The input is
 // the sample run on the discount fixture; the rule ids and ids stay in JSON and
 // SARIF. The mutated fields are the table's rule column and the details heading.
 func TestMarkdownCarriesNoInternalNames(t *testing.T) {

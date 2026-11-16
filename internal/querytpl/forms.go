@@ -2,7 +2,7 @@ package querytpl
 
 import "strings"
 
-// The query languages a store can run (ADR-0047). Every template fills both:
+// The query languages a store can run . Every template fills both:
 // SQL for Zetaris and the local store, Mango for CouchDB.
 const (
 	FormSQL   = "sql"
@@ -13,7 +13,7 @@ const (
 // SQL is the text Zetaris and the local store run. Mango is the text of the
 // Mango query CouchDB runs, and Find is the same query as data, so a store
 // sends it without reading it back out of text. Both forms come from the same
-// validated values (ADR-0032, ADR-0047).
+// validated values .
 type Forms struct {
 	SQL   string
 	Mango string

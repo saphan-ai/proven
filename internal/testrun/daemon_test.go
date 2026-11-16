@@ -18,7 +18,7 @@ func localEnv(extra map[string]string) func(string) string {
 	return func(k string) string { return m[k] }
 }
 
-// TestLocalRefusesAPublicDaemonAddressAtLoad proves ADR-0034 for the container runtime: the address of
+// TestLocalRefusesAPublicDaemonAddressAtLoad proves  for the container runtime: the address of
 // its daemon, from DOCKER_HOST or CONTAINER_HOST, is a local socket or a host on the network, or Load
 // refuses it by name. The same addresses load in public mode.
 // Mutated field: the daemon address of the one variable under test.
@@ -91,7 +91,7 @@ func TestLocalRefusesADockerContextWhoseDaemonIsPublic(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("public mode refused the context: %v", err)
 	}
-	local := writeContext(t, "lab", "unix:///run/user/1000/docker.sock")
+	local := writeContext(t, "example", "unix:///run/user/1000/docker.sock")
 	if _, err := Load(localEnv(map[string]string{"DOCKER_CONFIG": local})); err != nil {
 		t.Fatalf("a local context refused: %v", err)
 	}

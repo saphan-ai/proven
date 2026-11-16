@@ -64,7 +64,12 @@ func TestLoadRefusesAZeroTimeout(t *testing.T) {
 // and the error does not invent a value.
 // Mutated field: METERLESS_RUNTIME_TOKEN, set to empty.
 func TestLoadNamesAnEmptyTokenDown(t *testing.T) {
-	_, err := generator.Load(func(string) string { return "" })
+	_, err := generator.Load(func(k string) string {
+		if k == generator.EnvMode {
+			return "nightshift"
+		}
+		return ""
+	})
 	d, ok := service.As(err)
 	if !ok || d.Service != "nightshift" || !strings.Contains(d.Reason, generator.EnvToken) {
 		t.Fatalf("%v", err)

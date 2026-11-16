@@ -289,7 +289,7 @@ func TestWrittenTestNotFoundSaysNotFound(t *testing.T) {
 	}
 }
 
-// The prompt asks for the file's content, forbids an attack (ADR-0007), and allows naming an existing test.
+// The prompt asks for the file's content, forbids an attack , and allows naming an existing test.
 func TestPromptAsksForTheFile(t *testing.T) {
 	p := Prompt("F1", "Discount is applied twice")
 	for _, want := range []string{"content (string)", "does not attack anything", "Leave content empty"} {

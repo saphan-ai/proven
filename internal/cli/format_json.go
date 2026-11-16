@@ -1,4 +1,4 @@
-// This file is the JSON writer of ADR-0020 §1. The field names are the
+// This file is the JSON writer of  §1. The field names are the
 // contract in docs/OUTPUT_FORMATS.md. A later step reads the same document
 // from json-file.
 
@@ -10,7 +10,7 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
-// jsonFormatter writes the review result as one JSON document (ADR-0020 §1).
+// jsonFormatter writes the review result as one JSON document .
 type jsonFormatter struct{}
 
 // Write encodes one review as one JSON document.
@@ -20,12 +20,13 @@ func (jsonFormatter) Write(w io.Writer, result review.Result) error {
 }
 
 // jsonDocument is one review result.
-// The names are the contract in docs/OUTPUT_FORMATS.md (ADR-0020 §1).
+// The names are the contract in docs/OUTPUT_FORMATS.md .
 // A bool is always written: false means the review says so, and a missing
 // key would look like a writer that forgot the field.
 // A slice is never nil. documentFrom substitutes an empty slice, so the file
 // has [] and a later step can range it. A nil slice would marshal as null.
 type jsonDocument struct {
+	CompletionStatus     string            `json:"completion_status"`
 	Class                string            `json:"class"`
 	ClassRule            string            `json:"class_rule"`
 	Doubled              bool              `json:"doubled"`
@@ -41,7 +42,7 @@ type jsonDocument struct {
 	FamilySentence       string            `json:"family_sentence"`
 	Models               []jsonModelUse    `json:"models"`
 	FailedServices       []jsonService     `json:"failed_services"`
-	// ProofCounts is the totals by level (ADR-0044). Every level is a key,
+	// ProofCounts is the totals by level . Every level is a key,
 	// with 0 when none, in the order review.ProofLevels lists them.
 	ProofCounts jsonProofCounts `json:"proof_counts"`
 	// Guardrail is what NVIDIA's guardrail checked in this review, always written.
@@ -96,7 +97,7 @@ type jsonService struct {
 
 type jsonFinding struct {
 	ID string `json:"id"`
-	// ProofLevel is this finding's one level of proof (ADR-0044). The string
+	// ProofLevel is this finding's one level of proof . The string
 	// is the core's, and it is always written, including when it is empty.
 	ProofLevel string         `json:"proof_level"`
 	RuleID     string         `json:"rule_id"`
@@ -170,6 +171,7 @@ func documentFrom(result review.Result) jsonDocument {
 	// are made with length zero, so a review with nothing to report still
 	// writes an array. A nil slice would marshal as null.
 	return jsonDocument{
+		CompletionStatus:     result.CompletionStatus(),
 		Class:                result.Class,
 		ClassRule:            result.ClassRule,
 		Doubled:              result.Doubled,

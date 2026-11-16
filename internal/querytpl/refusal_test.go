@@ -8,7 +8,7 @@ import (
 )
 
 // TestLiteralByteBackstopRefusesWhatAFormatShouldNeverAdmit proves the last test inside the literal
-// builder (ADR-0032 point 3) on its own: given a format that admits every text, it still refuses a
+// builder  on its own: given a format that admits every text, it still refuses a
 // single quote, a backslash, a control byte and a byte of 0x80 or more. Deleting the byte loop in
 // literal turns this test red. The mutated field is the value; the format is held permissive.
 func TestLiteralByteBackstopRefusesWhatAFormatShouldNeverAdmit(t *testing.T) {
@@ -37,7 +37,7 @@ func TestLiteralByteBackstopRefusesWhatAFormatShouldNeverAdmit(t *testing.T) {
 
 // TestEveryIdParameterRefusesLineBreaksNulAndAForeignId proves the id parameters refuse a carriage
 // return, a line feed, a NUL, an escape byte and an id of the wrong kind, name the template and the
-// parameter, and never repeat the value (ADR-0032). The mutated field is the value.
+// parameter, and never repeat the value . The mutated field is the value.
 func TestEveryIdParameterRefusesLineBreaksNulAndAForeignId(t *testing.T) {
 	cases := []struct {
 		template, param string
@@ -82,7 +82,7 @@ func TestEveryIdParameterRefusesLineBreaksNulAndAForeignId(t *testing.T) {
 }
 
 // TestPackageNamesRefuseEveryControlByte proves no package name holding a control byte, DEL or a
-// byte that is not ASCII reaches a query, in any ecosystem (ADR-0032). The mutated field is the byte.
+// byte that is not ASCII reaches a query, in any ecosystem . The mutated field is the byte.
 func TestPackageNamesRefuseEveryControlByte(t *testing.T) {
 	for _, eco := range []string{"Go", "npm", "PyPI"} {
 		for b := 0; b < 0x20; b++ {

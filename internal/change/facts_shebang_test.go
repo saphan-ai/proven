@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TestFactsBetweenKeepsABaselineShebang proves ADR-0049's rule that shebang evidence is aggregated across
+// TestFactsBetweenKeepsABaselineShebang proves 's rule that shebang evidence is aggregated across
 // both sides of a change, as the executable bit is: a script that loses its "#!" line, in place or across
 // a rename, still reports Shebang, so a caller never takes the edit for prose. Mutated field, one per
 // case: the first line of the head side (removed in place), the same with a rename, and a file whose

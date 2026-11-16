@@ -11,7 +11,7 @@ import (
 	"github.com/saphan-ai/proven/internal/markov"
 )
 
-// stepSpec is the JSON the Planner asks for at one bounded step (ADR-0048 point 1): the risks this part shows, and
+// stepSpec is the JSON the Planner asks for at one bounded step : the risks this part shows, and
 // the state to carry to the next part.
 var stepSpec = answer.Spec{
 	Task: "Name the risks in one part of a larger change. You see this part and the state carried from the parts before it, never the whole change. " +
@@ -61,7 +61,7 @@ type stepAnswer struct {
 	Awaiting    []string `json:"awaiting_evidence"`
 }
 
-// Step is what one bounded step did, for the trace (ADR-0048, the order's point 6).
+// Step is what one bounded step did, for the trace .
 type Step struct {
 	Index, Steps int
 	// Part names the file, or the file and the hunk header.
@@ -81,7 +81,7 @@ func Size(files []change.File) int {
 	return markov.EstimateTokens(Prompt(files))
 }
 
-// PlanBounded asks the generator for the risks one part at a time (ADR-0048 point 1). Each step's prompt holds one
+// PlanBounded asks the generator for the risks one part at a time . Each step's prompt holds one
 // part and the state carried from the step before, bounded to s.Carry estimated tokens; no step sees the whole
 // change. A risk id a later step repeats is renamed with its step, because the steps do not see each other's ids.
 func PlanBounded(ctx context.Context, files []change.File, gen generator.Generator, s markov.Settings) ([]candidate.Risk, []Step, error) {
@@ -137,13 +137,13 @@ func PlanBounded(ctx context.Context, files []change.File, gen generator.Generat
 			carried, dropped, cerr = state.Carry(n, n+1, len(parts), s.Carry)
 			rec.Dropped = dropped
 			if cerr != nil {
-				// ADR-0048: an open claim that does not fit is never dropped; the review stops and says so.
+				// an open claim that does not fit is never dropped; the review stops and says so.
 				return nil, append(steps, rec), cerr
 			}
 		}
 		steps = append(steps, rec)
 	}
-	// ADR-0048: the last part has been read, so a claim still awaiting evidence can never be settled. Reporting the
+	// the last part has been read, so a claim still awaiting evidence can never be settled. Reporting the
 	// risks alone as success would look complete when it is not; the review stops by name instead, as it does when
 	// the carried state is full.
 	if len(state.Awaiting) > 0 {

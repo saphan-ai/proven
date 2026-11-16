@@ -1,5 +1,5 @@
 name: Proven
-description: Review a change with Proven. A drop-in for a Semgrep or Opengrep step (ADR-0020).
+description: Review a change with Proven. A drop-in for a Semgrep or Opengrep step.
 author: saphan-ai
 
 inputs:
@@ -29,6 +29,10 @@ inputs:
     required: false
   strict:
     description: true fails the step when there are findings (--error); false does not.
+    required: false
+    default: "true"
+  require-complete:
+    description: Fail with exit 3 when a review is partial or a required service fails, independently of findings.
     required: false
     default: "true"
   baseline-commit:
@@ -62,7 +66,7 @@ outputs:
 
 runs:
   using: docker
-  image: action/Dockerfile
+  image: Dockerfile.action
   env:
     INPUT_TARGET: ${{ inputs.target }}
     INPUT_CONFIG: ${{ inputs.config }}
@@ -72,6 +76,7 @@ runs:
     INPUT_EXCLUDE: ${{ inputs.exclude }}
     INPUT_TIMEOUT: ${{ inputs.timeout }}
     INPUT_STRICT: ${{ inputs.strict }}
+    INPUT_REQUIRE_COMPLETE: ${{ inputs.require-complete }}
     INPUT_BASELINE_COMMIT: ${{ inputs.baseline-commit }}
     INPUT_SAMPLE_MODE: ${{ inputs.sample-mode }}
     INPUT_COMMENT: ${{ inputs.comment }}

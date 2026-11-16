@@ -12,26 +12,27 @@ description: Every setting, its environment variable and its default.
 | `PROVEN_NETWORK` | `public` | `public` or `local`. `local` is the air-gapped mode: a setting that names an address outside the organisation's network is refused at load, and every connection to such an address is refused when it is made |
 | `PROVEN_NETWORK_ALLOW` | none | in `local` mode, host names that count as inside the network, comma-separated, for example `nightshift.corp.example`. A host name is never resolved to be judged: it is allowed by this list or it is refused. A listed name is resolved only through a name server inside the network, and an answer outside it is refused |
 
-In `local` mode every address in the tables below is checked when it loads, the guardrail's `nvidia` mode is refused, and the Prover's image is never pulled (ADR-0034). `docs/AIR_GAPPED.md` says what to run and how to check the mode holds.
+In local mode, every configured network destination must pass the policy. Hosted NVIDIA modes and the external CLI model transport are refused. Runner images are not pulled. See AIR_GAPPED.md.
 
-## The model generator: Meterless Nightshift or NVIDIA's hosted API
+## Model transports
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_GENERATOR_MODE` | `nightshift` | `nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031) |
+| `PROVEN_GENERATOR_COMMAND` | none | operator-configured JSON argv for a local CLI; prompt on stdin, answer on stdout; {model} and {agent} are substituted in arguments; no shell is started |
+| `PROVEN_GENERATOR_MODE` | off when unconfigured; openai when an endpoint/model is set | `openai`, `command`, `off`, or the legacy opt-in `nightshift` and `nvidia` adapters |
 | `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
-| `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode |
+| `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | Secret: API key for your endpoint; optional for openai, required for nvidia; never printed |
 | `PROVEN_GENERATOR_BASE_URL` | `http://127.0.0.1:8088` | Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it |
 | `PROVEN_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | the hosted API's address. Read in `nvidia` mode only. It must be `https://`: any other value is refused by name, so the key is never sent over plain http. The answer's `model` field is trusted as the answering model only from this address (ADR-0031) |
 | `PROVEN_GENERATOR_APP` | `proven` | the application name sent with each call to Nightshift. Not sent in `nvidia` mode |
 | `PROVEN_GENERATOR_MODEL` | `meterless/auto` for `nightshift`; `nvidia/nemotron-3.5-super-vl-120b-a12b` for `nvidia` | the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only |
 | `PROVEN_GENERATOR_TIMEOUT` | `60s` | the limit for one model call |
-| `PROVEN_GENERATOR_REQUIRE_NVIDIA` | `all` | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
+| `PROVEN_GENERATOR_REQUIRE_NVIDIA` | none for openai/command; all for legacy adapters | which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name |
 | `PROVEN_GENERATOR_REQUIRE_REQUESTED` | `off` | `on` or `off`. With `on`, in `nightshift` mode an answer whose signed receipt names a model other than the one asked for is refused by name as a failed service, so a review never ships another model's verdict; a request for `meterless/auto` lets the router choose and is not checked |
 | `PROVEN_SKEPTIC_MODEL` | `nvidia/nemotron-3.5-super-vl-120b-a12b` | the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family |
 | `PROVEN_GENERATOR_THINKING_BUDGET` | empty (nothing is sent) | the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call, the second reviewer's included. Empty sends nothing, so a provider that does not know the field never sees it |
 
-Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `METERLESS_RUNTIME_TOKEN`, issued by the operator of the Nightshift you run; nothing else is required. `nvidia`: `PROVEN_GENERATOR_MODE=nvidia` and `PROVEN_GENERATOR_KEY`, a free NVIDIA API key created at https://build.nvidia.com (sign in, open any model, choose *Get API Key*); the hosted API's address (`PROVEN_NVIDIA_BASE_URL`, `https://` only) and the models have defaults, so the key is the only value needed. Each mode reads its own address: `nightshift` reads `PROVEN_GENERATOR_BASE_URL`, `nvidia` reads `PROVEN_NVIDIA_BASE_URL` and ignores the other, so the key is never sent to a Nightshift address. The guardrail has its own key in either mode (below). In `nvidia` mode the hosted API gives no signed receipt, so the trace says *no receipt* and the `nvidia/*` requirement is checked against the `model` field of its answer. A free key is rate limited; a review that meets the limit names it as a failed service. Sample mode reads none of these.
+Without model configuration, deterministic analysis runs alone. The openai adapter uses your endpoint and optional API key; command uses an operator-configured local CLI. Explicit nightshift and nvidia adapters retain their provider-specific settings. Sample mode uses recorded answers.
 
 ## The second reviewer: any OpenAI-compatible model
 
@@ -41,30 +42,31 @@ Which keys each mode needs (ADR-0031). `nightshift` (the default, ADR-0019): `ME
 | `PROVEN_SECOND_REVIEWER_BASE_URL` | none (required with the key) | the address of any OpenAI-compatible chat API, for example `https://api.openai.com/v1` or a local server |
 | `PROVEN_SECOND_REVIEWER_MODEL` | none (required with the key) | the model asked for; the review names it as the second reviewer |
 
-## The guardrail: NVIDIA Nemotron content safety
+## Optional model safety service
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_GUARDRAIL_MODE` | `server` | `server` (your own model server), `nvidia` (NVIDIA's hosted API) or `off` (the trace says "no guardrail") |
+| `PROVEN_GUARDRAIL_MODE` | `off` | `server` (your own model server), `nvidia` (NVIDIA's hosted API) or `off` (the trace says "no guardrail") |
 | `PROVEN_GUARDRAIL_BASE_URL` | `http://127.0.0.1:8081` for `server`; `https://integrate.api.nvidia.com/v1` for `nvidia` | the guardrail's address |
 | `PROVEN_GUARDRAIL_MODEL` | `nemotron-3.5-content-safety` for `server`; `nvidia/nemotron-3.5-content-safety` for `nvidia` | the safety model. The hosted id is not yet confirmed by a live call |
-| `PROVEN_GUARDRAIL_KEY` | none | the guardrail's key. Secret: never printed. Empty is not off: every model call is refused |
+| `PROVEN_GUARDRAIL_KEY` | none | the safety service key. Secret: never printed; optional for a self-hosted server, required for NVIDIA |
 | `PROVEN_GUARDRAIL_TIMEOUT` | `120s` | the limit for one check |
 
-Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail that does not answer, stops that step by name. An empty key is not off: every model call is refused and the review names the guardrail.
+When enabled, the safety service checks every prompt and answer. An unsafe response or unavailable check stops that model step. A self-hosted service may use no key; hosted NVIDIA mode requires one.
 
-## Evidence: the store, and Zetaris over REST
+## Evidence stores and source settings
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_EVIDENCE_STORE` | `zetaris` | which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable |
-| `PROVEN_EVIDENCE_FILE` | none (required when the store is `local`) | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
+| `PROVEN_EVIDENCE_STORE` | `sqlite` | which evidence store a live review uses: `sqlite`, `postgres`, `couchdb`, `local` or `zetaris`. Empty means `sqlite`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable |
+| `PROVEN_EVIDENCE_FILE` | <user cache>/proven/evidence.sqlite for sqlite; required for local | the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started |
 | `PROVEN_COUCHDB_URL` | none (required when the store is `couchdb`) | CouchDB's address; an absolute `http` or `https` URL with no user info, query or fragment. Empty: CouchDB is down and the review names it. In `PROVEN_NETWORK=local` an address outside the organisation's network is refused at load, and the store's client refuses to dial one |
 | `PROVEN_COUCHDB_PREFIX` | `proven_` | the start of every database name. One database holds one registered table, named the prefix, then the table name in lower case with `.` written as `-`. A lower-case letter, then at most 31 lower-case letters, digits or `_` |
 | `PROVEN_COUCHDB_USER` | none (required when the store is `couchdb`) | the CouchDB user Proven reads as. One line of printable ASCII with no `:`. Empty: CouchDB is down and the review names it |
 | `PROVEN_COUCHDB_PASSWORD` | none (required when the store is `couchdb`) | that user's password. Secret: never printed. Empty: CouchDB is down and the review names it |
 | `PROVEN_COUCHDB_ROW_LIMIT` | `100` | the most rows one query returns |
 | `PROVEN_COUCHDB_TIMEOUT` | `60s` | the limit for one request to CouchDB |
+| `PROVEN_POSTGRES_URL` | none | Secret: PostgreSQL connection URL, read only for postgres; credentials are never printed |
 | `PROVEN_COUCHDB_RECORDS` | none (records are not written) | the CouchDB database that holds a review's evidence records, on the server `PROVEN_COUCHDB_URL` names. Set: each finding of a review is written to it as one document, with the design document and the viewer page. Empty: nothing is written. A lower-case letter, then at most 63 lower-case letters, digits, `_` or `-` |
 | `PROVEN_COUCHDB_RECORDS_USER` | none (required when `PROVEN_COUCHDB_RECORDS` is set) | the CouchDB user Proven writes the records as. It must be a different user from `PROVEN_COUCHDB_USER`, the read-only account the viewer is opened with. One line of printable ASCII with no `:` |
 | `PROVEN_COUCHDB_RECORDS_PASSWORD` | none (required when `PROVEN_COUCHDB_RECORDS` is set) | that writing user's password. Secret: never printed |
@@ -76,11 +78,10 @@ Every prompt and every answer is checked; an `unsafe` verdict, or a guardrail th
 | `ZETARIS_TIMEOUT` | `60s` | the limit for one query |
 | `PROVEN_OSV_TABLE` | `px_osvfile.px_osv_pkg` | the OSV package table the dependency check queries; see [OSV_TABLE.md](OSV_TABLE.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_KEV_VIEW` | `px_evidence.px_kev_vulns` | the KEV view an advisory's CVE alias is looked up in. Sample mode uses the default and does not read this variable |
-| `PROVEN_OSV_ID_VIEW` | `px_evidence.px_osv_id` | the OSV advisory-id view the `osv-by-advisory` template reads; see [ZETARIS_USL.md](ZETARIS_USL.md). Sample mode uses the default and does not read this variable |
+| `PROVEN_OSV_ID_VIEW` | `px_evidence.px_osv_id` | the OSV advisory-id view the `osv-by-advisory` template reads; see [DATABASES.md](DATABASES.md). Sample mode uses the default and does not read this variable |
 | `PROVEN_EPSS_VIEW` | `px_evidence.px_epss_cve_rows` | the EPSS view a finding's CVE is scored from. Sample mode uses the default and does not read this variable |
-| `PROVEN_EVIDENCE_VIEW` | `px_evidence.px_kev_vulns` | the view `livecheck` queries to prove Zetaris answers (livecheck only) |
 
-The store is zetaris unless PROVEN_EVIDENCE_STORE says local or couchdb. The local store is one file and opens no network (ADR-0034, ADR-0047), and a review that chooses it does not read the Zetaris variables. The couchdb store reads the PROVEN_COUCHDB variables and not the Zetaris ones. A live review passes the template request, and each store runs the form of its own language: sql on Zetaris and the local store, mango on CouchDB (ADR-0047, docs/ADAPTERS.md). Sample mode uses the local store on the fixture file and reads none of these, except that it reads PROVEN_COUCHDB_RECORDS and PROVEN_EVIDENCE_LINK_BASE_URL, and, when PROVEN_COUCHDB_RECORDS is set, also the other PROVEN_COUCHDB_* variables (URL, USER, PASSWORD, PREFIX, ROW_LIMIT, TIMEOUT, RECORDS_USER, RECORDS_PASSWORD) and GITHUB_REF, and the engine switches of ADR-0053 (PROVEN_MARKOVIAN, PROVEN_MARKOVIAN_THRESHOLD, PROVEN_MARKOVIAN_STEP_UNIT, PROVEN_MARKOVIAN_CARRY_TOKENS, PROVEN_HMEM, PROVEN_WORLD_MODEL), and nothing else besides OTEL_*, so the lab's review can write its records (docs/ADAPTERS.md).
+A clean installation selects SQLite. PostgreSQL, CouchDB, local fixture files and Zetaris are optional stores. Query templates and source definitions are independent of the backend. Explicit legacy Zetaris configuration retains its selection during migration. Sample mode uses local fixtures; optional evidence records and telemetry keep their own settings.
 
 ## The Prover's container
 
@@ -116,7 +117,7 @@ Each tool runs in the Prover's container with no network and no secret (ADR-0025
 | `PROVEN_MARKOVIAN_STEP_UNIT` | `file` | what one step reads: `file` (one changed file, its base and its change) or `hunk` (one changed region of a file) |
 | `PROVEN_MARKOVIAN_CARRY_TOKENS` | `800` | the bound, in estimated tokens, on the state carried from one step to the next (what is established, what is suspected, what awaits evidence); from 128 to 32768. When it cannot hold every claim that awaits evidence, the review stops and names itself incomplete; it never drops such a claim |
 
-ADR-0053 (superseding the "off until measured" clause of ADR-0048): on by default, switched off with `PROVEN_MARKOVIAN=off`. Its benefit is UNMEASURED until the corpus recordings exist. Every review's trace says whether bounded steps ran, how many, and the carried state's size at each step. A wrong value stops the review before it starts. Sample mode reads these four, so the lab's pull-request review runs bounded steps on by default and switches them off the same way.
+Bounded steps are on by default and can be disabled with PROVEN_MARKOVIAN=off. Their effect on review quality is unmeasured. Each trace records whether the bounded planner ran and the size of its steps and carried state. Sample mode reads the same switches.
 
 ## The two stores: Meterless's H-MEM and World Model
 
@@ -125,7 +126,7 @@ ADR-0053 (superseding the "off until measured" clause of ADR-0048): on by defaul
 | `PROVEN_HMEM` | `on` | `on` opens H-MEM, so a finding an earlier review of the same change refuted is dropped and a landed refutation is remembered; `off` neither opens, reads nor writes it. On by default (ADR-0053); its benefit is not measured yet |
 | `PROVEN_WORLD_MODEL` | `on` | `on` opens the World Model and folds each finished review's trace into it; `off` neither opens nor writes it. With H-MEM off the World Model still folds and records no refutation. On by default (ADR-0053); its benefit is not measured yet |
 
-ADR-0053: both stores are on by default, each switched off by its own variable. A store switched off is not opened, read or written on any path: no directory is made for it, the Judge suppresses nothing from H-MEM, and with the World Model off there is no fold, so H-MEM learns nothing from the trace either. With only H-MEM off, the World Model still folds and records no refutation. Their benefit is UNMEASURED. A wrong value stops the review before it starts. Sample mode reads both, as it reads the Markovian switches.
+Both local stores are on by default and have independent off switches. A disabled store is not opened, read or written. Their effect on review quality is unmeasured. Sample mode reads the same switches.
 
 ## One adapter call
 
@@ -143,7 +144,7 @@ ADR-0053: both stores are on by default, each switched off by its own variable. 
 | `OTEL_SDK_DISABLED` | none | `true` turns telemetry off even when an endpoint is set |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | the OTLP transport. Only `http/protobuf` is built in; any other value is refused by name. `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` and `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` are read the same way |
 | `OTEL_SERVICE_NAME` | `proven` | the service name a backend shows |
-| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | how often the metrics are pushed, in milliseconds. The lab sets it low so a dashboard moves while a review runs |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | how often metrics are exported, in milliseconds |
 
 Telemetry is off unless an endpoint is set. It only observes: once a review has started it never changes what the review decides, and a collector that cannot be reached never fails a review (the export is bounded at 5 seconds, and the failure goes to stderr). The one refusal is at the start: a malformed `OTEL_*` setting stops `Open` by name, like any other setting. No secret is put in an attribute, an event or a span status: the same redactor that cleans the trace file cleans the span events and the text of every failed review and failed agent, so a status carries the redactor's marker where a configured secret stood. The headers, timeout and certificates of the exporter are the SDK's own variables (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_CERTIFICATE`), read from the process environment. Sample mode reads the `OTEL_*` variables and no other.
 
@@ -182,7 +183,7 @@ The pack holds source excerpts and query rows, so keep it where the review itsel
 | `PROVEN_HMEM_MAX_STATE_BYTES` | `67108864` | the largest H-MEM `state.json` that opens; above it the store refuses by name and reads nothing more (`ErrStateTooLarge`). A positive number of bytes, at most 1 TiB (1099511627776); a larger value is refused. Sample mode uses the default and does not read this variable |
 | `PROVEN_HMEM_QUERY_TOKENS` | `8` | how many leading query tokens count when H-MEM scores a query; a positive integer up to 1024. Sample mode uses the default and does not read this variable |
 
-H-MEM reads its whole state file at open and scans every record on each query, so it is built for a small store; see the scale section of `docs/ARCHITECTURE.md`. A state file over the cap is refused by name with its size and the cap. Sample mode reads none of these.
+H-MEM is bounded by the configured state-size and query limits. It is intended for a small repository store. A state file above its limit is refused. Sample mode uses the defaults.
 
 ## The trace
 

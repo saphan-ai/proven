@@ -7,7 +7,7 @@ import (
 )
 
 // Property: when a command fails, the message comes from its standard error and never from its
-// standard output, which is repository content (ADR-0013).
+// standard output, which is repository content .
 func TestFailureMessageNeverQuotesStandardOutput(t *testing.T) {
 	cmd := exec.Command("sh", "-c", "echo repository-content; echo the-error >&2; exit 1")
 	_, err := ProcessPolicy().outputBounded(cmd, 1<<10, "the test output", EnvMaxFileBytes)
@@ -54,7 +54,7 @@ func TestMessagesRefuseALogOverTheFileBound(t *testing.T) {
 }
 
 // Property: a size setting that is not a positive number of bytes is refused by name, and the value
-// the refusal shows is clipped (ADR-0013).
+// the refusal shows is clipped .
 func TestLoadLimitsRefusesAWrongValueByName(t *testing.T) {
 	for _, raw := range []string{"0", "-5", "ten", "1.5", strings.Repeat("9", 100)} {
 		_, err := LoadLimits(func(k string) string {

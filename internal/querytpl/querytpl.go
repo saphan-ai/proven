@@ -1,8 +1,8 @@
 // Package querytpl is the closed list of questions Proven can ask a store, and
-// the only place the built-in query text is written (ADR-0032).
+// the only place the built-in query text is written .
 //
-// The list is the source-adapter registry (ADR-0046). OSV, KEV, EPSS and the
-// four sources of ADR-0039 (malicious packages, project health, CVSS, SPDX
+// The list is the source-adapter registry . OSV, KEV, EPSS and the
+// four sources of  (malicious packages, project health, CVSS, SPDX
 // licences) register their templates from this package, and Catalogue and
 // Build read that registry, so each template is written once. A model never writes a
 // query. The Investigator and the Skeptic name one template and give the
@@ -10,7 +10,7 @@
 // format of that parameter and builds the query itself. A value outside its
 // format is refused with a named reason, never escaped, so a quote, a
 // backslash, a control byte or invalid UTF-8 cannot reach the text. Each
-// template has one form per query language (ADR-0047): sql for Zetaris and
+// template has one form per query language : sql for Zetaris and
 // the local store, and a mango selector for CouchDB. The OSV
 // check and the EPSS check build their queries from the same registry, so
 // every query Proven sends has one author. A review's settings may narrow the
@@ -29,15 +29,15 @@ import (
 	"github.com/saphan-ai/proven/internal/source"
 )
 
-// The defaults of the three settings that name a table or a view (ADR-0013),
-// and the four ADR-0039 tables, which are the adapters' own names.
+// The defaults of the three settings that name a table or a view ,
+// and the four  tables, which are the adapters' own names.
 // osv, epss and the review settings refer to the first four, so a name is written once.
 const (
 	DefaultOSVTable  = "px_osvfile.px_osv_pkg"
 	DefaultKEVView   = "px_evidence.px_kev_vulns"
 	DefaultEPSSView  = "px_evidence.px_epss_cve_rows"
 	DefaultOSVIDView = "px_evidence.px_osv_id"
-	// The four ADR-0039 tables are the adapters' own names, not review
+	// The four  tables are the adapters' own names, not review
 	// settings. An organisation that wants another name writes another adapter.
 	DefaultMalTable       = "px_evidence.px_mal_pkg"
 	DefaultScorecardTable = "px_evidence.px_scorecard"
@@ -112,7 +112,7 @@ func (r Request) Empty() bool {
 	return strings.TrimSpace(r.Template) == "" && len(r.Params) == 0
 }
 
-// Relations are the table and view names a review's settings give (ADR-0013).
+// Relations are the table and view names a review's settings give .
 // A zero field means the default. Build checks each name again, because it is
 // the one thing that cannot be a quoted literal.
 type Relations struct {
@@ -142,13 +142,13 @@ type Param = source.Param
 
 // Template is one question Proven can ask: its name, what it answers, and the
 // parameters it takes. Catalogue returns them all. It is the source adapter's
-// template type (ADR-0046).
+// template type .
 type Template = source.Template
 
 // Catalogue lists every template, in the registry's order. The prompts and
 // docs/QUERIES.md are written from it, and a test holds the document to it.
 // The list is the source adapters, so a template is not written here again
-// (ADR-0046).
+// .
 func Catalogue() []Template {
 	var out []Template
 	for _, a := range source.All() {
@@ -227,8 +227,8 @@ func ValidRelation(name string) bool { return source.ValidRelation(name) }
 // what it returns is exactly the value and holds no quote, no backslash and
 // no control byte. The format has already been checked by the caller; the
 // last test here refuses any byte an allow-list should never have admitted,
-// so a format edited carelessly cannot let one through (ADR-0032 point 3).
-// ADR-0047: the sql form and the mango form both take their values from here,
+// so a format edited carelessly cannot let one through .
+// the sql form and the mango form both take their values from here,
 // so the two forms cannot disagree on what a value may be.
 func checked(template, param, value string, format *regexp.Regexp) (string, error) {
 	if !format.MatchString(value) {
@@ -285,7 +285,7 @@ func Build(req Request, rel Relations) (string, error) {
 	if err := checkParams(spec.Template, req.Params); err != nil {
 		return "", err
 	}
-	// ADR-0046: the adapter that owns the template builds it. The text stays
+	// the adapter that owns the template builds it. The text stays
 	// in this package; the registry is what names the builder, so the switch
 	// that used to live here is not a second copy.
 	if spec.Build == nil {
@@ -293,7 +293,7 @@ func Build(req Request, rel Relations) (string, error) {
 	}
 	// Proven holds every value to its parameter's format and to the byte
 	// floor before any builder runs, built-in or registered: the adapter's
-	// builder is never the only guard (ADR-0032 points 1 and 3).
+	// builder is never the only guard .
 	for _, p := range spec.Template.Params {
 		if !source.CheckValue(p, req.Params[p.Name]) {
 			return "", &Refusal{Reason: ReasonBadValue, Detail: spec.Template.Name + " " + p.Name}
@@ -376,7 +376,7 @@ func OSVPackageSQL(table, ecosystem, pkg string) (string, error) {
 // osvKey checks an ecosystem and a package name and returns the two values a
 // query on the OSV table matches, the name in the spelling the table is keyed
 // by. The sql form and the mango form both call it, so they match the same
-// rows (ADR-0047).
+// rows .
 func osvKey(ecosystem, pkg string) (string, string, error) {
 	return ecosystemKey(OSVByPackage, ecosystem, pkg)
 }

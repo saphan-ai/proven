@@ -8,7 +8,7 @@ import (
 )
 
 // TestLoadUsesTheDefaultAndRefusesABadTimeout proves an empty setting is two
-// minutes and a value that is set wrong is refused by name (ADR-0013).
+// minutes and a value that is set wrong is refused by name .
 // Mutated field: PROVEN_TOOL_TIMEOUT.
 func TestLoadUsesTheDefaultAndRefusesABadTimeout(t *testing.T) {
 	d, err := Load(func(string) string { return "" })
@@ -44,7 +44,7 @@ func TestEnvironmentNamesTheTimeout(t *testing.T) {
 
 // TestLoadDBAcceptsEmptyAndACheckoutFile proves an empty database means the
 // tool is not run, a file URL under the checkout is kept, and a network
-// address is refused by name (ADR-0013, ADR-0043).
+// address is refused by name .
 // Mutated field: PROVEN_GOVULNCHECK_DB.
 func TestLoadDBAcceptsEmptyAndACheckoutFile(t *testing.T) {
 	got, err := LoadDB(func(string) string { return "" })

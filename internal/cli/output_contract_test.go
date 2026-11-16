@@ -147,8 +147,9 @@ func TestJSONDocumentIsTheContract(t *testing.T) {
 		"models": []any{map[string]any{
 			"agent": "judge", "route": "route-x", "model": "model-y", "receipt_id": "receipt-z", "from_receipt": true,
 		}},
-		"failed_services": wantFailedServices(),
-		"guardrail":       wantGuardrail(),
+		"completion_status": "incomplete",
+		"failed_services":   wantFailedServices(),
+		"guardrail":         wantGuardrail(),
 		"proof_counts": map[string]any{
 			"proved-by-test": float64(4), "proved-by-tool": float64(1),
 			"proved-by-data": float64(0), "agreed-by-two-models-not-proven": float64(9),

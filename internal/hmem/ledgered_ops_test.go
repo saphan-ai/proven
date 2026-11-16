@@ -39,7 +39,7 @@ var ledgerOps = []ledgerOp{
 
 // TestALedgerLineExistsOnlyForAChangeThatHappened proves, for every operation
 // that writes both state and a ledger line, that a failure of any one or two
-// writes leaves the ledger and the durable state in agreement (ADR-0018 point
+// writes leaves the ledger and the durable state in agreement ( point
 // 3). After each, a new process is opened: the ledger holds a line for the
 // operation only when the operation's effect is durable, and the returned error
 // is nil only then.

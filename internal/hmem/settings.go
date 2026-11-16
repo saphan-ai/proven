@@ -9,7 +9,7 @@ import (
 	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
-// Environment variables of H-MEM (ADR-0013). The set is closed: LoadLimits
+// Environment variables of H-MEM . The set is closed: LoadLimits
 // reads these names and no others. An empty value means the default from
 // DefaultLimits, which is the one list of them.
 const (
@@ -24,7 +24,7 @@ const (
 // kilobytes), and far below a size at which a whole-file read is a hazard.
 const DefaultMaxStateBytes int64 = 64 << 20
 
-// DefaultQueryTokens is how many query tokens count in a Query (ADR-0013).
+// DefaultQueryTokens is how many query tokens count in a Query .
 const DefaultQueryTokens = 8
 
 // maxSettingBytes is the largest cap a setting may name: 1 TiB, so the
@@ -92,7 +92,7 @@ func (e *ConfigError) Error() string {
 
 // LoadLimits reads the two bounds from env. An empty value is the default. A
 // value that is set and is not a positive number in range is refused and is
-// never replaced by the default (ADR-0013).
+// never replaced by the default .
 func LoadLimits(env func(string) string) (Limits, error) {
 	if env == nil {
 		env = func(string) string { return "" }

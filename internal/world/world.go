@@ -2,14 +2,14 @@
 // log, and a context builder. The trace log is internal/trace. Memory of a
 // refuted finding is stored in H-MEM.
 //
-// It holds the state of one review (ADR-0003 point 2), built to the Meterless
-// World Model specification (ADR-0018 point 1). After the six agents have
+// It holds the state of one review , built to the Meterless
+// World Model specification . After the six agents have
 // written their claims, evidence, refutations and verdicts to the trace, the
 // pipeline folds that trace into this store. Folding is idempotent and
-// resumable (ADR-0018 point 5): an event already applied is skipped, so a run
+// resumable : an event already applied is skipped, so a run
 // killed halfway and started again reaches the same state. A refutation the
 // Skeptic made with evidence is handed to H-MEM, which backs this store's
-// memory (ADR-0018 point 4). A failed audit or persist puts the in-memory
+// memory . A failed audit or persist puts the in-memory
 // fold back, so memory and the state file agree.
 package world
 
@@ -94,7 +94,7 @@ type Report struct {
 // Options open a store. Dir is durable state. LogDir receives the provenance JSONL.
 // RepoRoot, when set, refuses a Dir inside that tree. Memory is the H-MEM
 // store that keeps refutations. It may be nil, which is how a review with H-MEM
-// switched off (ADR-0053) opens the World Model: the fold records no refutation
+// switched off  opens the World Model: the fold records no refutation
 // in memory and Context matches none.
 type Options struct {
 	Dir      string
@@ -104,7 +104,7 @@ type Options struct {
 }
 
 // Store folds the trace log. The generator is accepted and never called
-// (ADR-0018: model calls go through an injected generator, never inside the engine).
+// .
 type Store struct {
 	dir       string
 	auditPath string
@@ -314,7 +314,7 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 	before := s.Canonical()
 	// The whole pass is one write. Any failure puts this snapshot back, so a
 	// retry on the same store applies the events again instead of skipping
-	// ones the state file does not hold (ADR-0018 point 5). H-MEM is not in
+	// ones the state file does not hold . H-MEM is not in
 	// the snapshot: a refutation it already stored stays, and the retry
 	// finds that same record.
 	snap := s.cloneState()
@@ -336,7 +336,7 @@ func (s *Store) Ingest(r io.Reader, stopAfter int) (Report, error) {
 			sum := sha256.Sum256(line)
 			ev.EventID = hex.EncodeToString(sum[:])[:16]
 		}
-		// ADR-0018 point 5: an event already applied is skipped, never folded twice.
+		// an event already applied is skipped, never folded twice.
 		if _, ok := s.applied[ev.EventID]; ok {
 			rep.Skipped++
 			continue
@@ -397,7 +397,7 @@ func (s *Store) apply(ev trace.Event) error {
 		}
 		f.Refutations = append(f.Refutations, ref)
 		// Only a refutation of a finding that had evidence, and that carries
-		// evidence of its own, is remembered (ADR-0006 point 4): refuting a guess
+		// evidence of its own, is remembered : refuting a guess
 		// teaches the next review nothing, and the Skeptic's word alone is not a
 		// refutation. The time is the event's place in the fold, not the clock,
 		// so a replay stores the same record.
@@ -604,7 +604,7 @@ func (s *Store) persist() error {
 	return os.Rename(tmp, filepath.Join(s.dir, "state.json"))
 }
 
-// audit appends one line to world.jsonl and syncs it (ADR-0018 point 3). The
+// audit appends one line to world.jsonl and syncs it . The
 // line names the event, its kind and its finding; the full event stays in the trace.
 func (s *Store) audit(ev trace.Event) error {
 	line := map[string]string{

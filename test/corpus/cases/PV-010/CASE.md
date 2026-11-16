@@ -55,7 +55,6 @@ Scope and assumptions: the toolchain is chosen when the case code is written, pi
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P18 in `PROVENANCE.md`).
 - reviewer families, as recorded: `glm-5.2` (through Qwen Code) and `claude-opus-5` (through Claude Code). The
   rejecting review was a second run of its family on the same commit, started about twenty minutes later, after the
   first run ended without a review.

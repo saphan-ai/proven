@@ -49,7 +49,7 @@ func TestTheOpinionSectionCarriesBothReasons(t *testing.T) {
 	}
 }
 
-// TestOneReviewerSaysWhyTheSectionIsEmpty proves ADR-0041's consequence: with
+// TestOneReviewerSaysWhyTheSectionIsEmpty proves 's consequence: with
 // one reviewer the section is empty and says why.
 func TestOneReviewerSaysWhyTheSectionIsEmpty(t *testing.T) {
 	body, err := render("text", review.Result{

@@ -12,7 +12,7 @@ import (
 )
 
 // TestRaceOnTheBaseIsNotEvidence proves a race that is also on the base is not
-// evidence of the change (ADR-0040).
+// evidence of the change .
 // Mutated field: PresentOnBase inside Introduced.
 func TestRaceOnTheBaseIsNotEvidence(t *testing.T) {
 	out, err := NewSample((Race{}), RaceOnBoth()).Run(context.Background())
@@ -40,7 +40,7 @@ func TestRaceOnTheBaseIsNotEvidence(t *testing.T) {
 }
 
 // TestUnrunToolIsNamed proves a tool that does not answer is named and is not
-// counted as a clean run (ADR-0040).
+// counted as a clean run .
 func TestUnrunToolIsNamed(t *testing.T) {
 	out, err := NewSample((Race{}), RaceTimeout()).Run(context.Background())
 	if err != nil {
@@ -204,7 +204,7 @@ func TestAHostErrorIsNamed(t *testing.T) {
 }
 
 // TestRaceCommandRidesTheLockedDownContainer proves the race command is the
-// tail of the Prover's run line: no network, no shell (ADR-0025, ADR-0040).
+// tail of the Prover's run line: no network, no shell .
 // This test starts no container.
 func TestRaceCommandRidesTheLockedDownContainer(t *testing.T) {
 	box, err := testrun.NewContainer(testrun.DefaultContainerConfig(), func(string) (string, error) {

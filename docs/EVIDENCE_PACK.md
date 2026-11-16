@@ -1,6 +1,6 @@
 # The evidence pack
 
-ADR-0035. A review can leave one signed file that an auditor can check long after the run: what was reviewed, when, by which models, and on what evidence.
+. A review can leave one signed file that an auditor can check long after the run: what was reviewed, when, by which models, and on what evidence.
 
 ```
 proven scan --evidence-pack review.pack [TARGET]

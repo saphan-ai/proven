@@ -7,7 +7,7 @@ import (
 )
 
 // TestSampleJSONAndSARIFCarryProofLevel proves the sample review's JSON and
-// SARIF carry each finding's level of proof and the same totals (ADR-0044).
+// SARIF carry each finding's level of proof and the same totals .
 // F1 is proved-by-test. The dependency finding, the one whose id starts with
 // osv:, is proved-by-data. Omitting proof_level or proof_counts from either
 // writer turns this red. The mutated field of a writer that drops the level
@@ -36,7 +36,7 @@ func TestSampleJSONAndSARIFCarryProofLevel(t *testing.T) {
 		t.Errorf("proof levels differ\nJSON  %v\nSARIF %v", jsonLevels, sarifLevels)
 	}
 
-	// The sample review's totals, the same ones the core records (ADR-0044):
+	// The sample review's totals, the same ones the core records :
 	// one finding proved by a test, three proved by data, none by a tool,
 	// and the agreed level kept at 0 because opinions are not findings.
 	wantCounts := map[string]any{

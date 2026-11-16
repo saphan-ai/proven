@@ -37,7 +37,7 @@ type streamMeta struct {
 // are decoded; the rest of the event is ignored.
 type sseChunk struct {
 	// Model is the chunk's own model field. Nightshift's is not a receipt
-	// (ADR-0019); the hosted API's is the only statement of who answered.
+	// ; the hosted API's is the only statement of who answered.
 	Model string `json:"model"`
 	// ID is the response id; every chunk of one response carries the same one.
 	ID      string `json:"id"`
@@ -89,7 +89,7 @@ func parseStream(r io.Reader) (streamMeta, error) {
 		if meta.responseID == "" {
 			meta.responseID = chunk.ID
 		}
-		// ADR-0019: in nightshift mode the answering model is read from the receipt, never from the
+		// in nightshift mode the answering model is read from the receipt, never from the
 		// chunk's own model field, so a chunk without the meterless object adds text only.
 		if chunk.Meterless == nil {
 			continue

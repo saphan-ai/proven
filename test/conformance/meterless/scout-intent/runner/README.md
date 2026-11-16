@@ -28,7 +28,7 @@ Each is marked `PROVEN:` in the code.
 6. **One metric is added**, `clarification_agreement`: of the examples that state `expected.clarification`, the
    share whose answer asked exactly when expected. The published runner counts how often an implementation asks
    (`clarification_rate`) but never whether it asked at the right time, and an ambiguous change is the case
-   ADR-0049 most needs right. Its floor, 0.85, is Proven's own choice, set to the published `intent_top1` floor.
+    most needs right. Its floor, 0.85, is Proven's own choice, set to the published `intent_top1` floor.
 
 Nothing else differs: the tally, the metrics, the slices, the gate and the report are the published code.
 

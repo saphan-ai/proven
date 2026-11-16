@@ -45,7 +45,7 @@ func TestAFailedFirstReviewerIsNotADisagreement(t *testing.T) {
 	}
 }
 
-// TestTheGuardrailWrapsTheSecondReviewer proves ADR-0005 for the second reviewer's endpoint: no prompt
+// TestTheGuardrailWrapsTheSecondReviewer proves  for the second reviewer's endpoint: no prompt
 // reaches it unless the guardrail passed that prompt. With the guardrail absent (live mode, key empty) or
 // refusing every prompt, zero prompts reach the second API and the trace carries a guardrail refusal for
 // the second reviewer's call as well as the first's. With a guardrail that answers safe the same review

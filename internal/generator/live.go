@@ -66,21 +66,21 @@ func (l *Live) WithModel(model string) *Live {
 func NewLive(cfg Settings, client *http.Client) *Live {
 	liveBuilt.Add(1)
 	if client == nil {
-		// ADR-0034: in the air-gapped mode this client also refuses, at dial time, any address off the network.
+		// in the air-gapped mode this client also refuses, at dial time, any address off the network.
 		client = cfg.Network.NewClient(cfg.Timeout)
 	}
 	return &Live{cfg: cfg, client: client}
 }
 
-// NewSecond builds the second reviewer's client (ADR-0037). It lives here, with the other code that
+// NewSecond builds the second reviewer's client . It lives here, with the other code that
 // dials, because this file is the only one of the package allowed to import net/http. A nil client
 // does not follow redirects, so the key is not sent to another host (the same rule as NewLive).
 func NewSecond(s SecondSettings, client *http.Client) *Second {
 	cfg := Settings{
-		BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout, ThinkingBudget: s.ThinkingBudget,
+		Mode: ModeOpenAI, BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout, ThinkingBudget: s.ThinkingBudget,
 		Network: s.Network,
 		plain:   true,
-		// requireNone: the NVIDIA check is Nightshift's rule (ADR-0019) and this reviewer is meant to
+		// requireNone: the NVIDIA check is Nightshift's rule  and this reviewer is meant to
 		// be another family.
 		requireNone: true,
 	}
@@ -117,7 +117,7 @@ type chatMessage struct {
 // provider in use (nightshift or nvidia).
 // A model outside nvidia/* is refused when this agent requires NVIDIA.
 func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, error) {
-	if l == nil || l.client == nil || l.cfg.Token == "" || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
+	if l == nil || l.client == nil || (l.cfg.Token == "" && l.cfg.Mode != ModeOpenAI) || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
 		return "", l.down("not configured")
 	}
 	// Clear the last use first, so a failed call never reports the model of the call before it.
@@ -145,7 +145,7 @@ func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, erro
 // Models is GET /v1/models with the same contract headers as a completion.
 // A review does not call it. The completion itself is the call a review makes.
 func (l *Live) Models(ctx context.Context) error {
-	if l == nil || l.client == nil || l.cfg.Token == "" || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
+	if l == nil || l.client == nil || (l.cfg.Token == "" && l.cfg.Mode != ModeOpenAI) || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
 		return l.down("not configured")
 	}
 	// parent is kept so a cancellation by the caller is told apart from this call's own timeout.
@@ -173,15 +173,23 @@ func (l *Live) Models(ctx context.Context) error {
 }
 
 // NoReceipt is the receipt id a call carries in nvidia mode. The hosted API
-// signs nothing, so the trace says so instead of inventing an id (ADR-0031
+// signs nothing, so the trace says so instead of inventing an id (
 // point 3). FromReceipt is false beside it.
 const NoReceipt = "no receipt"
 
 // finish records the model that answered and applies the NVIDIA check.
-// ADR-0019 point 4: in nightshift mode the check reads the receipt, because
+// in nightshift mode the check reads the receipt, because
 // Nightshift does not obey the model a request names. With no receipt the model
 // is "unknown" and the answer is kept here unless NVIDIA is required.
 func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
+	if l.cfg.Mode == ModeOpenAI {
+		l.last = Use{Model: meta.chunkModel, Requested: l.cfg.ModelFor(agent), Route: l.cfg.BaseHost(), ReceiptID: NoReceipt, ResponseID: meta.responseID}
+		if l.last.Model == "" {
+			l.last.Model = "unknown"
+		}
+		l.has = true
+		return text, nil
+	}
 	if l.cfg.Mode == ModeNVIDIA {
 		return l.finishHosted(agent, text, meta)
 	}
@@ -209,7 +217,7 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	if !l.cfg.requiresNVIDIA(agent) {
 		return text, nil
 	}
-	// ADR-0019 point 4: an answer must name its model from the signed receipt.
+	// an answer must name its model from the signed receipt.
 	// With no receipt the model cannot be shown to be NVIDIA's, so it is refused
 	// the same way as a non-NVIDIA model.
 	if !use.FromReceipt {
@@ -224,9 +232,9 @@ func (l *Live) finish(agent, text string, meta streamMeta) (string, error) {
 	return text, nil
 }
 
-// finishHosted is finish for nvidia mode (ADR-0031, the master's ruling of
+// finishHosted is finish for nvidia mode (, the master's ruling of
 // 2026-10-24). The two modes differ on purpose. Nightshift is a router: it may
-// answer with a model other than the one asked for, so ADR-0019 point 4 trusts
+// answer with a model other than the one asked for, so  point 4 trusts
 // only its signed receipt and refuses an answer without one. Here Proven calls
 // NVIDIA directly and no router stands between, so the `model` field of the
 // hosted API's own response is the only statement of who answered. It is kept
@@ -343,10 +351,12 @@ func (l *Live) attempt(parent context.Context, prompt, model string) (string, st
 // API takes the key as a bearer token and nothing else, so those headers are
 // not sent to it.
 func (l *Live) authorize(req *http.Request) {
-	req.Header.Set("Authorization", "Bearer "+l.cfg.Token)
-	// ADR-0037: a second reviewer is any OpenAI-compatible server, which knows nothing of
+	if l.cfg.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+l.cfg.Token)
+	}
+	// a second reviewer is any OpenAI-compatible server, which knows nothing of
 	// Nightshift's routing headers; sending them would tell a third party our app name.
-	if l.cfg.Mode == ModeNVIDIA || l.cfg.plain {
+	if l.cfg.Mode == ModeNVIDIA || l.cfg.Mode == ModeOpenAI || l.cfg.plain {
 		return
 	}
 	req.Header.Set("meterless-app", l.cfg.App)
@@ -379,7 +389,7 @@ func timedOut(err error) bool {
 
 // httpReason names an unexpected HTTP status without the body, which may be large or echo the request.
 func httpReason(code int) string {
-	// ADR-0031: a free NVIDIA key is rate limited, and the review must name that rather than a bare status.
+	// a free NVIDIA key is rate limited, and the review must name that rather than a bare status.
 	if code == http.StatusTooManyRequests {
 		return "http 429, rate limited"
 	}

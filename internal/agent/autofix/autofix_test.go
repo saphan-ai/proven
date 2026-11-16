@@ -93,7 +93,7 @@ func fixRun(label, result string, code int) testrun.FixRun {
 	return testrun.FixRun{Label: label, Command: cmd, Result: result, ExitCode: code, Output: "output of " + label}
 }
 
-// closing is the record of a test finding that closed: every run ends the way ADR-0042 point 2 asks.
+// closing is the record of a test finding that closed: every run ends the way  point 2 asks.
 func closing() testrun.FixOutcome {
 	return testrun.FixOutcome{Runs: []testrun.FixRun{
 		fixRun(testrun.RunBase, testrun.ResultPassed, 0),
@@ -158,7 +158,7 @@ func toolFinding(id string) candidate.Candidate {
 
 func options(dir string) Options { return Options{BaseDir: dir, ChangeDir: dir} }
 
-// TestOneGeneratorCallCarriesEveryProvedFinding proves ADR-0050 point 1: one call, made as the
+// TestOneGeneratorCallCarriesEveryProvedFinding proves one call, made as the
 // autofix agent, whose prompt holds every proved finding with its evidence of each kind, and a
 // text the change wrote reaches the prompt only as escaped data.
 func TestOneGeneratorCallCarriesEveryProvedFinding(t *testing.T) {
@@ -185,7 +185,7 @@ func TestOneGeneratorCallCarriesEveryProvedFinding(t *testing.T) {
 	}
 }
 
-// TestFixedNeedsEveryEvidenceToCloseAgain proves ADR-0050 point 3: the verdict is "fixed
+// TestFixedNeedsEveryEvidenceToCloseAgain proves the verdict is "fixed
 // automatically, waiting for a person" when the test, the query and the tool each ran again and
 // each closed, and each judge was asked once per finding with the patch the model wrote.
 func TestFixedNeedsEveryEvidenceToCloseAgain(t *testing.T) {
@@ -216,7 +216,7 @@ func TestFixedNeedsEveryEvidenceToCloseAgain(t *testing.T) {
 	}
 }
 
-// TestOneOpenFindingRejectsTheWholeAttempt proves ADR-0050 point 3: when one finding's evidence
+// TestOneOpenFindingRejectsTheWholeAttempt proves when one finding's evidence
 // still shows the problem the verdict is "rejected", that finding is open with the re-run
 // evidence, the others stay closed, and the model was asked once and not again.
 func TestOneOpenFindingRejectsTheWholeAttempt(t *testing.T) {
@@ -243,7 +243,7 @@ func TestOneOpenFindingRejectsTheWholeAttempt(t *testing.T) {
 	}
 }
 
-// TestAPatchThatBreaksTheTestIsRejected proves ADR-0050 point 2 for a test finding: the proving
+// TestAPatchThatBreaksTheTestIsRejected proves  point 2 for a test finding: the proving
 // test failing again on the patched change leaves the finding open, and a test whose package
 // breaks does too, because "every other test of the package still passes" is part of closing.
 func TestAPatchThatBreaksTheTestIsRejected(t *testing.T) {
@@ -262,7 +262,7 @@ func TestAPatchThatBreaksTheTestIsRejected(t *testing.T) {
 	}
 }
 
-// TestEvidenceThatCannotRunNeverClosesAFinding proves the positive assertion of ADR-0050 point 2:
+// TestEvidenceThatCannotRunNeverClosesAFinding proves the positive assertion of
 // a judge that is missing, that errors, or that did not answer leaves the finding open, because the
 // absence of the evidence is not the evidence that the problem is gone.
 func TestEvidenceThatCannotRunNeverClosesAFinding(t *testing.T) {
@@ -290,7 +290,7 @@ func TestEvidenceThatCannotRunNeverClosesAFinding(t *testing.T) {
 	}
 }
 
-// TestAFindingWithTwoProofsClosesOnlyWhenBothClose proves ADR-0050 point 2 for a finding that a test
+// TestAFindingWithTwoProofsClosesOnlyWhenBothClose proves  point 2 for a finding that a test
 // and a query both prove: one open proof keeps the finding open.
 func TestAFindingWithTwoProofsClosesOnlyWhenBothClose(t *testing.T) {
 	dir := changeTree(t)
@@ -304,7 +304,7 @@ func TestAFindingWithTwoProofsClosesOnlyWhenBothClose(t *testing.T) {
 	}
 }
 
-// TestADataOnlyFindingThatClosesStillNeedsTheTouchedPackagesToPass proves ADR-0050 point 3, "nothing
+// TestADataOnlyFindingThatClosesStillNeedsTheTouchedPackagesToPass proves  point 3, "nothing
 // else broke": a finding proved by data closes, but a package the patch touched fails its tests,
 // so the verdict is "rejected" and the record names the failing run. Unplugging the breakage gate
 // in Attempt turns this test red, because the verdict then reads only the closed finding.
@@ -414,7 +414,7 @@ func TestTheVerdictIsRejectedUnlessEverythingClosed(t *testing.T) {
 	}
 }
 
-// TestAPatchOutsideTheTreeOrWithACommandIsRefusedByName proves ADR-0050 point 5 (negative control c):
+// TestAPatchOutsideTheTreeOrWithACommandIsRefusedByName proves  point 5 (negative control c):
 // a path that leaves the change, a test file, and an answer that carries a command are each refused
 // whole with the reason named, no judge runs, and the finding is open.
 func TestAPatchOutsideTheTreeOrWithACommandIsRefusedByName(t *testing.T) {
@@ -449,7 +449,7 @@ func TestAPatchOutsideTheTreeOrWithACommandIsRefusedByName(t *testing.T) {
 	}
 }
 
-// TestNoProvedFindingMakesNoAttempt proves ADR-0050 point 2: a dropped finding and a finding with
+// TestNoProvedFindingMakesNoAttempt proves a dropped finding and a finding with
 // no deterministic proof are not part of the attempt, so with none left the model is not called.
 func TestNoProvedFindingMakesNoAttempt(t *testing.T) {
 	dropped := testFinding("F1")
@@ -499,7 +499,7 @@ func TestAnAnswerOffTheSchemaIsARejectedAttempt(t *testing.T) {
 	}
 }
 
-// TestTheTimeLimitEndsTheAttempt proves ADR-0050 point 6: a generator that outlasts the attempt's
+// TestTheTimeLimitEndsTheAttempt proves a generator that outlasts the attempt's
 // time limit ends it as a rejected attempt that says so, while the review's own cancellation is
 // returned as an error and makes no verdict.
 func TestTheTimeLimitEndsTheAttempt(t *testing.T) {

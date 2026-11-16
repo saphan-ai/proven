@@ -40,7 +40,7 @@ func (s *Store) approvedLine(proposal string) (bool, error) {
 // derivedFrom lineage; a domain proposal moves the named records to the
 // suggested domain and returns nil. A rejected or unknown id is refused.
 //
-// Approve is idempotent and recovers forward (ADR-0018 point 3: no
+// Approve is idempotent and recovers forward (no
 // half-applied approval, and no compensating write that could itself fail).
 // It does four steps in this order, and each step checks whether it is already
 // done: the record (id from approvedRecordID, written to state.json), the
@@ -96,7 +96,7 @@ func (s *Store) completeApproval(p Proposal) (*Record, error) {
 		if err := s.requireLiveSources(p); err != nil {
 			return nil, err
 		}
-		// ADR-0018 point 3: the intent is durable before the first record
+		// the intent is durable before the first record
 		// moves, so an interruption after the move can be told from a
 		// proposal nobody has approved.
 		if p.Status == ProposalProposed {

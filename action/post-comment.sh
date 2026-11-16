@@ -1,9 +1,6 @@
 #!/bin/sh
-# Posts Proven's Markdown review as ONE comment on a pull request, edited in place
-# on every run (docs/ACTION.md, docs/LAB.md; ADR-0020 §3). Sourced, never run:
-# entrypoint.sh sources it, and lab/workflow/proven.yml carries a byte-for-byte copy
-# of the lines between the two markers below, because a workflow in a user's
-# repository cannot read this file (the copy is compared by lab/scripts/post-comment-check.sh).
+# Posts one Markdown summary comment on a pull request, updating it in place.
+# Sourced by entrypoint.sh; see docs/ACTION.md.
 #
 #   pc_post API_URL REPO PR RUN_NUMBER HEAD_SHA TOKEN MARKDOWN_FILE
 #

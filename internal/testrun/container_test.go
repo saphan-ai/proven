@@ -28,13 +28,13 @@ func TestDefaultContainerConfigValidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := repoRoot(t)
-	doc, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	doc, err := os.ReadFile(filepath.Join(root, "docs", "RUNNER.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{cfg.Runtime, cfg.Image, cfg.CPUs, cfg.Memory, "2 minutes", "2 seconds", "3 seconds", "may remain"} {
 		if !bytes.Contains(doc, []byte(want)) {
-			t.Fatalf("AGENTS.md does not document %s", want)
+			t.Fatalf("RUNNER.md does not document %s", want)
 		}
 	}
 }
@@ -100,7 +100,7 @@ func TestNewContainerDoesNotLookUpAnInvalidSetting(t *testing.T) {
 }
 
 // TestNewContainerMissingRuntimeIsProverDown proves a missing runtime turns
-// the Prover off by name, with the runtime named in the reason (ADR-0025 point 6).
+// the Prover off by name, with the runtime named in the reason .
 func TestNewContainerMissingRuntimeIsProverDown(t *testing.T) {
 	_, err := NewContainer(DefaultContainerConfig(), func(name string) (string, error) {
 		if name != "docker" {
@@ -118,7 +118,7 @@ func TestNewContainerMissingRuntimeIsProverDown(t *testing.T) {
 }
 
 // TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv proves the run line is
-// stable and carries no network, no environment and one read-only mount (ADR-0025).
+// stable and carries no network, no environment and one read-only mount .
 func TestArgvIsOneReadOnlyMountWithNoNetworkAndNoEnv(t *testing.T) {
 	dir := t.TempDir()
 	c := mustContainer(t, DefaultContainerConfig())
@@ -489,7 +489,7 @@ func assertPair(t *testing.T, argv []string, flag, value string) {
 }
 
 // fixedContainerEnv is the exact environment the container may receive
-// (ADR-0025): two constants, no secret, nothing read from Proven's environment.
+// : two constants, no secret, nothing read from Proven's environment.
 var fixedContainerEnv = []string{"HOME=/tmp", "GOCACHE=/tmp/go-build"}
 
 // forbidEnv fails when argv hands the container any environment other than

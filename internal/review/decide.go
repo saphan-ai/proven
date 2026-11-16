@@ -1,8 +1,8 @@
 package review
 
 // This file decides what a review states about itself: its class and the rule that chose it
-// (ADR-0012, ADR-0014), the author models the change names (ADR-0011), and each reviewer model with
-// its family and whether it shares the author's (ADR-0008, ADR-0009). None of it is a model's guess.
+// , the author models the change names , and each reviewer model with
+// its family and whether it shares the author's . None of it is a model's guess.
 
 import (
 	"bytes"
@@ -18,8 +18,8 @@ import (
 
 // applyDecision fills the class, the reviewer models and the author-model
 // statement. raise_class is validated on load and is not applied: this wagon
-// does not ask a model to raise a class (ADR-0014 point 9, off for the hackathon).
-// planned, when set, is the plan Scout Intent chose (ADR-0049): its class and doubling are the review's,
+// does not ask a model to raise a class .
+// planned, when set, is the plan Scout Intent chose : its class and doubling are the review's,
 // so the statements describe the review that ran. Nil states the class the path rules chose.
 func applyDecision(out *Result, cfg fileSettings, req Request, planned *reviewPlan) error {
 	files, err := changedPaths(req)
@@ -38,7 +38,7 @@ func applyDecision(out *Result, cfg fileSettings, req Request, planned *reviewPl
 	for i := range authors {
 		authors[i].Family = familyOf(authors[i].Model, cfg.Families)
 	}
-	// ADR-0009: every review uses the default reviewer; a doubled class adds the special model,
+	// every review uses the default reviewer; a doubled class adds the special model,
 	// even when it is the author's own model (a fresh agent is still a second look).
 	models := []string{cfg.DefaultReviewer}
 	lines := []string{reviewerLine("default", cfg.DefaultReviewer, familyOf(cfg.DefaultReviewer, cfg.Families), authors, unreadable)}
@@ -51,7 +51,7 @@ func applyDecision(out *Result, cfg fileSettings, req Request, planned *reviewPl
 			lines = append(lines, "special-review model: not configured")
 		}
 	}
-	// ADR-0037 point 5: each reviewer is named, with whether it is the author's model.
+	// each reviewer is named, with whether it is the author's model.
 	reviewers := []ReviewerInfo{reviewerOf(RoleDefault, cfg.DefaultReviewer, cfg.Families, authors, unreadable)}
 	if doubled && cfg.SpecialReviewer != "" {
 		reviewers = append(reviewers, reviewerOf(RoleSpecial, cfg.SpecialReviewer, cfg.Families, authors, unreadable))
@@ -98,7 +98,7 @@ func changedPaths(req Request) ([]string, error) {
 	return out, nil
 }
 
-// chooseClass returns the review class and the pattern that chose it (ADR-0014). Every rule that
+// chooseClass returns the review class and the pattern that chose it . Every rule that
 // matches any changed path is a candidate; the highest-risk class wins (point 3). With no match the
 // class is the configured fallback and the rule is "fallback" (point 4). No heuristic is added (point 8).
 func chooseClass(files []string, rules []pathRule, order []string, fallback string) (string, string) {
@@ -149,7 +149,7 @@ func classRank(order []string, class string) int {
 }
 
 // familyOf looks a model up in the configured family table; the first matching row wins.
-// ADR-0011 point 4: a model the table does not know is "family unknown", never guessed.
+// a model the table does not know is "family unknown", never guessed.
 func familyOf(model string, table []familyRule) string {
 	for _, r := range table {
 		if matchModel(r.Pattern, model) {
@@ -215,7 +215,8 @@ func matchSegs(pat, name []string) bool {
 }
 
 // validPattern checks a pattern on load, so a bad pattern is refused with the setting's name
-// (ADR-0013) rather than silently matching nothing during a review.
+//
+//	rather than silently matching nothing during a review.
 func validPattern(pattern string) error {
 	if strings.TrimSpace(pattern) == "" {
 		return fmt.Errorf("empty pattern")
@@ -232,10 +233,10 @@ func validPattern(pattern string) error {
 }
 
 // readAuthors collects the author models: those declared in settings (author_models), then, from the
-// sources the settings switch on, in ADR-0011's order: commit trailers, the pull-request description,
+// sources the settings switch on, in 's order: commit trailers, the pull-request description,
 // the record file. It also
 // returns the trailer lines it could not read, so the review can quote them instead of dropping them.
-// ADR-0011 point 7: it only reads; it never writes a trailer.
+// it only reads; it never writes a trailer.
 func readAuthors(cfg fileSettings, req Request) ([]AuthorModel, []string, error) {
 	found := append([]AuthorModel{}, cfg.Declared...)
 	var unreadable []string
@@ -337,7 +338,7 @@ func dedupeLines(in []string) []string {
 }
 
 // dedupeAuthors keeps the first entry for each model. The same model named in a commit and in
-// the description is one author; the earlier source in ADR-0011's order is the one kept.
+// the description is one author; the earlier source in 's order is the one kept.
 func dedupeAuthors(in []AuthorModel) []AuthorModel {
 	if len(in) == 0 {
 		return nil
@@ -371,7 +372,7 @@ func readRecord(rd change.Policy, target, pattern string) (string, error) {
 	}
 	sort.Strings(matches)
 	var b strings.Builder
-	// ADR-0013: the record is bounded as a whole. Each file may use only what
+	// the record is bounded as a whole. Each file may use only what
 	// the files before it left, so a pattern that matches many files cannot add up
 	// to a read without bound.
 	remaining := rd.Bounds().Record
@@ -499,7 +500,7 @@ func pathInside(root, resolved string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
-// authorStatement is the review's one line about who wrote the change. ADR-0011 point 6: when no
+// authorStatement is the review's one line about who wrote the change. when no
 // source names a model, it says so and names the default reviewer that was used.
 func authorStatement(models []AuthorModel, unreadable []string, defaultReviewer string) string {
 	parts := make([]string, 0, len(models)+len(unreadable))
@@ -525,7 +526,7 @@ func familyPhrase(family string) string {
 }
 
 // reviewerLine is one reviewer's statement: its model, role and family, and for each author model
-// whether it shares the author's family. ADR-0009 point 5: a reader sees which independence the review had.
+// whether it shares the author's family. a reader sees which independence the review had.
 func reviewerLine(role, model, family string, authors []AuthorModel, unreadable []string) string {
 	head := fmt.Sprintf("reviewer %s; role %s; %s", model, role, familyPhrase(family))
 	if len(authors) == 0 && len(unreadable) == 0 {
@@ -543,7 +544,7 @@ func reviewerLine(role, model, family string, authors []AuthorModel, unreadable 
 
 // reviewerOf is the structured form of reviewerLine: the reviewer, its family, and whether it is the
 // author's model. A reviewer is the author's model when the change names that exact model, or a
-// model of the same family (ADR-0008); with no author named, or an unknown family, the answer is
+// model of the same family ; with no author named, or an unknown family, the answer is
 // "unknown", never a guess.
 func reviewerOf(role, model string, families []familyRule, authors []AuthorModel, unreadable []string) ReviewerInfo {
 	family := familyOf(model, families)

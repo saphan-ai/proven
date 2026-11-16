@@ -20,7 +20,7 @@ type Recorded struct {
 	UnrunDetail  string
 }
 
-// The recorded race scenario (ADR-0040 point 5). The change's output carries
+// The recorded race scenario . The change's output carries
 // the detector's banner and the base's does not. The version is the module's
 // go line, not a measurement from a container. Sample mode runs no container.
 const (
@@ -41,7 +41,7 @@ func RaceIntroduced() Recorded {
 }
 
 // RaceOnBoth is the sample in which the base races too.
-// That is not evidence of the change (ADR-0040).
+// That is not evidence of the change .
 func RaceOnBoth() Recorded {
 	return Recorded{
 		Version:      raceVersion,
@@ -51,7 +51,7 @@ func RaceOnBoth() Recorded {
 	}
 }
 
-// The recorded govulncheck scenario (ADR-0043). The change calls one vulnerable
+// The recorded govulncheck scenario . The change calls one vulnerable
 // function and imports another without calling it. The version is the module
 // tag the proxy named, not a measurement from a container. Sample mode runs
 // no container. The JSON is one object per line, the govulncheck -json stream.

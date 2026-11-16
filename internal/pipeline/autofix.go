@@ -1,6 +1,6 @@
 package pipeline
 
-// This file carries out ADR-0050 in the pipeline: after every finding of the review is final, the
+// This file carries out  in the pipeline: after every finding of the review is final, the
 // one whole-change fix attempt is made, and the instruments that judge it are built here. The data
 // judge runs the dependency check again on a patched copy of the change, through the same store seam
 // the review used; the tool judge runs the finding's own tool in the Prover's container on a patched
@@ -28,12 +28,12 @@ import (
 )
 
 // autofix makes the one whole-change fix attempt for the findings of the review and writes what it
-// did to the trace (ADR-0050 points 1 to 3). It returns nil when no attempt was made. A generator
+// did to the trace . It returns nil when no attempt was made. A generator
 // that is not connected or did not answer is named as a failed service by the caller, and the review
 // goes on without a verdict: an attempt that was never made is not a rejected one.
 func (p *Pipeline) autofix(ctx context.Context, st *state, req Request, root, snapshot string, gen generator.Generator, q query.Runner, run testrun.Adapter, cands []candidate.Candidate) (*candidate.Autofix, error) {
 	if req.AutofixSpecial {
-		// ADR-0050 point 6: the generator that writes the patch is a setting. The second reviewer's
+		// the generator that writes the patch is a setting. The second reviewer's
 		// generator is the only other one a review holds.
 		if p.special == nil {
 			return nil, &service.Down{Service: "autofix generator", Reason: "no second reviewer is connected"}
@@ -64,7 +64,7 @@ func (p *Pipeline) autofix(ctx context.Context, st *state, req Request, root, sn
 
 // redactAutofix returns a copy of a with rd applied to every string a model, a test run or a tool wrote.
 // The attempt is, with the findings, the last place that text reaches the result, so it is redacted
-// with them (ADR-0005, ADR-0013 point 4). A nil attempt stays nil.
+// with them . A nil attempt stays nil.
 func redactAutofix(rd *redact.Redactor, a *candidate.Autofix) *candidate.Autofix {
 	if a == nil {
 		return nil
@@ -161,7 +161,7 @@ func (s *state) autofixEvents(a *candidate.Autofix) error {
 	return nil
 }
 
-// dataJudge runs a data-proved finding's own query again on the patched change (ADR-0050 point 2):
+// dataJudge runs a data-proved finding's own query again on the patched change :
 // the dependency check, which derives every query from the change's manifests, is run over a
 // patched copy of the two trees, and the finding is still there when that check names it again or
 // binds the same query request to the change. The store is the one the review used.
@@ -246,7 +246,7 @@ func rowsText(columns []string, rows [][]string) string {
 }
 
 // toolJudge runs a tool-proved finding's own tool again, in the Prover's container, on a patched
-// copy of the change (ADR-0050 points 2 and 5). The command is the adapter's, built by Proven.
+// copy of the change . The command is the adapter's, built by Proven.
 type toolJudge struct {
 	box       *testrun.Container
 	timeout   time.Duration

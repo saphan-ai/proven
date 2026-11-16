@@ -19,7 +19,7 @@ import (
 	"github.com/saphan-ai/proven/internal/osv"
 )
 
-// dialRecord is the probe of ADR-0034 point 3. It stands where the network would be: it records every
+// dialRecord is the probe of  point 3. It stands where the network would be: it records every
 // address asked of it and answers the three local services from memory, so no socket is opened and
 // nothing can leave the host. It refuses an address that is not allowed, and records that too.
 type dialRecord struct {
@@ -88,7 +88,7 @@ func serveMemory(conn net.Conn, h http.Handler) {
 	}
 }
 
-// TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts proves ADR-0034 point 3. With
+// TestAirGappedReviewCompletesAndNoConnectionLeavesTheAllowedHosts proves  point 3. With
 // PROVEN_NETWORK=local a live review of the discount fixture completes, every dial it made went to a
 // host the setting allows, and the dialer refused nothing because nothing asked for another host. Then a
 // probe asks the same clients for a public address that no setting named, as a redirect or a later

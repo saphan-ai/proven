@@ -27,7 +27,7 @@ var outputFlags = []outputFlag{
 }
 
 // TestCollidingOutputPathsAreRefused proves that two outputs naming one file
-// are refused at load with exit 7, naming both flags and the path (ADR-0013),
+// are refused at load with exit 7, naming both flags and the path ,
 // and that the review never runs. Every pair of the four flags is tried, and
 // the second flag spells the path with a ".." through a directory that
 // exists, so the two name one file. The mutated field is the path of the

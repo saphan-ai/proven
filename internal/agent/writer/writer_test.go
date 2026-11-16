@@ -46,7 +46,7 @@ func TestEqualScoresKeepTheirOrder(t *testing.T) {
 
 // TestReachedRanksAheadOfAHigherScore proves a reached dependency finding
 // sorts ahead of one that is not reached, even when the unreached finding
-// has the higher EPSS score (ADR-0043). A code finding has an empty label
+// has the higher EPSS score . A code finding has an empty label
 // and is not part of that comparison.
 func TestReachedRanksAheadOfAHigherScore(t *testing.T) {
 	reached := plain("osv:reached", "ERROR")

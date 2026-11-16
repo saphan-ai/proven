@@ -2,11 +2,11 @@
 //
 // The Writer is the last agent of the review and calls no model. It adds no
 // finding of its own: it keeps what the Judge kept, orders it by EPSS inside
-// each severity (ADR-0004), and within that order puts a reached dependency
-// ahead of one that is only present (ADR-0043). It carries the failures,
+// each severity , and within that order puts a reached dependency
+// ahead of one that is only present . It carries the failures,
 // model uses, trace path and skipped symlink paths into the draft. A claim
 // both reviewers reported at the same place, which the Judge dropped for no
-// evidence, is lifted into Opinions and is not a finding (ADR-0041).
+// evidence, is lifted into Opinions and is not a finding .
 package writer
 
 import (
@@ -40,7 +40,7 @@ func Write(in Input) candidate.Draft {
 	}
 	// The likelihood of use in attacks is what a reader acts on first, so it orders the list.
 	d.Findings = orderByEPSS(d.Findings)
-	// ADR-0041: agreed, unproven claims leave with the draft, apart from the findings.
+	// agreed, unproven claims leave with the draft, apart from the findings.
 	d.Opinions = agreedOpinions(in.Candidates)
 	return d
 }
@@ -91,7 +91,7 @@ func sortStable(items []candidate.Candidate) {
 
 // before reports whether a sorts ahead of b.
 // A reached dependency finding sorts ahead of a dependency finding that is
-// not reached, whatever their EPSS scores (ADR-0043). A finding that is not
+// not reached, whatever their EPSS scores . A finding that is not
 // a dependency finding has an empty label and keeps the EPSS order.
 // Otherwise a score beats no score, and a higher score beats a lower one.
 func before(a, b candidate.Candidate) bool {

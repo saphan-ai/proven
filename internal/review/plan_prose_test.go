@@ -30,7 +30,7 @@ func requireFullPlan(t *testing.T, rig *planRig, res Result, reason string) {
 	}
 }
 
-// TestPlanSourceFileUnderDocsRunsTheFullPlan proves ADR-0049's prose guard: a sole docs/run.go matches the
+// TestPlanSourceFileUnderDocsRunsTheFullPlan proves 's prose guard: a sole docs/run.go matches the
 // documentation trigger by its directory, but it is Go source, so the full configured plan runs with model
 // calls and the trace says by name that the change is not documentation-only. It fails if the guard that
 // requires every changed file to be prose is removed (the unplug control of the review of 23edde3).
@@ -138,7 +138,7 @@ func TestProseSuffixesAreCheckedOnLoad(t *testing.T) {
 	}
 }
 
-// TestProseSuffixesRefuseBuiltSuffixes proves ADR-0049's deny list at the loader: a source, script, build
+// TestProseSuffixesRefuseBuiltSuffixes proves 's deny list at the loader: a source, script, build
 // or template suffix named in prose_suffixes is refused by name, whatever its case. Mutated field, one per
 // case: the suffix value only.
 func TestProseSuffixesRefuseBuiltSuffixes(t *testing.T) {

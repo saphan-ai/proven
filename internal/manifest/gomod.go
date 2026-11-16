@@ -7,12 +7,12 @@
 // lock reader. Kotlin has two manifest readers, one per file. Each reader
 // is an Adapter: the
 // files, the diff, the OSV ecosystem name, and the version comparison
-// (ADR-0038).
+// .
 //
 // It feeds the dependency check of the review, which runs with no model:
 // osv.Check calls Collect, queries the OSV table once per package it gets
 // back, and hands a matching range to the Judge as query evidence
-// (ADR-0002, ADR-0004). A reader never decides that a version is affected.
+// . A reader never decides that a version is affected.
 // It only says what changed and on which line, so the finding can point
 // at that line. The format each reader accepts is written down in
 // docs/OSV_TABLE.md.
@@ -58,7 +58,7 @@ type Hit struct {
 }
 
 // Reader reads one manifest kind. It is the adapter of one ecosystem
-// (ADR-0038): which files, how a base and a change differ, the OSV
+// : which files, how a base and a change differ, the OSV
 // ecosystem name, and how two versions compare. Adapter is the same type.
 // Notes, when set, names lines of the change side that were not dependencies.
 // Each string is one sentence the OSV check writes to the trace.

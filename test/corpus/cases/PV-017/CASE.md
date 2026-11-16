@@ -43,7 +43,6 @@ toolchain is chosen when the case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P35 in `PROVENANCE.md`).
 - reviewer families, as recorded: `gpt-5.6-sol` (through Codex) and `claude-opus-5` (through Claude Code).
 - the original code was a Go notice renderer; it is not published. Resolution status: settled by a later round that
   reproduced the finding before repairing it.

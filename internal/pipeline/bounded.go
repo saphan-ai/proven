@@ -14,13 +14,13 @@ import (
 )
 
 // traceKindBounded is the trace line that says, once per Planner run, whether bounded steps ran; traceKindStep is
-// the line of one step (ADR-0048).
+// the line of one step .
 const (
 	traceKindBounded = "bounded-steps"
 	traceKindStep    = "bounded-step"
 )
 
-// plan runs the Planner for one reviewer run, whole or in bounded steps (ADR-0048 point 1). With the engine off,
+// plan runs the Planner for one reviewer run, whole or in bounded steps . With the engine off,
 // or a change at or below the threshold, it is planner.Plan exactly as before. Either way the trace says which,
 // and why, by name.
 func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generator, run string) ([]candidate.Risk, error) {
@@ -38,7 +38,7 @@ func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generato
 	// Sized and cut on the files planner.Plan reads: in a live review, the files that changed.
 	files = change.ChangedFor(ctx, files)
 	size := planner.Size(files)
-	// ADR-0048 point 1: only a change above the size set in the settings is cut; at the threshold it is still whole.
+	// only a change above the size set in the settings is cut; at the threshold it is still whole.
 	if size <= s.Threshold {
 		if err := p.boundedLine(run, fmt.Sprintf("bounded steps did not run: the change is %d estimated tokens, not above the threshold %d (%s); the Planner read the change whole", size, s.Threshold, markov.EnvThreshold)); err != nil {
 			return nil, err
@@ -60,7 +60,7 @@ func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generato
 			return nil, terr
 		}
 	}
-	// ADR-0048: a full carried state stops the review by name. The trace says so too, so a reader of the trace alone
+	// a full carried state stops the review by name. The trace says so too, so a reader of the trace alone
 	// sees the review did not finish.
 	var full *markov.CarryFullError
 	if errors.As(err, &full) {
@@ -93,7 +93,7 @@ func (p *Pipeline) boundedLine(run, text string) error {
 }
 
 // fixCarry is the carried-state bound the Fixer gets: the setting when the engine is on, zero (every earlier attempt
-// in the prompt, as before) when it is off (ADR-0048 point 2).
+// in the prompt, as before) when it is off .
 func (p *Pipeline) fixCarry() int {
 	if !p.markov.On {
 		return 0

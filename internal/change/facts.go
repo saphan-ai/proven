@@ -9,7 +9,7 @@ import (
 )
 
 // Facts is what a reader needs to know about one changed file beyond its name before it may treat the
-// file as prose that is never built or executed (ADR-0049): whether the file carries an executable bit,
+// file as prose that is never built or executed : whether the file carries an executable bit,
 // whether it starts with a shebang line, and whether any of that could not be established. A file whose
 // facts could not be read is Unverified, and a caller treats it as not prose.
 type Facts struct {

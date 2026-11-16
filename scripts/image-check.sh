@@ -48,7 +48,7 @@ fail() {
 # Both version commands must SUCCEED, for the same reason as the reviews below.
 "$binary" --version > "$work/bin/version" 2>&1 \
   || fail "the binary's --version exited $?" "$work/bin/version"
-docker run --rm --pull=never "$image" --version > "$work/img/version" 2>&1 \
+docker run --rm --network none --pull=never "$image" --version > "$work/img/version" 2>&1 \
   || fail "the image's --version exited $?" "$work/img/version"
 cmp -s "$work/bin/version" "$work/img/version" \
   || fail "the version lines differ" "$work/bin/version" "$work/img/version"
@@ -57,7 +57,7 @@ cmp -s "$work/bin/version" "$work/img/version" \
 # and comparing them alone would call a broken image good.
 (cd "$work/bin" && "$binary" scan --sample "$fixture" > out 2>&1) \
   || fail "the binary's sample review exited $?" "$work/bin/out"
-docker run --rm --pull=never "$image" scan --sample /opt/proven/fixture/discount > "$work/img/out" 2>&1 \
+docker run --rm --network none --pull=never "$image" scan --sample /opt/proven/fixture/discount > "$work/img/out" 2>&1 \
   || fail "the image's sample review exited $?" "$work/img/out"
 normalise "$fixture" < "$work/bin/out" > "$work/bin/out.n"
 normalise /opt/proven/fixture/discount < "$work/img/out" > "$work/img/out.n"

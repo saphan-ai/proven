@@ -17,7 +17,7 @@ const raceBanner = "WARNING: DATA RACE"
 // It cannot be a flag, and it cannot be "." or ".." or "...".
 var segmentPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
 
-// Race is the Go race detector, the first tool (ADR-0040).
+// Race is the Go race detector, the first tool .
 // Its command is go test -race on the packages of the changed Go files.
 type Race struct{}
 
@@ -41,7 +41,7 @@ func (Race) Applies(paths []string) bool {
 }
 
 // Argv is go test -race on each changed package, with no shell and no -run
-// filter: the detector reports a race in any test of the package (ADR-0040).
+// filter: the detector reports a race in any test of the package .
 // A path that could mean more than a directory to go test is refused.
 func (Race) Argv(paths []string) ([]string, string) {
 	pkgs, reason := racePackages(paths)

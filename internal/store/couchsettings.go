@@ -12,7 +12,7 @@ import (
 )
 
 // Environment variables of the CouchDB store. The set is closed.
-// ADR-0013: every value is a setting, validated when it loads. The password
+// every value is a setting, validated when it loads. The password
 // comes from the environment only and is redacted.
 const (
 	EnvCouchURL      = "PROVEN_COUCHDB_URL"
@@ -92,14 +92,14 @@ type CouchSettings struct {
 	Password string
 	RowLimit int
 	Timeout  time.Duration
-	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	// Network is the air-gapped policy of . Nil means public.
 	Network *network.Policy
 }
 
 // LoadCouch reads the CouchDB settings. A value that is set wrongly is
-// refused by name before a review runs (ADR-0013). An empty URL, user or
+// refused by name before a review runs . An empty URL, user or
 // password is a down store named couchdb, as it is for Zetaris: the review
-// goes on without CouchDB evidence and says so (ADR-0013 point 4a). The first
+// goes on without CouchDB evidence and says so . The first
 // empty one is named only after every set value has been checked, so a bad
 // value is never hidden behind an empty one.
 func LoadCouch(env func(string) string) (CouchSettings, error) {
@@ -119,7 +119,7 @@ func LoadCouch(env func(string) string) (CouchSettings, error) {
 		if base, err = checkCouchBase(base); err != nil {
 			return CouchSettings{}, err
 		}
-		// ADR-0034: in the air-gapped mode an address outside the network is
+		// in the air-gapped mode an address outside the network is
 		// refused here, by name, before the credential is ever sent to it.
 		if err := policy.CheckURL(EnvCouchURL, base); err != nil {
 			return CouchSettings{}, fromNetwork(err)

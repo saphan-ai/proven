@@ -38,12 +38,12 @@ type NVIDIA struct {
 // if it is asked to check: a review with the guardrail off does not call it.
 func New(cfg Settings, httpClient *http.Client) (Adapter, error) {
 	switch cfg.Mode {
-	// ADR-0005 point 3: the switch that turns the guardrail off.
+	// the switch that turns the guardrail off.
 	case ModeOff:
 		return Off{}, nil
 	// Both backends speak the same request; only the address, model and key differ.
 	case ModeServer, ModeNVIDIA:
-		if cfg.Key == "" || cfg.BaseURL == "" || cfg.Model == "" || cfg.Timeout <= 0 {
+		if (cfg.Key == "" && cfg.Mode == ModeNVIDIA) || cfg.BaseURL == "" || cfg.Model == "" || cfg.Timeout <= 0 {
 			return nil, Refuse("not configured")
 		}
 		liveBuilt.Add(1)
@@ -125,7 +125,7 @@ func (c *client) model() string {
 // redirects, so the key is not sent to another host.
 func newClient(cfg Settings, httpClient *http.Client) *client {
 	if httpClient == nil {
-		// ADR-0034: in the air-gapped mode this client also refuses, at dial time, any address off the network.
+		// in the air-gapped mode this client also refuses, at dial time, any address off the network.
 		httpClient = cfg.Network.NewClient(cfg.Timeout)
 	}
 	return &client{cfg: cfg, http: httpClient}
@@ -163,9 +163,9 @@ type completion struct {
 }
 
 // check posts one conversation and parses its verdict. The latency is kept
-// even on failure, because ADR-0005 has the trace show what each check cost.
+// even on failure, because  has the trace show what each check cost.
 func (c *client) check(ctx context.Context, prompt, answer string) (Verdict, error) {
-	if c == nil || c.http == nil || c.cfg.Key == "" || c.cfg.BaseURL == "" || c.cfg.Timeout <= 0 {
+	if c == nil || c.http == nil || (c.cfg.Key == "" && c.cfg.Mode == ModeNVIDIA) || c.cfg.BaseURL == "" || c.cfg.Timeout <= 0 {
 		return Verdict{}, Refuse("not configured")
 	}
 	start := time.Now()
@@ -205,7 +205,9 @@ func (c *client) post(parent context.Context, prompt, answer string) (string, er
 	if err != nil {
 		return "", Refuse("not configured")
 	}
-	req.Header.Set("Authorization", "Bearer "+c.cfg.Key)
+	if c.cfg.Key != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.Key)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.http.Do(req)

@@ -3,7 +3,7 @@ package service
 import "strings"
 
 // MinSecretBytes is the shortest configured secret a settings loader accepts
-// (ADR-0013: a wrong non-empty value is refused). The redactor replaces every
+// . The redactor replaces every
 // secret it is given with no length floor, so a secret shorter than this is
 // refused at load rather than left to be redacted out of ordinary text.
 const MinSecretBytes = 8

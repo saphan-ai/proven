@@ -16,7 +16,7 @@ func envOf(m map[string]string) func(string) string {
 }
 
 // TestLoadRefusesAWrongModeByName proves a mode that is neither public nor local is refused,
-// naming the setting, the value and what is allowed (ADR-0013).
+// naming the setting, the value and what is allowed .
 func TestLoadRefusesAWrongModeByName(t *testing.T) {
 	// Mutated field: PROVEN_NETWORK.
 	_, err := network.Load(envOf(map[string]string{"PROVEN_NETWORK": "offline"}))

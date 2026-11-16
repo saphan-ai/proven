@@ -1,4 +1,4 @@
-// Package network is the air-gapped mode of ADR-0034. PROVEN_NETWORK=local
+// Package network is the air-gapped mode of . PROVEN_NETWORK=local
 // makes Proven refuse, when a setting loads, every address that is not on the
 // organisation's own network, and makes each HTTP client refuse the same
 // addresses when it dials.
@@ -29,7 +29,7 @@ const (
 	EnvAllow   = "PROVEN_NETWORK_ALLOW"
 )
 
-// The two modes. The default is public: today's behaviour (ADR-0034).
+// The two modes. The default is public: today's behaviour .
 const (
 	ModePublic = "public"
 	ModeLocal  = "local"
@@ -195,7 +195,7 @@ func (p *Policy) CheckDaemon(setting, raw string) error {
 
 // CheckProgramAddress refuses, in local mode, an address that a program Proven
 // does not run through its own client will connect to: the forge a comment is
-// posted to (the action, ADR-0034). The host is judged like a setting address
+// posted to (the action, ). The host is judged like a setting address
 // (loopback, private, the allow list), and it must be an IP literal: that
 // program resolves a name with its own resolver, whose name servers and answers
 // Proven cannot judge. setting names the variable the address came from.

@@ -6,7 +6,7 @@ import (
 )
 
 // The columns each template returns, in the order its sql form selects them.
-// ADR-0047: the mango form lists the same fields in the same order, so a row
+// the mango form lists the same fields in the same order, so a row
 // from CouchDB lines up with a row from Zetaris. A test holds each list to the
 // SELECT list of its sql form.
 var (
@@ -19,10 +19,10 @@ var (
 	spdxColumns        = []string{"ecosystem", "package", "licence"}
 )
 
-// Find is one template built as a CouchDB Mango query (ADR-0047).
+// Find is one template built as a CouchDB Mango query .
 // Table is the registered table the query reads; the store maps it to one
 // database. Selector holds one equality per parameter, as the strings that
-// passed the same check the sql form uses (ADR-0032). Fields is the column
+// passed the same check the sql form uses . Fields is the column
 // order of the answer. A store sends Selector and Fields to the database and
 // never reads them back out of the Mango text.
 type Find struct {
@@ -71,7 +71,7 @@ func buildFind(name string, params map[string]string, rel Relations) (Find, erro
 	case SPDXByPackage:
 		return packageFind(name, DefaultSPDXTable, params, spdxColumns)
 	default:
-		// ADR-0046: a template a source adapter registered carries the sql
+		// a template a source adapter registered carries the sql
 		// form only, so it has no Mango form and the CouchDB store names it.
 		return Find{}, nil
 	}

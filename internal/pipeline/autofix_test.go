@@ -51,7 +51,7 @@ func widgetEdit(to string) []testrun.Edit {
 	return []testrun.Edit{{Path: "go.mod", Old: "example.com/widget v1.4.0", New: "example.com/widget " + to}}
 }
 
-// TestDataJudgeClosesAFindingOnlyWhenTheSameQueryNoLongerReturnsTheRow proves ADR-0050 point 2 for a
+// TestDataJudgeClosesAFindingOnlyWhenTheSameQueryNoLongerReturnsTheRow proves  point 2 for a
 // finding proved by data: with the dependency raised past the advisory's fixed version the same check no
 // longer names it, and with a raise that stays inside the range the row still comes back with its rows.
 func TestDataJudgeClosesAFindingOnlyWhenTheSameQueryNoLongerReturnsTheRow(t *testing.T) {
@@ -95,7 +95,7 @@ func (f failingQuery) Run(context.Context, querytpl.Request, querytpl.Relations)
 	return query.Result{}, f.err
 }
 
-// TestDataJudgeLeavesTheReviewedTreesAsTheyWere proves ADR-0050 point 4: the patch is applied to copies,
+// TestDataJudgeLeavesTheReviewedTreesAsTheyWere proves the patch is applied to copies,
 // so after the re-run the change's go.mod is byte for byte what it was.
 func TestDataJudgeLeavesTheReviewedTreesAsTheyWere(t *testing.T) {
 	root, q := osvRoot(t)
@@ -159,7 +159,7 @@ type scripted struct{ reply string }
 
 func (s scripted) Complete(context.Context, string, string) (string, error) { return s.reply, nil }
 
-// TestAnAttemptOnADependencyFindingIsJudgedByTheCheckAgain proves ADR-0050 points 2 and 3 end to end for
+// TestAnAttemptOnADependencyFindingIsJudgedByTheCheckAgain proves  points 2 and 3 end to end for
 // data: the generator's raise to 1.5.0 ends "fixed automatically, waiting for a person", and its raise to
 // 1.4.1, which stays inside the range, ends "rejected" with the finding open and its rows shown.
 func TestAnAttemptOnADependencyFindingIsJudgedByTheCheckAgain(t *testing.T) {
@@ -211,7 +211,7 @@ func TestToolJudgeNeedsAContainerAndAKnownTool(t *testing.T) {
 	}
 }
 
-// TestAutofixTextIsRedacted proves ADR-0005 for the attempt: a configured secret the generator echoed in
+// TestAutofixTextIsRedacted proves  for the attempt: a configured secret the generator echoed in
 // its explanation, its patch or a re-run's output is replaced before the result is built.
 func TestAutofixTextIsRedacted(t *testing.T) {
 	rd := redact.New(map[string]string{"SECRET_TOKEN": "s3cret-value"})

@@ -18,14 +18,14 @@ type Adapter interface {
 	Version() string
 	// Applies reports whether the tool looks at these changed paths.
 	Applies(paths []string) bool
-	// Argv is the command Proven runs, with no shell (ADR-0025).
+	// Argv is the command Proven runs, with no shell .
 	// A non-empty reason means there is no command and nothing is started.
 	Argv(paths []string) (argv []string, reason string)
 	// Read classifies one side's output. It is called only after that side ran.
 	Read(output string) Reading
 }
-    Adapter is one deterministic tool (ADR-0040). The runner compares the two
-    sides. The adapter does not.
+    Adapter is one deterministic tool . The runner compares the two sides.
+    The adapter does not.
 
 func ByID(id string) (Adapter, bool)
 ```

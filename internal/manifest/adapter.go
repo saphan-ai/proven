@@ -1,6 +1,6 @@
 package manifest
 
-// Adapter is one language's dependency reader (ADR-0038).
+// Adapter is one language's dependency reader .
 // It is the same type as Reader. A new language fills one Adapter for its
 // manifest and one for its lock file, both with the same ecosystem name and
 // the same Compare and Explain, and adds them to Readers. The rest of the

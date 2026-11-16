@@ -155,7 +155,7 @@ func scenarioTables() []Table {
 // columns, rows and snapshot as the local store for the same request, with
 // the cells in the sql form's column order though the server answers in
 // another, and that its evidence names the mango form and the Mango query
-// that ran (ADR-0047). The mutated fields are the template and the stored
+// that ran . The mutated fields are the template and the stored
 // package name; the fake server answers fields in reverse order. Negative
 // control: dropping one row in CouchDB.Run makes the row comparison fail.
 func TestCouchDBAgreesWithTheLocalStore(t *testing.T) {
@@ -222,7 +222,7 @@ func TestCouchDBAgreesWithTheLocalStore(t *testing.T) {
 // TestCouchDBSendsOnlyTheBuiltSelector proves what reaches CouchDB is the
 // template's selector with the validated values, the field list, the row
 // limit and the credential, and nothing the request's text could add
-// (ADR-0032). The mutated field is the CVE id: one that carries a Mango
+// . The mutated field is the CVE id: one that carries a Mango
 // operator is refused before any request is sent.
 func TestCouchDBSendsOnlyTheBuiltSelector(t *testing.T) {
 	f, srv := newFakeCouch(t)
@@ -260,7 +260,7 @@ func TestCouchDBSendsOnlyTheBuiltSelector(t *testing.T) {
 
 // TestCouchDBMissingDatabaseIsADownStore proves a database that was never
 // registered is a named down store and never an empty answer, as it is on the
-// other stores (ADR-0047). The mutated field is the database: the server
+// other stores . The mutated field is the database: the server
 // holds none. Negative control: in CouchDB.Run, returning an empty Evidence
 // for status 404 instead of the down error makes this test fail.
 func TestCouchDBMissingDatabaseIsADownStore(t *testing.T) {
@@ -276,7 +276,7 @@ func TestCouchDBMissingDatabaseIsADownStore(t *testing.T) {
 
 // TestCouchDBFailuresAreNamedAndKeepTheCredentialOut proves a wrong credential,
 // a server error and an unreachable server are each a down store named
-// couchdb, and no reason holds the password or the server's body (ADR-0013
+// couchdb, and no reason holds the password or the server's body (
 // point 4). The mutated fields are the password, then the server.
 func TestCouchDBFailuresAreNamedAndKeepTheCredentialOut(t *testing.T) {
 	_, srv := newFakeCouch(t)
@@ -299,7 +299,7 @@ func TestCouchDBFailuresAreNamedAndKeepTheCredentialOut(t *testing.T) {
 }
 
 // TestCouchDBRegisterRefusesASecondLoad proves registering the same table
-// twice is refused and the first load is kept (ADR-0047: the stores agree on
+// twice is refused and the first load is kept (the stores agree on
 // this). The mutated field is the table name, registered twice.
 func TestCouchDBRegisterRefusesASecondLoad(t *testing.T) {
 	f, srv := newFakeCouch(t)
@@ -322,7 +322,7 @@ func TestCouchDBRegisterRefusesASecondLoad(t *testing.T) {
 }
 
 // TestCouchDBDatabaseNames proves the database name is the prefix, the table
-// name in lower case, and `.` written as `-` (ADR-0013). The mutated field is
+// name in lower case, and `.` written as `-` . The mutated field is
 // the table name.
 func TestCouchDBDatabaseNames(t *testing.T) {
 	c := NewCouchDB(CouchSettings{Prefix: "proven_"}, nil)
@@ -395,7 +395,7 @@ func TestCouchDBLive(t *testing.T) {
 
 // TestCouchDBAppearsInTheConformanceOfStores proves the three stores answer
 // one request with the same columns and rows, each in the form it speaks:
-// sql for Zetaris and the local store, mango for CouchDB (ADR-0047 point 4).
+// sql for Zetaris and the local store, mango for CouchDB .
 // The mutated field is the store: each is asked the same KEV request.
 func TestCouchDBAppearsInTheConformanceOfStores(t *testing.T) {
 	when := time.Date(2026, 10, 24, 7, 0, 0, 0, time.UTC)

@@ -2,8 +2,8 @@
 // One JSON request per line, one JSON answer per line. No network.
 //
 // It lets Meterless's own conformance suites test the Go engines through the
-// TypeScript bridge in test/conformance/meterless (ADR-0003, point 4; ADR-0018,
-// point 7; ADR-0048, point 3). The bridge starts one process per request, so a session is a
+// TypeScript bridge in test/conformance/meterless (, point 4; ,
+// point 7; , point 3). The bridge starts one process per request, so a session is a
 // directory under the temp dir, and the next process opens the same store. The Markovian
 // engine keeps no store: each answer carries the run's machine, and the next request hands it back.
 package main
@@ -79,7 +79,7 @@ type request struct {
 	Entity   string          `json:"entity"`
 	Via      string          `json:"via"`
 	AtTime   string          `json:"atTime"`
-	// Registry, PolicyPack, Prompt, User and Surface are Scout's (ADR-0049 point 4).
+	// Registry, PolicyPack, Prompt, User and Surface are Scout's .
 	Registry   string          `json:"registry"`
 	PolicyPack json.RawMessage `json:"policyPack"`
 	Prompt     string          `json:"prompt"`
@@ -276,7 +276,7 @@ func worldOp(req request) map[string]any {
 		}
 		return ok(req.ID, map[string]any{"edge": edge})
 	case "neighbors":
-		// ADR-0018 point 1: the graph is the one view the suite reads.
+		// the graph is the one view the suite reads.
 		if req.View != "" && req.View != "graph" {
 			return fail(req.ID, "world: unknown view "+req.View)
 		}
@@ -291,7 +291,7 @@ func worldOp(req request) map[string]any {
 	case "canonical":
 		return ok(req.ID, map[string]any{"canonical": st.Canonical()})
 	case "audit":
-		// The audit is the World Model's own JSONL log (ADR-0018, point 3).
+		// The audit is the World Model's own JSONL log .
 		rows, err := readAudit(filepath.Join(sessionBase(req.Session), "logs", "world.jsonl"))
 		if err != nil {
 			return fail(req.ID, err.Error())
@@ -398,7 +398,7 @@ func addH(st *hmem.Store, at int64, raw json.RawMessage) (hmem.Record, error) {
 }
 
 // openW opens a session's World Model, backed by the session's own H-MEM
-// store (ADR-0018, point 4).
+// store .
 func openW(id string) (*world.Store, error) {
 	if err := knownSession(id); err != nil {
 		return nil, fmt.Errorf("world: %w", err)

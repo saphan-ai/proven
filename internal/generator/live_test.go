@@ -88,7 +88,7 @@ func TestLiveSendsTheConfiguredModelAndDoesNotTrustIt(t *testing.T) {
 }
 
 // The Skeptic sends Nemotron by default and the configured Skeptic model when
-// one is set (ADR-0006).
+// one is set .
 func TestLiveSendsNemotronForTheSkeptic(t *testing.T) {
 	sse := streamFixture(t)
 	var got string
@@ -120,7 +120,7 @@ func TestLiveSendsNemotronForTheSkeptic(t *testing.T) {
 	}
 }
 
-// A receipt naming a non-NVIDIA model is refused by name (ADR-0019 point 4).
+// A receipt naming a non-NVIDIA model is refused by name .
 // Mutated field: meterless.routed_model. The chunk model field stays nvidia/*.
 func TestLiveRefusesANonNVIDIARoutedModel(t *testing.T) {
 	body := strings.Replace(streamFixture(t), `"routed_model":"`+routedNVIDIA+`"`, `"routed_model":"`+otherModel+`"`, 1)
@@ -184,7 +184,7 @@ func TestLiveKeepsANonNVIDIAAnswerForAnAgentThatIsNotListed(t *testing.T) {
 	}
 }
 
-// ADR-0019 point 4: with NVIDIA required, an answer without a receipt is
+// with NVIDIA required, an answer without a receipt is
 // refused, and the trace still names the model as unknown.
 // Mutated field: the top-level meterless object, removed.
 func TestLiveRefusesAnAnswerWithoutAReceipt(t *testing.T) {

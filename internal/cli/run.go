@@ -28,23 +28,26 @@ const versionLine = "proven development\n"
 type opener func(review.Options) (review.Reviewer, error)
 
 // Run executes one proven invocation and returns the process exit code
-// (ADR-0020 §2: 0 reviewed, 1 findings under --error, 2 could not review,
+// ( §2: 0 reviewed, 1 findings under --error, 2 could not review,
 // 7 configuration refused). Every input arrives as a parameter, never from
 // the process, so a test drives exactly what the binary would.
 func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, open opener) int {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	// check-address judges one address for a program the action runs, and runs no review (ADR-0034).
+	if len(args) > 0 && args[0] == "data" {
+		return runData(args[1:], getenv, stdout, stderr)
+	}
+	// check-address judges one address for a program the action runs, and runs no review .
 	if len(args) > 0 && args[0] == "check-address" {
 		return runCheckAddress(args[1:], getenv, stdout, stderr)
 	}
-	// verify checks a pack and runs no review (ADR-0035 point 3).
+	// verify checks a pack and runs no review .
 	if len(args) > 0 && args[0] == "verify" {
 		return runVerify(args[1:], getenv, stdout, stderr)
 	}
 	// Settings are resolved and refused before anything is opened, so a bad
-	// value costs nothing and its exit code is the one ADR-0020 §2 names.
+	// value costs nothing and its exit code is the one  §2 names.
 	cfg, err := resolve(args, getenv, fileExists)
 	if err != nil {
 		printErr(stderr, err)
@@ -114,7 +117,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	if cfg.evidencePack != "" && cfg.logDir != "" {
 		traceStart = fileSize(filepath.Join(cfg.logDir, traceFile))
 	}
-	// --timeout bounds the whole review; zero means no deadline (ADR-0020 §1).
+	// --timeout bounds the whole review; zero means no deadline .
 	ctx := context.Background()
 	if cfg.timeoutSec > 0 {
 		var cancel context.CancelFunc
@@ -157,8 +160,12 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		return exitFatal
 	}
 	// A failed outside service is named in the output and is not exit 2:
-	// the review still ran on what it could reach (ADR-0020 §2).
+	// the review still ran on what it could reach .
 	code := exitOK
+	if cfg.requireComplete && (result.Partial || len(result.FailedServices) > 0) {
+		fmt.Fprintln(stderr, "review incomplete; required checks did not finish")
+		return exitIncomplete
+	}
 	if cfg.errorOnFindings && len(result.Findings) > 0 {
 		code = exitFindings
 	}
@@ -215,7 +222,7 @@ func writable(cfg config) error {
 }
 
 // openCall opens the reviewer and turns a panic into an error, so a broken
-// reviewer is exit 2 with a sentence, never a Go stack trace (ADR-0020 §2).
+// reviewer is exit 2 with a sentence, never a Go stack trace .
 func openCall(cfg config, getenv func(string) string, open opener) (rev review.Reviewer, err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -237,7 +244,7 @@ func openReviewer(cfg config, getenv func(string) string, open opener) (review.R
 	}
 	// Sample mode always takes the real review.Open, never a test's opener:
 	// the sample reviewer is the thing under test, with no network and no
-	// keys (ADR-0001).
+	// keys .
 	if cfg.sample || open == nil {
 		return review.Open(opts)
 	}
@@ -255,7 +262,7 @@ func reviewCall(ctx context.Context, rev review.Reviewer, req review.Request) (r
 }
 
 // writeOutputs writes the chosen format to standard output or -o, and each
-// --*-output file besides, all from the one result (ADR-0020 §1). Every body
+// --*-output file besides, all from the one result . Every body
 // is rendered before any file is written, so a format that fails leaves no
 // half-written set behind.
 func writeOutputs(cfg config, result review.Result, stdout io.Writer) error {
@@ -634,8 +641,8 @@ type writtenOutput struct {
 }
 
 // pullRequestEvent is the part of GitHub's pull_request event payload ci
-// reads. Gitea is an equal target (ADR-0022); that its payload carries the
-// same fields is still to be measured on the lab's Gitea.
+// reads. Gitea is an equal target ; that its payload carries the
+// same fields is still to be measured on a configured Gitea server.
 type pullRequestEvent struct {
 	PullRequest struct {
 		Base struct {
@@ -700,7 +707,7 @@ func applyCI(cfg *config, getenv func(string) string) error {
 		// An empty head is the working tree. ci would then review a different
 		// checkout from the pull request it was asked for, including when the
 		// baseline was passed explicitly and the merge base is not computed.
-		// Exit 2, not 7. ADR-0020 §2 reserves 7 for a configuration refused at load.
+		// Exit 2, not 7.  §2 reserves 7 for a configuration refused at load.
 		return &cliError{code: exitFatal, msg: "ci: no head commit: set GITHUB_SHA, or GITHUB_EVENT_PATH with a head SHA"}
 	}
 	// A baseline the caller named is used as given. One found in the event
@@ -709,7 +716,7 @@ func applyCI(cfg *config, getenv func(string) string) error {
 	if explicitBaseline {
 		return nil
 	}
-	// Exit 2, not 7. ADR-0020 §2 reserves 7 for a configuration refused at load.
+	// Exit 2, not 7.  §2 reserves 7 for a configuration refused at load.
 	// A base git cannot resolve means Proven could not review.
 	base, err := gitMergeBase(git, cfg.target, cfg.baseline, cfg.head)
 	if err != nil {
@@ -722,7 +729,7 @@ func applyCI(cfg *config, getenv func(string) string) error {
 // gitMergeBase asks git for the fork point of base and head in repo and
 // returns git's own sentence when it cannot answer.
 func gitMergeBase(git change.Policy, repo, base, head string) (string, error) {
-	// Property: no key reaches a subprocess (ADR-0025). GitCommand builds the
+	// Property: no key reaches a subprocess . GitCommand builds the
 	// minimal environment and, in local mode, a git that cannot fetch.
 	cmd := git.GitCommand("-C", repo, "merge-base", base, head)
 	out, err := cmd.Output()
@@ -743,7 +750,7 @@ func gitMergeBase(git change.Policy, repo, base, head string) (string, error) {
 	return sha, nil
 }
 
-// helpText is the --help page: the flags of ADR-0020 §1 with the variable
+// helpText is the --help page: the flags of  §1 with the variable
 // beside each, and the exit codes of §2.
 func helpText() string {
 	return `proven — review a change
@@ -797,9 +804,17 @@ environment only:
   PROVEN_POLICY
         a path to the organisation policy file, read before proven.yaml (docs/POLICY.md)
 
+data import <dataset.json>
+  Load administrator-prepared tables into SQLite or PostgreSQL. See docs/DATABASES.md.
+
+completion policy:
+  PROVEN_REQUIRE_COMPLETE=true fails a partial review or failed service with exit 3.
+  Default: true in ci, false in scan. Findings policy is independent.
+
 exit codes:
   0  review done; no findings, or findings without --error
   1  review done; findings, with --error (the default in ci)
+  3  required review incomplete (PROVEN_REQUIRE_COMPLETE=true)
   2  fatal error: proven could not review
   7  the configuration was refused when it loaded
 `

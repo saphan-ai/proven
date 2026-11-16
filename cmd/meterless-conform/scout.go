@@ -1,6 +1,6 @@
 package main
 
-// This file answers Scout Intent's calls (ADR-0049 point 4). A decision needs no session: each call
+// This file answers Scout Intent's calls . A decision needs no session: each call
 // names its registry, and the engine is built from it for that one call, so the recency term of the
 // spec's formula, which needs a session, is always zero here.
 

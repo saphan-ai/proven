@@ -34,7 +34,7 @@ var ErrEdgeInterval = errors.New("world: the edge interval ends before it starts
 
 // Edge is one bitemporal relationship between two entities. ValidTo empty
 // means the edge is open. A superseding edge closes the old one by setting
-// ValidTo and SupersededBy; an edge is never deleted (ADR-0018 point 1,
+// ValidTo and SupersededBy; an edge is never deleted ( point 1,
 // Meterless World Model specification). ValidFrom and ValidTo are held as
 // canonical UTC instants (see ParseInstant).
 type Edge struct {
@@ -300,7 +300,7 @@ func endsAfter(a, b Edge) bool {
 }
 
 // checkChains refuses a set of stored edges in which two edges of one from,
-// type and context are valid at one instant. Rule (ADR-0018 point 1): the
+// type and context are valid at one instant. Rule : the
 // store refuses such a state and does not repair it. Choosing which of two
 // recorded facts is true is the caller's decision, as it is for a write, so
 // Open names the pair and stops before any query can see it. The error wraps

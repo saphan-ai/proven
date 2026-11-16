@@ -119,7 +119,7 @@ func collect(t *testing.T, m *memTelemetry) metricdata.ResourceMetrics {
 	return rm
 }
 
-// TestReviewIsOneTraceWithAnAgentSpanAndTheTwoReviewers is ADR-0045 point 1: one trace per review, one span per
+// TestReviewIsOneTraceWithAnAgentSpanAndTheTwoReviewers is one trace per review, one span per
 // agent and per reviewer model, the model calls under the agent that made them, the trace file's events on the
 // spans. It would fail if a reviewer's agent had no span of its own, if a model call sat outside its agent, or if
 // the review split into two traces.
@@ -201,7 +201,7 @@ func TestReviewIsOneTraceWithAnAgentSpanAndTheTwoReviewers(t *testing.T) {
 	}
 }
 
-// TestReviewCountsWhatADashboardShows is ADR-0045 point 1's numbers: findings by level of proof, claims dropped,
+// TestReviewCountsWhatADashboardShows is  point 1's numbers: findings by level of proof, claims dropped,
 // reviewer verdicts and their disagreements, model calls and their duration, guardrail checks.
 func TestReviewCountsWhatADashboardShows(t *testing.T) {
 	mem := newMemTelemetry(t)
@@ -272,7 +272,7 @@ func TestDroppedClaimsAreCounted(t *testing.T) {
 	}
 }
 
-// TestNoSecretReachesASpanOrANumber is ADR-0045 point 2: the redactor applies. The claim's title, the model's
+// TestNoSecretReachesASpanOrANumber is the redactor applies. The claim's title, the model's
 // name and the finding's text carry a configured secret; no attribute or event value of any span holds it.
 func TestNoSecretReachesASpanOrANumber(t *testing.T) {
 	const secret = "sk-not-for-the-trace-9f2c"
@@ -383,7 +383,7 @@ func sampleReviewWith(t *testing.T, env map[string]string) {
 	}
 }
 
-// TestAReviewIsExportedOnlyWhenAnEndpointIsSet is ADR-0045 point 2 with its control. The same sample review runs
+// TestAReviewIsExportedOnlyWhenAnEndpointIsSet is  point 2 with its control. The same sample review runs
 // twice against a stand-in collector. With OTEL_EXPORTER_OTLP_ENDPOINT set, the collector is sent the trace and the
 // metrics (the control: it fails when the exporter is not wired). With it unset, the collector is sent nothing,
 // and neither is any other address: the review opens no connection.

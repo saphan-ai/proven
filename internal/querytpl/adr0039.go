@@ -8,13 +8,13 @@ import (
 )
 
 // youngReleaseDays is the age under which a release counts as only days old
-// (ADR-0039). Fourteen days is not that: a release of that age has left the
+// . Fourteen days is not that: a release of that age has left the
 // first fortnight. The number is the rule's, written once so the test and
 // the sentence name the same bound.
 const youngReleaseDays = 14
 
 // permissiveLicences is the closed set a licence cell may name and still
-// not be evidence. It stands in for an organisation policy (ADR-0036): that
+// not be evidence. It stands in for an organisation policy : that
 // policy is not this program's store, and the cell is compared whole, so
 // "MIT OR Apache-2.0" is not two allowed identifiers.
 var permissiveLicences = map[string]struct{}{
@@ -53,7 +53,7 @@ func cvssSQL(cve string) (string, error) {
 	return "SELECT " + strings.Join(cvssColumns, ", ") + " FROM " + DefaultCVSSTable + " WHERE cve_id = " + id, nil
 }
 
-// malAdapter is the OpenSSF malicious-package source (ADR-0039, ADR-0046).
+// malAdapter is the OpenSSF malicious-package source .
 // A row is an OSV advisory whose id starts with MAL-.
 type malAdapter struct{}
 
@@ -85,14 +85,14 @@ func (malAdapter) Templates() []source.Spec {
 
 func (malAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	// An empty row list is not evidence. The table not naming the package
-	// does not say the package was published to do harm (ADR-0039, ADR-0046).
+	// does not say the package was published to do harm .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}
 	idAt := columnIndex(in.Columns, "id")
 	var kept [][]string
 	for _, row := range in.Rows {
-		// ADR-0039: the signal is the MAL- prefix on the advisory id.
+		// the signal is the MAL- prefix on the advisory id.
 		// A row with another id is not this source's finding.
 		if strings.HasPrefix(cell(row, idAt), "MAL-") {
 			kept = append(kept, append([]string(nil), row...))
@@ -102,7 +102,7 @@ func (malAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 }
 
 // scorecardAdapter is project health from OpenSSF Scorecard through deps.dev
-// (ADR-0039, ADR-0046).
+// .
 type scorecardAdapter struct{}
 
 func (scorecardAdapter) ID() string { return "scorecard" }
@@ -133,7 +133,7 @@ func (scorecardAdapter) Templates() []source.Spec {
 
 func (scorecardAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	// No row means the table has no scores. Missing scores are not a
-	// statement that the project is healthy (ADR-0039).
+	// statement that the project is healthy .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}
@@ -149,7 +149,7 @@ func (scorecardAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	return keepRows(in, kept)
 }
 
-// unhealthy reports the three signals ADR-0039 names: no maintainers, an
+// unhealthy reports the three signals  names: no maintainers, an
 // unsigned release, or a release only days old. A cell that is not the
 // failing spelling is not that signal. Empty is not a guess.
 func unhealthy(maintained, signed, age string) bool {
@@ -166,7 +166,7 @@ func unhealthy(maintained, signed, age string) bool {
 	return n >= 0 && n < youngReleaseDays
 }
 
-// cvssAdapter is the NVD CVSS source, read beside EPSS (ADR-0039, ADR-0046).
+// cvssAdapter is the NVD CVSS source, read beside EPSS .
 type cvssAdapter struct{}
 
 func (cvssAdapter) ID() string { return "cvss" }
@@ -196,14 +196,14 @@ func (cvssAdapter) Templates() []source.Spec {
 
 func (cvssAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	// A row is a severity score, and the score is evidence beside EPSS.
-	// No row means the table has no score for that CVE (ADR-0039).
+	// No row means the table has no score for that CVE .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}
 	return copyEvidence(in), true
 }
 
-// spdxAdapter is the SPDX licence source (ADR-0039, ADR-0046).
+// spdxAdapter is the SPDX licence source .
 type spdxAdapter struct{}
 
 func (spdxAdapter) ID() string { return "spdx" }
@@ -234,7 +234,7 @@ func (spdxAdapter) Templates() []source.Spec {
 
 func (spdxAdapter) Rule(in source.Evidence) (source.Evidence, bool) {
 	// No row means the table does not name a licence. That is not a
-	// statement that the licence is allowed (ADR-0039).
+	// statement that the licence is allowed .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}

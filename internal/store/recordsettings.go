@@ -12,7 +12,7 @@ import (
 )
 
 // Environment variables of the evidence records and their viewer. The set is
-// closed. ADR-0013: every value is a setting, validated when it loads. The
+// closed. every value is a setting, validated when it loads. The
 // writing password comes from the environment only and is redacted.
 const (
 	EnvRecordsDB       = "PROVEN_COUCHDB_RECORDS"
@@ -63,7 +63,7 @@ type RecordsSettings struct {
 	User     string
 	Password string
 	Timeout  time.Duration
-	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	// Network is the air-gapped policy of . Nil means public.
 	Network *network.Policy
 }
 
@@ -71,7 +71,7 @@ type RecordsSettings struct {
 func (s RecordsSettings) Enabled() bool { return s.Database != "" }
 
 // LoadRecords reads the records settings. An empty database name is off and is
-// not an error (ADR-0013). A database name that is set needs the server's
+// not an error . A database name that is set needs the server's
 // address and a writing account, and a missing one is refused by name: an
 // operator who asked for records and got none would not find out until a
 // reader looked for them. The writing account must differ from the read-only
@@ -95,7 +95,7 @@ func LoadRecords(env func(string) string) (RecordsSettings, error) {
 	if err != nil {
 		return RecordsSettings{}, err
 	}
-	// ADR-0034: in the air-gapped mode an address outside the network is
+	// in the air-gapped mode an address outside the network is
 	// refused here, by name, before the writing credential is ever sent to it.
 	policy, perr := network.Load(env)
 	if perr != nil {
@@ -110,7 +110,7 @@ func LoadRecords(env func(string) string) (RecordsSettings, error) {
 		return RecordsSettings{}, refuse(EnvRecordsUser, "", "records need a writing CouchDB user; the value is not printed", "one line of printable ASCII with no `:`, at most 128 characters")
 	}
 	if user == env(EnvCouchUser) {
-		// ADR-0013: the read-only account opens the viewer; if it could write,
+		// the read-only account opens the viewer; if it could write,
 		// a page served to a reader would hold a write right.
 		return RecordsSettings{}, refuse(EnvRecordsUser, "", "the writing user is the read-only user; the value is not printed", "a user different from "+EnvCouchUser)
 	}
@@ -130,7 +130,7 @@ func LoadRecords(env func(string) string) (RecordsSettings, error) {
 }
 
 // LoadLinkBase reads the address evidence-record links are built from. Empty
-// is "no link" and is not an error (ADR-0013).
+// is "no link" and is not an error .
 func LoadLinkBase(env func(string) string) (string, error) {
 	if env == nil {
 		return "", nil
@@ -161,7 +161,7 @@ func EvidenceURL(base, database, id string) string {
 // from it are exact.
 func checkBaseURL(field, raw string) (string, error) {
 	allowed := "an absolute http or https URL with no user info, query or fragment"
-	// ADR-0013: an address that may carry user info is never echoed.
+	// an address that may carry user info is never echoed.
 	shown := clip(raw)
 	if strings.Contains(raw, "@") {
 		shown = ""

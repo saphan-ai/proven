@@ -23,7 +23,7 @@ func (h *fixedHost) Run(_ context.Context, dir string, argv []string) (Side, err
 	return h.side, h.err
 }
 
-// TestRerunReadsOnlyAnAnswerAsClean proves ADR-0050 point 2 for a tool finding: the result is "present"
+// TestRerunReadsOnlyAnAnswerAsClean proves  point 2 for a tool finding: the result is "present"
 // when the output carries the detector's banner and "gone" only when the tool answered without it; a tool
 // that timed out, errored or has no host has not answered, so it is never read as clean.
 func TestRerunReadsOnlyAnAnswerAsClean(t *testing.T) {

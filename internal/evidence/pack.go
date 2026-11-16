@@ -1,4 +1,4 @@
-// Package evidence writes and verifies the signed evidence pack of ADR-0035.
+// Package evidence writes and verifies the signed evidence pack of .
 //
 // A pack is one tar archive per review. It holds the findings, the trace of
 // the run, every test and tool command with its output, every query with its
@@ -13,7 +13,7 @@
 // and the writer can make the same bytes every time from the same input:
 // sorted entries, fixed times, fixed owners.
 //
-// ADR-0005: every file passes through the review's Redactor before it is
+// every file passes through the review's Redactor before it is
 // hashed, so no configured secret reaches the pack, and the private key never
 // does. A pack holds source excerpts and query rows; where it is kept is the
 // organisation's decision (docs/EVIDENCE_PACK.md).
@@ -36,7 +36,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/redact"
-	"github.com/saphan-ai/proven/internal/review"
+	review "github.com/saphan-ai/proven/internal/report"
 	"github.com/saphan-ai/proven/internal/service"
 )
 

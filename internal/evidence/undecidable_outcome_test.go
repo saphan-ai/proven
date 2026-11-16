@@ -64,6 +64,9 @@ func TestMissingBoundCannotHideAnOutcomeNoReadingGives(t *testing.T) {
 // verifies; the related reading drops the finding, so it is named for whether it is reported.
 func TestRedactionMovedFindingMatchedByOneReadingVerifiesAndIsNamed(t *testing.T) {
 	in, pub := forgeryInput(t)
+	in.Result.Findings[3].Evidence = []review.Evidence{{Kind: review.EvidenceQuery, Query: &review.QueryEvidence{Bound: true, Rows: [][]string{{"subject", "true"}}}}}
+	in.Result.Findings[3].ProofLevel = review.ProvedByData
+	in.Result.ProofCounts = review.CountProofs(in.Result.Findings)
 	in.Result.Findings[3].Refutation = &review.Refutation{TestCannotRun: true, QueryRows: [][]string{{"zzzz", "no"}}}
 	pack, err := Build(in)
 	if err != nil {

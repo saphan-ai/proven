@@ -20,7 +20,7 @@ func InRange(version, introduced, fixed, last string) (bool, string) {
 }
 
 // InRangeEcosystem is InRange for one package ecosystem.
-// The order is the adapter's, not a switch kept beside it (ADR-0038): Go and
+// The order is the adapter's, not a switch kept beside it : Go and
 // npm compare semantic versions, PyPI compares PEP 440, and a later language
 // brings its own Compare and Explain. An ecosystem with no adapter is not
 // compared.

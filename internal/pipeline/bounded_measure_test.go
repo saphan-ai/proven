@@ -10,7 +10,7 @@ import (
 	"github.com/saphan-ai/proven/internal/trace"
 )
 
-// TestBoundedStepsMeasurement is ADR-0048 point 4's measurement on the sample scenarios. It runs each scenario
+// TestBoundedStepsMeasurement is  point 4's measurement on the sample scenarios. It runs each scenario
 // whole and in bounded steps and logs, per review, the Planner's model tokens per step (prompt plus answer) and in
 // total, and whether the two reviews named the same risks. Every figure is the scripted generator's, estimated as
 // characters / 4: it measures the size of what Proven sends and receives, never a live model's behaviour.

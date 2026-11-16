@@ -1,7 +1,6 @@
 # Queries
 
-Every question Proven asks Zetaris is one of the templates below, and no other. A model never writes a query
-([ADR-0032](adr/ADR-0032-proven-builds-every-query-from-a-template.md)): the Investigator and the Skeptic
+Every question Proven asks Zetaris is one of the templates below, and no other. A model never writes a query: the Investigator and the Skeptic
 pick a template and give the values of its parameters, and Proven checks each value against the format on this page and
 builds the SQL itself. The OSV check and the EPSS check build their queries from the same templates, so every query
 Proven sends has one author. The list lives in `internal/querytpl`; a test holds this page to it.
@@ -47,7 +46,7 @@ Go by the dependency check, never in SQL.
 ## The names of tables and views
 
 The OSV, KEV and EPSS names are settings ([CONFIGURATION.md](CONFIGURATION.md)), not values from a model or from the change.
-The four tables of ADR-0039 are the adapters' own names. Either way the name goes into the SQL unquoted, so it is
+The four tables of  are the adapters' own names. Either way the name goes into the SQL unquoted, so it is
 checked again when the query is built: one identifier, or `schema.name`, of letters, digits and underscores. A setting
 that is not a plain name is refused at load and again at build. The names and their defaults:
 
@@ -62,7 +61,7 @@ that is not a plain name is refused at load and again at build. The names and th
 | `cvss-by-cve` | table | none; the adapter's own name | `px_evidence.px_cvss_cve` |
 | `spdx-by-package` | table | none; the adapter's own name | `px_evidence.px_spdx_lic` |
 
-The four tables of [ADR-0039](adr/ADR-0039-more-evidence-sources.md) are not settings. Each name is the source adapter's load table. A review cannot point them at another name: an organisation that wants another name writes another adapter.
+The four tables of  are not settings. Each name is the source adapter's load table. A review cannot point them at another name: an organisation that wants another name writes another adapter.
 
 ## What a refusal does
 

@@ -29,10 +29,10 @@ const (
 // ConfigError names a refused container setting and the values that are allowed.
 // Field is the Go field when Validate refuses the struct, and the environment
 // variable when Load refuses a setting. A refusal does not start a container.
-// There is no setting that gives the container a network or a secret (ADR-0013).
+// There is no setting that gives the container a network or a secret .
 type ConfigError = service.ConfigError
 
-// Load reads the live container settings (ADR-0013). A wrong value is refused.
+// Load reads the live container settings . A wrong value is refused.
 // An empty lookup uses DefaultContainerConfig. Validate has accepted the result.
 // A refusal is a *ConfigError that names the environment variable, so the
 // shell can tell the user which setting to fix; no container is started.

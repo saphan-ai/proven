@@ -3,31 +3,31 @@
 // It is the reviewer behind review.Open. One Review call reads the change, lets
 // the Planner name candidate risks, has the Investigator pick a query template and the
 // Prover write a test for each, lets the Skeptic try to refute every finding,
-// has the Judge keep only what carries evidence (ADR-0002), lets the Fixer propose
-// a fix for each finding a test proved and prove it with the same test (ADR-0042),
+// has the Judge keep only what carries evidence , lets the Fixer propose
+// a fix for each finding a test proved and prove it with the same test ,
 // adds the dependency check against the OSV table, with the fixed version it
 // names, labels each dependency finding from govulncheck when the change is
-// Go (ADR-0043), adds the EPSS scores, and hands the result to the Writer. With the setting on, it makes
+// Go , adds the EPSS scores, and hands the result to the Writer. With the setting on, it makes
 // the one whole-change fix attempt once every finding is final, and judges it by running each finding's own
-// evidence again (ADR-0050, autofix.go); the attempt replaces the per-finding suggestions. With the bounded-steps
+// evidence again ; the attempt replaces the per-finding suggestions. With the bounded-steps
 // engine on, a change above its threshold reaches the Planner one part per step with a carried state, and the trace
-// says per review whether that ran (ADR-0048). Every step writes to the trace, which is then folded into H-MEM and
+// says per review whether that ran . Every step writes to the trace, which is then folded into H-MEM and
 // the World Model.
 //
 // The pipeline also owns what wraps the agents: the guardrail on every prompt
-// and answer (ADR-0005), the record of every model call, the doubled review
-// with a second model (ADR-0009, ADR-0012), the partial review a deadline
+// and answer , the record of every model call, the doubled review
+// with a second model , the partial review a deadline
 // leaves behind, and the redaction of every configured secret from the trace,
 // the recorded models, a failure's reason, every finding and every agreed
 // opinion, because a service
-// can echo a value it was sent (ADR-0005, ADR-0013 point 4).
+// can echo a value it was sent .
 //
 // Live mode reads a directory that already has base/ and change/, or a git
 // repository. For a repository it writes those two trees for the review and
 // removes them when the review returns. A tracked symlink is not written into
 // either tree; the trace names it and the draft lists the path. Sample mode
 // still loads a fixture and does not write trees. An empty secret is named in
-// the review's failed services before any agent runs (ADR-0013 point 4a).
+// the review's failed services before any agent runs .
 package pipeline
 
 import (
@@ -70,6 +70,7 @@ import (
 // Options select the adapters. TestRun, when set, replaces the sample or live test-run adapter.
 // Generator, when set, is the live generator. Sample mode does not use it and does not read Env.
 type Options struct {
+	ModelsOff bool
 	Sample    bool
 	LogDir    string
 	Env       func(string) string
@@ -86,7 +87,7 @@ type Options struct {
 	RuntimeNote string
 	// LiveStore, when set, is the evidence store a live review queries.
 	// Sample mode does not use it. The seam passes a template request; the
-	// store runs the form of its own language (ADR-0047).
+	// store runs the form of its own language .
 	LiveStore store.Store
 	// StateDir is the durable directory for H-MEM and the world model.
 	// Empty uses a state directory beside the logs, never a path inside the module.
@@ -123,25 +124,26 @@ type Options struct {
 	ToolTimeout time.Duration
 	// Down names services that are already down when the review starts.
 	// An empty secret is recorded here so the review names the service even
-	// when a later check never calls it (ADR-0013 point 4a, ADR-0005 point 5).
+	// when a later check never calls it .
 	Down []service.Down
 	// Redactor replaces the configured secrets in the trace, in a failure's
 	// reason, in the models a review records and in every finding. A live
 	// pipeline with none is refused; nil in sample mode redacts nothing, which is
 	// right because sample mode loads no secret.
 	Redactor *redact.Redactor
-	// Telemetry carries the review's spans and metrics (ADR-0045). Nil is off.
+	// Telemetry carries the review's spans and metrics . Nil is off.
 	// It only observes: nothing a review decides reads it.
 	Telemetry *telemetry.T
-	// Markov is the bounded-steps setting (ADR-0048). The zero value is off: the Planner reads the change whole
-	// and the Fixer sees every earlier attempt, as before. Review sets it in live and sample mode (ADR-0053).
+	// Markov is the bounded-steps setting . The zero value is off: the Planner reads the change whole
+	// and the Fixer sees every earlier attempt, as before. Review sets it in live and sample mode .
 	Markov markov.Settings
-	// Stores holds the switches of H-MEM and the World Model (ADR-0053). The zero value leaves both on.
+	// Stores holds the switches of H-MEM and the World Model . The zero value leaves both on.
 	Stores StoreSettings
 }
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
 type Pipeline struct {
+	modelsOff    bool
 	sample       bool
 	testRun      testrun.Adapter
 	proverIdle   string
@@ -175,9 +177,9 @@ type Pipeline struct {
 	logDir, stateDir string
 	// tel is the review's telemetry; nil is off and every call on it does nothing.
 	tel *telemetry.T
-	// markov is the bounded-steps setting (ADR-0048); off unless Options set it.
+	// markov is the bounded-steps setting ; off unless Options set it.
 	markov markov.Settings
-	// stores is the switch of each store (ADR-0053). A store switched off is never opened, so mem or world
+	// stores is the switch of each store . A store switched off is never opened, so mem or world
 	// stays nil and every use below is guarded by it.
 	stores StoreSettings
 	// guardSeen counts this review's guardrail checks; guardMu guards it, because agents check concurrently.
@@ -194,18 +196,18 @@ func Build(opts Options) (*Pipeline, error) {
 	if opts.LogDir == "" {
 		return nil, fmt.Errorf("pipeline: logs directory is empty")
 	}
-	// ADR-0005: "off" and an adapter together are a contradiction, refused here
+	// "off" and an adapter together are a contradiction, refused here
 	// rather than settled silently one way.
 	if opts.GuardOff && opts.Guardrail != nil {
 		return nil, fmt.Errorf("pipeline: the guardrail is off and an adapter was set")
 	}
-	// ADR-0005, ADR-0013 point 4: a live pipeline holds keys, so it never runs
+	// , a live pipeline holds keys, so it never runs
 	// with nothing to redact them; the refusal is made here, before any file is
 	// opened, like the refusal of a live pipeline with no guardrail.
 	if !opts.Sample && opts.Redactor == nil {
 		return nil, fmt.Errorf("pipeline: a live pipeline needs a redactor and none was set")
 	}
-	// ADR-0005, ADR-0013 point 4: one redactor, built by review.Open from the values the live settings
+	// , one redactor, built by review.Open from the values the live settings
 	// loaded, stands at every place a service's text becomes trace or result text.
 	// Build does not read the environment to make it, so sample mode reads no
 	// setting; with none given, nothing is redacted.
@@ -229,7 +231,8 @@ func Build(opts Options) (*Pipeline, error) {
 	// the trace, the state and the work area must stay outside it, so Review
 	// opens them (see begin) after it has compared them with the target.
 	p := &Pipeline{
-		sample: opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, runtimeNote: opts.RuntimeNote,
+		modelsOff: opts.ModelsOff,
+		sample:    opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, runtimeNote: opts.RuntimeNote,
 		gen: opts.Generator, special: opts.Special, liveStore: opts.LiveStore, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, osvIDView: opts.OSVIDView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
@@ -240,7 +243,7 @@ func Build(opts Options) (*Pipeline, error) {
 		markov:     opts.Markov,
 		stores:     opts.Stores,
 	}
-	// ADR-0005: the guardrail is on by default. Sample mode falls back to the
+	// the guardrail is on by default. Sample mode falls back to the
 	// sample guardrail, which answers safe; a live pipeline without one is
 	// refused rather than run unchecked.
 	if !opts.GuardOff && p.rail == nil {
@@ -281,30 +284,30 @@ type Request struct {
 	Include        []string
 	Exclude        []string
 	// DoubleRun is set when the class is doubled and a special-review model is configured
-	// (ADR-0012).
+	// .
 	DoubleRun bool
 	// DefaultModel and SpecialModel are the configured reviewer names.
 	DefaultModel string
 	SpecialModel string
-	// FixesOff turns proposed fixes off (ADR-0042). The zero value proposes them.
+	// FixesOff turns proposed fixes off . The zero value proposes them.
 	FixesOff bool
 	// FixAttempts is the most attempts at one fix; zero means fixer.DefaultAttempts.
 	FixAttempts int
-	// Autofix turns the one whole-change fix attempt on (ADR-0050). The zero value makes none, and a
+	// Autofix turns the one whole-change fix attempt on . The zero value makes none, and a
 	// review with it off is the review as it was before the attempt existed. When it is on, the
-	// per-finding suggestions of ADR-0042 are not made: the attempt is the one loop, and it has no retry.
+	// per-finding suggestions of  are not made: the attempt is the one loop, and it has no retry.
 	Autofix bool
 	// AutofixSpecial names the second reviewer's generator as the one that writes the patch; false
-	// names the review's own generator (ADR-0050 point 6).
+	// names the review's own generator .
 	AutofixSpecial bool
 	// AutofixTimeout is the time limit of the attempt; zero is no limit of its own.
 	AutofixTimeout time.Duration
 	// InvestigatorScope and SkepticScope are the templates each role may ask
-	// (ADR-0013). The nil scope is every template, which is a review with no
+	// . The nil scope is every template, which is a review with no
 	// setting. A role is told only of its scope and refused outside it.
 	InvestigatorScope querytpl.Scope
 	SkepticScope      querytpl.Scope
-	// Plan is the review plan chosen before the agents run (ADR-0049 point 2). Nil runs every agent,
+	// Plan is the review plan chosen before the agents run . Nil runs every agent,
 	// tool and source, as a review did before plans existed, and writes no plan line.
 	Plan *Plan
 }
@@ -329,7 +332,7 @@ var (
 	PlanSources = []string{SourceOSV, SourceEPSS}
 )
 
-// Plan is one review's plan: which agents, tools (ADR-0040) and sources (ADR-0046) run. Full runs them
+// Plan is one review's plan: which agents, tools  and sources  run. Full runs them
 // all. Note is the plan's line in the trace: the class, its signals, the ambiguity and the plan, or why
 // no plan was chosen; it is written whatever the plan is, so a reader of the trace sees the choice.
 type Plan struct {
@@ -345,7 +348,7 @@ func (pl *Plan) agent(name string) bool  { return pl == nil || pl.Full || pl.Age
 func (pl *Plan) tool(name string) bool   { return pl == nil || pl.Full || pl.Tools[name] }
 func (pl *Plan) source(name string) bool { return pl == nil || pl.Full || pl.Sources[name] }
 
-// Review runs planner, investigator, prover, skeptic, judge, the fixer (ADR-0042) and writer.
+// Review runs planner, investigator, prover, skeptic, judge, the fixer  and writer.
 // Findings whose path is outside the selected files are dropped after the agents run.
 // When ctx ends before the Judge has decided, the draft is partial and holds only
 // judged findings. After a review with no error the trace is folded into the World
@@ -380,12 +383,12 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	if err != nil {
 		return d, err
 	}
-	// ADR-0005, ADR-0013 point 4: the draft is the last place model and service text
+	// , the draft is the last place model and service text
 	// can reach the result, so it is redacted once here, after every agent has run.
 	d.Findings = p.redactFindings(d.Findings)
 	d.Autofix = redactAutofix(p.redactor, d.Autofix)
 	// An opinion's reasons are the reviewers' own words, so they are redacted
-	// with the findings (ADR-0041, ADR-0005).
+	// with the findings .
 	d.Opinions = p.redactOpinions(d.Opinions)
 	// A review run without the guardrail says so in its result, not only in its
 	// trace: a reader of the result alone must not take it for a guarded review.
@@ -424,7 +427,7 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 		}
 		r := &c.Refutation
 		r.Reason, r.TestPath, r.TestName = rd.Text(r.Reason), rd.Text(r.TestPath), rd.Text(r.TestName)
-		// ADR-0032: a refutation names a query template and its values, never SQL;
+		// a refutation names a query template and its values, never SQL;
 		// the values are redacted like any other text a review keeps.
 		r.Query.Template = rd.Text(r.Query.Template)
 		if r.Query.Params != nil {
@@ -461,7 +464,7 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 					ev[j].Query = &cp
 				}
 				if t := e.Tool; t != nil {
-					// ADR-0040: a tool's output is checkout text and can carry a secret.
+					// a tool's output is checkout text and can carry a secret.
 					cp := *t
 					cp.Tool, cp.Version = rd.Text(t.Tool), rd.Text(t.Version)
 					cp.Command, cp.Output, cp.BaseOutput = rd.Text(t.Command), rd.Text(t.Output), rd.Text(t.BaseOutput)
@@ -478,7 +481,7 @@ func (p *Pipeline) redactFindings(in []candidate.Candidate) []candidate.Candidat
 
 // redactFix returns a copy of f with rd applied to every string a model or a test run wrote.
 // A fix is the last place model text and test output reach the result, so it is redacted
-// with the rest of the finding (ADR-0013 point 4). A nil fix stays nil.
+// with the rest of the finding . A nil fix stays nil.
 func redactFix(rd *redact.Redactor, f *candidate.Fix) *candidate.Fix {
 	if f == nil {
 		return nil
@@ -576,13 +579,27 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}); err != nil {
 		return candidate.Draft{}, err
 	}
-	// ADR-0049: the plan is on the trace before any agent runs, so the trace says what was left out and why.
+	// the plan is on the trace before any agent runs, so the trace says what was left out and why.
 	if req.Plan != nil {
 		if err := p.trace.Append(trace.Event{Kind: "plan", Agent: "scout-intent", Text: req.Plan.Note}); err != nil {
 			return candidate.Draft{}, err
 		}
 	}
 	plan := req.Plan
+	if p.modelsOff {
+		tools, sources := map[string]bool{}, map[string]bool{}
+		for _, name := range PlanTools {
+			tools[name] = plan.tool(name)
+		}
+		for _, name := range PlanSources {
+			sources[name] = plan.source(name)
+		}
+		plan = &Plan{Agents: map[string]bool{}, Tools: tools, Sources: sources, Note: "models disabled; deterministic analysis"}
+		req.DoubleRun, req.Autofix, req.FixesOff = false, false, true
+		if err := p.trace.Append(trace.Event{Kind: "plan", Agent: "pipeline", Text: plan.Note}); err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	// leftOut names a part the plan leaves out on the trace, once, so its absence is never mistaken for a failure.
 	leftOut := func(part string) error {
 		return p.trace.Append(trace.Event{Kind: "plan", Agent: "scout-intent", Text: part + " is not in the plan"})
@@ -646,18 +663,18 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		return candidate.Draft{}, err
 	}
 	st := &state{trace: p.trace, redactor: p.redactor, tel: p.tel, changeKey: changeKey(req), skipped: skipped}
-	if p.proverIdle != "" {
+	if p.proverIdle != "" && plan.agent(AgentProver) {
 		st.note(&service.Down{Service: "prover", Reason: p.proverIdle})
 	}
-	// ADR-0013 point 4a: name a down service even when no later step calls it.
+	//  point 4a: name a down service even when no later step calls it.
 	// The guardrail refuses the planner's call before the generator runs
-	// (ADR-0005 point 5), and a review with no risks never queries Zetaris.
+	// , and a review with no risks never queries Zetaris.
 	for _, d := range p.down {
 		noted := d
 		st.note(&noted)
 	}
 	// Sample mode: a fixture may carry recorded guardrail verdicts, so a
-	// scenario shows an unsafe prompt refused with no model server (ADR-0005).
+	// scenario shows an unsafe prompt refused with no model server .
 	rail := p.rail
 	if p.sample && len(fx.Guardrail) > 0 {
 		sampled, serr := guardrail.NewSample(fx.Guardrail)
@@ -686,7 +703,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if p.world != nil {
 		p.world.SetGenerator(gen)
 	}
-	// ADR-0009, ADR-0012: a doubled review runs a second Planner and a second
+	// , a doubled review runs a second Planner and a second
 	// Skeptic on the special-review model.
 	var special generator.Generator
 	// specialOwn holds the special run's own risk for each risk both runs named, by merged id.
@@ -704,7 +721,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// defaultFailed is why the default reviewer has no word on the second reviewer's risks; empty when it answered.
 	defaultFailed := ""
-	// ADR-0049: a plan without the Planner names no risk, so no model is asked anything; the deterministic
+	// a plan without the Planner names no risk, so no model is asked anything; the deterministic
 	// checks the plan keeps still run below.
 	var risks []candidate.Risk
 	if plan.agent(AgentPlanner) {
@@ -774,7 +791,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		var ids []string
 		cands, ids = mergeCandidates(cands, extra)
 		for i, r := range more {
-			// ADR-0037 point 3: the second Skeptic is shown the second reviewer's own words about a
+			// the second Skeptic is shown the second reviewer's own words about a
 			// risk both named, never the first reviewer's. The merged candidate keeps the first
 			// reviewer's wording, so the second's is kept apart here.
 			for _, c := range cands {
@@ -803,7 +820,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 
 	// An agent step that fails for one candidate leaves that candidate as it
 	// was; the others go on.
-	// ADR-0032: the Investigator and the Skeptic name a template; the table and
+	// the Investigator and the Skeptic name a template; the table and
 	// view names come from the review's settings, read once.
 	rel := p.relations(ctx)
 	// The dependency check runs before the Investigator so its findings of fact
@@ -845,7 +862,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	if ctx.Err() != nil {
 		return p.cut(st, cands, allow)
 	}
-	// ADR-0049 point 2: a dependency-only plan runs the dependency evidence without the Prover, so no
+	// a dependency-only plan runs the dependency evidence without the Prover, so no
 	// test is written or run; a finding then stands on its query rows or not at all.
 	if !plan.agent(AgentProver) {
 		if err := leftOut(AgentProver); err != nil {
@@ -857,7 +874,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		if !plan.agent(AgentProver) {
 			break
 		}
-		// ADR-0025: the Prover's test runs in the container on the fixture's
+		// the Prover's test runs in the container on the fixture's
 		// base and change trees, with no network and no secret.
 		next, err := prover.Prove(prctx, cands[i], gen, run, prover.Options{
 			BaseDir:         filepath.Join(fx.Root, "base"),
@@ -886,10 +903,10 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		return p.cut(st, cands, allow)
 	}
 
-	// ADR-0006: every finding faces the Skeptic, and what it proposes is run
+	// every finding faces the Skeptic, and what it proposes is run
 	// as a test or a query; its word alone is not evidence.
 	// outcomes holds each reviewer's verdict per finding, for the telemetry's
-	// count of disagreements (ADR-0045). It does not change what is decided.
+	// count of disagreements . It does not change what is decided.
 	outcomes := make([]map[string]string, len(cands))
 	for i := range outcomes {
 		outcomes[i] = map[string]string{}
@@ -994,7 +1011,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	// change refuted is dropped and does not come back.
 	_, jstage := p.tel.StartStage(ctx, "judge", telemetry.ReviewerShared, "")
 	for i := range cands {
-		// ADR-0053: with H-MEM switched off the store is not read, so nothing is suppressed.
+		// with H-MEM switched off the store is not read, so nothing is suppressed.
 		if p.mem != nil {
 			if rec, ok := p.mem.MatchRefutation(st.changeKey, cands[i].RuleID, cands[i].Path, cands[i].Title); ok {
 				cands[i].Dropped = true
@@ -1011,14 +1028,14 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		}
 	}
 	jstage.End(nil)
-	// ADR-0042: a kept finding that a test proved gets a fix proved by the same test. It
+	// a kept finding that a test proved gets a fix proved by the same test. It
 	// comes after the Judge, so no fix is written for a finding that is dropped.
 	if !req.FixesOff && !plan.agent(AgentFixer) {
 		if err := leftOut(AgentFixer); err != nil {
 			return candidate.Draft{}, err
 		}
 	}
-	// ADR-0050: with the whole-change attempt on, it is the one loop; the per-finding retries are not made.
+	// with the whole-change attempt on, it is the one loop; the per-finding retries are not made.
 	if !req.FixesOff && !req.Autofix && plan.agent(AgentFixer) {
 		if err := p.fix(ctx, st, gen, run, fx.Root, req.FixAttempts, cands); err != nil {
 			if errors.Is(err, errPartial) {
@@ -1027,7 +1044,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
-	// ADR-0043: label dependency findings from govulncheck before they are judged.
+	// label dependency findings from govulncheck before they are judged.
 	// A tool that did not answer leaves every Go finding "not measured".
 	if !plan.tool(ToolGovulncheck) {
 		// The plan leaves the tool out: every dependency finding stays "not measured", never "not reached".
@@ -1067,7 +1084,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, fatal
 		}
 	}
-	// ADR-0050: every finding is final here, so the one whole-change attempt sees them all. It
+	// every finding is final here, so the one whole-change attempt sees them all. It
 	// judges only findings the draft will show, so a finding outside the selected files is not in it.
 	var attempt *candidate.Autofix
 	if req.Autofix {
@@ -1121,7 +1138,7 @@ func (p *Pipeline) noteDisagreements(outcomes []map[string]string) {
 // attachEPSS scores every kept finding whose evidence names a CVE.
 // A missing row is a trace line and adds no evidence.
 func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Runner, snapshot string, cands []candidate.Candidate) ([]candidate.Candidate, error) {
-	// ADR-0013: the view is a setting; empty means the named default.
+	// the view is a setting; empty means the named default.
 	view := p.epssView
 	if view == "" {
 		view = epss.DefaultView
@@ -1139,7 +1156,7 @@ func (p *Pipeline) attachEPSS(ctx context.Context, st *state, q query.Runner, sn
 	return next, err
 }
 
-// measureReach labels each dependency finding from govulncheck (ADR-0043).
+// measureReach labels each dependency finding from govulncheck .
 // Sample mode starts no container and labels every finding not measured.
 // A live run uses the Prover's container and the tool's own time limit.
 // The change's output is what the label is read from: the finding describes
@@ -1177,7 +1194,7 @@ func (p *Pipeline) measureReach(ctx context.Context, checked osv.Outcome, paths 
 	}
 	if out.Answered {
 		// Exit status alone is not a scan. A missing database exits as a
-		// command failure and prints no config object (ADR-0043).
+		// command failure and prints no config object .
 		checked.Notes = append(checked.Notes, "govulncheck cannot run: the output is not a govulncheck scan")
 		checked.Candidates = tool.LabelFindings(checked.Candidates, false, nil)
 		return checked, nil
@@ -1211,7 +1228,7 @@ func (p *Pipeline) addOSV(ctx context.Context, st *state, checked osv.Outcome, e
 		// The Judge still decides an OSV finding: a matching range is
 		// evidence, nothing else is.
 		c = judge.Decide(c)
-		// ADR-0042: with proposed fixes off, no fix is named for a dependency either.
+		// with proposed fixes off, no fix is named for a dependency either.
 		if !fixes {
 			c.Fix = nil
 		}
@@ -1271,7 +1288,7 @@ func bindQueries(c candidate.Candidate, facts osv.Facts) candidate.Candidate {
 }
 
 // relations is the table and view names the review's settings give, for the
-// templates the Investigator and the Skeptic name (ADR-0032, ADR-0013). An
+// templates the Investigator and the Skeptic name . An
 // empty name means the default, and querytpl checks each name again when it
 // builds, so a setting that is not a plain name is refused there.
 func (p *Pipeline) relations(ctx context.Context) querytpl.Relations {
@@ -1320,7 +1337,7 @@ func (p *Pipeline) runRefutation(ctx context.Context, c *candidate.Candidate, q 
 	if !r.Query.Empty() {
 		res, err := investigator.Execute(ctx, q, r.Query, p.relations(ctx), scope)
 		if err != nil {
-			// ADR-0032: a request Proven refuses was checked by the Skeptic
+			// a request Proven refuses was checked by the Skeptic
 			// already, so this is a settings refusal. It is not a query that
 			// could not run; the instrument never answered.
 			var refusal *querytpl.Refusal
@@ -1377,7 +1394,7 @@ func (p *Pipeline) noteFamily(st *state) error {
 	return st.event("review", "family", "skeptic", sentence)
 }
 
-// storeRunner is the pipeline's evidence seam over one store (ADR-0047).
+// storeRunner is the pipeline's evidence seam over one store .
 // It passes the template request through and returns the form that ran.
 // The text is not built here: the store builds the form of its own language.
 type storeRunner struct{ s store.Store }
@@ -1417,7 +1434,7 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Run
 				return nil, nil, nil, err
 			}
 		}
-		// ADR-0047: sample mode opens the fixture file as the local store.
+		// sample mode opens the fixture file as the local store.
 		// The engine name stays local-sample, so a sample review reads as it did.
 		// Run builds the sql form, which is the only form the fixture file speaks.
 		q, err = query.OpenSample(fx.Tables)
@@ -1451,7 +1468,7 @@ func (p *Pipeline) adapters(fx *fixture.Fixture) (generator.Generator, query.Run
 			}
 			c, nerr := testrun.NewContainer(cfg, nil)
 			if nerr != nil {
-				// ADR-0025: a missing container runtime turns the Prover off
+				// a missing container runtime turns the Prover off
 				// and names why; it does not stop the review. A bad setting does.
 				d, ok := service.As(nerr)
 				if !ok {
@@ -1525,7 +1542,7 @@ func (a checkoutRun) RunBreakage(ctx context.Context, req testrun.BreakageReques
 	return inner.RunBreakage(ctx, req)
 }
 
-// fix runs the Fixer for every kept finding a test proved (ADR-0042) and writes what it did
+// fix runs the Fixer for every kept finding a test proved  and writes what it did
 // to the trace. A runner that cannot prove a fix leaves the findings as they were: the
 // review's other results do not depend on it. A service that is down is named as failed,
 // like any other, and the review goes on.
@@ -1724,7 +1741,7 @@ func (s *state) omitUnjudged(cands []candidate.Candidate) ([]candidate.Candidate
 }
 
 // noteGuardOff writes "no guardrail" once when the switch is off, so a review
-// run without the guardrail says so on its trace (ADR-0005).
+// run without the guardrail says so on its trace .
 func (p *Pipeline) noteGuardOff() error {
 	if !p.guardOff {
 		return nil
@@ -1738,7 +1755,7 @@ func (p *Pipeline) noteGuardOff() error {
 }
 
 // guard checks the prompt before the model runs and the answer before it is used
-// (ADR-0005). Each check is written to the trace.
+// . Each check is written to the trace.
 // When the switch is off it returns the generator unchanged.
 // rail nil uses the pipeline's adapter.
 func (p *Pipeline) guard(gen generator.Generator, rail guardrail.Adapter) (generator.Generator, error) {
@@ -1840,7 +1857,7 @@ type recording struct {
 	// redactor is applied to the route, model and receipt id a service reported,
 	// before they are kept on the review: a service can echo a configured value there.
 	redactor *redact.Redactor
-	// tel times each call (ADR-0045); nil is off.
+	// tel times each call ; nil is off.
 	tel *telemetry.T
 }
 
@@ -1940,7 +1957,7 @@ func selectionText(dropped []string) string {
 
 // keepOpinions keeps the opinions whose path is one of the selected files.
 // An opinion outside the selection is not shown, for the same reason a finding
-// outside it is not (ADR-0041).
+// outside it is not .
 func keepOpinions(in []candidate.Opinion, allow map[string]struct{}) []candidate.Opinion {
 	var out []candidate.Opinion
 	for _, o := range in {
@@ -1987,7 +2004,7 @@ func keepFindings(in []candidate.Candidate, allow map[string]struct{}) []candida
 // evidenceText is the one-line trace text for a candidate's evidence, followed
 // by the Prover's note when there is one, or "none".
 func evidenceText(c candidate.Candidate) string {
-	// The Investigator's refusal (ADR-0032) leads the notes, so the trace says
+	// The Investigator's refusal  leads the notes, so the trace says
 	// why the finding has no query evidence.
 	notes := c.ProverNote
 	if c.QueryNote != "" {
@@ -2162,7 +2179,7 @@ func hasVerdict(c candidate.Candidate, run string) bool {
 }
 
 // noteRefuted turns run's verdict into "refuted" when that run's own Skeptic claimed to refute the
-// risk. The claim alone does not drop the finding (ADR-0006): the Judge still decides on evidence.
+// risk. The claim alone does not drop the finding : the Judge still decides on evidence.
 // It only changes what that reviewer is shown to have said. A review with one reviewer carries no
 // verdicts, and nothing changes.
 func noteRefuted(c *candidate.Candidate, run string, ref candidate.Refutation) {

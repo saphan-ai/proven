@@ -10,7 +10,7 @@ import (
 	"github.com/saphan-ai/proven/internal/scout"
 )
 
-// TestScoutNeverLightensANonProseChange proves ADR-0053 point 3: when Scout answers docs for a change whose
+// TestScoutNeverLightensANonProseChange proves when Scout answers docs for a change whose
 // files are not verified prose, the review is class security and doubled, so the second reviewer runs. The
 // names are ones Scout's registry cannot read as security: credentials-handling code, a Polish name and a Thai
 // name, all under docs/, which is why Scout calls them documentation. Remove the guard and each case comes back
@@ -58,7 +58,7 @@ func TestScoutGuardKeepsSecurityWhenDocsRanksFirst(t *testing.T) {
 	}
 }
 
-// TestScoutNeverLightensVendoredCode proves the dependency arm of the guard (ADR-0053 point 3): a change of
+// TestScoutNeverLightensVendoredCode proves the dependency arm of the guard : a change of
 // only vendored code is class security and doubled, and the second reviewer is called, not the lighter
 // dependency plan that omits the Prover. Mutated field: the vendored-path check of notManifestOnly.
 func TestScoutNeverLightensVendoredCode(t *testing.T) {
@@ -72,7 +72,7 @@ func TestScoutNeverLightensVendoredCode(t *testing.T) {
 	}
 }
 
-// TestScoutNeverLightensAManifestRenamedToSource proves the rename case of the dependency arm (ADR-0053
+// TestScoutNeverLightensAManifestRenamedToSource proves the rename case of the dependency arm (
 // point 3): a manifest renamed to a source file keeps the old path's dependency weight in Scout's answer,
 // but the new path is code, so the review is class security and doubled. Mutated field: the destination of
 // the rename, and nothing else (the source is a manifest in every case). Measured on the default registry:
@@ -143,7 +143,7 @@ func TestNotManifestOnlyChecksEveryPath(t *testing.T) {
 	}
 }
 
-// TestScoutStillLightensVerifiedProse proves the guard's other side (ADR-0053 point 3): a change whose every
+// TestScoutStillLightensVerifiedProse proves the guard's other side : a change whose every
 // file is verified prose keeps the documentation plan, with no model call. The guard must not turn every docs
 // change into a security review.
 func TestScoutStillLightensVerifiedProse(t *testing.T) {
@@ -154,7 +154,7 @@ func TestScoutStillLightensVerifiedProse(t *testing.T) {
 	}
 }
 
-// TestMeterlessEnginesAreOnByDefault proves ADR-0053 point 2: Markovian and Scout Intent are on in the
+// TestMeterlessEnginesAreOnByDefault proves Markovian and Scout Intent are on in the
 // defaults and in an empty proven.yaml, and each is switched off by its own setting. Mutated field: the
 // switch of the one engine under test.
 func TestMeterlessEnginesAreOnByDefault(t *testing.T) {

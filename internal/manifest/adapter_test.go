@@ -2,7 +2,7 @@ package manifest
 
 import "testing"
 
-// TestReadersCarryTheComparison proves ADR-0038's contract for the languages
+// TestReadersCarryTheComparison proves 's contract for the languages
 // already shipped: each ecosystem name orders two versions, and a name with
 // no adapter does not. The mutated field of the last case is the ecosystem
 // name.

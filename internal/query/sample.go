@@ -8,8 +8,8 @@ import (
 )
 
 // Sample runs SQL on the local one-file store, opened on a fixture's
-// tables file (ADR-0047). It opens no network. It is the query adapter of
-// sample mode (ADR-0002, point 4). The engine name stays local-sample so a
+// tables file . It opens no network. It is the query adapter of
+// sample mode . The engine name stays local-sample so a
 // sample review reads as it did before the store had a file.
 type Sample struct {
 	file *File
@@ -38,7 +38,7 @@ func (s *Sample) Query(ctx context.Context, sql string) (Result, error) {
 
 // Run builds the sql form and runs it on the fixture file.
 // Sample mode speaks SQL, and the text is the same form the callers used to
-// build, so a sample review's evidence stays as it was (ADR-0047).
+// build, so a sample review's evidence stays as it was .
 func (s *Sample) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (Result, error) {
 	if s == nil || s.file == nil {
 		return Result{}, fmt.Errorf("query: no local store")

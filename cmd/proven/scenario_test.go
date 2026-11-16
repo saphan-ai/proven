@@ -262,7 +262,7 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 	root := repoRoot(t)
 	t.Chdir(t.TempDir())
 	var stdout, stderr bytes.Buffer
-	// cli.Run loads the variables ADR-0020 §1 documents (cli.KnownCLIEnv:
+	// cli.Run loads the variables  §1 documents (cli.KnownCLIEnv:
 	// PROVEN_OUTPUT_FORMAT, PROVEN_OUTPUT, PROVEN_ERROR, PROVEN_BASELINE_COMMIT,
 	// SEMGREP_BASELINE_COMMIT, SEMGREP_BASELINE_REF, PROVEN_CONFIG, PROVEN_INCLUDE,
 	// PROVEN_EXCLUDE, PROVEN_SEVERITY, PROVEN_TIMEOUT, PROVEN_LOG_DIR, SAMPLE_MODE,
@@ -272,8 +272,8 @@ func scanScenario(t *testing.T, name string) (string, []byte) {
 	code := cli.Run(
 		[]string{"scan", "--sample", filepath.Join(root, "testdata", "fixture", name)},
 		func(k string) string {
-			// ADR-0045: the OTEL_* family is the one sample mode reads besides the shell's own keys.
-			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+			// the OTEL_* family is the one sample mode reads besides the shell's own keys.
+			// the evidence-record database and link base are read in sample mode too.
 			if cli.KnownCLIEnv(k) || (k == "PROVEN_NETWORK" || k == "PROVEN_NETWORK_ALLOW") || strings.HasPrefix(k, "OTEL_") || k == store.EnvRecordsDB || k == store.EnvEvidenceLink || engineSwitch(k) {
 				return ""
 			}

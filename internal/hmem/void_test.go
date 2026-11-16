@@ -39,7 +39,7 @@ func emptyStateFile(t *testing.T, dir string) {
 // reproduction: two records, Dream, Clear, two unrelated records that reuse the
 // ids, then Approve of the old proposal. Approval must be refused by name and
 // no record may be created, because a proposal never outlives the records it
-// names (ADR-0018 point 3: lineage names the real sources).
+// names .
 func TestClearVoidsAPendingProposalSoNoIDReuseBindsIt(t *testing.T) {
 	now := fixed
 	s := clocked(t, &now)

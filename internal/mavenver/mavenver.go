@@ -1,5 +1,5 @@
 // Package mavenver compares a subset of Maven versions for the Maven
-// dependency check (ADR-0038).
+// dependency check .
 //
 // The subset is a numbered version and an optional qualifier. Dot and hyphen
 // both separate tokens, and a letter after a digit starts a new token, so

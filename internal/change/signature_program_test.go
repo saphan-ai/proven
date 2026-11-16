@@ -63,7 +63,7 @@ func TestLocalMessagesStartNoSignatureProgram(t *testing.T) {
 	git(t, repo, "config", "gpg.program", gpg)
 
 	// git writes the signature it hands to gpg.program into a temporary file, and GitCommand's
-	// minimal environment (PATH and HOME, ADR-0025) has no TMPDIR, so on a host whose /tmp is not
+	// minimal environment (PATH and HOME, ) has no TMPDIR, so on a host whose /tmp is not
 	// writable git stops before it starts the program, with or without log.showSignature=false.
 	// The shim gives git a writable TMPDIR and changes nothing else: it forwards every argument, so
 	// the control and the measured call both run GitCommand's own argv and environment.

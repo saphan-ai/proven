@@ -88,7 +88,7 @@ func TestTraceCarriesEvidenceAndRefutation(t *testing.T) {
 		t.Fatalf("F2 evidence %#v", f2)
 	}
 	q := f2.Query
-	// ADR-0032: the Investigator named the osv-by-package template; the SQL is
+	// the Investigator named the osv-by-package template; the SQL is
 	// the text Proven built from it.
 	if q.SQL != "SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'" ||
 		q.Engine != "local-sample" || q.Snapshot != "sample-2026-10-22" {

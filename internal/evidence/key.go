@@ -18,7 +18,7 @@ const (
 )
 
 // KeyError names a key setting that cannot be used and why. It carries the
-// setting and the file path, never a byte of the key (ADR-0005).
+// setting and the file path, never a byte of the key .
 type KeyError struct {
 	Setting string
 	Path    string

@@ -78,7 +78,7 @@ func TestProvenanceIsRequired(t *testing.T) {
 }
 
 // TestIngestIsIdempotent proves a second ingest of the same trace skips every
-// event and leaves the state unchanged (ADR-0018 point 5).
+// event and leaves the state unchanged .
 func TestIngestIsIdempotent(t *testing.T) {
 	s := openWorld(t)
 	log := sampleLog(t, true)
@@ -103,7 +103,7 @@ func TestIngestIsIdempotent(t *testing.T) {
 }
 
 // TestIngestResumesAfterAStop proves an ingest stopped halfway and resumed
-// from a reopened store reaches the same state as one full pass (ADR-0018 point 5).
+// from a reopened store reaches the same state as one full pass .
 func TestIngestResumesAfterAStop(t *testing.T) {
 	full := openWorld(t)
 	log := sampleLog(t, true)

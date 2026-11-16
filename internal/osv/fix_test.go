@@ -16,7 +16,7 @@ func row(id, introduced, fixed, last string) Row {
 	return Row{ID: id, Ecosystem: "Go", Package: "example.com/lib", Introduced: introduced, Fixed: fixed, LastAffected: last}
 }
 
-// TestSmallestFixIsTheLowestFixedVersionNoRangeHolds proves ADR-0042 point 5: of the fixed
+// TestSmallestFixIsTheLowestFixedVersionNoRangeHolds proves of the fixed
 // bounds above the version in use, the lowest one that no row's range holds is named, with the row
 // whose bound it is.
 func TestSmallestFixIsTheLowestFixedVersionNoRangeHolds(t *testing.T) {

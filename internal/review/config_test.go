@@ -12,7 +12,7 @@ import (
 )
 
 // TestUnknownConfigKeyIsRefused proves that a key outside the closed set is refused on Open,
-// and that the refusal lists every allowed key in order (ADR-0013).
+// and that the refusal lists every allowed key in order .
 func TestUnknownConfigKeyIsRefused(t *testing.T) {
 	path := writeConfig(t, "colour: red\n")
 	_, err := review.Open(review.Options{

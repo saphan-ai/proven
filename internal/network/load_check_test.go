@@ -32,7 +32,7 @@ func refusedField(t *testing.T, err error) (field, text string) {
 	return "", ""
 }
 
-// TestLocalRefusesAPublicAddressInEachAddressSetting proves ADR-0034 point 1: with PROVEN_NETWORK=local, a
+// TestLocalRefusesAPublicAddressInEachAddressSetting proves with PROVEN_NETWORK=local, a
 // public address in each of the three address settings is refused at load, and each refusal names the
 // setting and the host. The same addresses load in public mode, so the mode is what refuses them.
 // Mutated field: the host of the one address under test.
@@ -73,7 +73,7 @@ func TestLocalRefusesAPublicAddressInEachAddressSetting(t *testing.T) {
 	}
 }
 
-// TestLocalRefusesTheHostedGuardrailByName proves ADR-0034 point 2: the guardrail's nvidia mode is refused
+// TestLocalRefusesTheHostedGuardrailByName proves the guardrail's nvidia mode is refused
 // in local mode even with a local address, and the refusal names PROVEN_GUARDRAIL_MODE.
 // Mutated field: PROVEN_GUARDRAIL_MODE.
 func TestLocalRefusesTheHostedGuardrailByName(t *testing.T) {
@@ -95,7 +95,7 @@ func TestLocalRefusesTheHostedGuardrailByName(t *testing.T) {
 	}
 }
 
-// TestLocalRefusesTheHostedGeneratorByName proves ADR-0034 for the generator: PROVEN_GENERATOR_MODE=nvidia
+// TestLocalRefusesTheHostedGeneratorByName proves  for the generator: PROVEN_GENERATOR_MODE=nvidia
 // is refused in local mode even with a local address, and the refusal names the setting and the value.
 // Mutated field: the refusal of PROVEN_GENERATOR_MODE in generator.Load.
 func TestLocalRefusesTheHostedGeneratorByName(t *testing.T) {

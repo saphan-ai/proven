@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestFamilyTableDefaults proves the shipped family table of ADR-0011 point 4, and that a model it
+// TestFamilyTableDefaults proves the shipped family table of  point 4, and that a model it
 // does not know, even a near miss such as gpt4, is "family unknown", never guessed.
 func TestFamilyTableDefaults(t *testing.T) {
 	cfg := defaultSettings()
@@ -63,7 +63,7 @@ func TestConfiguredFamilyTableReplacesTheDefault(t *testing.T) {
 	}
 }
 
-// TestClassRules proves the shipped path rules of ADR-0014 point 2: each sample path gets its class and
+// TestClassRules proves the shipped path rules of each sample path gets its class and
 // the rule that chose it, a near miss (author/) falls to the fallback, and a base-name rule matches
 // in a subdirectory.
 func TestClassRules(t *testing.T) {
@@ -98,7 +98,7 @@ func TestClassRules(t *testing.T) {
 	}
 }
 
-// TestHighestRiskWinsOverEarlierLowerRule proves ADR-0014 point 3: the highest-risk class wins, not
+// TestHighestRiskWinsOverEarlierLowerRule proves the highest-risk class wins, not
 // the rule listed first.
 func TestHighestRiskWinsOverEarlierLowerRule(t *testing.T) {
 	rules := []pathRule{
@@ -140,7 +140,7 @@ func TestMobileOutranksUserInterface(t *testing.T) {
 	}
 }
 
-// TestSecurityIsDoubledAndBackendIsNot proves the default doubling (ADR-0009): a security change is
+// TestSecurityIsDoubledAndBackendIsNot proves the default doubling : a security change is
 // doubled and says when no special model is configured; a backend change runs one reviewer.
 func TestSecurityIsDoubledAndBackendIsNot(t *testing.T) {
 	cfg := defaultSettings()
@@ -190,7 +190,7 @@ func decideOn(t *testing.T, cfg fileSettings, req Request) Result {
 	return out
 }
 
-// TestDoubledClassAddsTheSpecialReviewer proves ADR-0009 point 5: a reviewer line names its model and
+// TestDoubledClassAddsTheSpecialReviewer proves a reviewer line names its model and
 // role and says, per author model, whether it shares the family: no, yes, or family unknown.
 func TestDoubledClassAddsTheSpecialReviewer(t *testing.T) {
 	cfg, err := parseConfig([]byte("special_reviewer: qwen-special\n"))
@@ -215,7 +215,7 @@ func TestDoubledClassAddsTheSpecialReviewer(t *testing.T) {
 	}
 }
 
-// TestAuthorStatementWhenNothingIsNamed proves ADR-0011 point 6: with no author model named, the review
+// TestAuthorStatementWhenNothingIsNamed proves with no author model named, the review
 // says "author model not stated" and names the default reviewer.
 func TestAuthorStatementWhenNothingIsNamed(t *testing.T) {
 	got := authorStatement(nil, nil, "NVIDIA")
@@ -281,7 +281,7 @@ func TestUnreadableTrailerIsNamed(t *testing.T) {
 }
 
 // TestConfigRefusals proves that each bad value is refused with its field, its value, its reason and the
-// allowed values, all in the printed message (ADR-0013, ADR-0014 point 7).
+// allowed values, all in the printed message .
 func TestConfigRefusals(t *testing.T) {
 	cases := []struct {
 		body   string
@@ -326,7 +326,7 @@ func TestClassOrderThatListsEveryClassIsAccepted(t *testing.T) {
 }
 
 // TestRaiseClassOnDoesNotChangeTheClass proves that raise_class is read and kept but changes no class:
-// no model raises a class in this build (ADR-0014 point 9).
+// no model raises a class in this build .
 func TestRaiseClassOnDoesNotChangeTheClass(t *testing.T) {
 	cfg, err := parseConfig([]byte("raise_class: on\n"))
 	if err != nil {

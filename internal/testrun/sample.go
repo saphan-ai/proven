@@ -18,7 +18,7 @@ type Recorded struct {
 	PassesOnBase  bool
 }
 
-// RecordedFix is the recorded runs of one attempt to prove a fix (ADR-0042).
+// RecordedFix is the recorded runs of one attempt to prove a fix .
 // FindingID and Attempt are the key the sample looks it up by.
 type RecordedFix struct {
 	FindingID string
@@ -54,7 +54,7 @@ func NewSample(rows []Recorded, fixes ...RecordedFix) *Sample {
 // RunFix returns the recorded runs of this attempt. It executes no code, but it
 // does check the patch against the real change tree: a recorded answer whose edits
 // do not apply to the trees is refused as it would be live, so a stale fixture
-// cannot show a fix that no longer applies (ADR-0042).
+// cannot show a fix that no longer applies .
 func (s *Sample) RunFix(ctx context.Context, req FixRequest) (FixOutcome, error) {
 	ctx, cancel := limit.Bound(ctx)
 	defer cancel()
@@ -69,7 +69,7 @@ func (s *Sample) RunFix(ctx context.Context, req FixRequest) (FixOutcome, error)
 		// No recording is not a failed fix: nothing was run, so nothing is claimed.
 		return FixOutcome{Refused: "the sample records no run of this attempt"}, nil
 	}
-	// ADR-0042: the replay judges a recorded run as the container judges a live one, by
+	// the replay judges a recorded run as the container judges a live one, by
 	// its output and not by the recorded word alone.
 	runs := append([]FixRun(nil), rec.Runs...)
 	for i, r := range runs {

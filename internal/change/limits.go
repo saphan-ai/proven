@@ -9,7 +9,7 @@ import (
 	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
-// Environment variables that bound a read of repository content (ADR-0013).
+// Environment variables that bound a read of repository content .
 // The set is closed: LoadLimits reads these names and no others. An empty
 // value means the default from DefaultLimits, which is the one list of them.
 const (
@@ -21,7 +21,7 @@ const (
 
 // Limits is one size bound per kind of read of repository content. The
 // repository under review is not trusted to be small, so no read of it is
-// without a bound (ADR-0013, ADR-0025). A value is a number of bytes.
+// without a bound . A value is a number of bytes.
 type Limits struct {
 	// Archive bounds everything one export reads: the git archive stream, or
 	// the sum of the tracked files copied from a working tree.
@@ -109,7 +109,7 @@ func (e *LimitError) Error() string {
 
 // LoadLimits reads the four bounds from env. An empty value is the default. A
 // value that is set and is not a positive number of bytes is refused and is
-// never replaced by the default (ADR-0013).
+// never replaced by the default .
 // maxLimitBytes is the largest bound a setting may name: 1 TiB, far above any
 // repository read and far below the int64 maximum, so limit+1 never overflows.
 const maxLimitBytes int64 = 1 << 40
@@ -141,7 +141,7 @@ func LoadLimits(env func(string) string) (Limits, error) {
 		}
 		// Every reader reads limit+1 bytes to tell "at the bound" from "over it",
 		// so a bound near the int64 maximum would overflow and read nothing. A
-		// bound above maxLimitBytes is refused rather than clipped (ADR-0013).
+		// bound above maxLimitBytes is refused rather than clipped .
 		if n > maxLimitBytes {
 			return Limits{}, &LimitError{
 				Field: f.name, Value: clipValue(raw), Reason: "more than the largest bound Proven reads",

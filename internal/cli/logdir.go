@@ -14,7 +14,7 @@ import (
 // this package.
 const EnvLogDir = trace.EnvLogDir
 
-// logDirAllowed is the form a refused log directory names (ADR-0013).
+// logDirAllowed is the form a refused log directory names .
 var logDirAllowed = []string{"an absolute path outside the review target"}
 
 // resolveLogDir chooses the trace directory and creates it, mode 0700.

@@ -1,11 +1,11 @@
 // Package scout is Meterless's Scout Intent in Go, built to the specification Meterless publishes and
-// checked with its eval harness (ADR-0049 point 4). It decides before anything acts: Sense scores every
+// checked with its eval harness . It decides before anything acts: Sense scores every
 // registered intent, Interpret binds parameters and decides whether to ask, Guard runs the risk and
 // policy stack, Route turns the intent's capabilities into a tool plan, and Recommend signs the
 // execution contract that is the only thing a downstream engine accepts.
 //
 // Proven uses it on a change rather than a prompt: a change registry (change.go) names the six kinds
-// of change ADR-0049 point 1 lists, and the class it picks chooses the review plan (internal/review).
+// of change  point 1 lists, and the class it picks chooses the review plan (internal/review).
 // Scout never runs a model: Stage 2 of the spec's scoring is optional and is not built, so every
 // decision here is the deterministic Stage-1 scan, the same on every run.
 package scout

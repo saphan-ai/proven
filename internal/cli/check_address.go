@@ -9,7 +9,7 @@ import (
 
 // runCheckAddress is `proven check-address SETTING ADDRESS`: the action asks it
 // whether the API address its summary comment is posted to (post-comment.sh, with
-// curl) may be reached under the network mode (ADR-0034). In public mode every
+// curl) may be reached under the network mode . In public mode every
 // address is allowed. In local mode the address is judged like every other:
 // loopback, private, or on the allow list, and an IP literal, because curl
 // resolves a name with its own resolver. Exit 0 allowed, and the line ends with

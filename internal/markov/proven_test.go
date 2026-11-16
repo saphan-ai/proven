@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestLoadDefaultsAreOnAndBadValuesAreRefusedByName proves ADR-0013 and ADR-0053 for the four settings: unset is the engine on
+// TestLoadDefaultsAreOnAndBadValuesAreRefusedByName proves  and  for the four settings: unset is the engine on
 // with the documented defaults, each other allowed value is taken, and a value that is not allowed is refused
 // with the variable named and the allowed values listed, never replaced by the default.
 func TestLoadDefaultsAreOnAndBadValuesAreRefusedByName(t *testing.T) {

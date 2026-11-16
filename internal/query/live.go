@@ -27,7 +27,7 @@ var liveBuilt atomic.Int64
 func LiveBuilt() int64 { return liveBuilt.Load() }
 
 // Live runs one SELECT on Zetaris over the SQL-editor route the 2026-10-21
-// measurement proved: POST {base}/sql-editor/sqls/run. ADR-0015, point 4 asks
+// measurement proved: POST {base}/sql-editor/sqls/run. , point 4 asks
 // for the start, read and close lifecycle under /query/sql, but those routes
 // were not measured, so this client does not call them. The response body is
 // closed on every response, including a non-200 and a timeout.
@@ -44,7 +44,7 @@ type Live struct {
 func NewLive(cfg Settings, client *http.Client) *Live {
 	liveBuilt.Add(1)
 	if client == nil {
-		// ADR-0034: in the air-gapped mode this client also refuses, at dial time, any address off the network.
+		// in the air-gapped mode this client also refuses, at dial time, any address off the network.
 		client = cfg.Network.NewClient(cfg.Timeout)
 	}
 	return &Live{cfg: cfg, client: client, now: time.Now, newID: newRequestID}
@@ -81,11 +81,11 @@ type sqlRunResponse struct {
 // unreachable endpoint names the service zetaris and does not print the key.
 func (l *Live) Query(ctx context.Context, sql string) (Result, error) {
 	// A Live with a missing setting answers as a failed service, not a panic:
-	// the review goes on and names zetaris (ADR-0001, point 3).
+	// the review goes on and names zetaris .
 	if l == nil || l.client == nil || l.cfg.BaseURL == "" || l.cfg.APIKey == "" || l.cfg.OrgID == "" || l.cfg.Timeout <= 0 || l.cfg.RowLimit < 1 {
 		return Result{}, down("not configured")
 	}
-	// ADR-0023, point 2: Proven's key only reads. A statement that is not one
+	// , point 2: Proven's key only reads. A statement that is not one
 	// SELECT is never sent.
 	if !oneSelect(sql) {
 		return Result{}, down("not a select")
@@ -99,7 +99,7 @@ func (l *Live) Query(ctx context.Context, sql string) (Result, error) {
 	parent := ctx
 	ctx, cancel := context.WithTimeout(parent, l.cfg.Timeout)
 	defer cancel()
-	// ADR-0015, point 2: a new request id for every call.
+	// , point 2: a new request id for every call.
 	reqID, err := l.newID()
 	if err != nil {
 		return Result{}, down("not configured")
@@ -192,7 +192,7 @@ func (l *Live) Query(ctx context.Context, sql string) (Result, error) {
 
 // oneSelect reports whether sql is one statement that starts with SELECT, read
 // strictly enough that no dialect's comment or escape rule can hide a second
-// statement. ADR-0032: this is the second check. The first is that Proven
+// statement. this is the second check. The first is that Proven
 // builds every query from a template (internal/querytpl), and a built query
 // passes this gate by construction; the gate holds for a statement from any
 // other caller, such as the liveness probe.

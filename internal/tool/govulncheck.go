@@ -2,6 +2,7 @@ package tool
 
 import (
 	"encoding/json"
+	"io"
 	"net/url"
 	"path"
 	"sort"
@@ -12,7 +13,7 @@ import (
 	"github.com/saphan-ai/proven/internal/testrun"
 )
 
-// Govulncheck is the Go reachability tool (ADR-0043).
+// Govulncheck is the Go reachability tool .
 // It runs govulncheck -json on the base and on the change, against a local
 // vulnerability database. The container has no network, so the database is a
 // file URL under the checkout mount and never the public vulnerability host.
@@ -43,7 +44,7 @@ func (Govulncheck) Applies(paths []string) bool {
 
 // Argv is govulncheck -json with the local database, on the whole module.
 // The pattern is ./... and not the changed files: a new dependency can be
-// called from a file the diff did not touch (ADR-0043). There is no shell.
+// called from a file the diff did not touch . There is no shell.
 // A database that is not a file URL inside the checkout is refused, so the
 // command cannot name a network host or a path the container cannot see.
 func (g Govulncheck) Argv(paths []string) ([]string, string) {
@@ -79,58 +80,63 @@ type Symbol struct {
 	CallPath string
 }
 
-// Symbols reads a govulncheck -json stream.
-// The field names are the govulncheck protocol (golang.org/x/vuln v1.1.4,
-// the version the module proxy named on 2026-10-24). The module zip was not
-// opened: the checksum database was not available, so this comment is not a
-// reading of those source files. One JSON object per line. A line that is
-// not an object is skipped, because the container joins stderr into the output.
+// scanMessage is one value in govulncheck's JSON stream. Whitespace is not framing.
+type scanMessage struct {
+	Finding *struct {
+		Trace []vulnFrame `json:"trace"`
+	} `json:"finding"`
+	Config *struct {
+		Scanner string `json:"scanner_name"`
+	} `json:"config"`
+}
+
+// decodeScan consumes the whole stream before accepting any measurement.
+func decodeScan(output string) ([]scanMessage, error) {
+	dec := json.NewDecoder(strings.NewReader(output))
+	var out []scanMessage
+	for {
+		var msg scanMessage
+		err := dec.Decode(&msg)
+		if err == io.EOF {
+			return out, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, msg)
+	}
+}
+
+// Symbols accepts successive JSON values, including the tool's indented output.
+// A malformed or truncated stream yields no measurements; ScanStarted is false.
 func Symbols(output string) []Symbol {
+	messages, err := decodeScan(output)
+	if err != nil {
+		return nil
+	}
 	var out []Symbol
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || line[0] != '{' {
-			continue
-		}
-		var msg struct {
-			Finding *struct {
-				Trace []vulnFrame `json:"trace"`
-			} `json:"finding"`
-		}
-		if err := json.Unmarshal([]byte(line), &msg); err != nil || msg.Finding == nil {
+	for _, msg := range messages {
+		if msg.Finding == nil || len(msg.Finding.Trace) == 0 {
 			continue
 		}
 		frames := msg.Finding.Trace
-		if len(frames) == 0 || frames[0].Module == "" {
+		if frames[0].Module == "" {
 			continue
 		}
 		label, call := labelOf(frames)
-		out = append(out, Symbol{
-			Module: frames[0].Module, Function: frames[0].Function, Label: label, CallPath: call,
-		})
+		out = append(out, Symbol{Module: frames[0].Module, Function: frames[0].Function, Label: label, CallPath: call})
 	}
 	return out
 }
 
-// ScanStarted reports whether output is a govulncheck -json scan that started.
-// A scan that started prints a config object naming this scanner. An error
-// line, including a missing database, is not a measurement: silence after a
-// failed start is not "imported but not reached" (ADR-0043).
+// ScanStarted requires a complete valid protocol stream with scanner identity.
 func ScanStarted(output string) bool {
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || line[0] != '{' {
-			continue
-		}
-		var msg struct {
-			Config *struct {
-				Scanner string `json:"scanner_name"`
-			} `json:"config"`
-		}
-		if err := json.Unmarshal([]byte(line), &msg); err != nil || msg.Config == nil {
-			continue
-		}
-		if msg.Config.Scanner == "govulncheck" {
+	messages, err := decodeScan(output)
+	if err != nil {
+		return false
+	}
+	for _, msg := range messages {
+		if msg.Config != nil && msg.Config.Scanner == "govulncheck" {
 			return true
 		}
 	}
@@ -150,7 +156,7 @@ type vulnFrame struct {
 	} `json:"position"`
 }
 
-// labelOf classifies one trace (ADR-0043).
+// labelOf classifies one trace .
 // A function with a caller is reached. Every other trace was measured and
 // the function was not called, which includes a module that is required but
 // whose package is not imported: the order names no fourth label.
@@ -200,7 +206,7 @@ func frameName(f vulnFrame) string {
 	return sym
 }
 
-// LabelFindings sets the reachability of each dependency finding (ADR-0043).
+// LabelFindings sets the reachability of each dependency finding .
 // A non-Go ecosystem is not measured. A Go finding is not measured when the
 // tool did not answer, or when it answered and never mentioned the module:
 // silence is not "imported but not reached". A module with any reached
@@ -301,7 +307,7 @@ func goChange(p string) bool {
 // refuseDB says why raw cannot be the database argument, or "" when it can.
 // The container opens the URL itself. Only a file URL under the checkout
 // mount is visible, and an http URL would need the network the container
-// does not have (ADR-0025). A refused URL is not replaced with the public host.
+// does not have . A refused URL is not replaced with the public host.
 func refuseDB(raw string) string {
 	const why = "not a file URL inside the checkout"
 	if strings.ContainsAny(raw, " \t\r\n") {

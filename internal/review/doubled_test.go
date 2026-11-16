@@ -13,7 +13,7 @@ import (
 )
 
 // rowAnswer is the recorded Investigator answer on the discount fixture that returns the OSV rows of
-// one package: a template and its values, never SQL (ADR-0032). rowSQL is the query Proven builds from it.
+// one package: a template and its values, never SQL . rowSQL is the query Proven builds from it.
 const rowAnswer = `{"template":"osv-by-package","params":{"ecosystem":"Go","package":"evil.example/leftpad"}}`
 
 const rowSQL = "SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'"
@@ -21,7 +21,7 @@ const rowSQL = "SELECT id, aliases, ecosystem, package, introduced, fixed, last_
 // defaultOnlyTitle marks a risk only the default run names; the special run must never see it.
 const defaultOnlyTitle = "DEFAULT-ONLY-MARKER-7f3a"
 
-// TestDoubledSecurityRunsBothGenerators proves ADR-0009 point 3 end to end: a doubled security review
+// TestDoubledSecurityRunsBothGenerators proves  point 3 end to end: a doubled security review
 // runs the planner and the skeptic a second time on the special model, as a fresh agent that never sees
 // the first run's risks or answers. A risk both runs found is one finding naming both models, the default
 // first; a risk one run found names that run; a risk with no evidence is dropped whichever run found it;

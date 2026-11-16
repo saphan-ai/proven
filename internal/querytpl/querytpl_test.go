@@ -38,7 +38,7 @@ func refusedAs(err error) string {
 	return ""
 }
 
-// TestEachFormatRefusesAHostileValue proves the property of ADR-0032 point 2
+// TestEachFormatRefusesAHostileValue proves the property of  point 2
 // and 3: in every parameter of every template, a quote, a backslash, a
 // control byte, invalid UTF-8 and the other bytes outside the format are
 // refused with a named reason, and no query is built. The mutated field is
@@ -114,7 +114,7 @@ func TestPackageFormatsFollowTheEcosystem(t *testing.T) {
 
 // TestBuiltSQLIsTheTextThePipelineAlwaysSent proves that moving the SQL here
 // changed no query: each template builds the text the OSV, KEV and EPSS steps
-// sent before ADR-0032, so the recorded evidence reads the same.
+// sent before , so the recorded evidence reads the same.
 func TestBuiltSQLIsTheTextThePipelineAlwaysSent(t *testing.T) {
 	cases := []struct {
 		name string
@@ -139,7 +139,7 @@ func TestBuiltSQLIsTheTextThePipelineAlwaysSent(t *testing.T) {
 }
 
 // TestPyPINameIsBuiltInItsPEP503Form proves that a PyPI package is looked up
-// by the form the OSV table is keyed by, as before ADR-0032.
+// by the form the OSV table is keyed by, as before .
 func TestPyPINameIsBuiltInItsPEP503Form(t *testing.T) {
 	got, err := OSVPackageSQL(DefaultOSVTable, "PyPI", "Django_REST.framework")
 	if err != nil || !strings.HasSuffix(got, "package = 'django-rest-framework'") {

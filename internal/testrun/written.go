@@ -202,7 +202,7 @@ func writeInside(root, rel, content string) error {
 // nothing else: no write bit is added and no bit is removed from the owner.
 // The container runs as a fixed unprivileged user that does not own the trees
 // Proven writes, so without this grant it cannot even stat the checkout it is
-// mounted on (ADR-0025). The mount stays read-only; this only lets the
+// mounted on . The mount stays read-only; this only lets the
 // container user read it. Symlinks and other special files are left alone,
 // because a mode change on a link would follow it out of the tree.
 func MakeReadable(root string) error {

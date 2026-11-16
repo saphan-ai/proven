@@ -12,7 +12,7 @@ import (
 // concatBuilder is a registered source whose builder places the parameter
 // in the query with no check of its own. The format admits every text, so
 // the only refusal is the one source.Build applies before it calls the
-// builder (ADR-0032).
+// builder .
 type concatBuilder struct {
 	calls int
 }

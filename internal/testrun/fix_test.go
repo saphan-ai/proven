@@ -70,7 +70,7 @@ func pricedRuntime(t *testing.T, mounts *[]string) func(context.Context, []strin
 	}
 }
 
-// TestRunFixRunsTheProofThreeTimesAndThePackage proves ADR-0042 point 2: the
+// TestRunFixRunsTheProofThreeTimesAndThePackage proves the
 // proving test runs on the base, on the change and on the change with the patch,
 // each with its command and exit code, and the package runs on the patched change.
 // It also proves the patch lands in a scratch copy and never in the change tree.
@@ -119,7 +119,7 @@ func TestRunFixRunsTheProofThreeTimesAndThePackage(t *testing.T) {
 }
 
 // TestRunFixSkipsThePackageWhenThePatchedTestFails proves a patch that does not make
-// the proving test pass ends the attempt there (ADR-0042 point 3): three runs, no package run.
+// the proving test pass ends the attempt there : three runs, no package run.
 func TestRunFixSkipsThePackageWhenThePatchedTestFails(t *testing.T) {
 	base, change := fixTrees(t)
 	c := mustContainer(t, DefaultContainerConfig())

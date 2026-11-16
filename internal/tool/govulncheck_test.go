@@ -12,7 +12,7 @@ import (
 // TestGovulncheckMixedLabelsOneReachedAndOneUnreached proves the recorded
 // scenario: one vulnerable function is reached, with the call path, and one
 // is imported but not reached. A Packagist finding is not measured. Nothing
-// is dropped. Reached ranks first (ADR-0043).
+// is dropped. Reached ranks first .
 func TestGovulncheckMixedLabelsOneReachedAndOneUnreached(t *testing.T) {
 	out, err := NewSample(Govulncheck{DB: "file:///checkout/vulndb"}, GovulncheckMixed()).Run(context.Background())
 	if err != nil {
@@ -91,7 +91,7 @@ func TestUnreachedFunctionIsNotLabeledReached(t *testing.T) {
 
 // TestSilenceIsNotMeasured proves a tool that answered and did not mention
 // the module does not say the function is unreached. Not measured is the
-// honest label (ADR-0043).
+// honest label .
 func TestSilenceIsNotMeasured(t *testing.T) {
 	in := []candidate.Candidate{depFinding("example.com/other", "in range")}
 	got := LabelFindings(in, true, Symbols(govulnChangeOutput))

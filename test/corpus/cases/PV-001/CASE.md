@@ -41,7 +41,6 @@ library are chosen when the case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P02 in `PROVENANCE.md`).
 - reviewer families, as recorded: `gpt-5.6-sol` (through Codex) and `glm-5.2` (through Qwen Code).
 - the original code was Python tooling over HTML; it is not published. Resolution status: settled by a later round that
   conceded the finding and repaired it.

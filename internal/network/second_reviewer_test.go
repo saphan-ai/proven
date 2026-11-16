@@ -12,7 +12,7 @@ import (
 	"github.com/saphan-ai/proven/internal/generator"
 )
 
-// TestLocalRefusesAPublicSecondReviewerAddress proves ADR-0034 for the second reviewer of ADR-0037: with
+// TestLocalRefusesAPublicSecondReviewerAddress proves  for the second reviewer of with
 // PROVEN_NETWORK=local, an address off the organisation's network is refused at load by name, with
 // the key set and also without it, and the same address loads in public mode.
 // Mutated field: the host of PROVEN_SECOND_REVIEWER_BASE_URL.

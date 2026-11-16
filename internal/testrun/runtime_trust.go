@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// The trust boundary of the runtime (ADR-0034). The container runtime is a
+// The trust boundary of the runtime . The container runtime is a
 // program the operator installs and points to, so it is the operator's trusted
 // base: Proven does not judge what it does. Proven checks two things about it
 // and says what it is: the name must not be a relative path, which depends on

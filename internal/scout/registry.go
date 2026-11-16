@@ -17,7 +17,7 @@ const GeneralIntent = "GENERAL"
 
 // The two kinds of input a registry can describe. A text registry scores a prompt by its words, as the
 // spec's examples do. A change registry scores a list of changed files, one per line, by their paths:
-// it is how Proven gives Scout a change to classify (ADR-0049 point 1).
+// it is how Proven gives Scout a change to classify .
 const (
 	InputText   = "text"
 	InputChange = "change"

@@ -14,7 +14,7 @@ import (
 )
 
 // TestSampleRaceReportsAFindingProvedByATool proves the recorded race scenario
-// is a finding the Judge keeps, at the proof level of a tool (ADR-0040, ADR-0044).
+// is a finding the Judge keeps, at the proof level of a tool .
 func TestSampleRaceReportsAFindingProvedByATool(t *testing.T) {
 	out, err := tool.NewSample(tool.Race{}, tool.RaceIntroduced()).Run(context.Background())
 	if err != nil {

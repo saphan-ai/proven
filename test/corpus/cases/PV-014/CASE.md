@@ -49,7 +49,6 @@ implements that behaviour explicitly.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P27 in `PROVENANCE.md`).
 - reviewer families, as recorded: `glm-5.2` (through Qwen Code) and `gpt-5.6-sol` (through Codex).
 - the original code was Go; it is not published. Resolution status: the orchestrating agent checked the rejecting
   reviewer's finding and recorded a reject. A second round was rejected again on further findings; a third round was

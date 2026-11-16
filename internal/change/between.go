@@ -53,7 +53,7 @@ func (p Policy) gitArchive(target, rev string) ([]byte, error) {
 const maxFailureBytes = 512
 
 // clippedBuffer keeps the first max bytes written to it and discards the rest, so what a repository
-// makes git print on standard error is never held whole (ADR-0013).
+// makes git print on standard error is never held whole .
 type clippedBuffer struct {
 	buf bytes.Buffer
 	max int
@@ -100,7 +100,7 @@ func (p Policy) outputBounded(cmd *exec.Cmd, max int64, what, env string) ([]byt
 		return nil, readErr
 	}
 	if waitErr != nil {
-		// ADR-0013: standard output is repository content, so git's failure message is its
+		// standard output is repository content, so git's failure message is its
 		// standard error alone, and that is clipped.
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
@@ -162,9 +162,9 @@ type Status struct {
 }
 
 // StatusBetween lists the files changed between baseline and head with their status, for the readers
-// that need to know a file was added or moved, not only that it changed (ADR-0049). An empty head means
+// that need to know a file was added or moved, not only that it changed . An empty head means
 // the working tree, and an untracked file there is added. Between is left as it is: the review classes
-// read paths only (ADR-0014).
+// read paths only .
 func (p Policy) StatusBetween(target, baseline, head string) ([]Status, error) {
 	if err := p.ensureCommit(target, baseline, "baseline"); err != nil {
 		return nil, err

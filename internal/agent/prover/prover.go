@@ -1,10 +1,10 @@
 // Package prover asks the test-run adapter for a test that fails on the change and passes on the base.
 //
 // The Prover gets each risk from the Planner and asks the model for a test that
-// proves it: one that fails on the change and passes on the base (ADR-0002).
-// The test asserts correct behaviour and never attacks anything (ADR-0007). The
+// proves it: one that fails on the change and passes on the base .
+// The test asserts correct behaviour and never attacks anything . The
 // test-run adapter runs it once on each checkout, with no network and no secret
-// (ADR-0025). Only that outcome, never the model's word, becomes evidence.
+// . Only that outcome, never the model's word, becomes evidence.
 package prover
 
 import (
@@ -54,7 +54,7 @@ type row struct {
 }
 
 // Execute runs a test the skeptic named. It does not ask a model. The name and
-// path are checked first (ADR-0025): one that fails is an outcome with no test
+// path are checked first : one that fails is an outcome with no test
 // found and a "refused:" line, and the runner is not called.
 func Execute(ctx context.Context, run testrun.Adapter, req testrun.Request) (testrun.Outcome, error) {
 	if run == nil {
@@ -83,7 +83,7 @@ func Prove(ctx context.Context, c candidate.Candidate, gen generator.Generator, 
 	if err := answer.Read(ctx, gen, "prover", Prompt(c.ID, c.Title), testSpec, &got); err != nil {
 		return c, err
 	}
-	// ADR-0025: only the test's file and name are the model's. An answer that
+	// only the test's file and name are the model's. An answer that
 	// also carries a command is refused whole, so no text of a model is ever
 	// close to the line the container runs.
 	if strings.TrimSpace(got.Command) != "" {
@@ -160,7 +160,7 @@ func proveWritten(ctx context.Context, c candidate.Candidate, run testrun.Adapte
 	}
 	if out.FailsOnChange && out.PassesOnBase {
 		ev := testEvidence(out)
-		// ADR-0042: the Fixer runs this same test again on a patched change, so the
+		// the Fixer runs this same test again on a patched change, so the
 		// evidence keeps the file the model wrote.
 		ev.Test.Content = got.Content
 		c.Evidence = append(c.Evidence, ev)

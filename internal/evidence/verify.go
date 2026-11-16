@@ -34,7 +34,7 @@ const (
 	CheckMissing   = "missing"
 	CheckExtra     = "extra"
 	CheckReceipt   = "receipt"
-	// CheckOutcome re-derives each finding's outcome from the evidence the pack records (ADR-0035).
+	// CheckOutcome re-derives each finding's outcome from the evidence the pack records .
 	CheckOutcome = "outcome"
 )
 

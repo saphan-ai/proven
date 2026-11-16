@@ -16,7 +16,7 @@ const secretMarker = "hardening-marker-5b1e"
 // TestArgvHardensTheContainer proves the container runs as a fixed
 // unprivileged user, with a process limit, every capability dropped, no
 // privilege gain and a read-only root filesystem, beside the existing
-// no-network flag (ADR-0025). Mutated flag: --cap-drop; removing it from argv
+// no-network flag . Mutated flag: --cap-drop; removing it from argv
 // turns the capability assertion red.
 func TestArgvHardensTheContainer(t *testing.T) {
 	c := mustContainer(t, DefaultContainerConfig())
@@ -67,7 +67,7 @@ func TestArgvScratchIsBoundedTmpfs(t *testing.T) {
 
 // TestArgvPassesOnlyTheFixedEnvironment proves the container receives exactly
 // HOME=/tmp and GOCACHE=/tmp/go-build, so the build cache lands on scratch, and
-// no other -e value, whatever Proven's own environment holds (ADR-0025).
+// no other -e value, whatever Proven's own environment holds .
 // Mutated field: Proven's environment; a planted secret must not appear.
 func TestArgvPassesOnlyTheFixedEnvironment(t *testing.T) {
 	t.Setenv("METERLESS_RUNTIME_TOKEN", secretMarker)
@@ -84,7 +84,7 @@ func TestArgvPassesOnlyTheFixedEnvironment(t *testing.T) {
 
 // TestRuntimeProcessEnvironmentIsExactlyTheNamedOnes proves the runtime process
 // starts with PATH, HOME and the daemon-locating names that are set, and with
-// nothing else, so a secret cannot reach its output (ADR-0025). Positive
+// nothing else, so a secret cannot reach its output . Positive
 // control: the expected names must be present, so a child that printed nothing
 // fails. Mutated call: commandOutput's cmd.Env; os.Environ() turns this red.
 func TestRuntimeProcessEnvironmentIsExactlyTheNamedOnes(t *testing.T) {
@@ -113,7 +113,7 @@ func TestRuntimeProcessEnvironmentIsExactlyTheNamedOnes(t *testing.T) {
 
 // TestRuntimeProcessEnvironmentOmitsSecrets proves a secret set in Proven's
 // environment is absent from the environment of the runtime process, so the
-// runtime's output cannot carry it into a trace (ADR-0025). Mutated call:
+// runtime's output cannot carry it into a trace . Mutated call:
 // commandOutput's cmd.Env; setting it to os.Environ() turns this red.
 func TestRuntimeProcessEnvironmentOmitsSecrets(t *testing.T) {
 	t.Setenv("METERLESS_RUNTIME_TOKEN", secretMarker)

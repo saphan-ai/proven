@@ -14,7 +14,7 @@ import (
 
 // Environment variables of the live generator. The set is closed: Load reads
 // these names and no others. An empty value means the default, except the
-// token, which has none. ADR-0013: no value the generator runs with is
+// token, which has none. no value the generator runs with is
 // hardcoded; each comes from one of these settings or its named default.
 const (
 	EnvMode             = "PROVEN_GENERATOR_MODE"
@@ -31,21 +31,21 @@ const (
 	EnvThinkingBudget   = "PROVEN_GENERATOR_THINKING_BUDGET"
 )
 
-// DefaultSkepticModel is Nemotron through Nightshift (ADR-0006 point 5).
+// DefaultSkepticModel is Nemotron through Nightshift .
 // An empty PROVEN_SKEPTIC_MODEL means this model. A set value is used as it is.
 const DefaultSkepticModel = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 
-// The two providers PROVEN_GENERATOR_MODE chooses between (ADR-0031 point 1).
+// Legacy provider modes retained for existing installations.
 const (
-	// ModeNightshift calls Meterless Nightshift and is the default (ADR-0019, ADR-0031 point 2).
+	// ModeNightshift calls Meterless Nightshift when explicitly configured.
 	ModeNightshift = "nightshift"
-	// ModeNVIDIA calls NVIDIA's hosted API directly (ADR-0031 point 3).
+	// ModeNVIDIA calls NVIDIA's hosted API directly .
 	ModeNVIDIA = "nvidia"
 )
 
 const (
 	// The defaults below apply when a setting is empty. defaultRequire "all" means
-	// every agent must be answered by an NVIDIA model (ADR-0019 point 4).
+	// every agent must be answered by an NVIDIA model .
 	defaultMode    = ModeNightshift
 	defaultBaseURL = "http://127.0.0.1:8088"
 	defaultApp     = "proven"
@@ -53,11 +53,11 @@ const (
 	defaultTimeout = 60 * time.Second
 	defaultRequire = "all"
 
-	// The defaults of nvidia mode (ADR-0031 point 3). The base is the hosted
+	// The defaults of nvidia mode . The base is the hosted
 	// API's OpenAI-compatible root. The model is one id from the list NVIDIA
 	// publishes at build.nvidia.com. The earlier default was retired (HTTP 410,
 	// measured 2026-10-25), so the finder now asks for the Skeptic's model; the
-	// trace notes the shared family (ADR-0006). The API names this model's
+	// trace notes the shared family . The API names this model's
 	// answer with an alias, accepted by modelAliases. A setting replaces either.
 	defaultNVIDIABase  = "https://integrate.api.nvidia.com/v1"
 	defaultNVIDIAModel = "nvidia/nemotron-3.5-super-vl-120b-a12b"
@@ -66,11 +66,11 @@ const (
 // Environment lists the live-generator settings in the order the page shows.
 // Each Name is the Env constant beside this function.
 func Environment() []envdoc.Setting {
-	return []envdoc.Setting{
+	return append(ProviderEnvironment(), []envdoc.Setting{
 		{
 			Name:        EnvMode,
-			Default:     envdoc.Tick(defaultMode),
-			Description: "`nightshift` (Meterless Nightshift) or `nvidia` (NVIDIA's hosted API, ADR-0031)",
+			Default:     "off when unconfigured; openai when an endpoint/model is set",
+			Description: "`openai`, `command`, `off`, or the legacy opt-in `nightshift` and `nvidia` adapters",
 		},
 		{
 			Name:        EnvToken,
@@ -82,7 +82,7 @@ func Environment() []envdoc.Setting {
 			Name:        EnvKey,
 			Default:     "none (required in `nvidia` mode)",
 			Secret:      true,
-			Description: "the NVIDIA API key, from build.nvidia.com. Secret: never printed. Empty: the hosted API is down and the review names it. Not read in `nightshift` mode",
+			Description: "Secret: API key for your endpoint; optional for openai, required for nvidia; never printed",
 		},
 		{
 			Name:        EnvBaseURL,
@@ -111,7 +111,7 @@ func Environment() []envdoc.Setting {
 		},
 		{
 			Name:        EnvRequireNVIDIA,
-			Default:     envdoc.Tick(defaultRequire),
+			Default:     "none for openai/command; all for legacy adapters",
 			Description: "which agents must be answered by an `nvidia/*` model (by Nightshift's receipt, or in `nvidia` mode by the `model` field of the hosted API's answer); `all`, `none`, or a list of agents. A non-NVIDIA answer to such an agent is refused by name",
 		},
 		{
@@ -129,11 +129,11 @@ func Environment() []envdoc.Setting {
 			Default:     "empty (nothing is sent)",
 			Description: "the most tokens a reasoning model may think before it answers, sent as `thinking_budget` on every call, the second reviewer's included. Empty sends nothing, so a provider that does not know the field never sees it",
 		},
-	}
+	}...)
 }
 
 // agents is the closed set a require-NVIDIA list may name.
-// The names are the six agents of the review and the Fixer (ADR-0042), as they call the generator.
+// The names are the six agents of the review and the Fixer , as they call the generator.
 var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
@@ -143,7 +143,9 @@ type ConfigError = service.ConfigError
 // Settings is one validated live-generator configuration.
 // The token is held so the call can send it. It is not a value to print.
 type Settings struct {
-	// Mode is ModeNightshift or ModeNVIDIA.
+	// Command is operator-configured argv for a locally authenticated CLI.
+	Command []string
+	// Mode names the configured model transport.
 	Mode    string
 	BaseURL string
 	App     string
@@ -155,7 +157,7 @@ type Settings struct {
 	// ThinkingBudget is PROVEN_GENERATOR_THINKING_BUDGET; zero sends no thinking_budget field.
 	ThinkingBudget int
 	plain          bool
-	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	// Network is the air-gapped policy of . Nil means public.
 	Network *network.Policy
 	// requireRequested is PROVEN_GENERATOR_REQUIRE_REQUESTED: refuse a receipt that names another model.
 	requireRequested bool
@@ -196,9 +198,9 @@ func (s Settings) requiresNVIDIA(agent string) bool {
 }
 
 // Load reads the live-generator settings. A wrong non-empty value is refused.
-// An empty token or key is not a refusal: the service is down (ADR-0013 point 4a).
+// An empty token or key is not a refusal: the service is down .
 // An empty lookup uses the defaults for every setting that has one.
-func Load(env func(string) string) (Settings, error) {
+func loadLegacy(env func(string) string) (Settings, error) {
 	// A nil lookup is an empty environment, so the defaults apply and the token is empty.
 	if env == nil {
 		env = func(string) string { return "" }
@@ -211,7 +213,7 @@ func Load(env func(string) string) (Settings, error) {
 		return Settings{}, refuse(EnvMode, clip(mode), "not a generator mode", "nightshift or nvidia")
 	}
 	// Each mode reads its own secret and ignores the other, so a key left in the
-	// environment for one provider is never sent to the other (ADR-0031 point 3).
+	// environment for one provider is never sent to the other .
 	secretEnv, svc, baseDefault, modelDefault := EnvToken, "nightshift", defaultBaseURL, defaultModel
 	if mode == ModeNVIDIA {
 		secretEnv, svc, baseDefault, modelDefault = EnvKey, "nvidia", defaultNVIDIABase, defaultNVIDIAModel
@@ -225,7 +227,7 @@ func Load(env func(string) string) (Settings, error) {
 	if strings.ContainsAny(token, "\r\n") || len(token) > 4096 || service.TooShortSecret(token) {
 		return Settings{}, refuse(secretEnv, "", "the live generator needs a secret", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
-	// ADR-0031 point 3: each mode reads its own address, as it reads its own secret.
+	// each mode reads its own address, as it reads its own secret.
 	// The key must never follow a base meant for Nightshift, because in nvidia mode
 	// the answer's own model field is trusted as the answering model. A base left
 	// set for Nightshift is therefore not read here.
@@ -241,7 +243,7 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	// ADR-0034: in the air-gapped mode a hosted address is refused here, by name.
+	// in the air-gapped mode a hosted address is refused here, by name.
 	// The hosted generator mode is refused by name even when its address is local,
 	// the same way the guardrail's nvidia mode is.
 	policy, err := network.Load(env)
@@ -305,7 +307,7 @@ func Load(env func(string) string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	// ADR-0013 point 4a: an empty token or key means the service is down. The
+	//  point 4a: an empty token or key means the service is down. The
 	// review goes on and names it. The reason names the variable and not the value.
 	if strings.TrimSpace(token) == "" {
 		return Settings{}, &service.Down{Service: svc, Reason: secretEnv + " is empty"}
@@ -319,6 +321,12 @@ func Load(env func(string) string) (Settings, error) {
 
 // serviceName is the name a failed call carries in the review's failed services.
 func (s Settings) serviceName() string {
+	if s.Mode == ModeOpenAI {
+		return "generator"
+	}
+	if s.Mode == ModeCommand {
+		return "command"
+	}
 	if s.Mode == ModeNVIDIA {
 		return "nvidia"
 	}
@@ -482,7 +490,7 @@ func versioned(path string) bool {
 }
 
 // checkBaseFor checks the address in the setting named field, so the second reviewer's address
-// is refused under its own name and never under Nightshift's (ADR-0037).
+// is refused under its own name and never under Nightshift's .
 func checkBaseFor(field, raw string) (string, error) {
 	return checkBase(field, raw, false)
 }

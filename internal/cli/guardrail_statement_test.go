@@ -19,7 +19,7 @@ func checkedResult(unanswered int) review.Result {
 
 // Property: the one guardrail line has the same words in the text output and in
 // the Markdown foot, with the counts of the Result and the model id and backend
-// that answered (ADR-0005).
+// that answered .
 // Mutated fields: the counts of the Result's Guardrail.
 func TestGuardrailLineIsTheSameInTextAndMarkdown(t *testing.T) {
 	const want = "Guardrail: NVIDIA nvidia/test-guard-model (NVIDIA hosted API), checked 2 prompts and 1 answer, 1 blocked"

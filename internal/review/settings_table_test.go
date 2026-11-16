@@ -13,7 +13,7 @@ import (
 // TestEachSettingAtDefaultAndOneOtherValue is one subtest per proven.yaml key.
 // Each subtest checks the default and one other value. The other value is one
 // the review uses, or a refusal for a value the key does not allow.
-// The property it proves: every key of ADR-0013's closed set has a working default and really
+// The property it proves: every key of 's closed set has a working default and really
 // changes the review when set.
 func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
@@ -141,7 +141,7 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	t.Run("author_commit_trailers", func(t *testing.T) {
 		dir, base, head := commitWithTrailer(t)
 		req := Request{Target: dir, BaselineCommit: base, HeadCommit: head}
-		// Off by default (owner, 2026-10-27: no author model is parsed out of AI attribution text).
+		// Off by default (no author model is parsed out of AI attribution text).
 		def := decideOn(t, defaultSettings(), req)
 		if !strings.Contains(def.AuthorModelStatement, "author model not stated") || strings.Contains(def.AuthorModelStatement, "model-a") {
 			t.Fatal(def.AuthorModelStatement)

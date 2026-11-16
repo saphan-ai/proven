@@ -8,7 +8,7 @@ import (
 )
 
 // TestProofLevelOfEachKind proves that each evidence kind that exists today maps to its named level
-// (ADR-0044 point 1), including a tool's run (ADR-0040), and that the strongest evidence decides
+// , including a tool's run , and that the strongest evidence decides
 // when a finding has more than one kind.
 func TestProofLevelOfEachKind(t *testing.T) {
 	test := Evidence{Kind: EvidenceTest}
@@ -48,7 +48,7 @@ func TestProofLevelOfRefusesNoEvidence(t *testing.T) {
 }
 
 // TestFillRefusesAFindingWithNoLevel proves that a finding without evidence cannot reach the Result:
-// fill returns an error naming the finding (ADR-0044; ADR-0002).
+// fill returns an error naming the finding .
 func TestFillRefusesAFindingWithNoLevel(t *testing.T) {
 	_, err := fill(candidate.Draft{Findings: []candidate.Candidate{{Risk: candidate.Risk{ID: "X1"}}}})
 	if err == nil || !strings.Contains(err.Error(), "X1") {

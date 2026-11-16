@@ -7,7 +7,7 @@ import (
 )
 
 // TestSessionDirectoriesAreReadableOnlyByTheUser proves the session folders
-// the conformance command creates under the temp dir are 0700 (ADR-0013:
+// the conformance command creates under the temp dir are 0700 (
 // Proven's own state is private to its user).
 func TestSessionDirectoriesAreReadableOnlyByTheUser(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())

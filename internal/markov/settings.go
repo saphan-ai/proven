@@ -8,9 +8,9 @@ import (
 	"github.com/saphan-ai/proven/internal/envdoc"
 )
 
-// The environment settings of bounded steps (ADR-0013, ADR-0048). Sample mode reads them too (ADR-0053): the lab's review is a sample review.
+// The environment settings of bounded steps . Sample mode reads them too : recorded reviews is a sample review.
 const (
-	// EnvSwitch turns the engine on or off. ADR-0053: on by default, and switched off by setting it to off.
+	// EnvSwitch turns the engine on or off. on by default, and switched off by setting it to off.
 	EnvSwitch = "PROVEN_MARKOVIAN"
 	// EnvThreshold is the size of a change, in estimated tokens of the Planner's whole prompt, above which the
 	// review runs in bounded steps.
@@ -40,7 +40,7 @@ const maxThreshold = 10_000_000
 
 // Settings is the loaded configuration of bounded steps.
 type Settings struct {
-	// On is the switch. The zero value is off; DefaultSettings and an unset environment are on (ADR-0053).
+	// On is the switch. The zero value is off; DefaultSettings and an unset environment are on .
 	On bool
 	// Threshold is in estimated tokens; only a change strictly above it is cut.
 	Threshold int
@@ -50,7 +50,7 @@ type Settings struct {
 	Carry int
 }
 
-// DefaultSettings is what an unset environment loads: on (ADR-0053), with the documented defaults behind the switch.
+// DefaultSettings is what an unset environment loads: on , with the documented defaults behind the switch.
 func DefaultSettings() Settings {
 	return Settings{On: true, Threshold: DefaultThreshold, Unit: UnitFile, Carry: DefaultCarry}
 }
@@ -62,7 +62,7 @@ var (
 )
 
 // Load reads the four settings. An empty value is its default; a value that is set and not allowed is refused by
-// name with the values allowed, and never replaced by the default (ADR-0013).
+// name with the values allowed, and never replaced by the default .
 func Load(env func(string) string) (Settings, error) {
 	if env == nil {
 		env = func(string) string { return "" }

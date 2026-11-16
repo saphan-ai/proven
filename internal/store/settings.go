@@ -1,6 +1,8 @@
 package store
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -9,7 +11,7 @@ import (
 )
 
 // Environment variables of the evidence store. The set is closed.
-// ADR-0013: every value is a setting, validated when it loads.
+// every value is a setting, validated when it loads.
 const (
 	EnvStore = "PROVEN_EVIDENCE_STORE"
 	EnvFile  = "PROVEN_EVIDENCE_FILE"
@@ -30,17 +32,18 @@ func Environment() []envdoc.Setting {
 	rows := []envdoc.Setting{
 		{
 			Name:        EnvStore,
-			Default:     envdoc.Tick(NameZetaris),
-			Description: "which evidence store a live review uses: `zetaris`, `local` or `couchdb`. Empty means `zetaris`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable",
+			Default:     envdoc.Tick(NameSQLite),
+			Description: "which evidence store a live review uses: `sqlite`, `postgres`, `couchdb`, `local` or `zetaris`. Empty means `sqlite`. The review passes a template request, and the store runs the form of its own language (`sql` or `mango`). Sample mode uses the local store and does not read this variable",
 		},
 		{
 			Name:        EnvFile,
-			Default:     "none (required when the store is `local`)",
+			Default:     "<user cache>/proven/evidence.sqlite for sqlite; required for local",
 			Description: "the one file of the local store, read only when the store is `local`. Empty is refused by name, and so is a path inside the repository under review. The file holds tables and no server is started",
 		},
 	}
 	// The CouchDB rows follow, read only when the store is `couchdb`.
 	rows = append(rows, CouchEnvironment()...)
+	rows = append(rows, envdoc.Setting{Name: EnvPostgresURL, Default: "none", Secret: true, Description: "Secret: PostgreSQL connection URL, read only for postgres; credentials are never printed"})
 	// The records rows follow: the evidence records and their viewer.
 	return append(rows, RecordsEnvironment()...)
 }
@@ -55,7 +58,7 @@ type Choice struct {
 	File string
 }
 
-// Load reads PROVEN_EVIDENCE_STORE. An empty value is zetaris.
+// Load reads PROVEN_EVIDENCE_STORE. A clean environment selects SQLite.
 // Any word that is not a store is refused. The file path is checked only
 // when the store is local: it does not apply to zetaris or couchdb. The
 // CouchDB settings are read by LoadCouch.
@@ -65,11 +68,30 @@ func Load(env func(string) string) (Choice, error) {
 	}
 	name := strings.TrimSpace(env(EnvStore))
 	if name == "" {
-		name = NameZetaris
+		name = NameSQLite
+		// Retain existing deployments during migration; a clean environment selects SQLite.
+		if env("ZETARIS_REST_URL") != "" || env("ZETARIS_API_KEY") != "" || env("ZETARIS_ORG_ID") != "" {
+			name = NameZetaris
+		}
 	}
 	switch name {
+	case NamePostgres:
+		return Choice{Name: name}, nil
+	case NameSQLite:
+		file := env(EnvFile)
+		if file == "" {
+			cache, err := os.UserCacheDir()
+			if err != nil {
+				return Choice{}, refuse(EnvFile, "", "no user cache directory", "set an evidence database path")
+			}
+			file = filepath.Join(cache, "proven", "evidence.sqlite")
+		}
+		if err := checkFile(file); err != nil {
+			return Choice{}, err
+		}
+		return Choice{Name: name, File: file}, nil
 	case NameCouchDB:
-		// ADR-0047: the CouchDB settings are checked by LoadCouch, as the
+		// the CouchDB settings are checked by LoadCouch, as the
 		// Zetaris settings are checked by query.Load, so an empty address is a
 		// down store and not a refusal. Naming couchdb must not fall through
 		// to zetaris.
@@ -90,14 +112,14 @@ func Load(env func(string) string) (Choice, error) {
 		}
 		file := strings.TrimSpace(raw)
 		if file == "" {
-			// ADR-0013, ADR-0047: there is no default file. A default would
+			// , there is no default file. A default would
 			// be a relative path in the working directory, which is the
 			// tree under review, so the operator names the file.
 			return Choice{}, refuse(EnvFile, "", "required when the store is local", fileAllowed)
 		}
 		return Choice{Name: name, File: file}, nil
 	default:
-		return Choice{}, refuse(EnvStore, clip(name), "not a store", "zetaris, local, couchdb")
+		return Choice{}, refuse(EnvStore, clip(name), "not a store", "sqlite, postgres, couchdb, local, zetaris")
 	}
 }
 

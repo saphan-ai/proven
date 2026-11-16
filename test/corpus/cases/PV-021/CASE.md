@@ -21,7 +21,7 @@ Both measured the same fact: a tampered note is shown with the word `unsigned`. 
 vocabulary's design, and the reason sentence differs. The other rejected: tampered and unsigned cannot be told apart, which
 the description forbids.
 
-This is a generic, textbook signature example. It is not how any part of the fleet signs or verifies anything.
+This is a generic, textbook signature example.
 
 ## 2. Contract (written before any fixture)
 
@@ -50,7 +50,6 @@ written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P20 in `PROVENANCE.md`).
 - reviewer families, as recorded: `claude-opus-5` (through Claude Code) and `gpt-5.6-sol` (through Codex).
 - the original code was Go; it is not published. Resolution status: context-dependent. A follow-up round measured and
   repaired one part; which contract governed the verdict word was never ruled, and the follow-up did not land.

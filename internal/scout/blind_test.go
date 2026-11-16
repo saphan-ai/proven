@@ -123,7 +123,7 @@ func blindMatch(c blindCase, a blindAnswer) bool {
 }
 
 // blindLighterKind reports whether a miss is a lighter-kind answer: Scout answered docs or dependency (the
-// two kinds ADR-0049 point 2 gives a plan with less work) and the case expects a heavier kind or a
+// two kinds  point 2 gives a plan with less work) and the case expects a heavier kind or a
 // clarification. It says what kind Scout chose. It does not say what review ran: the live plan can still be
 // full (a docs answer for a source file is turned into a full plan), and that is measured by blindLivePlan.
 // Order of weight: docs, then dependency, then everything else.
@@ -137,7 +137,7 @@ func blindLighterKind(c blindCase, a blindAnswer) bool {
 	return blindExpectedRank(c) > blindKindRank(a.Kind)
 }
 
-// blindKindRank is how much work the default plan table gives a kind (ADR-0049 point 2): docs runs
+// blindKindRank is how much work the default plan table gives a kind : docs runs
 // nothing (0), dependency skips the Prover (1), every other kind runs in full (2).
 func blindKindRank(kind string) int {
 	switch kind {
@@ -191,7 +191,7 @@ var blindSecurityPatterns = []string{
 	"libs.versions.toml", "gradle.lockfile",
 }
 
-// blindClassOrder is the closed list of review classes, highest risk first (ADR-0014 point 7). The review
+// blindClassOrder is the closed list of review classes, highest risk first . The review
 // package keeps it unexported, so the harness holds its own copy. The live class is quoted from the review
 // in every report row, so a drift in this copy shows as a wrong lighter-by-class verdict beside the quote.
 var blindClassOrder = []string{"security", "backend", "mobile", "user interface", "docs"}
@@ -207,7 +207,7 @@ func blindClassRank(class string) int {
 	return 0
 }
 
-// expectedPlan is the plan the case's expected answer would get from the default plan table (ADR-0049
+// expectedPlan is the plan the case's expected answer would get from the default plan table (
 // point 2), in the same terms as a live plan.
 type expectedPlan struct {
 	Rank    int
@@ -216,10 +216,10 @@ type expectedPlan struct {
 }
 
 // blindExpectedPlan states the plan the expected answer would run for a case whose live plan is live.
-// A security answer runs in full in class security, doubled (ADR-0049 point 2). Every other expected answer,
+// A security answer runs in full in class security, doubled . Every other expected answer,
 // a clarification included, runs the plan its kind's rank gives in the class the path rules choose for these
 // files, and that is the class the live review states when it runs a full plan: the path rules do not depend
-// on what Scout chose. The default doubles only class security (ADR-0009). Where the live review ran a cut
+// on what Scout chose. The default doubles only class security . Where the live review ran a cut
 // plan in another class, the files' own class is not known here, so the live class is used: the class cannot
 // make that plan look lighter, and the work rank still can.
 func blindExpectedPlan(c blindCase, live livePlan) expectedPlan {
@@ -230,7 +230,7 @@ func blindExpectedPlan(c blindCase, live livePlan) expectedPlan {
 }
 
 // blindLighterPlan says why the live plan is lighter than the expected answer's plan, or returns "" when it
-// is not. ADR-0049 point 3: class and doubling are obligations of a plan, not labels, so two plans that run
+// is not. class and doubling are obligations of a plan, not labels, so two plans that run
 // the same agents are not equal when their classes differ. A plan is lighter when it runs less work, runs
 // in a lower-risk class, or the expected plan owes a second review and the live one does not.
 func blindLighterPlan(c blindCase, live livePlan) string {

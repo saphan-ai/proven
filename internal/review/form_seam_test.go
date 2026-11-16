@@ -24,7 +24,7 @@ const (
 
 // TestReviewEvidenceNamesTheFormTheStoreRan proves a live review's query
 // evidence names the form the configured store ran, with the rows of that
-// query (ADR-0047, ADR-0032). CouchDB names mango. The same change on the
+// query . CouchDB names mango. The same change on the
 // local store and on Zetaris names sql, and Zetaris names its own engine.
 // The mutated field of the couchdb case is the form the CouchDB store
 // reports. The mutated field of the zetaris case is the store Open installs:

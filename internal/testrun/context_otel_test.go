@@ -9,23 +9,23 @@ import (
 	"testing"
 )
 
-// otelContext writes a docker context "lab" whose daemon is a local socket and
+// otelContext writes a docker context "example" whose daemon is a local socket and
 // whose metadata names endpoint for the docker CLI's telemetry, makes it the
 // current one, and returns the config directory.
 func otelContext(t *testing.T, endpoint string) string {
 	t.Helper()
 	dir := t.TempDir()
-	sum := sha256.Sum256([]byte("lab"))
+	sum := sha256.Sum256([]byte("example"))
 	meta := filepath.Join(dir, "contexts", "meta", hex.EncodeToString(sum[:]))
 	if err := os.MkdirAll(meta, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"Name":"lab","Metadata":{"otel":{"OTEL_EXPORTER_OTLP_ENDPOINT":"` + endpoint + `"}},` +
+	body := `{"Name":"example","Metadata":{"otel":{"OTEL_EXPORTER_OTLP_ENDPOINT":"` + endpoint + `"}},` +
 		`"Endpoints":{"docker":{"Host":"unix:///run/user/1000/docker.sock"}}}`
 	if err := os.WriteFile(filepath.Join(meta, "meta.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"currentContext":"lab"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"currentContext":"example"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return dir

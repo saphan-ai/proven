@@ -14,7 +14,7 @@ const (
 )
 
 // ReasonOutOfScope is the refusal reason for a template that is on the list
-// but that the asking role's evidence scope does not allow (ADR-0013).
+// but that the asking role's evidence scope does not allow .
 const ReasonOutOfScope = "query template is outside the evidence scope of this role"
 
 // Scope is the set of template names one role may ask. The nil Scope allows

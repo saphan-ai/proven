@@ -16,7 +16,7 @@ import (
 
 // TestStoresAgreeOnOneScenario proves one template, run on every store this
 // wagon builds, returns the same form, the same query text, the same columns
-// and the same rows (ADR-0047). Zetaris is a recorded HTTP server. The local
+// and the same rows . Zetaris is a recorded HTTP server. The local
 // store is the real file. The mutated field of the negative control is the
 // local store's result rows: dropping one row makes this comparison fail.
 func TestStoresAgreeOnOneScenario(t *testing.T) {
@@ -62,7 +62,7 @@ func TestStoresAgreeOnOneScenario(t *testing.T) {
 		RowLimit: 100, Timeout: time.Second,
 	})
 	z.SetClock(func() time.Time { return when })
-	// Register records the name and must not dial. ADR-0023: Proven's key only reads.
+	// Register records the name and must not dial. Proven's key only reads.
 	if err := z.Register(ctx, table); err != nil {
 		t.Fatal(err)
 	}

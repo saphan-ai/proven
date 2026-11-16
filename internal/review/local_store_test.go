@@ -21,8 +21,8 @@ func localEnv(file string) func(string) string {
 }
 
 // TestLocalStoreWithoutAFileIsRefusedByName proves a local store with no
-// PROVEN_EVIDENCE_FILE stops Open and names the setting (ADR-0013,
-// ADR-0047). The mutated field is PROVEN_EVIDENCE_FILE, left empty.
+// PROVEN_EVIDENCE_FILE stops Open and names the setting (,
+// ). The mutated field is PROVEN_EVIDENCE_FILE, left empty.
 // Negative control: restoring a default file turns this red.
 func TestLocalStoreWithoutAFileIsRefusedByName(t *testing.T) {
 	_, err := Open(Options{LogDir: t.TempDir(), Env: localEnv(""), testRun: quietRun{}})
@@ -34,7 +34,7 @@ func TestLocalStoreWithoutAFileIsRefusedByName(t *testing.T) {
 
 // TestLocalFileInsideTheTargetIsRefused proves a local evidence file that
 // resolves inside the repository under review is refused by name, and that
-// nothing is written into that repository (ADR-0047). The mutated field is
+// nothing is written into that repository . The mutated field is
 // PROVEN_EVIDENCE_FILE, set inside the target, then through a link that
 // points into it. Negative control: removing the check turns this red.
 func TestLocalFileInsideTheTargetIsRefused(t *testing.T) {
@@ -64,7 +64,7 @@ func TestLocalFileInsideTheTargetIsRefused(t *testing.T) {
 
 // TestEmptyLocalStoreNamesLocalAsDown proves a review on a fresh local store
 // completes and names `local` among the failed services, instead of ending
-// on a plain error (ADR-0047). The mutated field is the store: its file does
+// on a plain error . The mutated field is the store: its file does
 // not exist, so no table does. Negative control: removing the down conversion
 // in the file's query makes the review return an error.
 func TestEmptyLocalStoreNamesLocalAsDown(t *testing.T) {

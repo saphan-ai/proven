@@ -25,7 +25,7 @@ func (r *recorder) Run(_ context.Context, req querytpl.Request, rel querytpl.Rel
 	return query.Result{SQL: forms.SQL, Form: querytpl.FormSQL, Engine: "mem", Columns: Columns, Rows: [][]string{}}, nil
 }
 
-// TestCheckSendsNoQueryForAPackageOutsideItsFormat proves ADR-0032 point 2 and
+// TestCheckSendsNoQueryForAPackageOutsideItsFormat proves  point 2 and
 // 3 for the dependency check: a package name taken from the change that holds
 // a quote, a backslash, a control byte or invalid UTF-8 is refused before any
 // query is built, the refusal is a trace note with no raw control byte in it,

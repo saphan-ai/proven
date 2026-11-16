@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 )
 
-// These tests answer the review of ADR-0048's carried-state bound: a claim that awaits evidence must never be lost
+// These tests answer the review of 's carried-state bound: a claim that awaits evidence must never be lost
 // when the bound is reached. Either it reaches its evidence, or the review stops and says it is incomplete.
 
 // awaitingRe reads the claims a prompt's carried state lists as awaiting evidence. Claim texts hold no quote or
@@ -116,7 +116,7 @@ func reviewHoarding(t *testing.T, gen *hoardingPlanner, s markov.Settings) (erro
 	return rerr, readTrace(t, filepath.Join(logs, "trace.jsonl"))
 }
 
-// TestAnOverflowingCarryStopsTheReviewByName proves the property of ADR-0048's carried-state bound: when the open
+// TestAnOverflowingCarryStopsTheReviewByName proves the property of 's carried-state bound: when the open
 // claims no longer fit the carry bound, the earliest claim is not dropped in silence. The review stops with
 // *markov.CarryFullError, the error says the review is incomplete and why, and the trace says so too. Unplug
 // control: with the check removed from ReviewState.Carry, the bound drops the earliest claim, the review ends
@@ -234,7 +234,7 @@ func reviewLong(t *testing.T, gen *longClaimPlanner, carry int) (error, []trace.
 	return rerr, readTrace(t, filepath.Join(logs, "trace.jsonl"))
 }
 
-// TestALongOpenClaimIsCarriedWholeToItsEvidence proves the property of ADR-0048's carried state: a claim awaiting
+// TestALongOpenClaimIsCarriedWholeToItsEvidence proves the property of 's carried state: a claim awaiting
 // evidence is never shortened. The claim is over 400 bytes and names its evidence beyond byte 400; the bound holds it
 // whole; it reaches file 20 intact and becomes a finding. Unplug control: clip awaiting claims again, as decisions
 // and context items are clipped, and file 20 receives the claim cut to "[cut]", the scripted model cannot settle it,

@@ -49,7 +49,6 @@ toolchain is chosen when the case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P01 in `PROVENANCE.md`).
 - reviewer families, as recorded: `gpt-5.6-sol` (through Codex) and `glm-5.2` (through Qwen Code).
 - the original code is private and is not published. Resolution status: settled by a measurement on a provisioned host.
   The change had already merged before both reviews ran, so neither verdict gated anything.

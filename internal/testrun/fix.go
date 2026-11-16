@@ -12,14 +12,14 @@ import (
 
 // Edit is one change the Fixer proposes to a file of the change: the one place
 // where Old stands is replaced by New. A model writes edits, never a command and
-// never a file name outside the checkout (ADR-0042, ADR-0025).
+// never a file name outside the checkout .
 type Edit struct {
 	Path string
 	Old  string
 	New  string
 }
 
-// The labels of the runs that prove a fix (ADR-0042 point 2), in the order they run.
+// The labels of the runs that prove a fix , in the order they run.
 const (
 	RunBase    = "base"
 	RunChange  = "change"
@@ -63,7 +63,7 @@ type FixRun struct {
 	Output   string
 }
 
-// FixRequest asks for the runs that prove one patch (ADR-0042 point 2).
+// FixRequest asks for the runs that prove one patch .
 // Path, Name and Content name the proving test as the Prover recorded it; Content is
 // empty when the test already exists in the trees. Attempt numbers the try, from 1.
 type FixRequest struct {
@@ -102,7 +102,7 @@ func RefuseEdits(changeDir string, edits []Edit, maxBytes int) string {
 
 // planEdits applies the edits in memory, in order, and returns the new text of each
 // file they touch. A later edit to the same file sees the result of an earlier one.
-// The checks come before any byte is written (ADR-0042): a patch that cannot apply
+// The checks come before any byte is written : a patch that cannot apply
 // exactly as written is refused whole, never half applied.
 func planEdits(dir string, edits []Edit, maxBytes int) (map[string]string, string) {
 	if len(edits) == 0 {
@@ -149,7 +149,7 @@ func planEdits(dir string, edits []Edit, maxBytes int) (map[string]string, strin
 
 // refuseEditPath checks the path of one edit before any file is opened.
 // A test file is refused: the fix is proved by the test that showed the problem,
-// so a patch that could rewrite that test would prove nothing (ADR-0042 point 8).
+// so a patch that could rewrite that test would prove nothing .
 func refuseEditPath(p string) string {
 	if p == "" || filepath.IsAbs(p) || pathLeaves(p) {
 		return ReasonEditPath
@@ -242,7 +242,7 @@ func stagePatched(src string, edits []Edit, maxBytes int) (string, error) {
 }
 
 // StagePatchedRoot copies a review root, whose base/ and change/ trees are the two checkouts, into
-// a new directory and applies the edits to the copied change/ only (ADR-0050 point 2): the
+// a new directory and applies the edits to the copied change/ only : the
 // dependency check can then be run again on the patched change without touching the review's own
 // trees. The checks are those of every patch (planEdits), so a refused patch stages nothing.
 // The caller removes the returned directory.
@@ -271,7 +271,7 @@ func StagePatchedRoot(root string, edits []Edit, maxBytes int) (string, error) {
 }
 
 // StagePatched is stagePatched for a caller outside the package: the tool judge runs a tool
-// in a copy of the change with the patch applied (ADR-0050 point 2). The caller removes the
+// in a copy of the change with the patch applied . The caller removes the
 // returned directory.
 func StagePatched(src string, edits []Edit, maxBytes int) (string, error) {
 	return stagePatched(src, edits, maxBytes)
@@ -303,7 +303,7 @@ func resultOf(k runKind) string {
 	}
 }
 
-// RunFix runs the proof of a fix in the container (ADR-0042 point 2): the proving
+// RunFix runs the proof of a fix in the container : the proving
 // test on the base, on the change and on the change with the patch applied, then
 // the package's tests on the patched change. The patch is applied to a scratch copy
 // only, and only the copy is mounted; the review's own trees are never written.
@@ -316,7 +316,7 @@ func (c *Container) RunFix(ctx context.Context, req FixRequest) (FixOutcome, err
 	if err := ctx.Err(); err != nil {
 		return FixOutcome{}, err
 	}
-	// The same checks as Run, before anything is copied or started (ADR-0025).
+	// The same checks as Run, before anything is copied or started .
 	if req.Content != "" {
 		if reason := RefuseWritten(req.Path, req.Content, req.Name, req.BaseDir, req.ChangeDir, c.cfg.MaxWrittenBytes); reason != "" {
 			return FixOutcome{Refused: reason}, nil

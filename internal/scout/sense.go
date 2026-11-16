@@ -398,7 +398,7 @@ func (t Trigger) matches(f ChangedFile) bool {
 
 // globMatch matches a pattern against a slash path, segment by segment, with ** for any number of
 // directories. A pattern with no slash also matches the base name, so go.mod matches a nested go.mod.
-// These are the semantics of Proven's own path rules (ADR-0014), so a pattern reads the same in both.
+// These are the semantics of Proven's own path rules , so a pattern reads the same in both.
 func globMatch(pattern, file string) bool {
 	if matchSegs(strings.Split(pattern, "/"), strings.Split(file, "/")) {
 		return true

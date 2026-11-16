@@ -3,7 +3,7 @@
 // refused, and the page is not written.
 //
 // Run it, or go generate in internal/settingspage, after a setting changes.
-// ADR-0013: every setting and its default are listed in one place.
+// every setting and its default are listed in one place.
 package main
 
 import (

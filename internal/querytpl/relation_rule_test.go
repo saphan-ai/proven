@@ -9,7 +9,7 @@ import (
 )
 
 // TestOneRuleNamesAValidRelation proves the table and view validators of the OSV and EPSS settings
-// give the answer of the one rule in querytpl for every name tried (ADR-0032): there is one rule, so
+// give the answer of the one rule in querytpl for every name tried : there is one rule, so
 // the three cannot part. The mutated field is the name.
 func TestOneRuleNamesAValidRelation(t *testing.T) {
 	for _, name := range []string{

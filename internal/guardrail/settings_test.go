@@ -32,7 +32,7 @@ func TestLoadUsesServerDefaults(t *testing.T) {
 	for k := range seen {
 		switch k {
 		case guardrail.EnvMode, guardrail.EnvBaseURL, guardrail.EnvModel, guardrail.EnvKey, guardrail.EnvTimeout:
-		// ADR-0034: the air-gapped mode is read by every loader that holds an address.
+		// the air-gapped mode is read by every loader that holds an address.
 		case network.EnvNetwork, network.EnvAllow:
 		default:
 			t.Fatalf("Load read %s", k)
@@ -122,7 +122,12 @@ func TestLoadRefusesAZeroTimeout(t *testing.T) {
 // An empty key names the guardrail down. It is not mode off, and it is not a
 // configuration refusal. Mutated field: PROVEN_GUARDRAIL_KEY, set to empty.
 func TestLoadNamesAnEmptyKeyDown(t *testing.T) {
-	_, err := guardrail.Load(func(string) string { return "" })
+	_, err := guardrail.Load(func(k string) string {
+		if k == guardrail.EnvMode {
+			return "nvidia"
+		}
+		return ""
+	})
 	d, ok := service.As(err)
 	if !ok || d.Service != guardrail.Service || !strings.Contains(d.Reason, guardrail.EnvKey) {
 		t.Fatalf("%v", err)

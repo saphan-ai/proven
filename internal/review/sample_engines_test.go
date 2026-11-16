@@ -40,7 +40,7 @@ func sampleBoundedLine(t *testing.T, env map[string]string) string {
 	return lines[0]
 }
 
-// TestSampleReviewRunsMarkovianByDefault proves ADR-0053 for the lab: a sample review (the lab's pull-request
+// TestSampleReviewRunsMarkovianByDefault proves  for recorded reviews: a sample review (the lab's pull-request
 // review is one) has Markovian on when nothing is set. The sample change is below the threshold, so the line
 // says the change is not above it; an engine that was off would say the engine is off. Mutated field:
 // PROVEN_MARKOVIAN, unset against off.
@@ -89,7 +89,7 @@ func TestEngineSwitchesReachTheStoresThroughOpen(t *testing.T) {
 }
 
 // TestSampleReviewRefusesAWrongEngineSwitchByName proves a wrong engine switch stops Open in sample mode,
-// naming the variable, as it does in a live review (ADR-0013). Each row mutates one variable.
+// naming the variable, as it does in a live review . Each row mutates one variable.
 func TestSampleReviewRefusesAWrongEngineSwitchByName(t *testing.T) {
 	for _, name := range []string{"PROVEN_MARKOVIAN", "PROVEN_HMEM", "PROVEN_WORLD_MODEL"} {
 		_, err := review.Open(review.Options{

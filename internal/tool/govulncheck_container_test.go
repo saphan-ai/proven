@@ -14,7 +14,7 @@ import (
 
 // TestGovulncheckRunInTheContainerDoesNotInventReach proves a real run in the
 // Prover's container never labels a Go dependency "imported but not reached"
-// unless govulncheck answered and named that module (ADR-0043).
+// unless govulncheck answered and named that module .
 // Whether the default image contains the binary was not measured here: docker
 // is not a command this leg may run. If the binary is missing, the run is
 // named and the finding stays "not measured". If the binary answers and does
@@ -40,7 +40,7 @@ func TestGovulncheckRunInTheContainerDoesNotInventReach(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "add.go"), []byte(src), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		// ADR-0025: the container runs as a user that does not own these trees.
+		// the container runs as a user that does not own these trees.
 		if err := testrun.MakeReadable(dir); err != nil {
 			t.Fatal(err)
 		}

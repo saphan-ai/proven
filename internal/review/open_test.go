@@ -73,7 +73,7 @@ func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 		t.Fatalf("F2 evidence %#v", f2.Evidence)
 	}
 	q := f2.Evidence[0].Query
-	// ADR-0032: F2's query is the osv-by-package template, which returns the OSV rows of the package.
+	// F2's query is the osv-by-package template, which returns the OSV rows of the package.
 	if q.Engine != "local-sample" || len(q.Rows) != 2 || q.Rows[0][3] != "evil.example/leftpad" {
 		t.Fatalf("F2 query %#v", q)
 	}
@@ -117,7 +117,7 @@ func TestOpenSampleReviewKeepsF1AndF2(t *testing.T) {
 	}
 }
 
-// engineSwitches are the variables of the four Meterless engines that sample mode reads (ADR-0053): the
+// engineSwitches are the variables of the four Meterless engines that sample mode reads : the
 // lab's pull-request review is a sample review, and its engines are on by default and switched off by these.
 var engineSwitches = []string{
 	"PROVEN_MARKOVIAN", "PROVEN_MARKOVIAN_THRESHOLD", "PROVEN_MARKOVIAN_STEP_UNIT", "PROVEN_MARKOVIAN_CARRY_TOKENS",
@@ -135,16 +135,16 @@ func engineSwitch(k string) bool {
 }
 
 // TestSampleReviewDoesNotReadTheEnvironment proves that a sample review reads no environment variable, so
-// it needs no key and reaches no service (ADR-0001).
+// it needs no key and reaches no service .
 func TestSampleReviewDoesNotReadTheEnvironment(t *testing.T) {
 	rev, err := review.Open(review.Options{
 		Sample: true,
 		LogDir: t.TempDir(),
 		Env: func(k string) string {
-			// ADR-0045: the OTEL_* variables are the one family sample mode reads, because the lab's
+			// the OTEL_* variables are the one family sample mode reads, because the lab's
 			// pull-request review is a sample review and the dashboard shows it. They name no key of
 			// Proven's, and a review with none of them set exports nothing.
-			// ADR-0047 point 7: the evidence-record database and link base are read in sample mode too.
+			// the evidence-record database and link base are read in sample mode too.
 			if k != "PROVEN_NETWORK" && k != "PROVEN_NETWORK_ALLOW" && !strings.HasPrefix(k, "OTEL_") && !(k == store.EnvRecordsDB || k == store.EnvEvidenceLink) && !engineSwitch(k) {
 				t.Fatalf("sample mode read %s", k)
 			}
@@ -243,7 +243,7 @@ func TestCancelledContextIsPartial(t *testing.T) {
 	}
 }
 
-// TestLiveModeWithoutRuntimeNamesProverOff proves ADR-0025's fallback: with no container runtime the
+// TestLiveModeWithoutRuntimeNamesProverOff proves 's fallback: with no container runtime the
 // Prover is named off in the failed services, the review still returns, and no finding claims a test
 // that ran.
 func TestLiveModeWithoutRuntimeNamesProverOff(t *testing.T) {
@@ -317,7 +317,7 @@ func TestEmptyLogDirIsRefused(t *testing.T) {
 
 // TestCouchDBIsAccepted proves PROVEN_EVIDENCE_STORE=couchdb opens a review
 // with the CouchDB settings given, builds no Zetaris client, and reads no
-// Zetaris variable (ADR-0047). The mutated field is PROVEN_EVIDENCE_STORE;
+// Zetaris variable . The mutated field is PROVEN_EVIDENCE_STORE;
 // the Zetaris key is left empty, which would be a down Zetaris on that path.
 func TestCouchDBIsAccepted(t *testing.T) {
 	before := query.LiveBuilt()
@@ -342,7 +342,7 @@ func TestCouchDBIsAccepted(t *testing.T) {
 
 // TestCouchDBWrongValueIsRefusedByName proves a CouchDB setting that is set
 // wrongly stops Open before a review and the refusal names the variable and
-// does not print the password (ADR-0013). The mutated field is
+// does not print the password . The mutated field is
 // PROVEN_COUCHDB_URL, then PROVEN_COUCHDB_PASSWORD (too short).
 func TestCouchDBWrongValueIsRefusedByName(t *testing.T) {
 	for field, extra := range map[string]map[string]string{
@@ -362,7 +362,7 @@ func TestCouchDBWrongValueIsRefusedByName(t *testing.T) {
 }
 
 // TestCouchDBEmptyAddressIsADownStore proves an empty CouchDB address does
-// not stop Open: the review names couchdb down (ADR-0013 point 4a). The
+// not stop Open: the review names couchdb down . The
 // mutated field is PROVEN_COUCHDB_URL, left empty.
 func TestCouchDBEmptyAddressIsADownStore(t *testing.T) {
 	_, err := review.Open(review.Options{

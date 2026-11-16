@@ -9,7 +9,7 @@ import (
 )
 
 // TestTraceIsReadableOnlyByItsUser proves the logs directory is created 0700
-// and trace.jsonl 0600 (ADR-0013: Proven's own state is private to its user).
+// and trace.jsonl 0600 .
 func TestTraceIsReadableOnlyByItsUser(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "new", "logs")
 	w, err := trace.Open(dir)

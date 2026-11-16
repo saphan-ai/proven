@@ -9,7 +9,7 @@ import (
 )
 
 // TestStateIsReadableOnlyByItsUser proves the state and log directories this
-// package creates are 0700 and the files in them 0600 (ADR-0013: Proven's own
+// package creates are 0700 and the files in them 0600 (Proven's own
 // state is private to its user).
 func TestStateIsReadableOnlyByItsUser(t *testing.T) {
 	root := t.TempDir()

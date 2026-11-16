@@ -1,0 +1,6 @@
+# Prepare dependencies before the restricted, offline test containers start.
+FROM golang:1.26.10
+WORKDIR /deps
+COPY go.mod go.sum ./
+RUN go mod download
+ENV GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off CGO_ENABLED=0

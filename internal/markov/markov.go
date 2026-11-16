@@ -1,15 +1,15 @@
 // Package markov is Meterless's Markovian engine in Go: long work cut into bounded steps, with only a small
-// carried state passed from one step to the next (ADR-0048).
+// carried state passed from one step to the next .
 //
 // It follows the Markovian specification (Meterless engines/markovian, AGENTS.md): the chunk configuration with
 // its bounds and load-time validation, the marker protocol, the carryover cascade, the two mode prompts, the
 // orchestrator loop with its reflection pass, and the efficiency math of docs/efficiency-model.md. Meterless's own
 // conformance runner checks it through cmd/meterless-conform and test/conformance/meterless/markovian.
 //
-// Proven uses the same engine in two places, and only when its switch is on (ADR-0048 points 1 and 2): a change
+// Proven uses the same engine in two places, and only when its switch is on : a change
 // above the configured size is reviewed one part per step with a carried state (established, suspected, awaiting
 // evidence), and each new attempt of the proved-fix loop carries only what failed and why. The switch is off by
-// default; ADR-0048 point 4 keeps it off until its measurement holds.
+// default;  point 4 keeps it off until its measurement holds.
 //
 // Every token figure here is the reference estimator ceil(chars/4), labelled "estimated": Proven's generator
 // interface returns no provider usage, so nothing is labelled "measured".
@@ -74,7 +74,7 @@ func EstimateTokens(s string) int {
 }
 
 // ConfigError is a refused configuration value. It names the field, the value and what is allowed; a value is
-// never clamped or silently replaced (AGENTS.md section 2.1, ADR-0013).
+// never clamped or silently replaced (AGENTS.md section 2.1, ).
 type ConfigError = service.ConfigError
 
 // Validate refuses a configuration outside the spec's bounds, and one whose step budget cannot hold the framing,

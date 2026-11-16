@@ -15,7 +15,7 @@ import (
 	"github.com/saphan-ai/proven/internal/review"
 )
 
-// exitOK is the exit code of a review that ran (ADR-0020 §2).
+// exitOK is the exit code of a review that ran .
 const exitOK = 0
 
 func emptyEnv(string) string { return "" }

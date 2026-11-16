@@ -116,13 +116,12 @@ const meta = (dir, value) => {
   fs.mkdirSync(path.join(contentDir, dir), { recursive: true });
   fs.writeFileSync(path.join(contentDir, dir, 'meta.json'), `${JSON.stringify(value, null, 2)}\n`);
 };
-const roots = ['index', 'guides', 'reference', 'adr', 'security'];
+const roots = ['index', 'guides', 'reference'];
 if (pages.some((p) => p.slug.startsWith('examples/'))) roots.push('examples');
 meta('.', { pages: roots.filter((r) => r === 'index' || fs.existsSync(path.join(contentDir, r))) });
 meta('guides', { title: 'Guides', pages: ['index', '...'] });
 meta('reference', { title: 'Reference', pages: ['cli', 'settings', 'adapters'] });
 meta('reference/adapters', { title: 'Adapter interfaces', pages: ['index', '...'] });
-meta('adr', { title: 'Decisions', pages: ['index', '...'] });
 if (fs.existsSync(path.join(contentDir, 'security'))) meta('security', { title: 'Security', pages: ['...'] });
 if (fs.existsSync(path.join(contentDir, 'examples'))) meta('examples', { title: 'Examples', pages: ['index', '...'] });
 

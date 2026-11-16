@@ -22,7 +22,7 @@ const (
 	EnvTimeout = "PROVEN_GUARDRAIL_TIMEOUT"
 )
 
-// Modes. The default is server: the guardrail is on.
+// Modes. The default is off until a safety service is configured.
 const (
 	ModeServer = "server"
 	ModeNVIDIA = "nvidia"
@@ -30,8 +30,8 @@ const (
 )
 
 const (
-	// ADR-0005 point 1: the default mode keeps the guardrail on.
-	defaultMode = ModeServer
+	// Safety checks are opt-in.
+	defaultMode = ModeOff
 	// defaultServerBase is the listen address measured for our model server.
 	// 127.0.0.1:8088 is the generator, a different service.
 	defaultServerBase  = "http://127.0.0.1:8081"
@@ -69,7 +69,7 @@ func Environment() []envdoc.Setting {
 			Name:        EnvKey,
 			Default:     "none",
 			Secret:      true,
-			Description: "the guardrail's key. Secret: never printed. Empty is not off: every model call is refused",
+			Description: "the safety service key. Secret: never printed; optional for a self-hosted server, required for NVIDIA",
 		},
 		{
 			Name:        EnvTimeout,
@@ -92,7 +92,7 @@ type Settings struct {
 	Model   string
 	Key     string
 	Timeout time.Duration
-	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	// Network is the air-gapped policy of . Nil means public.
 	Network *network.Policy
 }
 
@@ -103,15 +103,19 @@ func Load(env func(string) string) (Settings, error) {
 		env = func(string) string { return "" }
 	}
 	mode := env(EnvMode)
+	keyValue := env(EnvKey)
 	if mode == "" {
 		mode = defaultMode
+		if keyValue != "" || env(EnvBaseURL) != "" || env(EnvModel) != "" {
+			mode = ModeServer
+		}
 	}
 	switch mode {
 	case ModeServer, ModeNVIDIA, ModeOff:
 	default:
 		return Settings{}, refuse(EnvMode, clip(mode), "not a guardrail mode", "server, nvidia, or off")
 	}
-	// ADR-0034: the air-gapped mode refuses NVIDIA's hosted API by name.
+	// the air-gapped mode refuses NVIDIA's hosted API by name.
 	policy, perr := network.Load(env)
 	if perr != nil {
 		return Settings{}, fromNetwork(perr)
@@ -146,10 +150,10 @@ func Load(env func(string) string) (Settings, error) {
 				return Settings{}, err
 			}
 		}
-		if raw := env(EnvKey); raw != "" {
+		if raw := keyValue; raw != "" {
 			// Mode off drops the key. A broken non-empty key is still refused,
 			// so turning the guardrail back on later does not hide a bad value.
-			// An empty key is not an error here: off is the switch (ADR-0005 point 3).
+			// An empty key is not an error here: off is the switch .
 			if err := refuseBrokenKey(raw); err != nil {
 				return Settings{}, err
 			}
@@ -182,9 +186,14 @@ func Load(env func(string) string) (Settings, error) {
 	if err := checkModel(model); err != nil {
 		return Settings{}, err
 	}
-	key := env(EnvKey)
-	if err := checkKey(key); err != nil {
+	key := keyValue
+	if err := refuseBrokenKey(key); err != nil {
 		return Settings{}, err
+	}
+	if mode == ModeNVIDIA {
+		if err := checkKey(key); err != nil {
+			return Settings{}, err
+		}
 	}
 	return Settings{Mode: mode, BaseURL: base, Model: model, Key: key, Timeout: timeout, Network: policy}, nil
 }
@@ -206,7 +215,7 @@ func refuse(field, value, reason, allowed string) *ConfigError {
 // checkKey refuses a malformed key and names an empty one as down.
 // The error never carries the value: it is a secret. A line break could
 // split the Authorization header, so a non-empty broken key is still a
-// refusal (ADR-0013 point 4a). An empty key is not mode off (ADR-0005 point 5).
+// refusal . An empty key is not mode off .
 func checkKey(key string) error {
 	if err := refuseBrokenKey(key); err != nil {
 		return err

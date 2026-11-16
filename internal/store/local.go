@@ -10,8 +10,8 @@ import (
 	"github.com/saphan-ai/proven/internal/querytpl"
 )
 
-// Local is the one-file store (ADR-0047). It has no server and opens no
-// network (ADR-0034). Tables are written into the file as the CREATE and
+// Local is the one-file store . It has no server and opens no
+// network . Tables are written into the file as the CREATE and
 // INSERT text the sample engine loads, and a query runs on that engine.
 type Local struct {
 	file *query.File
@@ -52,7 +52,7 @@ func (l *Local) Register(ctx context.Context, table Table) error {
 }
 
 // Run builds the sql form and runs it on the file.
-// The mango form is not read: this store speaks SQL (ADR-0047).
+// The mango form is not read: this store speaks SQL .
 func (l *Local) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (Evidence, error) {
 	if l == nil || l.file == nil {
 		return Evidence{}, fmt.Errorf("store: no local store")

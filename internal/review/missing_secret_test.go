@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// TestLiveReviewWithEmptySecretsNamesDownServices proves ADR-0013 point 4a
-// and ADR-0005 point 5 together. With no secret set, a live review of a
+// TestLiveReviewWithEmptySecretsNamesDownServices proves  point 4a
+// and  point 5 together. With no secret set, a live review of a
 // scratch git repository completes, names nightshift, zetaris and the
 // guardrail, and names a tracked symlink it did not copy.
 //
@@ -62,7 +62,7 @@ func TestLiveReviewWithEmptySecretsNamesDownServices(t *testing.T) {
 	}
 }
 
-// TestEmptyGuardrailKeyRefusesEveryModelCall proves ADR-0005 point 5.
+// TestEmptyGuardrailKeyRefusesEveryModelCall proves  point 5.
 // The guardrail key is empty, live mode is on, and every other secret is set.
 // The stub generator counts its calls. The count stays zero, each refusal is
 // a trace line, and the guardrail is in the failed services.
@@ -74,7 +74,7 @@ func TestEmptyGuardrailKeyRefusesEveryModelCall(t *testing.T) {
 	rev, err := Open(Options{
 		Sample:    false,
 		LogDir:    logDir,
-		Env:       liveSecrets(map[string]string{"PROVEN_GUARDRAIL_KEY": ""}),
+		Env:       liveSecrets(map[string]string{"PROVEN_GUARDRAIL_KEY": "", "PROVEN_GUARDRAIL_MODE": "nvidia"}),
 		gen:       gen,
 		liveStore: quietQuery{},
 		testRun:   quietRun{},
@@ -280,8 +280,11 @@ func (g *countGen) Complete(_ context.Context, agent, _ string) (string, error) 
 // values a live query load still requires.
 func emptySecretEnv() func(string) string {
 	set := map[string]string{
-		"ZETARIS_REST_URL": "http://127.0.0.1:9",
-		"ZETARIS_ORG_ID":   "1",
+		"PROVEN_GENERATOR_MODE": "nightshift",
+		"PROVEN_GUARDRAIL_MODE": "nvidia",
+		"PROVEN_EVIDENCE_STORE": "zetaris",
+		"ZETARIS_REST_URL":      "http://127.0.0.1:9",
+		"ZETARIS_ORG_ID":        "1",
 	}
 	return func(k string) string { return set[k] }
 }
@@ -296,6 +299,7 @@ func liveSecrets(extra map[string]string) func(string) string {
 // liveMap is the environment map liveSecrets closes over.
 func liveMap(extra map[string]string) map[string]string {
 	set := map[string]string{
+		"PROVEN_GENERATOR_MODE":   "nightshift",
 		"METERLESS_RUNTIME_TOKEN": "test-token",
 		"PROVEN_GUARDRAIL_KEY":    "guard-test-key",
 		"ZETARIS_REST_URL":        "http://127.0.0.1:9",

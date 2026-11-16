@@ -122,7 +122,7 @@ func TestEachProvedFindingGetsItsFixAttemptsInOrder(t *testing.T) {
 	}
 }
 
-// TestFixesOffAsksNeitherTheModelNorTheRunner proves the setting that turns fixes off (ADR-0042): no
+// TestFixesOffAsksNeitherTheModelNorTheRunner proves the setting that turns fixes off : no
 // model call for a fix, no proof run, no Fix on any finding, with the findings themselves unchanged.
 func TestFixesOffAsksNeitherTheModelNorTheRunner(t *testing.T) {
 	spy, gen := &fixSpy{}, &fixerCounter{}
@@ -171,7 +171,7 @@ func TestADroppedFindingGetsNoFix(t *testing.T) {
 	}
 }
 
-// TestAFixIsNeverWrittenToTheChange proves ADR-0042 point 4: the fix is a suggestion. Every file of the
+// TestAFixIsNeverWrittenToTheChange proves the fix is a suggestion. Every file of the
 // change and base trees is the same after the review as before it.
 func TestAFixIsNeverWrittenToTheChange(t *testing.T) {
 	root := filepath.Join(repoRoot(t), "testdata", "fixture", "fix")
@@ -246,7 +246,7 @@ func (r *fixerRail) Check(_ context.Context, prompt, answer string) (guardrail.V
 	return guardrail.Verdict{User: "safe"}, nil
 }
 
-// TestTheGuardrailCoversTheFixer proves ADR-0005 holds for the Fixer: every model call of the fix step
+// TestTheGuardrailCoversTheFixer proves  holds for the Fixer: every model call of the fix step
 // goes through the guardrail. A prompt it refuses never reaches the model, an answer it refuses is
 // not used, and in both cases the finding shows no fix and no proof is run. Re-wiring the fix step to
 // the unguarded generator makes both cases red. The control is the same review with a guardrail that

@@ -10,9 +10,9 @@ import (
 )
 
 // Zetaris is the evidence store that sends a SELECT over the REST API
-// (ADR-0047, ADR-0015). Behaviour of that call is the live client's.
+// . Behaviour of that call is the live client's.
 // Register does not send a statement: on Zetaris, registering a source is
-// the administrator's act and Proven's key only reads (ADR-0023, point 2).
+// the administrator's act and Proven's key only reads .
 // Proven records the table name so a source has registered it.
 type Zetaris struct {
 	live   *query.Live
@@ -58,7 +58,7 @@ func (z *Zetaris) Register(ctx context.Context, table Table) error {
 }
 
 // Run builds the sql form and sends that SELECT.
-// The mango form is not read: Zetaris speaks SQL (ADR-0047).
+// The mango form is not read: Zetaris speaks SQL .
 func (z *Zetaris) Run(ctx context.Context, req querytpl.Request, rel querytpl.Relations) (Evidence, error) {
 	if z == nil || z.live == nil {
 		return Evidence{}, fmt.Errorf("store: no zetaris store")

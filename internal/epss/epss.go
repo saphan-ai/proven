@@ -1,12 +1,12 @@
 // Package epss attaches one EPSS score to each kept finding that names a CVE.
 // The query is deterministic. It does not ask a model. The seam takes the
-// epss-by-cve request, and the store builds the form (ADR-0032, ADR-0046, ADR-0047).
+// epss-by-cve request, and the store builds the form .
 //
 // It runs after the Judge, on the findings it kept, and before the Writer,
 // which orders findings by their best score (see Best). FIRST EPSS is one of
-// the first evidence sources (ADR-0004), read through the evidence store
-// (ADR-0023, ADR-0047). A score is query evidence like any other: the form
-// that ran and its row go into the review (ADR-0002).
+// the first evidence sources , read through the evidence store
+// . A score is query evidence like any other: the form
+// that ran and its row go into the review .
 package epss
 
 import (
@@ -38,12 +38,12 @@ const (
 func validCVE(s string) bool { return querytpl.ValidCVE(s) }
 
 // ConfigError names a refused EPSS setting and the values that are allowed
-// (ADR-0013). A quote or a control character in the value is escaped, so it
+// . A quote or a control character in the value is escaped, so it
 // cannot break or forge the refusal line.
 type ConfigError = service.ConfigError
 
 // LoadView reads EnvView. An empty value is DefaultView.
-// ADR-0013: a wrong name is refused before the review starts, never replaced
+// a wrong name is refused before the review starts, never replaced
 // by the default.
 func LoadView(env func(string) string) (string, error) {
 	if env == nil {
@@ -66,7 +66,7 @@ func LoadView(env func(string) string) (string, error) {
 // One identifier, or schema.view. Nothing else.
 // The view name is the one part of the score query that is neither a fixed
 // word nor a checked CVE id, so this check is what keeps that query a single
-// SELECT. ADR-0032: the one rule lives in querytpl, which builds the query.
+// SELECT. the one rule lives in querytpl, which builds the query.
 func ValidView(name string) bool {
 	return querytpl.ValidRelation(name)
 }
@@ -125,7 +125,7 @@ func Attach(ctx context.Context, q query.Runner, view, snapshot string, cands []
 			if err := ctx.Err(); err != nil {
 				return cands, notes, err
 			}
-			// ADR-0032, ADR-0046, ADR-0047: the seam takes the epss-by-cve
+			// , , the seam takes the epss-by-cve
 			// request. The store builds the form it speaks.
 			res, err := q.Run(ctx, querytpl.Request{
 				Template: querytpl.EPSSByCVE,
@@ -140,7 +140,7 @@ func Attach(ctx context.Context, q query.Runner, view, snapshot string, cands []
 			}
 			// No row is a trace note, never evidence: a missing score says nothing about
 			// the CVE, so it neither keeps nor drops the finding. The adapter's
-			// rule is that decision (ADR-0046).
+			// rule is that decision .
 			adapter, ok := source.ByID("epss")
 			if !ok {
 				return cands, notes, fmt.Errorf("epss: adapter is not registered")

@@ -243,7 +243,7 @@ func TestAuditIsAppendOnly(t *testing.T) {
 }
 
 // TestGeneratorIsNotCalled proves Add and Query never call the injected
-// model (ADR-0018: no model call inside the engine).
+// model .
 func TestGeneratorIsNotCalled(t *testing.T) {
 	s := openMem(t)
 	g := &boom{}

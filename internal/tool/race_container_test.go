@@ -18,7 +18,7 @@ import (
 
 // TestRaceToolRunInTheContainerProvesTheChange proves a real run of the race
 // detector, in the Prover's locked-down container, is a finding proved by a
-// tool when the change adds a data race and the base has none (ADR-0040).
+// tool when the change adds a data race and the base has none .
 // The recorded command and the tool version are filled.
 // It runs only with PROVEN_TEST_DOCKER=1.
 func TestRaceToolRunInTheContainerProvesTheChange(t *testing.T) {
@@ -33,7 +33,7 @@ func TestRaceToolRunInTheContainerProvesTheChange(t *testing.T) {
 	const (
 		mod = "module demo\n\ngo 1.26\n"
 		// The module imports only the standard library, so the run needs no
-		// network. The container has none (ADR-0025).
+		// network. The container has none .
 		testSrc = "package demo\n\nimport \"testing\"\n\nfunc TestAdd(t *testing.T) {\n\tif got := Add(); got < 1 {\n\t\tt.Fatalf(\"Add() = %d\", got)\n\t}\n}\n"
 		// The receive happens before the second write, so the writes are ordered.
 		baseSrc = "package demo\n\nfunc Add() int {\n\tn := 0\n\tdone := make(chan struct{})\n\tgo func() {\n\t\tn++\n\t\tclose(done)\n\t}()\n\t<-done\n\tn++\n\treturn n\n}\n"
@@ -54,7 +54,7 @@ func TestRaceToolRunInTheContainerProvesTheChange(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(change, "add.go"), []byte(changeSrc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// ADR-0025: the container runs as a user that does not own these trees.
+	// the container runs as a user that does not own these trees.
 	// Without this grant it cannot read the checkout the run mounts.
 	for _, dir := range []string{base, change} {
 		if err := testrun.MakeReadable(dir); err != nil {

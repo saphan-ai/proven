@@ -1,62 +1,43 @@
-# Proven reviews its own pull requests (docs/ACTION.md).
-# pull_request, never pull_request_target: a pull request from a fork runs with
-# no secrets and a read-only token, so this job is skipped for one.
-name: proven
-
+name: checks
 on:
+  push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
-  review:
-    if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
+  go:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0
           persist-credentials: false
-      # The Action at main 9d8e64d: its image is saphan/proven:judging (docs/JUDGING.md), and its comment poster
-      # doubles a backslash in the body (d9813d79), so a review with an escaped version is posted, not refused with 400.
-      - uses: saphan-ai/proven@9d8e64d1f8a3e3ab6b21cbe36ea0d65a6b50a4de # main, Action on :judging
+      - uses: actions/setup-go@v6
         with:
-          strict: false
-          comment: true
-        env:
-          # The reviewer: qwen3.8-flash (owner, 27 Oct, by measurement: the fastest model that
-          # finished a whole review of pull request #1), called through Meterless Nightshift, the
-          # primary AI provider (ADR-0019), which signs a receipt for each call. Where Nightshift is
-          # and the token for it are repository secrets.
-          PROVEN_GENERATOR_MODE: nightshift
-          PROVEN_GENERATOR_BASE_URL: ${{ secrets.PROVEN_GENERATOR_BASE_URL }}
-          PROVEN_GENERATOR_MODEL: openrouter/qwen/qwen3.8-flash
-          PROVEN_SKEPTIC_MODEL: openrouter/qwen/qwen3.8-flash
-          PROVEN_GENERATOR_REQUIRE_NVIDIA: none
-          # Every model on this endpoint reasons before it answers; the budget bounds that
-          # reasoning per call (without it a Prover call ran to the limit).
-          PROVEN_GENERATOR_THINKING_BUDGET: "512"
-          PROVEN_GENERATOR_TIMEOUT: 300s
-          # The Planner reads a long change in bounded steps, each one diff hunk with a little
-          # context, so no single call carries a whole large file (a two-file pull request was
-          # one 43,654-token prompt when the steps were whole files).
-          PROVEN_MARKOVIAN_STEP_UNIT: hunk
-          METERLESS_RUNTIME_TOKEN: ${{ secrets.METERLESS_RUNTIME_TOKEN }}
-          # The security reviewer: another model family, through Nightshift too, so a security change
-          # is judged by two families (doubled_classes: security in proven.yaml). It finished
-          # pull request #1 in about 17 minutes, which only security-class changes pay.
-          PROVEN_SECOND_REVIEWER_BASE_URL: ${{ secrets.PROVEN_GENERATOR_BASE_URL }}
-          PROVEN_SECOND_REVIEWER_MODEL: openrouter/deepseek/deepseek-v4.1-flash
-          PROVEN_SECOND_REVIEWER_KEY: ${{ secrets.METERLESS_RUNTIME_TOKEN }}
-          # The guardrail stays NVIDIA's content-safety model on every prompt and answer.
-          PROVEN_GUARDRAIL_MODE: nvidia
-          PROVEN_GUARDRAIL_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          # Live evidence: the review's queries go to our Zetaris; where it is, its key and the organisation id are
-          # repository secrets.
-          ZETARIS_REST_URL: ${{ secrets.ZETARIS_REST_URL }}
-          ZETARIS_API_KEY: ${{ secrets.ZETARIS_API_KEY }}
-          ZETARIS_ORG_ID: ${{ secrets.ZETARIS_ORG_ID }}
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+      - run: go vet ./...
+      - run: make check-links
+      - run: sh action/test.sh
+      - run: node --test docs-site/scripts/*.test.mjs
+      - run: go build -trimpath ./cmd/proven
+  release-build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: make build-all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proven-binaries
+          path: dist/

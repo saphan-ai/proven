@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestWithAutofixOffTheSampleOutputIsTheOutputBeforeTheAttemptExisted proves ADR-0050 point 6: with the
+// TestWithAutofixOffTheSampleOutputIsTheOutputBeforeTheAttemptExisted proves with the
 // whole-change attempt off, which is the default, the review text of two sample scenarios (one with proposed
 // fixes, one with a dependency finding) is byte for byte the text the base commit printed. The golden files
 // were captured by running `proven scan --sample` on those fixtures at the base commit, before any line of
@@ -34,7 +34,7 @@ func TestWithAutofixOffTheSampleOutputIsTheOutputBeforeTheAttemptExisted(t *test
 
 // TestWithAutofixOnAScenarioWithNoRecordedAttemptPrintsTheSameReview proves a review that turns the attempt
 // on, on a change whose sample records no answer for it, makes no claim: the review text for `osv-go-module`
-// is still the base commit's. (`fix` is not used: with the attempt on, the per-finding suggestions of ADR-0042
+// is still the base commit's. (`fix` is not used: with the attempt on, the per-finding suggestions of
 // are replaced by it, which is the one intended difference.)
 func TestWithAutofixOnAScenarioWithNoRecordedAttemptPrintsTheSameReview(t *testing.T) {
 	cfg := filepath.Join(t.TempDir(), "proven.yaml")

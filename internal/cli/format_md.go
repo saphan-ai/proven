@@ -1,5 +1,5 @@
 // This file writes one review result as a Markdown pull-request comment
-// (ADR-0020 §1, ADR-0027). Where each part sits is the contract in
+// . Where each part sits is the contract in
 // docs/OUTPUT_FORMATS.md.
 
 package cli
@@ -31,7 +31,7 @@ func verdictLine(result review.Result) (head, tail string) {
 	if len(result.Findings) == 0 {
 		if down := mdModelsDown(result); len(down) > 0 {
 			// Some calls answered and later ones did not: the review is incomplete, not
-			// absent. Result.Models holds every model call that answered (ADR-0019).
+			// absent. Result.Models holds every model call that answered .
 			if len(result.Models) > 0 {
 				return "Proven: incomplete", " — " + strings.Join(down, " and ") + " did not answer every call, so 0 findings proves nothing" + mdCountsTail(result)
 			}
@@ -64,8 +64,8 @@ type inlineStyle struct {
 	text, code func(string) string
 	// unbounded lifts the Markdown comment's byte and list bounds (mdMaxMessage,
 	// mdMaxNote, mdMaxTitle, mdMaxNotes), which exist for the platform's size limit
-	// of a comment. A file a judge opens has no such limit and is never cut
-	// (ADR-0033 point 8).
+	// of a comment. A file a reader opens has no such limit and is never cut
+	// .
 	unbounded bool
 }
 
@@ -153,7 +153,7 @@ func checkedIn(st inlineStyle, result review.Result) string {
 
 // mdClassReason says in words why the review chose its class: a path rule names
 // its pattern, the fallback says no rule matched, and an empty rule says nothing.
-// The owner's rule of 27 Oct: no raw field name or value on a page a judge reads.
+// Presentation rule: no raw field name or value on a rendered report.
 func mdClassReason(rule string) string { return classReasonIn(mdStyle, rule) }
 
 // classReasonIn is mdClassReason in a writer's own style.
@@ -182,7 +182,7 @@ var queryEngineNames = map[string]string{
 var queryFormNames = map[string]string{"sql": "SQL", "mango": "a Mango query"}
 
 // querySource says in words what a query ran on: its language, the store and the
-// snapshot. The owner's rule of 27 Oct: no raw adapter name or enum on a page a judge
+// snapshot. Presentation rule: no raw adapter name or enum on a rendered report
 // reads; an unknown store or form keeps its own name.
 func querySource(q *review.QueryEvidence) string {
 	form, ok := queryFormNames[q.Form]
@@ -485,7 +485,7 @@ func mdFixRuns(b *strings.Builder, runs []review.FixRun, lim *mdLimits) {
 // accepted findings and exceptions that expired. Each line is bounded, and a
 // long list of exceptions is cut with its count.
 // mdPeople are the author and reviewer lines, read from the structured fields so
-// a reader sees words, not the review's internal role names (ADR-0037 point 5).
+// a reader sees words, not the review's internal role names .
 func mdPeople(result review.Result) []string { return peopleIn(mdStyle, result) }
 
 // peopleIn is mdPeople in a writer's own style, one sentence a line, each
@@ -522,7 +522,7 @@ func peopleIn(st inlineStyle, result review.Result) []string {
 }
 
 // mdAnswered says which models actually answered the review's calls, read from the provider's signed receipts
-// (ADR-0019), with the number of calls each. A router such as Nightshift may answer with another model than the
+// , with the number of calls each. A router such as Nightshift may answer with another model than the
 // reviewer named above; the comment then says so, so a review is never shown under a model that did not write it.
 // A call whose stream named no routed model is counted as not named, never guessed; with no receipt at all, no line.
 func mdAnswered(result review.Result) string {
@@ -689,7 +689,7 @@ func mdCut(s string, lim *mdLimits) string {
 	return kept + fmt.Sprintf("\n… %d bytes not shown", cut)
 }
 
-// The escaping rule for Markdown output, written once (ADR-0027). A value that
+// The escaping rule for Markdown output, written once . A value that
 // came from the change is never written raw; it goes through exactly one of:
 //
 //   - mdText: prose and table cells. Whitespace runs fold to one space, so a

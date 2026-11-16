@@ -8,7 +8,7 @@ import (
 )
 
 // TestAnEscapedFormOfAValueIsRedactedToo proves that a value written the way %q, %+q and a JSON
-// encoder write it is replaced as well as the raw value (ADR-0005, ADR-0013): an error that quotes
+// encoder write it is replaced as well as the raw value : an error that quotes
 // a key does not carry it past the redactor. Mutated field: only the spelling of the value.
 func TestAnEscapedFormOfAValueIsRedactedToo(t *testing.T) {
 	const secret = "sk-\"quoted\"\\slash\tünï-key"

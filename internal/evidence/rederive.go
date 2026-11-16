@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/saphan-ai/proven/internal/review"
+	review "github.com/saphan-ai/proven/internal/report"
 )
 
 // checkOutcomes re-derives what the pack states about each finding and refuses a pack whose

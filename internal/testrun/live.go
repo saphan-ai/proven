@@ -23,7 +23,7 @@ func (Live) Run(ctx context.Context, req Request) (Outcome, error) {
 	if err := ctx.Err(); err != nil {
 		return Outcome{}, err
 	}
-	// ADR-0025 point 6: with no container the Prover runs no code, and says why.
+	// with no container the Prover runs no code, and says why.
 	return Outcome{}, &service.Down{Service: "prover", Reason: ProverOffReason}
 }
 

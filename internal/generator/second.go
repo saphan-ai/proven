@@ -11,7 +11,7 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// Environment variables of the second reviewer (ADR-0037 point 2). The set is closed. The key is
+// Environment variables of the second reviewer . The set is closed. The key is
 // the switch: with no key there is no second reviewer and the review is as it was.
 const (
 	EnvSecondBaseURL = "PROVEN_SECOND_REVIEWER_BASE_URL"
@@ -54,7 +54,7 @@ type SecondSettings struct {
 	Timeout time.Duration
 	// ThinkingBudget is the generator's own PROVEN_GENERATOR_THINKING_BUDGET; zero sends nothing.
 	ThinkingBudget int
-	// Network is the air-gapped policy of ADR-0034. Nil means public.
+	// Network is the air-gapped policy of . Nil means public.
 	Network *network.Policy
 }
 
@@ -72,7 +72,7 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 || service.TooShortSecret(key) {
 		return SecondSettings{}, false, refuse(EnvSecondKey, "", "not a usable key", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
-	connected := strings.TrimSpace(key) != ""
+	connected := strings.TrimSpace(key) != "" || (env(EnvSecondBaseURL) != "" && env(EnvSecondModel) != "")
 	base := env(EnvSecondBaseURL)
 	if base == "" {
 		if connected {
@@ -84,7 +84,7 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 			return SecondSettings{}, false, err
 		}
 	}
-	// ADR-0034: in the air-gapped mode a second reviewer's address off the organisation's network is
+	// in the air-gapped mode a second reviewer's address off the organisation's network is
 	// refused here, by name, even without a key, so a hosted address cannot wait there to be switched on.
 	policy, err := network.Load(env)
 	if err != nil {

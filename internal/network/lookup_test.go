@@ -30,7 +30,7 @@ func localPolicy(t *testing.T, r *net.Resolver) *network.Policy {
 	return p.WithResolver(r)
 }
 
-// TestLocalNeverQueriesDNSForAPublicName proves ADR-0034 point 1: a name off the allow list is refused
+// TestLocalNeverQueriesDNSForAPublicName proves a name off the allow list is refused
 // before any DNS query, by the lookup and by the dialer alike. The same policy asked for an allowed
 // name does send a query, so the counter can see one.
 // Mutated field: the name check of Lookup; with it removed the public names reach the resolver.

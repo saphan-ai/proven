@@ -2,7 +2,7 @@ package review
 
 import "testing"
 
-// TestFixSettingsDefaultAndOtherValues proves ADR-0042's settings: proposed fixes are on by
+// TestFixSettingsDefaultAndOtherValues proves 's settings: proposed fixes are on by
 // default with two attempts, `fixes: off` turns them off, and fix_attempts takes a number from 1 to 5.
 func TestFixSettingsDefaultAndOtherValues(t *testing.T) {
 	def := defaultSettings()

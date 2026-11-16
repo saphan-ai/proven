@@ -54,7 +54,6 @@ written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P24 in `PROVENANCE.md`).
 - reviewer families, as recorded: `claude-opus-5` (through Claude Code) and `glm-5.2` (through Qwen Code).
 - the original code is private and is not published. Resolution status: settled by the next round, which reproduced the
   finding through a started application and repaired it.

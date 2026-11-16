@@ -33,7 +33,7 @@ func TestLoadRefusesABadSettingAndDoesNotPrintTheKey(t *testing.T) {
 		}
 	})
 	var cfg *query.ConfigError
-	// ADR-0013 point 4: the refusal names the organisation id's variable and withholds its value.
+	// the refusal names the organisation id's variable and withholds its value.
 	if err == nil || !asConfig(err, &cfg) || cfg.Field != query.EnvOrgID || cfg.Value != "" {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func asConfig(err error, target **query.ConfigError) bool {
 	return ok
 }
 
-// TestEmptyURLOrOrgIDMeansZetarisIsDown proves ADR-0013 point 4a for the two
+// TestEmptyURLOrOrgIDMeansZetarisIsDown proves  point 4a for the two
 // Zetaris settings that are not secrets: an empty base URL or an empty
 // organisation id makes Zetaris a down service named by the variable, and a set
 // but wrong value is still refused even when another setting is empty.

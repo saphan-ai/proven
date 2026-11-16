@@ -3,7 +3,9 @@
 // Every agent of the review writes here through the pipeline: the Planner's
 // claims, the Investigator's and the Prover's evidence, the Skeptic's
 // refutations, the Judge's verdicts, each guardrail check and each model call.
-// ADR-0003 and ADR-0018 point 3: the trace the judges read is this stream, not
+//
+//	and the audit trace readers inspect is this stream, not
+//
 // text written beside it, and the world package folds the same lines into
 // the review's state. A line is never rewritten, so the log shows what the
 // agents did in the order they did it.
@@ -30,7 +32,7 @@ import (
 // EventID, the change key and the finding key are optional. Older lines omit them.
 // HasEvidence is set on a refutation the skeptic made of a finding that has proof.
 // ChangeKey, RuleID, Path and Title name the finding across reviews; the
-// world package uses them to remember a refutation in H-MEM (ADR-0006 point 4).
+// world package uses them to remember a refutation in H-MEM .
 type Event struct {
 	EventID     string      `json:"event_id,omitempty"`
 	RunID       string      `json:"run_id"`
@@ -86,7 +88,7 @@ type Check struct {
 }
 
 // Evidence is one piece of proof stored with its finding. Kind says which of
-// Test, Query or Tool is set (ADR-0002: a test or a query; ADR-0040: a tool's run).
+// Test, Query or Tool is set .
 type Evidence struct {
 	Kind  string         `json:"kind"`
 	Test  *TestEvidence  `json:"test,omitempty"`
@@ -94,7 +96,7 @@ type Evidence struct {
 	Tool  *ToolEvidence  `json:"tool,omitempty"`
 }
 
-// ToolEvidence is a deterministic tool's run on both sides (ADR-0040).
+// ToolEvidence is a deterministic tool's run on both sides .
 // The bools are stored even when false, so a result the base already had
 // is visible and not mistaken for a missing field.
 type ToolEvidence struct {
@@ -119,8 +121,8 @@ type TestEvidence struct {
 }
 
 // QueryEvidence is the investigator result, including every column and row,
-// so a judge can read the proof without rerunning the query.
-// Form is the query language that ran (ADR-0047).
+// so a reader can read the proof without rerunning the query.
+// Form is the query language that ran .
 type QueryEvidence struct {
 	SQL      string     `json:"sql"`
 	Form     string     `json:"form,omitempty"`
@@ -157,7 +159,7 @@ type Writer struct {
 }
 
 // SetObserver sets a function Append calls with each event after the event is
-// redacted and written (ADR-0045: the events ride along as span events). The
+// redacted and written . The
 // observer sees what the file holds and never a secret. It must not call
 // Append, and it cannot fail the write.
 func (w *Writer) SetObserver(f func(Event)) {
@@ -219,7 +221,7 @@ func (w *Writer) Append(e Event) error {
 	if w.f == nil {
 		return fmt.Errorf("trace: closed")
 	}
-	// ADR-0005, ADR-0013 point 4: a secret never reaches the trace. The event is redacted before its id is
+	// , a secret never reaches the trace. The event is redacted before its id is
 	// computed, so the id names the text that is written and not the text that was refused.
 	e = redactEvent(e, w.redactor)
 	if e.RunID == "" {
@@ -270,7 +272,7 @@ func (w *Writer) Close() error {
 // eventID is the first 16 hex digits of the sha256 of the event with an empty
 // id, run id and time, so the same claim names the same event in every run and
 // on every replay. The id is not part of its own hash. The world package skips
-// an id it has already applied, which makes its ingest idempotent (ADR-0018 point 5).
+// an id it has already applied, which makes its ingest idempotent .
 func eventID(e Event) string {
 	e.EventID = ""
 	e.RunID = ""

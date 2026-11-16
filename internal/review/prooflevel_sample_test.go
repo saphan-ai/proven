@@ -9,7 +9,7 @@ import (
 
 // TestSampleReviewNamesEachFindingsLevel proves that on the sample review the test-proved finding
 // (F1) is named proved-by-test, the three data-proved findings (F2, F4 and the OSV match) are named
-// proved-by-data, and the totals by level are 1, 0, 3, 0 in the order of strength (ADR-0044).
+// proved-by-data, and the totals by level are 1, 0, 3, 0 in the order of strength .
 // Changing a finding's level in the reviewer turns this test red.
 func TestSampleReviewNamesEachFindingsLevel(t *testing.T) {
 	res, err := openSample(t, t.TempDir()).Review(context.Background(), review.Request{Target: fixturePath(t)})

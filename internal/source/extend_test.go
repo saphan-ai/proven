@@ -40,7 +40,7 @@ func (bannedPackage) Templates() []source.Spec {
 		},
 		// The value sits between quotes. Proven has already held it to the
 		// format above and to the byte floor, so it cannot end the literal
-		// (ADR-0032). The builder may still refuse for its own reasons, and
+		// . The builder may still refuse for its own reasons, and
 		// it refuses with a *querytpl.Refusal. The table name is the
 		// adapter's own, not a review setting.
 		Build: func(params map[string]string, _ source.Rel) (string, error) {
@@ -56,7 +56,7 @@ func (bannedPackage) Templates() []source.Spec {
 func (bannedPackage) Rule(in source.Evidence) (source.Evidence, bool) {
 	// A row means the package is on the banned list. The evidence is the
 	// query and that row. No row means the package is not on the list, and
-	// that is not a finding (ADR-0046).
+	// that is not a finding .
 	if len(in.Rows) == 0 {
 		return source.Evidence{}, false
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 // TestLocalNetworkNeverPullsTheImage proves the run line carries --pull never
-// in every network mode. The flag is unconditional (ADR-0025); local mode does
+// in every network mode. The flag is unconditional ; local mode does
 // not add a second switch.
 // Mutated field: PROVEN_NETWORK.
 func TestLocalNetworkNeverPullsTheImage(t *testing.T) {

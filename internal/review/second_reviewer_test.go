@@ -109,7 +109,7 @@ func verdictOf(f Finding, role string) (ReviewerVerdict, bool) {
 	return ReviewerVerdict{}, false
 }
 
-// TestTwoReviewersThatDisagreeShowBothVerdicts proves ADR-0037 point 4: where the two reviewers
+// TestTwoReviewersThatDisagreeShowBothVerdicts proves where the two reviewers
 // differ on a finding, the result carries each reviewer's own verdict and reason side by side, flags
 // the disagreement and counts it, and averages nothing. Three kinds of difference are present: the
 // second reviewer's own Skeptic refutes a risk both named (B1), only the first named a risk (D1),
@@ -190,7 +190,7 @@ func TestOneReviewerAloneIsUnchanged(t *testing.T) {
 	}
 }
 
-// TestTheResultNamesBothReviewersAndTheAuthorsModel proves ADR-0037 point 5: each reviewer is named
+// TestTheResultNamesBothReviewersAndTheAuthorsModel proves each reviewer is named
 // with its family and whether it is the author's own model, and "unknown" stays unknown when the change
 // names no author.
 func TestTheResultNamesBothReviewersAndTheAuthorsModel(t *testing.T) {
@@ -242,7 +242,7 @@ func TestAFailedSecondReviewerIsNotADisagreement(t *testing.T) {
 	}
 }
 
-// TestASecondReviewerWidensTheDoubledClasses proves ADR-0037 point 3: a connected second reviewer
+// TestASecondReviewerWidensTheDoubledClasses proves a connected second reviewer
 // doubles every class unless proven.yaml names the classes, security is doubled either way, and with
 // none connected the settings are returned untouched.
 // Mutated field: the doubled classes and whether the file named them.
@@ -298,7 +298,7 @@ func TestASecondReviewerReviewsAClassThatWasNotDoubledBefore(t *testing.T) {
 	}
 }
 
-// TestSecondReviewerNeverSeesTheFirstsAnswer proves ADR-0037 point 3: neither reviewer sees the
+// TestSecondReviewerNeverSeesTheFirstsAnswer proves neither reviewer sees the
 // other's answer. The two name the same risk in different words. Every prompt the second reviewer
 // receives must hold its own words and none of the first reviewer's: not its title, its message, its
 // risk id, nor its Skeptic's reason. And the first reviewer's prompts hold none of the second's.
@@ -344,7 +344,7 @@ func TestSecondReviewerNeverSeesTheFirstsAnswer(t *testing.T) {
 	}
 }
 
-// TestTheSecondReviewersKeyNeverAppearsInAnyOutput proves ADR-0037 point 2: a second reviewer whose
+// TestTheSecondReviewersKeyNeverAppearsInAnyOutput proves a second reviewer whose
 // service echoes its key in a risk's message and in a Skeptic's reason does not put the key into the
 // result, the verdicts, or the trace file.
 // Mutated field: the text the second reviewer's service returns.

@@ -1,5 +1,5 @@
-// This file writes one review result as one self-contained HTML file a judge can
-// open (ADR-0033 point 8, ADR-0027). Where each part sits is the contract in
+// This file writes one review result as one self-contained HTML file a reader can
+// open . Where each part sits is the contract in
 // docs/OUTPUT_FORMATS.md.
 
 package cli
@@ -17,7 +17,7 @@ import (
 // take it, so both writers say the same words.
 var htmlStyle = inlineStyle{text: htmlText, code: htmlCode, unbounded: true}
 
-// htmlFormatter writes the review as the page a judge opens in a browser.
+// htmlFormatter writes the review as the page a reader opens in a browser.
 type htmlFormatter struct{}
 
 // Write prints one HTML document, top to bottom: the verdict and the summary
@@ -25,7 +25,7 @@ type htmlFormatter struct{}
 // away until it is opened), the opinions two models agreed on and nobody proved,
 // the notes a reader must not miss, and the one-line foot.
 //
-// WHY the page carries no script, no link element and no address: a judge opens
+// WHY the page carries no script, no link element and no address: a reader opens
 // it from a file or an e-mail, possibly offline, and a page that fetched anything
 // would leak that it was opened and would not render the same twice. The one
 // href it holds is an in-page "#finding-N" anchor Proven makes itself. A value
@@ -291,7 +291,7 @@ func htmlNotes(b *strings.Builder, result review.Result) {
 	b.WriteString("</ul>\n")
 }
 
-// The escaping rule for HTML output, written once (ADR-0027). A value that came
+// The escaping rule for HTML output, written once . A value that came
 // from the change, a model or a service is never written raw; it goes through
 // exactly one of:
 //

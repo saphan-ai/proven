@@ -12,7 +12,7 @@ const (
 	// EnvTimeout is the limit for one side of a tool run, base or change.
 	// Sample mode does not read it. Empty means DefaultTimeout.
 	EnvTimeout = "PROVEN_TOOL_TIMEOUT"
-	// EnvDB is the file URL of the local govulncheck database (ADR-0043).
+	// EnvDB is the file URL of the local govulncheck database .
 	// Sample mode does not read it. Empty means the tool is not run: there is
 	// no network fallback. The URL has to name a path under the checkout mount.
 	EnvDB = "PROVEN_GOVULNCHECK_DB"
@@ -23,12 +23,12 @@ const (
 // not given a longer leash than a test unless a setting says so.
 const DefaultTimeout = 2 * time.Minute
 
-// ConfigError names a refused tool setting and the values that are allowed (ADR-0013).
+// ConfigError names a refused tool setting and the values that are allowed .
 type ConfigError = service.ConfigError
 
 // Load reads EnvTimeout. An empty value is DefaultTimeout.
 // A value that is set and is not a duration greater than zero is refused
-// and is never replaced by the default (ADR-0013).
+// and is never replaced by the default .
 func Load(env func(string) string) (time.Duration, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -51,7 +51,7 @@ func Load(env func(string) string) (time.Duration, error) {
 
 // LoadDB reads EnvDB. An empty value means there is no local database and
 // govulncheck is not run. A value that is set and is not a file URL inside
-// the checkout is refused and is never replaced by a network address (ADR-0013, ADR-0043).
+// the checkout is refused and is never replaced by a network address .
 func LoadDB(env func(string) string) (string, error) {
 	if env == nil {
 		env = func(string) string { return "" }

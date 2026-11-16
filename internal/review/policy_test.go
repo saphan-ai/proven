@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// The tests of ADR-0036: a policy sets the floor of every repository, and an exception accepts a known
+// The tests of a policy sets the floor of every repository, and an exception accepts a known
 // finding only with an owner and an expiry. The sample review of the discount fixture reports four
 // findings; the tests below name two of them by rule and location.
 

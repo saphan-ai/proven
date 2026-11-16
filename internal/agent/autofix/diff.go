@@ -12,7 +12,7 @@ import (
 const contextLines = 3
 
 // Diff renders the patch as a unified diff against the files of the change in changeDir, the
-// form a review comment can publish as suggested changes (ADR-0050 point 4). It reads the files
+// form a review comment can publish as suggested changes . It reads the files
 // by the same checked path as a patch edit and writes nothing. It returns "" when the edits do
 // not apply, which Attempt has already refused before it calls Diff.
 //

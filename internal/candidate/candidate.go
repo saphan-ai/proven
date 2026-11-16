@@ -4,11 +4,11 @@
 // Skeptic fills the Refutation, the Judge sets Dropped, Unresolved and
 // DropReason, and the Writer hands the kept ones to the seam as a Draft.
 // A claim both reviewers reported that the Judge dropped for no evidence is
-// an Opinion on that draft, not a finding (ADR-0041). The Fixer, after the
-// Judge, adds a Fix to a kept finding (ADR-0042). With the whole-change attempt on, one Autofix on the
-// draft records the single patch for every proved finding and the verdict on it (ADR-0050). A dependency finding also
+// an Opinion on that draft, not a finding . The Fixer, after the
+// Judge, adds a Fix to a kept finding . With the whole-change attempt on, one Autofix on the
+// draft records the single patch for every proved finding and the verdict on it . A dependency finding also
 // carries its ecosystem and, after govulncheck, a reachability label
-// (ADR-0043). Each agent only adds its own part, so the trace can show who
+// . Each agent only adds its own part, so the trace can show who
 // said what.
 //
 // The package has no dependency on the seam (internal/review), so the agents
@@ -22,13 +22,13 @@ import "github.com/saphan-ai/proven/internal/querytpl"
 const (
 	KindTest  = "test"
 	KindQuery = "query"
-	// KindTool is a deterministic tool's run compared between base and change (ADR-0040).
+	// KindTool is a deterministic tool's run compared between base and change .
 	KindTool = "tool"
 )
 
 // Risk is one candidate the planner named.
 // A Risk is a claim only: it is never reported until the Judge finds evidence
-// for it (ADR-0002). Severity is INFO, WARNING or ERROR, as on the seam.
+// for it . Severity is INFO, WARNING or ERROR, as on the seam.
 type Risk struct {
 	ID        string
 	RuleID    string
@@ -42,7 +42,7 @@ type Risk struct {
 
 // TestEvidence is a recorded or measured test outcome.
 // It counts as evidence only when FailsOnChange and PassesOnBase are both true:
-// the test shows the change broke something the base did not (ADR-0002).
+// the test shows the change broke something the base did not .
 type TestEvidence struct {
 	Path    string
 	Name    string
@@ -50,13 +50,13 @@ type TestEvidence struct {
 	Output  string
 	// Content is the text of a test file the Prover wrote; empty for a test that
 	// already existed. The Fixer needs it to run the same test again on a patched
-	// change (ADR-0042), and it is not part of what the review shows.
+	// change , and it is not part of what the review shows.
 	Content       string
 	FailsOnChange bool
 	PassesOnBase  bool
 }
 
-// Verdicts of the whole-change fix attempt (ADR-0050 point 3). They are the words a person reads.
+// Verdicts of the whole-change fix attempt . They are the words a person reads.
 const (
 	// AutofixFixed means every proved finding closed on the patched change and every package
 	// the patch touched still passes its tests. A person still decides: nothing was committed.
@@ -66,7 +66,7 @@ const (
 	AutofixRejected = "rejected"
 )
 
-// The kinds of proof a finding is judged by again (ADR-0050 point 2).
+// The kinds of proof a finding is judged by again .
 const (
 	AutofixTest = "test"
 	AutofixData = "data"
@@ -77,7 +77,7 @@ const (
 
 // AutofixProof is one piece of a finding's own evidence, run again on the patched change.
 // Closed is true only when the run happened and the evidence no longer shows the problem;
-// a run that could not happen is never closed (ADR-0050 point 2: no opinion, no silence).
+// a run that could not happen is never closed .
 // Command and Output are what Proven ran and what it printed, so a reader can run it again.
 type AutofixProof struct {
 	Kind    string
@@ -95,9 +95,9 @@ type AutofixFinding struct {
 	Proofs []AutofixProof
 }
 
-// Autofix is the record of the one whole-change fix attempt (ADR-0050). Edits and Diff are
+// Autofix is the record of the one whole-change fix attempt . Edits and Diff are
 // what the generator wrote, kept for the record whatever the verdict. Only a Fixed verdict
-// is a suggestion; a rejected patch is never shown as a fix (ADR-0042 point 3).
+// is a suggestion; a rejected patch is never shown as a fix .
 type Autofix struct {
 	Verdict  string
 	What     string
@@ -122,7 +122,7 @@ const (
 )
 
 // FixEdit is one change of a proposed patch: the one place where Old stands in the
-// file at Path is replaced by New (ADR-0042 point 1).
+// file at Path is replaced by New .
 type FixEdit struct {
 	Path string
 	Old  string
@@ -130,7 +130,7 @@ type FixEdit struct {
 }
 
 // FixRun is one run of the proof of a fix, as the test runner recorded it: the
-// command, how it ended and its exit code, so a reader can run it again (ADR-0042 point 7).
+// command, how it ended and its exit code, so a reader can run it again .
 // Label names the tree the run was made in; ExitCode is -1 when the run had none.
 type FixRun struct {
 	Label    string
@@ -141,7 +141,7 @@ type FixRun struct {
 }
 
 // DependencyFix is the smallest version of a package that leaves the advisory's
-// affected range, with the advisory row that shows it (ADR-0042 point 5).
+// affected range, with the advisory row that shows it .
 type DependencyFix struct {
 	Ecosystem string
 	Package   string
@@ -154,7 +154,7 @@ type DependencyFix struct {
 	AdvisoryRow     []string
 }
 
-// Fix is what the Fixer proposes for one finding (ADR-0042).
+// Fix is what the Fixer proposes for one finding .
 // A Proved patch carries its Edits and the Runs that proved it. A patch that was not
 // proved carries no Edits, because the review does not show it as a fix (point 3):
 // Note says the attempt failed, and Runs hold the last attempt's record.
@@ -175,7 +175,7 @@ type Fix struct {
 
 // QueryEvidence is a query and the rows the engine returned.
 // Form names the query language that ran. Engine and Snapshot say where the
-// rows came from, so a reader can run the same query again (ADR-0023, ADR-0047).
+// rows came from, so a reader can run the same query again .
 //
 // Bound is set by Proven, never by a model: the rows are about the change's own
 // package, version or advisory (the dependency check derives those from the
@@ -194,7 +194,7 @@ type QueryEvidence struct {
 	Bound    bool
 }
 
-// ToolEvidence is a deterministic tool's run on the base and the change (ADR-0040).
+// ToolEvidence is a deterministic tool's run on the base and the change .
 // It counts as evidence only when PresentOnChange is true and PresentOnBase is
 // false: the change produced a result the base did not. A tool that did not
 // run is not this struct; the runner names that tool instead.
@@ -222,7 +222,7 @@ type Evidence struct {
 // A drop needs TestFound with TestFailsOnChange false, or QueryRows that
 // contradict the finding. TestCannotRun or QueryCannotRun means the
 // instrument did not answer.
-// Query is the template and values the Skeptic named (ADR-0032). It holds no
+// Query is the template and values the Skeptic named . It holds no
 // SQL: the pipeline builds the SQL from it, after Proven has checked each value.
 // A request that was refused is cleared, and Reason says why.
 type Refutation struct {
@@ -255,7 +255,7 @@ type Candidate struct {
 	Runs []string
 	// Models names the reviewer models for those runs, in the same order.
 	Models []string
-	// Verdicts holds what each reviewer said about this risk, one per run (ADR-0037 point 4). It is
+	// Verdicts holds what each reviewer said about this risk, one per run . It is
 	// empty when only one reviewer ran. The verdicts are kept side by side and never combined.
 	Verdicts []Verdict
 	// ProverNote is why a written test is not evidence. The pipeline copies it
@@ -263,15 +263,15 @@ type Candidate struct {
 	// written test is evidence.
 	ProverNote string
 	// QueryNote is why the Investigator's answer is not query evidence: a
-	// template that was refused (ADR-0032). The pipeline copies it into the
+	// template that was refused . The pipeline copies it into the
 	// trace. Empty when the Investigator proposed no query, or the query ran.
 	QueryNote string
-	// Fix is the Fixer's proposal for this finding, or nil when it made none (ADR-0042).
+	// Fix is the Fixer's proposal for this finding, or nil when it made none .
 	Fix *Fix
 	// Ecosystem is the OSV ecosystem of a dependency finding, for example "Go".
 	// Empty when the finding did not come from the dependency check.
 	Ecosystem string
-	// ReachLabel is how far the vulnerable function was measured (ADR-0043).
+	// ReachLabel is how far the vulnerable function was measured .
 	// It is ReachReached, ReachImported or ReachNotMeasured, or empty when
 	// the finding is not a dependency finding.
 	ReachLabel string
@@ -280,7 +280,7 @@ type Candidate struct {
 	CallPath string
 }
 
-// How far a dependency finding's vulnerable function was measured (ADR-0043).
+// How far a dependency finding's vulnerable function was measured .
 // A reached function ranks above one that is only present. A finding is never
 // dropped because it was not reached.
 const (
@@ -294,7 +294,7 @@ const (
 	ReachNotMeasured = "not measured"
 )
 
-// The four things one reviewer can say about a risk (ADR-0037 point 4).
+// The four things one reviewer can say about a risk .
 const (
 	// VerdictReported: the reviewer named the risk and its own Skeptic did not claim to refute it.
 	VerdictReported = "reported"
@@ -324,7 +324,7 @@ type Failure struct {
 }
 
 // ModelUse is one generator call, as the receipt named it.
-// The model is never guessed: without a receipt it stays "unknown" (ADR-0019).
+// The model is never guessed: without a receipt it stays "unknown" .
 type ModelUse struct {
 	Agent       string
 	Route       string // winning_route.provider when the stream named it; else ""
@@ -336,7 +336,7 @@ type ModelUse struct {
 }
 
 // Opinion is a claim both reviewers reported at one place that no evidence
-// proves (ADR-0041). It is not a finding: the Writer lifts it out of the
+// proves . It is not a finding: the Writer lifts it out of the
 // candidates the Judge dropped, and the totals do not count it.
 type Opinion struct {
 	ID        string
@@ -363,13 +363,13 @@ type Draft struct {
 	SkippedPaths []string
 	// GuardrailStatement is set when the review ran with the guardrail
 	// switched off, so the result says so and not only the trace
-	// (ADR-0005). Empty when the guardrail was on.
+	// . Empty when the guardrail was on.
 	GuardrailStatement string
-	// Guardrail counts the guardrail's checks in this review (ADR-0005). The
+	// Guardrail counts the guardrail's checks in this review . The
 	// zero value means no check was made.
 	Guardrail GuardrailCount
 	// Autofix is the record of the whole-change fix attempt, or nil when none was made:
-	// the setting is off, or no finding was proved (ADR-0050).
+	// the setting is off, or no finding was proved .
 	Autofix *Autofix
 }
 

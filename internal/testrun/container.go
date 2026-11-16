@@ -27,7 +27,7 @@ import (
 // --pull never stops a missing image from being pulled on the host before
 // the container starts; the run then fails and Run reports the Prover down.
 
-// The documented defaults of the container settings (ADR-0013, ADR-0025
+// The documented defaults of the container settings (,
 // point 5). CheckoutDir is where the one checkout is mounted inside.
 // A tool database has to be a path under it: the container has no other
 // volume and no network.
@@ -36,11 +36,11 @@ const (
 	defaultImage   = "golang:1.26"
 	defaultCPUs    = "1"
 	defaultMemory  = "512m"
-	// CheckoutDir is the checkout mount inside the container (ADR-0025).
+	// CheckoutDir is the checkout mount inside the container .
 	CheckoutDir = "/checkout"
 
 	// defaultUser is "nobody" and its group, a fixed unprivileged identity that
-	// exists in common images and owns nothing in the checkout (ADR-0025).
+	// exists in common images and owns nothing in the checkout .
 	defaultUser = "65534:65534"
 	// defaultPids bounds the processes of one container, so a runaway test
 	// cannot exhaust the host's process table.
@@ -53,7 +53,7 @@ const (
 
 	// maxPidsLimit and maxTmpBytes are the upper bounds of the PidsLimit and
 	// TmpSize settings, so no setting can turn a bound into a practically open
-	// one (ADR-0025 point 5). The scratch bound is 1 GiB per mount.
+	// one . The scratch bound is 1 GiB per mount.
 	maxPidsLimit = 4096
 	maxTmpBytes  = 1 << 30
 )
@@ -68,13 +68,13 @@ var scratchDirs = []string{"/tmp"}
 // a secret. They put the home and the Go build cache on scratch, because the
 // root is read-only and the image's own home for the unprivileged user (for the
 // default image, a path that does not exist) is not writable. This amends the
-// "no -e" contract of ADR-0025 point 3: no secret and no inherited value is
+// "no -e" contract of no secret and no inherited value is
 // passed; these two fixed values are.
 var containerEnv = []string{"HOME=/tmp", "GOCACHE=/tmp/go-build"}
 
 // runtimeEnvNames are the variables, beyond PATH and HOME, the runtime process
 // may inherit. They only say where the container daemon is; none holds a
-// credential (ADR-0025).
+// credential .
 var runtimeEnvNames = []string{"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "XDG_RUNTIME_DIR"}
 
 // defaultTimeout is the default limit for one side of a test run.
@@ -89,7 +89,7 @@ const (
 	cleanupBound  = 2 * time.Second
 )
 
-// ContainerConfig holds the container's settings (ADR-0025 point 5). There is no
+// ContainerConfig holds the container's settings . There is no
 // field that gives the container a network, an environment variable or a mount
 // beyond the one checkout.
 type ContainerConfig struct {
@@ -129,7 +129,7 @@ func DefaultContainerConfig() ContainerConfig {
 	}
 }
 
-// Validate refuses a setting by name with the allowed values (ADR-0013).
+// Validate refuses a setting by name with the allowed values .
 func (c ContainerConfig) Validate() error {
 	// Runtime and image become argv words; a leading dash would read as a flag.
 	if !validToken(c.Runtime) {
@@ -177,7 +177,7 @@ func (c ContainerConfig) Validate() error {
 		}
 	}
 	// A setting must not be able to hand the test root, lift the process bound
-	// or make the scratch unbounded (ADR-0025).
+	// or make the scratch unbounded .
 	if !validUser(c.User) {
 		return &ConfigError{
 			Field: "User", Value: c.User,
@@ -269,7 +269,7 @@ func validMemory(s string) bool {
 
 // Container is the live test-run adapter. It runs each side of a test in a
 // fresh container with no network, a fixed non-secret environment, an unprivileged user, a
-// read-only root and one read-only checkout (ADR-0025 points 1 to 4). review.Open builds it from Load.
+// read-only root and one read-only checkout . review.Open builds it from Load.
 type Container struct {
 	runtime string
 	cfg     ContainerConfig
@@ -279,7 +279,7 @@ type Container struct {
 
 // NewContainer resolves the runtime with lookPath. A nil lookPath uses
 // exec.LookPath. When no runtime is found it returns a *service.Down naming
-// the service "prover" (ADR-0025 point 6), and the caller runs no code.
+// the service "prover" , and the caller runs no code.
 func NewContainer(cfg ContainerConfig, lookPath func(string) (string, error)) (*Container, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -307,7 +307,7 @@ func NewContainer(cfg ContainerConfig, lookPath func(string) (string, error)) (*
 }
 
 // Off runs no code. Reason is why the Prover is off. review.Open uses it when
-// NewContainer reports the runtime missing (ADR-0025 point 6).
+// NewContainer reports the runtime missing .
 type Off struct{ Reason string }
 
 // Run reports the Prover down and starts nothing.
@@ -343,7 +343,7 @@ func (c *Container) Argv(dir string, test []string) []string {
 }
 
 // How one RunCommand ended. A timeout or a side that did not run is not a
-// result of the command (ADR-0040: a tool that runs out of time is named).
+// result of the command .
 const (
 	CommandPass      = "pass"
 	CommandFail      = "fail"
@@ -359,7 +359,7 @@ type CommandResult struct {
 }
 
 // WithTimeout returns a copy whose limit for one side is d.
-// ADR-0040: a tool's limit is its own setting and does not change the test
+// a tool's limit is its own setting and does not change the test
 // runner that shares this container. A non-positive d is refused: a zero
 // limit would make every run look timed out.
 func (c *Container) WithTimeout(d time.Duration) (*Container, error) {
@@ -380,9 +380,9 @@ func (c *Container) WithTimeout(d time.Duration) (*Container, error) {
 }
 
 // RunCommand runs argv inside the locked-down container, with dir as the one
-// checkout. argv is the words after the image. There is no shell (ADR-0025).
+// checkout. argv is the words after the image. There is no shell .
 // A cancelled review returns the context error. A timeout is a result, not an
-// error: the caller names it and does not treat it as a clean run (ADR-0040).
+// error: the caller names it and does not treat it as a clean run .
 // An absent image is the Prover down.
 func (c *Container) RunCommand(ctx context.Context, dir string, argv []string) (CommandResult, error) {
 	if c == nil || c.runtime == "" {
@@ -397,7 +397,7 @@ func (c *Container) RunCommand(ctx context.Context, dir string, argv []string) (
 	if dir == "" {
 		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout directory is required"}, nil
 	}
-	// ADR-0025: a checkout that is a link is not a mount source.
+	// a checkout that is a link is not a mount source.
 	if info, err := os.Lstat(filepath.Clean(dir)); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return CommandResult{Status: CommandNotRun, Output: "the command could not run: a checkout is a symbolic link and is not mounted"}, nil
 	}
@@ -427,7 +427,7 @@ func commandStatus(k runKind) string {
 	}
 }
 
-// argv builds the run line. Each flag below carries out ADR-0025: --rm and
+// argv builds the run line. Each flag below carries out --rm and
 // --network none, CPU and memory limits from the settings, and the checkout
 // mounted read-only as the only volume. The only -e flags are the fixed,
 // non-secret values of containerEnv; nothing of Proven's environment is passed.
@@ -450,7 +450,7 @@ func (c *Container) argv(dir string, test []string, name string) []string {
 	args = append(args, "--rm")
 	args = append(args,
 		"--network", "none",
-		// ADR-0025: the review never fetches an image at test time. An absent image is the
+		// the review never fetches an image at test time. An absent image is the
 		// Prover down, and Run names the pull the owner does by hand.
 		"--pull", "never",
 		"--cpus", c.cfg.CPUs,
@@ -477,7 +477,7 @@ func (c *Container) argv(dir string, test []string, name string) []string {
 		"--workdir", CheckoutDir,
 		c.cfg.Image,
 	)
-	// ADR-0025: the words after the image are the test command Proven built.
+	// the words after the image are the test command Proven built.
 	// They stay separate argv words and no shell reads them.
 	return append(args, test...)
 }
@@ -516,7 +516,7 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 			return out, nil
 		}
 	}
-	// ADR-0025: Proven builds the command from the test's file and name. A name
+	// Proven builds the command from the test's file and name. A name
 	// or path that fails the checks gets no command, so no container is started.
 	test, reason := TestArgv(req.Path, req.Name)
 	if reason != "" {
@@ -524,7 +524,7 @@ func (c *Container) Run(ctx context.Context, req Request) (Outcome, error) {
 		return out, nil
 	}
 	out.Command = displayCommand(test)
-	// ADR-0025: a checkout that is a link is not a mount source. The runtime would follow it to
+	// a checkout that is a link is not a mount source. The runtime would follow it to
 	// whatever it names, which is not the tree that was prepared.
 	if linkedCheckout(req.BaseDir, req.ChangeDir) {
 		out.Output = "the test could not run: a checkout is a symbolic link and is not mounted"
@@ -590,7 +590,7 @@ func linkedCheckout(dirs ...string) bool {
 // absentImage turns a run the runtime refused for lack of the image into the Prover down, with the
 // pull as its next act, the way Probe does. It returns nil for any other outcome. Docker says
 // "Unable to find image" and podman says "image not known"; --pull never makes both refuse
-// instead of fetching (ADR-0025).
+// instead of fetching .
 func (c *Container) absentImage(text string, kind runKind) error {
 	if kind != kindNotRun {
 		return nil
@@ -616,7 +616,7 @@ func (c *Container) side(ctx context.Context, dir string, test []string) (string
 const noExit = -1
 
 // sideExit is side with the exit code of the command, which a fix's record keeps
-// so a reader can compare it with a run of their own (ADR-0042 point 7).
+// so a reader can compare it with a run of their own .
 func (c *Container) sideExit(ctx context.Context, dir string, test []string) (string, runKind, int) {
 	if err := ctx.Err(); err != nil {
 		return "", kindCancelled, noExit
@@ -646,7 +646,7 @@ func (c *Container) sideExit(ctx context.Context, dir string, test []string) (st
 		if !proof {
 			return text, kindPass, 0
 		}
-		// ADR-0042: exit code 0 is not enough; the output must show the test ran and passed.
+		// exit code 0 is not enough; the output must show the test ran and passed.
 		shown, passed := judgeProof(test, text)
 		if !passed {
 			return shown, kindNotRun, 0
@@ -727,7 +727,7 @@ func commandOutput(ctx context.Context, argv []string) (string, error) {
 	}
 	// argv carries only the fixed -e values of containerEnv, so the container
 	// does not receive the process environment. The runtime process gets an explicit minimal one
-	// too (ADR-0025): PATH, HOME and the names that locate its daemon, never
+	// too : PATH, HOME and the names that locate its daemon, never
 	// a key, because its output can reach the trace.
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Env = childenv.Minimal(runtimeEnvNames...)

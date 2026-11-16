@@ -8,7 +8,7 @@
 # is broken, names something internal, or is out of date with the code (the
 # guards in docs-site/scripts/guards.mjs).
 
-# The default matches GOLANG_IMAGE in lab/versions.env: the module's Go version.
+# Build documentation with the module's supported Go version.
 ARG GOLANG_IMAGE=golang:1.26.10
 ARG NODE_IMAGE=node:22-alpine
 
@@ -34,11 +34,8 @@ RUN npm ci --ignore-scripts
 FROM ${NODE_IMAGE} AS build
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /repo
-# The whole repository, not only docs/: a page links to files across it (ADRs to
-# hackathon/, docs to lab/ and test/), and the link guard can only tell a real
-# file from a broken link when the file is here. docs-site/Dockerfile.dockerignore
-# replaces the root .dockerignore for this build, so those directories are in the
-# context; build output and secrets stay out.
+# The link guard checks source and example files as well as documentation.
+# Build output, VCS state and secrets are excluded by Dockerfile.dockerignore.
 RUN --mount=type=bind,target=/ctx \
     cd /ctx && tar --exclude=./docs-site -cf - . | tar -xf - -C /repo
 COPY --from=deps /repo/docs-site/node_modules ./docs-site/node_modules

@@ -50,7 +50,6 @@ case code is written, pinned, and recorded in §8.
 
 ## 3. Provenance
 
-- source: a pair of concurrent reviews in the fleet's private record, September 2026 (pair P28 in `PROVENANCE.md`).
 - reviewer families, as recorded: `gpt-5.6-sol` (through Codex) and `claude-opus-5` (through Claude Code).
 - the original code is private and is not published. Resolution status: settled by a measurement of the orchestrating
   agent and the next round, which treated the finding as blocking; the work was accepted and merged rounds later.

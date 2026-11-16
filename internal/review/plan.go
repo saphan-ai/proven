@@ -1,9 +1,9 @@
 package review
 
-// This file chooses each review's plan before the agents run (ADR-0049). Scout Intent classifies the
-// change; the class picks a plan inside the review classes of ADR-0014 (which agents, tools and sources
+// This file chooses each review's plan before the agents run . Scout Intent classifies the
+// change; the class picks a plan inside the review classes of  (which agents, tools and sources
 // run, and whether the review is doubled); and the floor keeps the plan from going below the class the
-// configured rules choose. The mapping from kind to plan is a setting (ADR-0013), checked on load.
+// configured rules choose. The mapping from kind to plan is a setting , checked on load.
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ const classConfigured = "configured"
 
 // planSetting is one kind's plan as proven.yaml states it. Class is a review class, or classConfigured.
 // DoubledOn doubles the review whatever its class; without it the class's own doubling applies. There
-// is no "doubled off": a plan never undoes a doubling the configuration asks for (ADR-0049 point 3).
+// is no "doubled off": a plan never undoes a doubling the configuration asks for .
 type planSetting struct {
 	Class     string
 	Agents    []string
@@ -30,7 +30,7 @@ type planSetting struct {
 	DoubledOn bool
 }
 
-// defaultPlans are ADR-0049 point 2's plans: a dependency-only change runs the dependency evidence
+// defaultPlans are  point 2's plans: a dependency-only change runs the dependency evidence
 // without the Prover (or the Fixer, which needs a test the Prover wrote), a security-sensitive change is
 // doubled, and a documentation-only change runs no model, no tool and no source. Every other kind runs
 // in full in the class its rules chose.
@@ -51,7 +51,7 @@ func defaultPlans() map[string]planSetting {
 	}
 }
 
-// classSecurity is the review class whose execution obligations no plan may cut (ADR-0049 point 3).
+// classSecurity is the review class whose execution obligations no plan may cut .
 const (
 	classSecurity = "security"
 	classDocs     = "docs"
@@ -113,7 +113,7 @@ func parsePlanSetting(key, val string) (planSetting, error) {
 		case "sources":
 			ps.Sources, err = planList(v, pipeline.PlanSources)
 		case "doubled":
-			// ADR-0049 point 3: "off" is not offered, because a plan may only add a second review.
+			// "off" is not offered, because a plan may only add a second review.
 			switch v {
 			case "class":
 			case "on":
@@ -158,8 +158,8 @@ func planList(v string, allowed []string) ([]string, error) {
 	return out, nil
 }
 
-// floorClass is the class no plan may go below (ADR-0049 point 3), and the rule that set it. Today it is
-// the class the configured path rules choose (ADR-0014). The organisation policy of ADR-0036 is not in
+// floorClass is the class no plan may go below , and the rule that set it. Today it is
+// the class the configured path rules choose . The organisation policy of  is not in
 // this build; when it lands, its minimum class is passed as policy and the higher of the two is the floor.
 func floorClass(files []string, cfg fileSettings, policy string) (string, string) {
 	class, rule := chooseClass(files, cfg.PathRules, cfg.ClassOrder, cfg.Fallback)
@@ -220,14 +220,14 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 			head += "; a security signal outranks the top class " + d.Intent
 		}
 	case d.Ambiguity.Ambiguous || d.Clarification != nil || d.Band != scout.BandHigh:
-		// ADR-0049: an ambiguous change is never planned as a confident class.
+		// an ambiguous change is never planned as a confident class.
 		return full(head + "; ambiguous, so no plan is chosen"), nil
 	}
-	// ADR-0049: the documentation plan runs no model, so it is chosen only for files known to be prose.
+	// the documentation plan runs no model, so it is chosen only for files known to be prose.
 	// Scout reads names, and a name proves nothing: docs/run.go, a script under docs/ or an executable
 	// file with a prose-like suffix would be reviewed by no model at all. A change that is not verified
 	// prose runs the configured class in full.
-	// ADR-0053: Scout reads names, so a lighter answer is only believed for a change it can be checked
+	// Scout reads names, so a lighter answer is only believed for a change it can be checked
 	// against. A file that is not verified prose, answered as docs, is code or an unreadable name that Scout
 	// could not place (a name in another language, code under docs/). The change is raised to security and
 	// doubled; the class only ever goes up, never down.
@@ -249,12 +249,12 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 	if class == classConfigured {
 		class = floor
 	}
-	// ADR-0049 point 3: the configured class is the minimum. A plan whose class ranks below it is not
+	// the configured class is the minimum. A plan whose class ranks below it is not
 	// used at all, because its cuts were chosen for a lower class than the rules give this change.
 	if classRank(cfg.ClassOrder, class) > classRank(cfg.ClassOrder, floor) {
 		return full(head + "; the configured class " + floor + " outranks the plan's class " + class), nil
 	}
-	// ADR-0049 point 3: the floor keeps its execution obligations, not only its rank. A security-floored
+	// the floor keeps its execution obligations, not only its rank. A security-floored
 	// change runs every agent, tool and source whatever plan the kind proposes: a class label that stays
 	// "security" while the Prover is cut is a weaker review under a name that claims the stronger one.
 	if floor == classSecurity && cutsWork(ps) {
@@ -274,7 +274,9 @@ func choosePlan(cfg fileSettings, req Request, files []string) (reviewPlan, erro
 }
 
 // raised returns the full plan for a change Scout answered with a lighter kind than its files support.
-// ADR-0053 (the Scout guard): Scout may lighten a review only for a change that is verifiably prose or
+//
+//	(the Scout guard): Scout may lighten a review only for a change that is verifiably prose or
+//
 // verifiably a dependency manifest. For any other change it can have been misled by a name, so the class
 // is raised to security, with every agent and its doubled review, unless the configured floor already ranks
 // at least as high. WHY security and not the rules' class: the rules read the same names Scout did, and a
@@ -299,7 +301,7 @@ var manifestNames = set([]string{
 	"Gemfile", "Gemfile.lock", "composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts",
 })
 
-// notManifestOnly returns why a change Scout called a dependency change is not verifiably one. ADR-0053:
+// notManifestOnly returns why a change Scout called a dependency change is not verifiably one.
 // Scout scores both paths of a rename, so a manifest renamed to a source file (or the reverse) can still
 // be answered as a dependency change. Every path of every file, the old path and the new, must therefore
 // be a name in manifestNames and lie outside any vendor directory, which is vendored code a review must
@@ -363,7 +365,7 @@ func parseProseSuffixes(val string) ([]string, error) {
 		if !ok {
 			return nil, configRefused("prose_suffixes", p, "not a file suffix", allowedProseSuffixes)
 		}
-		// ADR-0049: the list says what is inert, and a source, script, build or template suffix is never
+		// the list says what is inert, and a source, script, build or template suffix is never
 		// inert. Accepting one would let a file the model must read skip every model call.
 		if builtSuffixes[low] {
 			return nil, configRefused("prose_suffixes", p, "a source, script, build or template suffix is never prose", allowedProseSuffixes)

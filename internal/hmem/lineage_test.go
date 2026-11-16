@@ -36,7 +36,7 @@ func dreamedPair(t *testing.T, s *hmem.Store) (hmem.Proposal, []string) {
 // review of 9154bbe: two related plain records are dreamed into a proposal,
 // 40 days pass, sleep runs, and the proposal is approved. Sleep must not
 // archive the sources while the proposal is pending, and the approved record's
-// derivedFrom must name records that are live (ADR-0018 point 3: no lineage
+// derivedFrom must name records that are live (no lineage
 // that points at nothing).
 func TestSleepKeepsTheSourcesOfAPendingProposalUntilApproval(t *testing.T) {
 	now := fixed

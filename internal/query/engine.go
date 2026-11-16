@@ -1,12 +1,12 @@
 // Package query runs the SQL Proven builds. It holds the Adapter interface
-// and the stores behind it (ADR-0047). Live sends a SELECT to Zetaris over
-// REST (ADR-0015). The local store is one file of tables and no server; it
+// and the stores behind it . Live sends a SELECT to Zetaris over
+// REST . The local store is one file of tables and no server; it
 // runs that SQL on the small engine sample mode already uses, so it needs
-// no network (ADR-0034). Sample opens that file on a fixture (ADR-0002,
+// no network . Sample opens that file on a fixture (,
 // point 4). The EPSS and OSV steps of the pipeline query through the same
 // Adapter. The Judge keeps the query, the form that ran, and its rows as
 // evidence. No SQL a model wrote reaches an Adapter: Proven builds every
-// query from a template (ADR-0032, internal/querytpl), and Live checks the
+// query from a template , and Live checks the
 // text once more before it sends it.
 package query
 
@@ -677,7 +677,7 @@ func isIdent(b byte) bool {
 
 // NoTableError says a statement named a table the loaded file does not hold.
 // It keeps the text the engine always gave, and it is a type so the local
-// store can tell a missing table from a bad statement (ADR-0047).
+// store can tell a missing table from a bad statement .
 type NoTableError struct {
 	Name string
 }

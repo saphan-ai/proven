@@ -7,7 +7,7 @@ import (
 )
 
 // Absent is a generator that does not dial.
-// Complete names the provider down. ADR-0013 point 4a: an empty token or key
+// Complete names the provider down.  point 4a: an empty token or key
 // is this, not a refused configuration and not a call.
 type Absent struct {
 	// Service names the provider that is down; empty means nightshift.
