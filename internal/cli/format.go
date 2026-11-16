@@ -122,6 +122,16 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			}
 		}
 	}
+	for _, h := range result.UnresolvedHypotheses {
+		if _, err := fmt.Fprintf(w, "unresolved hypothesis (%s planner, after step %d): %s\n", visible(h.Reviewer), h.AfterStep, visible(h.Description)); err != nil {
+			return err
+		}
+	}
+	if len(result.UnresolvedHypotheses) > 0 {
+		if _, err := fmt.Fprintln(w, "review incomplete: planning hypotheses still await evidence"); err != nil {
+			return err
+		}
+	}
 	if result.Partial {
 		if _, err := fmt.Fprintln(w, "review partial: the deadline was reached"); err != nil {
 			return err

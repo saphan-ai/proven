@@ -93,7 +93,7 @@ func sarifFrom(result review.Result) sarifLog {
 	// A nil slice would marshal as null, and the contract says [].
 	// The lines the text output prints beside the findings ride in the run's
 	// properties too, so a SARIF-only consumer loses none of them.
-	return sarifLog{
+	log := sarifLog{
 		Schema:  sarifSchemaURI,
 		Version: "2.1.0",
 		Runs: []sarifRun{{
@@ -117,6 +117,11 @@ func sarifFrom(result review.Result) sarifLog {
 			},
 		}},
 	}
+	if len(result.UnresolvedHypotheses) > 0 {
+		log.Runs[0].Properties["unresolved_hypotheses"] = append([]review.UnresolvedHypothesis(nil), result.UnresolvedHypotheses...)
+		log.Runs[0].Properties["completion_status"] = result.CompletionStatus()
+	}
+	return log
 }
 
 func sarifResultFrom(finding review.Finding) sarifResult {

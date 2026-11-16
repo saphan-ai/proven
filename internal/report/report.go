@@ -4,6 +4,7 @@ package report
 import (
 	"errors"
 	"github.com/saphan-ai/proven/internal/agent/judge"
+	"github.com/saphan-ai/proven/internal/candidate"
 )
 
 // Severity is INFO, WARNING or ERROR (SARIF note, warning, error).
@@ -18,7 +19,9 @@ const (
 
 // Result is what a review produced.
 type Result struct {
-	Findings []Finding // only findings with evidence (ADR-0002); unresolved ones are marked and counted
+	// UnresolvedHypotheses are coverage gaps, separate from evidenced findings.
+	UnresolvedHypotheses []UnresolvedHypothesis `json:",omitempty"`
+	Findings             []Finding              // only findings with evidence (ADR-0002); unresolved ones are marked and counted
 	// ProofCounts counts Findings by ProofLevel . Every level is a key, with 0
 	// when none; the counts add up to len(Findings). Opinions are not counted .
 	// Findings, unresolved ones included, keep their meaning.
@@ -66,6 +69,8 @@ type Result struct {
 	// byte-identical to one made before the field existed.
 	Autofix *Autofix `json:",omitempty"`
 }
+
+type UnresolvedHypothesis = candidate.UnresolvedHypothesis
 
 // The roles a reviewer takes in a review. The special role is the second reviewer of .
 const (

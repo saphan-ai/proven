@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"os"
@@ -19,6 +20,32 @@ import (
 )
 
 const secretMarker = "SECRET-MARKER-9f3a1c77d2"
+
+func TestPackPreservesUnresolvedPlanningGapsApartFromProof(t *testing.T) {
+	in, pub := sampleInput(t)
+	in.Result.UnresolvedHypotheses = []review.UnresolvedHypothesis{{Reviewer: "special", AfterStep: 33, Description: "needs evidence " + secretMarker}}
+	pack, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Verify(pack, pub); err != nil {
+		t.Fatal(err)
+	}
+	files, err := readArchive(pack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result review.Result
+	if err := json.Unmarshal(files[FindingsName], &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.CompletionStatus() != "incomplete" || len(result.Findings) != 1 || len(result.UnresolvedHypotheses) != 1 || result.UnresolvedHypotheses[0].Reviewer != "special" {
+		t.Fatalf("%#v", result)
+	}
+	if strings.Contains(string(files[FindingsName]), secretMarker) {
+		t.Fatal("secret in packed hypothesis")
+	}
+}
 
 // sampleInput is a review result with a test, a query and a receipted model,
 // and a trace that holds the matching model event.

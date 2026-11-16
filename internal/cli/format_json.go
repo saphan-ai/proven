@@ -23,25 +23,25 @@ func (jsonFormatter) Write(w io.Writer, result review.Result) error {
 // The names are the contract in docs/OUTPUT_FORMATS.md .
 // A bool is always written: false means the review says so, and a missing
 // key would look like a writer that forgot the field.
-// A slice is never nil. documentFrom substitutes an empty slice, so the file
-// has [] and a later step can range it. A nil slice would marshal as null.
+// Required slices are never nil. Optional coverage gaps are omitted when empty.
 type jsonDocument struct {
-	CompletionStatus     string            `json:"completion_status"`
-	Class                string            `json:"class"`
-	ClassRule            string            `json:"class_rule"`
-	Doubled              bool              `json:"doubled"`
-	Partial              bool              `json:"partial"`
-	SettingsStatement    string            `json:"settings_statement"`
-	AuthorModelStatement string            `json:"author_model_statement"`
-	ReviewerStatements   []string          `json:"reviewer_statements"`
-	AuthorModels         []jsonAuthorModel `json:"author_models"`
-	DefaultReviewer      string            `json:"default_reviewer"`
-	SpecialReviewer      string            `json:"special_reviewer"`
-	ReviewerModels       []string          `json:"reviewer_models"`
-	TracePath            string            `json:"trace_path"`
-	FamilySentence       string            `json:"family_sentence"`
-	Models               []jsonModelUse    `json:"models"`
-	FailedServices       []jsonService     `json:"failed_services"`
+	UnresolvedHypotheses []review.UnresolvedHypothesis `json:"unresolved_hypotheses,omitempty"`
+	CompletionStatus     string                        `json:"completion_status"`
+	Class                string                        `json:"class"`
+	ClassRule            string                        `json:"class_rule"`
+	Doubled              bool                          `json:"doubled"`
+	Partial              bool                          `json:"partial"`
+	SettingsStatement    string                        `json:"settings_statement"`
+	AuthorModelStatement string                        `json:"author_model_statement"`
+	ReviewerStatements   []string                      `json:"reviewer_statements"`
+	AuthorModels         []jsonAuthorModel             `json:"author_models"`
+	DefaultReviewer      string                        `json:"default_reviewer"`
+	SpecialReviewer      string                        `json:"special_reviewer"`
+	ReviewerModels       []string                      `json:"reviewer_models"`
+	TracePath            string                        `json:"trace_path"`
+	FamilySentence       string                        `json:"family_sentence"`
+	Models               []jsonModelUse                `json:"models"`
+	FailedServices       []jsonService                 `json:"failed_services"`
 	// ProofCounts is the totals by level . Every level is a key,
 	// with 0 when none, in the order review.ProofLevels lists them.
 	ProofCounts jsonProofCounts `json:"proof_counts"`
@@ -171,6 +171,7 @@ func documentFrom(result review.Result) jsonDocument {
 	// are made with length zero, so a review with nothing to report still
 	// writes an array. A nil slice would marshal as null.
 	return jsonDocument{
+		UnresolvedHypotheses: append([]review.UnresolvedHypothesis(nil), result.UnresolvedHypotheses...),
 		CompletionStatus:     result.CompletionStatus(),
 		Class:                result.Class,
 		ClassRule:            result.ClassRule,

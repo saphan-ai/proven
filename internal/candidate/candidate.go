@@ -352,12 +352,13 @@ type Opinion struct {
 // Partial is set when the deadline cut the review short; TracePath is the
 // JSONL trace of the run.
 type Draft struct {
-	Findings  []Candidate
-	Opinions  []Opinion
-	Failed    []Failure
-	Models    []ModelUse
-	Partial   bool
-	TracePath string
+	UnresolvedHypotheses []UnresolvedHypothesis
+	Findings             []Candidate
+	Opinions             []Opinion
+	Failed               []Failure
+	Models               []ModelUse
+	Partial              bool
+	TracePath            string
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks, slash-separated and sorted. Empty when none were skipped.
 	SkippedPaths []string
@@ -371,6 +372,14 @@ type Draft struct {
 	// Autofix is the record of the whole-change fix attempt, or nil when none was made:
 	// the setting is off, or no finding was proved .
 	Autofix *Autofix
+}
+
+// UnresolvedHypothesis is a model claim that still needs evidence after
+// planning. It is a coverage gap, never a finding or an established fact.
+type UnresolvedHypothesis struct {
+	Reviewer    string `json:"reviewer"` // default or special
+	AfterStep   int    `json:"after_step"`
+	Description string `json:"description"`
 }
 
 // GuardrailCount is what the guardrail did in one review, measured at the one

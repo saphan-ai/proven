@@ -624,6 +624,13 @@ func notesIn(st inlineStyle, result review.Result) []string {
 	if result.Partial {
 		lines = append(lines, "- review partial: the deadline was reached")
 	}
+	for i, h := range result.UnresolvedHypotheses {
+		if st.capList(i) {
+			lines = append(lines, fmt.Sprintf("- %d more unresolved hypotheses; see the JSON report", len(result.UnresolvedHypotheses)-i))
+			break
+		}
+		lines = append(lines, fmt.Sprintf("- Unresolved hypothesis (%s planner, after step %d): %s", st.text(h.Reviewer), h.AfterStep, st.text(st.cut(oneLine(h.Description), mdMaxNote))))
+	}
 	for i, a := range result.Accepted {
 		if st.capList(i) {
 			lines = append(lines, fmt.Sprintf("- %d more accepted by exception, not listed", len(result.Accepted)-i))

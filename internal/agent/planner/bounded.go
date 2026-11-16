@@ -84,6 +84,8 @@ func Size(files []change.File) int {
 // PlanBounded asks the generator for the risks one part at a time . Each step's prompt holds one
 // part and the state carried from the step before, bounded to s.Carry estimated tokens; no step sees the whole
 // change. A risk id a later step repeats is renamed with its step, because the steps do not see each other's ids.
+// Final awaiting claims return alongside the identified risks as OpenClaimsError;
+// callers may continue verification but must report those coverage gaps.
 func PlanBounded(ctx context.Context, files []change.File, gen generator.Generator, s markov.Settings) ([]candidate.Risk, []Step, error) {
 	if len(files) == 0 {
 		return nil, nil, fmt.Errorf("planner: the change has no files")
@@ -143,11 +145,10 @@ func PlanBounded(ctx context.Context, files []change.File, gen generator.Generat
 		}
 		steps = append(steps, rec)
 	}
-	// the last part has been read, so a claim still awaiting evidence can never be settled. Reporting the
-	// risks alone as success would look complete when it is not; the review stops by name instead, as it does when
-	// the carried state is full.
+	// Preserve both the identified risks and the final unresolved state. The
+	// application continues evidence checks and reports incomplete coverage.
 	if len(state.Awaiting) > 0 {
-		return nil, steps, &markov.OpenClaimsError{Steps: len(parts), Open: len(state.Awaiting)}
+		return risks, steps, &markov.OpenClaimsError{Steps: len(parts), Open: len(state.Awaiting), Claims: append([]string(nil), state.Awaiting...)}
 	}
 	return risks, steps, nil
 }

@@ -769,7 +769,8 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
 	out := Result{
-		Partial: d.Partial, TracePath: d.TracePath,
+		UnresolvedHypotheses: append([]candidate.UnresolvedHypothesis(nil), d.UnresolvedHypotheses...),
+		Partial:              d.Partial, TracePath: d.TracePath,
 		// A guardrail that was off is named in the result, not only in the trace.
 		GuardrailStatement: d.GuardrailStatement,
 		Guardrail:          GuardrailCount(d.Guardrail),

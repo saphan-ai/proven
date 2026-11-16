@@ -16,11 +16,12 @@ import (
 
 // Input is everything the writer needs.
 type Input struct {
-	Candidates []candidate.Candidate
-	Failed     []candidate.Failure
-	Models     []candidate.ModelUse
-	Partial    bool
-	TracePath  string
+	UnresolvedHypotheses []candidate.UnresolvedHypothesis
+	Candidates           []candidate.Candidate
+	Failed               []candidate.Failure
+	Models               []candidate.ModelUse
+	Partial              bool
+	TracePath            string
 	// SkippedPaths lists tracked paths a live review did not copy because they
 	// are symlinks. Empty when none were skipped.
 	SkippedPaths []string
@@ -29,7 +30,8 @@ type Input struct {
 // Write keeps the findings the judge did not drop and copies the rest of the draft.
 func Write(in Input) candidate.Draft {
 	d := candidate.Draft{
-		Failed: in.Failed, Models: in.Models, Partial: in.Partial, TracePath: in.TracePath,
+		UnresolvedHypotheses: append([]candidate.UnresolvedHypothesis(nil), in.UnresolvedHypotheses...),
+		Failed:               in.Failed, Models: in.Models, Partial: in.Partial, TracePath: in.TracePath,
 		SkippedPaths: append([]string(nil), in.SkippedPaths...),
 	}
 	for _, c := range in.Candidates {

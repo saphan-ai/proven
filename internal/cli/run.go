@@ -165,7 +165,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	// A failed outside service is named in the output and is not exit 2:
 	// the review still ran on what it could reach .
 	code := exitOK
-	if cfg.requireComplete && (result.Partial || len(result.FailedServices) > 0) {
+	if cfg.requireComplete && result.CompletionStatus() != "complete" {
 		fmt.Fprintln(stderr, "review incomplete; required checks did not finish")
 		return exitIncomplete
 	}

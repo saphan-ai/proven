@@ -732,6 +732,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	} else if err = leftOut(AgentPlanner); err != nil {
 		return candidate.Draft{}, err
 	}
+	if handled, herr := st.keepOpenClaims(err, runDefault); herr != nil {
+		return candidate.Draft{}, herr
+	} else if handled {
+		err = nil
+	}
 	if err != nil {
 		// A Planner whose service is down leaves an empty review that names
 		// the service; any other Planner error stops the review.
@@ -768,6 +773,11 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 		sctx, sstage := p.tel.StartStage(ctx, "planner", telemetry.ReviewerSpecial, reviewerModel(req, runSpecial))
 		more, err := p.plan(sctx, fx.Root, special, runSpecial)
 		sstage.End(err)
+		if handled, herr := st.keepOpenClaims(err, runSpecial); herr != nil {
+			return candidate.Draft{}, herr
+		} else if handled {
+			err = nil
+		}
 		if err != nil {
 			if d, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -1115,7 +1125,8 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	}
 	_, wstage := p.tel.StartStage(ctx, "writer", telemetry.ReviewerShared, "")
 	drafted := keep(writer.Write(writer.Input{
-		Candidates: cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
+		UnresolvedHypotheses: st.unresolved,
+		Candidates:           cands, Failed: st.failed, Models: st.models, TracePath: p.trace.Path(),
 		SkippedPaths: st.skipped,
 	}))
 	drafted.Autofix = attempt
@@ -1622,7 +1633,8 @@ func (s *state) fixEvents(c candidate.Candidate) error {
 // services that failed, the model calls made, the key of the change, and the
 // tracked symlinks the trees left out.
 type state struct {
-	trace *trace.Writer
+	unresolved []candidate.UnresolvedHypothesis
+	trace      *trace.Writer
 	// redactor is applied to the text of a service that becomes a failure
 	// reason in the draft: the trace writer redacts what it writes, and the
 	// draft is a second place that text lands.
@@ -1736,7 +1748,8 @@ func (s *state) partial(cands []candidate.Candidate) (candidate.Draft, error) {
 		return candidate.Draft{}, err
 	}
 	return writer.Write(writer.Input{
-		Candidates: judged, Failed: s.failed, Models: s.models, Partial: true, TracePath: s.trace.Path(),
+		UnresolvedHypotheses: s.unresolved,
+		Candidates:           judged, Failed: s.failed, Models: s.models, Partial: true, TracePath: s.trace.Path(),
 		SkippedPaths: s.skipped,
 	}), nil
 }

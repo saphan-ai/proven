@@ -92,6 +92,8 @@ type Request struct {
 
 type Severity = report.Severity
 type Result = report.Result
+
+type UnresolvedHypothesis = report.UnresolvedHypothesis
 type ReviewerInfo = report.ReviewerInfo
 type ReviewerVerdict = report.ReviewerVerdict
 type ProofLevel = report.ProofLevel

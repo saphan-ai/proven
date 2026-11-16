@@ -71,11 +71,33 @@ func (p *Pipeline) plan(ctx context.Context, root string, gen generator.Generato
 	// The same for claims still open after the last step.
 	var open *markov.OpenClaimsError
 	if errors.As(err, &open) {
-		if terr := p.boundedLine(run, "bounded steps stopped, the review is incomplete: "+open.Error()); terr != nil {
+		if terr := p.boundedLine(run, "bounded planning finished with unresolved hypotheses; identified risks continue through verification: "+open.Error()); terr != nil {
 			return nil, terr
 		}
 	}
 	return risks, err
+}
+
+// keepOpenClaims preserves final planning gaps while allowing the collected
+// risks to reach evidence gathering and the deterministic Judge.
+func (s *state) keepOpenClaims(err error, run string) (bool, error) {
+	var open *markov.OpenClaimsError
+	if !errors.As(err, &open) {
+		return false, nil
+	}
+	claims := open.Claims
+	if len(claims) == 0 {
+		claims = []string{fmt.Sprintf("%d final planning claims still await evidence; descriptions unavailable", open.Open)}
+	}
+	for _, claim := range claims {
+		h := candidate.UnresolvedHypothesis{Reviewer: run, AfterStep: open.Steps, Description: s.redactor.Text(claim)}
+		s.unresolved = append(s.unresolved, h)
+		if err := s.trace.Append(trace.Event{Kind: "unresolved-hypothesis", Agent: "planner", Run: run,
+			Title: fmt.Sprintf("unresolved after step %d", open.Steps), Text: claim}); err != nil {
+			return true, err
+		}
+	}
+	return true, nil
 }
 
 // stepsPlanned is the number of parts the change was cut into, read from the steps that ran.
