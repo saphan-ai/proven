@@ -67,5 +67,8 @@ builds=[s for s in lines if s.startswith('buildx build ')]
 assert len(builds)==1 and '--load' in builds[0] and '--push' not in builds[0], lines
 assert len(scans)==2 and len(pushes)==1 and max(scans)<pushes[0], lines
 assert all('--exit-code' in lines[i] and '--ignore-suppressed=false' in lines[i] for i in scans)
+assert all('archive://' in lines[i] for i in scans)
+exports=[i for i,s in enumerate(lines) if s.startswith('image save --platform ')]
+assert len(exports)==2 and exports[0]<scans[0] and exports[1]<scans[1], lines
 PY
 echo 'publish-image: failures on either architecture block push; both successful scans precede push'

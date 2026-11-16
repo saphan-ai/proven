@@ -21,7 +21,7 @@ The Docker client is separately downloaded from Docker's static release and chec
 
 ## Publishing
 
-Use a unique source-revision tag. `make publish-image IMAGE=your-registry/proven:your-tag` builds and loads both supported Linux architectures, checks the executable and recorded example, scans each with Docker Scout, and pushes only after every check passes. It requires a Buildx builder supporting both platforms and a containerd image store capable of loading a multi-platform image. `BUILDX_BUILDER` can select a prepared builder.
+Use a unique source-revision tag. `make publish-image IMAGE=your-registry/proven:your-tag` builds and loads both supported Linux architectures, checks the executable and recorded example, scans an explicit single-platform archive of each with Docker Scout, and pushes only after every check passes. The archives avoid local multi-platform selection differences between Scout versions. It requires a Buildx builder supporting both platforms, a containerd image store capable of loading a multi-platform image, and `docker image save --platform`. `BUILDX_BUILDER` can select a prepared builder.
 
 Docker Scout can send image metadata to its service; invoking this publishing command opts into that scan. A scanner error or any reported HIGH/CRITICAL finding stops publication. The gate also reads the SARIF result list and rejects suppressed findings even if the scanner exits successfully. Fix packages and rebuild rather than skipping that gate. Ordinary local development can still use `make image`; it does not publish or imply a successful security scan. `make scan` is also available for a local Trivy check. The publishing script uses Python 3 to check SARIF.
 

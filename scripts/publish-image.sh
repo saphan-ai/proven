@@ -27,8 +27,12 @@ for platform in linux/amd64 linux/arm64; do
   # A non-zero scanner result stops this script before push. No pipeline, base
   # exclusion, fix-availability filter or suppression may turn failure into success.
   report="$work/scout-${platform#*/}.sarif"
+  archive="$work/image-${platform#*/}.tar"
+  # Some Scout versions resolve the default local platform even when another
+  # is requested. Give the scanner an archive containing exactly one platform.
+  docker image save --platform "$platform" --output "$archive" "$image"
   docker scout cves --exit-code --ignore-suppressed=false --only-severity critical,high \
-    --format sarif --output "$report" --platform "$platform" "local://$image"
+    --format sarif --output "$report" --platform "$platform" "archive://$archive"
   # Count every returned result, including an accepted suppression. A scanner
   # policy must not make a nonempty HIGH/CRITICAL report publishable.
   python3 - "$report" <<'PY'
@@ -43,6 +47,7 @@ if any(run.get('results',[]) for run in runs):
     raise SystemExit('HIGH/CRITICAL findings block publication, including suppressed findings')
 print('HIGH/CRITICAL release gate: no findings')
 PY
+  rm -f "$archive"
 done
 
 docker push "$image"
