@@ -68,7 +68,7 @@ func htmlVerdict(b *strings.Builder, result review.Result) {
 	switch {
 	case len(result.Findings) > 0:
 		class = "blocked"
-	case len(mdModelsDown(result)) > 0:
+	case result.CompletionStatus() != "complete":
 		class = "not-reviewed"
 	}
 	head, tail := verdictLine(result)
