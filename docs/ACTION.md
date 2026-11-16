@@ -40,7 +40,7 @@ Gitea Actions can use the same entrypoint and outputs. Containerized proving req
 
 ## Proven reviewing itself
 
-This repository's `self-review.yml` workflow reviews same-repository pull requests with NVIDIA Nemotron through the ordinary OpenAI-compatible adapter. `NVIDIA_API_KEY` is a repository secret. `PROVEN_REVIEW_IMAGE` is a repository variable containing a published `saphan/proven@sha256:...` image digest; updating it explicitly selects the reviewer version.
+This repository's `self-review.yml` workflow reviews same-repository pull requests with NVIDIA Nemotron through the ordinary OpenAI-compatible adapter. `NVIDIA_API_KEY` is a repository secret. `PROVEN_REVIEW_MODEL` selects the hosted model; the default is `nvidia/nemotron-3.5-lightning-30b-a3b`. `PROVEN_REVIEW_IMAGE` is a repository variable containing a published `saphan/proven@sha256:...` image digest; updating it explicitly selects the reviewer version.
 
 The workflow extracts the CLI from that image and runs the base revision's Action entrypoint on the host, so the restricted test runner can mount the correct host paths. The PR is checked out separately at its exact head SHA. Dependencies are prepared from the trusted base with `Dockerfile.runner` before tests run offline. Only the review step receives the model key and comment token; test containers receive neither.
 
