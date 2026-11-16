@@ -1,5 +1,7 @@
 # Customer-built CLI models
 
+**[Start with Proven](../../docs/START.md)** gives the short setup for Claude, Copilot, Codex, Cursor and Qwen Code. The [supply-chain case study](../../docs/CLI_SUPPLY_CHAIN_AUDIT.md) records measured dependency fixes in the new recipes.
+
 These files are recipes and small text adapters. **Proven publishes no image containing vendor CLIs.** You install the CLIs you are entitled to use, build your own image and authenticate it with your own account. No credentials enter the build.
 
 - [Subscription CLI guide](../../docs/CLI_MODELS.md): install, login, local use and limits.

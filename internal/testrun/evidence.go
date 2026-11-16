@@ -92,6 +92,17 @@ func ranAndPassed(name string, events []testEvent) bool {
 	return pkgPassed && testPassed
 }
 
+// A build/collection failure is not an observed failure of the selected test.
+// Require a native test failure event as well as the process's nonzero exit.
+func ranAndFailed(name string, events []testEvent) bool {
+	for _, ev := range events {
+		if ev.Action == "fail" && ev.Test != "" && (name == "" || ev.Test == name) {
+			return true
+		}
+	}
+	return false
+}
+
 // judgeProof turns the output of a proof run that ended with exit code 0 into a
 // result. It returns the text to show and whether the run counts as passed. When
 // it does not, the text says why, so a reader sees a run that proves nothing.
@@ -116,6 +127,20 @@ func judgeProof(argv []string, out string) (string, bool) {
 // the run passed. Sample replays recorded runs, and it applies the judgement the
 // container applies, so a recording that never showed a pass is not replayed as one.
 func RecordedPass(command, output string) bool {
+	for _, adapter := range LanguageAdapters()[1:] {
+		a := adapter.(scriptLanguage)
+		if strings.HasPrefix(command, a.id+" [Proven adapter] ") {
+			var r languageResult
+			if json.Unmarshal([]byte(strings.TrimSpace(output)), &r) != nil {
+				return false
+			}
+			mode := "test"
+			if r.Name == "" {
+				mode = "package"
+			}
+			return r.Version == 1 && r.Adapter == a.id && r.Completed && r.Errors == 0 && r.Failed == 0 && r.Passed > 0 && r.Skipped >= 0 && command == a.id+" [Proven adapter] "+mode+" "+r.File+" "+r.Name
+		}
+	}
 	words := strings.Fields(command)
 	name := provingName(words)
 	passed, pkgOK := false, false

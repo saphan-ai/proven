@@ -11,7 +11,7 @@ Build Proven without sponsor accounts, a database server or a model key. Those a
 | Live Git comparison | Local clone containing base/head, external output/state paths. |
 | Dependency evidence | Prepared source tables in a configured store; SQLite needs no server. |
 | Model hypotheses | Compatible streaming API or text-only command adapter. |
-| Generated Go tests/tools | Container runtime, prepared local runner image, dependencies and tools. |
+| Generated tests / Go tools | Container runtime, prepared local runner image, dependencies and tools. |
 | Documentation site | Pinned Node dependencies and Go for generated-reference checks. |
 
 ## Build from source

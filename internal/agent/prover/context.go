@@ -8,6 +8,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/testrun"
 )
 
 const maxContextBytes = 64 << 10
@@ -66,19 +67,39 @@ func promptFor(c candidate.Candidate, files []change.File) (string, answer.Spec)
 		}
 	}
 	for _, f := range files {
-		if f.Path != c.Path && path.Dir(f.Path) == path.Dir(c.Path) && strings.HasSuffix(f.Path, "_test.go") {
+		if f.Path != c.Path && path.Dir(f.Path) == path.Dir(c.Path) && isContextTest(f.Path) {
 			add(f)
 		}
 	}
 	for _, f := range files {
-		if f.Path == "go.mod" && f.Path != c.Path {
+		if (f.Path == "go.mod" || f.Path == "pyproject.toml" || f.Path == "package.json" || f.Path == "tsconfig.json") && f.Path != c.Path {
 			add(f)
 		}
 	}
 	spec := testSpec
+	switch path.Ext(c.Path) {
+	case ".py":
+		spec.Example = `{"path":"tests/test_example.py","content":"def test_example():\n    assert 1 == 1\n","name":"test_example"}`
+		spec.Task += " Use the pytest adapter (also supports unittest-style classes). Name a test_* function or TestClass::test_method."
+	case ".ts", ".tsx", ".mts", ".cts":
+		spec.Example = `{"path":"src/example.test.ts","content":"import { test, expect } from 'vitest';\ntest('example', () => { expect(1).toBe(1); });\n","name":"example"}`
+		spec.Task += " Use Vitest with a .test.ts/.spec.ts (or corresponding TSX/MTS/CTS) file. Name the exact full test name, including describe blocks."
+	case ".js", ".mjs", ".cjs":
+		spec.Example = `{"path":"src/example.test.mjs","content":"import test from 'node:test';\nimport assert from 'node:assert/strict';\ntest('example', () => assert.equal(1, 1));\n","name":"example"}`
+		spec.Task += " Use node:test in .test.js/.test.mjs/.test.cjs. For Vitest JavaScript use .spec.js/.spec.mjs/.spec.cjs."
+	}
 	spec.Task += " Use the supplied source and existing tests to locate the package and its API. Prefer naming an existing test when it proves the risk. A written test must compile on both sides. Do not guess paths or signatures missing from the supplied context. If the risk is unsupported or no differential test can demonstrate it, return empty path, content and name strings."
 	return answer.Instruct(spec, answer.Encode(struct {
 		Risk  candidate.Risk `json:"risk"`
 		Files []contextFile  `json:"files"`
 	}{c.Risk, context})), spec
+}
+
+func isContextTest(p string) bool {
+	for _, a := range testrun.LanguageAdapters() {
+		if a.Matches(p) {
+			return true
+		}
+	}
+	return false
 }

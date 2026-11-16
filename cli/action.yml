@@ -1,0 +1,123 @@
+name: Proven with your CLI
+description: Review a PR using your own CLI image and a separately authenticated profile.
+inputs:
+  backend:
+    description: claude, copilot, codex, cursor or qwen.
+    required: true
+  image:
+    description: Your CLI image, already local or accessible to Docker. Empty builds our recipe on your runner.
+  home-volume:
+    description: Docker volume holding the CLI login. Defaults to proven-BACKEND-home.
+  model:
+    description: Model available to your account. Empty uses sonnet for Claude, auto for Copilot, or the CLI default.
+  check-delivery:
+    description: Compare PR title/description and commit messages with cited code. Advisory model assessment, separate from proved findings.
+    default: 'false'
+  second-backend:
+    description: Optional second CLI reviewer; uses its own login volume.
+  second-image:
+    description: Your second CLI image. Empty builds its recipe in your job.
+  second-home-volume:
+    description: Second CLI login volume; defaults to proven-SECOND_BACKEND-home.
+  second-model:
+    description: Model requested from the second CLI; defaults to that CLI's selection.
+  claude-oauth-token:
+    description: Optional Claude setup-token OAuth credential for ephemeral CI. Omit when using a logged-in volume.
+  test-image:
+    description: Prepared offline proof runtime. Empty prepares a Go, npm/TypeScript or requirements.txt Python module from its trusted base revision.
+  target:
+    description: Checkout to review, relative to the workspace.
+    default: .
+  baseline-commit:
+    description: Base commit available in the checkout.
+    default: ${{ github.event.pull_request.base.sha }}
+  timeout:
+    description: Whole review limit in seconds.
+    default: '1500'
+  call-timeout:
+    description: Maximum seconds per CLI completion, including its container shutdown margin.
+    default: '300'
+  strict:
+    description: Fail on proved findings.
+    default: 'true'
+  require-complete:
+    description: Fail on incomplete analysis independently of findings.
+    default: 'true'
+  comment:
+    description: Post or update one PR summary comment. Needs pull-requests write.
+    default: 'true'
+  github-token:
+    description: Token for the summary comment; never passed to the model or proof containers.
+    default: ${{ github.token }}
+outputs:
+  json-file:
+    description: JSON report, relative to the workspace.
+    value: ${{ steps.review.outputs.json-file }}
+  sarif-file:
+    description: SARIF report, relative to the workspace.
+    value: ${{ steps.review.outputs.sarif-file }}
+  findings-count:
+    description: Number of reported findings.
+    value: ${{ steps.review.outputs.findings-count }}
+runs:
+  using: composite
+  steps:
+    - name: Check the runner policy
+      id: environment
+      shell: bash
+      run: python3 "$GITHUB_ACTION_PATH/../action/cli.py" check-environment
+    - name: Prepare the reviewer toolchain
+      uses: actions/setup-go@v6
+      with:
+        go-version: ${{ steps.environment.outputs.go-version }}
+        cache: 'false'
+    - name: Prepare Proven and your CLI image
+      id: prepare
+      shell: bash
+      env:
+        INPUT_BACKEND: ${{ inputs.backend }}
+        INPUT_IMAGE: ${{ inputs.image }}
+        INPUT_HOME_VOLUME: ${{ inputs.home-volume }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_HAS_OAUTH_TOKEN: ${{ inputs.claude-oauth-token != '' }}
+        INPUT_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        INPUT_TEST_IMAGE: ${{ inputs.test-image }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_BASELINE_COMMIT: ${{ inputs.baseline-commit }}
+        INPUT_CALL_TIMEOUT: ${{ inputs.call-timeout }}
+        INPUT_CHECK_DELIVERY: ${{ inputs.check-delivery }}
+        INPUT_SECOND_BACKEND: ${{ inputs.second-backend }}
+        INPUT_SECOND_IMAGE: ${{ inputs.second-image }}
+        INPUT_SECOND_HOME_VOLUME: ${{ inputs.second-home-volume }}
+        INPUT_SECOND_MODEL: ${{ inputs.second-model }}
+      run: python3 "$GITHUB_ACTION_PATH/../action/cli.py" prepare
+    - name: Check login and review the PR
+      id: review
+      shell: bash
+      env:
+        PROVEN_CLI_STATE: ${{ steps.prepare.outputs.state }}
+        INPUT_CLAUDE_OAUTH_TOKEN: ${{ inputs.claude-oauth-token }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_BASELINE_COMMIT: ${{ inputs.baseline-commit }}
+        INPUT_TIMEOUT: ${{ inputs.timeout }}
+        INPUT_STRICT: ${{ inputs.strict }}
+        INPUT_REQUIRE_COMPLETE: ${{ inputs.require-complete }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: python3 "$GITHUB_ACTION_PATH/../action/cli.py" review
+    - name: Keep the review report
+      if: always() && steps.prepare.outputs.state != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: proven-cli-${{ github.job }}-${{ github.run_attempt }}
+        if-no-files-found: warn
+        path: |
+          ${{ github.workspace }}/proven-results.json
+          ${{ github.workspace }}/proven-results.sarif
+          ${{ steps.prepare.outputs.state }}/logs/trace.jsonl
+    - name: Remove temporary credentials and model containers
+      if: always() && steps.prepare.outputs.state != ''
+      shell: bash
+      env:
+        PROVEN_CLI_STATE: ${{ steps.prepare.outputs.state }}
+      run: python3 "$GITHUB_ACTION_PATH/../action/cli.py" cleanup

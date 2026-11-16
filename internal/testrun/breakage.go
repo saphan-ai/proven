@@ -45,6 +45,39 @@ var manifestFiles = map[string]bool{"go.mod": true, "go.sum": true, "go.work": t
 // package below it. The words are Proven's; no edit text reaches a command. The paths are the
 // ones RefuseEdits has already checked.
 func BreakageArgvs(edits []Edit) [][]string {
+	var goEdits []Edit
+	native := map[string]bool{}
+	for _, e := range edits {
+		switch ext := path.Ext(e.Path); {
+		case ext == ".py" || path.Base(e.Path) == "requirements.txt" || path.Base(e.Path) == "pyproject.toml" || path.Base(e.Path) == "poetry.lock":
+			native["pytest"] = true
+		case ext == ".ts" || ext == ".tsx" || ext == ".mts" || ext == ".cts" || strings.HasPrefix(path.Base(e.Path), "tsconfig"):
+			native["vitest"] = true
+		case ext == ".js" || ext == ".mjs" || ext == ".cjs" || path.Base(e.Path) == "package.json" || path.Base(e.Path) == "package-lock.json":
+			if a := languageForTest(e.Path); a != nil && a.Name() == "vitest" {
+				native["vitest"] = true
+			} else {
+				native["node"] = true
+			}
+		default:
+			goEdits = append(goEdits, e)
+		}
+	}
+	// A TS package's manifest belongs to its Vitest suite rather than causing a
+	// second, incompatible Node discovery pass over TypeScript files.
+	if native["vitest"] {
+		delete(native, "node")
+	}
+	argvs := goBreakageArgvs(goEdits)
+	for _, adapter := range LanguageAdapters()[1:] {
+		if native[adapter.Name()] {
+			argvs = append(argvs, adapter.Command("placeholder", "", true))
+		}
+	}
+	return argvs
+}
+
+func goBreakageArgvs(edits []Edit) [][]string {
 	targets := map[string]bool{}
 	for _, e := range edits {
 		p := path.Clean(filepath.ToSlash(e.Path))
@@ -115,7 +148,12 @@ func unresolvable(root, target string) string {
 }
 
 // breakageLabel names one breakage run by the package it covers.
-func breakageLabel(argv []string) string { return RunBreakage + " " + argv[len(argv)-1] }
+func breakageLabel(argv []string) string {
+	if a, ok := scriptForArgv(argv); ok {
+		return RunBreakage + " " + a.id + " " + argv[5]
+	}
+	return RunBreakage + " " + argv[len(argv)-1]
+}
 
 // RunBreakage runs, in the container, every package the patch touched on a scratch copy of the
 // change with the patch applied . The review's own trees are never written.
@@ -145,7 +183,11 @@ func (c *Container) RunBreakage(ctx context.Context, req BreakageRequest) (Break
 
 	var out BreakageOutcome
 	for _, argv := range BreakageArgvs(req.Edits) {
-		if why := unresolvable(patched, argv[len(argv)-1]); why != "" {
+		why := ""
+		if isProofArgv(argv) {
+			why = unresolvable(patched, argv[len(argv)-1])
+		}
+		if why != "" {
 			// go test would fail on a target it cannot resolve, and the record would then say the
 			// package failed. It is a run that cannot happen, and the attempt stays rejected.
 			out.Runs = append(out.Runs, FixRun{

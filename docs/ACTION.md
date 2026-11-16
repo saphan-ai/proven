@@ -1,5 +1,9 @@
 # GitHub Action
 
+For subscription CLIs, start with **[Start with Proven](START.md)**. The [`proven/cli` preset](../cli/action.yml) handles your customer image, saved login, test preparation, reports and cleanup. The reference below describes the existing API/sample Action and this repository's API self-review.
+
+See the [CLI Action input reference](CLI_ACTION.md) for advanced settings and runner boundaries.
+
 Proven's Action builds the CLI from the source revision referenced by `uses`. It does not pull a mutable prebuilt Proven image. Pin the Action to a full reviewed commit SHA.
 
 ```yaml

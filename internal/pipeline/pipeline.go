@@ -32,6 +32,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -40,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	deliveryAgent "github.com/saphan-ai/proven/internal/agent/delivery"
 	"github.com/saphan-ai/proven/internal/agent/fixer"
 	"github.com/saphan-ai/proven/internal/agent/investigator"
 	"github.com/saphan-ai/proven/internal/agent/judge"
@@ -48,6 +50,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/writer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/delivery"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/fixture"
 	"github.com/saphan-ai/proven/internal/generator"
@@ -278,6 +281,7 @@ func (p *Pipeline) boundary(stage string) {
 // trees, and a git repository without them is refused. Include and Exclude
 // narrow the changed files the review reports on.
 type Request struct {
+	Delivery       *delivery.Metadata
 	Target         string
 	BaselineCommit string
 	HeadCommit     string
@@ -388,6 +392,7 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	// can reach the result, so it is redacted once here, after every agent has run.
 	d.Findings = p.redactFindings(d.Findings)
 	d.Autofix = redactAutofix(p.redactor, d.Autofix)
+	d.Delivery = d.Delivery.Redacted(p.redactor.Text)
 	// An opinion's reasons are the reviewers' own words, so they are redacted
 	// with the findings .
 	d.Opinions = p.redactOpinions(d.Opinions)
@@ -549,8 +554,8 @@ func gitNamed(req Request, files []string) []string {
 // context that has ended returns the partial draft through cut; any other
 // error stops the review.
 //
-// Splitting this function into its stages is known debt, planned after 6 Nov.
-func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, error) {
+// Splitting this function into smaller stages remains implementation debt.
+func (p *Pipeline) review(ctx context.Context, req Request) (draft candidate.Draft, reviewErr error) {
 	// The review's read policy rode the context from its runner; every git command and size bound below takes it from here.
 	rd := change.PolicyFrom(ctx)
 	// A git repository with neither a baseline commit nor prepared trees has
@@ -695,6 +700,46 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace, redactor: p.redactor, tel: p.tel}, rail)
 	if err != nil {
 		return candidate.Draft{}, err
+	}
+	if req.Delivery != nil {
+		// Run before snapshot cleanup. This optional assessment cannot replace
+		// evidence or discard findings already established by ordinary review.
+		defer func() {
+			if reviewErr != nil {
+				return
+			}
+			files, err := rd.Read(fx.Root)
+			var selectedFiles []change.File
+			if err == nil {
+				for _, f := range files {
+					if _, ok := allow[f.Path]; ok {
+						selectedFiles = append(selectedFiles, f)
+					}
+				}
+			}
+			var counterexamples []delivery.Counterexample
+			for _, c := range draft.Findings {
+				counterexamples = append(counterexamples, delivery.Counterexample{ID: c.ID, Path: c.Path, Title: c.Title})
+			}
+			var assessment delivery.Result
+			if err == nil {
+				assessment, err = deliveryAgent.Assess(ctx, gen, *req.Delivery, selectedFiles, fx.Snapshot, counterexamples)
+			} else {
+				assessment.Issue = "delivery source snapshot could not be read"
+			}
+			if err != nil {
+				st.note(&service.Down{Service: "delivery", Reason: assessment.Issue})
+				if ctx.Err() != nil {
+					draft.Partial = true
+				}
+			}
+			draft.Delivery = assessment.Redacted(p.redactor.Text)
+			draft.Failed, draft.Models = st.failed, st.models
+			encoded, _ := json.Marshal(draft.Delivery)
+			if err := p.trace.Append(trace.Event{Kind: "delivery", Agent: "delivery", Text: string(encoded)}); err != nil {
+				reviewErr = err
+			}
+		}()
 	}
 	// The stores get the guarded generator, never the raw one: a call a store
 	// ever makes is checked before and after, and recorded, like an agent call.

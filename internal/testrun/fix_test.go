@@ -59,12 +59,12 @@ func pricedRuntime(t *testing.T, mounts *[]string) func(context.Context, []strin
 			t.Fatal(err)
 		}
 		if !strings.Contains(string(src), "return 80") {
-			return "FAIL got 60 want 80", fail
+			return nativeFailureJSON("TestPrice", "FAIL got 60 want 80"), fail
 		}
 		// Only a run of the whole package meets the neighbour's test.
 		packageRun := !strings.Contains(strings.Join(argv, " "), " -run ")
 		if _, err := os.Stat(filepath.Join(host, "billing", "broken.go")); err == nil && packageRun {
-			return "FAIL TestNeighbour", fail
+			return nativeFailureJSON("TestNeighbour", "FAIL TestNeighbour"), fail
 		}
 		return passedRun(argv), nil
 	}

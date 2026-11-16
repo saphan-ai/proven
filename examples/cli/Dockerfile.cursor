@@ -1,0 +1,48 @@
+# CUSTOMER BUILD ONLY. Cursor's Linux binary needs glibc; gcompat on Alpine
+# fails with "fcntl64: symbol not found". This separate recipe does not change
+# the Alpine product or the other customer targets. No login occurs at build.
+ARG GO_BASE=golang:1.26.10-alpine3.24
+ARG CURSOR_BASE=ubuntu:26.10
+ARG CURSOR_NODE_BASE=node:24.22.3-bookworm-slim
+FROM ${CURSOR_NODE_BASE} AS patched-node
+FROM ${GO_BASE} AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+RUN CGO_ENABLED=0 go build -trimpath -o /out/proven ./cmd/proven
+
+FROM ${CURSOR_BASE} AS install
+ARG TARGETARCH
+ARG CURSOR_VERSION=2026.11.13-eacade1
+ARG CURSOR_SHA256_AMD64=c02e4321f20d691ee03af94d29948dc3a81c6c34e7328da7bb1afade4c75812f
+ARG CURSOR_SHA256_ARM64=e4ba0611045a24d1cf78f021d34c19461680fc7234c19c1f981f1cc169f70cdc
+RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl \
+ && case "$TARGETARCH" in \
+      amd64) arch=x64; digest=$CURSOR_SHA256_AMD64 ;; \
+      arm64) arch=arm64; digest=$CURSOR_SHA256_ARM64 ;; \
+      *) echo 'Cursor recipe supports amd64 and arm64 only' >&2; exit 2 ;; esac \
+ && curl -fsSL "https://downloads.cursor.com/lab/${CURSOR_VERSION}/linux/${arch}/agent-cli-package.tar.gz" -o /tmp/cursor.tar.gz \
+ && printf '%s  %s\n' "$digest" /tmp/cursor.tar.gz | sha256sum -c - \
+ && mkdir /opt/cursor && tar -xzf /tmp/cursor.tar.gz -C /opt/cursor --strip-components=1 \
+ && rm /opt/cursor/node
+
+FROM ${CURSOR_BASE}
+RUN apt-get update && apt-get dist-upgrade -y \
+ && apt-get install --no-install-recommends -y ca-certificates coreutils bash libstdc++6 libatomic1 \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd -g 10001 proven && useradd -m -u 10001 -g 10001 -d /opt/proven proven \
+ && mkdir /work && chown 10001:10001 /work
+COPY --from=install /opt/cursor /opt/cursor
+# The pinned vendor archive bundled Node 24.22.1 (seven HIGH advisories).
+# Keep the same Node ABI, replacing it with the official patched runtime.
+COPY --from=patched-node /usr/local/bin/node /opt/cursor/node
+RUN ln -s /opt/cursor/cursor-agent /usr/local/bin/agent
+COPY --from=build /out/proven /usr/local/bin/proven
+COPY --chmod=755 examples/cli/cursor-text.sh /usr/local/bin/proven-cursor
+ENV HOME=/opt/proven
+WORKDIR /work
+USER 10001:10001
+RUN agent --version
+ENTRYPOINT ["proven"]

@@ -94,7 +94,7 @@ func TestAnEarlyExitWithCodeZeroIsNotAPassInTheProofRuns(t *testing.T) {
 		case strings.Contains(string(src), "return 80"):
 			return passedRun(argv), nil
 		default:
-			return "FAIL got 60 want 80", fail
+			return nativeFailureJSON("TestPrice", "FAIL got 60 want 80"), fail
 		}
 	}
 	req := fixRequest(base, change)
@@ -134,7 +134,7 @@ func TestTheProversBaseRunNeedsTheTestsPassEvent(t *testing.T) {
 			return "", nil
 		}
 		if strings.Contains(mountOf(argv), change+":/checkout:ro") {
-			return "FAIL TestDiscounted", fail
+			return nativeFailureJSON("TestDiscounted", "FAIL TestDiscounted"), fail
 		}
 		return "", nil
 	}

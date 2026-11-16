@@ -80,6 +80,12 @@ Without model configuration, deterministic analysis runs alone. The openai adapt
 | `PROVEN_SECOND_REVIEWER_RETRY_MAX_BACKOFF` | inherits `PROVEN_GENERATOR_RETRY_MAX_BACKOFF` | maximum backoff; retries remain within the current attempt deadline |
 | `PROVEN_SECOND_REVIEWER_TRACE_REASONING_BYTES` | inherits `PROVEN_GENERATOR_TRACE_REASONING_BYTES` | maximum reasoning text bytes retained per attempt; 0 records counts only, up to 8388608 |
 
+## PR delivery assessment
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_PR_CONTEXT` | empty (disabled) | external JSON file with PR title, description and commit messages; enables advisory delivery assessment with validated citations, separate from proved findings |
+
 ## Optional model safety service
 
 | Environment variable | Default | What it changes |

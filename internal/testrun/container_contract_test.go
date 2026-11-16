@@ -348,6 +348,7 @@ func contractW1bExitForCheckouts(t *testing.T, base, change string) string {
 		"  esac\n" +
 		"done\n" +
 		"if [ \"$hit_change\" -eq 1 ]; then\n" +
+		"  printf '%s\\n' '{\"Action\":\"fail\",\"Package\":\"p\",\"Test\":\"TestProved\"}'\n" +
 		"  exit 1\n" +
 		"fi\n" +
 		"if [ \"$hit_base\" -eq 1 ]; then\n" +

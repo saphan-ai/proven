@@ -16,6 +16,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/delivery"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
@@ -72,6 +73,18 @@ func open(opts Options) (Reviewer, error) {
 	// The git policy and the size bounds are this review's own, fixed here. They are not process state: another
 	// review opened in this process, at the same time or later, cannot change them .
 	rd := change.NewPolicy(netPol.Local(), reads)
+	var metadata *delivery.Metadata
+	metadataPath := ""
+	if !opts.Sample {
+		var err error
+		metadata, err = loadDelivery(opts.Env)
+		if err != nil {
+			return nil, err
+		}
+		if metadata != nil {
+			metadataPath = opts.Env(EnvDeliveryFile)
+		}
+	}
 	// H-MEM's state cap and query-token limit are settings too. Sample mode reads
 	// none and uses the defaults.
 	var memLimits hmem.Limits
@@ -369,7 +382,7 @@ func open(opts Options) (Reviewer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, modelName: modelName, modelsOff: popts.ModelsOff, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec, read: rd}, nil
+	return &runner{p: p, cfg: cfg, explicit: explicit, kevView: kevView, adapterLimit: adapterLimit, localFile: localFile, secondModel: secondModel, modelName: modelName, modelsOff: popts.ModelsOff, tel: tel, sample: opts.Sample, pol: pol, now: now, records: rec, read: rd, delivery: metadata, deliveryPath: metadataPath}, nil
 }
 
 // openRecorder loads the records settings and the link base address. It returns a nil recorder
@@ -555,6 +568,8 @@ func withSecond(cfg fileSettings, model string) fileSettings {
 // cfg is the explicit configuration when explicit is true; otherwise it is unused and each
 // Review loads the settings of the change it reviews.
 type runner struct {
+	delivery     *delivery.Metadata
+	deliveryPath string
 	p            *pipeline.Pipeline
 	cfg          fileSettings
 	explicit     bool
@@ -621,6 +636,11 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	// be outside the tree under review.
 	if err := checkLocalFile(r.localFile, req.Target); err != nil {
 		return Result{}, err
+	}
+	if r.delivery != nil {
+		if err := checkLocalFile(r.deliveryPath, req.Target); err != nil {
+			return Result{}, &ConfigError{Field: EnvDeliveryFile, Reason: "PR context must be outside the reviewed checkout", Allowed: []string{"an external metadata JSON file"}}
+		}
 	}
 	// A policy inside the repository under review is refused before anything else is read: the change
 	// could have edited it.
@@ -711,6 +731,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 		ctx = limit.WithBound(ctx, r.adapterLimit)
 	}
 	d, err := r.p.Review(ctx, pipeline.Request{
+		Delivery:       r.delivery,
 		Target:         req.Target,
 		BaselineCommit: req.BaselineCommit,
 		HeadCommit:     req.HeadCommit,
@@ -768,6 +789,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
 	out := Result{
+		Delivery:             d.Delivery.Redacted(func(s string) string { return s }),
 		UnresolvedHypotheses: append([]candidate.UnresolvedHypothesis(nil), d.UnresolvedHypotheses...),
 		Partial:              d.Partial, TracePath: d.TracePath,
 		// A guardrail that was off is named in the result, not only in the trace.

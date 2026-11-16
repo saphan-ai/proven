@@ -9,6 +9,8 @@ examples/*
 examples/cli/*
 !examples/cli/claude-text.sh
 !examples/cli/copilot-text.sh
+!examples/cli/codex-text.sh
+!examples/cli/qwen-text.sh
 **/.env
 **/.env.*
 **/*credentials*.json

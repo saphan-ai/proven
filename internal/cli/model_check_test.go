@@ -6,9 +6,43 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestModelCheckSupportsCommandWithoutInventingHTTPMeasurements(t *testing.T) {
+	for _, tc := range []struct {
+		response string
+		want     int
+	}{
+		{`{"ok":true}`, 0}, {`{"ok":false}`, 3}, {`not JSON`, 3},
+	} {
+		t.Run(tc.response, func(t *testing.T) {
+			dir := t.TempDir()
+			command := filepath.Join(dir, "model")
+			// A fixed local fixture; no vendor account or runtime is used.
+			if err := os.WriteFile(command, []byte("#!/bin/sh\nprintf '%s' '"+tc.response+"'\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			argv, _ := json.Marshal([]string{command})
+			env := map[string]string{"PROVEN_GENERATOR_MODE": "command", "PROVEN_GENERATOR_MODEL": "chosen", "PROVEN_GENERATOR_COMMAND": string(argv)}
+			var out, log bytes.Buffer
+			code := Run([]string{"model", "check"}, func(k string) string { return env[k] }, &out, &log, nil)
+			var result struct {
+				OK       bool  `json:"ok"`
+				Attempts []any `json:"attempts"`
+			}
+			if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+				t.Fatalf("%v: %s; %s", err, &out, &log)
+			}
+			if code != tc.want || result.OK != (tc.want == 0) || len(result.Attempts) != 0 {
+				t.Fatalf("code=%d output=%s log=%s", code, &out, &log)
+			}
+		})
+	}
+}
 
 func TestModelCheckMeasuresOneRequestEvenWhenRetriesConfigured(t *testing.T) {
 	for _, status := range []int{200, 400, 429} {

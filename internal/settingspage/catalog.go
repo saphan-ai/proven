@@ -96,6 +96,7 @@ func Catalog() []envdoc.Section {
 			Heading: "The second reviewer: API or CLI",
 			Rows:    generator.SecondEnvironment(),
 		},
+		{Heading: "PR delivery assessment", Rows: review.DeliveryEnvironment()},
 		{
 			Heading: "Optional model safety service",
 			Rows:    guardrail.Environment(),

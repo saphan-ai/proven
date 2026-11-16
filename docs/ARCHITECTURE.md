@@ -22,7 +22,7 @@ flowchart LR
 | Plan | Paths, classes, Scout result and conservative checks | Selected agents/tools/sources and doubling requirement. A lighter classification cannot erase security obligations. |
 | Planner | Diff/source context and optional carried state | Candidate risks and explicit pending hypotheses; no finding is proved here. |
 | Investigator | Candidate and allowed query catalogue | Template requests with validated parameters, observed rows and snapshot identity. |
-| Prover | Candidate, bounded base/head excerpts and nearby tests | Generated Go test and observed differential outcome, or abstention/no-run. |
+| Prover | Candidate, bounded base/head excerpts and nearby tests | Generated test through the registered language adapter and observed differential outcome, or abstention/no-run. |
 | Skeptic | Candidate with its collected evidence | Refutation attempt, with its own supporting evidence where available. |
 | Judge | Candidate evidence and refutation | Deterministic keep/drop decision and proof level. No model call. |
 | Fixer / autofix | Proved findings and observed evidence | Proposed edit plus validation results; copies only, no commit or merge. |

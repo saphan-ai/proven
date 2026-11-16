@@ -6,6 +6,9 @@ variable "MUSL_PACKAGE_VERSION" { default = "1.2.6-r6" }
 variable "GO_BASE" { default = "golang:1.26.10-alpine3.24" }
 variable "CLAUDE_VERSION" { default = "2.1.325" }
 variable "COPILOT_VERSION" { default = "1.0.112" }
+variable "CODEX_VERSION" { default = "0.169.0" }
+variable "QWEN_VERSION" { default = "0.27.4" }
+variable "SHARP_VERSION" { default = "0.35.5" }
 group "default" { targets = ["dual"] }
 target "common" {
   context = "."
@@ -18,6 +21,9 @@ target "common" {
     GO_BASE = GO_BASE
     CLAUDE_VERSION = CLAUDE_VERSION
     COPILOT_VERSION = COPILOT_VERSION
+    CODEX_VERSION = CODEX_VERSION
+    QWEN_VERSION = QWEN_VERSION
+    SHARP_VERSION = SHARP_VERSION
   }
 }
 target "claude" {
@@ -34,4 +40,19 @@ target "dual" {
   inherits = ["common"]
   target = "dual"
   tags = ["proven-dual:local"]
+}
+target "codex" {
+  inherits = ["common"]
+  target = "codex"
+  tags = ["proven-codex:local"]
+}
+target "qwen" {
+  inherits = ["common"]
+  target = "qwen"
+  tags = ["proven-qwen:local"]
+}
+target "cursor" {
+  context = "."
+  dockerfile = "examples/cli/Dockerfile.cursor"
+  tags = ["proven-cursor:local"]
 }

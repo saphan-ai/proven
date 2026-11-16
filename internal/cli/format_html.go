@@ -55,6 +55,7 @@ func htmlPage(result review.Result) string {
 		}
 	}
 	htmlOpinions(&b, result.Opinions)
+	htmlDelivery(&b, result)
 	htmlNotes(&b, result)
 	b.WriteString("<footer>" + footIn(htmlStyle, result) + "</footer>\n")
 	b.WriteString("</main>\n</body>\n</html>\n")

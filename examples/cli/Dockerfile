@@ -22,6 +22,19 @@ FROM install-base AS copilot-install
 ARG COPILOT_VERSION=1.0.112
 RUN npm install --prefix /opt/cli --no-audit --no-fund @github/copilot@${COPILOT_VERSION} \
  && /opt/cli/node_modules/.bin/copilot --version
+FROM install-base AS codex-install
+ARG CODEX_VERSION=0.169.0
+RUN npm install --prefix /opt/cli --no-audit --no-fund @openai/codex@${CODEX_VERSION} \
+ && /opt/cli/node_modules/.bin/codex --version
+FROM install-base AS qwen-install
+ARG QWEN_VERSION=0.27.4
+ARG SHARP_VERSION=0.35.5
+# Qwen 0.27.4 pins an affected optional sharp. Resolve its patched version
+# explicitly instead of suppressing the image scanner's HIGH result.
+RUN mkdir -p /opt/cli \
+ && printf '{"private":true,"overrides":{"sharp":"%s"}}\n' "$SHARP_VERSION" > /opt/cli/package.json \
+ && npm install --prefix /opt/cli --no-audit --no-fund @qwen-code/qwen-code@${QWEN_VERSION} \
+ && /opt/cli/node_modules/.bin/qwen --version
 FROM claude-install AS dual-install
 ARG COPILOT_VERSION=1.0.112
 RUN npm install --prefix /opt/cli --no-audit --no-fund @github/copilot@${COPILOT_VERSION} \
@@ -45,6 +58,8 @@ COPY --from=install-base /usr/local/bin/node /usr/local/bin/node
 COPY --from=build /out/proven /usr/local/bin/proven
 COPY --chmod=755 examples/cli/claude-text.sh /usr/local/bin/proven-claude
 COPY --chmod=755 examples/cli/copilot-text.sh /usr/local/bin/proven-copilot
+COPY --chmod=755 examples/cli/codex-text.sh /usr/local/bin/proven-codex
+COPY --chmod=755 examples/cli/qwen-text.sh /usr/local/bin/proven-qwen
 ENV HOME=/opt/proven PATH=/opt/cli/node_modules/.bin:$PATH
 WORKDIR /work
 ENTRYPOINT ["proven"]
@@ -61,3 +76,11 @@ RUN copilot --version && ! command -v npm
 FROM base AS dual
 COPY --from=dual-install /opt/cli /opt/cli
 RUN claude --version && copilot --version && ! command -v npm
+
+FROM base AS codex
+COPY --from=codex-install /opt/cli /opt/cli
+RUN codex --version && ! command -v npm
+
+FROM base AS qwen
+COPY --from=qwen-install /opt/cli /opt/cli
+RUN qwen --version && ! command -v npm

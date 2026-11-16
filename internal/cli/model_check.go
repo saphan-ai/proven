@@ -25,14 +25,22 @@ func runModelCheck(args []string, env func(string) string, stdout, stderr io.Wri
 		fmt.Fprintln(stderr, visible(r.Text(err.Error())))
 		return exitConfig
 	}
-	if cfg.Mode != generator.ModeOpenAI && cfg.Mode != generator.ModeNVIDIA && cfg.Mode != generator.ModeNightshift {
-		fmt.Fprintln(stderr, "model check requires a configured HTTP model transport")
+	if cfg.Mode != generator.ModeOpenAI && cfg.Mode != generator.ModeNVIDIA && cfg.Mode != generator.ModeNightshift && cfg.Mode != generator.ModeCommand {
+		fmt.Fprintln(stderr, "model check requires a configured HTTP or command model transport")
 		return exitConfig
 	}
 	options := *cfg.Options
 	options.RecoveryRetries, options.RateLimitRetries, options.TransportRetries = 0, 0, 0
 	cfg.Options = &options
-	g := generator.NewLive(cfg, nil)
+	var g generator.Generator
+	var attempts func() []modelcall.Attempt
+	if cfg.Mode == generator.ModeCommand {
+		g = generator.NewCommand(cfg)
+		attempts = func() []modelcall.Attempt { return nil }
+	} else {
+		live := generator.NewLive(cfg, nil)
+		g, attempts = live, live.LastAttempts
+	}
 	text, err := g.Complete(context.Background(), "investigator", `Reply with JSON only: {"ok":true}`)
 	var decoded struct {
 		OK bool `json:"ok"`
@@ -44,7 +52,7 @@ func runModelCheck(args []string, env func(string) string, stdout, stderr io.Wri
 		ValidJSON bool                `json:"valid_json"`
 		Error     string              `json:"error,omitempty"`
 		Attempts  []modelcall.Attempt `json:"attempts"`
-	}{OK: err == nil && valid, Nonempty: text != "", ValidJSON: valid, Attempts: g.LastAttempts()}
+	}{OK: err == nil && valid, Nonempty: text != "", ValidJSON: valid, Attempts: attempts()}
 	if err != nil {
 		result.Error = r.Text(err.Error())
 	} else if !valid {

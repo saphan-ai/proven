@@ -154,7 +154,7 @@ func refuseEditPath(p string) string {
 	if p == "" || filepath.IsAbs(p) || pathLeaves(p) {
 		return ReasonEditPath
 	}
-	if isGoTestFile(p) {
+	if isTestFile(p) {
 		return ReasonEditsATest
 	}
 	for _, seg := range strings.Split(filepath.ToSlash(p), "/") {
@@ -277,16 +277,16 @@ func StagePatched(src string, edits []Edit, maxBytes int) (string, error) {
 	return stagePatched(src, edits, maxBytes)
 }
 
-// PackageArgv is the command that runs every test of the package that holds the
-// proving test: go test ./<package>, built from the same checked path as TestArgv.
+// PackageArgv runs the proving test's package through the same language adapter
+// and checked path as TestArgv. A passing proof alone cannot hide broken neighbours.
 // A broken neighbour test is how a patch that fixes one thing breaks another.
 func PackageArgv(testPath, name string) ([]string, string) {
-	argv, reason := TestArgv(testPath, name)
+	_, reason := TestArgv(testPath, name)
 	if reason != "" {
 		return nil, reason
 	}
 	// The package is the last word of the test command (see TestArgv).
-	return []string{"go", "test", jsonFlag, argv[len(argv)-1]}, ""
+	return languageForTest(testPath).Command(filepath.ToSlash(testPath), name, true), ""
 }
 
 // resultOf names how a side ended, in the words of the FixRun record.

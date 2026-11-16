@@ -93,6 +93,23 @@ var mdStyle = inlineStyle{text: mdText, code: mdCode}
 // findings an exception accepts, and unproven opinions. Zero counts are left out.
 func mdCountsTail(result review.Result) string {
 	var parts []string
+	if d := result.Delivery; d != nil {
+		contradictions, unclear := 0, 0
+		for _, c := range d.Claims {
+			if c.Status == "contradiction" {
+				contradictions++
+			}
+			if c.Status == "unclear" {
+				unclear++
+			}
+		}
+		if contradictions > 0 {
+			parts = append(parts, fmt.Sprintf("%d delivery claims contradicted (advisory)", contradictions))
+		}
+		if unclear > 0 {
+			parts = append(parts, fmt.Sprintf("%d delivery claims unclear", unclear))
+		}
+	}
 	unresolved := 0
 	for _, f := range result.Findings {
 		if f.Unresolved {

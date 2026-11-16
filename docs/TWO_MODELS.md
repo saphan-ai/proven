@@ -1,5 +1,18 @@
 # Configure two reviewers
 
+For two CLI accounts on your runner, build and log each one in with the [start guide](START.md), then add the second backend to the same Action:
+
+```yaml
+- uses: saphan-ai/proven/cli@main
+  with:
+    backend: claude
+    image: proven-claude:local
+    second-backend: copilot
+    second-image: proven-copilot:local
+```
+
+Each uses its own login volume. `second-model` selects a model available to the second account; `second-home-volume` selects another dedicated profile. Both connections are checked before review. The sections below describe explicit adapter configuration for custom deployments.
+
 The primary and second reviewer can each use an API or a customer-installed CLI. They receive independent review prompts; their identities, evidence and disagreements remain visible. Two model opinions without evidence do not become a proved finding.
 
 The Skeptic model on one endpoint is a separate setting. Selecting `PROVEN_SKEPTIC_MODEL` alone does not create a second independently configured reviewer.

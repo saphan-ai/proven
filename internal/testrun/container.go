@@ -615,6 +615,17 @@ func (c *Container) side(ctx context.Context, dir string, test []string) (string
 // out, was cancelled, or the runtime could not be started.
 const noExit = -1
 
+func exitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode()
+	}
+	return noExit
+}
+
 // sideExit is side with the exit code of the command, which a fix's record keeps
 // so a reader can compare it with a run of their own .
 func (c *Container) sideExit(ctx context.Context, dir string, test []string) (string, runKind, int) {
@@ -642,6 +653,12 @@ func (c *Container) sideExit(ctx context.Context, dir string, test []string) (st
 		return joinRemoval(text, c.remove(name)), kindTimeout, noExit
 	}
 	proof := isProofArgv(test)
+	if kind, recognized := judgeLanguage(test, text, exitStatus(err)); recognized {
+		if kind == kindNotRun {
+			text += "\nthe test could not run or produced no usable test result"
+		}
+		return text, kind, exitStatus(err)
+	}
 	if err == nil {
 		if !proof {
 			return text, kindPass, 0
@@ -660,7 +677,11 @@ func (c *Container) sideExit(ctx context.Context, dir string, test []string) (st
 			return text, kindNotRun, exit.ExitCode()
 		default:
 			if proof {
-				_, text = parseEvents(text)
+				events, shown := parseEvents(text)
+				text = shown
+				if !ranAndFailed(provingName(test), events) {
+					return text + "\nthe test could not run: no native failure event for the selected test", kindNotRun, exit.ExitCode()
+				}
 			}
 			return text, kindFail, exit.ExitCode()
 		}

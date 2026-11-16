@@ -15,7 +15,10 @@
 // never import the shell's types; review.Open converts a Draft to a Result.
 package candidate
 
-import "github.com/saphan-ai/proven/internal/querytpl"
+import (
+	"github.com/saphan-ai/proven/internal/delivery"
+	"github.com/saphan-ai/proven/internal/querytpl"
+)
 
 // Evidence kind strings. They match the seam's EvidenceTest, EvidenceQuery
 // and EvidenceTool, so the conversion to a review.Result copies the kind unchanged.
@@ -352,6 +355,7 @@ type Opinion struct {
 // Partial is set when the deadline cut the review short; TracePath is the
 // JSONL trace of the run.
 type Draft struct {
+	Delivery             *delivery.Result
 	UnresolvedHypotheses []UnresolvedHypothesis
 	Findings             []Candidate
 	Opinions             []Opinion

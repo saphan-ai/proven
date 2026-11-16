@@ -2,7 +2,7 @@
 
 The runner turns a proposed test into an observed base/head comparison. It executes commands built by Proven inside restricted containers. A model supplies test source, not a shell command. The selected runtime, daemon, image and toolchain are trusted operator dependencies.
 
-Generated-test proving currently targets Go. Reading another ecosystem's dependency file does not add that ecosystem's test runner. See [language support](LANGUAGES.md).
+Generated-test adapters cover Go, Python/pytest, TypeScript/Vitest and JavaScript/node:test. Reading another ecosystem's dependency file does not add that ecosystem's test runner. See [language support](LANGUAGES.md).
 
 ## Product image versus runner image
 

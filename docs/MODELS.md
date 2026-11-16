@@ -34,7 +34,7 @@ proven model check
 
 For a hosted server, use its HTTPS API root and supply `PROVEN_GENERATOR_KEY` through your shell's secret handling or CI secret store. Do not put credentials in a committed profile, URL or `EXTRA_BODY`. Check that the selected endpoint is the intended recipient before sending source code.
 
-`model check` makes **one HTTP request**, using the Investigator's options. It has no HTTP retries, empty-answer recovery or schema repair. Exit 0 means the small probe returned valid, nonempty JSON; exit 3 means the probe failed; exit 7 means configuration was refused. It does not run a whole review, exercise the command adapter or measure detection quality.
+`model check` makes **one completion** through the configured HTTP or command adapter, using the Investigator's options. It has no HTTP retries, empty-answer recovery or schema repair. Exit 0 means the small probe returned valid, nonempty JSON; exit 3 means the probe failed; exit 7 means configuration was refused. Command mode records no invented HTTP measurements. The probe does not run a whole review or measure detection quality.
 
 Keep the probe JSON when comparing configurations. It records observed compatibility and timings. A successful probe today does not establish another model's behavior or the latency of a long generated test.
 
@@ -44,7 +44,7 @@ Keep the probe JSON when comparing configurations. It records observed compatibi
 | --- | --- | --- |
 | Planner | Risks in the change; bounded carried state when Markovian is on | Large changes may require many sequential steps. Budget total review time, not only one response. |
 | Investigator | Registered query names and parameters | Short structured answers; no SQL or shell commands. |
-| Prover | A differential test, or an explicit abstention | Source and test output may need more response tokens than query selection. Generated-test support currently targets Go. |
+| Prover | A differential test, or an explicit abstention | Source and test output may need more response tokens than query selection. Generated-test adapters cover Go, Python/pytest, TypeScript/Vitest and JavaScript/node:test. |
 | Skeptic | A refutation attempt and supporting evidence | A second opinion alone does not erase an observed proof. |
 | Fixer | A proposed edit for a proved finding | Patch text may need a larger answer budget. Validation runs separately. |
 | Judge / Writer | Deterministic adjudication / result assembly | No model call. |

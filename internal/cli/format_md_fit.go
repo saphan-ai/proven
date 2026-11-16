@@ -215,6 +215,7 @@ func mdBody(result review.Result, tabled int, details []string) string {
 			fmt.Fprintf(&b, "%d more %s only in the table above: the message and the evidence do not fit the size limit of the pull request page. They are in the JSON and SARIF files of this run.\n\n", n, pluralWord(n, "finding is", "findings are"))
 		}
 	}
+	mdDelivery(&b, result)
 	mdNotes(&b, result)
 	b.WriteString(mdFoot(result))
 	b.WriteString("\n")

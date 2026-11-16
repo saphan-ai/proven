@@ -122,6 +122,21 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 			}
 		}
 	}
+	if d := result.Delivery; d != nil {
+		if _, err := fmt.Fprintln(w, "PR delivery check (model assessment, separate from proved findings):"); err != nil {
+			return err
+		}
+		for _, c := range d.Claims {
+			if _, err := fmt.Fprintf(w, "- %s: %s — %s\n", visible(c.Status), visible(c.Requirement), visible(c.Reason)); err != nil {
+				return err
+			}
+		}
+		if d.Issue != "" {
+			if _, err := fmt.Fprintln(w, "delivery check incomplete: "+visible(d.Issue)); err != nil {
+				return err
+			}
+		}
+	}
 	for _, h := range result.UnresolvedHypotheses {
 		if _, err := fmt.Fprintf(w, "unresolved hypothesis (%s planner, after step %d): %s\n", visible(h.Reviewer), h.AfterStep, visible(h.Description)); err != nil {
 			return err

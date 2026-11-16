@@ -48,7 +48,7 @@ func TestWrittenTestIsCopiedAndTheCheckoutStaysUntouched(t *testing.T) {
 		sawFile++
 		switch string(keep) {
 		case "change-keep":
-			return "FAIL TestAdd", exitCode(t, 1)
+			return nativeFailureJSON("TestAdd", "FAIL TestAdd"), exitCode(t, 1)
 		case "base-keep":
 			return passedRun(argv), nil
 		default:

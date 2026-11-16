@@ -22,14 +22,14 @@ const (
 )
 
 // RefuseWritten reports why a written test must not run. It guards the one
-// place where the Prover adds code to the change: the file must be a Go test
+// place where the Prover adds code to the change: the file must be a registered test
 // file inside the repository, must not replace a non-test file, and must stay
 // under the size limit.
 // An empty reason means the request may run. maxBytes <= 0 uses the default.
 // The check looks at the name, the path, the size and the two checkouts.
 // It does not write a file and it does not start a runtime.
 func RefuseWritten(path, content, name, baseDir, changeDir string, maxBytes int) string {
-	if !namePattern.MatchString(name) {
+	if !validTestName(path, name) {
 		return ReasonBadName
 	}
 	if filepath.IsAbs(path) {
@@ -51,7 +51,7 @@ func RefuseWritten(path, content, name, baseDir, changeDir string, maxBytes int)
 	if nonTestAt(baseDir, path) || nonTestAt(changeDir, path) {
 		return ReasonOverwrites
 	}
-	if !isGoTestFile(path) {
+	if !isTestFile(path) {
 		return ReasonNotATestFile
 	}
 	// The directory of the file becomes an argument of go test (TestArgv).
@@ -100,7 +100,7 @@ func nonTestAt(dir, rel string) bool {
 	if !info.Mode().IsRegular() {
 		return true
 	}
-	return !isGoTestFile(rel)
+	return !isTestFile(rel)
 }
 
 // stageWritten copies src and writes the test file into the copy.

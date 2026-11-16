@@ -1,20 +1,25 @@
 # Build your own image with licensed CLIs
 
+For the short build → login → workflow path, use [Start with Proven](START.md). This page is the detailed image reference. The [supply-chain case study](CLI_SUPPLY_CHAIN_AUDIT.md) records actual Qwen/Cursor findings and fixes.
+
 **You build the vendor-CLI image in your own environment. Proven distributes the CLI-free product image and build recipes, not images containing Claude Code, Copilot or your subscription state.** This is the project's distribution boundary. Install only the tools you are entitled to use and keep the resulting image under your own control.
 
 The pattern is a common base, a pinned customer-added vendor layer, a build-time version check and a final non-root user. Authentication happens afterwards in a private runtime profile. A credential is never a Docker build argument or copied layer.
 
 ## 1. Inspect the customer build configuration
 
-The [Dockerfile](../examples/cli/Dockerfile) builds Proven from this checkout, prepares a Node runtime and offers three customer targets. The [Bake configuration](../examples/cli/docker-bake.hcl) names versions and output tags:
+The [Dockerfile](../examples/cli/Dockerfile) builds Proven from this checkout and prepares customer CLI targets. Cursor has a separate [glibc recipe](../examples/cli/Dockerfile.cursor). The [Bake configuration](../examples/cli/docker-bake.hcl) names versions and output tags:
 
 | Target | Local image | Customer-installed tools |
 | --- | --- | --- |
 | `claude` | `proven-claude:local` | Claude Code. |
 | `copilot` | `proven-copilot:local` | GitHub Copilot CLI. |
-| `dual` | `proven-dual:local` | Both. |
+| `dual` | `proven-dual:local` | Claude + Copilot. |
+| `codex` | `proven-codex:local` | Codex `0.169.0`. |
+| `qwen` | `proven-qwen:local` | Qwen Code `0.27.4`, explicit `sharp 0.35.5` override. |
+| `cursor` | `proven-cursor:local` | Cursor `2026.11.13-eacade1`, verified archive and patched Node `24.22.3`. |
 
-Both the published product and customer recipe use Alpine with explicitly pinned patched git/musl packages. The customer build installs vendor packages in a separate Node stage, then copies their package tree and Node binary into a fresh runtime. npm and its dependency tree are not part of that runtime. Both vendor packages provide musl variants. The context allowlist excludes credentials, local state and unrelated workspace material.
+The product and npm-based customer targets use Alpine with explicitly pinned patched git/musl packages. Packages are installed in a separate Node stage and copied with the Node binary into a fresh runtime; npm's own dependency tree is omitted. Cursor requires glibc, so its separate recipe uses Ubuntu and replaces the older bundled Node. It contains no Git package. Context allowlists exclude credentials, local state and unrelated workspace material.
 
 From the Proven repository root, with Docker Buildx:
 
@@ -26,7 +31,7 @@ docker run --rm --entrypoint claude proven-dual:local --version
 docker run --rm --entrypoint copilot proven-dual:local --version
 ```
 
-Choose `claude` or `copilot` instead of `dual` if you only need one. The build invokes vendor version checks and returns to UID/GID `10001:10001`. No login occurs while building. Defaults are exact CLI versions, not `latest`; the Node/Go base tags should be pinned to verified digests for your retained deployment.
+Choose a single backend instead of `dual` when you need one. The build invokes vendor version checks and returns to UID/GID `10001:10001`. No login occurs while building. Defaults are exact CLI versions, not `latest`; the Node/Go base tags should be pinned to verified digests for your retained deployment.
 
 Override your own build configuration explicitly, for example:
 

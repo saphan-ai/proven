@@ -1,10 +1,16 @@
-# Use Claude Code or GitHub Copilot
+# Use your CLI account
+
+For the short path covering Claude, Copilot, Codex, Cursor and Qwen Code, use **[Start with Proven](START.md)**. It handles customer images and login profiles through one Action. The sections below are the explicit transport reference.
 
 Use your own installed, authenticated vendor CLI as a text model for Proven. You keep the account and subscription. Proven supplies prompts and validates answers; its restricted runner still performs the evidence execution. **The published Proven image contains no vendor CLI.** Install locally or follow the [customer image recipe](CLI_IMAGES.md).
 
 These recipes use official CLIs through their normal sign-in, not extracted browser sessions or an unofficial subscription API. Account entitlement, organization policy, quota and vendor terms still apply. Proven does not provide a shared subscription gateway.
 
 ## Choose a model connection
+
+Codex, Cursor and Qwen Code use the same [build/login/check helper](START.md#use-another-cli). The pinned customer recipes and text wrappers are in [examples/cli](../examples/cli/README.md). Codex uses a dedicated `CODEX_HOME`, ignores user configuration/rules, disables shell/code execution features and reads only `--output-last-message`; its JSONL envelope is discarded. Cursor runs in ask mode in a fresh directory with explicit shell/read/write denials. Qwen disables customizations and sets a zero tool-call budget. Each receives only its own profile and prompt, with no target checkout or Docker socket.
+
+These controls depend on the pinned CLI version. Account-free wrapper checks verify argv/stdin/profile boundaries; image builds check the actual executable versions. Authenticate and validate your own model access before relying on a review.
 
 | What you have | Connection |
 | --- | --- |

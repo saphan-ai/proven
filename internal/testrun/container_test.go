@@ -354,7 +354,7 @@ func TestRunSetsProofOnlyWhenChangeFailsAndBasePasses(t *testing.T) {
 		switch {
 		case strings.Contains(mount, change+":/checkout:ro"):
 			sawChange = true
-			return "FAIL TestDiscounted", fail
+			return nativeFailureJSON("TestDiscounted", "FAIL TestDiscounted"), fail
 		case strings.Contains(mount, base+":/checkout:ro"):
 			sawBase = true
 			return passedRun(argv), nil

@@ -1,0 +1,29 @@
+Captured 2026-11-16; Linux arm64; Docker Scout 1.23.1.
+Filter: critical,high; ignore-suppressed=false; exit-code enabled.
+Only terminal formatting, trailing whitespace and the local archive directory were normalized.
+
+    i New version 1.29.0 available (installed version is 1.23.1) at https://github.com/docker/scout-cli
+    ...Reading archive
+    ✓ Archive read
+    ...Storing image for indexing
+    ✓ Image stored for indexing
+    ...Indexing
+    ✓ Indexed 89 packages
+    ✓ No vulnerable package detected
+
+
+## Overview
+
+                   │                   Analyzed Image
+───────────────────┼─────────────────────────────────────────────────────
+ Target            │  archive://proven-codex-candidate.tar
+   digest          │  42f68e148a85
+   platform        │ linux/arm64
+   vulnerabilities │    0C     0H     0M     0L
+   size            │ 255 MB
+   packages        │ 89
+
+
+## Packages and Vulnerabilities
+
+  No vulnerable packages detected

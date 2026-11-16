@@ -137,7 +137,9 @@ fi
 
 # The runner owns the checkout and this container runs as root, so git would
 # refuse it as "dubious ownership" when Proven reads the pull request's base.
-git config --global --add safe.directory "$workspace" 2>/dev/null || true
+if [ "${PROVEN_ACTION_HOST:-false}" != true ]; then
+  git config --global --add safe.directory "$workspace" 2>/dev/null || true
+fi
 
 # A file left by an earlier run must not be counted as this run's.
 rm -f "$workspace/$json_file" "$workspace/$sarif_file" "$workspace/$text_file"

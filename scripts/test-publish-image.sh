@@ -13,7 +13,7 @@ cat > "$work/bin/docker" <<'SH'
 #!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 case "$*" in
-  run*"for cli in claude copilot"*)
+  run*"for cli in claude copilot codex agent cursor-agent qwen"*)
     if [ "${FAKE_VENDOR_CLI:-}" = true ]; then exit 1; fi ;;
   scout*cves*)
     args="$*"

@@ -6,7 +6,13 @@ Models propose risks, tests and fixes. Deterministic rules decide which findings
 
 **Development preview.** Read [readiness and limitations](docs/READINESS.md) before using Proven as a required check. A clean result means no defect was proved under the checks that ran; it does not establish exhaustive coverage. Final unresolved planning hypotheses are reported separately and make completion incomplete.
 
-## Try it
+## Start here
+
+**[Start with Proven](docs/START.md)** — choose your CLI, build your own image, log in and paste one GitHub workflow. Covers your own runner and a GitHub-hosted runner.
+
+**[What Proven checks and proves](docs/WHAT_PROVEN_CHECKS.md)** — evidence, coverage and limits in a table.
+
+## Try the recorded demo
 
 Install the Go version in [go.mod](go.mod), then build:
 
@@ -22,7 +28,7 @@ make sample
 
 Sample mode replays recorded model answers and test outcomes. Follow the [quick start](docs/QUICKSTART.md) to produce JSON/HTML, then [walk through the evidence](docs/WALKTHROUGH.md). The [Git/SQLite tutorial](docs/DATA_WALKTHROUGH.md) runs real imports and queries without a model or Docker.
 
-For live code review, prepare your [model connection](docs/MODELS.md), [source data](docs/SOURCES.md) and [restricted runner](docs/RUNNER.md). The [documentation map](docs/README.md) covers operations, policy, reports, extensions and troubleshooting.
+For live code review, follow [Start with Proven](docs/START.md). The [documentation map](docs/README.md) covers operations, policy, reports, extensions and troubleshooting.
 
 ## Your models and data
 
@@ -66,7 +72,7 @@ Bring an account you already use: [API key setup](docs/CONNECT_API.md), [Claude 
 
 ## Limitations
 
-Evidence requirements can leave real defects unreported. Dependency-manifest support covers more languages than the generated-test runner, which currently targets Go. Sample results and engine conformance scores do not establish real-world recall or precision. A missing dataset or failed analyzer is incomplete analysis, not a clean measurement.
+Evidence requirements can leave real defects unreported. Dependency-manifest support covers more languages than the generated-test adapters, which cover Go, Python/pytest, TypeScript/Vitest and JavaScript/node:test. Sample results and engine conformance scores do not establish real-world recall or precision. A missing dataset or failed analyzer is incomplete analysis, not a clean measurement.
 
 ## Development
 

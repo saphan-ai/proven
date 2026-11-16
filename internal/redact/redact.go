@@ -31,7 +31,7 @@ import (
 // answer that echoes it never reaches the trace . The organisation id is
 // an identifier, not a credential: an id shorter than service.MinSecretBytes is NOT redacted
 // (FromEnv leaves it out), so a short id can appear in a trace.
-var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID, store.EnvCouchPassword, store.EnvRecordsPassword, store.EnvPostgresURL}
+var Names = []string{generator.EnvToken, generator.EnvKey, generator.EnvSecondKey, "CLAUDE_CODE_OAUTH_TOKEN", guardrail.EnvKey, query.EnvAPIKey, query.EnvOrgID, store.EnvCouchPassword, store.EnvRecordsPassword, store.EnvPostgresURL}
 
 // Redactor replaces configured values in text. The zero value and a nil
 // *Redactor leave text unchanged.

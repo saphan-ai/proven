@@ -134,7 +134,7 @@ func Environment() []envdoc.Setting {
 
 // agents is the closed set a require-NVIDIA list may name.
 // The names are the six agents of the review and the Fixer , as they call the generator.
-var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer"}
+var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer", "delivery"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
 // A refused token is reported with an empty value, so the secret is never printed.

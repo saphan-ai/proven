@@ -27,7 +27,35 @@ Version presence is not runtime reachability. A dependency finding must not be d
 
 ## Generated tests
 
-The current live Prover generates Go tests. It receives the candidate risk, bounded source excerpts from base/head and existing tests from the relevant package. The test must establish the required base-pass/head-fail differential outcome in the restricted runner.
+The live Prover uses the registered language adapters below. It receives the candidate risk, bounded source excerpts from base/head and nearby tests. A finding requires the same selected test to pass on base and fail on head in the restricted runner.
+
+| Language | Adapter / framework | Accepted test files | Test selection |
+| --- | --- | --- | --- |
+| Go | Native `go test -json` | `*_test.go` | A `TestName` function. |
+| Python | pytest, including unittest-style classes | `test_*.py`, `*_test.py` | `test_function` or `ClassName::test_method`; parametrized cases are retained. |
+| TypeScript | Vitest | `.test.ts`, `.spec.ts`, TSX/MTS/CTS variants, TypeScript files under `__tests__/` | Exact full test name, including enclosing `describe` names. |
+| JavaScript / Node | Native `node:test` | `.test.js`, `.test.mjs`, `.test.cjs` | Exact full test name, including nested suite names. |
+| JavaScript / Vitest | Vitest | `.spec.js`, `.spec.mjs`, `.spec.cjs` | Exact full test name. This naming keeps the adapter choice explicit. |
+
+### Shared proof and fix contract
+
+| Capability | Go | Python | TypeScript | JavaScript/Node |
+| --- | --- | --- | --- | --- |
+| Same generated test staged on base and head | Yes | Yes | Yes | Yes |
+| Native pass/failure observations; exit zero alone is insufficient | Yes | Yes | Yes | Yes |
+| Build/import/collection/setup errors stay distinct from an observed failing test | Yes | Yes | Yes | Yes |
+| Proving test rerun on base, head and patched head | Yes | Yes | Yes | Yes |
+| Additional package/project tests and touched-area rechecks | Yes | Yes | Yes | Yes |
+| Read-only source, no network, non-root execution and secret filtering | Yes | Yes | Yes | Yes |
+| Shared CPU/memory/process/time bounds and container cleanup | Yes | Yes | Yes | Yes |
+
+The entry point remains `testrun.Adapter`; `Container` also implements `FixRunner` and `BreakageRunner`. [`LanguageAdapters`](../internal/testrun/languages.go) supplies fixed commands and naming rules. Embedded reporters consume native events or framework reports; model text never selects a shell command. New-language results retain the existing test-evidence shape in reports and packs.
+
+Account-free real-container tests use pytest `9.2.0`, Vitest `5.1.0` and Node 24. They cover a deliberate regression, a correct change, fix reruns, neighbouring tests, syntax/import failure, unittest classes, nested Node suites and Vitest hook failure. This establishes the tested contract, not compatibility with every framework release or project setup.
+
+The framework and offline dependencies must exist in the selected runtime. Node/Vitest use the prepared `node_modules` at `/deps/node_modules`, or dependencies already present in the staged project. Helpers copy source to bounded scratch; the original source mount stays read-only. pytest runs without its cache plugin. No dependency install occurs during proof.
+
+Kotlin/Gradle, Rust/Cargo and Swift/XCTest are follow-on generated-test adapters. Their manifest support is a separate capability. SwiftUI requires macOS/Xcode and an appropriate isolated execution adapter; a Linux Docker image cannot supply that environment.
 
 Models can discuss other languages, but text is not a runner implementation. Wider proving coverage needs a language-appropriate test protocol, controlled command construction, prepared toolchain, isolation and failure-path tests. See [Runner](RUNNER.md) and [test adapter](ADAPTERS.md#adding-a-test-run).
 

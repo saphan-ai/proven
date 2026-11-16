@@ -1,7 +1,6 @@
 package testrun
 
 import (
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -27,7 +26,7 @@ var segmentPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
 // that is executed : the command comes from TestArgv, never from text
 // a model wrote. It does not look at any checkout and starts nothing.
 func RefuseTest(testPath, name string) string {
-	if !namePattern.MatchString(name) {
+	if !validTestName(testPath, name) {
 		return ReasonBadName
 	}
 	if filepath.IsAbs(testPath) {
@@ -36,7 +35,7 @@ func RefuseTest(testPath, name string) string {
 	if pathLeaves(testPath) {
 		return ReasonLeavesRepo
 	}
-	if !isGoTestFile(testPath) {
+	if !isTestFile(testPath) {
 		return ReasonNotATestFile
 	}
 	return refusePackage(testPath)
@@ -54,26 +53,24 @@ func refusePackage(testPath string) string {
 	return ""
 }
 
-// TestArgv is the command that runs one Go test: the words after the image of
-// the container run line, with no shell between them . It is a fixed
-// template — go test -run '^<name>$' ./<package> — filled from a name and a
-// path that RefuseTest accepted. A non-empty reason means there is no command.
+// TestArgv selects a registered language adapter's fixed command. The model
+// supplies a checked path/name, never executable argv or a shell program.
+// Go uses go test -json; other adapters use their embedded native reporter.
 func TestArgv(testPath, name string) ([]string, string) {
 	if reason := RefuseTest(testPath, name); reason != "" {
 		return nil, reason
 	}
-	pkg := "."
-	if dir := path.Dir(filepath.ToSlash(testPath)); dir != "." {
-		pkg = "./" + dir
-	}
 	// -json makes the output carry a pass event per test, which is how a
 	// run shows the test ran; an exit code alone cannot show that.
-	return []string{"go", "test", jsonFlag, "-run", "^" + name + "$", pkg}, ""
+	return languageForTest(testPath).Command(filepath.ToSlash(testPath), name, false), ""
 }
 
 // displayCommand is the line the trace and the review show for an argv built by
 // TestArgv. It is only text for a reader; nothing runs it.
 func displayCommand(argv []string) string {
+	if a, ok := scriptForArgv(argv); ok {
+		return a.id + " [Proven adapter] " + strings.Join(argv[4:], " ")
+	}
 	shown := append([]string(nil), argv...)
 	for i, word := range shown {
 		if i > 0 && shown[i-1] == "-run" {
