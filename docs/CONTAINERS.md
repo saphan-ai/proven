@@ -1,0 +1,30 @@
+# Container builds and security updates
+
+The product image uses Alpine as its base and installs its runtime packages during the build. A vanilla base image is not the final security state of the product. Operator model keys and evidence databases are not baked into the image. The runtime includes the CLI and a recorded demonstration fixture; the build context is allow-listed.
+
+## Runtime package overlay
+
+The Dockerfile first applies available stable Alpine updates, then installs selected signed packages from a tagged security repository. Build arguments explicitly select the repository and exact package versions:
+
+| Argument | Current default |
+| --- | --- |
+| `RUNTIME_IMAGE` | `alpine:3.24` |
+| `ALPINE_SECURITY_REPOSITORY` | `https://dl-cdn.alpinelinux.org/alpine/edge/main` |
+| `GIT_PACKAGE_VERSION` | `2.56.1-r0` |
+| `MUSL_PACKAGE_VERSION` | `1.2.6-r6` |
+
+The tag limits selection of the newer branch to the requested packages and necessary dependencies. This is a curated overlay, not a wholesale distribution upgrade. Package signatures remain enforced. Missing pinned versions or version mismatches fail the build; there is no fallback to older base packages. The runtime dependency set is recorded in the SBOM and must be tested and scanned for each architecture.
+
+The newer pins were selected after the previous image scan reported CVE-2026-105437 in git and CVE-2026-107891 in musl. Distribution backports and scanner version matching can differ; consult the [Git security announcement](https://github.blog/open-source/git/git-security-vulnerabilities-announced-7/) and [Alpine musl tracker](https://security.alpinelinux.org/vuln/CVE-2026-107891) when changing these pins. The release gate uses the findings of a fresh scan of the finished image, including base packages, without a suppression or ignore-base shortcut.
+
+The Docker client is separately downloaded from Docker's static release and checked against a pinned architecture-specific SHA-256. Updating a package version also requires reviewing its checksum where applicable, rebuilding, exercising Git and the sample review, and rescanning both architectures.
+
+## Publishing
+
+Use a unique source-revision tag. `make publish-image IMAGE=your-registry/proven:your-tag` builds and loads both supported Linux architectures, checks the executable and recorded example, scans each with Docker Scout, and pushes only after every check passes. It requires a Buildx builder supporting both platforms and a containerd image store capable of loading a multi-platform image. `BUILDX_BUILDER` can select a prepared builder.
+
+Docker Scout can send image metadata to its service; invoking this publishing command opts into that scan. A scanner error or any reported HIGH/CRITICAL finding stops publication. The gate also reads the SARIF result list and rejects suppressed findings even if the scanner exits successfully. Fix packages and rebuild rather than skipping that gate. Ordinary local development can still use `make image`; it does not publish or imply a successful security scan. `make scan` is also available for a local Trivy check. The publishing script uses Python 3 to check SARIF.
+
+Record the source revision, final image index digest, platform digests, package versions, scanner results and scan date. SBOM and provenance describe the build; they do not replace the scan. An image clean against today's scanner database can acquire findings later and needs a new review before the next release.
+
+In self-review, update `PROVEN_REVIEW_IMAGE` only to the digest of the validated image. Keep the previous digest available for reproducibility. Runner images and host Git are separate components and need their own updates; updating the product image does not patch the GitHub runner or another operator's host.

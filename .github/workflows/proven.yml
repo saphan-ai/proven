@@ -24,6 +24,7 @@ jobs:
       - run: go vet ./...
       - run: make check-links
       - run: sh action/test.sh
+      - run: sh scripts/test-publish-image.sh
       - run: node --test docs-site/scripts/*.test.mjs
       - run: go build -trimpath ./cmd/proven
   release-build:
