@@ -82,7 +82,7 @@ func Compare(a, b string) (int, bool) {
 	if ak != kindOK || bk != kindOK {
 		return 0, false
 	}
-	return av.cmp(bv), true
+	return bv.cmp(av), true
 }
 
 // Explain says why value is outside the subset.
