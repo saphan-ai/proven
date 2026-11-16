@@ -11,5 +11,6 @@ Small adapters implement interfaces without real services. Their tests need no a
 | testrun | recorded outcomes | [Test run](../docs/ADAPTERS.md#adding-a-test-run) | `go test -count=1 ./examples/testrun` |
 | tool | fixed detector | [Tool](../docs/ADAPTERS.md#adding-a-tool) | `go test -count=1 ./examples/tool` |
 | data | synthetic snapshot | [Git/SQLite walkthrough](../docs/DATA_WALKTHROUGH.md) | Follow the walkthrough; no model or Docker. |
+| cli | customer-installed Claude Code / Copilot | [CLI recipes](cli/README.md) | `python3 examples/cli/test_wrappers.py` (fake executables, no accounts). |
 
 Run all adapter examples with `go test ./examples/...`. For recorded reviews, use the [sample catalogue](../docs/SAMPLE_MODE.md). The data example is invented teaching data and must not be used as an operational feed.

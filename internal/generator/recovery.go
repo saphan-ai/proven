@@ -39,7 +39,12 @@ func (l *Live) GenerationPolicy() CallPolicy {
 		DeadlineReserve: o.DeadlineReserve, RepairContext: o.RepairContext, RepairMaxBytes: o.RepairMaxBytes}
 }
 
-func (s *Second) GenerationPolicy() CallPolicy  { return s.live.GenerationPolicy() }
+func (s *Second) GenerationPolicy() CallPolicy {
+	if s.command != nil {
+		return s.command.GenerationPolicy()
+	}
+	return s.live.GenerationPolicy()
+}
 func (c *Command) GenerationPolicy() CallPolicy { return (&Live{cfg: c.cfg}).GenerationPolicy() }
 
 type stepKey struct{}

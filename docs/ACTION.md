@@ -40,6 +40,8 @@ Gitea Actions can use the same entrypoint and outputs. Containerized proving req
 
 ## Proven reviewing itself
 
+For a guided visual introduction, see [GitHub screenshots](GITHUB_TOUR.md). [API credentials](CONNECT_API.md) includes secret creation and replacement; [CLI images](CLI_IMAGES.md) describes customer-owned subscription tooling rather than a bundled official image.
+
 This repository's `self-review.yml` workflow reviews same-repository pull requests through the ordinary OpenAI-compatible adapter. It currently defaults to NVIDIA Nemotron. `PROVEN_REVIEW_BASE_URL` and `PROVEN_REVIEW_MODEL` select the endpoint and model. The secret `PROVEN_REVIEW_API_KEY` takes precedence over the existing `NVIDIA_API_KEY`. `PROVEN_REVIEW_IMAGE` is a repository variable containing a published `saphan/proven@sha256:...` image digest; updating it explicitly selects the reviewer version.
 
 The self-review profile uses 300s per attempt, 40s to headers, 90s idle, 8192 tokens (Planner 4096, Investigator/Skeptic 2048), a 60s finalization reserve and three rate-limit retries. Repository variables `PROVEN_REVIEW_CALL_TIMEOUT`, `PROVEN_REVIEW_HEADER_TIMEOUT`, `PROVEN_REVIEW_IDLE_TIMEOUT`, `PROVEN_REVIEW_MAX_TOKENS`, `PROVEN_REVIEW_AGENT_MAX_TOKENS`, `PROVEN_REVIEW_DEADLINE_RESERVE`, `PROVEN_REVIEW_RATE_LIMIT_RETRIES` and `PROVEN_REVIEW_RECOVERY_RETRIES` override those choices. `PROVEN_REVIEW_INCLUDE_USAGE`, `PROVEN_REVIEW_EXTRA_BODY` and `PROVEN_REVIEW_AGENT_EXTRA_BODY` enable endpoint-specific options after checking compatibility. The whole review remains bounded at 1500s and the job at 35 minutes. See [call limits](CONFIGURATION.md#call-limits-and-provider-options).

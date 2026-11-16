@@ -13,6 +13,8 @@ cat > "$work/bin/docker" <<'SH'
 #!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 case "$*" in
+  run*"for cli in claude copilot"*)
+    if [ "${FAKE_VENDOR_CLI:-}" = true ]; then exit 1; fi ;;
   scout*cves*)
     args="$*"
     while [ "$#" -gt 0 ]; do
@@ -56,6 +58,16 @@ import sys
 assert not any(s.startswith('push ') for s in open(sys.argv[1])), 'pushed with a suppressed vulnerability'
 PY_CHECK
 unset HIDDEN_CVE
+FAKE_VENDOR_CLI=true; export FAKE_VENDOR_CLI
+: > "$FAKE_DOCKER_LOG"
+if sh "$root/scripts/publish-image.sh" example/proven:test > "$work/out" 2>&1; then
+  echo 'FAIL: publication accepted a vendor CLI in the product image' >&2; exit 1
+fi
+python3 - "$FAKE_DOCKER_LOG" <<'PY_CHECK'
+import sys
+assert not any(s.startswith('push ') for s in open(sys.argv[1])), 'pushed a vendor CLI image'
+PY_CHECK
+unset FAKE_VENDOR_CLI
 : > "$FAKE_DOCKER_LOG"
 sh "$root/scripts/publish-image.sh" example/proven:test > "$work/out" 2>&1
 python3 - "$FAKE_DOCKER_LOG" <<'PY'

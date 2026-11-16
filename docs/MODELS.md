@@ -6,6 +6,8 @@ Start with [Quick start](QUICKSTART.md) to separate recorded behavior from a liv
 
 ## Choose a transport
 
+For complete, copyable recipes, use [API credentials](CONNECT_API.md), [Claude Code / Copilot](CLI_MODELS.md), [two reviewers](TWO_MODELS.md) and [customer-built CLI images](CLI_IMAGES.md). The official product image contains no vendor CLI or account credentials.
+
 | Mode | Use it for | Authentication and limits |
 | --- | --- | --- |
 | `off` | Deterministic checks without generated hypotheses | No model connection. Source/tool requirements still apply. |
@@ -118,7 +120,9 @@ The adapter inherits a small allowlist of ordinary process and login/configurati
 
 ## Add another reviewer
 
-Set `PROVEN_SECOND_REVIEWER_BASE_URL` and `PROVEN_SECOND_REVIEWER_MODEL`, plus its optional key. Call controls have corresponding `PROVEN_SECOND_REVIEWER_` settings. Unset overrides inherit the primary controls; `{}` clears extra-body maps, `0` omits token limits and `false` disables inherited switches. Explicitly clear provider-specific options when the second endpoint is from a different vendor.
+The second reviewer also accepts `PROVEN_SECOND_REVIEWER_MODE=command` and its own JSON `PROVEN_SECOND_REVIEWER_COMMAND`. This supports API + CLI and two separate CLIs, including customer-authenticated Claude Code + Copilot. `off` explicitly disconnects it. See [two-model recipes](TWO_MODELS.md); no HTTP endpoint or API key is required for command mode.
+
+For an API reviewer, set `PROVEN_SECOND_REVIEWER_BASE_URL` and `PROVEN_SECOND_REVIEWER_MODEL`, plus its optional key. Call controls have corresponding `PROVEN_SECOND_REVIEWER_` settings. Unset overrides inherit the primary controls; `{}` clears extra-body maps, `0` omits token limits and `false` disables inherited switches. Clear provider-specific options when the second endpoint is from a different vendor.
 
 The report retains both reviewer roles, identities and disagreements. Shared family labels and unknown identity remain visible. Two configurations do not by themselves establish independent training or eliminate shared mistakes.
 

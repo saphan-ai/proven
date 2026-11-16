@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Support an independently configured command transport for the second reviewer, including API + CLI and two CLI configurations. Add API credential setup, customer-built CLI recipes, Claude Code/Copilot examples and real GitHub screenshots with labelled recorded evidence.
+
 - Preserve final unresolved bounded-planning hypotheses in all report formats and traces while continuing evidence checks for identified risks; required completion exits 3 and never counts those hypotheses as findings.
 - Make model request limits, three clocks, provider options and shared recovery configurable, with per-agent and second-reviewer overrides and per-request stream observations.
 - Pin updated git/musl runtime packages above the Alpine base and gate image publication on successful checks and HIGH/CRITICAL scans for both architectures.

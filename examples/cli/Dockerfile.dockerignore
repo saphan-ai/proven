@@ -1,0 +1,17 @@
+*
+!go.mod
+!go.sum
+!cmd
+!internal
+!examples
+examples/*
+!examples/cli
+examples/cli/*
+!examples/cli/claude-text.sh
+!examples/cli/copilot-text.sh
+**/.env
+**/.env.*
+**/*credentials*.json
+**/*.pem
+**/*.key
+**/node_modules

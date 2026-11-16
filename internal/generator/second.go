@@ -19,6 +19,8 @@ const (
 	EnvSecondModel          = "PROVEN_SECOND_REVIEWER_MODEL"
 	EnvSecondTimeout        = "PROVEN_SECOND_REVIEWER_TIMEOUT"
 	EnvSecondThinkingBudget = "PROVEN_SECOND_REVIEWER_THINKING_BUDGET"
+	EnvSecondMode           = "PROVEN_SECOND_REVIEWER_MODE"
+	EnvSecondCommand        = "PROVEN_SECOND_REVIEWER_COMMAND"
 )
 
 // SecondService is the name a second-reviewer failure carries in the review's list of failed services.
@@ -28,20 +30,22 @@ const SecondService = "second-reviewer"
 // Each Name is the Env constant beside this function.
 func SecondEnvironment() []envdoc.Setting {
 	rows := []envdoc.Setting{
+		{Name: EnvSecondMode, Default: "openai; command when COMMAND is set", Description: "openai, command or off; the second reviewer may use an API or its own operator-configured CLI"},
+		{Name: EnvSecondCommand, Default: "none", Description: "JSON argv for the second reviewer's CLI; prompt on stdin, final answer on stdout; {model} and {agent} are substituted; no shell is started"},
 		{
 			Name:        EnvSecondKey,
 			Default:     "none (optional for local endpoints)",
 			Secret:      true,
-			Description: "the API key of the second reviewer. Secret: never printed. Without a key, set both endpoint and model to enable this reviewer",
+			Description: "Secret: optional API key, never printed; ignored in command/off mode. An API reviewer without a key needs both endpoint and model",
 		},
 		{
 			Name:        EnvSecondBaseURL,
-			Default:     "none (required with the key)",
+			Default:     "none (required for an enabled API reviewer)",
 			Description: "the address of any OpenAI-compatible chat API, for example `https://api.openai.com/v1` or a local server",
 		},
 		{
 			Name:        EnvSecondModel,
-			Default:     "none (required with the key)",
+			Default:     "none (required when enabled)",
 			Description: "the model asked for; the review names it as the second reviewer",
 		},
 	}
@@ -59,6 +63,8 @@ func SecondEnvironment() []envdoc.Setting {
 // SecondSettings is one validated second-reviewer configuration. The key is held so the call can
 // send it. It is not a value to print.
 type SecondSettings struct {
+	Mode    string
+	Command []string
 	Options *CallOptions
 	BaseURL string
 	Key     string
@@ -77,11 +83,21 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 	if env == nil {
 		env = func(string) string { return "" }
 	}
+	mode := env(EnvSecondMode)
+	if mode == ModeOff {
+		return SecondSettings{}, false, nil
+	}
+	if mode == ModeCommand || (mode == "" && env(EnvSecondCommand) != "") {
+		return loadSecondCommand(env)
+	}
+	if mode != "" && mode != ModeOpenAI {
+		return SecondSettings{}, false, refuse(EnvSecondMode, "", "not a second-reviewer mode", "openai, command or off")
+	}
 	key := env(EnvSecondKey)
 	if strings.ContainsAny(key, "\r\n") || len(key) > 4096 || service.TooShortSecret(key) {
 		return SecondSettings{}, false, refuse(EnvSecondKey, "", "not a usable key", "a non-empty secret in the environment, at least 8 and at most 4096 characters, with no line break")
 	}
-	connected := strings.TrimSpace(key) != "" || (env(EnvSecondBaseURL) != "" && env(EnvSecondModel) != "")
+	connected := mode == ModeOpenAI || strings.TrimSpace(key) != "" || (env(EnvSecondBaseURL) != "" && env(EnvSecondModel) != "")
 	base := env(EnvSecondBaseURL)
 	if base == "" {
 		if connected {
@@ -160,21 +176,64 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 	if !connected {
 		return SecondSettings{}, false, nil
 	}
-	return SecondSettings{Options: options, BaseURL: base, Key: key, Model: model, Timeout: timeout, ThinkingBudget: budget, Network: policy}, true, nil
+	return SecondSettings{Mode: ModeOpenAI, Options: options, BaseURL: base, Key: key, Model: model, Timeout: timeout, ThinkingBudget: budget, Network: policy}, true, nil
 }
 
-// Second is the generator of the second reviewer: any OpenAI-compatible chat API, behind the same
-// Generator interface as Nightshift. It sends only the key and the prompt, asks for the model it
-// was configured with, and names that model as the reviewer, because no receipt of this API is read.
+// Reuse the primary command loader, while keeping credentials, argv and model
+// independent. Only call controls inherit; an absent second argv/model cannot
+// silently select the primary CLI. Local-network refusal applies to both roles.
+func loadSecondCommand(env func(string) string) (SecondSettings, bool, error) {
+	lookup := func(name string) string {
+		switch name {
+		case EnvMode:
+			return ModeCommand
+		case EnvCommand:
+			return env(EnvSecondCommand)
+		case EnvModel:
+			return env(EnvSecondModel)
+		case EnvSkepticModel:
+			return ""
+		}
+		if strings.HasPrefix(name, "PROVEN_GENERATOR_") {
+			if value := env(strings.Replace(name, "PROVEN_GENERATOR_", "PROVEN_SECOND_REVIEWER_", 1)); value != "" {
+				return value
+			}
+		}
+		return env(name)
+	}
+	cfg, err := Load(lookup)
+	if err != nil {
+		var ce *ConfigError
+		if errors.As(err, &ce) {
+			copy := *ce
+			alt := strings.Replace(ce.Field, "PROVEN_GENERATOR_", "PROVEN_SECOND_REVIEWER_", 1)
+			if ce.Field == EnvMode || ce.Field == EnvCommand || ce.Field == EnvModel || env(alt) != "" {
+				copy.Field = alt
+			}
+			return SecondSettings{}, false, &copy
+		}
+		return SecondSettings{}, false, err
+	}
+	return SecondSettings{Mode: ModeCommand, Command: cfg.Command, Model: cfg.Model, Timeout: cfg.Timeout, Options: cfg.Options, Network: cfg.Network}, true, nil
+}
+
+// Second wraps an independently configured API or command model. Failures are
+// attributed to this role; command answers retain unknown responding identity.
 type Second struct {
-	live  *Live
-	model string
+	live    *Live
+	command *Command
+	model   string
 }
 
-// Complete sends one prompt to the second reviewer. A failure is renamed to the second reviewer,
-// so the review never blames Nightshift for another server's answer.
+// Complete sends one prompt and attributes transport failures to the second reviewer.
 func (s *Second) Complete(ctx context.Context, agent, prompt string) (string, error) {
-	text, err := s.live.Complete(ctx, agent, prompt)
+	var text string
+	var err error
+	if s.command != nil {
+		text, err = s.command.Complete(ctx, agent, prompt)
+	} else {
+		text, err = s.live.Complete(ctx, agent, prompt)
+	}
 	var d *service.Down
 	if errors.As(err, &d) {
 		return "", &service.Down{Service: SecondService, Reason: d.Reason}
@@ -182,9 +241,12 @@ func (s *Second) Complete(ctx context.Context, agent, prompt string) (string, er
 	return text, err
 }
 
-// LastUse names the configured model for the call that just finished. FromReceipt is false: this
-// name is the setting, not a receipt's word.
+// LastUse preserves command metadata; the API route retains its established
+// configured-model label, which is not a cryptographic identity receipt.
 func (s *Second) LastUse() (Use, bool) {
+	if s.command != nil {
+		return s.command.LastUse()
+	}
 	use, ok := s.live.LastUse()
 	if !ok {
 		return Use{}, false

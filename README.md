@@ -26,6 +26,12 @@ For live code review, prepare your [model connection](docs/MODELS.md), [source d
 
 ## Your models and data
 
+[See GitHub Actions, comments and expandable evidence](docs/GITHUB_TOUR.md).
+
+![GitHub rendering of the recorded finding example with differential test evidence](docs/images/github-recorded-findings.jpg)
+
+*Recorded sample rendered by GitHub, with synthetic data and replayed test outcomes. The [tour](docs/GITHUB_TOUR.md) separately shows real workflow/comment screenshots.*
+
 - **Models:** an OpenAI-compatible API or a command adapter using a locally authenticated CLI. Choose your endpoint and model; credentials are optional for endpoints that need none. Legacy Nightshift and NVIDIA configurations remain opt-in adapters.
 - **Evidence:** SQLite by default, with PostgreSQL, CouchDB, local fixture files and Zetaris adapters. Source tables and query templates are independent of the backend.
 - **Safety checks:** an optional model service, configured separately from the reviewer. Container isolation, controlled commands and secret filtering remain enforced independently.
@@ -47,6 +53,8 @@ The Planner identifies risks, the Investigator gathers data, the Prover runs a t
 See [architecture](docs/ARCHITECTURE.md), [evidence packs](docs/EVIDENCE_PACK.md), [output formats](docs/OUTPUT_FORMATS.md) and [security](SECURITY.md).
 
 ## Guides
+
+Bring an account you already use: [API key setup](docs/CONNECT_API.md), [Claude Code / GitHub Copilot](docs/CLI_MODELS.md), [Claude + Copilot together](docs/TWO_MODELS.md). [Build your own CLI image](docs/CLI_IMAGES.md) from the supplied recipes; our published image contains no vendor CLI or credentials.
 
 | Task | Documentation |
 | --- | --- |

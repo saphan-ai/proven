@@ -93,7 +93,7 @@ func Catalog() []envdoc.Section {
 			After:   generatorAfter,
 		},
 		{
-			Heading: "The second reviewer: any OpenAI-compatible model",
+			Heading: "The second reviewer: API or CLI",
 			Rows:    generator.SecondEnvironment(),
 		},
 		{

@@ -25,6 +25,7 @@ jobs:
       - run: make check-links
       - run: sh action/test.sh
       - run: sh scripts/test-publish-image.sh
+      - run: python3 examples/cli/test_wrappers.py
       - run: node --test docs-site/scripts/*.test.mjs
       - run: node docs-site/scripts/build-content.mjs
       - run: node docs-site/scripts/guards.mjs

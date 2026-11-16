@@ -22,6 +22,8 @@ if [ -n "${BUILDX_BUILDER:-}" ]; then set -- "$@" --builder "$BUILDX_BUILDER"; f
 for platform in linux/amd64 linux/arm64; do
   docker run --rm --platform "$platform" --network none "$image" --version
   docker run --rm --platform "$platform" --network none --entrypoint /bin/sh "$image" -ec \
+    'for cli in claude copilot; do if command -v "$cli" >/dev/null 2>&1; then echo "Vendor CLI blocks product publication: $cli" >&2; exit 1; fi; done'
+  docker run --rm --platform "$platform" --network none --entrypoint /bin/sh "$image" -ec \
     'git --version; mkdir /tmp/git-smoke; git init -q /tmp/git-smoke; git -C /tmp/git-smoke status --porcelain'
   docker run --rm --platform "$platform" --network none "$image" scan --sample /opt/proven/fixture/discount
   # A non-zero scanner result stops this script before push. No pipeline, base

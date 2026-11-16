@@ -4,6 +4,10 @@ The product image uses Alpine as its base and installs its runtime packages duri
 
 ## Runtime package overlay
 
+Vendor CLIs are absent from the published product. [Customer CLI images](CLI_IMAGES.md) are separate recipes users build themselves; account state arrives at runtime. Their added Node/vendor packages require their own security checks; npm is confined to the installation stage.
+
+The product publication script additionally refuses an image exposing `claude` or `copilot` on either architecture. Customer build targets are separate and are never selected by the product release script.
+
 The Dockerfile first applies available stable Alpine updates, then installs selected signed packages from a tagged security repository. Build arguments explicitly select the repository and exact package versions:
 
 | Argument | Current default |

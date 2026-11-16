@@ -42,4 +42,6 @@ The later [bounded self-review run](https://github.com/saphan-ai/proven/actions/
 
 ## Evaluation still needed
 
+The [next bounded run](https://github.com/saphan-ai/proven/actions/runs/43832549285), with thinking disabled for all roles, completed 87 planning steps with no failed services. Its trace has 155 HTTP attempts: 142 successful responses and 13 rate-limit responses recovered by retry. It wrote reports with zero proved findings and one final pending hypothesis, so required completion still exited 3. The observed response truncation was absent in this run; review quality and resolution of every hypothesis were not established.
+
 Track detection and misses against controlled defects, changes without defects, supported languages and source coverage. Compare whole-change and bounded planning with the same cases and document model/options, dataset revisions, runtime image and limits. Stronger recall claims, production backend guarantees and broad CLI subscription compatibility remain unestablished. See [ROADMAP.md](../ROADMAP.md).

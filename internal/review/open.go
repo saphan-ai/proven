@@ -154,9 +154,8 @@ func open(opts Options) (Reviewer, error) {
 			popts.Generator = opts.gen
 			popts.ModelsOff = false
 		}
-		// a key for a second reviewer connects it. Its settings are checked here, so a wrong
-		// address stops Open before any review. With no key nothing is connected and the review has
-		// one reviewer, as before.
+		// A second API or command reviewer is configured independently. Refuse bad
+		// settings here, before any review or model invocation.
 		sec, connected, serr := generator.LoadSecond(env)
 		if serr != nil {
 			return nil, toConfigError(serr)

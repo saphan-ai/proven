@@ -120,6 +120,8 @@ const roots = ['index', 'guides', 'reference'];
 if (pages.some((p) => p.slug.startsWith('examples/'))) roots.push('examples');
 meta('.', { pages: roots.filter((r) => r === 'index' || fs.existsSync(path.join(contentDir, r))) });
 const guideOrder = ['index', 'quickstart', 'walkthrough', 'data_walkthrough', 'install', 'readiness', 'models', 'configuration', 'action', 'runner', 'operations', 'troubleshooting', 'observability', 'sources', 'databases', 'languages', 'markovian', 'fixes', 'output_formats', 'evidence_pack', 'evaluation', 'sample_mode', 'architecture', 'design', 'adapters', 'roadmap', 'documentation'];
+guideOrder.splice(1, 0, 'github_tour');
+guideOrder.splice(guideOrder.indexOf('models') + 1, 0, 'connect_api', 'cli_models', 'two_models', 'cli_images');
 meta('guides', { title: 'Guides', pages: [...guideOrder.filter((slug) => fs.existsSync(path.join(contentDir, 'guides', `${slug}.md`))), '...'] });
 meta('reference', { title: 'Reference', pages: ['cli', 'settings', 'adapters'] });
 meta('reference/adapters', { title: 'Adapter interfaces', pages: ['index', '...'] });

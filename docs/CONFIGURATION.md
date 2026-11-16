@@ -125,13 +125,15 @@ In local mode, every configured network destination must pass the policy. Hosted
 
 Without model configuration, deterministic analysis runs alone. The openai adapter uses your endpoint and optional API key; command uses an operator-configured local CLI. Explicit nightshift and nvidia adapters retain their provider-specific settings. Sample mode uses recorded answers.
 
-## The second reviewer: any OpenAI-compatible model
+## The second reviewer: API or CLI
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_SECOND_REVIEWER_KEY` | none (optional for local endpoints) | the API key of the second reviewer. Secret: never printed. Without a key, set both endpoint and model to enable this reviewer |
-| `PROVEN_SECOND_REVIEWER_BASE_URL` | none (required with the key) | the address of any OpenAI-compatible chat API, for example `https://api.openai.com/v1` or a local server |
-| `PROVEN_SECOND_REVIEWER_MODEL` | none (required with the key) | the model asked for; the review names it as the second reviewer |
+| `PROVEN_SECOND_REVIEWER_MODE` | openai; command when COMMAND is set | openai, command or off; the second reviewer may use an API or its own operator-configured CLI |
+| `PROVEN_SECOND_REVIEWER_COMMAND` | none | JSON argv for the second reviewer's CLI; prompt on stdin, final answer on stdout; {model} and {agent} are substituted; no shell is started |
+| `PROVEN_SECOND_REVIEWER_KEY` | none (optional for local endpoints) | Secret: optional API key, never printed; ignored in command/off mode. An API reviewer without a key needs both endpoint and model |
+| `PROVEN_SECOND_REVIEWER_BASE_URL` | none (required for an enabled API reviewer) | the address of any OpenAI-compatible chat API, for example `https://api.openai.com/v1` or a local server |
+| `PROVEN_SECOND_REVIEWER_MODEL` | none (required when enabled) | the model asked for; the review names it as the second reviewer |
 | `PROVEN_SECOND_REVIEWER_TIMEOUT` | inherits generator timeout | positive total attempt timeout for this reviewer |
 | `PROVEN_SECOND_REVIEWER_THINKING_BUDGET` | inherits generator thinking budget | thinking_budget for this reviewer; zero omits the field |
 | `PROVEN_SECOND_REVIEWER_MAX_TOKENS` | inherits `PROVEN_GENERATOR_MAX_TOKENS` | response token limit, 0 to 1048576; includes reasoning when the provider counts it there |

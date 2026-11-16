@@ -21,4 +21,6 @@ The [source status table](docs/SOURCES.md) gives the exact boundary for each sou
 
 ## Reusable review components
 
+After validating the Claude Code/Copilot customer build and dual-reviewer path, add customer-owned CLI recipes for Codex and Cursor. Each needs verified flags, final-text output, authentication/profile instructions, bounded execution and contract tests. The generic command transport exists; these additional presets are not yet delivered.
+
 Keep deterministic adjudication, report types, model-call observations and their tests easy to take into another reviewer. Proven remains independently runnable. Reusing selected code in another product does not require connecting that product's core directly to the Proven application.

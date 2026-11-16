@@ -57,7 +57,12 @@ type Observed interface{ LastAttempts() []modelcall.Attempt }
 func (l *Live) LastAttempts() []modelcall.Attempt {
 	return append([]modelcall.Attempt(nil), l.attempts...)
 }
-func (s *Second) LastAttempts() []modelcall.Attempt { return s.live.LastAttempts() }
+func (s *Second) LastAttempts() []modelcall.Attempt {
+	if s.command != nil {
+		return nil
+	}
+	return s.live.LastAttempts()
+}
 
 // WithModel returns a generator that sends model on the request.
 // The two generators do not share the model of the call that just finished.
@@ -83,8 +88,11 @@ func NewLive(cfg Settings, client *http.Client) *Live {
 	return &Live{cfg: cfg, client: &copy}
 }
 
-// NewSecond builds an independently configurable OpenAI-compatible reviewer.
+// NewSecond builds an independently configurable API or command reviewer.
 func NewSecond(s SecondSettings, client *http.Client) *Second {
+	if s.Mode == ModeCommand {
+		return &Second{command: NewCommand(Settings{Mode: ModeCommand, Command: s.Command, Model: s.Model, Timeout: s.Timeout, Options: s.Options}), model: s.Model}
+	}
 	cfg := Settings{
 		Options: s.Options,
 		Mode:    ModeOpenAI, BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout, ThinkingBudget: s.ThinkingBudget,

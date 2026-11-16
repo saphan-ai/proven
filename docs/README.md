@@ -4,6 +4,8 @@ Proven reviews a Git change and shows the evidence behind its findings. Start wi
 
 ## Start here
 
+[See it on GitHub](GITHUB_TOUR.md): actual Actions and PR-comment screenshots, plus a labelled recorded finding with expandable proof.
+
 | You want to… | Read | Result |
 | --- | --- | --- |
 | Run without accounts | [Quick start](QUICKSTART.md) | Build the CLI, produce JSON/HTML and understand exit codes. |
@@ -13,6 +15,8 @@ Proven reviews a Git change and shows the evidence behind its findings. Start wi
 | Assess suitability | [Readiness and limitations](READINESS.md) | Know what is available, measured and still unestablished. |
 
 ## Configure and operate
+
+Connection recipes: [own API key](CONNECT_API.md), [Claude Code or Copilot](CLI_MODELS.md), [two reviewers](TWO_MODELS.md), [build your own CLI image](CLI_IMAGES.md). Vendor CLIs and account state are customer-provisioned.
 
 | Guide | Covers |
 | --- | --- |
