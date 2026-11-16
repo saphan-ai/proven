@@ -2,6 +2,8 @@
 
 The store interface registers source tables and runs validated query-template requests. The reviewer never accepts model-written SQL. SQLite and PostgreSQL use the same source and template definitions as the existing adapters.
 
+Choosing a store does not connect an upstream feed. See [source status and planned connectors](SOURCES.md) before enabling dependency checks.
+
 ## SQLite
 
 The default database is `<user cache>/proven/evidence.sqlite`. Set `PROVEN_EVIDENCE_FILE` to use another file. Keep it outside the reviewed repository. SQLite needs no server. The old `local` store is a separate fixture SQL implementation, not SQLite.

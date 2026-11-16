@@ -4,6 +4,8 @@
 
 Models propose risks, tests and fixes. Deterministic rules decide which findings have evidence. Reviews can be exported as JSON, SARIF, Markdown, text or standalone HTML, with signed evidence packs for offline inspection.
 
+**Development preview.** Read [readiness and limitations](docs/READINESS.md) before using Proven as a required check. A clean result means no defect was proved under the checks that ran; it does not establish exhaustive coverage. Final unresolved planning hypotheses are reported separately and make completion incomplete.
+
 ## Try it
 
 Install the Go version in [go.mod](go.mod), then build:
@@ -28,6 +30,8 @@ Sample mode replays recorded model answers and test outcomes. For a real change,
 - **Local engines:** bounded review of large changes (Markovian), review planning (Scout Intent), persistent memory (H-MEM) and world state remain available with explicit switches. Their effect on review quality needs further evaluation.
 
 The same adapters serve the CLI and the [GitHub Action](docs/ACTION.md). [Adapter examples](docs/ADAPTERS.md) show how to extend them.
+
+Databases start without public feeds. See [implemented and planned sources](docs/SOURCES.md), [bounded-planning behavior](docs/MARKOVIAN.md), [container security and publication](docs/CONTAINERS.md) and the [roadmap](ROADMAP.md).
 
 ## What a finding means
 

@@ -62,11 +62,11 @@ No safety-model service is enabled by default. Configure `PROVEN_GUARDRAIL_MODE=
 
 ## Completion policy
 
-`PROVEN_REQUIRE_COMPLETE=true` makes a partial review or failed service exit with code 3. This is the default for `ci` and the GitHub Action. Local `scan` remains advisory unless the setting is enabled. `--error` independently controls whether findings exit with code 1. JSON includes `completion_status` as `complete` or `incomplete`.
+`PROVEN_REQUIRE_COMPLETE=true` makes interrupted execution, a failed service or remaining planning hypotheses exit with code 3 after writing the result. This is the default for `ci` and the GitHub Action. Local `scan` remains advisory unless the setting is enabled. `--error` independently controls whether findings exit with code 1. JSON includes `completion_status` as `complete` or `incomplete`. See [bounded planning](MARKOVIAN.md) for `unresolved_hypotheses` and [readiness](READINESS.md) for refusals that can still end without a result file.
 
 ## Local engines
 
-Markovian, Scout Intent, H-MEM and World Model remain available with their existing switches. Their compatibility checks do not establish improvement in review quality. The lean deterministic path does not call a model through them.
+Markovian, Scout Intent, H-MEM and World Model remain available with their existing switches. Their compatibility checks do not establish improvement in review quality. The lean deterministic path does not call a model through them. The [Markovian guide](MARKOVIAN.md) explains carried state, final open hypotheses and overflow behavior.
 
 ## Compatibility
 

@@ -128,4 +128,6 @@ The goldens are the pages themselves: `testdata/golden/html-report/findings.html
 
 ## Completion
 
-JSON includes `completion_status`: `complete` or `incomplete`, independent of findings. A partial run or failed service is incomplete. Required CI reviews exit with code 3; advisory local scans still write the same status.
+JSON includes `completion_status`: `complete` or `incomplete`, independent of findings. A partial run, failed service or unresolved final planning hypothesis is incomplete. Required CI reviews exit with code 3; advisory local scans still write the same status.
+
+`unresolved_hypotheses`, when nonempty, lists final planning gaps as objects with `reviewer` (`default` or `special`), `after_step` and `description`. It is omitted when empty for compatibility. These hypotheses are not findings, are not counted in proof totals, and do not change the existing unresolved-finding count. All formats show their descriptions; SARIF carries the same list and `completion_status` in run properties, not as vulnerability results. Markdown/HTML with no proved findings use an incomplete heading. A completed execution with such gaps has `partial: false`. Signed evidence packs preserve the list, without treating it as evidence. See [Markovian](MARKOVIAN.md).

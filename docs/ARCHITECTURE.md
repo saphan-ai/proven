@@ -36,6 +36,8 @@ Small packages and their tests can be taken into another reviewer. Proven remain
 
 Markovian bounds the Planner's context for large changes. Scout Intent chooses a review plan, subject to conservative path checks. H-MEM stores previous refutations, and World Model keeps persistent entities and relationships. Each has an off switch. Their effect on review quality has not been established by conformance tests.
 
+Final awaiting claims are coverage gaps, separate from finding candidates. The pipeline preserves their descriptions and reviewer roles, continues evidence gathering for identified risks, and reports incomplete coverage. A mid-plan carried-state overflow still refuses to continue rather than dropping claims. See [bounded planning](MARKOVIAN.md).
+
 Query refutation remains conservative: a denial must refer to the same row, and query text cannot override an independent observed test or tool proof. The remaining text-based query interpretation is a documented limitation; typed source-specific contradiction rules are future work.
 
 A pack verifies recorded decisions under the implemented rules. It does not prove execution occurred, establish completeness or re-run the tests. See [EVIDENCE_PACK.md](EVIDENCE_PACK.md).

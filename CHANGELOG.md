@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Preserve final unresolved bounded-planning hypotheses in all report formats and traces while continuing evidence checks for identified risks; required completion exits 3 and never counts those hypotheses as findings.
+- Make model request limits, three clocks, provider options and shared recovery configurable, with per-agent and second-reviewer overrides and per-request stream observations.
+- Pin updated git/musl runtime packages above the Alpine base and gate image publication on successful checks and HIGH/CRITICAL scans for both architectures.
+- Document readiness, source adapter versus feed-connector status, bounded-planning behavior and the public source roadmap.
+
 - Add standalone development, configuration and contribution guides.
 - Add neutral OpenAI-compatible and operator-configured CLI model transports, including optional authentication for local endpoints.
 - Permit deterministic analysis with model stages disabled. Retain optional legacy providers and local engines.

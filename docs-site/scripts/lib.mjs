@@ -35,6 +35,7 @@ export function repoPages() {
   const rel = (f) => path.relative(repoRoot, f).split(path.sep).join('/');
   const pages = [];
   if (fs.existsSync(path.join(repoRoot, 'README.md'))) pages.push({ source: 'README.md', slug: 'index' });
+  if (fs.existsSync(path.join(repoRoot, 'ROADMAP.md'))) pages.push({ source: 'ROADMAP.md', slug: 'guides/roadmap' });
   for (const f of walk(path.join(repoRoot, 'docs'), isMarkdown)) {
     const source = rel(f);
     const inner = source.slice('docs/'.length, -'.md'.length);
