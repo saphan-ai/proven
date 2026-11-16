@@ -19,6 +19,23 @@ In local mode, every configured network destination must pass the policy. Hosted
 | Environment variable | Default | What it changes |
 |---|---|---|
 | `PROVEN_GENERATOR_COMMAND` | none | operator-configured JSON argv for a local CLI; prompt on stdin, answer on stdout; {model} and {agent} are substituted in arguments; no shell is started |
+| `PROVEN_GENERATOR_MAX_TOKENS` | 0 (omitted) | response token limit, 0 to 1048576; includes reasoning when the provider counts it there |
+| `PROVEN_GENERATOR_MAX_TOKENS_FIELD` | max_tokens | token-limit request field: max_tokens or max_completion_tokens |
+| `PROVEN_GENERATOR_AGENT_MAX_TOKENS` | none | JSON object of per-agent token limits; zero omits the field for that agent |
+| `PROVEN_GENERATOR_HEADER_TIMEOUT` | 0s (off) | time allowed to receive response headers, within the total attempt timeout |
+| `PROVEN_GENERATOR_IDLE_TIMEOUT` | 0s (off) | stream inactivity timeout, reset by every received byte, including reasoning and heartbeats |
+| `PROVEN_GENERATOR_INCLUDE_USAGE` | false | send stream_options.include_usage; enable only for endpoints that support it |
+| `PROVEN_GENERATOR_EXTRA_BODY` | none | provider-specific request fields as a JSON object up to 64 KiB; client-owned fields are refused; never printed |
+| `PROVEN_GENERATOR_AGENT_EXTRA_BODY` | none | JSON objects of extra-body fields per agent; override matching top-level fields of the common extra body |
+| `PROVEN_GENERATOR_RECOVERY_RETRIES` | 1 | shared additional completion budget per agent step, for empty answers and JSON repair; 0 to 8 |
+| `PROVEN_GENERATOR_REPAIR_CONTEXT` | false | include the original prompt in JSON repair; otherwise only the schema and previous answer are sent |
+| `PROVEN_GENERATOR_REPAIR_MAX_BYTES` | 65536 | previous-answer byte limit in a repair prompt, 1 to 8388608 |
+| `PROVEN_GENERATOR_DEADLINE_RESERVE` | 0s (off) | review finalization reserve, capped at one tenth of the original remaining review time; new attempts need a full attempt window before this reserve |
+| `PROVEN_GENERATOR_RATE_LIMIT_RETRIES` | 0 | pre-stream HTTP 429 retries, 0 to 10; Retry-After is honored or the retry is skipped if it exceeds the backoff cap |
+| `PROVEN_GENERATOR_TRANSPORT_RETRIES` | 0 | pre-stream connection and HTTP 500/502/503 retries, 0 to 10; timeouts, cancellations, redirects and other 4xx are never retried |
+| `PROVEN_GENERATOR_RETRY_BACKOFF` | 250ms | initial backoff; linear for transport errors and exponential for rate limiting |
+| `PROVEN_GENERATOR_RETRY_MAX_BACKOFF` | 5s | maximum backoff; retries remain within the current attempt deadline |
+| `PROVEN_GENERATOR_TRACE_REASONING_BYTES` | 0 | maximum reasoning text bytes retained per attempt; 0 records counts only, up to 8388608 |
 | `PROVEN_GENERATOR_MODE` | off when unconfigured; openai when an endpoint/model is set | `openai`, `command`, `off`, or the legacy opt-in `nightshift` and `nvidia` adapters |
 | `METERLESS_RUNTIME_TOKEN` | none (required in `nightshift` mode) | the runtime token sent to Nightshift. Secret: never printed. Empty: Nightshift is down and the review names it. Not read in `nvidia` mode |
 | `PROVEN_GENERATOR_KEY` | none (required in `nvidia` mode) | Secret: API key for your endpoint; optional for openai, required for nvidia; never printed |
@@ -38,9 +55,28 @@ Without model configuration, deterministic analysis runs alone. The openai adapt
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_SECOND_REVIEWER_KEY` | none (empty: no second reviewer) | the API key of the second reviewer. Secret: never printed. Empty: not connected, and the review has one reviewer |
+| `PROVEN_SECOND_REVIEWER_KEY` | none (optional for local endpoints) | the API key of the second reviewer. Secret: never printed. Without a key, set both endpoint and model to enable this reviewer |
 | `PROVEN_SECOND_REVIEWER_BASE_URL` | none (required with the key) | the address of any OpenAI-compatible chat API, for example `https://api.openai.com/v1` or a local server |
 | `PROVEN_SECOND_REVIEWER_MODEL` | none (required with the key) | the model asked for; the review names it as the second reviewer |
+| `PROVEN_SECOND_REVIEWER_TIMEOUT` | inherits generator timeout | positive total attempt timeout for this reviewer |
+| `PROVEN_SECOND_REVIEWER_THINKING_BUDGET` | inherits generator thinking budget | thinking_budget for this reviewer; zero omits the field |
+| `PROVEN_SECOND_REVIEWER_MAX_TOKENS` | inherits `PROVEN_GENERATOR_MAX_TOKENS` | response token limit, 0 to 1048576; includes reasoning when the provider counts it there |
+| `PROVEN_SECOND_REVIEWER_MAX_TOKENS_FIELD` | inherits `PROVEN_GENERATOR_MAX_TOKENS_FIELD` | token-limit request field: max_tokens or max_completion_tokens |
+| `PROVEN_SECOND_REVIEWER_AGENT_MAX_TOKENS` | inherits `PROVEN_GENERATOR_AGENT_MAX_TOKENS` | JSON object of per-agent token limits; zero omits the field for that agent |
+| `PROVEN_SECOND_REVIEWER_HEADER_TIMEOUT` | inherits `PROVEN_GENERATOR_HEADER_TIMEOUT` | time allowed to receive response headers, within the total attempt timeout |
+| `PROVEN_SECOND_REVIEWER_IDLE_TIMEOUT` | inherits `PROVEN_GENERATOR_IDLE_TIMEOUT` | stream inactivity timeout, reset by every received byte, including reasoning and heartbeats |
+| `PROVEN_SECOND_REVIEWER_INCLUDE_USAGE` | inherits `PROVEN_GENERATOR_INCLUDE_USAGE` | send stream_options.include_usage; enable only for endpoints that support it |
+| `PROVEN_SECOND_REVIEWER_EXTRA_BODY` | inherits `PROVEN_GENERATOR_EXTRA_BODY` | provider-specific request fields as a JSON object up to 64 KiB; client-owned fields are refused; never printed |
+| `PROVEN_SECOND_REVIEWER_AGENT_EXTRA_BODY` | inherits `PROVEN_GENERATOR_AGENT_EXTRA_BODY` | JSON objects of extra-body fields per agent; override matching top-level fields of the common extra body |
+| `PROVEN_SECOND_REVIEWER_RECOVERY_RETRIES` | inherits `PROVEN_GENERATOR_RECOVERY_RETRIES` | shared additional completion budget per agent step, for empty answers and JSON repair; 0 to 8 |
+| `PROVEN_SECOND_REVIEWER_REPAIR_CONTEXT` | inherits `PROVEN_GENERATOR_REPAIR_CONTEXT` | include the original prompt in JSON repair; otherwise only the schema and previous answer are sent |
+| `PROVEN_SECOND_REVIEWER_REPAIR_MAX_BYTES` | inherits `PROVEN_GENERATOR_REPAIR_MAX_BYTES` | previous-answer byte limit in a repair prompt, 1 to 8388608 |
+| `PROVEN_SECOND_REVIEWER_DEADLINE_RESERVE` | inherits `PROVEN_GENERATOR_DEADLINE_RESERVE` | review finalization reserve, capped at one tenth of the original remaining review time; new attempts need a full attempt window before this reserve |
+| `PROVEN_SECOND_REVIEWER_RATE_LIMIT_RETRIES` | inherits `PROVEN_GENERATOR_RATE_LIMIT_RETRIES` | pre-stream HTTP 429 retries, 0 to 10; Retry-After is honored or the retry is skipped if it exceeds the backoff cap |
+| `PROVEN_SECOND_REVIEWER_TRANSPORT_RETRIES` | inherits `PROVEN_GENERATOR_TRANSPORT_RETRIES` | pre-stream connection and HTTP 500/502/503 retries, 0 to 10; timeouts, cancellations, redirects and other 4xx are never retried |
+| `PROVEN_SECOND_REVIEWER_RETRY_BACKOFF` | inherits `PROVEN_GENERATOR_RETRY_BACKOFF` | initial backoff; linear for transport errors and exponential for rate limiting |
+| `PROVEN_SECOND_REVIEWER_RETRY_MAX_BACKOFF` | inherits `PROVEN_GENERATOR_RETRY_MAX_BACKOFF` | maximum backoff; retries remain within the current attempt deadline |
+| `PROVEN_SECOND_REVIEWER_TRACE_REASONING_BYTES` | inherits `PROVEN_GENERATOR_TRACE_REASONING_BYTES` | maximum reasoning text bytes retained per attempt; 0 records counts only, up to 8388608 |
 
 ## Optional model safety service
 

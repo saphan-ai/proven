@@ -22,6 +22,19 @@ func Load(env func(string) string) (Settings, error) {
 	if env == nil {
 		env = func(string) string { return "" }
 	}
+	o, err := loadCallOptions(env)
+	if err != nil {
+		return Settings{}, err
+	}
+	s, err := loadProvider(env)
+	s.Options = o
+	return s, err
+}
+
+func loadProvider(env func(string) string) (Settings, error) {
+	if env == nil {
+		env = func(string) string { return "" }
+	}
 	mode := env(EnvMode)
 	if mode == "" {
 		switch {
@@ -113,5 +126,5 @@ func Load(env func(string) string) (Settings, error) {
 }
 
 func ProviderEnvironment() []envdoc.Setting {
-	return []envdoc.Setting{{Name: EnvCommand, Default: "none", Description: "operator-configured JSON argv for a local CLI; prompt on stdin, answer on stdout; {model} and {agent} are substituted in arguments; no shell is started"}}
+	return append([]envdoc.Setting{{Name: EnvCommand, Default: "none", Description: "operator-configured JSON argv for a local CLI; prompt on stdin, answer on stdout; {model} and {agent} are substituted in arguments; no shell is started"}}, CallEnvironment()...)
 }

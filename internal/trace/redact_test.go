@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/saphan-ai/proven/internal/modelcall"
 	"github.com/saphan-ai/proven/internal/redact"
 )
 
@@ -32,7 +33,8 @@ func TestAppendRedactsEveryTextFieldAndLeavesTheCallersEventAlone(t *testing.T) 
 		},
 		Refutation: &Refutation{Reason: secret},
 		Guardrail:  &Check{Side: secret, Verdict: secret, Categories: []string{secret}},
-		Model:      &Model{Route: secret, Model: secret, ReceiptID: secret, Requested: secret, ResponseID: secret},
+		Model: &Model{Route: secret, Model: secret, ReceiptID: secret, Requested: secret, ResponseID: secret,
+			Attempt: &modelcall.Attempt{Requested: secret, Model: secret, Route: secret, ResponseID: secret, FinishReason: secret, Reasoning: secret, Error: secret}},
 	}
 	if err := w.Append(e); err != nil {
 		t.Fatal(err)
@@ -50,7 +52,7 @@ func TestAppendRedactsEveryTextFieldAndLeavesTheCallersEventAlone(t *testing.T) 
 	if !strings.Contains(string(b), "[redacted: A_KEY]") {
 		t.Errorf("the trace does not name the variable:\n%s", b)
 	}
-	if e.Text != "t "+secret || e.Evidence[1].Query.Rows[0][0] != secret || e.Evidence[2].Tool.Output != secret || e.Guardrail.Categories[0] != secret {
+	if e.Text != "t "+secret || e.Evidence[1].Query.Rows[0][0] != secret || e.Evidence[2].Tool.Output != secret || e.Guardrail.Categories[0] != secret || e.Model.Attempt.Reasoning != secret {
 		t.Error("the caller's event was changed")
 	}
 }

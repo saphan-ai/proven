@@ -354,6 +354,7 @@ func (pl *Plan) source(name string) bool { return pl == nil || pl.Full || pl.Sou
 // judged findings. After a review with no error the trace is folded into the World
 // Model and H-MEM; if that fails, the review fails.
 func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, err error) {
+	ctx = generator.ReviewContext(ctx)
 	// The trace, the state and the work area are compared with the reviewed
 	// target before anything is written, so none of them lands inside it.
 	if err := p.begin(req.Target); err != nil {
@@ -1688,6 +1689,9 @@ func (s *state) soften(ctx context.Context, err error) (degraded bool, fatal err
 	if err == nil {
 		return false, nil
 	}
+	if errors.Is(err, generator.ErrReviewBudget) {
+		return false, errPartial
+	}
 	if d, ok := service.As(err); ok {
 		s.note(d)
 		return true, nil
@@ -1874,6 +1878,8 @@ type recording struct {
 	tel *telemetry.T
 }
 
+func (g recording) GenerationPolicy() generator.CallPolicy { return generator.PolicyOf(g.inner) }
+
 // Complete calls the inner generator and records which model answered. A
 // generator that reports its use is recorded even when the call failed, since
 // a call was made. One that does not is recorded as "unknown", never guessed.
@@ -1893,6 +1899,14 @@ func (g recording) Complete(ctx context.Context, agent, prompt string) (string, 
 // complete is Complete without the telemetry.
 func (g recording) complete(ctx context.Context, agent, prompt string) (string, error) {
 	text, err := g.inner.Complete(ctx, agent, prompt)
+	if observed, ok := g.inner.(generator.Observed); ok && g.trace != nil {
+		for _, attempt := range observed.LastAttempts() {
+			if terr := g.trace.Append(trace.Event{Kind: "model-attempt", Agent: agent,
+				Text: "HTTP completion attempt", Model: &trace.Model{Attempt: &attempt}}); terr != nil {
+				return "", terr
+			}
+		}
+	}
 	if rep, ok := g.inner.(generator.Reported); ok {
 		if u, ok := rep.LastUse(); ok {
 			m := candidate.ModelUse{

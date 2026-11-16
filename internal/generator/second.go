@@ -11,12 +11,14 @@ import (
 	"github.com/saphan-ai/proven/internal/service"
 )
 
-// Environment variables of the second reviewer . The set is closed. The key is
-// the switch: with no key there is no second reviewer and the review is as it was.
+// Base settings of the optional second reviewer. Call controls also accept
+// PROVEN_SECOND_REVIEWER_ overrides for a different provider or model.
 const (
-	EnvSecondBaseURL = "PROVEN_SECOND_REVIEWER_BASE_URL"
-	EnvSecondKey     = "PROVEN_SECOND_REVIEWER_KEY"
-	EnvSecondModel   = "PROVEN_SECOND_REVIEWER_MODEL"
+	EnvSecondBaseURL        = "PROVEN_SECOND_REVIEWER_BASE_URL"
+	EnvSecondKey            = "PROVEN_SECOND_REVIEWER_KEY"
+	EnvSecondModel          = "PROVEN_SECOND_REVIEWER_MODEL"
+	EnvSecondTimeout        = "PROVEN_SECOND_REVIEWER_TIMEOUT"
+	EnvSecondThinkingBudget = "PROVEN_SECOND_REVIEWER_THINKING_BUDGET"
 )
 
 // SecondService is the name a second-reviewer failure carries in the review's list of failed services.
@@ -25,12 +27,12 @@ const SecondService = "second-reviewer"
 // SecondEnvironment lists the second reviewer's settings in the order the page shows.
 // Each Name is the Env constant beside this function.
 func SecondEnvironment() []envdoc.Setting {
-	return []envdoc.Setting{
+	rows := []envdoc.Setting{
 		{
 			Name:        EnvSecondKey,
-			Default:     "none (empty: no second reviewer)",
+			Default:     "none (optional for local endpoints)",
 			Secret:      true,
-			Description: "the API key of the second reviewer. Secret: never printed. Empty: not connected, and the review has one reviewer",
+			Description: "the API key of the second reviewer. Secret: never printed. Without a key, set both endpoint and model to enable this reviewer",
 		},
 		{
 			Name:        EnvSecondBaseURL,
@@ -43,11 +45,21 @@ func SecondEnvironment() []envdoc.Setting {
 			Description: "the model asked for; the review names it as the second reviewer",
 		},
 	}
+	rows = append(rows, envdoc.Setting{Name: EnvSecondTimeout, Default: "inherits generator timeout", Description: "positive total attempt timeout for this reviewer"},
+		envdoc.Setting{Name: EnvSecondThinkingBudget, Default: "inherits generator thinking budget", Description: "thinking_budget for this reviewer; zero omits the field"})
+	for _, row := range CallEnvironment() {
+		primary := row.Name
+		row.Name = strings.Replace(primary, "PROVEN_GENERATOR_", "PROVEN_SECOND_REVIEWER_", 1)
+		row.Default = "inherits " + envdoc.Tick(primary)
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 // SecondSettings is one validated second-reviewer configuration. The key is held so the call can
 // send it. It is not a value to print.
 type SecondSettings struct {
+	Options *CallOptions
 	BaseURL string
 	Key     string
 	Model   string
@@ -58,12 +70,9 @@ type SecondSettings struct {
 	Network *network.Policy
 }
 
-// LoadSecond reads the second reviewer's settings. The bool is false when no key is set: the
-// reviewer is not connected, which is the default and not a refusal. A wrong value is refused even
-// then, so a typo in the address is found before the key is added. A key without an address or
-// without a model is refused, because there is nothing to call. The timeout and the thinking budget are
-// the generator's own PROVEN_GENERATOR_TIMEOUT and PROVEN_GENERATOR_THINKING_BUDGET, so one setting bounds
-// every model call.
+// LoadSecond reads and validates the second reviewer's configuration. A key,
+// or both endpoint and model, enable it. Call controls inherit the primary
+// configuration unless a PROVEN_SECOND_REVIEWER_ override is set.
 func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 	if env == nil {
 		env = func(string) string { return "" }
@@ -115,10 +124,43 @@ func LoadSecond(env func(string) string) (SecondSettings, bool, error) {
 	if err != nil {
 		return SecondSettings{}, false, err
 	}
+	lookup := func(k string) string {
+		if v := env(strings.Replace(k, "PROVEN_GENERATOR_", "PROVEN_SECOND_REVIEWER_", 1)); v != "" {
+			return v
+		}
+		return env(k)
+	}
+	options, err := loadCallOptions(lookup)
+	if err != nil {
+		var cfg *ConfigError
+		if errors.As(err, &cfg) {
+			copy := *cfg
+			if alt := strings.Replace(cfg.Field, "PROVEN_GENERATOR_", "PROVEN_SECOND_REVIEWER_", 1); env(alt) != "" {
+				copy.Field = alt
+			}
+			return SecondSettings{}, false, &copy
+		}
+		return SecondSettings{}, false, err
+	}
+	if raw := env(EnvSecondTimeout); raw != "" {
+		timeout, err = time.ParseDuration(raw)
+		if err != nil || timeout <= 0 {
+			return SecondSettings{}, false, refuse(EnvSecondTimeout, "", "invalid timeout", "a positive Go duration")
+		}
+	}
+	if raw := env(EnvSecondThinkingBudget); raw != "" {
+		if raw == "0" {
+			raw = ""
+		}
+		budget, err = thinkingBudget(func(string) string { return raw })
+		if err != nil {
+			return SecondSettings{}, false, refuse(EnvSecondThinkingBudget, "", "invalid thinking budget", "a non-negative integer")
+		}
+	}
 	if !connected {
 		return SecondSettings{}, false, nil
 	}
-	return SecondSettings{BaseURL: base, Key: key, Model: model, Timeout: timeout, ThinkingBudget: budget, Network: policy}, true, nil
+	return SecondSettings{Options: options, BaseURL: base, Key: key, Model: model, Timeout: timeout, ThinkingBudget: budget, Network: policy}, true, nil
 }
 
 // Second is the generator of the second reviewer: any OpenAI-compatible chat API, behind the same

@@ -16,6 +16,8 @@ usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
   proven verify [--public-key FILE] PACK
+  proven model check
+  proven data import DATASET.json
   proven --help
   proven --version
 
@@ -85,6 +87,8 @@ usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
   proven verify [--public-key FILE] PACK
+  proven model check
+  proven data import DATASET.json
   proven --help
   proven --version
 
@@ -154,6 +158,8 @@ usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
   proven verify [--public-key FILE] PACK
+  proven model check
+  proven data import DATASET.json
   proven --help
   proven --version
 

@@ -38,6 +38,9 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 	if len(args) > 0 && args[0] == "data" {
 		return runData(args[1:], getenv, stdout, stderr)
 	}
+	if len(args) > 0 && args[0] == "model" {
+		return runModelCheck(args[1:], getenv, stdout, stderr)
+	}
 	// check-address judges one address for a program the action runs, and runs no review .
 	if len(args) > 0 && args[0] == "check-address" {
 		return runCheckAddress(args[1:], getenv, stdout, stderr)
@@ -759,6 +762,8 @@ usage:
   proven scan [flags] [TARGET]
   proven ci [flags]
   proven verify [--public-key FILE] PACK
+  proven model check
+  proven data import DATASET.json
   proven --help
   proven --version
 

@@ -16,6 +16,8 @@ The Judge and Writer make no model call. The neutral live adapter speaks streami
 
 Keep transport errors, cancellation and response bounds inside the adapter. Record requested and reported model identity separately. A generic provider needs no sponsor header or receipt. The optional `Reported` interface supplies call metadata when the transport has it.
 
+`CallOptions` and `CallPolicy` hold explicit inputs for timeouts, token limits and recovery. Wrappers forward `PolicyProvider` so empty replies and schema repair share a step budget. `Observed` supplies per-request measurements, including failures; `internal/modelcall` contains their data types without client dependencies or I/O. Provider-specific fields arrive through validated extra-body maps. These pieces can be taken into another reviewer with their tests, without coupling its core to Proven's application setup.
+
 [examples/generator](../examples/generator) implements a small fixed-response provider and tests the interface without network or credentials.
 
 ## Reusing review logic

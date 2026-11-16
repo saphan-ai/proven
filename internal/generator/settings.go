@@ -143,6 +143,7 @@ type ConfigError = service.ConfigError
 // Settings is one validated live-generator configuration.
 // The token is held so the call can send it. It is not a value to print.
 type Settings struct {
+	Options *CallOptions
 	// Command is operator-configured argv for a locally authenticated CLI.
 	Command []string
 	// Mode names the configured model transport.

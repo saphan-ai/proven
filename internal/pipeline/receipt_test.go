@@ -7,9 +7,38 @@ import (
 	"os"
 	"testing"
 
+	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/generator"
+	"github.com/saphan-ai/proven/internal/modelcall"
+	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/trace"
 )
+
+type failedObserved struct{}
+
+func (failedObserved) Complete(context.Context, string, string) (string, error) {
+	return "", &service.Down{Service: "model", Reason: "timeout"}
+}
+func (failedObserved) LastAttempts() []modelcall.Attempt {
+	return []modelcall.Attempt{{Error: "timeout", ReasoningBytes: 23}}
+}
+
+func TestFailedHTTPAttemptIsRecordedWithoutInventingModelIdentity(t *testing.T) {
+	w, err := trace.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	var models []candidate.ModelUse
+	g := recording{inner: failedObserved{}, trace: w, models: &models}
+	if _, err := g.Complete(context.Background(), "planner", "prompt"); err == nil {
+		t.Fatal("failure lost")
+	}
+	events := readTrace(t, w.Path())
+	if len(models) != 0 || len(events) != 1 || events[0].Kind != "model-attempt" || events[0].Model.Attempt.Error != "timeout" || events[0].Model.Attempt.ReasoningBytes != 23 {
+		t.Fatalf("models=%#v events=%#v", models, events)
+	}
+}
 
 // receipted names a fixed route, model and receipt id for every call.
 // receipted answers like the sample generator and reports a fixed receipt for

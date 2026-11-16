@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/service"
@@ -85,8 +86,10 @@ func Repair(spec Spec, previous, original string) string {
 	// The previous answer is model text shaped by the change, so it is data too.
 	b.WriteString("\n\nPrevious answer, written as one JSON string:\n")
 	b.WriteString(Encode(previous))
-	b.WriteString("\n\nOriginal request:\n")
-	b.WriteString(original)
+	if original != "" {
+		b.WriteString("\n\nOriginal request:\n")
+		b.WriteString(original)
+	}
 	return b.String()
 }
 
@@ -94,6 +97,8 @@ func Repair(spec Spec, previous, original string) string {
 // A decode failure is sent back once as a repair. A second failure is a
 // named degraded outcome for agent. A generator error is returned as it is.
 func Read(ctx context.Context, gen generator.Generator, agent, prompt string, spec Spec, dst any) error {
+	policy := generator.PolicyOf(gen)
+	ctx = generator.NewStep(ctx, policy)
 	raw, err := gen.Complete(ctx, agent, prompt)
 	if err != nil {
 		return err
@@ -102,16 +107,36 @@ func Read(ctx context.Context, gen generator.Generator, agent, prompt string, sp
 	if err := Decode(raw, dst); err == nil {
 		return nil
 	}
-	again, err := gen.Complete(ctx, agent, Repair(spec, raw, prompt))
-	if err != nil {
-		return err
+	for {
+		ok, err := generator.TakeRecovery(ctx, policy.AttemptTimeout)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return &service.Down{Service: agent, Reason: FailReason}
+		}
+		original := ""
+		if policy.RepairContext {
+			original = prompt
+		}
+		limit := policy.RepairMaxBytes
+		if limit <= 0 {
+			limit = 64 << 10
+		}
+		if len(raw) > limit {
+			raw = raw[:limit]
+			for !utf8.ValidString(raw) {
+				raw = raw[:len(raw)-1]
+			}
+		}
+		raw, err = gen.Complete(ctx, agent, Repair(spec, raw, original))
+		if err != nil {
+			return err
+		}
+		if err := Decode(raw, dst); err == nil {
+			return nil
+		}
 	}
-	if err := Decode(again, dst); err != nil {
-		// The failure is named for the agent, not for the model service: the model
-		// answered, but not in the form asked for.
-		return &service.Down{Service: agent, Reason: FailReason}
-	}
-	return nil
 }
 
 // Decode unmarshals JSON taken from a fenced code block or from surrounding
@@ -128,7 +153,11 @@ func Decode(raw string, dst any) error {
 		// Each try starts from a zero value, so a partial decode of one
 		// candidate cannot leave fields behind for the next.
 		reset(dst)
-		err := json.Unmarshal([]byte(stripTrailingCommas(c)), dst)
+		body := []byte(stripTrailingCommas(c))
+		err := checkObjectShape(body, dst)
+		if err == nil {
+			err = json.Unmarshal(body, dst)
+		}
 		if err == nil {
 			return nil
 		}
@@ -139,6 +168,47 @@ func Decode(raw string, dst any) error {
 		last = fmt.Errorf("answer: no json")
 	}
 	return last
+}
+
+// Keep tolerant decoding, but refuse vendor envelopes that would silently
+// unmarshal into a zero-valued agent answer. An empty object remains an abstention.
+func checkObjectShape(body []byte, dst any) error {
+	t := reflect.TypeOf(dst)
+	if t == nil || t.Kind() != reflect.Pointer {
+		return nil
+	}
+	t = t.Elem()
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return err
+	}
+	if obj == nil {
+		return fmt.Errorf("answer: expected an object")
+	}
+	if len(obj) == 0 {
+		return nil
+	}
+	for _, f := range reflect.VisibleFields(t) {
+		if !f.IsExported() {
+			continue
+		}
+		name := strings.Split(f.Tag.Get("json"), ",")[0]
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = f.Name
+		}
+		for k := range obj {
+			if strings.EqualFold(k, name) {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("answer: object has no fields from the requested schema; CLI output must be answer text")
 }
 
 // candidates lists the JSON values in raw, in order. When raw has a fenced

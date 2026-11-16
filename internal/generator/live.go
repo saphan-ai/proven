@@ -1,14 +1,14 @@
 package generator
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"github.com/saphan-ai/proven/internal/modelcall"
 )
 
 // liveBuilt counts live clients NewLive has constructed in this process.
@@ -44,11 +44,20 @@ type Reported interface {
 // Live calls an OpenAI-compatible chat endpoint and reads the streamed answer.
 // Complete is sequential: LastUse reports the call that just returned.
 type Live struct {
-	cfg    Settings
-	client *http.Client
-	last   Use
-	has    bool
+	cfg      Settings
+	client   *http.Client
+	last     Use
+	has      bool
+	attempts []modelcall.Attempt
 }
+
+// Observed exposes measurements from the last logical completion, including failures.
+type Observed interface{ LastAttempts() []modelcall.Attempt }
+
+func (l *Live) LastAttempts() []modelcall.Attempt {
+	return append([]modelcall.Attempt(nil), l.attempts...)
+}
+func (s *Second) LastAttempts() []modelcall.Attempt { return s.live.LastAttempts() }
 
 // WithModel returns a generator that sends model on the request.
 // The two generators do not share the model of the call that just finished.
@@ -69,15 +78,16 @@ func NewLive(cfg Settings, client *http.Client) *Live {
 		// in the air-gapped mode this client also refuses, at dial time, any address off the network.
 		client = cfg.Network.NewClient(cfg.Timeout)
 	}
-	return &Live{cfg: cfg, client: client}
+	copy := *client
+	copy.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &Live{cfg: cfg, client: &copy}
 }
 
-// NewSecond builds the second reviewer's client . It lives here, with the other code that
-// dials, because this file is the only one of the package allowed to import net/http. A nil client
-// does not follow redirects, so the key is not sent to another host (the same rule as NewLive).
+// NewSecond builds an independently configurable OpenAI-compatible reviewer.
 func NewSecond(s SecondSettings, client *http.Client) *Second {
 	cfg := Settings{
-		Mode: ModeOpenAI, BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout, ThinkingBudget: s.ThinkingBudget,
+		Options: s.Options,
+		Mode:    ModeOpenAI, BaseURL: s.BaseURL, Token: s.Key, Model: s.Model, Timeout: s.Timeout, ThinkingBudget: s.ThinkingBudget,
 		Network: s.Network,
 		plain:   true,
 		// requireNone: the NVIDIA check is Nightshift's rule  and this reviewer is meant to
@@ -112,34 +122,36 @@ type chatMessage struct {
 }
 
 // Complete sends one streamed chat completion.
-// An empty answer is tried once more. A wrong token, a timeout, an
-// unreachable endpoint, or a second empty answer is a named failure of the
-// provider in use (nightshift or nvidia).
+// Empty answers share the configured recovery budget with schema repair.
+// Timeouts and failures after a stream has started are never retried.
 // A model outside nvidia/* is refused when this agent requires NVIDIA.
 func (l *Live) Complete(ctx context.Context, agent, prompt string) (string, error) {
+	if l != nil {
+		l.has = false
+		l.last = Use{}
+		l.attempts = nil
+	}
 	if l == nil || l.client == nil || (l.cfg.Token == "" && l.cfg.Mode != ModeOpenAI) || l.cfg.BaseURL == "" || l.cfg.Timeout <= 0 {
 		return "", l.down("not configured")
 	}
-	// Clear the last use first, so a failed call never reports the model of the call before it.
-	l.has = false
-	l.last = Use{}
+	ctx = ensureStep(ctx, l.GenerationPolicy())
 	model := l.cfg.ModelFor(agent)
-	text, meta, err := l.attempt(ctx, prompt, model)
-	if err != nil {
-		return "", err
-	}
-	// An empty answer is retried once with the same prompt and model; a second
-	// empty answer is a failure, not an empty review.
-	if strings.TrimSpace(text) == "" {
-		text, meta, err = l.attempt(ctx, prompt, model)
+	for {
+		text, meta, err := l.attempt(ctx, agent, prompt, model)
 		if err != nil {
 			return "", err
 		}
-		if strings.TrimSpace(text) == "" {
+		if strings.TrimSpace(text) != "" {
+			return l.finish(agent, text, meta)
+		}
+		ok, err := TakeRecovery(ctx, l.cfg.Timeout)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
 			return "", l.down("empty answer")
 		}
 	}
-	return l.finish(agent, text, meta)
 }
 
 // Models is GET /v1/models with the same contract headers as a completion.
@@ -290,62 +302,6 @@ func nvidiaModel(model string) bool {
 	return ok && rest != ""
 }
 
-// attempt makes one POST and reads the stream. Each attempt gets its own
-// timeout from PROVEN_GENERATOR_TIMEOUT.
-func (l *Live) attempt(parent context.Context, prompt, model string) (string, streamMeta, error) {
-	if err := parent.Err(); err != nil {
-		return "", streamMeta{}, err
-	}
-	ctx, cancel := context.WithTimeout(parent, l.cfg.Timeout)
-	defer cancel()
-	payload, err := json.Marshal(chatRequest{
-		Model:          model,
-		Stream:         true,
-		Messages:       []chatMessage{{Role: "user", Content: prompt}},
-		ThinkingBudget: l.cfg.ThinkingBudget,
-	})
-	if err != nil {
-		return "", streamMeta{}, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint(l.cfg.BaseURL, "/chat/completions"), bytes.NewReader(payload))
-	if err != nil {
-		return "", streamMeta{}, l.down("not configured")
-	}
-	l.authorize(req)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-	resp, err := l.client.Do(req)
-	if err != nil {
-		return "", streamMeta{}, l.classify(parent, ctx, err)
-	}
-	defer resp.Body.Close()
-	if l.rejectsKey(resp.StatusCode) {
-		discard(resp.Body)
-		// A wrong token is not retried: the next call would be refused the same way.
-		return "", streamMeta{}, l.down("unauthorized")
-	}
-	if resp.StatusCode != http.StatusOK {
-		discard(resp.Body)
-		return "", streamMeta{}, l.down(httpReason(resp.StatusCode))
-	}
-	meta, err := parseStream(resp.Body)
-	if err != nil {
-		// A stream cut by the caller's cancellation returns that cancellation,
-		// not a provider failure.
-		if parent.Err() != nil {
-			return "", streamMeta{}, parent.Err()
-		}
-		// The deadline is checked before the stream's own fault on purpose: a body
-		// cut by this call's deadline can end on a half event, and the cause worth
-		// naming is the timeout, not the fragment it left.
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return "", streamMeta{}, l.down("timeout")
-		}
-		return "", streamMeta{}, l.down("bad stream")
-	}
-	return meta.text, meta, nil
-}
-
 // authorize sets the request's headers. Nightshift's app contract adds the app
 // name that selects the operator's routing mode, and the user scope; the hosted
 // API takes the key as a bearer token and nothing else, so those headers are
@@ -374,6 +330,14 @@ func (l *Live) rejectsKey(status int) bool {
 func (l *Live) classify(parent, ctx context.Context, err error) error {
 	if parent.Err() != nil {
 		return parent.Err()
+	}
+	switch {
+	case errors.Is(context.Cause(ctx), ErrReviewBudget):
+		return ErrReviewBudget
+	case errors.Is(context.Cause(ctx), errHeaderTimeout):
+		return l.down(errHeaderTimeout.Error())
+	case errors.Is(context.Cause(ctx), errIdleTimeout):
+		return l.down(errIdleTimeout.Error())
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) || timedOut(err) {
 		return l.down("timeout")

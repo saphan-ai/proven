@@ -6,9 +6,33 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/trace"
 )
+
+type exhaustedModel struct{}
+
+func (exhaustedModel) Complete(context.Context, string, string) (string, error) {
+	return "", generator.ErrReviewBudget
+}
+
+func TestModelReserveWritesPartialReviewBeforeParentExpires(t *testing.T) {
+	p, err := Build(Options{Sample: true, LogDir: t.TempDir(), Generator: exhaustedModel{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	d, err := p.Review(ctx, Request{Target: fixturePath(t)})
+	if err != nil || !d.Partial || ctx.Err() != nil {
+		t.Fatalf("partial=%v parent=%v err=%v", d.Partial, ctx.Err(), err)
+	}
+	if len(d.Findings) != 0 || len(readTrace(t, d.TracePath)) == 0 {
+		t.Fatal("partial result did not preserve the trace")
+	}
+}
 
 // A deadline that ends the review at any stage before the Judge gives a partial
 // review with no findings: a finding the Judge has not judged is never reported,

@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/saphan-ai/proven/internal/modelcall"
 	"github.com/saphan-ai/proven/internal/redact"
 	"github.com/saphan-ai/proven/internal/service"
 )
@@ -58,10 +59,12 @@ type Event struct {
 // model and the Nightshift receipt id. FromReceipt is true only when the
 // stream named a routed model.
 type Model struct {
-	Route       string `json:"route,omitempty"`
-	Model       string `json:"model"`
-	ReceiptID   string `json:"receipt_id,omitempty"`
-	FromReceipt bool   `json:"from_receipt"`
+	// Attempt is present on model-attempt events, including failed HTTP requests.
+	Attempt     *modelcall.Attempt `json:"attempt,omitempty"`
+	Route       string             `json:"route,omitempty"`
+	Model       string             `json:"model"`
+	ReceiptID   string             `json:"receipt_id,omitempty"`
+	FromReceipt bool               `json:"from_receipt"`
 	// Requested is the model the request asked for and ResponseID the id of the
 	// completion response. The custody audit reads both; older lines omit them.
 	Requested  string `json:"requested,omitempty"`

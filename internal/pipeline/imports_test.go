@@ -21,6 +21,7 @@ var exemptBanned = map[string]map[string]string{
 	"internal/generator/live.go": {
 		"net/http": "the live generator calls the OpenAI-compatible endpoint",
 	},
+	"internal/generator/request.go": {"net/http": "the live generator bounds and observes OpenAI-compatible HTTP attempts"},
 	"internal/testrun/container.go": {
 		"os/exec": "the container runner starts the runtime that runs the change",
 	},

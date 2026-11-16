@@ -12,6 +12,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  model-probes:
+    # Operator-supplied JSON entries: name, model, extra_body (a JSON string).
+    # Empty configuration disables live probes. Each entry makes one request.
+    if: github.event.pull_request.head.repo.full_name == github.repository && vars.PROVEN_MODEL_PROBES != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        probe: ${{ fromJSON(vars.PROVEN_MODEL_PROBES || '[{"name":"disabled","model":"disabled","extra_body":"{}"}]') }}
+    env:
+      PROVEN_IMAGE: ${{ vars.PROVEN_REVIEW_IMAGE }}
+    steps:
+      - name: Load the published reviewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          if not re.fullmatch(r'(docker\.io/)?saphan/proven@sha256:[0-9a-f]{64}', os.environ['PROVEN_IMAGE']):
+              raise SystemExit('Set PROVEN_REVIEW_IMAGE to a published saphan/proven image digest')
+          PY
+          docker pull "$PROVEN_IMAGE"
+          container=$(docker create "$PROVEN_IMAGE")
+          trap 'docker rm "$container" >/dev/null 2>&1 || true' EXIT
+          docker cp "$container:/usr/local/bin/proven" "$RUNNER_TEMP/proven"
+          chmod +x "$RUNNER_TEMP/proven"
+      - name: Measure one completion
+        shell: bash
+        env:
+          PROVEN_GENERATOR_MODE: openai
+          PROVEN_GENERATOR_BASE_URL: ${{ vars.PROVEN_REVIEW_BASE_URL || 'https://integrate.api.nvidia.com/v1' }}
+          PROVEN_GENERATOR_KEY: ${{ secrets.PROVEN_REVIEW_API_KEY || secrets.NVIDIA_API_KEY }}
+          PROVEN_GENERATOR_MODEL: ${{ matrix.probe.model }}
+          PROVEN_GENERATOR_EXTRA_BODY: ${{ matrix.probe.extra_body }}
+          PROVEN_GENERATOR_MAX_TOKENS: '2048'
+          PROVEN_GENERATOR_TIMEOUT: 300s
+          PROVEN_GENERATOR_HEADER_TIMEOUT: 40s
+          PROVEN_GENERATOR_IDLE_TIMEOUT: 90s
+        run: |
+          set -euo pipefail
+          status=0
+          "$RUNNER_TEMP/proven" model check > model-probe.json || status=$?
+          # An incompatible variant is a measurement, not a workflow failure.
+          # Configuration errors and broken execution still fail the job.
+          case "$status" in 0|3) cat model-probe.json ;; *) exit "$status" ;; esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model-probe-${{ matrix.probe.name }}-${{ github.event.pull_request.head.sha }}
+          path: model-probe.json
+          retention-days: 14
+
   review:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -66,12 +119,22 @@ jobs:
           PROVEN_TEST_IMAGE: proven-review-tests:local
           PROVEN_TEST_TIMEOUT: 120s
           PROVEN_GENERATOR_MODE: openai
-          PROVEN_GENERATOR_BASE_URL: https://integrate.api.nvidia.com/v1
+          PROVEN_GENERATOR_BASE_URL: ${{ vars.PROVEN_REVIEW_BASE_URL || 'https://integrate.api.nvidia.com/v1' }}
           PROVEN_GENERATOR_MODEL: ${{ vars.PROVEN_REVIEW_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b' }}
           PROVEN_SKEPTIC_MODEL: ${{ vars.PROVEN_REVIEW_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b' }}
-          PROVEN_GENERATOR_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          PROVEN_GENERATOR_TIMEOUT: 180s
-          PROVEN_ADAPTER_TIMEOUT: 190s
+          PROVEN_GENERATOR_KEY: ${{ secrets.PROVEN_REVIEW_API_KEY || secrets.NVIDIA_API_KEY }}
+          PROVEN_GENERATOR_TIMEOUT: ${{ vars.PROVEN_REVIEW_CALL_TIMEOUT || '300s' }}
+          PROVEN_GENERATOR_HEADER_TIMEOUT: ${{ vars.PROVEN_REVIEW_HEADER_TIMEOUT || '40s' }}
+          PROVEN_GENERATOR_IDLE_TIMEOUT: ${{ vars.PROVEN_REVIEW_IDLE_TIMEOUT || '90s' }}
+          PROVEN_GENERATOR_MAX_TOKENS: ${{ vars.PROVEN_REVIEW_MAX_TOKENS || '8192' }}
+          PROVEN_GENERATOR_AGENT_MAX_TOKENS: ${{ vars.PROVEN_REVIEW_AGENT_MAX_TOKENS || '{"planner":4096,"investigator":2048,"skeptic":2048}' }}
+          PROVEN_GENERATOR_EXTRA_BODY: ${{ vars.PROVEN_REVIEW_EXTRA_BODY }}
+          PROVEN_GENERATOR_AGENT_EXTRA_BODY: ${{ vars.PROVEN_REVIEW_AGENT_EXTRA_BODY }}
+          PROVEN_GENERATOR_INCLUDE_USAGE: ${{ vars.PROVEN_REVIEW_INCLUDE_USAGE || 'false' }}
+          PROVEN_GENERATOR_DEADLINE_RESERVE: ${{ vars.PROVEN_REVIEW_DEADLINE_RESERVE || '60s' }}
+          PROVEN_GENERATOR_RATE_LIMIT_RETRIES: ${{ vars.PROVEN_REVIEW_RATE_LIMIT_RETRIES || '3' }}
+          PROVEN_GENERATOR_RECOVERY_RETRIES: ${{ vars.PROVEN_REVIEW_RECOVERY_RETRIES || '1' }}
+          PROVEN_ADAPTER_TIMEOUT: 310s
           PROVEN_GUARDRAIL_MODE: 'off'
           INPUT_TARGET: target
           INPUT_OUTPUT_FORMAT: json/sarif
@@ -83,7 +146,7 @@ jobs:
           INPUT_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test -n "$PROVEN_GENERATOR_KEY" || { echo 'NVIDIA_API_KEY is missing'; exit 2; }
+          test -n "$PROVEN_GENERATOR_KEY" || { echo 'PROVEN_REVIEW_API_KEY or NVIDIA_API_KEY is missing'; exit 2; }
           /bin/sh reviewer/action/entrypoint.sh
       - name: Retain review evidence
         if: always()

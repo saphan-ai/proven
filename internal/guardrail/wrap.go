@@ -29,6 +29,8 @@ type guarded struct {
 	observe Observe
 }
 
+func (g *guarded) GenerationPolicy() generator.CallPolicy { return generator.PolicyOf(g.inner) }
+
 // Complete checks the prompt, calls the model, then checks the prompt and
 // answer together. The order matters: an unsafe prompt never reaches the model.
 func (g *guarded) Complete(ctx context.Context, agent, prompt string) (string, error) {
