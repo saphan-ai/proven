@@ -67,8 +67,8 @@ jobs:
           PROVEN_TEST_TIMEOUT: 120s
           PROVEN_GENERATOR_MODE: openai
           PROVEN_GENERATOR_BASE_URL: https://integrate.api.nvidia.com/v1
-          PROVEN_GENERATOR_MODEL: nvidia/nemotron-3.5-super-vl-120b-a12b
-          PROVEN_SKEPTIC_MODEL: nvidia/nemotron-3.5-super-vl-120b-a12b
+          PROVEN_GENERATOR_MODEL: ${{ vars.PROVEN_REVIEW_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b' }}
+          PROVEN_SKEPTIC_MODEL: ${{ vars.PROVEN_REVIEW_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b' }}
           PROVEN_GENERATOR_KEY: ${{ secrets.NVIDIA_API_KEY }}
           PROVEN_GENERATOR_TIMEOUT: 180s
           PROVEN_ADAPTER_TIMEOUT: 190s
