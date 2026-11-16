@@ -68,13 +68,13 @@ func TestLocalFileInsideTheTargetIsRefused(t *testing.T) {
 // not exist, so no table does. Negative control: removing the down conversion
 // in the file's query makes the review return an error.
 func TestEmptyLocalStoreNamesLocalAsDown(t *testing.T) {
-	repo, base, head := twoCommits(t)
+	target := filepath.Join(moduleRoot(t), "testdata", "fixture", "osv-go-module")
 	file := filepath.Join(t.TempDir(), "evidence.sql")
 	rev, err := Open(Options{LogDir: t.TempDir(), Env: localEnv(file), gen: &countGen{}, testRun: quietRun{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := reviewWith(t, rev, Request{Target: repo, BaselineCommit: base, HeadCommit: head})
+	res, err := reviewWith(t, rev, Request{Target: target})
 	if err != nil {
 		t.Fatalf("the review ended: %v", err)
 	}

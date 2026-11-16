@@ -840,12 +840,16 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
+	modelQueries := q
+	if !p.sample {
+		modelQueries = boundQueries{Runner: q, facts: checked.Facts}
+	}
 	ictx, istage := p.tel.StartStage(ctx, "investigator", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
 		if !plan.agent(AgentInvestigator) {
 			break
 		}
-		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, q, rel, req.InvestigatorScope)
+		next, err := investigator.Investigate(ictx, cands[i], fx.Snapshot, gen, modelQueries, rel, req.InvestigatorScope)
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
 				if errors.Is(fatal, errPartial) {
@@ -869,6 +873,14 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			return candidate.Draft{}, err
 		}
 	}
+	var proofFiles []change.File
+	if !p.sample && plan.agent(AgentProver) && len(cands) > 0 {
+		var err error
+		proofFiles, err = change.PolicyFrom(ctx).Read(fx.Root)
+		if err != nil {
+			return candidate.Draft{}, err
+		}
+	}
 	prctx, prstage := p.tel.StartStage(ctx, "prover", telemetry.ReviewerShared, reviewerModel(req, runDefault))
 	for i := range cands {
 		if !plan.agent(AgentProver) {
@@ -880,6 +892,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 			BaseDir:         filepath.Join(fx.Root, "base"),
 			ChangeDir:       filepath.Join(fx.Root, "change"),
 			MaxWrittenBytes: p.writtenLimit(),
+			Files:           proofFiles,
 		})
 		if err != nil {
 			if _, fatal := st.soften(ctx, err); fatal != nil {
@@ -936,7 +949,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 				cands[i].Refutation = candidate.Refutation{Attempted: false, Reason: "not attempted"}
 			} else {
 				cands[i] = next
-				if err := p.runRefutation(ctx, &cands[i], q, run, req.SkepticScope); err != nil {
+				if err := p.runRefutation(ctx, &cands[i], modelQueries, run, req.SkepticScope); err != nil {
 					if _, fatal := st.soften(ctx, err); fatal != nil {
 						if errors.Is(fatal, errPartial) {
 							return p.cut(st, cands, allow)
@@ -971,7 +984,7 @@ func (p *Pipeline) review(ctx context.Context, req Request) (candidate.Draft, er
 					return candidate.Draft{}, fatal
 				}
 			} else {
-				if err := p.runRefutation(ctx, &next, q, run, req.SkepticScope); err != nil {
+				if err := p.runRefutation(ctx, &next, modelQueries, run, req.SkepticScope); err != nil {
 					if _, fatal := st.soften(ctx, err); fatal != nil {
 						if errors.Is(fatal, errPartial) {
 							return p.cut(st, cands, allow)

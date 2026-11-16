@@ -18,6 +18,8 @@ The model path uses Planner, Investigator, Prover and Skeptic stages. The Judge 
 
 The evidence store runs registered templates over source tables. SQLite, PostgreSQL, CouchDB, legacy fixture files and Zetaris are interchangeable at this boundary. Dependency version matching happens in Go. The runner executes tests on base and head inside restricted containers, with no network or inherited secrets.
 
+For live reviews the Prover receives the risk, a bounded source excerpt from both snapshots, and existing tests in the same package. Built-in advisory queries proposed by a model must bind to a dependency or advisory affected by the change before they contact a database. A missing source required by the deterministic dependency scan still makes analysis incomplete.
+
 ## Code boundaries
 
 - `internal/change`: bounded change reads and snapshot preparation.
