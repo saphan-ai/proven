@@ -14,7 +14,7 @@ DEL (U+007F) and C1 (U+0080 to U+009F) in JSON and SARIF are written as `\u007f`
 
 ## JSON
 
-One object. Every key below is always present, except `findings[].evidence_record_url`, which is described after the table.
+One object. Common fields are listed below; conditional fields are described after the table and in the completion section. Consumers should accept additional optional fields.
 
 | field | meaning |
 |---|---|
@@ -34,7 +34,7 @@ One object. Every key below is always present, except `findings[].evidence_recor
 | `models` | every model the review used; each has `agent`, `route`, `model`, `receipt_id`, `from_receipt` |
 | `failed_services` | the services that failed; each has `service` and `reason` |
 | `proof_counts` | how many findings are at each level; every level is a key, with 0 when none: `proved-by-test`, `proved-by-tool`, `proved-by-data`, `agreed-by-two-models-not-proven` |
-| `guardrail` | what NVIDIA's guardrail did in this review, measured per review and never typed; an object, see **The guardrail line** below |
+| `guardrail` | what the configured safety service did, or that it was off; an object, see **The guardrail line** below |
 | `findings` | every reported finding |
 | `findings[].id` | finding id |
 | `findings[].proof_level` | that finding's level of proof, one of the four keys of `proof_counts` |
@@ -45,13 +45,14 @@ One object. Every key below is always present, except `findings[].evidence_recor
 | `findings[].unresolved` | the evidence did not settle it |
 | `findings[].models` | the reviewer models that reported this finding, the default reviewer first |
 | `findings[].location` | where it is: `path`, `start_line`, `end_line` |
-| `findings[].evidence[].kind` | `test` or `query` |
+| `findings[].evidence[].kind` | `test`, `query` or `tool` |
 | `findings[].evidence[].test` | `path`, `name`, `command`, `fails_on_change`, `passes_on_base`, `output` |
 | `findings[].evidence[].query` | `sql`, `engine`, `snapshot`, `columns`, `rows` |
+| `findings[].evidence[].tool` | tool/version, command, base/head output and presence on each side |
 
 Of one evidence entry, only the object named by its `kind` is present.
 
-`findings[].evidence_record_url` is the one key that is not always present. It is the address of the finding's stored evidence record in the viewer page (docs/ADAPTERS.md, Evidence records and their viewer), and it is left out when the finding has none: records are not set, the record was not stored, or no link base address is set. The text and SARIF outputs do not carry it.
+`findings[].evidence_record_url` is optional. It links to the finding's stored evidence record in the [record viewer](ADAPTERS.md#evidence-records-and-their-viewer), and is omitted when records are not configured, storage failed or no link base is set. Text and SARIF do not carry it.
 
 ## SARIF 2.1.0
 
@@ -67,7 +68,7 @@ Each result's `properties` also carries `proof_level`, and the run's `properties
 
 ### The guardrail line
 
-Every output states what NVIDIA's guardrail did in this review, in the same words (the reviewer lines name the reviewing models; this line names the guardrail). The counts are measured at the one place every check passes through, the guardrail callback of the pipeline, and a doubled review adds both runs' checks:
+Every output states what the configured guardrail did, in the same words (reviewer lines name reviewing models; this line names the guardrail). Counts are measured at the pipeline's guardrail callback; a doubled review adds both runs' checks:
 
 ```
 Guardrail: [<maker> ]<model> (<where>), checked <P> prompts and <A> answers, <B> blocked
@@ -110,7 +111,7 @@ Every value that comes from the change (a title, a path, a rule, a message, a mo
 
 ## HTML
 
-The report a judge opens (`--html`, `--html-output`, `PROVEN_OUTPUT_FORMAT=html`): one UTF-8 file, written from the same review result, in the words of the Markdown comment (`internal/cli/format_html.go` shares its sentences with `format_md.go`). Top to bottom:
+The standalone report (`--html`, `--html-output`, `PROVEN_OUTPUT_FORMAT=html`): one UTF-8 file, written from the same review result, in the words of the Markdown comment (`internal/cli/format_html.go` shares its sentences with `format_md.go`). Top to bottom:
 
 1. **The verdict.** The same line as Markdown (`Proven: blocked — N findings: …`, with a space before the dash), in a box coloured by what it says: blocked, clean, or not reviewed when the model reviewer did not answer. When the model answered some calls and not others the heading is `Proven: incomplete`, as in Markdown (`TestHTMLCarriesTheIncompleteHeading`).
 2. **The summary.** With findings, a table of severity (as a word), finding and `file:line`; each finding links to its card by an in-page anchor. Without findings, the statement of what was checked.

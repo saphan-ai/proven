@@ -1,21 +1,19 @@
 # Sample mode
 
-Sample mode runs a whole Proven review with **no network and no keys**. Every model answer, every test outcome and every
-query row comes from a recorded fixture, so anyone can run it on a laptop and get the same result every time.
+Sample mode runs a whole Proven review with **no model connection and no keys**. Every model answer, test outcome and query row comes from a recorded fixture. It exercises real decision and formatting code while replacing outside responses. Optional configured OpenTelemetry export still applies; unset collector variables or set `OTEL_SDK_DISABLED=true` for a completely disconnected run.
 
-Every command and every output on this page was run on 23 October 2026 with Go 1.26.8 on macOS, on `main` at `26343c2`
-with this page's four new scenarios added. Long output is shortened where marked.
+The long transcripts below were recorded on 23 October 2026 with Go 1.26.8 on macOS at `26343c2`, with the scenarios described here. They are historical examples: display text and additional report fields can evolve. The current quick-start commands and default `discount` result (four findings, complete, no failed services) were checked again on 16 November 2026. Use the Go version in `go.mod`. Long output is shortened where marked.
 
 ## What sample mode exercises, and what it does not
 
 | Exercised (the real code runs) | Not exercised (replaced by recorded data) |
 |---|---|
-| The six agents in order: Planner, Investigator, Prover, Skeptic, Judge, Writer | Live model calls through Nightshift |
+| The six agents in order: Planner, Investigator, Prover, Skeptic, Judge, Writer | Live calls through any configured model transport |
 | The Judge's rule: a finding without evidence is dropped | The Prover running a test in a container: the outcome is recorded |
-| The Skeptic's refutation step and the Judge's verdict | Live Zetaris queries: the same SQL runs over local sample tables |
+| The Skeptic's refutation step and the Judge's verdict | Live database connections: queries use recorded local sample tables |
 | The trace (`<user cache>/proven/logs/trace.jsonl`), H-MEM and the World Model on disk | The live guardrail: the sample guardrail answers `safe`, or the verdict a fixture records |
 
-To check that the live services are ready instead, run `go run ./cmd/livecheck` (it never prints a secret).
+For one live API compatibility request, run `proven model check` after [configuring a model](MODELS.md). It does not check databases or containers. The [data walkthrough](DATA_WALKTHROUGH.md) and [runner guide](RUNNER.md) validate those paths separately.
 
 ## Run it
 

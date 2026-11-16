@@ -38,6 +38,8 @@ An earlier whole-change self-review completed in 63 seconds for the review step:
 
 The repository workflow profile is an operator choice, not a universal model preset. Published binaries are pinned by image digest in self-review, so changing source without rebuilding and selecting an image does not update that reviewer. See [Action operations](ACTION.md#proven-reviewing-itself) and [container builds](CONTAINERS.md).
 
+The later [bounded self-review run](https://github.com/saphan-ai/proven/actions/runs/43826723846) used the image containing final-hypothesis handling, Markovian on, a 32,768-token Prover allowance and longer rate-limit backoff. It finished 67 planning steps and checked 11 candidates. The trace contains 106 HTTP attempts, including six 429 responses recovered by retry. One Prover response still ended with `finish_reason=length`. The written report preserved a final pending hypothesis, reported incomplete coverage with `partial: false`, and the required check exited 3. This verifies preservation of useful work and visible gaps; it is not a successful complete review or an accuracy benchmark. Raising the token limit alone did not eliminate that model's truncation behavior.
+
 ## Evaluation still needed
 
 Track detection and misses against controlled defects, changes without defects, supported languages and source coverage. Compare whole-change and bounded planning with the same cases and document model/options, dataset revisions, runtime image and limits. Stronger recall claims, production backend guarantees and broad CLI subscription compatibility remain unestablished. See [ROADMAP.md](../ROADMAP.md).

@@ -86,8 +86,8 @@ func Environment() []envdoc.Setting {
 		},
 		{
 			Name:        EnvBaseURL,
-			Default:     envdoc.Tick(defaultBaseURL),
-			Description: "Nightshift's address, or the root of another OpenAI-compatible API. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`, and that path is then the API root. Read in `nightshift` mode only; `nvidia` mode never reads it",
+			Default:     "required for openai; " + envdoc.Tick(defaultBaseURL) + " for nightshift",
+			Description: "API root for openai or nightshift. A path is empty or ends in a version, such as `/v1` or `/api/paas/v4`. The nvidia adapter uses PROVEN_NVIDIA_BASE_URL instead; command/off do not connect to this address",
 		},
 		{
 			Name:        EnvNVIDIABaseURL,
@@ -101,13 +101,13 @@ func Environment() []envdoc.Setting {
 		},
 		{
 			Name:        EnvModel,
-			Default:     envdoc.Tick(defaultModel) + " for `nightshift`; " + envdoc.Tick(defaultNVIDIAModel) + " for `nvidia`",
+			Default:     "required for openai/command; " + envdoc.Tick(defaultModel) + " for `nightshift`; " + envdoc.Tick(defaultNVIDIAModel) + " for `nvidia`",
 			Description: "the model asked for; Nightshift's router chooses when `auto`. The hosted default answers under the alias `private/nvidia/nemotron-3.5-super-120b-a12b`, accepted for this model only",
 		},
 		{
 			Name:        EnvTimeout,
 			Default:     envdoc.Tick(envdoc.SecondSpec(defaultTimeout)),
-			Description: "the limit for one model call",
+			Description: "total time limit for one completion attempt, including eligible HTTP retries and backoff; also bounded by the review deadline",
 		},
 		{
 			Name:        EnvRequireNVIDIA,
@@ -121,8 +121,8 @@ func Environment() []envdoc.Setting {
 		},
 		{
 			Name:        EnvSkepticModel,
-			Default:     envdoc.Tick(DefaultSkepticModel),
-			Description: "the Skeptic's model (ADR-0006: another family than the finder's). In `nvidia` mode the finder's default is this same model, so the two share a family unless one is set, and the trace states the shared family",
+			Default:     "primary model for openai/command; " + envdoc.Tick(DefaultSkepticModel) + " for legacy adapters",
+			Description: "the Skeptic's model on the primary endpoint. Select a different model explicitly when desired; a shared or unknown family remains visible in the trace. Another endpoint uses the second-reviewer settings",
 		},
 		{
 			Name:        EnvThinkingBudget,

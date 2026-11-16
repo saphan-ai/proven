@@ -20,7 +20,9 @@ Run the recorded example without accounts, model keys or a container runtime:
 make sample
 ```
 
-Sample mode replays recorded model answers and test outcomes. For a real change, configure an evidence database and any model or analyzer you want to use. See [installation](docs/INSTALL.md), [configuration](docs/CONFIGURATION.md) and [sample mode](docs/SAMPLE_MODE.md).
+Sample mode replays recorded model answers and test outcomes. Follow the [quick start](docs/QUICKSTART.md) to produce JSON/HTML, then [walk through the evidence](docs/WALKTHROUGH.md). The [Git/SQLite tutorial](docs/DATA_WALKTHROUGH.md) runs real imports and queries without a model or Docker.
+
+For live code review, prepare your [model connection](docs/MODELS.md), [source data](docs/SOURCES.md) and [restricted runner](docs/RUNNER.md). The [documentation map](docs/README.md) covers operations, policy, reports, extensions and troubleshooting.
 
 ## Your models and data
 
@@ -43,6 +45,16 @@ The Planner identifies risks, the Investigator gathers data, the Prover runs a t
 - `proven verify` checks a signed pack and re-derives its recorded decisions offline. It does not re-run the recorded tests or prove that every defect was found.
 
 See [architecture](docs/ARCHITECTURE.md), [evidence packs](docs/EVIDENCE_PACK.md), [output formats](docs/OUTPUT_FORMATS.md) and [security](SECURITY.md).
+
+## Guides
+
+| Task | Documentation |
+| --- | --- |
+| Run locally or on PRs | [Install](docs/INSTALL.md), [Action](docs/ACTION.md), [operations](docs/OPERATIONS.md). |
+| Bring your own model and data | [Models](docs/MODELS.md), [databases](docs/DATABASES.md), [queries](docs/QUERIES.md). |
+| Understand coverage and failures | [Languages/tools](docs/LANGUAGES.md), [bounded planning](docs/MARKOVIAN.md), [diagnostics](docs/TROUBLESHOOTING.md), [traces](docs/OBSERVABILITY.md). |
+| Validate fixes and results | [Fix gates](docs/FIXES.md), [formats](docs/OUTPUT_FORMATS.md), [evaluation](docs/EVALUATION.md). |
+| Extend or reuse code | [Architecture](docs/ARCHITECTURE.md), [design](docs/DESIGN.md), [adapters](docs/ADAPTERS.md), [examples](examples/README.md). |
 
 ## Limitations
 

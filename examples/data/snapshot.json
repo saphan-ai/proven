@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "px_osvfile.px_osv_pkg",
+      "columns": ["id", "aliases", "ecosystem", "package", "introduced", "fixed", "last_affected", "severity", "published"],
+      "rows": [["DEMO-2099-0001", "CVE-2099-1234", "PyPI", "example-lib", "1.0.0", "1.2.0", "", "HIGH", "2026-11-16"]],
+      "snapshot": "synthetic-tutorial-osv-v1-not-security-data"
+    },
+    {
+      "name": "px_evidence.px_kev_vulns",
+      "columns": ["cve_id", "vendor_project", "product", "date_added", "known_ransomware"],
+      "rows": [],
+      "snapshot": "synthetic-tutorial-kev-v1-empty-not-security-data"
+    },
+    {
+      "name": "px_evidence.px_epss_cve_rows",
+      "columns": ["cve_id", "epss", "percentile", "score_date"],
+      "rows": [["CVE-2099-1234", "0.5", "0.9", "2026-11-16"]],
+      "snapshot": "synthetic-tutorial-epss-v1-not-security-data"
+    }
+  ]
+}

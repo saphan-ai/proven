@@ -1,6 +1,6 @@
 # OSV package table
 
-Proven defines this table. One row is one affected range of one advisory. The file is CSV with a header. A real OSV dump is not loaded here; an administrator puts the file in Zetaris's storage.
+Proven defines this normalized table. One row is one affected range of one advisory. The converter below writes CSV with a header; SQLite/PostgreSQL accept prepared rows through the JSON import contract in [Databases](DATABASES.md). The legacy Zetaris loading procedure is documented at the end. Selecting a backend does not download a real OSV feed; see [Sources](SOURCES.md).
 
 ## Columns
 
@@ -76,7 +76,7 @@ Maven compares a subset of Maven's version order. Numeric tokens compare as inte
 
 A package that both a manifest and its lock file add or raise is checked once. The lock file's version is the one compared, and the finding names the lock file. The pairs are `go.mod` with `go.sum`, `package.json` with `package-lock.json`, `requirements.txt` with `poetry.lock`, `composer.json` with `composer.lock`, `Cargo.toml` with `Cargo.lock`, and `build.gradle.kts` or `libs.versions.toml` with `gradle.lockfile`, each pair in the same directory. A catalog under `gradle/` is not paired with a lock file at the project root. PyPI names are compared and queried after PEP 503 normalisation: lower case, and every run of `-`, `_` or `.` becomes one `-`. Packagist names are compared and queried in lower case, and the separators are kept. Go module paths, npm names, crate names and Maven coordinates do not change. A package that only one of the two files names is still checked.
 
-## What the administrator runs
+## Legacy Zetaris loading
 
 Measured on 22 October 2026: a Lightning filestore table over a CSV with a header answers `SELECT` for every row, with Proven's own key, in about 0.10–0.15 seconds. The statements below are those measurements, with this table's name and file. The storage path is filled in by the administrator.
 

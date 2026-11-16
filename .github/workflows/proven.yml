@@ -26,6 +26,8 @@ jobs:
       - run: sh action/test.sh
       - run: sh scripts/test-publish-image.sh
       - run: node --test docs-site/scripts/*.test.mjs
+      - run: node docs-site/scripts/build-content.mjs
+      - run: node docs-site/scripts/guards.mjs
       - run: go build -trimpath ./cmd/proven
   release-build:
     if: startsWith(github.ref, 'refs/tags/v')

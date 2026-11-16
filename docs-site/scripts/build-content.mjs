@@ -119,7 +119,8 @@ const meta = (dir, value) => {
 const roots = ['index', 'guides', 'reference'];
 if (pages.some((p) => p.slug.startsWith('examples/'))) roots.push('examples');
 meta('.', { pages: roots.filter((r) => r === 'index' || fs.existsSync(path.join(contentDir, r))) });
-meta('guides', { title: 'Guides', pages: ['index', '...'] });
+const guideOrder = ['index', 'quickstart', 'walkthrough', 'data_walkthrough', 'install', 'readiness', 'models', 'configuration', 'action', 'runner', 'operations', 'troubleshooting', 'observability', 'sources', 'databases', 'languages', 'markovian', 'fixes', 'output_formats', 'evidence_pack', 'evaluation', 'sample_mode', 'architecture', 'design', 'adapters', 'roadmap', 'documentation'];
+meta('guides', { title: 'Guides', pages: [...guideOrder.filter((slug) => fs.existsSync(path.join(contentDir, 'guides', `${slug}.md`))), '...'] });
 meta('reference', { title: 'Reference', pages: ['cli', 'settings', 'adapters'] });
 meta('reference/adapters', { title: 'Adapter interfaces', pages: ['index', '...'] });
 if (fs.existsSync(path.join(contentDir, 'security'))) meta('security', { title: 'Security', pages: ['...'] });

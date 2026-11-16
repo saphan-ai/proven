@@ -6,6 +6,7 @@
 - Make model request limits, three clocks, provider options and shared recovery configurable, with per-agent and second-reviewer overrides and per-request stream observations.
 - Pin updated git/musl runtime packages above the Alpine base and gate image publication on successful checks and HIGH/CRITICAL scans for both architectures.
 - Document readiness, source adapter versus feed-connector status, bounded-planning behavior and the public source roadmap.
+- Add guided recorded and real Git/SQLite tutorials, model profiles, runner preparation, operations, troubleshooting, observability, fix validation, language coverage, design rationale and evaluation guidance. Retain the detailed adapter/evidence/sample references and organize the documentation site around learning paths.
 
 - Add standalone development, configuration and contribution guides.
 - Add neutral OpenAI-compatible and operator-configured CLI model transports, including optional authentication for local endpoints.

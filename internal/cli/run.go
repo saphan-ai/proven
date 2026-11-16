@@ -813,7 +813,8 @@ data import <dataset.json>
   Load administrator-prepared tables into SQLite or PostgreSQL. See docs/DATABASES.md.
 
 completion policy:
-  PROVEN_REQUIRE_COMPLETE=true fails a partial review or failed service with exit 3.
+  PROVEN_REQUIRE_COMPLETE=true fails interrupted reviews, failed services or
+  unresolved final planning hypotheses with exit 3, after writing the result.
   Default: true in ci, false in scan. Findings policy is independent.
 
 exit codes:
