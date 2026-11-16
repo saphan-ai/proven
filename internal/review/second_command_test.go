@@ -28,8 +28,9 @@ func TestOpenWiresTwoCommandReviewers(t *testing.T) {
 		generator.EnvSecondModel:   "second-cli",
 		"PROVEN_GUARDRAIL_MODE":    "off",
 		"PROVEN_MARKOVIAN":         "off",
+		"PROVEN_TEST_RUNTIME":      "proven-no-container-runtime",
 	}
-	r, err := Open(Options{ConfigPath: config, LogDir: t.TempDir(), Env: func(k string) string { return env[k] }})
+	r, err := Open(Options{ConfigPath: config, LogDir: t.TempDir(), Env: func(k string) string { return env[k] }, testRun: quietRun{}})
 	if err != nil {
 		t.Fatal(err)
 	}
