@@ -733,9 +733,9 @@ func TestMarkdownLeastProofCountsTheColumnsItLeavesOut(t *testing.T) {
 // no findings whose model reviewer did not answer (either generator mode) is
 // headed "not reviewed", names the model, and never says "clean": with the model
 // down no candidate is raised, so 0 findings proves nothing. A run where only
-// another service failed stays clean. The mutated field is FailedServices.
+// another service failed is incomplete. The mutated field is FailedServices.
 func TestMarkdownDoesNotCallAReviewCleanWhenNoModelAnswered(t *testing.T) {
-	for _, svc := range []string{"nvidia", "nightshift"} {
+	for _, svc := range []string{"nvidia", "nightshift", "generator", "command"} {
 		body, err := render("md", review.Result{Class: "backend", ClassRule: "fallback",
 			FailedServices: []review.ServiceFailure{{Service: "zetaris", Reason: "ZETARIS_REST_URL is empty"}, {Service: svc, Reason: "timeout"}}})
 		if err != nil {
@@ -751,8 +751,27 @@ func TestMarkdownDoesNotCallAReviewCleanWhenNoModelAnswered(t *testing.T) {
 	}
 	other, _ := render("md", review.Result{Class: "backend", ClassRule: "fallback",
 		FailedServices: []review.ServiceFailure{{Service: "zetaris", Reason: "ZETARIS_REST_URL is empty"}}})
-	if !strings.Contains(string(other), "**Proven: clean**") {
-		t.Errorf("only zetaris down: the run is no longer called clean\n%s", other)
+	if !strings.Contains(string(other), "**Proven: incomplete**") {
+		t.Errorf("an unavailable evidence source must make the review incomplete\n%s", other)
+	}
+}
+
+func TestReportsNeverCallIncompleteAnalysisClean(t *testing.T) {
+	for _, result := range []review.Result{
+		{Partial: true},
+		{FailedServices: []review.ServiceFailure{{Service: "sqlite", Reason: "missing snapshot"}}},
+		{FailedServices: []review.ServiceFailure{{Service: "generator", Reason: "http 400"}}},
+		{FailedServices: []review.ServiceFailure{{Service: "command", Reason: "timeout"}}},
+	} {
+		for _, format := range []string{"md", "html"} {
+			body, err := render(format, result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(body), "Proven: clean") || strings.Contains(string(body), `class="verdict clean"`) {
+				t.Errorf("%s calls incomplete analysis clean: %s", format, body)
+			}
+		}
 	}
 }
 

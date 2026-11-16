@@ -37,6 +37,9 @@ func verdictLine(result review.Result) (head, tail string) {
 			}
 			return "Proven: not reviewed", " — " + strings.Join(down, " and ") + " did not answer, so 0 findings proves nothing" + mdCountsTail(result)
 		}
+		if result.CompletionStatus() != "complete" {
+			return "Proven: incomplete", " — required checks did not finish; 0 findings proves nothing" + mdCountsTail(result)
+		}
 		return "Proven: clean", " — 0 findings" + mdCountsTail(result)
 	}
 	var errs, warns, infos int
@@ -202,6 +205,8 @@ func queryEngineName(engine string) string {
 
 // mdServiceNames are the outside services a review calls, as a reader knows them.
 var mdServiceNames = map[string]string{
+	"generator":  "the model reviewer",
+	"command":    "the model CLI",
 	"nightshift": "the model reviewer",
 	"nvidia":     "the NVIDIA model",
 	"zetaris":    "the Zetaris dependency database",
@@ -252,7 +257,7 @@ func mdSeverity(sev review.Severity) string {
 func mdModelsDown(result review.Result) []string {
 	var down []string
 	for _, failed := range result.FailedServices {
-		if failed.Service == generator.ModeNightshift || failed.Service == generator.ModeNVIDIA {
+		if failed.Service == generator.ModeNightshift || failed.Service == generator.ModeNVIDIA || failed.Service == "generator" || failed.Service == generator.ModeCommand {
 			down = append(down, mdServiceName(failed.Service))
 		}
 	}

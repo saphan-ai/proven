@@ -71,7 +71,6 @@ jobs:
           PROVEN_SKEPTIC_MODEL: nvidia/nemotron-3.5-super-vl-120b-a12b
           PROVEN_GENERATOR_KEY: ${{ secrets.NVIDIA_API_KEY }}
           PROVEN_GENERATOR_TIMEOUT: 180s
-          PROVEN_GENERATOR_THINKING_BUDGET: '512'
           PROVEN_ADAPTER_TIMEOUT: 190s
           PROVEN_GUARDRAIL_MODE: 'off'
           INPUT_TARGET: target
