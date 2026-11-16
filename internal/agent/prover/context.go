@@ -58,6 +58,13 @@ func promptFor(c candidate.Candidate, files []change.File) (string, answer.Spec)
 			add(f)
 		}
 	}
+	if strings.HasSuffix(c.Path, "_test.go") {
+		for _, f := range files {
+			if path.Dir(f.Path) == path.Dir(c.Path) && strings.HasSuffix(f.Path, ".go") && !strings.HasSuffix(f.Path, "_test.go") {
+				add(f)
+			}
+		}
+	}
 	for _, f := range files {
 		if f.Path != c.Path && path.Dir(f.Path) == path.Dir(c.Path) && strings.HasSuffix(f.Path, "_test.go") {
 			add(f)
@@ -69,7 +76,7 @@ func promptFor(c candidate.Candidate, files []change.File) (string, answer.Spec)
 		}
 	}
 	spec := testSpec
-	spec.Task += " Use the supplied source and existing tests to locate the package and its API. Prefer naming an existing test when it proves the risk. A written test must compile on both sides. Do not guess paths or signatures missing from the supplied context."
+	spec.Task += " Use the supplied source and existing tests to locate the package and its API. Prefer naming an existing test when it proves the risk. A written test must compile on both sides. Do not guess paths or signatures missing from the supplied context. If the risk is unsupported or no differential test can demonstrate it, return empty path, content and name strings."
 	return answer.Instruct(spec, answer.Encode(struct {
 		Risk  candidate.Risk `json:"risk"`
 		Files []contextFile  `json:"files"`

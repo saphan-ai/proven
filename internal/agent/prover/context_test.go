@@ -50,3 +50,20 @@ func TestProverContextIsBoundedAndUntrustedBytesStayJSONData(t *testing.T) {
 		t.Fatalf("unbounded context: %#v", got)
 	}
 }
+
+func TestRiskInTestReceivesThePackageImplementation(t *testing.T) {
+	c := candidate.Candidate{Risk: candidate.Risk{Path: "internal/order/new_test.go"}}
+	files := []change.File{
+		{Path: "internal/order/new_test.go", Change: []byte("package order\n// new test")},
+		{Path: "internal/order/order.go", Base: []byte("package order\n// implementation"), Change: []byte("package order\n// implementation")},
+		{Path: "internal/other/order.go", Change: []byte("unrelated implementation")},
+	}
+	prompt, _ := promptFor(c, files)
+	got := readContext(t, prompt)
+	if len(got) != 2 || got[0].Path != c.Path || got[1].Path != files[1].Path || !strings.Contains(got[1].Base, "implementation") {
+		t.Fatalf("test risk has no package implementation: %#v", got)
+	}
+	if strings.Contains(prompt, "unrelated implementation") {
+		t.Fatal("unrelated package implementation reached the prompt")
+	}
+}
