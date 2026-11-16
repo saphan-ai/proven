@@ -5,7 +5,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/proven ./cmd/proven
 
 FROM alpine:3.24
-RUN apk add --no-cache ca-certificates curl git docker-cli
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates curl git docker-cli
 COPY --from=build /out/proven /usr/local/bin/proven
 COPY action/entrypoint.sh action/post-comment.sh /action/
 COPY testdata/fixture/discount /opt/proven/fixture/discount

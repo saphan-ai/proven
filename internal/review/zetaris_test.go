@@ -63,9 +63,9 @@ func TestZetarisUnauthorizedReviewCompletes(t *testing.T) {
 		"ZETARIS_API_KEY":  secret,
 		"ZETARIS_TIMEOUT":  "1s",
 	})
-	// The investigator's KEV query, then the dependency check's OSV query.
-	// Both are refused. The review names the service once.
-	if calls != 2 {
+	// The dependency check's OSV query is refused. An unrelated model query
+	// is rejected before I/O, and the review names the service once.
+	if calls != 1 {
 		t.Fatalf("zetaris calls %d", calls)
 	}
 	found := false

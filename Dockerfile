@@ -29,6 +29,7 @@ RUN set -eu; \
       arm64) arch=aarch64; sum="${DOCKER_CLI_SHA256_ARM64}" ;; \
       *) echo "docker cli: no static build for ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
+    apk upgrade --no-cache; \
     apk add --no-cache ca-certificates git; \
     wget -q -O /tmp/docker.tgz "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
     echo "${sum}  /tmp/docker.tgz" | sha256sum -c -; \

@@ -13,6 +13,7 @@ import (
 
 	"github.com/saphan-ai/proven/internal/agent/answer"
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/change"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/service"
 	"github.com/saphan-ai/proven/internal/testrun"
@@ -72,6 +73,9 @@ type Options struct {
 	BaseDir         string
 	ChangeDir       string
 	MaxWrittenBytes int
+	// Files is the policy-checked snapshot, used to supply source and nearby tests.
+	// Nil preserves the recorded prompt used by sample reviews.
+	Files []change.File
 }
 
 // Prove asks for a test, then asks the adapter for its outcome.
@@ -80,7 +84,8 @@ type Options struct {
 // An empty name and empty content means the generator proposed no test.
 func Prove(ctx context.Context, c candidate.Candidate, gen generator.Generator, run testrun.Adapter, opts Options) (candidate.Candidate, error) {
 	var got row
-	if err := answer.Read(ctx, gen, "prover", Prompt(c.ID, c.Title), testSpec, &got); err != nil {
+	prompt, spec := promptFor(c, opts.Files)
+	if err := answer.Read(ctx, gen, "prover", prompt, spec, &got); err != nil {
 		return c, err
 	}
 	// only the test's file and name are the model's. An answer that
