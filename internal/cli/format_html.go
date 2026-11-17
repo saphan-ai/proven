@@ -54,8 +54,11 @@ func htmlPage(result review.Result) string {
 			htmlCard(&b, i+1, f)
 		}
 	}
-	htmlOpinions(&b, result.Opinions)
 	htmlDelivery(&b, result)
+	htmlRefresh(&b, result)
+	if result.Delivery == nil || len(result.Opinions) > 0 {
+		htmlOpinions(&b, result.Opinions)
+	}
 	htmlNotes(&b, result)
 	b.WriteString("<footer>" + footIn(htmlStyle, result) + "</footer>\n")
 	b.WriteString("</main>\n</body>\n</html>\n")
@@ -73,6 +76,9 @@ func htmlVerdict(b *strings.Builder, result review.Result) {
 		class = "not-reviewed"
 	}
 	head, tail := verdictLine(result)
+	if class == "clean" && strings.Contains(head, "needs attention") {
+		class = "not-reviewed"
+	}
 	// htmlText folds the leading space of the tail away, so the space between the
 	// verdict and its dash is written here.
 	fmt.Fprintf(b, "<p class=\"verdict %s\"><strong>%s</strong> %s</p>\n", class, htmlText(head), htmlText(tail))

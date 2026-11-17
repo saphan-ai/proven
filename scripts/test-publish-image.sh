@@ -15,6 +15,8 @@ printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 case "$*" in
   run*"for cli in claude copilot codex agent cursor-agent qwen"*)
     if [ "${FAKE_VENDOR_CLI:-}" = true ]; then exit 1; fi ;;
+  run*model-free-smoke.sh*)
+    case "$*" in *"${FAIL_SMOKE_PLATFORM:-not-a-platform}"*) exit 1 ;; esac ;;
   scout*cves*)
     args="$*"
     while [ "$#" -gt 0 ]; do
@@ -48,6 +50,18 @@ assert not any(s.startswith('push ') for s in open(sys.argv[1])), 'pushed before
 PY_CHECK
 done
 unset FAIL_PLATFORM
+for platform in linux/amd64 linux/arm64; do
+  : > "$FAKE_DOCKER_LOG"
+  FAIL_SMOKE_PLATFORM=$platform; export FAIL_SMOKE_PLATFORM
+  if sh "$root/scripts/publish-image.sh" example/proven:test > "$work/out" 2>&1; then
+    echo "FAIL: publication accepted a failed $platform model-free smoke test" >&2; exit 1
+  fi
+  python3 - "$FAKE_DOCKER_LOG" <<'PY_CHECK'
+import sys
+assert not any(s.startswith('push ') for s in open(sys.argv[1])), 'pushed with a failed model-free smoke test'
+PY_CHECK
+done
+unset FAIL_SMOKE_PLATFORM
 : > "$FAKE_DOCKER_LOG"
 HIDDEN_CVE=true; export HIDDEN_CVE
 if sh "$root/scripts/publish-image.sh" example/proven:test > "$work/out" 2>&1; then
@@ -82,5 +96,7 @@ assert all('--exit-code' in lines[i] and '--ignore-suppressed=false' in lines[i]
 assert all('archive://' in lines[i] for i in scans)
 exports=[i for i,s in enumerate(lines) if s.startswith('image save --platform ')]
 assert len(exports)==2 and exports[0]<scans[0] and exports[1]<scans[1], lines
+smokes=[i for i,s in enumerate(lines) if s.startswith('run ') and '/opt/proven/model-free-smoke.sh' in s]
+assert len(smokes)==2 and smokes[0]<scans[0] and smokes[1]<scans[1], lines
 PY
 echo 'publish-image: failures on either architecture block push; both successful scans precede push'

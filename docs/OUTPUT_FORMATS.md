@@ -132,3 +132,20 @@ The goldens are the pages themselves: `testdata/golden/html-report/findings.html
 JSON includes `completion_status`: `complete` or `incomplete`, independent of findings. A partial run, failed service or unresolved final planning hypothesis is incomplete. Required CI reviews exit with code 3; advisory local scans still write the same status.
 
 `unresolved_hypotheses`, when nonempty, lists final planning gaps as objects with `reviewer` (`default` or `special`), `after_step` and `description`. It is omitted when empty for compatibility. These hypotheses are not findings, are not counted in proof totals, and do not change the existing unresolved-finding count. All formats show their descriptions; SARIF carries the same list and `completion_status` in run properties, not as vulnerability results. Markdown/HTML with no proved findings use an incomplete heading. A completed execution with such gaps has `partial: false`. Signed evidence packs preserve the list, without treating it as evidence. See [Markovian](MARKOVIAN.md).
+
+## Declared scope and source data
+
+These optional fields are additive. Existing finding/proof counts keep their meaning:
+
+| JSON field | Meaning |
+| --- | --- |
+| `delivery.mode` | `model` for semantic assessment, `deterministic` for description checks only. |
+| `delivery.assessments[]` | One entry for each original PR description, commit message or collected comment. Each retains its `source`, `description` check, `semantic_status`, `complete`, `claims` and optional `issue`. |
+| `delivery.assessments[].source` | Stable source ID, kind, original text, original index, and available SHA/comment ID/author/URL/timestamp. Equal text in two sources remains two assessments. |
+| `delivery.claims[]` | Compatibility list of all retained claims. `id` and `source_id` identify the original source; claims are not deduplicated across sources. |
+| `source_refresh[]` | Source ID and origin, HTTP check time, available upstream date, status, imported row count, downloaded/reused response counts and optional coverage/failure issue. |
+| `source_checks[]` | Deterministic registered data-rule observations: source/rule, selected parameters, matched rows, completeness and any issue. These are not proved code findings. |
+
+SARIF carries these values in run properties, rather than emitting missing descriptions or source measurements as vulnerability results. JSON, HTML and evidence packs retain the full collected assessments. Markdown shows bounded per-source previews and explicitly announces omitted sources/claims; the full report is the reference. Source refresh and observations appear separately from code findings in text, Markdown and HTML.
+
+Missing/placeholder/short descriptions request better context, rather than claiming a code defect. A failed or truncated collection/assessment, failed refresh or failed data-rule check makes completion incomplete. A contradictory semantic claim is a model assessment unless it cites an existing proved counterexample. See [declared scope](PR_DELIVERY.md) and [source refresh](SOURCE_REFRESH.md) for status semantics and limits.

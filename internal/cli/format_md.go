@@ -40,6 +40,21 @@ func verdictLine(result review.Result) (head, tail string) {
 		if result.CompletionStatus() != "complete" {
 			return "Proven: incomplete", " — required checks did not finish; 0 findings proves nothing" + mdCountsTail(result)
 		}
+		if d := result.Delivery; d != nil {
+			for _, c := range d.Claims {
+				if c.Status == "contradiction" {
+					return "Proven: declared scope needs attention", " — 0 proved code findings" + mdCountsTail(result)
+				}
+			}
+			for _, a := range d.Assessments {
+				if a.Description.Status != "" && a.Description.Status != "present" {
+					return "Proven: descriptions need attention", " — 0 proved code findings" + mdCountsTail(result)
+				}
+			}
+		}
+		if result.Delivery != nil && result.Delivery.Mode == "deterministic" {
+			return "Proven: deterministic checks complete", " — 0 proved code findings" + mdCountsTail(result)
+		}
 		return "Proven: clean", " — 0 findings" + mdCountsTail(result)
 	}
 	var errs, warns, infos int
@@ -93,7 +108,25 @@ var mdStyle = inlineStyle{text: mdText, code: mdCode}
 // findings an exception accepts, and unproven opinions. Zero counts are left out.
 func mdCountsTail(result review.Result) string {
 	var parts []string
+	observations := 0
+	for _, check := range result.SourceChecks {
+		if check.Matched {
+			observations++
+		}
+	}
+	if observations > 0 {
+		parts = append(parts, fmt.Sprintf("%d data rule matches", observations))
+	}
 	if d := result.Delivery; d != nil {
+		descriptions := 0
+		for _, a := range d.Assessments {
+			if a.Description.Status != "" && a.Description.Status != "present" {
+				descriptions++
+			}
+		}
+		if descriptions > 0 {
+			parts = append(parts, fmt.Sprintf("%d descriptions need attention", descriptions))
+		}
 		contradictions, unclear := 0, 0
 		for _, c := range d.Claims {
 			if c.Status == "contradiction" {

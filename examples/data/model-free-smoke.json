@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "tables": [
+    {"name":"px_osvfile.px_osv_pkg","columns":["id","aliases","ecosystem","package","introduced","fixed","last_affected","severity","published"],"rows":[["DEMO-2099-0001","CVE-2099-1234","PyPI","example-lib","1.0.0","1.2.0","","HIGH","2026-11-17"]],"snapshot":"synthetic-model-free-smoke-not-security-data"},
+    {"name":"px_evidence.px_kev_vulns","columns":["cve_id","vendor_project","product","date_added","known_ransomware"],"rows":[],"snapshot":"synthetic-empty-kev-not-security-data"},
+    {"name":"px_evidence.px_epss_cve_rows","columns":["cve_id","epss","percentile","score_date"],"rows":[],"snapshot":"synthetic-empty-epss-not-security-data"},
+    {"name":"px_evidence.px_mal_pkg","columns":["id","ecosystem","package","summary"],"rows":[],"snapshot":"synthetic-empty-mal-not-security-data"},
+    {"name":"px_evidence.px_scorecard","columns":["ecosystem","package","maintained","signed","release_age_days"],"rows":[],"snapshot":"synthetic-empty-scorecard-not-security-data"},
+    {"name":"px_evidence.px_cvss_cve","columns":["cve_id","cvss_score","severity","source"],"rows":[],"snapshot":"synthetic-empty-cvss-not-security-data"},
+    {"name":"px_evidence.px_spdx_lic","columns":["ecosystem","package","licence"],"rows":[],"snapshot":"synthetic-empty-spdx-not-security-data"}
+  ]
+}

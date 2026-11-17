@@ -216,6 +216,7 @@ func mdBody(result review.Result, tabled int, details []string) string {
 		}
 	}
 	mdDelivery(&b, result)
+	mdRefresh(&b, result)
 	mdNotes(&b, result)
 	b.WriteString(mdFoot(result))
 	b.WriteString("\n")

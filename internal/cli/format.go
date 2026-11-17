@@ -126,15 +126,47 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		if _, err := fmt.Fprintln(w, "PR delivery check (model assessment, separate from proved findings):"); err != nil {
 			return err
 		}
-		for _, c := range d.Claims {
-			if _, err := fmt.Fprintf(w, "- %s: %s — %s\n", visible(c.Status), visible(c.Requirement), visible(c.Reason)); err != nil {
+		for _, a := range deliveryAssessments(d) {
+			if _, err := fmt.Fprintf(w, "source: %s; description: %s; semantic check: %s\n", visible(a.Source.Label()), visible(a.Description.Status), visible(a.SemanticStatus)); err != nil {
 				return err
+			}
+			for _, c := range a.Claims {
+				if _, err := fmt.Fprintf(w, "- %s %s: %s — %s\n", visible(c.ID), visible(c.Status), visible(c.Requirement), visible(c.Reason)); err != nil {
+					return err
+				}
+			}
+			if a.Issue != "" {
+				if _, err := fmt.Fprintln(w, "source incomplete: "+visible(a.Issue)); err != nil {
+					return err
+				}
 			}
 		}
 		if d.Issue != "" {
 			if _, err := fmt.Fprintln(w, "delivery check incomplete: "+visible(d.Issue)); err != nil {
 				return err
 			}
+		}
+	}
+	for _, s := range result.SourceRefresh {
+		if _, err := fmt.Fprintf(w, "source refresh %s: %s; checked=%s; upstream=%s; rows=%d\n", visible(s.ID), visible(s.Status), visible(s.CheckedAt), visible(s.UpstreamAt), s.Rows); err != nil {
+			return err
+		}
+		if s.Issue != "" {
+			if _, err := fmt.Fprintln(w, visible(s.Issue)); err != nil {
+				return err
+			}
+		}
+	}
+	for _, check := range result.SourceChecks {
+		status := "no matching rule"
+		if check.Matched {
+			status = "rule matched"
+		}
+		if !check.Complete {
+			status = "unavailable: " + check.Issue
+		}
+		if _, err := fmt.Fprintf(w, "data check %s %s@%s: %s\n", visible(check.Adapter), visible(check.Package), visible(check.Version), visible(status)); err != nil {
+			return err
 		}
 	}
 	for _, h := range result.UnresolvedHypotheses {

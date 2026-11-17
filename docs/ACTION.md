@@ -1,6 +1,6 @@
 # GitHub Action
 
-For subscription CLIs, start with **[Start with Proven](START.md)**. The [`proven/cli` preset](../cli/action.yml) handles your customer image, saved login, test preparation, reports and cleanup. The reference below describes the existing API/sample Action and this repository's API self-review.
+Start **[without a model](MODEL_FREE.md)** for deterministic dependency checks, source observations and description checks. For subscription CLIs, use **[Start with Proven](START.md)**. The [`proven/cli` preset](../cli/action.yml) handles your customer image, saved login, test preparation, reports and cleanup. The reference below describes the generic API/model-free/sample Action and this repository's API self-review.
 
 See the [CLI Action input reference](CLI_ACTION.md) for advanced settings and runner boundaries.
 
@@ -17,24 +17,38 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: saphan-ai/proven@<full commit SHA>
         with:
           baseline-commit: ${{ github.event.pull_request.base.sha }}
+          refresh-data: true
+          check-delivery: true
           strict: true
           require-complete: true
           comment: true
         env:
           PROVEN_EVIDENCE_STORE: sqlite
-          PROVEN_EVIDENCE_FILE: /path/to/prepared/evidence.sqlite
           PROVEN_GENERATOR_MODE: openai
           PROVEN_GENERATOR_BASE_URL: ${{ vars.PROVEN_MODEL_URL }}
           PROVEN_GENERATOR_MODEL: ${{ vars.PROVEN_MODEL }}
           PROVEN_GENERATOR_KEY: ${{ secrets.PROVEN_MODEL_KEY }}
 ```
 
-Prepare and mount an evidence database outside the repository under review. The path in the example is a placeholder, not a bundled feed. Omit model configuration to select deterministic analysis. For an account-free recorded demonstration, set `sample-mode: true` and `target: /opt/proven/fixture/discount`.
+`refresh-data: true` acquires and imports scoped public data into the default SQLite store outside the reviewed checkout. See [source refresh](SOURCE_REFRESH.md) for cache persistence, provenance, partial coverage and PostgreSQL. You can instead import snapshots yourself and omit the switch. Set `PROVEN_GENERATOR_MODE: off` for deterministic analysis without model credentials. For an account-free recorded demonstration, set `sample-mode: true` and `target: /opt/proven/fixture/discount`; do not refresh in sample mode.
+
+`check-delivery: true` collects the PR description, commit messages and discussion/review/inline/commit comments. Each gets its own assessment and source identity. With a model, Proven checks claims against exact head-code citations and existing proved findings. Without a model, it reports missing, placeholder or very short descriptions mechanically. See [declared scope](PR_DELIVERY.md). Check out the exact PR head for this feature, rather than GitHub's synthetic merge commit:
+
+```yaml
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+```
+
+Both switches default to `false`. `github-token` defaults to the job token. It needs read access for context collection and `pull-requests: write` only when posting the summary. Collection failures and limits remain visible as incomplete coverage.
 
 `strict` fails on findings. `require-complete` independently fails with exit 3 on interrupted execution, a failed service or remaining planning hypotheses. It defaults to true; set it false only for an explicitly advisory check. The result is still written for these incomplete outcomes. Fatal failures such as mid-plan carry overflow can still return exit 2 with only stderr and a trace. See [readiness](READINESS.md).
 

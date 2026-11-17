@@ -38,10 +38,14 @@ strict=${INPUT_STRICT:-true}
 baseline=${INPUT_BASELINE_COMMIT:-}
 sample=${INPUT_SAMPLE_MODE:-false}
 comment=${INPUT_COMMENT:-false}
+check_delivery=${INPUT_CHECK_DELIVERY:-false}
+refresh_data=${INPUT_REFRESH_DATA:-false}
 
 bool strict "$strict"
 bool sample-mode "$sample"
 bool comment "$comment"
+bool check-delivery "$check_delivery"
+bool refresh-data "$refresh_data"
 require_complete=${INPUT_REQUIRE_COMPLETE:-true}
 bool require-complete "$require_complete"
 PROVEN_REQUIRE_COMPLETE=$require_complete
@@ -76,6 +80,7 @@ esac
 
 set --
 set -- "$@" "--severity=$severity"
+[ "$refresh_data" != true ] || set -- "$@" --refresh-data
 set -- "$@" "--json-output=$workspace/$json_file" "--sarif-output=$workspace/$sarif_file"
 [ -z "$config" ] || set -- "$@" "--config=$config"
 [ -z "$timeout" ] || set -- "$@" "--timeout=$timeout"
@@ -104,17 +109,19 @@ done
 set +f
 IFS=$oldifs
 
-# The write token is read only when comment is true, and before anything runs;
+# The token is read only for requested comment/context operations;
 # below, it is removed from the environment Proven runs in.
-if [ "$comment" = true ]; then
+if [ "$comment" = true ] || [ "$check_delivery" = true ]; then
   token=${INPUT_GITHUB_TOKEN:-}
+fi
+if [ "$comment" = true ]; then
   [ -n "$token" ] || fail "comment is true but github-token is empty; set github-token to a token that may write pull requests, and give the job pull-requests: write."
 fi
 
 # Credentials never reach the scan: Proven reads the code under review, and that
 # code must not see a token, whether comment is true or false. The posting token
 # was copied into $token above (an unexported shell variable) and goes only to the
-# summary comment poster (post-comment.sh).
+# read-only context collector and summary comment poster (post-comment.sh).
 unset INPUT_GITHUB_TOKEN GITHUB_TOKEN ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQUEST_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL
 # The runner also passes each input as INPUT_<NAME> with its hyphen kept, a name sh cannot unset.
 scrub="env -u INPUT_GITHUB-TOKEN"
@@ -144,6 +151,12 @@ fi
 # A file left by an earlier run must not be counted as this run's.
 rm -f "$workspace/$json_file" "$workspace/$sarif_file" "$workspace/$text_file"
 scratch=$(mktemp -d)
+if [ "$check_delivery" = true ] && [ -z "${PROVEN_PR_CONTEXT:-}" ]; then
+  command -v python3 >/dev/null 2>&1 || fail "check-delivery needs Python 3 in the reviewer image"
+  PROVEN_CONTEXT_TOKEN=$token python3 "$here/delivery.py" --target "$target" --baseline "$baseline" --output "$scratch/pr-context.json" || { rm -rf "$scratch"; fail "could not prepare scope context"; }
+  PROVEN_PR_CONTEXT=$scratch/pr-context.json
+  export PROVEN_PR_CONTEXT
+fi
 # The summary comment is the Markdown writer's output, kept in the scratch directory
 # with the trace: it is the comment's body, not a result file of the workspace.
 [ "$comment" != true ] || set -- "$@" "--md-output=$scratch/proven-comment.md"

@@ -77,13 +77,14 @@ type Options struct {
 
 // Request is one review request.
 type Request struct {
-	Target         string   // repository root or directory
-	BaselineCommit string   // "" means the whole target; in ci, the merge base
-	HeadCommit     string   // in ci, GITHUB_SHA; "" means the working tree
-	Include        []string // globs over changed paths
-	Exclude        []string
-	MinSeverity    Severity // the shell filters the output by it
-	Description    string   // pull-request description; empty means the request carries none
+	DeterministicSources bool     // apply all bindable source rules alongside the model-free path
+	Target               string   // repository root or directory
+	BaselineCommit       string   // "" means the whole target; in ci, the merge base
+	HeadCommit           string   // in ci, GITHUB_SHA; "" means the working tree
+	Include              []string // globs over changed paths
+	Exclude              []string
+	MinSeverity          Severity // the shell filters the output by it
+	Description          string   // pull-request description; empty means the request carries none
 
 	// read is how this review reads the repository: its git policy and size bounds. The runner sets
 	// it from the policy fixed at Open, so no later Open in the process can change it .

@@ -93,6 +93,7 @@ type config struct {
 	version         bool
 	head            string
 	evidencePack    string // --evidence-pack: where the signed pack of ADR-0035 is written; "" writes none
+	refreshData     bool
 }
 
 // cliError is a refusal that carries its own exit code.
@@ -183,6 +184,7 @@ type holders struct {
 	text, asJSON, sarif, md, html       boolPresence
 	errorOn, noError                    boolPresence
 	sample, quiet, verbose, help, ver   boolPresence
+	refreshData                         boolPresence
 	textOutput, jsonOutput, sarifOutput setString
 	mdOutput, htmlOutput                setString
 	baseline, configPath, severity      setString
@@ -210,6 +212,7 @@ func knownFlagNames() []string {
 		"--no-error",
 		"--output",
 		"--quiet",
+		"--refresh-data",
 		"--sample",
 		"--sarif",
 		"--sarif-output",
@@ -238,6 +241,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	h.errorOn.name = "--error"
 	h.noError.name = "--no-error"
 	h.sample.name = "--sample"
+	h.refreshData.name = "--refresh-data"
 	h.quiet.name = "--quiet"
 	h.verbose.name = "--verbose"
 	h.help.name = "--help"
@@ -266,6 +270,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 	fs.Var(&h.severity, "severity", "lowest severity reported")
 	fs.Var(&h.timeout, "timeout", "review time limit in seconds")
 	fs.Var(&h.sample, "sample", "use the sample reviewer")
+	fs.Var(&h.refreshData, "refresh-data", "refresh public evidence sources before reviewing")
 	fs.Var(&h.quiet, "quiet", "suppress the progress line")
 	fs.Var(&h.verbose, "verbose", "print the request on standard error")
 	fs.Var(&h.evidencePack, "evidence-pack", "write a signed evidence pack to this file")
@@ -278,7 +283,7 @@ func defineFlags() (*flag.FlagSet, *holders) {
 func refusedBoolFlag(h *holders) (string, string, bool) {
 	flags := []*boolPresence{
 		&h.text, &h.asJSON, &h.sarif, &h.md, &h.html, &h.errorOn, &h.noError,
-		&h.sample, &h.quiet, &h.verbose, &h.help, &h.ver,
+		&h.sample, &h.refreshData, &h.quiet, &h.verbose, &h.help, &h.ver,
 	}
 	for _, b := range flags {
 		// An empty refusal must still count. bad == "" is also an unset flag.
@@ -413,6 +418,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 	cfg.mdOutput = h.mdOutput.v
 	cfg.htmlOutput = h.htmlOutput.v
 	cfg.evidencePack = h.evidencePack.v
+	cfg.refreshData = h.refreshData.v
 	if h.output.set {
 		cfg.output = h.output.v
 	} else {
@@ -426,7 +432,7 @@ func resolve(args []string, getenv func(string) string, exists func(string) bool
 		return config{}, err
 	}
 	cfg.errorOnFindings = errorOn
-	cfg.requireComplete = cmd == "ci"
+	cfg.requireComplete = cmd == "ci" || cfg.refreshData
 	if raw := getenv("PROVEN_REQUIRE_COMPLETE"); raw != "" {
 		value, err := parseBoolSetting("PROVEN_REQUIRE_COMPLETE", raw)
 		if err != nil {

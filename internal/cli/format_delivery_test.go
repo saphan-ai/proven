@@ -24,7 +24,7 @@ func TestDeliveryIsVisibleAndNeverTurnedIntoAProvedFinding(t *testing.T) {
 		t.Fatal(out.String())
 	}
 	html := htmlPage(r)
-	if strings.Contains(html, "<script>alert(1)") || !strings.Contains(html, "PR delivery") {
+	if strings.Contains(html, "<script>alert(1)") || !strings.Contains(html, "Declared scope") {
 		t.Fatal("HTML unsafe or missing delivery")
 	}
 	var md strings.Builder

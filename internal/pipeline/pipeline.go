@@ -50,6 +50,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/writer"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/datacheck"
 	"github.com/saphan-ai/proven/internal/delivery"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/fixture"
@@ -281,12 +282,13 @@ func (p *Pipeline) boundary(stage string) {
 // trees, and a git repository without them is refused. Include and Exclude
 // narrow the changed files the review reports on.
 type Request struct {
-	Delivery       *delivery.Metadata
-	Target         string
-	BaselineCommit string
-	HeadCommit     string
-	Include        []string
-	Exclude        []string
+	DeterministicSources bool
+	Delivery             *delivery.Metadata
+	Target               string
+	BaselineCommit       string
+	HeadCommit           string
+	Include              []string
+	Exclude              []string
 	// DoubleRun is set when the class is doubled and a special-review model is configured
 	// .
 	DoubleRun bool
@@ -393,6 +395,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	d.Findings = p.redactFindings(d.Findings)
 	d.Autofix = redactAutofix(p.redactor, d.Autofix)
 	d.Delivery = d.Delivery.Redacted(p.redactor.Text)
+	for i := range d.SourceChecks {
+		d.SourceChecks[i] = d.SourceChecks[i].Redacted(p.redactor.Text)
+	}
 	// An opinion's reasons are the reviewers' own words, so they are redacted
 	// with the findings .
 	d.Opinions = p.redactOpinions(d.Opinions)
@@ -722,7 +727,13 @@ func (p *Pipeline) review(ctx context.Context, req Request) (draft candidate.Dra
 				counterexamples = append(counterexamples, delivery.Counterexample{ID: c.ID, Path: c.Path, Title: c.Title})
 			}
 			var assessment delivery.Result
-			if err == nil {
+			if p.modelsOff {
+				err = nil
+				assessment = delivery.Descriptions(*req.Delivery, fx.Snapshot)
+				if !assessment.Complete {
+					err = fmt.Errorf("%s", assessment.Issue)
+				}
+			} else if err == nil {
 				assessment, err = deliveryAgent.Assess(ctx, gen, *req.Delivery, selectedFiles, fx.Snapshot, counterexamples)
 			} else {
 				assessment.Issue = "delivery source snapshot could not be read"
@@ -890,6 +901,26 @@ func (p *Pipeline) review(ctx context.Context, req Request) (draft candidate.Dra
 		}
 	} else if ctx.Err() == nil {
 		checked, checkErr = osv.Check(ctx, q, fx.Root, p.osvTable, fx.Snapshot)
+	}
+	if (p.modelsOff || req.DeterministicSources) && plan.source(SourceOSV) {
+		read, err := rd.Read(fx.Root)
+		if err != nil {
+			return candidate.Draft{}, err
+		}
+		var files []change.File
+		for _, f := range read {
+			if _, ok := allow[f.Path]; ok {
+				files = append(files, f)
+			}
+		}
+		observations := datacheck.Check(ctx, files, checked.Matches, q, rel)
+		defer func() { draft.SourceChecks = observations }()
+		for _, o := range observations {
+			encoded, _ := json.Marshal(o)
+			if err := p.trace.Append(trace.Event{Kind: "data-check", Agent: o.Adapter, Path: o.Path, Text: string(encoded)}); err != nil {
+				return candidate.Draft{}, err
+			}
+		}
 	}
 	if !plan.agent(AgentInvestigator) && len(cands) > 0 {
 		if err := leftOut(AgentInvestigator); err != nil {

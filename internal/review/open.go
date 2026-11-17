@@ -730,16 +730,29 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	if r.adapterLimit > 0 {
 		ctx = limit.WithBound(ctx, r.adapterLimit)
 	}
+	metadata := r.delivery
+	if metadata == nil && r.modelsOff && !r.sample && req.BaselineCommit != "" {
+		metadata = &delivery.Metadata{Context: "git"}
+		commits, err := r.read.CommitMessages(req.Target, req.BaselineCommit, req.HeadCommit)
+		if err != nil {
+			metadata.Issues = []string{"commit descriptions could not be read"}
+		} else {
+			for _, c := range commits {
+				metadata.Commits = append(metadata.Commits, delivery.Commit{SHA: c.SHA, Message: c.Message})
+			}
+		}
+	}
 	d, err := r.p.Review(ctx, pipeline.Request{
-		Delivery:       r.delivery,
-		Target:         req.Target,
-		BaselineCommit: req.BaselineCommit,
-		HeadCommit:     req.HeadCommit,
-		Include:        req.Include,
-		Exclude:        req.Exclude,
-		DoubleRun:      double,
-		DefaultModel:   cfg.DefaultReviewer,
-		SpecialModel:   cfg.SpecialReviewer,
+		DeterministicSources: req.DeterministicSources,
+		Delivery:             metadata,
+		Target:               req.Target,
+		BaselineCommit:       req.BaselineCommit,
+		HeadCommit:           req.HeadCommit,
+		Include:              req.Include,
+		Exclude:              req.Exclude,
+		DoubleRun:            double,
+		DefaultModel:         cfg.DefaultReviewer,
+		SpecialModel:         cfg.SpecialReviewer,
 		// the settings that turn proposed fixes off and bound their attempts.
 		FixesOff:    !cfg.Fixes,
 		FixAttempts: cfg.FixAttempts,
@@ -789,6 +802,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
 	out := Result{
+		SourceChecks:         d.SourceChecks,
 		Delivery:             d.Delivery.Redacted(func(s string) string { return s }),
 		UnresolvedHypotheses: append([]candidate.UnresolvedHypothesis(nil), d.UnresolvedHypotheses...),
 		Partial:              d.Partial, TracePath: d.TracePath,

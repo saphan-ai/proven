@@ -47,8 +47,14 @@ inputs:
     description: true posts ONE summary comment on the pull request, edited in place on every run (needs pull-requests write); false posts nothing and reads no token.
     required: false
     default: "false"
+  check-delivery:
+    description: Check descriptions without a model; with a model, compare each PR/commit/comment declaration separately against code. Reads GitHub comments using github-token.
+    default: "false"
+  refresh-data:
+    description: Refresh public data for the selected dependency changes before reviewing. Uses conditional requests and an advisory delta cache; needs network access.
+    default: "false"
   github-token:
-    description: The token the summary comment is posted with; read only when comment is true. Needs pull-requests write.
+    description: GitHub token for comment collection and optional summary posting; read when check-delivery or comment is true. Posting needs pull-requests write.
     required: false
     default: ${{ github.token }}
 
@@ -80,4 +86,6 @@ runs:
     INPUT_BASELINE_COMMIT: ${{ inputs.baseline-commit }}
     INPUT_SAMPLE_MODE: ${{ inputs.sample-mode }}
     INPUT_COMMENT: ${{ inputs.comment }}
+    INPUT_CHECK_DELIVERY: ${{ inputs.check-delivery }}
+    INPUT_REFRESH_DATA: ${{ inputs.refresh-data }}
     INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}

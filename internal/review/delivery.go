@@ -2,6 +2,7 @@ package review
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -13,7 +14,7 @@ import (
 const EnvDeliveryFile = "PROVEN_PR_CONTEXT"
 
 func DeliveryEnvironment() []envdoc.Setting {
-	return []envdoc.Setting{{Name: EnvDeliveryFile, Default: "empty (disabled)", Description: "external JSON file with PR title, description and commit messages; enables advisory delivery assessment with validated citations, separate from proved findings"}}
+	return []envdoc.Setting{{Name: EnvDeliveryFile, Default: "empty (local commit descriptions in model-free Git scans)", Description: "external JSON with PR title, description, commit messages and separate comments; checks description completeness without a model and assesses each source against code when a model is connected"}}
 }
 
 func loadDelivery(env func(string) string) (*delivery.Metadata, error) {
@@ -44,6 +45,17 @@ func loadDelivery(env func(string) string) (*delivery.Metadata, error) {
 	}
 	if err := decoder.Decode(new(any)); err != io.EOF {
 		return nil, refused()
+	}
+	if metadata.Context != "" && metadata.Context != "git" && metadata.Context != "pull_request" {
+		return nil, refused()
+	}
+	seen := map[string]bool{}
+	for _, c := range metadata.Comments {
+		key := fmt.Sprintf("%s:%d", c.Kind, c.ID)
+		if !delivery.CommentKind(c.Kind) || c.ID <= 0 || seen[key] {
+			return nil, refused()
+		}
+		seen[key] = true
 	}
 	return &metadata, nil
 }

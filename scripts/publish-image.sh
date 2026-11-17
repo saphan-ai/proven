@@ -26,6 +26,7 @@ for platform in linux/amd64 linux/arm64; do
   docker run --rm --platform "$platform" --network none --entrypoint /bin/sh "$image" -ec \
     'git --version; mkdir /tmp/git-smoke; git init -q /tmp/git-smoke; git -C /tmp/git-smoke status --porcelain'
   docker run --rm --platform "$platform" --network none "$image" scan --sample /opt/proven/fixture/discount
+  docker run --rm --platform "$platform" --network none --entrypoint /bin/sh "$image" /opt/proven/model-free-smoke.sh
   # A non-zero scanner result stops this script before push. No pipeline, base
   # exclusion, fix-availability filter or suppression may turn failure into success.
   report="$work/scout-${platform#*/}.sarif"

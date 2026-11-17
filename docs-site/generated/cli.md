@@ -56,6 +56,9 @@ flags:
         A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
+  --refresh-data
+        refresh public dependency data before review, using the delta cache;
+        requires completion unless PROVEN_REQUIRE_COMPLETE explicitly overrides it
   --quiet, --verbose
   --help, --version
 
@@ -128,6 +131,9 @@ flags:
         A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
+  --refresh-data
+        refresh public dependency data before review, using the delta cache;
+        requires completion unless PROVEN_REQUIRE_COMPLETE explicitly overrides it
   --quiet, --verbose
   --help, --version
 
@@ -200,6 +206,9 @@ flags:
         A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
+  --refresh-data
+        refresh public dependency data before review, using the delta cache;
+        requires completion unless PROVEN_REQUIRE_COMPLETE explicitly overrides it
   --quiet, --verbose
   --help, --version
 

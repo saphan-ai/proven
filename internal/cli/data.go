@@ -14,6 +14,9 @@ import (
 // runData imports administrator-provided source tables, never model-written SQL.
 // Each SQL table replacement and its snapshot identity commit atomically.
 func runData(args []string, env func(string) string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "sync" {
+		return runDataSync(args[1:], env, stdout, stderr)
+	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Fprintln(stdout, "usage: proven data import <dataset.json>")
 		return exitOK

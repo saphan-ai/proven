@@ -120,6 +120,12 @@ func sarifFrom(result review.Result) sarifLog {
 	if result.Delivery != nil {
 		log.Runs[0].Properties["delivery"] = result.Delivery
 	}
+	if len(result.SourceChecks) > 0 {
+		log.Runs[0].Properties["source_checks"] = result.SourceChecks
+	}
+	if len(result.SourceRefresh) > 0 {
+		log.Runs[0].Properties["source_refresh"] = result.SourceRefresh
+	}
 	if len(result.UnresolvedHypotheses) > 0 {
 		log.Runs[0].Properties["unresolved_hypotheses"] = append([]review.UnresolvedHypothesis(nil), result.UnresolvedHypotheses...)
 		log.Runs[0].Properties["completion_status"] = result.CompletionStatus()

@@ -125,6 +125,14 @@ func readFile(path string) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
+	return ParseJSON(b, filepath.Base(path))
+}
+
+// ParseJSON converts a bounded upstream record with the same rules used by
+// the offline CSV importer. label is provenance for diagnostics, never a path
+// to open or an executable command.
+func ParseJSON(b []byte, label string) ([]Row, error) {
+	path := label
 	var doc advisory
 	if err := json.Unmarshal(b, &doc); err != nil {
 		return nil, fmt.Errorf("osv: %s: %w", filepath.Base(path), err)

@@ -2,6 +2,8 @@
 
 Proven reviews a pull request and attaches evidence to its findings. Bring a CLI account you already use, build your own image and connect one workflow.
 
+**No model account?** [Start with the generic image](MODEL_FREE.md): dependency/data rules, source refresh and description checks already work without a model.
+
 Before you start: [what Proven checks and proves](WHAT_PROVEN_CHECKS.md) explains the evidence in a table. [These screenshots](GITHUB_TOUR.md) show the workflow and PR comment.
 
 ## 1. Choose where it runs
@@ -78,7 +80,7 @@ The example uses `main` for the first setup. Pin a reviewed full Proven commit S
 
 The comment is on your PR; JSON, SARIF and the redacted trace are under the workflow's **Artifacts**. [The evidence table](WHAT_PROVEN_CHECKS.md) explains what each check establishes.
 
-To compare the code with the PR description and commit messages too, add **`check-delivery: true`** to the Proven step. The [delivery table](PR_DELIVERY.md) reports indications, contradictions and uncertainty separately from proved defects.
+To compare implementation with declared scope, add **`check-delivery: true`**. The PR title/description, each commit message and every collected discussion/review/inline/commit comment keep separate findings. The [illustrated scope guide](PR_DELIVERY.md) explains description checks, code indications, contradictions and uncertainty. Add **`refresh-data: true`** to acquire current provider data before review.
 
 ## Use another CLI
 
@@ -125,6 +127,6 @@ This CI route is specific to Claude. The other backends in this guide use the sa
 
 The generated-test adapters cover **Go, Python/pytest, TypeScript/Vitest and JavaScript/node:test**. Automatic preparation handles one Go module, an npm project with `package-lock.json`, or Python with `requirements.txt`. For mixed projects, private dependencies, Poetry-only projects or extra system libraries, provide a prepared **`test-image:`**. That image contains your project's test tools; **`image:`** contains the model CLI.
 
-New databases contain no advisory feeds. [Prepare source snapshots](SOURCES.md) before relying on dependency findings; missing required data is reported as incomplete coverage.
+Use `refresh-data: true` to acquire relevant public data automatically, or [import your own snapshots](SOURCES.md). The [refresh report](SOURCE_REFRESH.md) records check/observation dates and provider gaps.
 
 Next: [two models](TWO_MODELS.md), [custom test runtime](RUNNER.md), [language coverage](LANGUAGES.md), or the [Action reference](ACTION.md).

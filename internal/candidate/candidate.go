@@ -18,6 +18,7 @@ package candidate
 import (
 	"github.com/saphan-ai/proven/internal/delivery"
 	"github.com/saphan-ai/proven/internal/querytpl"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // Evidence kind strings. They match the seam's EvidenceTest, EvidenceQuery
@@ -355,6 +356,7 @@ type Opinion struct {
 // Partial is set when the deadline cut the review short; TracePath is the
 // JSONL trace of the run.
 type Draft struct {
+	SourceChecks         []source.Observation
 	Delivery             *delivery.Result
 	UnresolvedHypotheses []UnresolvedHypothesis
 	Findings             []Candidate

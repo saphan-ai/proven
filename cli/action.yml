@@ -11,7 +11,10 @@ inputs:
   model:
     description: Model available to your account. Empty uses sonnet for Claude, auto for Copilot, or the CLI default.
   check-delivery:
-    description: Compare PR title/description and commit messages with cited code. Advisory model assessment, separate from proved findings.
+    description: Assess each PR description, commit message and discussion/review/inline/commit comment separately; check description presence without a model.
+    default: 'false'
+  refresh-data:
+    description: Refresh public data for the selected dependency changes before reviewing, using the source delta cache.
     default: 'false'
   second-backend:
     description: Optional second CLI reviewer; uses its own login volume.
@@ -86,6 +89,7 @@ runs:
         INPUT_BASELINE_COMMIT: ${{ inputs.baseline-commit }}
         INPUT_CALL_TIMEOUT: ${{ inputs.call-timeout }}
         INPUT_CHECK_DELIVERY: ${{ inputs.check-delivery }}
+        INPUT_CONTEXT_TOKEN: ${{ inputs.github-token }}
         INPUT_SECOND_BACKEND: ${{ inputs.second-backend }}
         INPUT_SECOND_IMAGE: ${{ inputs.second-image }}
         INPUT_SECOND_HOME_VOLUME: ${{ inputs.second-home-volume }}
@@ -103,6 +107,7 @@ runs:
         INPUT_STRICT: ${{ inputs.strict }}
         INPUT_REQUIRE_COMPLETE: ${{ inputs.require-complete }}
         INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_REFRESH_DATA: ${{ inputs.refresh-data }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
       run: python3 "$GITHUB_ACTION_PATH/../action/cli.py" review
     - name: Keep the review report

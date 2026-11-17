@@ -9,6 +9,8 @@ import sys
 import tempfile
 import uuid
 
+import delivery
+
 ROOT = Path(__file__).resolve().parent.parent
 BACKENDS = ("claude", "copilot", "codex", "cursor", "qwen")
 LABEL = "io.proven.cli-run"
@@ -98,6 +100,7 @@ def check_environment():
 
 def prepare():
     check_environment()
+    context_token = os.environ.pop("INPUT_CONTEXT_TOKEN", "")
     backend = input_value("backend")
     if backend not in BACKENDS:
         raise ValueError("Choose backend: " + ", ".join(BACKENDS))
@@ -170,27 +173,8 @@ def prepare():
         raise ValueError("check-delivery takes true or false")
     settings["delivery"] = check_delivery == "true"
     if settings["delivery"]:
-        event_path = Path(os.environ["GITHUB_EVENT_PATH"])
-        with event_path.open("rb") as f:
-            event = f.read(2 * 1024 * 1024 + 1)
-        if len(event) > 2 * 1024 * 1024:
-            raise ValueError("PR event exceeds 2 MiB")
-        pr = json.loads(event).get("pull_request")
-        if not isinstance(pr, dict):
-            raise ValueError("check-delivery needs a pull_request event")
-        ids = run(["git", "-C", str(target), "log", "--reverse", "--format=%H", "--end-of-options", baseline + "..HEAD"], capture=True).stdout.split()
-        commits = []
-        for sha in ids:
-            if not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", sha):
-                raise ValueError("invalid commit identity in delivery context")
-            message = run(["git", "-C", str(target), "show", "-s", "--format=%B", sha], capture=True).stdout
-            commits.append(dict(sha=sha, message=message))
-        metadata = dict(url=pr.get("html_url") or "", title=pr.get("title") or "",
-                        description=pr.get("body") or "", commits=commits)
-        encoded = json.dumps(metadata).encode()
-        if len(encoded) > 64 * 1024:
-            raise ValueError("PR description and commit context exceed 64 KiB; use a smaller explicit context through PROVEN_PR_CONTEXT")
-        (state / "pr-context.json").write_bytes(encoded)
+        metadata = delivery.collect(target, baseline, os.environ, context_token)
+        (state / "pr-context.json").write_bytes(delivery.encoded(metadata))
     settings["test_image"] = (local_image(input_value("test_image")) if input_value("test_image")
                               else prepare_tests(state, target, baseline))
     (state / "settings.json").write_text(json.dumps(settings))

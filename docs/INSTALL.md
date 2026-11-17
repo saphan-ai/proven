@@ -1,6 +1,6 @@
 # Installation
 
-Build Proven without sponsor accounts, a database server or a model key. Those are separate runtime choices. Begin with the recorded sample before preparing live services.
+Build Proven without sponsor accounts, a database server or a model key. Start with [a real model-free dependency review](MODEL_FREE.md), or use the recorded sample without network access. Models and project test runtimes are separate choices.
 
 ## Requirements by task
 
@@ -9,7 +9,7 @@ Build Proven without sponsor accounts, a database server or a model key. Those a
 | Build CLI | Go version in `go.mod`, module dependencies, Git and a shell. |
 | Recorded sample | Built CLI and repository fixture files. No model or container runtime. |
 | Live Git comparison | Local clone containing base/head, external output/state paths. |
-| Dependency evidence | Prepared source tables in a configured store; SQLite needs no server. |
+| Dependency evidence | `--refresh-data` with Internet access, or imported source tables. SQLite needs no server. |
 | Model hypotheses | Compatible streaming API or text-only command adapter. |
 | Generated tests / Go tools | Container runtime, prepared local runner image, dependencies and tools. |
 | Documentation site | Pinned Node dependencies and Go for generated-reference checks. |
@@ -51,16 +51,16 @@ For live generated tests, prefer the host CLI unless matching daemon-visible sna
 
 ## Real changes
 
-1. Choose and import [evidence data](DATABASES.md); databases start without public feeds.
+1. Use [automatic source refresh](SOURCE_REFRESH.md), or import your own [evidence data](DATABASES.md). Databases start without public feeds.
 2. Configure an optional [model](MODELS.md) and run its one-request API probe.
 3. Prepare the [restricted runner](RUNNER.md) if generated tests or tools are required.
 4. Select a base commit present in the target clone and run:
 
 ```sh
-proven scan --baseline-commit <base-commit> /path/to/repository
+PROVEN_GENERATOR_MODE=off proven scan --refresh-data --baseline-commit <base-commit> /path/to/repository
 ```
 
-The CLI is advisory by default; [completion policy](CONFIGURATION.md#completion-policy) is separate from finding enforcement. Use [Operations](OPERATIONS.md) before enabling a required team check, and [Action](ACTION.md) for GitHub workflows.
+Omit `PROVEN_GENERATOR_MODE=off` after configuring a model. Omit `--refresh-data` when reviewing a previously imported snapshot. Refresh makes complete acquisition required by default; [completion policy](CONFIGURATION.md#completion-policy) remains separate from finding enforcement. Use [Operations](OPERATIONS.md) before enabling a required team check, and [Action](ACTION.md) for GitHub workflows.
 
 ## Verify a local installation
 

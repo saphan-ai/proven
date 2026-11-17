@@ -37,7 +37,7 @@ names() { # section file: the keys one indent under a top-level section
   ' "$2" | sort | tr '\n' ' '
 }
 check "action.yml inputs" \
-  "baseline-commit comment config exclude github-token include output-format require-complete sample-mode severity strict target timeout " \
+  "baseline-commit check-delivery comment config exclude github-token include output-format refresh-data require-complete sample-mode severity strict target timeout " \
   "$(names inputs "$root/action.yml")"
 check "action.yml outputs" \
   "findings-count json-file results-file sarif-file unresolved-count " \
@@ -126,7 +126,7 @@ contains() { # 1 when the recorded command line has this substring anywhere
 }
 hasarg() { case " $args" in *" $1 "*) echo 1 ;; *) echo 0 ;; esac }
 
-stubrun mapped INPUT_CONFIG=p.yaml INPUT_SEVERITY=WARNING INPUT_INCLUDE='a/*,b/*' INPUT_EXCLUDE='c/*' \
+stubrun mapped INPUT_CONFIG=p.yaml INPUT_SEVERITY=WARNING INPUT_INCLUDE='a/*,b/*' INPUT_EXCLUDE='c/*' INPUT_REFRESH_DATA=true \
   INPUT_TIMEOUT=30 INPUT_BASELINE_COMMIT=abc123 INPUT_STRICT=true
 check "maps config" 1 "$(hasarg "--config=$ws/p.yaml")"
 check "maps severity" 1 "$(hasarg --severity=WARNING)"
@@ -137,6 +137,7 @@ check "maps timeout" 1 "$(hasarg --timeout=30)"
 check "maps baseline-commit" 1 "$(hasarg --baseline-commit=abc123)"
 check "maps sample-mode=true" 1 "$(hasarg --sample)"
 check "maps strict=true" 1 "$(hasarg --error)"
+check "maps refresh-data=true" 1 "$(hasarg --refresh-data)"
 check "counts findings from the JSON" 3 "$(output findings-count)"
 check "counts unresolved from the JSON" 2 "$(output unresolved-count)"
 check "the target is the last argument" "$fixture" "$(tail -n 1 "$STUB_ARGS")"
@@ -146,6 +147,7 @@ check "maps strict=false" 1 "$(hasarg --no-error)"
 check "sample-mode=false adds no --sample" 0 "$(hasarg --sample)"
 check "empty baseline adds no --baseline-commit" 0 "$(contains --baseline-commit)"
 check "empty timeout adds no --timeout" 0 "$(contains --timeout)"
+check "refresh-data=false adds no --refresh-data" 0 "$(hasarg --refresh-data)"
 
 stubrun failed STUB_RC=2 INPUT_STRICT=true
 check "Proven's exit code 2 is the step's" 2 "$rc"
@@ -156,6 +158,12 @@ check "output-format=xml: nothing written to GITHUB_OUTPUT" 0 "$(wc -c <"$out" |
 
 run badbool INPUT_STRICT=maybe
 check "strict=maybe: refused, exit 2" 2 "$rc"
+
+run badrefresh INPUT_REFRESH_DATA=maybe
+check "refresh-data=maybe: refused, exit 2" 2 "$rc"
+
+run baddelivery INPUT_CHECK_DELIVERY=maybe
+check "check-delivery=maybe: refused, exit 2" 2 "$rc"
 
 run noconfig INPUT_CONFIG=does-not-exist.yaml
 check "missing config: Proven's refusal is the step's exit code (7)" 7 "$rc"

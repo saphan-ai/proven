@@ -4,6 +4,11 @@ import "fmt"
 
 // CompletionStatus is independent of whether the review found a defect.
 func (r Result) CompletionStatus() string {
+	for _, check := range r.SourceChecks {
+		if !check.Complete {
+			return "incomplete"
+		}
+	}
 	if r.Partial || len(r.FailedServices) > 0 || len(r.UnresolvedHypotheses) > 0 || r.Delivery != nil && !r.Delivery.Complete {
 		return "incomplete"
 	}

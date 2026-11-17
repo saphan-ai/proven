@@ -6,6 +6,7 @@ package cli
 
 import (
 	"github.com/saphan-ai/proven/internal/delivery"
+	"github.com/saphan-ai/proven/internal/source"
 	"io"
 
 	"github.com/saphan-ai/proven/internal/review"
@@ -26,6 +27,8 @@ func (jsonFormatter) Write(w io.Writer, result review.Result) error {
 // key would look like a writer that forgot the field.
 // Required slices are never nil. Optional coverage gaps are omitted when empty.
 type jsonDocument struct {
+	SourceChecks         []source.Observation          `json:"source_checks,omitempty"`
+	SourceRefresh        []source.Refresh              `json:"source_refresh,omitempty"`
 	Delivery             *delivery.Result              `json:"delivery,omitempty"`
 	UnresolvedHypotheses []review.UnresolvedHypothesis `json:"unresolved_hypotheses,omitempty"`
 	CompletionStatus     string                        `json:"completion_status"`
@@ -174,6 +177,8 @@ func documentFrom(result review.Result) jsonDocument {
 	// writes an array. A nil slice would marshal as null.
 	return jsonDocument{
 		Delivery:             result.Delivery,
+		SourceChecks:         result.SourceChecks,
+		SourceRefresh:        result.SourceRefresh,
 		UnresolvedHypotheses: append([]review.UnresolvedHypothesis(nil), result.UnresolvedHypotheses...),
 		CompletionStatus:     result.CompletionStatus(),
 		Class:                result.Class,

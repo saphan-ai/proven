@@ -42,16 +42,19 @@ RUN set -eu; \
     test "$(apk info -v | sed -n 's/^musl-\([0-9].*\)$/\1/p')" = "${MUSL_PACKAGE_VERSION}"; \
     test "$(apk info -v | sed -n 's/^musl-utils-\([0-9].*\)$/\1/p')" = "${MUSL_PACKAGE_VERSION}"; \
     git --version; \
+    git config --system --add safe.directory /repo; \
     wget -q -O /tmp/docker.tgz "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
     echo "${sum}  /tmp/docker.tgz" | sha256sum -c -; \
     tar -xzf /tmp/docker.tgz -C /tmp docker/docker; \
     install -m 755 /tmp/docker/docker /usr/local/bin/docker; \
     rm -rf /tmp/docker.tgz /tmp/docker
 RUN adduser -D -u 65532 -h /work proven \
- && mkdir -p /opt/proven/fixture \
+ && mkdir -p /opt/proven/fixture /work/.cache/proven \
  && chown -R proven:proven /work /opt/proven
 COPY --from=build /out/proven /usr/local/bin/proven
 COPY --chown=proven:proven testdata/fixture/discount /opt/proven/fixture/discount
+COPY --chown=proven:proven examples/data/model-free-smoke.json /opt/proven/fixture/model-free-tables.json
+COPY --chmod=755 scripts/model-free-smoke.sh /opt/proven/model-free-smoke.sh
 USER proven
 WORKDIR /work
 ENTRYPOINT ["proven"]

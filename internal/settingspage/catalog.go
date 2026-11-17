@@ -11,6 +11,7 @@ import (
 	"github.com/saphan-ai/proven/internal/envdoc"
 	"github.com/saphan-ai/proven/internal/epss"
 	"github.com/saphan-ai/proven/internal/evidence"
+	"github.com/saphan-ai/proven/internal/feeds"
 	"github.com/saphan-ai/proven/internal/generator"
 	"github.com/saphan-ai/proven/internal/guardrail"
 	"github.com/saphan-ai/proven/internal/hmem"
@@ -97,6 +98,7 @@ func Catalog() []envdoc.Section {
 			Rows:    generator.SecondEnvironment(),
 		},
 		{Heading: "PR delivery assessment", Rows: review.DeliveryEnvironment()},
+		{Heading: "Source refresh and delta cache", Rows: feeds.Environment()},
 		{
 			Heading: "Optional model safety service",
 			Rows:    guardrail.Environment(),

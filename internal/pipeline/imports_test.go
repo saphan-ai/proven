@@ -14,6 +14,7 @@ import (
 // internal/ and cmd/ is checked. A new package is checked because it is absent
 // here. Each reason is one line.
 var exemptBanned = map[string]map[string]string{
+	"internal/feeds/cache.go":             {"net/http": "public-data acquisition uses the shared network policy, refuses redirects and bounds requests/responses"},
 	"internal/generator/command.go":       {"os/exec": "starts only operator-configured argv for the CLI model adapter"},
 	"internal/generator/command_unix.go":  {"os/exec": "configures CLI cancellation", "syscall": "kills the CLI process group on cancellation"},
 	"internal/generator/command_other.go": {"os/exec": "platform fallback for the CLI command adapter"},

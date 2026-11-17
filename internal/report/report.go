@@ -6,6 +6,7 @@ import (
 	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/candidate"
 	"github.com/saphan-ai/proven/internal/delivery"
+	"github.com/saphan-ai/proven/internal/source"
 )
 
 // Severity is INFO, WARNING or ERROR (SARIF note, warning, error).
@@ -20,7 +21,9 @@ const (
 
 // Result is what a review produced.
 type Result struct {
-	Delivery *delivery.Result `json:",omitempty"`
+	SourceRefresh []source.Refresh     `json:",omitempty"`
+	SourceChecks  []source.Observation `json:",omitempty"`
+	Delivery      *delivery.Result     `json:",omitempty"`
 	// UnresolvedHypotheses are coverage gaps, separate from evidenced findings.
 	UnresolvedHypotheses []UnresolvedHypothesis `json:",omitempty"`
 	Findings             []Finding              // only findings with evidence (ADR-0002); unresolved ones are marked and counted

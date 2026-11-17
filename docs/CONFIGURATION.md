@@ -158,7 +158,17 @@ Without model configuration, deterministic analysis runs alone. The openai adapt
 
 | Environment variable | Default | What it changes |
 |---|---|---|
-| `PROVEN_PR_CONTEXT` | empty (disabled) | external JSON file with PR title, description and commit messages; enables advisory delivery assessment with validated citations, separate from proved findings |
+| `PROVEN_PR_CONTEXT` | empty (local commit descriptions in model-free Git scans) | external JSON with PR title, description, commit messages and separate comments; checks description completeness without a model and assesses each source against code when a model is connected |
+
+## Source refresh and delta cache
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_SOURCE_CACHE` | <user cache>/proven/feeds | persistent public-data HTTP cache; keep outside the reviewed checkout |
+| `PROVEN_OSV_URL` | https://api.osv.dev/v1 | OSV API root for incremental advisory refresh |
+| `PROVEN_KEV_URL` | https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json | CISA-maintained KEV mirror JSON; conditional HTTP requests retain its catalogue date |
+| `PROVEN_EPSS_URL` | https://api.first.org/data/v1 | FIRST EPSS API root; requests only CVEs relevant to the selected dependencies |
+| `PROVEN_DEPS_URL` | https://api.deps.dev/v3 | deps.dev API root for package licences, project Scorecard data and CVSS scores |
 
 ## Optional model safety service
 

@@ -16,7 +16,8 @@ Start with [the short guide](START.md). Use `saphan-ai/proven/cli@<reviewed SHA>
 | `second-home-volume` | `proven-SECOND_BACKEND-home` | Its own authenticated profile. |
 | `second-model` | Second CLI selection | Account-accessible model on the second transport. |
 | `test-image` | Automatic preparation | Prepared offline project test runtime. The automatic path supports one Go module, npm lockfile project, or `requirements.txt` Python project. |
-| `check-delivery` | `false` | Compare stated PR/commit scope with checked code citations. See [delivery assessment](PR_DELIVERY.md). |
+| `check-delivery` | `false` | Assess the PR description, each commit message and each collected discussion/review/inline/commit comment separately. See [delivery assessment](PR_DELIVERY.md). |
+| `refresh-data` | `false` | Refresh and import public dependency data before review. See [source refresh](SOURCE_REFRESH.md). |
 | `target` | `.` | Target checkout/module path relative to the workspace. |
 | `baseline-commit` | PR base SHA | Full commit SHA present in that clone. |
 | `timeout` | `1500` | Whole review seconds. Preflight preparation is additionally bounded by the job limit. |
@@ -24,7 +25,7 @@ Start with [the short guide](START.md). Use `saphan-ai/proven/cli@<reviewed SHA>
 | `strict` | `true` | Findings fail the check. |
 | `require-complete` | `true` | Incomplete required analysis fails with exit 3 independently of findings. |
 | `comment` | `true` | Post/update one PR comment; needs `pull-requests: write`. |
-| `github-token` | Job token | Comment credential, removed before review/model invocation. |
+| `github-token` | Job token | Reads context for `check-delivery` and posts the optional summary; removed before review/model invocation. |
 
 Outputs are `json-file`, `sarif-file` and `findings-count`. JSON, SARIF and the redacted trace are uploaded even when a started review fails. Preparation/connection failures may have no report; their step log identifies the failed phase.
 
@@ -35,6 +36,8 @@ Linux and macOS runners need Docker, Git and Python 3. The preset prepares the G
 Each model container receives its own login volume or the primary Claude CI credential through a private runtime file. It receives no target checkout or host Docker socket. Containers have bounded time, memory, CPU and process counts and run with dropped capabilities and a read-only root. The token-file route keeps the credential out of Docker's recorded environment and uses a non-root identity.
 
 The controller retains the CI token value for redaction, while the command adapter's environment allowlist excludes it. The second CLI gets only its own profile. A write token for PR comments does not authenticate Copilot.
+
+With `check-delivery: true`, a read-only helper collects each declaration before review. Failed or truncated comment collection remains visible as incomplete coverage. With `refresh-data: true`, use SQLite or PostgreSQL and keep the database and HTTP cache outside the reviewed checkout. Refresh failures preserve available evidence and make the review incomplete. Neither switch is enabled implicitly.
 
 Every connection gets one short preflight completion, bounded at 60 seconds. These requests use your account quota. A failed preflight stops before review and directs you to refresh that runner's login, model access or quota. Passing it establishes a small protocol check, not review accuracy.
 

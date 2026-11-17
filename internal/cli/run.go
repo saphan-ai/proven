@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/saphan-ai/proven/internal/change"
+	"github.com/saphan-ai/proven/internal/feeds"
 	"github.com/saphan-ai/proven/internal/network"
 	"github.com/saphan-ai/proven/internal/review"
 )
@@ -127,13 +128,23 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(cfg.timeoutSec)*time.Second)
 		defer cancel()
 	}
+	var refreshed feeds.Result
+	var refreshErr error
+	if cfg.refreshData {
+		refreshed, refreshErr = refreshData(ctx, cfg, getenv)
+		if refreshErr != nil && len(refreshed.Sources) == 0 {
+			printErr(stderr, refreshErr)
+			return errorCode(refreshErr)
+		}
+	}
 	result, err := reviewCall(ctx, rev, review.Request{
-		Target:         cfg.target,
-		BaselineCommit: cfg.baseline,
-		HeadCommit:     cfg.head,
-		Include:        cfg.include,
-		Exclude:        cfg.exclude,
-		MinSeverity:    cfg.severity,
+		DeterministicSources: cfg.refreshData,
+		Target:               cfg.target,
+		BaselineCommit:       cfg.baseline,
+		HeadCommit:           cfg.head,
+		Include:              cfg.include,
+		Exclude:              cfg.exclude,
+		MinSeverity:          cfg.severity,
 	})
 	if err != nil {
 		var conf *review.ConfigError
@@ -143,6 +154,10 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer, op
 		}
 		printErr(stderr, err)
 		return exitFatal
+	}
+	result.SourceRefresh = refreshed.Sources
+	if refreshErr != nil {
+		result.FailedServices = append(result.FailedServices, review.ServiceFailure{Service: "source-refresh", Reason: refreshErr.Error()})
 	}
 	// The severity floor is applied here as well as in the request, so the
 	// outputs and the exit code agree whatever a reviewer returns.
@@ -802,6 +817,9 @@ flags:
         A directory that resolves inside the review target is refused.
   --sample
         sample reviewer, no network and no keys (SAMPLE_MODE=true)
+  --refresh-data
+        refresh public dependency data before review, using the delta cache;
+        requires completion unless PROVEN_REQUIRE_COMPLETE explicitly overrides it
   --quiet, --verbose
   --help, --version
 

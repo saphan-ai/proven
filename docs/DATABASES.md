@@ -2,7 +2,7 @@
 
 The store interface registers source tables and runs validated query-template requests. The reviewer never accepts model-written SQL. SQLite and PostgreSQL use the same source and template definitions as the existing adapters.
 
-Choosing a store does not connect an upstream feed. See [source status and planned connectors](SOURCES.md) before enabling dependency checks.
+Choosing a store alone does not connect an upstream feed. Use **`proven data sync`** or **`scan --refresh-data`** to acquire current public data through the SQLite/PostgreSQL adapters, or import your own snapshots. See [source refresh](SOURCE_REFRESH.md) and [source coverage](SOURCES.md).
 
 ## SQLite
 
@@ -32,7 +32,7 @@ proven data import dataset.json
 
 The importer replaces each table and its snapshot metadata in one transaction. An invalid table cannot replace that table's previous data. Tables are published individually; an import containing several tables is not an atomic release of the entire dataset set. Every registered SQL table records a SHA-256 identity over its name, columns, rows and supplied revision. Query evidence reads rows and identity in the same transaction. Reading the same table later does not invent a new dataset identity.
 
-The importer does not automatically download or refresh public feeds. Source preparation and freshness remain the operator's responsibility. A missing table or failed read is reported explicitly.
+`data import` only loads the document you supply. **`data sync`** acquires and normalizes public provider responses before importing through the same store boundary. Its delta cache, provenance, scope and failure rules are described in [source refresh](SOURCE_REFRESH.md). A missing table or failed read is reported explicitly.
 
 ## PostgreSQL
 

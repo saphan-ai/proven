@@ -51,7 +51,13 @@ func TestAssessmentValidatesMetadataAndCodeRatherThanModelConfidence(t *testing.
 				}
 				return string(body), nil
 			})
-			r, err := Assess(context.Background(), gen, m, files, "snapshot", []data.Counterexample{{ID: "F1", Path: "price.py"}})
+			input := m
+			input.Commits = nil
+			if c.SourceKind == "commit" {
+				input.Context = "git"
+				input.Commits = m.Commits
+			}
+			r, err := Assess(context.Background(), gen, input, files, "snapshot", []data.Counterexample{{ID: "F1", Path: "price.py"}})
 			if (err == nil) != tc.want || r.Complete != tc.want || calls != 1 {
 				t.Fatalf("result=%+v err=%v calls=%d", r, err, calls)
 			}

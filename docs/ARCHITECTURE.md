@@ -64,6 +64,9 @@ Plans and path rules are operator/repository policy, not arbitrary instructions 
 - `internal/report`: result types, proof levels and offline outcome re-derivation, without reviewer configuration or runtime initialization.
 - `internal/evidence`: signed pack writing and verification, depending on report types rather than the application.
 - `internal/generator`, `internal/store`, `internal/testrun`: model, database and execution adapters.
+- `internal/feeds`: bounded public-data acquisition and incremental HTTP caching, with injected snapshot import.
+- `internal/datacheck`: registered source rules evaluated without a model; observations remain separate from proved code findings.
+- `internal/delivery`: per-source declarations and mechanical description checks, with no I/O or model initialization.
 - `internal/review`: configuration and application wiring.
 - `internal/cli` and `action/`: command-line and forge delivery.
 
@@ -79,10 +82,15 @@ The `internal/` packages are repository-private Go packages, not a promised exte
 | Query store | Registered template and validated scalar parameters | Model-written SQL, unrestricted relation access. |
 | Runner | Prepared scratch checkout and controlled argv | Inherited service secrets, runtime network access or source writes. |
 | Source adapter | Prepared tables with source identity | Implicit automatic feed subscription or invented freshness. |
+| Feed connector | Explicit refresh request, scoped package versions, configured provider roots | Model-selected URLs, unbounded downloads or stale-cache success after an upstream failure. |
 | Report core | Evidence/result values | Reading environment or initializing model/database clients. |
 | Forge delivery | Result and explicit workflow permissions | Treating untrusted PR text as privileged workflow instructions. |
 
 Source comments, issue text, model answers and imported descriptions are untrusted data. The optional model guardrail is an additional classifier, not the boundary that makes arbitrary commands safe. Runner isolation and query validation do not depend on enabling it.
+
+`--refresh-data` runs acquisition before review and imports through SQLite or PostgreSQL. Registered source rules then produce observations as well as the existing OSV findings. The report distinguishes HTTP check time, upstream measurement date and missing coverage. A failed refresh leaves available evidence visible and makes completion incomplete. See [source refresh](SOURCE_REFRESH.md).
+
+Declared-scope assessment sends one PR/commit/comment source per model request. It preserves source identities, exact metadata/code quotations and source-specific failures. Deterministic description checks need no model and make no claim about delivered semantics. See [declared scope](PR_DELIVERY.md).
 
 ## Optional local engines
 

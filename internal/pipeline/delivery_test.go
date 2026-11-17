@@ -35,7 +35,7 @@ func TestDeliveryRunsInsideExistingPipelineAndPreservesFindingsOnFailure(t *test
 		if err != nil {
 			t.Fatal(err)
 		}
-		response := `{"claims":[{"requirement":"Preserve behavior","source_kind":"description","source_index":0,"source_quote":"Preserve behavior","status":"unclear","reason":"Needs acceptance coverage beyond this bounded comparison","citations":[]}]}`
+		response := `{"claims":[{"requirement":"Preserve all existing behavior","source_kind":"description","source_index":0,"source_quote":"Preserve all existing behavior","status":"unclear","reason":"Needs acceptance coverage beyond this bounded comparison","citations":[]}]}`
 		if !valid {
 			response = `{"claims":[{"requirement":"Preserve behavior","source_kind":"description","source_quote":"invented","status":"unclear","reason":"not supported","citations":[]}]}`
 		}
@@ -44,7 +44,7 @@ func TestDeliveryRunsInsideExistingPipelineAndPreservesFindingsOnFailure(t *test
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, err := p.Review(context.Background(), Request{Target: fixturePath(t), FixesOff: true, Delivery: &delivery.Metadata{Description: "Preserve behavior"}})
+		d, err := p.Review(context.Background(), Request{Target: fixturePath(t), FixesOff: true, Delivery: &delivery.Metadata{Description: "Preserve all existing behavior"}})
 		if err != nil || d.Delivery == nil || d.Delivery.Complete != valid || gen.calls != 1 {
 			t.Fatalf("delivery=%+v err=%v calls=%d", d.Delivery, err, gen.calls)
 		}
@@ -60,7 +60,7 @@ func TestDeliveryRunsInsideExistingPipelineAndPreservesFindingsOnFailure(t *test
 		if failed == valid {
 			t.Fatalf("failure classification: %+v", d.Failed)
 		}
-		if !valid && !strings.Contains(d.Delivery.Issue, "invalid") {
+		if !valid && !strings.Contains(d.Delivery.Assessments[0].Issue, "invalid") {
 			t.Fatal(d.Delivery.Issue)
 		}
 	}

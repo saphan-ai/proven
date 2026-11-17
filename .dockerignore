@@ -8,6 +8,8 @@
 !internal
 !action
 !testdata/fixture/discount
+!examples/data/model-free-smoke.json
+!scripts/model-free-smoke.sh
 
 # Inside an allowed directory, still never send these.
 **/.env

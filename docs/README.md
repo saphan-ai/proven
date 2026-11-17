@@ -4,11 +4,13 @@ Proven reviews a Git change and shows the evidence behind its findings. Start wi
 
 ## Start here
 
-**[Start with Proven](START.md)**: build your CLI image, log in and paste one workflow. **[What it checks and proves](WHAT_PROVEN_CHECKS.md)**: evidence and limits in a table.
+**[Start without a model](MODEL_FREE.md)**: run the generic image with public-data and description checks. **[Connect your CLI](START.md)**: build your image, log in and paste one workflow. **[What it checks and proves](WHAT_PROVEN_CHECKS.md)**: evidence and limits in a table.
 
 [CLI supply-chain case study](CLI_SUPPLY_CHAIN_AUDIT.md): measured Qwen/Cursor dependency findings, explicit fixes and retained before/after scan outputs.
 
-[PR delivery assessment](PR_DELIVERY.md): compare the stated scope with checked code citations; distinguish model assessment from executable evidence.
+[Declared scope, source by source](PR_DELIVERY.md): keep PR descriptions, commit messages and each comment separate; check descriptions without a model and cited implementation with one.
+
+[Source refresh](SOURCE_REFRESH.md): acquire public data before a run, reuse unchanged records and report provider/observation dates.
 
 [See it on GitHub](GITHUB_TOUR.md): actual Actions and PR-comment screenshots, plus a labelled recorded finding with expandable proof.
 

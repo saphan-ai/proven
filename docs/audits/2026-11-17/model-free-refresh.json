@@ -1,0 +1,275 @@
+{
+  "scenario": "A controlled local Git change adds the public npm package lodash 4.17.20; no model and no application code execution.",
+  "measured": "2026-11-17, native macOS arm64, Go 1.26.10",
+  "scope": "This selected dependency change only; not a complete npm audit or exploit demonstration.",
+  "runs": [
+    {
+      "run": 1,
+      "completion_status": "complete",
+      "models": [],
+      "findings": 1,
+      "proof_counts": {
+        "proved-by-test": 0,
+        "proved-by-tool": 0,
+        "proved-by-data": 1,
+        "agreed-by-two-models-not-proven": 0
+      },
+      "source_refresh": [
+        {
+          "id": "osv",
+          "origin": "https://api.osv.dev/v1",
+          "checked_at": "2026-11-17T11:30:56Z",
+          "status": "updated",
+          "rows": 19,
+          "downloaded": 5,
+          "reused": 0
+        },
+        {
+          "id": "mal",
+          "origin": "https://api.osv.dev/v1",
+          "checked_at": "2026-11-17T11:30:56Z",
+          "status": "updated",
+          "rows": 0,
+          "downloaded": 5,
+          "reused": 0
+        },
+        {
+          "id": "kev",
+          "origin": "https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json",
+          "checked_at": "2026-11-17T11:30:56Z",
+          "upstream_at": "2026-11-13T20:24:18.3008Z",
+          "status": "updated",
+          "rows": 1781,
+          "downloaded": 1,
+          "reused": 0
+        },
+        {
+          "id": "epss",
+          "origin": "https://api.first.org/data/v1",
+          "checked_at": "2026-11-17T11:30:56Z",
+          "upstream_at": "2026-11-16",
+          "status": "updated",
+          "rows": 4,
+          "downloaded": 1,
+          "reused": 0
+        },
+        {
+          "id": "spdx",
+          "origin": "https://api.deps.dev/v3",
+          "checked_at": "2026-11-17T11:30:56Z",
+          "status": "updated",
+          "rows": 1,
+          "downloaded": 6,
+          "reused": 0
+        },
+        {
+          "id": "scorecard",
+          "origin": "https://api.deps.dev/v3",
+          "checked_at": "2026-11-17T11:30:56Z",
+          "upstream_at": "2026-08-24T00:00:00Z",
+          "status": "updated",
+          "rows": 1,
+          "downloaded": 6,
+          "reused": 0
+        },
+        {
+          "id": "cvss",
+          "origin": "https://api.deps.dev/v3",
+          "checked_at": "2026-11-17T11:30:56Z",
+          "status": "updated",
+          "rows": 4,
+          "downloaded": 6,
+          "reused": 0
+        }
+      ],
+      "source_checks": [
+        {
+          "adapter": "mal",
+          "matched": false,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "scorecard",
+          "matched": false,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "spdx",
+          "matched": false,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        }
+      ],
+      "descriptions": [
+        "placeholder"
+      ]
+    },
+    {
+      "run": 2,
+      "completion_status": "complete",
+      "models": [],
+      "findings": 1,
+      "proof_counts": {
+        "proved-by-test": 0,
+        "proved-by-tool": 0,
+        "proved-by-data": 1,
+        "agreed-by-two-models-not-proven": 0
+      },
+      "source_refresh": [
+        {
+          "id": "osv",
+          "origin": "https://api.osv.dev/v1",
+          "checked_at": "2026-11-17T11:30:59Z",
+          "status": "unchanged",
+          "rows": 19,
+          "downloaded": 1,
+          "reused": 5
+        },
+        {
+          "id": "mal",
+          "origin": "https://api.osv.dev/v1",
+          "checked_at": "2026-11-17T11:30:59Z",
+          "status": "unchanged",
+          "rows": 0,
+          "downloaded": 1,
+          "reused": 5
+        },
+        {
+          "id": "kev",
+          "origin": "https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json",
+          "checked_at": "2026-11-17T11:30:59Z",
+          "upstream_at": "2026-11-13T20:24:18.3008Z",
+          "status": "unchanged",
+          "rows": 1781,
+          "downloaded": 0,
+          "reused": 1
+        },
+        {
+          "id": "epss",
+          "origin": "https://api.first.org/data/v1",
+          "checked_at": "2026-11-17T11:30:59Z",
+          "upstream_at": "2026-11-16",
+          "status": "updated",
+          "rows": 4,
+          "downloaded": 1,
+          "reused": 0
+        },
+        {
+          "id": "spdx",
+          "origin": "https://api.deps.dev/v3",
+          "checked_at": "2026-11-17T11:30:59Z",
+          "status": "updated",
+          "rows": 1,
+          "downloaded": 6,
+          "reused": 5
+        },
+        {
+          "id": "scorecard",
+          "origin": "https://api.deps.dev/v3",
+          "checked_at": "2026-11-17T11:30:59Z",
+          "upstream_at": "2026-08-24T00:00:00Z",
+          "status": "updated",
+          "rows": 1,
+          "downloaded": 6,
+          "reused": 5
+        },
+        {
+          "id": "cvss",
+          "origin": "https://api.deps.dev/v3",
+          "checked_at": "2026-11-17T11:30:59Z",
+          "status": "updated",
+          "rows": 4,
+          "downloaded": 6,
+          "reused": 5
+        }
+      ],
+      "source_checks": [
+        {
+          "adapter": "mal",
+          "matched": false,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "scorecard",
+          "matched": false,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "cvss",
+          "matched": true,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        },
+        {
+          "adapter": "spdx",
+          "matched": false,
+          "complete": true,
+          "package": "lodash",
+          "version": "4.17.20"
+        }
+      ],
+      "descriptions": [
+        "placeholder"
+      ]
+    }
+  ]
+}
