@@ -4,6 +4,8 @@
 
 Models propose risks, tests and fixes. Deterministic rules decide which findings have evidence. Reviews can be exported as JSON, SARIF, Markdown, text or standalone HTML, with signed evidence packs for offline inspection.
 
+Proven started at the **Open Agent Hackathon 2026** and has since grown into an independent code review tool under active development. The [original hackathon version](https://github.com/saphan-ai/proven/tree/open-agent-hackathon-2026) is preserved on a separate branch.
+
 **Development preview.** Read [readiness and limitations](docs/READINESS.md) before using Proven as a required check. A clean result means no defect was proved under the checks that ran; it does not establish exhaustive coverage. Final unresolved planning hypotheses are reported separately and make completion incomplete.
 
 ## Start here
@@ -11,6 +13,20 @@ Models propose risks, tests and fixes. Deterministic rules decide which findings
 **[Start with Proven](docs/START.md)** — choose your CLI, build your own image, log in and paste one GitHub workflow. Covers your own runner and a GitHub-hosted runner.
 
 **[What Proven checks and proves](docs/WHAT_PROVEN_CHECKS.md)** — evidence, coverage and limits in a table.
+
+## Supported languages in this version
+
+| Language | Generated tests and fix validation | Dependency checks |
+| --- | --- | --- |
+| **Go** | Native `go test` | Go modules |
+| **Python** | pytest, including unittest-style tests | PyPI / requirements and Poetry locks |
+| **TypeScript** | Vitest, including TSX | npm manifests and lockfiles |
+| **JavaScript / Node.js** | Native `node:test` or Vitest | npm manifests and lockfiles |
+| **PHP** | Not yet available | Composer / Packagist |
+| **Rust** | Not yet available | Cargo / crates.io |
+| **Kotlin** | Not yet available | Gradle Kotlin DSL, version catalogs and lockfiles / Maven |
+
+Generated tests run against base and head in restricted containers; the selected test framework and offline dependencies must be prepared. Dependency checks cover packages added or upgraded by the change and require prepared advisory data. See [language coverage](docs/LANGUAGES.md) for supported file formats, test naming and parser limits.
 
 ## Try the recorded demo
 
