@@ -147,7 +147,17 @@ Model capability, context and configured limits can affect which risks and tests
 
 Reports are available as JSON, SARIF, Markdown, text and standalone HTML. Signed evidence packs support offline inspection. `proven verify` checks the signed recording and re-derives recorded decisions; it does not rerun tests or certify exhaustive coverage.
 
-## Try the recorded demo from source
+## Try the recorded demo
+
+With Docker installed, run this from any directory — no clone, compilation, API key or mounted files:
+
+```sh
+docker run --rm --network none saphan/proven:latest scan --sample /opt/proven/fixture/discount
+```
+
+Docker downloads the ready-made image if needed. The demo itself runs without network access and shows recorded findings with their evidence. It uses synthetic example data and replayed outcomes; it does not review your project or execute new tests.
+
+### From source (optional)
 
 ```sh
 go build -o bin/proven ./cmd/proven
