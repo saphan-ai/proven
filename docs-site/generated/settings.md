@@ -86,6 +86,12 @@ Without model configuration, deterministic analysis runs alone. The openai adapt
 |---|---|---|
 | `PROVEN_PR_CONTEXT` | empty (local commit descriptions in model-free Git scans) | external JSON with PR title, description, commit messages and separate comments; checks description completeness without a model and assesses each source against code when a model is connected |
 
+## Code comment review
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_CODE_COMMENTS` | deterministic | Go AST comment checks: off, deterministic, or model (also assesses language/code consistency; requires a connected model). Separate from proved code findings. |
+
 ## Source refresh and delta cache
 
 | Environment variable | Default | What it changes |

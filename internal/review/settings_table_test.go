@@ -37,11 +37,11 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	t.Run("default_reviewer", func(t *testing.T) {
 		dir := treeWith(t, "go.mod", "module example.com/x\n")
 		def := decideOn(t, defaultSettings(), Request{Target: dir})
-		if def.DefaultReviewer != "NVIDIA" || !strings.Contains(def.AuthorModelStatement, "default reviewer NVIDIA") {
+		if def.DefaultReviewer != "" || strings.Contains(def.AuthorModelStatement, "default reviewer") {
 			t.Fatalf("%s reviewer %s", def.AuthorModelStatement, def.DefaultReviewer)
 		}
-		if !strings.Contains(def.ReviewerStatements[0], "reviewer NVIDIA; role default") {
-			t.Fatal(def.ReviewerStatements[0])
+		if len(def.ReviewerStatements) != 0 || len(def.ReviewerModels) != 0 {
+			t.Fatal(def.ReviewerStatements)
 		}
 		other := decideOn(t, mustParse(t, "default_reviewer: claude-opus\n"), Request{Target: dir})
 		if other.DefaultReviewer != "claude-opus" || !strings.Contains(other.AuthorModelStatement, "default reviewer claude-opus") {
@@ -55,10 +55,10 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 	t.Run("special_reviewer", func(t *testing.T) {
 		dir := treeWith(t, "go.mod", "module example.com/x\n")
 		def := decideOn(t, defaultSettings(), Request{Target: dir})
-		if def.SpecialReviewer != "" || len(def.ReviewerStatements) != 2 || def.ReviewerStatements[1] != "special-review model: not configured" {
+		if def.SpecialReviewer != "" || len(def.ReviewerStatements) != 0 {
 			t.Fatalf("%#v", def.ReviewerStatements)
 		}
-		other := decideOn(t, mustParse(t, "special_reviewer: qwen-special\n"), Request{Target: dir})
+		other := decideOn(t, mustParse(t, "default_reviewer: example-reviewer\nspecial_reviewer: qwen-special\n"), Request{Target: dir})
 		if other.SpecialReviewer != "qwen-special" || len(other.ReviewerModels) != 2 || other.ReviewerModels[1] != "qwen-special" {
 			t.Fatalf("%#v", other.ReviewerModels)
 		}
@@ -128,7 +128,7 @@ func TestEachSettingAtDefaultAndOneOtherValue(t *testing.T) {
 		if decideOn(t, defaultSettings(), Request{Target: back}).Doubled {
 			t.Fatal("default backend is doubled")
 		}
-		cfg := mustParse(t, "doubled_classes: docs, backend\n")
+		cfg := mustParse(t, "default_reviewer: example-reviewer\ndoubled_classes: docs, backend\n")
 		if decideOn(t, cfg, Request{Target: sec}).Doubled {
 			t.Fatal("list form still doubles security")
 		}

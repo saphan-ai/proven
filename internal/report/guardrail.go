@@ -4,6 +4,9 @@ import "fmt"
 
 // CompletionStatus is independent of whether the review found a defect.
 func (r Result) CompletionStatus() string {
+	if r.CodeComments != nil && !r.CodeComments.Complete {
+		return "incomplete"
+	}
 	for _, check := range r.SourceChecks {
 		if !check.Complete {
 			return "incomplete"
@@ -26,9 +29,10 @@ type GuardrailCount struct {
 
 // The states of a review's guardrail, as JSON and SARIF name them.
 const (
-	GuardrailChecked = "checked"
-	GuardrailOff     = "off"
-	GuardrailNoCall  = "no_call"
+	GuardrailChecked  = "checked"
+	GuardrailOff      = "off"
+	GuardrailNoCall   = "no_call"
+	GuardrailReplayed = "replayed"
 )
 
 // GuardrailState is GuardrailOff when the review ran without the guardrail,
@@ -38,6 +42,8 @@ func (r Result) GuardrailState() string {
 	switch {
 	case r.GuardrailStatement != "":
 		return GuardrailOff
+	case r.AnalysisMode == "recorded":
+		return GuardrailReplayed
 	case r.Guardrail.Prompts+r.Guardrail.Answers+r.Guardrail.Unanswered == 0:
 		return GuardrailNoCall
 	}
@@ -55,6 +61,8 @@ func (r Result) GuardrailLine() string {
 		return "Guardrail: off for this review"
 	case GuardrailNoCall:
 		return "Guardrail: no model call to check"
+	case GuardrailReplayed:
+		return fmt.Sprintf("Guardrail: replayed %s and %s; no live safety service was called", counted(r.Guardrail.Prompts, "prompt"), counted(r.Guardrail.Answers, "answer"))
 	}
 	c := r.Guardrail
 	who := c.Model

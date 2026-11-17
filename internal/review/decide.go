@@ -40,19 +40,24 @@ func applyDecision(out *Result, cfg fileSettings, req Request, planned *reviewPl
 	}
 	// every review uses the default reviewer; a doubled class adds the special model,
 	// even when it is the author's own model (a fresh agent is still a second look).
-	models := []string{cfg.DefaultReviewer}
-	lines := []string{reviewerLine("default", cfg.DefaultReviewer, familyOf(cfg.DefaultReviewer, cfg.Families), authors, unreadable)}
+	models := []string{}
+	lines := []string{}
+	reviewers := []ReviewerInfo{}
+	if cfg.DefaultReviewer != "" {
+		models = append(models, cfg.DefaultReviewer)
+		lines = append(lines, reviewerLine("default", cfg.DefaultReviewer, familyOf(cfg.DefaultReviewer, cfg.Families), authors, unreadable))
+		reviewers = append(reviewers, reviewerOf(RoleDefault, cfg.DefaultReviewer, cfg.Families, authors, unreadable))
+	}
 	if doubled {
 		if cfg.SpecialReviewer != "" {
 			models = append(models, cfg.SpecialReviewer)
 			lines = append(lines, reviewerLine("special", cfg.SpecialReviewer, familyOf(cfg.SpecialReviewer, cfg.Families), authors, unreadable))
-		} else {
+		} else if cfg.DefaultReviewer != "" {
 			// A doubled class with no special model is stated, not hidden: the reader sees one review ran.
 			lines = append(lines, "special-review model: not configured")
 		}
 	}
 	// each reviewer is named, with whether it is the author's model.
-	reviewers := []ReviewerInfo{reviewerOf(RoleDefault, cfg.DefaultReviewer, cfg.Families, authors, unreadable)}
 	if doubled && cfg.SpecialReviewer != "" {
 		reviewers = append(reviewers, reviewerOf(RoleSpecial, cfg.SpecialReviewer, cfg.Families, authors, unreadable))
 	}
@@ -511,6 +516,9 @@ func authorStatement(models []AuthorModel, unreadable []string, defaultReviewer 
 		parts = append(parts, "author statement unreadable: "+line)
 	}
 	if len(parts) == 0 {
+		if defaultReviewer == "" {
+			return "author model not stated"
+		}
 		return "author model not stated; default reviewer " + defaultReviewer
 	}
 	return strings.Join(parts, "; ")

@@ -2,7 +2,7 @@
 
 Sample mode runs a whole Proven review with **no model connection and no keys**. Every model answer, test outcome and query row comes from a recorded fixture. It exercises real decision and formatting code while replacing outside responses. Optional configured OpenTelemetry export still applies; unset collector variables or set `OTEL_SDK_DISABLED=true` for a completely disconnected run.
 
-The long transcripts below were recorded on 23 October 2026 with Go 1.26.8 on macOS at `26343c2`, with the scenarios described here. They are historical examples: display text and additional report fields can evolve. The current quick-start commands and default `discount` result (four findings, complete, no failed services) were checked again on 16 November 2026. Use the Go version in `go.mod`. Long output is shortened where marked.
+The first `discount` transcript below reflects the current recorded-demo labels and was checked on 17 November 2026: four findings, complete, no live model or failed service. The remaining long scenario transcripts were recorded on 23 October 2026 with Go 1.26.8 on macOS at `26343c2`. They are historical examples; their old reviewer labels are not current defaults or evidence of live model calls. Use the Go version in `go.mod`. Long output is shortened where marked.
 
 ## What sample mode exercises, and what it does not
 
@@ -31,21 +31,21 @@ mkdir -p /tmp/proven-run && cd /tmp/proven-run
 Output (exit code 0):
 
 ```text
+Recorded demo: replayed answers and outcomes; no live model, safety service or project tests were run.
 review class: security
 review rule: go.mod
-author model not stated; default reviewer NVIDIA
-reviewer NVIDIA; role default; family NVIDIA; author model not stated
-special-review model: not configured
+author model not stated
 finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list
   EPSS 0.50000 (90th percentile, 2026-10-20)
   go.mod:5-5
   The change requires evil.example/leftpad v1.2.3, and the sample advisory table has a known-exploited row for that version.
-  evidence query local-sample snapshot=sample-2026-10-22
+  rule known-exploited-dependency
+  evidence query local-sample snapshot=sample-2026-10-22 form=sql
   SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'
   columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
   row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15
   row: GHSA-px-sample-0002 |  | Go | evil.example/leftpad | 2.0.0 | 2.1.0 |  | LOW | 2026-03-01
-  evidence query local-sample snapshot=sample-2026-10-22
+  evidence query local-sample snapshot=sample-2026-10-22 form=sql
   SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
   columns: cve_id, epss, percentile, score_date
   row: CVE-2026-0001 | 0.50000 | 0.90000 | 2026-10-20
@@ -53,42 +53,48 @@ finding F4 ERROR CVE-2026-0001 for leftpad v1.2.3 is on the KEV list
   EPSS 0.50000 (90th percentile, 2026-10-20)
   go.mod:5-5
   The change requires evil.example/leftpad v1.2.3. The sample KEV view has CVE-2026-0001 for that advisory.
-  evidence query local-sample snapshot=sample-2026-10-22
+  rule known-exploited-cve
+  evidence query local-sample snapshot=sample-2026-10-22 form=sql
   SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
   columns: cve_id, vendor_project, product, date_added, known_ransomware
   row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known
-  evidence query local-sample snapshot=sample-2026-10-22
+  evidence query local-sample snapshot=sample-2026-10-22 form=sql
   SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
   columns: cve_id, epss, percentile, score_date
   row: CVE-2026-0001 | 0.50000 | 0.90000 | 2026-10-20
 finding osv:evil.example/leftpad ERROR Dependency evil.example/leftpad v1.2.3 is in an OSV affected range
   EPSS 0.50000 (90th percentile, 2026-10-20)
   go.mod:5-5
-  evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 <= v1.2.3 < fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 < introduced 2.0.0. alias CVE-2026-0001 is on the KEV list
-  evidence query local-sample snapshot=sample-2026-10-22
+  evil.example/leftpad v1.2.3 matches GHSA-px-sample-0001: introduced 1.0.0 <= v1.2.3 < fixed 1.2.4. GHSA-px-sample-0002 does not match: v1.2.3 < introduced 2.0.0. alias CVE-2026-0001 is on the KEV list Reachability: not measured.
+  rule osv-affected-package
+  evidence query local-sample snapshot=sample-2026-10-22 form=sql
   SQL: SELECT id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published FROM px_osvfile.px_osv_pkg WHERE ecosystem = 'Go' AND package = 'evil.example/leftpad'
   columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
   row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15
   row: GHSA-px-sample-0002 |  | Go | evil.example/leftpad | 2.0.0 | 2.1.0 |  | LOW | 2026-03-01
-  evidence query local-sample snapshot=sample-2026-10-22
+  evidence query local-sample snapshot=sample-2026-10-22 form=sql
   SQL: SELECT cve_id, vendor_project, product, date_added, known_ransomware FROM px_evidence.px_kev_vulns WHERE cve_id = 'CVE-2026-0001'
   columns: cve_id, vendor_project, product, date_added, known_ransomware
   row: CVE-2026-0001 | evil.example | leftpad | 2026-01-15 | Known
-  evidence query local-sample snapshot=sample-2026-10-22
+  evidence query local-sample snapshot=sample-2026-10-22 form=sql
   SQL: SELECT cve_id, epss, percentile, score_date FROM px_evidence.px_epss_cve_rows WHERE cve_id = 'CVE-2026-0001'
   columns: cve_id, epss, percentile, score_date
   row: CVE-2026-0001 | 0.50000 | 0.90000 | 2026-10-20
+  fix named from the advisory table, not run by a test: raise evil.example/leftpad v1.2.3 to 1.2.4
+  fix closes the problem because: 1.2.4 is the fixed version of advisory GHSA-px-sample-0001, and it is the smallest fixed version of the rows returned that no affected range of those rows holds. No test proves a version change, so this fix is named from the table, not run.
+  fix advisory GHSA-px-sample-0001 columns: id, aliases, ecosystem, package, introduced, fixed, last_affected, severity, published
+  fix advisory row: GHSA-px-sample-0001 | CVE-2026-0001 | Go | evil.example/leftpad | 1.0.0 | 1.2.4 |  | HIGH | 2026-01-15
 finding F1 ERROR Discount is applied twice
   billing/discount.go:5-5
   Discounted subtracts the percent twice, so 100 at 20 percent becomes 60 instead of 80.
+  rule discount-applied-twice
   evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true
   command: go test -run '^TestDiscounted$' ./billing
   output: base: PASS
-change: FAIL got 60 want 80
-Agreed by two models, not proven
-  none: one reviewer; a claim only one model makes stays dropped
+    | change: FAIL got 60 want 80
 failed services: none
-trace: /tmp/proven-run/logs/trace.jsonl
+Guardrail: replayed 14 prompts and 13 answers; no live safety service was called
+trace: <user cache>/proven/logs/trace.jsonl
 ```
 
 Findings with an EPSS score come first within a severity; F1 has none, so it comes last. A scan writes `trace.jsonl`

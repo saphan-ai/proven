@@ -1,5 +1,7 @@
 **Proven: blocked** — 4 findings: 4 errors, 0 warnings, 0 info
 
+**Recorded demo: replayed answers and outcomes; no live model, safety service or project tests were run.**
+
 | Severity | Finding | Location |
 | --- | --- | --- |
 | Error | Dependency leftpad v1.2.3 is on the known-exploited list | `go.mod:5` |
@@ -120,8 +122,6 @@ change: FAIL got 60 want 80
 
 </details>
 
-- Author model: unknown, the change does not declare it
-- Reviewer: `NVIDIA` (NVIDIA)
-- Second reviewer: not configured
+- author model not stated
 
-<sub>reviewed by `NVIDIA` · Guardrail: model not named (sample), checked 14 prompts and 13 answers, 0 blocked</sub>
+<sub>Recorded demo; no live model calls · Guardrail: replayed 14 prompts and 13 answers; no live safety service was called</sub>

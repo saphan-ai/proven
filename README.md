@@ -6,6 +6,8 @@ Proven reviews Git changes and pull requests. It checks dependency risks against
 
 Proven started at the **Open Agent Hackathon 2026** and has since grown into an independent code review tool under active development. The [original hackathon version](https://github.com/saphan-ai/proven/tree/open-agent-hackathon-2026) is preserved on a separate branch.
 
+**The code and documentation are written by coding agents, under human direction and review.** The [Proven effort report](https://saphan.ai/assets/research/proven-effort.pdf?v=20261031) describes the original build, its measured quality and the limits of those measurements.
+
 **Development preview.** A complete review with no findings means the checks that ran proved no defect. It does not establish exhaustive coverage. Read [readiness and limitations](docs/READINESS.md) before making Proven a required check.
 
 ## Useful before you connect a model
@@ -21,6 +23,7 @@ No model account, model API key or vendor CLI is needed for the standalone image
 | Check added or upgraded dependencies against OSV; add known-exploitation and EPSS context. | Investigate risks in changed code. |
 | Apply the registered malicious-package, project-health, CVSS and licence data rules. | Propose tests and run the same test against base and head to establish a regression. |
 | Flag missing, placeholder and very short descriptions, separately for each source. | Compare each PR description, commit message and comment with cited implementation. |
+| Check changed Go comments and public API documentation: missing docs, placeholders, naming conventions and stale parameter tags. | With comment review enabled, assess comment clarity, language and consistency with cited code. |
 | Refresh public data before review and reuse unchanged records. | Propose fixes, then validate them through the same restricted runner. |
 | Use configured deterministic tools, policy and JSON/SARIF/Markdown/HTML reports. | Add an independently configured second reviewer. |
 
@@ -73,6 +76,22 @@ Add `check-delivery: true` to the [GitHub Action](docs/ACTION.md) or [CLI Action
 
 [See the illustrated scope walkthrough](docs/PR_DELIVERY.md) for screenshots, statuses, source collection, limits and a complete setup.
 
+## Code comments: structure and meaning
+
+Comments can drift as code changes. Proven's **Go comment adapter** checks changed declarations and comments without running project code. Missing API docs, documentation placeholders and obsolete parameter tags remain separate from code defects.
+
+![Structural comment checks without a model](docs/images/proven-comments-deterministic.jpg)
+
+*Actual Go AST checks on synthetic example source, with no model calls.*
+
+With a connected model, set `PROVEN_CODE_COMMENTS=model` to add assessment of clarity, language and consistency with the associated code. Each comment keeps its own result and checked quotation.
+
+![Comment consistency assessment alongside structural checks](docs/images/proven-comments-linguistic.jpg)
+
+*The same structural checks plus recorded model answers, passed through the real assessment/citation validator. This is a labelled teaching replay, not a live quality benchmark or executed proof.*
+
+[Comment review setup, limits and adapter extension](docs/CODE_COMMENTS.md). Go is supported today; the extension and language tables below show where additional comment adapters fit.
+
 ## Data sources available today
 
 `--refresh-data` refreshes the relevant data before a run. OSV's modified timestamps select new or changed advisory records; conditional HTTP requests reuse unchanged catalogues where supported. Providers without a delta endpoint are checked again and their small responses compared with the cache. The report distinguishes **when Proven checked a provider** from **when that provider measured or published its data**.
@@ -91,15 +110,15 @@ Provider coverage varies. Missing licence/project measurements are reported; no 
 
 ## Supported languages in this version
 
-| Language | Generated tests and fix validation | Dependency checks |
-| --- | --- | --- |
-| **Go** | Native `go test` | Go modules |
-| **Python** | pytest, including unittest-style tests | PyPI / requirements and Poetry locks |
-| **TypeScript** | Vitest, including TSX | npm manifests and lockfiles |
-| **JavaScript / Node.js** | Native `node:test` or Vitest | npm manifests and lockfiles |
-| **PHP** | Not yet available | Composer / Packagist |
-| **Rust** | Not yet available | Cargo / crates.io |
-| **Kotlin** | Not yet available | Gradle Kotlin DSL, version catalogs and lockfiles / Maven |
+| Language | Generated tests and fix validation | Dependency checks | Code comments |
+| --- | --- | --- | --- |
+| **Go** | Native `go test` | Go modules | Go AST: structural checks; optional model assessment. |
+| **Python** | pytest, including unittest-style tests | PyPI / requirements and Poetry locks | Not yet available. |
+| **TypeScript** | Vitest, including TSX | npm manifests and lockfiles | Not yet available. |
+| **JavaScript / Node.js** | Native `node:test` or Vitest | npm manifests and lockfiles | Not yet available. |
+| **PHP** | Not yet available | Composer / Packagist | Not yet available. |
+| **Rust** | Not yet available | Cargo / crates.io | Not yet available. |
+| **Kotlin** | Not yet available | Gradle Kotlin DSL, version catalogs and lockfiles / Maven | Not yet available. |
 
 Generated tests run in restricted containers; prepare the selected framework and offline dependencies. [Language coverage](docs/LANGUAGES.md) lists test naming, parser limits and the shared proof/fix contract. Feed acquisition coverage is separate: deps.dev does not supply every ecosystem's package metadata.
 
@@ -111,11 +130,14 @@ Proven's models, manifest readers, test runners, tools, sources and stores sit b
 | --- | --- | --- |
 | A dependency ecosystem | Manifest/lock readers and precise version comparison. | [Language adapter guide](docs/ADAPTERS.md#adding-a-language), with PHP and Kotlin examples. |
 | Generated-test support | Fixed command construction, native result parsing, staging, base/head comparison and fix rechecks. | [Test-run adapter](docs/ADAPTERS.md#adding-a-test-run) and [current language registry](internal/testrun/languages.go). |
+| Code comments for another language | Implement `codecomments.Adapter`: parsed associations, exact source excerpts, stable identities and language fixtures. | [Comment adapter guide](docs/CODE_COMMENTS.md#add-another-language), starting with the Go AST adapter. |
 | Another data source | Acquisition/provenance, registered query templates, deterministic evidence rules and failure tests. | [Source adapter guide](docs/ADAPTERS.md#adding-a-source) and [refresh connectors](docs/SOURCE_REFRESH.md#adding-a-connector). |
 | A deterministic analyzer | File applicability, controlled arguments and structured result comparison. | [Tool adapter example](docs/ADAPTERS.md#adding-a-tool). |
 | Another model or database | Implement the existing transport/store interface. | [Model adapters](docs/ADAPTERS.md#adding-a-model-provider), [database adapters](docs/DATABASES.md). |
 
 Adapters are repository code, with tests and controlled registration; there is no runtime marketplace or arbitrary command loader. [Runnable examples](examples/README.md) work without accounts. Selected core packages and their tests can also be taken into another reviewer without initializing the whole application.
+
+Comment inspection has its own language adapters. The initial implementation uses Go's AST; test-run or dependency-reader support alone does not imply comment-analysis support. [Code comment checks](docs/CODE_COMMENTS.md) covers deterministic rules, optional linguistic review, exact scope and extending the adapter.
 
 ## Connect a model when you want deeper review
 
@@ -130,12 +152,29 @@ These are examples from our own work, **not a ranking, minimum specification or 
 | Model / environment | Context |
 | --- | --- |
 | Sonnet | Internal development and review workflows. |
+| Opus 5.5 | Internal security review and development of large changes. |
+| Sol 5.6 | Internal security review and development of large changes. |
 | Terra | Our internal coding/review environment. |
 | Grok 4.7 | Internal work. |
 | Nemotron | Internal work and Proven's API-based self-review workflow. |
 | GLM 5.3 | Used in the original hackathon project. |
 
 Model capability, context and configured limits can affect which risks and tests are proposed. Executable evidence still decides proved findings. We plan broader comparative testing before publishing project-to-model recommendations. [Model configuration](docs/MODELS.md) explains tokens, timeouts, reasoning, recovery and reported model identity.
+
+## Security: optional model safety checks
+
+You can enable a safety guardrail around model calls. Proven checks the **prompt before sending it** to the reviewer and the **answer before an agent uses it**. An unsafe verdict or unavailable check stops that model step and remains visible in the report.
+
+The guardrail adapter supports NVIDIA-hosted content-safety models and compatible self-hosted endpoints. NVIDIA's [NemoGuard content-safety models](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/index.html) can also be used in the [NeMo Guardrails ecosystem](https://docs.nvidia.com/nemo/guardrails/latest/configure-guardrails/guardrail-catalog/content-safety). Proven uses a direct safety-model API adapter; configure a deployed model and verify its response contract.
+
+```yaml
+env:
+  PROVEN_GUARDRAIL_MODE: nvidia
+  PROVEN_GUARDRAIL_MODEL: ${{ vars.PROVEN_SAFETY_MODEL }}
+  PROVEN_GUARDRAIL_KEY: ${{ secrets.PROVEN_SAFETY_KEY }}
+```
+
+Safety checks are optional and off by default. Your reviewer can use another vendor or a customer-owned CLI; the safety service has its own configuration. Hosted checks send the prompt/answer content to that service. Runner isolation, validated queries, resource limits and secret filtering remain independent controls. [Guardrail setup and security boundaries](docs/GUARDRAILS.md).
 
 ## See the reports
 
@@ -157,6 +196,34 @@ docker run --rm --network none saphan/proven:latest scan --sample /opt/proven/fi
 
 Docker downloads the ready-made image if needed. The demo itself runs without network access and shows recorded findings with their evidence. It uses synthetic example data and replayed outcomes; it does not review your project or execute new tests.
 
+### Save the demo as HTML, JSON or SARIF
+
+Save a report directly from the ready-made image:
+
+```sh
+docker run --rm --network none saphan/proven:latest scan --sample --html /opt/proven/fixture/discount > proven-demo.html
+docker run --rm --network none saphan/proven:latest scan --sample --json /opt/proven/fixture/discount > proven-demo.json
+docker run --rm --network none saphan/proven:latest scan --sample --sarif /opt/proven/fixture/discount > proven-demo.sarif
+```
+
+Open `proven-demo.html` in your browser. JSON is the full structured report; SARIF is suitable for compatible code-scanning tools. These commands run the recorded demo separately for each format.
+
+To write **all three files from one run** (macOS/Linux shell):
+
+```sh
+mkdir -p proven-reports
+docker run --rm --network none \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  --mount "type=bind,src=$PWD/proven-reports,dst=/reports" \
+  saphan/proven:latest scan --sample \
+  --html-output /reports/proven-demo.html \
+  --json-output /reports/proven-demo.json \
+  --sarif-output /reports/proven-demo.sarif \
+  /opt/proven/fixture/discount
+```
+
+The files appear in `proven-reports` on your machine. The same output flags work for a real review of your own checkout; see [output formats](docs/OUTPUT_FORMATS.md).
+
 ### From source (optional)
 
 ```sh
@@ -167,6 +234,8 @@ make sample
 Use the Go version in [go.mod](go.mod). Sample mode replays recorded answers and outcomes without accounts, model keys, network or a container runtime. Follow the [quick start](docs/QUICKSTART.md), [evidence walkthrough](docs/WALKTHROUGH.md) or real [Git/SQLite tutorial](docs/DATA_WALKTHROUGH.md).
 
 ## Guides and development
+
+For language models: [product facts and guide index](llms.txt). The documentation build also generates `/llms.txt` and `/llms-full.txt` from every rendered page.
 
 The [documentation map](docs/README.md) links installation, policy, operations, database adapters, observability, fixes, extensions and limitations. SQLite is the default store; PostgreSQL, CouchDB, local files and Zetaris remain adapters. Bounded planning (Markovian), Scout Intent, memory and world state remain available with explicit switches; their effect on review quality needs further evaluation.
 

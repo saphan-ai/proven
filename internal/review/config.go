@@ -147,15 +147,15 @@ func classNames() []string {
 }
 
 // defaultSettings is what Proven uses with no proven.yaml. Each value can be replaced by a named
-// key : NVIDIA reviews by default , security is doubled
+// key: no reviewer identity is assumed, security is doubled
 // , backend is the fallback class , and the author model is read from
 // settings only: the trailer sources are off, and Assisted-by is the key they read when a
 // repository turns one on . The timeout is zero: no deadline unless the shell or the file sets one.
 func defaultSettings() fileSettings {
 	return fileSettings{
-		DefaultReviewer: "NVIDIA",
-		// NVIDIA is an exact name because the default reviewer is the word NVIDIA,
-		// and the  globs (nemotron-*) do not match that word.
+		// The connected transport supplies the model identity. A replay or a
+		// deterministic run must not inherit a vendor name from configuration.
+		DefaultReviewer: "",
 		Families: []familyRule{
 			{"claude-*", "Anthropic"},
 			{"gpt-*", "OpenAI"},
@@ -464,7 +464,7 @@ func applyKey(cfg *fileSettings, key, val string) error {
 	case "default_reviewer":
 		// Every review uses the default reviewer , so it may not be empty.
 		if val == "" {
-			return configRefused(key, val, "missing value", "a model name, for example NVIDIA")
+			return configRefused(key, val, "missing value", "an explicitly configured model name")
 		}
 		cfg.DefaultReviewer = val
 		return nil

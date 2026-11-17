@@ -134,7 +134,7 @@ func Environment() []envdoc.Setting {
 
 // agents is the closed set a require-NVIDIA list may name.
 // The names are the six agents of the review and the Fixer , as they call the generator.
-var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer", "delivery"}
+var agents = []string{"planner", "investigator", "prover", "fixer", "skeptic", "judge", "writer", "delivery", "comments"}
 
 // ConfigError names a refused generator setting and the values that are allowed.
 // A refused token is reported with an empty value, so the secret is never printed.
@@ -456,12 +456,12 @@ func parseRequire(raw string) (all, none bool, set map[string]bool, err error) {
 	for _, part := range strings.Split(raw, ",") {
 		name := strings.TrimSpace(part)
 		if !known[name] {
-			return false, false, nil, refuse(EnvRequireNVIDIA, raw, "unknown agent", "all, none, or a comma-separated list of planner, investigator, prover, fixer, skeptic, judge, writer")
+			return false, false, nil, refuse(EnvRequireNVIDIA, raw, "unknown agent", "all, none, or a comma-separated list of "+strings.Join(agents, ", "))
 		}
 		set[name] = true
 	}
 	if len(set) == 0 {
-		return false, false, nil, refuse(EnvRequireNVIDIA, raw, "empty agent list", "all, none, or a comma-separated list of planner, investigator, prover, fixer, skeptic, judge, writer")
+		return false, false, nil, refuse(EnvRequireNVIDIA, raw, "empty agent list", "all, none, or a comma-separated list of "+strings.Join(agents, ", "))
 	}
 	return false, false, set, nil
 }

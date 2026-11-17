@@ -12,6 +12,7 @@ Small adapters implement interfaces without real services. Their tests need no a
 | tool | fixed detector | [Tool](../docs/ADAPTERS.md#adding-a-tool) | `go test -count=1 ./examples/tool` |
 | data | synthetic snapshot | [Git/SQLite walkthrough](../docs/DATA_WALKTHROUGH.md) | Follow the walkthrough; no model or Docker. |
 | cli | customer-installed Claude Code, Copilot, Codex, Cursor and Qwen Code | [CLI recipes](cli/README.md) | `python3 examples/cli/test_wrappers.py` (fake executables, no accounts). |
+| comments | Go AST comment checks and recorded linguistic assessment | [Comment reports](comments/README.md) | `go run ./examples/comments /tmp/proven-comments-example` |
 | scope | separate declared-scope assessments | [Recorded scope report](scope/README.md) | `go run ./examples/scope /tmp/proven-scope-example` |
 | runners | account-free native language contracts | [Language test images](runners/README.md) | Opt-in real-container tests. |
 

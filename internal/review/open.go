@@ -139,6 +139,12 @@ func open(opts Options) (Reviewer, error) {
 		if env == nil {
 			env = func(string) string { return "" }
 		}
+		popts.CodeComments = env(EnvCodeComments)
+		switch popts.CodeComments {
+		case "", "off", "deterministic", "model":
+		default:
+			return nil, &ConfigError{Field: EnvCodeComments, Reason: "unknown comment review mode", Allowed: []string{"off, deterministic, model"}}
+		}
 		settings, lerr := generator.Load(env)
 		if d, ok := service.As(lerr); ok {
 			//  point 4a: an empty token does not build a live client.
@@ -153,9 +159,15 @@ func open(opts Options) (Reviewer, error) {
 			settings.Network = settings.Network.WithDial(opts.dial)
 			switch settings.Mode {
 			case generator.ModeOff:
+				if popts.CodeComments == "model" {
+					return nil, &ConfigError{Field: EnvCodeComments, Reason: "model comment review requires a configured model", Allowed: []string{"deterministic or off without a model"}}
+				}
 				popts.ModelsOff = true
 				popts.Generator = generator.Absent{Service: "generator", Reason: "disabled"}
 			case generator.ModeCommand:
+				if modelName == "" {
+					modelName = "CLI default (model not reported)"
+				}
 				popts.Generator = generator.NewCommand(settings)
 			default:
 				popts.Generator = generator.NewLive(settings, nil)
@@ -669,7 +681,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 			cfg.DefaultReviewer = r.modelName
 		}
 		if r.modelsOff {
-			cfg.DefaultReviewer = "disabled"
+			cfg.DefaultReviewer = ""
 			cfg.SpecialReviewer = ""
 		}
 	}
@@ -775,7 +787,12 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 	if err := applyDecision(&out, cfg, req, planned); err != nil {
 		return Result{}, err
 	}
+	out.AnalysisMode = "model"
+	if r.sample {
+		out.AnalysisMode = "recorded"
+	}
 	if r.modelsOff {
+		out.AnalysisMode = "deterministic"
 		out.Doubled = false
 		out.ReviewerModels, out.Reviewers = nil, nil
 		out.ReviewerStatements = []string{"Models disabled; deterministic analysis only"}
@@ -802,6 +819,7 @@ func (r *runner) review(ctx context.Context, req Request) (Result, error) {
 // level. A finding whose evidence gives no level is an error, so it cannot reach the Result.
 func fill(d candidate.Draft) (Result, error) {
 	out := Result{
+		CodeComments:         d.CodeComments,
 		SourceChecks:         d.SourceChecks,
 		Delivery:             d.Delivery.Redacted(func(s string) string { return s }),
 		UnresolvedHypotheses: append([]candidate.UnresolvedHypothesis(nil), d.UnresolvedHypotheses...),

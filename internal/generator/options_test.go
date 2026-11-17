@@ -31,6 +31,24 @@ func reply(w http.ResponseWriter, content string) {
 	io.WriteString(w, "data: "+string(b)+"\n\ndata: [DONE]\n\n")
 }
 
+func TestCommentRoleHasIndependentTokenAndBodyOptions(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if body["max_tokens"] != float64(384) || body["temperature"] != float64(0) {
+			t.Errorf("comment options: %#v", body)
+		}
+		reply(w, "checked")
+	}))
+	defer srv.Close()
+	g := configured(t, srv.URL, map[string]string{generator.EnvAgentMaxTokens: `{"comments":384}`, generator.EnvAgentExtraBody: `{"comments":{"temperature":0}}`})
+	if _, err := g.Complete(context.Background(), "comments", "Check this comment."); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOptionalRequestFieldsAndAgentOverrides(t *testing.T) {
 	var bodies []map[string]json.RawMessage
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

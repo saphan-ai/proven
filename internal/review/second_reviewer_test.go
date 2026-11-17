@@ -72,6 +72,9 @@ func reviewWithSecond(t *testing.T, cfg fileSettings, def generator.Generator, a
 // leaves the sample pipeline's own guardrail, which answers safe.
 func reviewWithSecondRail(t *testing.T, cfg fileSettings, def generator.Generator, api *secondAPI, rail guardrail.Adapter) Result {
 	t.Helper()
+	if cfg.DefaultReviewer == "" {
+		cfg.DefaultReviewer = "NVIDIA" // Explicit identity of the synthetic first reviewer.
+	}
 	second := generator.NewSecond(generator.SecondSettings{
 		BaseURL: "https://api.example.test/v1", Key: secondTestKey, Model: secondModel, Timeout: 5e9,
 	}, &http.Client{Transport: api})

@@ -15,6 +15,8 @@
 // never import the shell's types; review.Open converts a Draft to a Result.
 package candidate
 
+import "github.com/saphan-ai/proven/internal/codecomments"
+
 import (
 	"github.com/saphan-ai/proven/internal/delivery"
 	"github.com/saphan-ai/proven/internal/querytpl"
@@ -356,6 +358,7 @@ type Opinion struct {
 // Partial is set when the deadline cut the review short; TracePath is the
 // JSONL trace of the run.
 type Draft struct {
+	CodeComments         *codecomments.Result
 	SourceChecks         []source.Observation
 	Delivery             *delivery.Result
 	UnresolvedHypotheses []UnresolvedHypothesis

@@ -22,12 +22,17 @@ Proven reviews a Git change and shows the evidence behind its findings. Start wi
 | Prepare a live installation | [Installation](INSTALL.md) | Identify which components each capability needs. |
 | Assess suitability | [Readiness and limitations](READINESS.md) | Know what is available, measured and still unestablished. |
 
+[Code comments](CODE_COMMENTS.md): Go AST structure checks without a model, optional language/code-consistency assessment, separate results and adapter coverage.
+
+[For language models](../llms.txt): product facts and guide links. The documentation build generates `/llms.txt` and `/llms-full.txt` from every rendered page.
+
 ## Configure and operate
 
 Connection recipes: [own API key](CONNECT_API.md), [Claude Code or Copilot](CLI_MODELS.md), [two reviewers](TWO_MODELS.md), [build your own CLI image](CLI_IMAGES.md). Vendor CLIs and account state are customer-provisioned.
 
 | Guide | Covers |
 | --- | --- |
+| [Optional guardrails](GUARDRAILS.md) | Prompt/answer safety checks, NVIDIA or self-hosted service, and runtime security boundaries. |
 | [Models](MODELS.md) | APIs, CLI/subscription wrappers, roles, reasoning, clocks, tokens, recovery and second reviewers. |
 | [Configuration reference](CONFIGURATION.md) | Generated environment catalogue, repository keys and defaults. |
 | [Policy](POLICY.md) | Organization policy, class floors, doubling and scoped exceptions. |

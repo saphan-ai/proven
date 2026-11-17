@@ -144,6 +144,7 @@ func TestMobileOutranksUserInterface(t *testing.T) {
 // doubled and says when no special model is configured; a backend change runs one reviewer.
 func TestSecurityIsDoubledAndBackendIsNot(t *testing.T) {
 	cfg := defaultSettings()
+	cfg.DefaultReviewer = "example-reviewer"
 	secDir := treeWith(t, "go.mod", "module example.com/sec\n")
 	sec := decideOn(t, cfg, Request{Target: secDir})
 	if sec.Class != "security" || !sec.Doubled {

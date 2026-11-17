@@ -239,9 +239,8 @@ func assertDiscountText(t *testing.T, body string) {
 	for _, want := range []string{
 		"review class: security",
 		"review rule: go.mod",
-		"author model not stated; default reviewer NVIDIA",
-		"reviewer NVIDIA; role default; family NVIDIA; author model not stated",
-		"special-review model: not configured",
+		"author model not stated",
+		"Recorded demo: replayed answers and outcomes",
 		"finding F1 ERROR Discount is applied twice",
 		"evidence test billing/discount_test.go TestDiscounted fails_on_change=true passes_on_base=true",
 		"finding F2 ERROR Dependency leftpad v1.2.3 is on the known-exploited list",

@@ -26,17 +26,14 @@ func TestNoTrailerSaysAuthorModelNotStated(t *testing.T) {
 	if !res.Doubled {
 		t.Fatal("security is not doubled")
 	}
-	if res.AuthorModelStatement != "author model not stated; default reviewer NVIDIA" {
+	if res.AuthorModelStatement != "author model not stated" {
 		t.Fatal(res.AuthorModelStatement)
 	}
-	if len(res.ReviewerModels) != 1 || res.ReviewerModels[0] != "NVIDIA" {
+	if len(res.ReviewerModels) != 0 || res.DefaultReviewer != "" || res.AnalysisMode != "recorded" {
 		t.Fatalf("models %#v", res.ReviewerModels)
 	}
 	joined := strings.Join(res.ReviewerStatements, "\n")
-	if !strings.Contains(joined, "reviewer NVIDIA; role default; family NVIDIA; author model not stated") {
-		t.Fatal(joined)
-	}
-	if !strings.Contains(joined, "special-review model: not configured") {
+	if joined != "" {
 		t.Fatal(joined)
 	}
 	if _, ok := find(res, "F1"); !ok {
@@ -47,7 +44,7 @@ func TestNoTrailerSaysAuthorModelNotStated(t *testing.T) {
 // TestDescriptionNamesTheAuthorModel proves that the pull-request description is read for author models
 // , and that each reviewer line says whether it shares each author's family.
 func TestDescriptionNamesTheAuthorModel(t *testing.T) {
-	rev := openWith(t, "author_description: on\n")
+	rev := openWith(t, "default_reviewer: nemotron-super\nauthor_description: on\n")
 	res, err := rev.Review(context.Background(), review.Request{
 		Target:      fixturePath(t),
 		Description: "Notes.\n\nAssisted-by: Claude:claude-3-opus\nAssisted-by: Nemotron:nemotron-super\n",
@@ -194,7 +191,7 @@ func TestCommitTrailerUsesTheConfiguredKey(t *testing.T) {
 // TestSpecialReviewerIsAddedForSecurityOnly proves that a configured special model joins a security
 // review, and that it does not join when the configured rules make the class backend.
 func TestSpecialReviewerIsAddedForSecurityOnly(t *testing.T) {
-	path := writeConfig(t, "special_reviewer: qwen-special\n")
+	path := writeConfig(t, "default_reviewer: example-reviewer\nspecial_reviewer: qwen-special\n")
 	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
 	if err != nil {
 		t.Fatal(err)
@@ -211,7 +208,7 @@ func TestSpecialReviewerIsAddedForSecurityOnly(t *testing.T) {
 		t.Fatal(joined)
 	}
 
-	path = writeConfig(t, "special_reviewer: qwen-special\npath_rules: **/*.md=docs\n")
+	path = writeConfig(t, "default_reviewer: example-reviewer\nspecial_reviewer: qwen-special\npath_rules: **/*.md=docs\n")
 	rev, err = review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
 	if err != nil {
 		t.Fatal(err)
@@ -336,7 +333,7 @@ func TestSymlinkedRecordGlobIsRefused(t *testing.T) {
 // TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused proves, through Open, that a new family name is
 // accepted and used, while a malformed families item and a path rule naming an unknown class are refused.
 func TestOpenFamilyNameIsAcceptedAndUnknownClassIsRefused(t *testing.T) {
-	path := writeConfig(t, "families: gemini-*=Google, NVIDIA=NVIDIA\nauthor_description: on\n")
+	path := writeConfig(t, "default_reviewer: NVIDIA\nfamilies: gemini-*=Google, NVIDIA=NVIDIA\nauthor_description: on\n")
 	rev, err := review.Open(review.Options{ConfigPath: path, Sample: true, LogDir: t.TempDir(), Env: os.Getenv})
 	if err != nil {
 		t.Fatal(err)

@@ -2,11 +2,10 @@
 // An unsafe verdict stops that step. A guardrail that does not answer refuses
 // the step by name. It never treats a missing verdict as safe.
 //
-// the guardrail is on by default. Every prompt an agent sends to a
-// model, and every answer it gets back, passes NVIDIA's Nemotron 3.5 Content
-// Safety first. Wrap puts the check around the generator the model-calling
-// agents use. One adapter has two backends, our own model server and NVIDIA's
-// hosted API; a setting turns the guardrail off, and the trace then says so.
+// Safety checks are opt-in. When enabled, Wrap checks every prompt before
+// the generator receives it and every answer before an agent uses it. The
+// adapter supports a configured self-hosted safety server or NVIDIA's hosted
+// API. Disabled checks remain explicit in the trace and report.
 // An empty key is not that setting: Absent refuses every check and does not
 // dial .
 package guardrail

@@ -120,6 +120,12 @@ func sarifFrom(result review.Result) sarifLog {
 	if result.Delivery != nil {
 		log.Runs[0].Properties["delivery"] = result.Delivery
 	}
+	if result.AnalysisMode != "" {
+		log.Runs[0].Properties["analysis_mode"] = result.AnalysisMode
+	}
+	if result.CodeComments != nil {
+		log.Runs[0].Properties["code_comments"] = result.CodeComments
+	}
 	if len(result.SourceChecks) > 0 {
 		log.Runs[0].Properties["source_checks"] = result.SourceChecks
 	}

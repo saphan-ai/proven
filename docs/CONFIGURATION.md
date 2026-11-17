@@ -160,6 +160,12 @@ Without model configuration, deterministic analysis runs alone. The openai adapt
 |---|---|---|
 | `PROVEN_PR_CONTEXT` | empty (local commit descriptions in model-free Git scans) | external JSON with PR title, description, commit messages and separate comments; checks description completeness without a model and assesses each source against code when a model is connected |
 
+## Code comment review
+
+| Environment variable | Default | What it changes |
+|---|---|---|
+| `PROVEN_CODE_COMMENTS` | deterministic | Go AST comment checks: off, deterministic, or model (also assesses language/code consistency; requires a connected model). Separate from proved code findings. |
+
 ## Source refresh and delta cache
 
 | Environment variable | Default | What it changes |
@@ -380,7 +386,7 @@ No environment variable sets these keys.
 | key | default | what it does | allowed values |
 |---|---|---|---|
 | `timeout` | `0s` | When greater than zero, bounds a review whose context has no deadline. Zero adds no deadline. The context's own deadline wins when it has one. | A Go duration of zero or greater, for example `30s`, `5m`, or `0s`. |
-| `default_reviewer` | `NVIDIA` | The reviewer used when a class is not doubled, and the first reviewer when it is. Also the name in "default reviewer" when the change names no model. | A non-empty model name. |
+| `default_reviewer` | none assumed | Optional reviewer label. A connected transport supplies its configured model identity; deterministic runs have no reviewer, and recorded demos do not assume a vendor. This setting does not establish a model connection. | An explicitly supplied non-empty model name. |
 | `special_reviewer` | empty | The second reviewer for a doubled class. Empty prints `special-review model: not configured`. | A model name, or empty. |
 | `families` | `claude-*=Anthropic`, `gpt-*=OpenAI`, `codex-*=OpenAI`, `nemotron-*=NVIDIA`, `qwen*=Alibaba`, `NVIDIA=NVIDIA` | Maps a model name to a family. A model that matches nothing is `family unknown`. The same family as the author prints `yes`; a different known family prints `no`. | Comma-separated `pattern=name`. Any non-empty name is a family. An empty or malformed entry is refused. A bad pattern is refused. |
 | `path_rules` | the list under Default path rules | Maps a path pattern to a review class. The first matching rule of the highest class wins. A pattern with no slash also matches the base name, so `go.mod` matches a nested module. | Comma-separated `pattern=class`. A class is one of `security`, `backend`, `mobile`, `user interface`, `docs`. Patterns use `*` and `**`. |

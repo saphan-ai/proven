@@ -51,6 +51,7 @@ func reviewWithTelemetry(t *testing.T, tel *telemetry.T, rd *redact.Redactor, de
 		t.Fatal(err)
 	}
 	cfg := defaultSettings()
+	cfg.DefaultReviewer = "NVIDIA" // This fixture explicitly records that model identity.
 	cfg.SpecialReviewer = "qwen-special"
 	r := &runner{p: p, cfg: cfg, explicit: true, tel: tel, sample: true}
 	res, err := r.Review(context.Background(), Request{Target: discountFixture(t)})

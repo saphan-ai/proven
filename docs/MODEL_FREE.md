@@ -39,6 +39,7 @@ Refresh sends dependency coordinates to public providers, not source code. No mo
 | Other registered data rules | Malicious-package, maintenance/signing, CVSS and licence observations. | Relevant rows; missing measurements stay explicit. |
 | Commit descriptions | A separate mechanical check for every commit message in the range. | A Git base and head. |
 | PR and comment descriptions | Separate checks for the PR description and each collected comment. | The GitHub Action's `check-delivery: true`, or an external context JSON. |
+| Go code comments | Missing public API docs, placeholders, naming conventions and stale parameter tags on changed declarations. | No model or Go toolchain; the AST adapter is in the image. See [comment checks](CODE_COMMENTS.md). |
 | Deterministic tools | For example, controlled Go race outcomes and configured govulncheck reachability. | Docker access, a prepared execution image and, for govulncheck, its offline database. |
 | Policies and reports | Existing policy/evidence rules; text, JSON, SARIF, Markdown, HTML and packs. | Configuration only where your policy needs it. |
 

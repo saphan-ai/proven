@@ -64,6 +64,11 @@ type textFormatter struct{}
 // "failed services: none" is printed rather than left out, so a reader can
 // tell a review that reached everything from one whose failures went unsaid.
 func (textFormatter) Write(w io.Writer, result review.Result) error {
+	if line := result.AnalysisStatement(); line != "" {
+		if _, err := fmt.Fprintln(w, visible(line)); err != nil {
+			return err
+		}
+	}
 	if _, err := fmt.Fprintf(w, "review class: %s\n", visible(result.Class)); err != nil {
 		return err
 	}
@@ -96,6 +101,10 @@ func (textFormatter) Write(w io.Writer, result review.Result) error {
 		}
 	}
 	// the opinion section is its own block, after the findings, so a
+	if err := textComments(w, result); err != nil {
+		return err
+	}
+
 	// line that starts with "finding " is never an opinion.
 	if err := writeOpinions(w, result); err != nil {
 		return err
@@ -237,6 +246,9 @@ func familySentence(path string) string {
 // claim only one model makes stays dropped. Each opinion prints both reviewers'
 // reasons as they wrote them. The lines are indented, so they are not findings.
 func writeOpinions(w io.Writer, result review.Result) error {
+	if result.AnalysisStatement() != "" && len(result.Opinions) == 0 {
+		return nil
+	}
 	if _, err := fmt.Fprintln(w, "Agreed by two models, not proven"); err != nil {
 		return err
 	}

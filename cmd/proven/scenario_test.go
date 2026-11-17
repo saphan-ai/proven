@@ -163,11 +163,11 @@ func TestOSVRustCargoReportsTheDependency(t *testing.T) {
 	}
 }
 
-func TestUnknownAuthorSaysTheDefaultReviewer(t *testing.T) {
+func TestUnknownAuthorDoesNotInventAReviewer(t *testing.T) {
 	body, _ := scanScenario(t, "unknown-author")
 	for _, want := range []string{
-		"author model not stated; default reviewer NVIDIA",
-		"reviewer NVIDIA; role default; family NVIDIA; author model not stated",
+		"author model not stated",
+		"Recorded demo: replayed answers and outcomes",
 		"failed services: none",
 	} {
 		if !strings.Contains(body, want) {

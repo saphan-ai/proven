@@ -98,6 +98,7 @@ func Catalog() []envdoc.Section {
 			Rows:    generator.SecondEnvironment(),
 		},
 		{Heading: "PR delivery assessment", Rows: review.DeliveryEnvironment()},
+		{Heading: "Code comment review", Rows: review.CommentsEnvironment()},
 		{Heading: "Source refresh and delta cache", Rows: feeds.Environment()},
 		{
 			Heading: "Optional model safety service",

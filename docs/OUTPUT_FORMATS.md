@@ -18,6 +18,7 @@ One object. Common fields are listed below; conditional fields are described aft
 
 | field | meaning |
 |---|---|
+| `analysis_mode` | optional execution mode: `recorded` (fixture replay), `deterministic` (no model), or `model` (configured model analysis); omitted in older results |
 | `class` | the review class the path rules chose |
 | `class_rule` | the path pattern that chose the class, or `fallback` |
 | `doubled` | the class is one of the doubled classes |
@@ -74,12 +75,12 @@ Every output states what the configured guardrail did, in the same words (review
 Guardrail: [<maker> ]<model> (<where>), checked <P> prompts and <A> answers, <B> blocked
 ```
 
-`<maker>` is `NVIDIA` when the configuration says the model is NVIDIA's: NVIDIA's hosted API, or one of the NVIDIA content-safety models Proven ships as its defaults, on NVIDIA's API or the operator's own server. It is left out for any other model; a maker is never guessed from a model id. `<where>` is `NVIDIA hosted API`, `self-hosted` for the operator's model server, or the backend's own name. A count of one takes the singular (`1 prompt`, `1 answer`). When a check could not be made (the guardrail did not answer), the line ends `, <U> not checked`; such a check is in neither `<P>` nor `<A>`. Two other lines stand in its place: `Guardrail: off for this review` when the guardrail was switched off, and `Guardrail: no model call to check` when it was on and no model call was made (a sample run). `<B>` counts the checks whose verdict was unsafe, each of which stopped its call.
+`<maker>` is `NVIDIA` when the configuration says the model is NVIDIA's: NVIDIA's hosted API, or one of the NVIDIA content-safety models Proven ships as its defaults, on NVIDIA's API or the operator's own server. It is left out for any other model; a maker is never guessed from a model id. `<where>` is `NVIDIA hosted API`, `self-hosted` for the operator's model server, or the backend's own name. A count of one takes the singular (`1 prompt`, `1 answer`). When a check could not be made (the guardrail did not answer), the line ends `, <U> not checked`; such a check is in neither `<P>` nor `<A>`. Two other lines stand in its place: `Guardrail: off for this review` when the guardrail was switched off, and `Guardrail: no model call to check` when it was on and no model call was made (an enabled service with no model calls). `<B>` counts the checks whose verdict was unsafe, each of which stopped its call.
 
 - text: the line is in the footer, before the trace path.
 - Markdown: the line ends the foot, after the reviewing models (`<sub>reviewed by … · Guardrail: …</sub>`).
 - HTML: the line ends the foot, after the reviewing models (`<footer>reviewed by … · Guardrail: …</footer>`).
-- JSON: the `guardrail` object has `state` (`checked`, `off` or `no_call`), `line` (the words above), `prompts`, `answers`, `blocked`, `unanswered`, `backend`, `model` and `maker`.
+- JSON: the `guardrail` object has `state` (`checked`, `off`, `no_call` or `replayed`), `line` (the words above), `prompts`, `answers`, `blocked`, `unanswered`, `backend`, `model` and `maker`.
 - SARIF: the run's `properties` carries the same `guardrail` object.
 
 Properties: `TestGuardrailLineIsTheSameInTextAndMarkdown`, `TestEveryFormatSaysWhenTheGuardrailWasOff`, `TestGuardrailLineSaysWhenThereWasNoModelCall`, `TestDraftCountsTheGuardrailChecksItMade`, `TestDraftWithTheGuardrailOffCountsNothing`, `TestHTMLFootCarriesTheGuardrailLine` (the HTML foot). `TestGuardrailLineIsTheSameInTextAndMarkdown`, `TestEveryFormatSaysWhenTheGuardrailWasOff` and `TestEveryFormatNamesNVIDIAForTheDefaultSelfHostedGuardrail` also run over `html`.
@@ -149,3 +150,7 @@ These optional fields are additive. Existing finding/proof counts keep their mea
 SARIF carries these values in run properties, rather than emitting missing descriptions or source measurements as vulnerability results. JSON, HTML and evidence packs retain the full collected assessments. Markdown shows bounded per-source previews and explicitly announces omitted sources/claims; the full report is the reference. Source refresh and observations appear separately from code findings in text, Markdown and HTML.
 
 Missing/placeholder/short descriptions request better context, rather than claiming a code defect. A failed or truncated collection/assessment, failed refresh or failed data-rule check makes completion incomplete. A contradictory semantic claim is a model assessment unless it cites an existing proved counterexample. See [declared scope](PR_DELIVERY.md) and [source refresh](SOURCE_REFRESH.md) for status semantics and limits.
+
+Recorded demos now label execution as a replay, leave an unconfigured reviewer identity empty and use guardrail state `replayed`. Guardrail counts in that mode describe replayed checks, not service requests. Consumers should accept the additive `analysis_mode` field and `replayed` state; older recordings without this field retain their original interpretation. Deterministic runs have empty reviewer identities/model lists and do not inherit a vendor label from `proven.yaml`.
+
+`code_comments`, when present, retains changed comment/declaration units, deterministic issues, separate semantic assessments, unsupported paths and completeness. SARIF carries it in run properties, outside vulnerability results. See [code comments](CODE_COMMENTS.md).

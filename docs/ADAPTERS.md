@@ -523,3 +523,9 @@ is not found (`examples/testrun/testrun_test.go`).
 ```text
 go test -count=1 ./examples/testrun
 ```
+
+## Adding a comment-language adapter
+
+Implement `codecomments.Adapter` (`Name`, `Matches`, `Extract`) and register it in `codecomments.Adapters()`. Go AST is the shipped implementation. Return declaration/comment associations, stable IDs, exported markers, exact source excerpts and parsed input-parameter names where supported. The shared code compares base/head, applies structural checks and optionally asks the configured model for a separately labelled assessment. No target code is executed.
+
+Add fixtures for missing/deleted comments, unchanged legacy code, malformed syntax, placeholder prose and stale parameter names. Mark unsupported constructs explicitly. Extend the README language and extension tables in the same change. See [complete comment adapter contract](CODE_COMMENTS.md#add-another-language).

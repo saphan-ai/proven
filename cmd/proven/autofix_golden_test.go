@@ -12,7 +12,8 @@ import (
 // fixes, one with a dependency finding) is byte for byte the text the base commit printed. The golden files
 // were captured by running `proven scan --sample` on those fixtures at the base commit, before any line of
 // the attempt was written, with the trace line cut because it names the machine's directory. The one
-// later line is the guardrail line (docs/OUTPUT_FORMATS.md), added to every output on 2026-10-27.
+// later metadata is the guardrail line and explicit recorded-demo identity. These labels
+// evolve with reporting; the evidence and disabled-autofix behavior remain fixed.
 func TestWithAutofixOffTheSampleOutputIsTheOutputBeforeTheAttemptExisted(t *testing.T) {
 	// repoRoot reads the working directory, which scanWith changes, so it is read once, first, and each
 	// scenario is a subtest, whose working directory is restored when it ends.

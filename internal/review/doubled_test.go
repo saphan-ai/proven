@@ -151,6 +151,9 @@ func TestDoubledWithoutSpecialModelRunsOnce(t *testing.T) {
 // environment lookup fails the test, because a sample review must read no environment.
 func reviewScripted(t *testing.T, cfg fileSettings, def, spec *scriptGen) Result {
 	t.Helper()
+	if cfg.DefaultReviewer == "" {
+		cfg.DefaultReviewer = "NVIDIA" // Explicit identity of this test's recorded reviewer.
+	}
 	p, err := pipeline.Build(pipeline.Options{
 		Sample:    true,
 		LogDir:    t.TempDir(),

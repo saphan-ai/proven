@@ -8,9 +8,10 @@
 // the stale-page guard compares the two.
 import fs from 'node:fs';
 import path from 'node:path';
+import { renderLLMS } from './llms.mjs';
 import {
-  repoRoot, contentDir, publicDir, generatedDir, sourceUrl, routeOf,
-  repoPages, generatedPages, lines,
+  repoRoot, siteDir, contentDir, publicDir, generatedDir, sourceUrl, routeOf,
+  repoPages, generatedPages, lines, walk,
 } from './lib.mjs';
 
 const freshDir = process.env.GENERATED_FRESH_DIR ? path.resolve(process.env.GENERATED_FRESH_DIR) : generatedDir;
@@ -128,4 +129,16 @@ meta('reference/adapters', { title: 'Adapter interfaces', pages: ['index', '...'
 if (fs.existsSync(path.join(contentDir, 'security'))) meta('security', { title: 'Security', pages: ['...'] });
 if (fs.existsSync(path.join(contentDir, 'examples'))) meta('examples', { title: 'Examples', pages: ['index', '...'] });
 
-console.log(`build-content: ${pages.length} pages from the repository, ${generatedPages.length + 1} generated, ${copied.size} images`);
+const deployment = JSON.parse(fs.readFileSync(path.join(siteDir, 'wrangler.jsonc'), 'utf8').replace(/^\s*\/\/.*$/gm, ''));
+const llmsPages = walk(contentDir, (file) => file.endsWith('.md')).map((file) => {
+  const raw = fs.readFileSync(file, 'utf8');
+  const frontmatter = /^---\ntitle: (.*)\n---\n/.exec(raw);
+  if (!frontmatter) throw new Error(`llms: missing title in ${file}`);
+  const slug = path.relative(contentDir, file).split(path.sep).join('/').replace(/\.md$/, '');
+  return { title: JSON.parse(frontmatter[1]), url: routeOf(slug), body: raw.slice(frontmatter[0].length) };
+});
+const llms = renderLLMS(llmsPages, `https://${deployment.vars.DOCS_HOST}`);
+fs.writeFileSync(path.join(publicDir, 'llms.txt'), llms.index);
+fs.writeFileSync(path.join(publicDir, 'llms-full.txt'), llms.full);
+
+console.log(`build-content: ${pages.length} pages from the repository, ${generatedPages.length + 1} generated, ${copied.size} images; ${llmsPages.length} pages in llms.txt and llms-full.txt`);

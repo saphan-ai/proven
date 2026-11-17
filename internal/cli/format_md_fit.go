@@ -200,6 +200,9 @@ func mdShares(result review.Result, tabled int, blocks [][]string, m int) (chose
 func mdBody(result review.Result, tabled int, details []string) string {
 	var b strings.Builder
 	b.WriteString(mdVerdict(result))
+	if line := result.AnalysisStatement(); line != "" {
+		b.WriteString("\n\n**" + mdText(line) + "**")
+	}
 	b.WriteString("\n\n")
 	if len(result.Findings) == 0 {
 		b.WriteString(mdChecked(result))
@@ -217,6 +220,7 @@ func mdBody(result review.Result, tabled int, details []string) string {
 	}
 	mdDelivery(&b, result)
 	mdRefresh(&b, result)
+	mdComments(&b, result)
 	mdNotes(&b, result)
 	b.WriteString(mdFoot(result))
 	b.WriteString("\n")

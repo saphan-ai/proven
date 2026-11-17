@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/saphan-ai/proven/internal/agent/judge"
 	"github.com/saphan-ai/proven/internal/candidate"
+	"github.com/saphan-ai/proven/internal/codecomments"
 	"github.com/saphan-ai/proven/internal/delivery"
 	"github.com/saphan-ai/proven/internal/source"
 )
@@ -21,6 +22,8 @@ const (
 
 // Result is what a review produced.
 type Result struct {
+	CodeComments  *codecomments.Result `json:",omitempty"`
+	AnalysisMode  string               `json:",omitempty"` // recorded, deterministic or model; empty for older results
 	SourceRefresh []source.Refresh     `json:",omitempty"`
 	SourceChecks  []source.Observation `json:",omitempty"`
 	Delivery      *delivery.Result     `json:",omitempty"`

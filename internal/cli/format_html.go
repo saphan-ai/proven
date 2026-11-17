@@ -45,6 +45,9 @@ func htmlPage(result review.Result) string {
 	b.WriteString(htmlCSS)
 	b.WriteString("</style>\n</head>\n<body>\n<main>\n")
 	b.WriteString("<h1>Proven review</h1>\n")
+	if line := result.AnalysisStatement(); line != "" {
+		b.WriteString("<p><strong>" + htmlText(line) + "</strong></p>\n")
+	}
 	htmlVerdict(&b, result)
 	if len(result.Findings) == 0 {
 		b.WriteString("<p>" + checkedIn(htmlStyle, result) + "</p>\n")
@@ -56,7 +59,8 @@ func htmlPage(result review.Result) string {
 	}
 	htmlDelivery(&b, result)
 	htmlRefresh(&b, result)
-	if result.Delivery == nil || len(result.Opinions) > 0 {
+	htmlComments(&b, result)
+	if (result.AnalysisStatement() == "" && result.Delivery == nil) || len(result.Opinions) > 0 {
 		htmlOpinions(&b, result.Opinions)
 	}
 	htmlNotes(&b, result)
@@ -76,7 +80,7 @@ func htmlVerdict(b *strings.Builder, result review.Result) {
 		class = "not-reviewed"
 	}
 	head, tail := verdictLine(result)
-	if class == "clean" && strings.Contains(head, "needs attention") {
+	if class == "clean" && (strings.Contains(head, "needs attention") || strings.Contains(head, "need attention")) {
 		class = "not-reviewed"
 	}
 	// htmlText folds the leading space of the tail away, so the space between the

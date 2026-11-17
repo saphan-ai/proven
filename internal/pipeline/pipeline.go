@@ -35,6 +35,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	commentsAgent "github.com/saphan-ai/proven/internal/agent/codecomments"
+	"github.com/saphan-ai/proven/internal/codecomments"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -74,12 +76,13 @@ import (
 // Options select the adapters. TestRun, when set, replaces the sample or live test-run adapter.
 // Generator, when set, is the live generator. Sample mode does not use it and does not read Env.
 type Options struct {
-	ModelsOff bool
-	Sample    bool
-	LogDir    string
-	Env       func(string) string
-	TestRun   testrun.Adapter
-	Generator generator.Generator
+	CodeComments string // off, deterministic (default), or model
+	ModelsOff    bool
+	Sample       bool
+	LogDir       string
+	Env          func(string) string
+	TestRun      testrun.Adapter
+	Generator    generator.Generator
 	// Special, when set, is the generator pointed at the special-review model.
 	// A doubled review uses it for the second planner and the second skeptic.
 	Special generator.Generator
@@ -147,6 +150,7 @@ type Options struct {
 
 // Pipeline is one reviewer. Build makes it; Review runs it once.
 type Pipeline struct {
+	codeComments string
 	modelsOff    bool
 	sample       bool
 	testRun      testrun.Adapter
@@ -235,8 +239,9 @@ func Build(opts Options) (*Pipeline, error) {
 	// the trace, the state and the work area must stay outside it, so Review
 	// opens them (see begin) after it has compared them with the target.
 	p := &Pipeline{
-		modelsOff: opts.ModelsOff,
-		sample:    opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, runtimeNote: opts.RuntimeNote,
+		codeComments: opts.CodeComments,
+		modelsOff:    opts.ModelsOff,
+		sample:       opts.Sample, testRun: opts.TestRun, proverIdle: opts.ProverIdle, runtimeNote: opts.RuntimeNote,
 		gen: opts.Generator, special: opts.Special, liveStore: opts.LiveStore, rail: opts.Guardrail, guardOff: opts.GuardOff,
 		skepticModel: opts.SkepticModel, osvTable: opts.OSVTable, epssView: opts.EPSSView, osvIDView: opts.OSVIDView, env: opts.Env, maxWritten: opts.MaxWrittenBytes,
 		govulnDB: opts.GovulnDB, toolTimeout: opts.ToolTimeout,
@@ -395,6 +400,9 @@ func (p *Pipeline) Review(ctx context.Context, req Request) (d candidate.Draft, 
 	d.Findings = p.redactFindings(d.Findings)
 	d.Autofix = redactAutofix(p.redactor, d.Autofix)
 	d.Delivery = d.Delivery.Redacted(p.redactor.Text)
+	if d.CodeComments != nil {
+		d.CodeComments = d.CodeComments.Redacted(p.redactor.Text)
+	}
 	for i := range d.SourceChecks {
 		d.SourceChecks[i] = d.SourceChecks[i].Redacted(p.redactor.Text)
 	}
@@ -705,6 +713,37 @@ func (p *Pipeline) review(ctx context.Context, req Request) (draft candidate.Dra
 	gen, err = p.guard(recording{inner: raw, models: &st.models, trace: p.trace, redactor: p.redactor, tel: p.tel}, rail)
 	if err != nil {
 		return candidate.Draft{}, err
+	}
+	if !p.sample && p.codeComments != "off" {
+		defer func() {
+			if reviewErr != nil {
+				return
+			}
+			files, err := rd.Read(fx.Root)
+			var selected []change.File
+			for _, f := range files {
+				if _, ok := allow[f.Path]; ok {
+					selected = append(selected, f)
+				}
+			}
+			result := codecomments.Check(selected)
+			if err != nil {
+				result.Complete = false
+				result.Issue = "Comment source snapshot could not be read."
+			}
+			if p.codeComments == "model" && !p.modelsOff {
+				result = commentsAgent.Assess(ctx, gen, result)
+			}
+			if !result.Complete {
+				st.note(&service.Down{Service: "comments", Reason: result.Issue})
+			}
+			draft.CodeComments = result.Redacted(p.redactor.Text)
+			draft.Failed, draft.Models = st.failed, st.models
+			encoded, _ := json.Marshal(draft.CodeComments)
+			if err := p.trace.Append(trace.Event{Kind: "comment-check", Text: string(encoded)}); err != nil {
+				reviewErr = err
+			}
+		}()
 	}
 	if req.Delivery != nil {
 		// Run before snapshot cleanup. This optional assessment cannot replace

@@ -55,6 +55,15 @@ func verdictLine(result review.Result) (head, tail string) {
 		if result.Delivery != nil && result.Delivery.Mode == "deterministic" {
 			return "Proven: deterministic checks complete", " — 0 proved code findings" + mdCountsTail(result)
 		}
+		if c := result.CodeComments; c != nil {
+			attention := len(c.Issues) > 0
+			for _, a := range c.Assessments {
+				attention = attention || a.Status == "needs_attention"
+			}
+			if attention {
+				return "Proven: code comments need attention", " — 0 proved code findings" + mdCountsTail(result)
+			}
+		}
 		return "Proven: clean", " — 0 findings" + mdCountsTail(result)
 	}
 	var errs, warns, infos int
@@ -108,6 +117,17 @@ var mdStyle = inlineStyle{text: mdText, code: mdCode}
 // findings an exception accepts, and unproven opinions. Zero counts are left out.
 func mdCountsTail(result review.Result) string {
 	var parts []string
+	if c := result.CodeComments; c != nil {
+		n := len(c.Issues)
+		for _, a := range c.Assessments {
+			if a.Status == "needs_attention" {
+				n++
+			}
+		}
+		if n > 0 {
+			parts = append(parts, fmt.Sprintf("%d comment issues (not code proofs)", n))
+		}
+	}
 	observations := 0
 	for _, check := range result.SourceChecks {
 		if check.Matched {
@@ -185,7 +205,14 @@ func checkedIn(st inlineStyle, result review.Result) string {
 			n, pluralWord(n, "path was", "paths were"), pluralWord(n, "it is a", "they are")))
 	}
 	if len(result.FailedServices) == 0 {
-		parts = append(parts, "every service answered")
+		switch result.AnalysisMode {
+		case "recorded":
+			parts = append(parts, "recorded outcomes only")
+		case "deterministic":
+			parts = append(parts, "no model was used")
+		default:
+			parts = append(parts, "every service answered")
+		}
 	} else {
 		names := make([]string, 0, len(result.FailedServices))
 		for _, failed := range result.FailedServices {
@@ -708,6 +735,12 @@ func mdFoot(result review.Result) string { return "<sub>" + footIn(mdStyle, resu
 
 // footIn is the foot's words in a writer's own style, without the <sub> mark.
 func footIn(st inlineStyle, result review.Result) string {
+	if result.AnalysisMode == "recorded" {
+		return "Recorded demo; no live model calls · " + st.text(result.GuardrailLine())
+	}
+	if result.AnalysisMode == "deterministic" {
+		return "Deterministic analysis; no model calls · " + st.text(result.GuardrailLine())
+	}
 	models := result.ReviewerModels
 	if len(models) == 0 {
 		for _, r := range result.Reviewers {
