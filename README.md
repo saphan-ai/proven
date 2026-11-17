@@ -149,15 +149,14 @@ Use an OpenAI-compatible API, or an authenticated CLI account you already have. 
 
 These are examples from our own work, **not a ranking, minimum specification or comparative benchmark**. Names reflect the models/environments we use; they are not universal API identifiers or a guarantee of access through your account.
 
-| Model / environment | Context |
+| Model | Context |
 | --- | --- |
-| Sonnet | Internal development and review workflows. |
-| Opus 5.5 | Internal security review and development of large changes. |
-| Sol 5.6 | Internal security review and development of large changes. |
-| Terra | Our internal coding/review environment. |
-| Grok 4.7 | Internal work. |
-| Nemotron | Internal work and Proven's API-based self-review workflow. |
-| GLM 5.3 | Used in the original hackathon project. |
+| Anthropic Claude Sonnet 5.5 | Internal development and review workflows. |
+| Anthropic Claude Opus 5.5 | Internal security review and development of large changes. |
+| OpenAI GPT-6 Sol | Internal security review and development of large changes. |
+| xAI Grok 4.7 | Internal work. |
+| [NVIDIA Nemotron 3.5 Super VL 120B-A12B](https://build.nvidia.com/nvidia/nemotron-3.5-super-vl-120b-a12b/modelcard) | Internal development and review. |
+| [Z.ai GLM-5.3](https://z.ai/company) | Used in the original hackathon project. |
 
 Model capability, context and configured limits can affect which risks and tests are proposed. Executable evidence still decides proved findings. We plan broader comparative testing before publishing project-to-model recommendations. [Model configuration](docs/MODELS.md) explains tokens, timeouts, reasoning, recovery and reported model identity.
 
